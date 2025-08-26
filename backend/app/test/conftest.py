@@ -1,0 +1,204 @@
+# app/test/conftest.py
+import os
+import pytest
+from fastapi.testclient import TestClient
+
+from sqlalchemy import create_engine, JSON, text, event
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+from sqlalchemy import Table, Column, String, DateTime
+# --------- IMPORTS DE TU APP (seguros antes de app.main) ----------
+from app.db.base import Base
+from app.core.security import hash_password
+from app.core.sessions import SessionMiddlewareServerSide
+
+# Modelos usados por factories
+from app.models.empresa.usuarioempresa import UsuarioEmpresa
+try:
+    from app.models.empresa.empresa import Empresa
+except Exception:
+    Empresa = None  # si no existe, lo tratamos más abajo
+
+# JSONB opcional
+try:
+    from sqlalchemy.dialects.postgresql import JSONB
+except Exception:
+    JSONB = type("JSONB", (), {})
+# ------------------------------------------------------------------
+
+
+# ---------------- ENGINE/SESSION DE PRUEBAS (SQLite en memoria) ----------------
+TEST_DATABASE_URL = "sqlite://"
+
+# Evita que cualquier módulo coja una URL hacia Postgres
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+
+engine = create_engine(
+    TEST_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,  # comparte la misma conexión en todos los hilos (TestClient)
+)
+
+# Foreign keys ON en SQLite
+@event.listens_for(engine, "connect")
+def _set_sqlite_pragma(dbapi_conn, _):
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# ------------------------------------------------------------------------------
+def _ensure_auth_refresh_family(metadata):
+    if "auth_refresh_family" not in metadata.tables:
+        Table(
+            "auth_refresh_family",
+            metadata,
+            Column("id", String, primary_key=True),
+            Column("user_id", String, nullable=False),
+            Column("tenant_id", String, nullable=False),
+            Column("created_at", DateTime(timezone=True), nullable=False),
+            Column("revoked_at", DateTime(timezone=True)),
+        )
+
+def _demote_jsonb_and_fix_defaults(metadata):
+    """
+    Reemplaza JSONB por JSON y quita server_default con ::json (solo tests/SQLite).
+    """
+    for table in metadata.tables.values():
+        for column in table.c:
+            # 1) Quitar server_default con ::json (Postgres-only)
+            sd = getattr(column, "server_default", None)
+            if sd is not None:
+                clause = getattr(sd, "arg", None)
+                txt = getattr(clause, "text", None)
+                if isinstance(txt, str) and "::json" in txt:
+                    column.server_default = text("'[]'")
+
+            # 2) Degradar JSONB -> JSON
+            t = column.type
+            if hasattr(t, "impl") and isinstance(t.impl, JSONB):
+                t.impl = JSON()
+            elif isinstance(t, JSONB):
+                column.type = JSON()
+
+@pytest.fixture(scope="session", autouse=True)
+def _create_schema():
+    _demote_jsonb_and_fix_defaults(Base.metadata)
+    _ensure_auth_refresh_family(Base.metadata)  # <-- AÑADE ESTA LÍNEA
+    Base.metadata.create_all(bind=engine)
+    yield
+    Base.metadata.drop_all(bind=engine)
+
+
+# ---------- Forzar TODA la app a usar la sesión/engine de tests ----------
+import app.db.session as session_mod
+session_mod.engine = engine                          # ⚠️ parchea el engine global
+session_mod.SessionLocal = TestingSessionLocal       # ⚠️ parchea la SessionLocal
+
+def _override_get_db():
+    session = TestingSessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
+session_mod.get_db = _override_get_db                # ⚠️ parchea el provider get_db
+# -------------------------------------------------------------------------
+
+
+# --- IMPORTA LA APP SOLO DESPUÉS DE PARCHEAR session_mod ---
+from app.main import app
+
+# Si algún endpoint capturó Depends(get_db) en import-time:
+app.dependency_overrides[session_mod.get_db] = _override_get_db
+
+
+@pytest.fixture
+def db():
+    """Sesión de DB por test."""
+    session = TestingSessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+@pytest.fixture
+def client():
+    """Cliente HTTP para llamar a tus endpoints."""
+    # Añadir la middleware de sesión una sola vez
+    if not getattr(app.state, "has_test_session_mw", False):
+        app.add_middleware(
+            SessionMiddlewareServerSide,
+            cookie_name="sessionid",
+            secret_key="tests3cret",
+            https_only=False,
+        )
+        app.state.has_test_session_mw = True
+
+    with TestClient(app) as c:
+        yield c
+
+
+# ---------------- FACTORIES ----------------
+@pytest.fixture
+def superuser_factory(db):
+    """Crea un superusuario (admin)."""
+    def _make(*, email: str, username: str, password: str):
+        empresa_id = None
+        if Empresa is not None:
+            try:
+                e = Empresa(nombre="Dummy SA")
+                db.add(e)
+                db.flush()
+                empresa_id = getattr(e, "id", None)
+            except Exception:
+                pass
+
+        user = UsuarioEmpresa(
+            email=email,
+            username=username,
+            password_hash=hash_password(password),
+            activo=True,
+            es_admin_empresa=True,
+            nombre_encargado="Admin",
+            apellido_encargado="Root",
+            **({"empresa_id": empresa_id} if empresa_id is not None else {}),
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+    return _make
+
+
+@pytest.fixture
+def usuario_empresa_factory(db):
+    """Crea un usuario tenant de empresa."""
+    def _make(*, email: str, username: str, password: str):
+        empresa_id = None
+        if Empresa is not None:
+            try:
+                e = Empresa(nombre="Dummy SA")
+                db.add(e)
+                db.flush()
+                empresa_id = getattr(e, "id", None)
+            except Exception:
+                pass
+
+        user = UsuarioEmpresa(
+            email=email,
+            username=username,
+            password_hash=hash_password(password),
+            activo=True,
+            es_admin_empresa=False,
+            nombre_encargado="Nombre",
+            apellido_encargado="Apellido",
+            **({"empresa_id": empresa_id} if empresa_id is not None else {}),
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+    return _make
+# -----------------------------------------------------------

@@ -1,0 +1,59 @@
+# --- SO / editores ---
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+
+# --- caches / logs / reports ---
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+coverage/
+htmlcov/
+*.log
+
+# --- secretos / envs (mantén los .example) ---
+.env
+.env.*
+!.env.example
+backend/.env
+apps/*/.env
+apps/*/.env.*
+!apps/*/.env.example
+*.pem
+*.key
+*.secret
+
+# --- Python (backend) ---
+backend/.venv/
+backend/__pycache__/
+backend/**/*.py[cod]
+backend/*.egg-info/
+backend/.cache/
+backend/build/
+backend/dist/
+backend/site/
+backend/.coverage*
+
+# --- Node (frontends) ---
+node_modules/
+apps/*/node_modules/
+apps/*/dist/
+apps/*/.eslintcache
+apps/*/*.map
+apps/*/coverage/
+
+# --- datos locales / dumps ---
+postgres-data/
+db-data/
+*.sql
+*.dump
+*.tar
+*.zip
+src.zip
+
+# --- otros ---
+.eslintcache
+.pnpm-store/

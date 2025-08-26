@@ -1,0 +1,17 @@
+.git
+.gitignore
+.vscode
+.idea
+
+node_modules
+dist
+.env
+.env.*
+coverage
+.eslintcache
+*.log
+*.map
+src.zip
+apps/*/.env
+apps/*/.env.*
+!apps/*/.env.example
