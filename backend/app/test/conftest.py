@@ -1,5 +1,11 @@
 # app/test/conftest.py
 import os
+# --- Set required envs BEFORE importing any app modules ---
+os.environ.setdefault("DATABASE_URL", "sqlite://")
+os.environ.setdefault("FRONTEND_URL", "http://localhost:8081")
+os.environ.setdefault("TENANT_NAMESPACE_UUID", "0280249e-6707-40fb-8d60-1e8f3aea0f8e")
+os.environ.setdefault("JWT_ALGORITHM", "HS256")
+os.environ.setdefault("JWT_SECRET_KEY", "devsecretdevsecretdevsecret")
 import pytest
 from fastapi.testclient import TestClient
 
@@ -30,7 +36,7 @@ except Exception:
 # ---------------- ENGINE/SESSION DE PRUEBAS (SQLite en memoria) ----------------
 TEST_DATABASE_URL = "sqlite://"
 
-# Evita que cualquier módulo coja una URL hacia Postgres
+# Evita que cualquier módulo coja una URL hacia Postgres para el resto del módulo
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
 engine = create_engine(
@@ -59,6 +65,20 @@ def _ensure_auth_refresh_family(metadata):
             Column("created_at", DateTime(timezone=True), nullable=False),
             Column("revoked_at", DateTime(timezone=True)),
         )
+    if "auth_refresh_token" not in metadata.tables:
+        Table(
+            "auth_refresh_token",
+            metadata,
+            Column("id", String, primary_key=True),
+            Column("family_id", String, nullable=False),
+            Column("jti", String, nullable=False, unique=True),
+            Column("prev_jti", String),
+            Column("used_at", DateTime(timezone=True)),
+            Column("revoked_at", DateTime(timezone=True)),
+            Column("ua_hash", String),
+            Column("ip_hash", String),
+            Column("created_at", DateTime(timezone=True), nullable=False),
+        )
 
 def _demote_jsonb_and_fix_defaults(metadata):
     """
@@ -85,13 +105,24 @@ def _demote_jsonb_and_fix_defaults(metadata):
 def _create_schema():
     _demote_jsonb_and_fix_defaults(Base.metadata)
     _ensure_auth_refresh_family(Base.metadata)  # <-- AÑADE ESTA LÍNEA
+    # Asegura tablas clave de identidad (admins y usuarios de empresa)
+    try:
+        from app.models.auth.useradmis import SuperUser
+        SuperUser.__table__.create(bind=engine, checkfirst=True)
+    except Exception:
+        pass
+    try:
+        from app.models.empresa.usuarioempresa import UsuarioEmpresa
+        UsuarioEmpresa.__table__.create(bind=engine, checkfirst=True)
+    except Exception:
+        pass
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
 
 
 # ---------- Forzar TODA la app a usar la sesión/engine de tests ----------
-import app.db.session as session_mod
+import app.config.database as session_mod
 session_mod.engine = engine                          # ⚠️ parchea el engine global
 session_mod.SessionLocal = TestingSessionLocal       # ⚠️ parchea la SessionLocal
 
