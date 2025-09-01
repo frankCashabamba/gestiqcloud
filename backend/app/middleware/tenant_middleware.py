@@ -7,7 +7,8 @@ Auto-generated module docstring."""
 from fastapi import Request
 from starlette.responses import JSONResponse
 
-from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
+from jwt import ExpiredSignatureError, InvalidTokenError
+from app.modules.identity.infrastructure.jwt_service import JwtService
 
 
 class TenantMiddleware:
@@ -32,19 +33,15 @@ class TenantMiddleware:
 
         if token:
             try:
-                # Centralizado en PyJWTTokenService (valida issuer/audience/tipo)
-                payload = PyJWTTokenService().decode_and_validate(token, expected_type="access")
+                payload = JwtService().decode(token, expected_kind="access")
                 scope.setdefault("state", {})
                 scope["state"]["user"] = payload
-            except Exception as e:
-                # Unificar manejo de errores como 401
-                detail = getattr(e, "detail", None) or "Token inválido"
-                headers = getattr(e, "headers", None) or {}
-                # Propaga cabecera de expiración si viene del validador
-                if isinstance(headers, dict) and "WWW-Authenticate" in headers and "expired" in headers.get("WWW-Authenticate", ""):
-                    # Marcar para FE que expiró
-                    headers = {**headers, "X-Token-Expired": "true"}
-                response = JSONResponse({"detail": detail}, status_code=401, headers=headers)
+            except ExpiredSignatureError:
+                response = JSONResponse({"detail": "Token expirado"}, status_code=401, headers={"X-Token-Expired": "true"})
+                await response(scope, receive, send)
+                return
+            except InvalidTokenError:
+                response = JSONResponse({"detail": "Token inválido"}, status_code=401)
                 await response(scope, receive, send)
                 return
 
