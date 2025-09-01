@@ -19,3 +19,7 @@ API → http://localhost:8000/docs
 
 > Los front llaman a `/api/...` (Nginx proxy), por lo que no necesitas CORS desde UI.
 > Si accedes a la API desde otros orígenes, configura `CORS_ORIGINS` en `backend/.env`.
+
+## Healthchecks
+- `GET /health`: estado básico del backend.
+- `GET /health/redis`: si `REDIS_URL` está configurado, realiza `PING` y devuelve `{ enabled, ok }` (503 si falla). Si no está configurado, responde `{ enabled: false, ok: true }`.
