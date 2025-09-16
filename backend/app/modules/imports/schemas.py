@@ -1,6 +1,6 @@
+from typing import Optional, Literal, List
+from pydantic import BaseModel, ConfigDict
 
-from pydantic import BaseModel
-from typing import Optional, Literal,List
 
 class DatosImportadosBase(BaseModel):
     tipo: str  # ✅ acepta cualquier string
@@ -9,19 +9,21 @@ class DatosImportadosBase(BaseModel):
     estado: Optional[str] = "pendiente"
     hash: Optional[str] = None
 
+
 class DatosImportadosCreate(DatosImportadosBase):
     pass
 
+
 class DatosImportadosUpdate(DatosImportadosBase):
     pass
+
 
 class DatosImportadosOut(DatosImportadosBase):
     id: int
     empresa_id: int
 
-    class Config:
-        orm_mode = True
-
+    # Pydantic v2: reemplaza orm_mode=True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DocumentoProcesado(BaseModel):
@@ -38,8 +40,9 @@ class DocumentoProcesado(BaseModel):
         "factura", "recibo", "transferencia", "nómina", "presupuesto", "contrato", "desconocido"
     ]
 
-    class Config:
-        orm_mode = True
+    # Pydantic v2: reemplaza orm_mode=True
+    model_config = ConfigDict(from_attributes=True)
+
 
 class DocumentoProcesadoResponse(BaseModel):
     archivo: str

@@ -1,18 +1,30 @@
 # app/test/conftest.py
 import os
+
 # --- Set required envs BEFORE importing any app modules ---
 os.environ.setdefault("DATABASE_URL", "sqlite://")
 os.environ.setdefault("FRONTEND_URL", "http://localhost:8081")
 os.environ.setdefault("TENANT_NAMESPACE_UUID", "0280249e-6707-40fb-8d60-1e8f3aea0f8e")
 os.environ.setdefault("JWT_ALGORITHM", "HS256")
 os.environ.setdefault("JWT_SECRET_KEY", "devsecretdevsecretdevsecret")
+
 import pytest
 from fastapi.testclient import TestClient
 
-from sqlalchemy import create_engine, JSON, text, event
+from sqlalchemy import (
+    create_engine,
+    JSON,
+    text,
+    event,
+    Table,
+    Column,
+    String,
+    DateTime,
+    or_,
+)
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from sqlalchemy import Table, Column, String, DateTime
+
 # --------- IMPORTS DE TU APP (seguros antes de app.main) ----------
 from app.db.base import Base
 from app.core.security import hash_password
@@ -21,16 +33,17 @@ from app.core.sessions import SessionMiddlewareServerSide
 # Modelos usados por factories
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
 from app.models.auth.useradmis import SuperUser
+
 try:
     from app.models.empresa.empresa import Empresa
 except Exception:
     Empresa = None  # si no existe, lo tratamos más abajo
 
-# JSONB opcional
+# JSONB opcional (para degradar a JSON en SQLite)
 try:
     from sqlalchemy.dialects.postgresql import JSONB
 except Exception:
-    JSONB = type("JSONB", (), {})
+    JSONB = type("JSONB", (), {})  # marcador inofensivo
 # ------------------------------------------------------------------
 
 
@@ -55,6 +68,8 @@ def _set_sqlite_pragma(dbapi_conn, _):
 
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # ------------------------------------------------------------------------------
+
+
 def _ensure_auth_refresh_family(metadata):
     if "auth_refresh_family" not in metadata.tables:
         Table(
@@ -81,10 +96,9 @@ def _ensure_auth_refresh_family(metadata):
             Column("created_at", DateTime(timezone=True), nullable=False),
         )
 
+
 def _demote_jsonb_and_fix_defaults(metadata):
-    """
-    Reemplaza JSONB por JSON y quita server_default con ::json (solo tests/SQLite).
-    """
+    """Reemplaza JSONB por JSON y quita server_default con ::json (solo tests/SQLite)."""
     for table in metadata.tables.values():
         for column in table.c:
             # 1) Quitar server_default con ::json (Postgres-only)
@@ -97,23 +111,22 @@ def _demote_jsonb_and_fix_defaults(metadata):
 
             # 2) Degradar JSONB -> JSON
             t = column.type
-            if hasattr(t, "impl") and isinstance(t.impl, JSONB):
+            if hasattr(t, "impl") and isinstance(getattr(t, "impl", None), JSONB):
                 t.impl = JSON()
             elif isinstance(t, JSONB):
                 column.type = JSON()
 
+
 @pytest.fixture(scope="session", autouse=True)
 def _create_schema():
     _demote_jsonb_and_fix_defaults(Base.metadata)
-    _ensure_auth_refresh_family(Base.metadata)  # <-- AÑADE ESTA LÍNEA
+    _ensure_auth_refresh_family(Base.metadata)
     # Asegura tablas clave de identidad (admins y usuarios de empresa)
     try:
-        from app.models.auth.useradmis import SuperUser
         SuperUser.__table__.create(bind=engine, checkfirst=True)
     except Exception:
         pass
     try:
-        from app.models.empresa.usuarioempresa import UsuarioEmpresa
         UsuarioEmpresa.__table__.create(bind=engine, checkfirst=True)
     except Exception:
         pass
@@ -124,8 +137,9 @@ def _create_schema():
 
 # ---------- Forzar TODA la app a usar la sesión/engine de tests ----------
 import app.config.database as session_mod
-session_mod.engine = engine                          # ⚠️ parchea el engine global
-session_mod.SessionLocal = TestingSessionLocal       # ⚠️ parchea la SessionLocal
+session_mod.engine = engine                    # parchea el engine global
+session_mod.SessionLocal = TestingSessionLocal # parchea la SessionLocal
+
 
 def _override_get_db():
     session = TestingSessionLocal()
@@ -134,7 +148,8 @@ def _override_get_db():
     finally:
         session.close()
 
-session_mod.get_db = _override_get_db                # ⚠️ parchea el provider get_db
+
+session_mod.get_db = _override_get_db          # parchea el provider get_db
 # -------------------------------------------------------------------------
 
 
@@ -175,16 +190,15 @@ def client():
 # ---------------- FACTORIES ----------------
 @pytest.fixture
 def superuser_factory(db):
-    """Crea un superusuario (admin) en tabla auth_user."""
+    """Crea o actualiza un superusuario (admin)."""
     def _make(*, email: str, username: str, password: str):
-        # Idempotente por email/username para evitar conflictos en tests
         existing = (
             db.query(SuperUser)
-            .filter((SuperUser.email == email) | (SuperUser.username == username))
+            .filter(or_(SuperUser.email == email, SuperUser.username == username))
             .first()
         )
         if existing:
-            # opcional: actualizar hash si cambia
+            # actualizar hash si cambia y asegurar flags
             existing.password_hash = hash_password(password)
             existing.is_active = True
             existing.is_superadmin = True

@@ -1,3 +1,6 @@
+from fastapi.testclient import TestClient
+
+
 def test_admin_login_ok(client, db, superuser_factory):
     su = superuser_factory(email="root@x.com", username="root", password="secret")
     r = client.post(
@@ -19,11 +22,11 @@ def test_tenant_login_and_refresh(client, db, usuario_empresa_factory):
 
     # Usa las cookies que mantiene el cliente entre peticiones
     rt = r.cookies.get("refresh_token")
+    assert rt
 
-    r2 = client.post(
-        "/api/v1/tenant/auth/refresh",
-        cookies={"refresh_token": rt},
-    )
+    # Evita cookies= por petición → usa el cookie jar del cliente
+    client.cookies.set("refresh_token", rt)
+    r2 = client.post("/api/v1/tenant/auth/refresh")
     assert r2.status_code == 200
     assert r2.cookies.get("refresh_token") != rt  # rotación
 
@@ -35,15 +38,13 @@ def test_logout_revokes_family(client, db, usuario_empresa_factory):
         json={"identificador": "b", "password": "s3cr3t"},
     )
     rt = r.cookies.get("refresh_token")
+    assert rt
 
-    client.post(
-        "/api/v1/tenant/auth/logout",
-        cookies={"refresh_token": rt},
-    )
+    # Logout con cookie en el jar (no por petición)
+    client.cookies.set("refresh_token", rt)
+    client.post("/api/v1/tenant/auth/logout")
 
-    # intentar refrescar debería fallar
-    r2 = client.post(
-        "/api/v1/tenant/auth/refresh",
-        cookies={"refresh_token": rt},
-    )
+    # Reinyecta el RT antiguo y prueba refresh (debe fallar)
+    client.cookies.set("refresh_token", rt)
+    r2 = client.post("/api/v1/tenant/auth/refresh")
     assert r2.status_code == 401
