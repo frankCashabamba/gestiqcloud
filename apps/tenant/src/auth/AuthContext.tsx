@@ -3,7 +3,7 @@ import { apiFetch } from '../lib/http'
 
 type LoginBody = { identificador: string; password: string }
 type LoginResponse = { access_token: string; token_type: 'bearer'; scope?: string }
-type MeTenant = { user_id: string; tenant_id: string; empresa_slug?: string; roles?: string[] }
+type MeTenant = { user_id: string; username?: string; tenant_id: string; empresa_slug?: string; roles?: string[] }
 
 type AuthContextType = {
   token: string | null
@@ -12,6 +12,7 @@ type AuthContextType = {
   brand: string
   login: (body: LoginBody) => Promise<void>
   logout: () => Promise<void>
+  refresh: () => Promise<boolean>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -41,14 +42,19 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }, [])
 
   async function refreshOnce(): Promise<string | null> {
-    const res = await fetch(`/api/api/v1/tenant/auth/refresh`.replace('/api/api','/api'), { method: 'POST', credentials: 'include' })
-    if (!res.ok) return null
-    const data = await res.json()
-    return data?.access_token ?? null
+    try {
+      const data = await apiFetch<{ access_token?: string }>(
+        '/v1/tenant/auth/refresh',
+        { method: 'POST' } as any
+      )
+      return data?.access_token ?? null
+    } catch {
+      return null
+    }
   }
 
   async function loadMe(tok: string) {
-    const me = await apiFetch<MeTenant>('/api/v1/me/tenant', { headers: { Authorization: `Bearer ${tok}` }, retryOn401: false })
+    const me = await apiFetch<MeTenant>('/v1/me/tenant', { headers: { Authorization: `Bearer ${tok}` }, retryOn401: false })
     setProfile(me)
   }
 
@@ -66,11 +72,21 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }
 
   const logout = async () => {
-    try { await apiFetch('/api/v1/tenant/auth/logout', { method: 'POST', retryOn401: false }) } catch {}
+    try { await apiFetch('/v1/tenant/auth/logout', { method: 'POST', retryOn401: false }) } catch {}
     clear()
   }
 
-  const value = useMemo(() => ({ token, loading, profile, login, logout, brand: 'Empresa' }), [token, loading, profile])
+  const refresh = async () => {
+    const t = await refreshOnce()
+    if (t) {
+      setToken(t)
+      sessionStorage.setItem('access_token_tenant', t)
+      return true
+    }
+    return false
+  }
+
+  const value = useMemo(() => ({ token, loading, profile, login, logout, brand: 'Empresa', refresh }), [token, loading, profile])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

@@ -30,9 +30,9 @@ export const AdminCard: React.FC<AdminCardProps> = ({
         display: 'block',
         padding: 16,
         borderRadius: 16,
-        background: '#fff',
-        border: '1px solid #e5e7eb',
-        boxShadow: '0 2px 8px rgba(0,0,0,.04)',
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+        boxShadow: 'var(--shadow-sm)',
         color: 'inherit',
         textDecoration: 'none',
         textAlign: 'center',
@@ -44,7 +44,7 @@ export const AdminCard: React.FC<AdminCardProps> = ({
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = ''
-        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,.04)'
+        e.currentTarget.style.boxShadow = 'var(--shadow-sm)'
       }}
     >
       <div
@@ -55,7 +55,7 @@ export const AdminCard: React.FC<AdminCardProps> = ({
           overflow: 'hidden',
           display: 'grid',
           placeItems: 'center',
-          background: '#f3f4f6',
+          background: 'var(--color-bg)',
           margin: '0 auto 12px',
         }}
       >
@@ -71,7 +71,7 @@ export const AdminCard: React.FC<AdminCardProps> = ({
       </div>
 
       <h3 style={{ fontWeight: 700, fontSize: 16, margin: '4px 0' }}>{title}</h3>
-      <p style={{ fontSize: 13, color: '#64748b' }}>{description}</p>
+      <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>{description}</p>
     </Link>
   )
 }

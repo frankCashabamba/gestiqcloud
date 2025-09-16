@@ -1,11 +1,16 @@
 # app/api/v1/me.py
 from typing import Mapping, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.orm import Session
+from app.config.database import get_db
+from app.models.empresa.usuarioempresa import UsuarioEmpresa
+from app.models.empresa.empresa import Empresa
 from app.core.deps import require_tenant
 from app.core.refresh import decode_and_validate
 from app.config.settings import settings
+from app.db.rls import ensure_rls
 
-router = APIRouter(prefix="/me", tags=["Me"])
+router = APIRouter(prefix="/me", tags=["Me"], dependencies=[Depends(ensure_rls)])
 
 # --- Endpoint original para usuarios de empresa (resuelve tenant en servidor) ---
 @router.get("/")
@@ -29,7 +34,7 @@ def _get_bearer(request: Request) -> Optional[str]:
 
 # --- Compatibilidad FE: lee Access Token y devuelve tenant/user/scope ---
 @router.get("/tenant")
-def me_tenant(request: Request):
+def me_tenant(request: Request, db: Session = Depends(get_db)):
     """
     Devuelve tenant y user_id leyendo el Access Token (Bearer).
     - Para 'admin': usa ADMIN_SYSTEM_TENANT_ID.
@@ -63,9 +68,27 @@ def me_tenant(request: Request):
         # 2) usa GET /api/v1/me (require_tenant) en el FE.
         raise HTTPException(status_code=404, detail="tenant_not_found")
 
+    # Optionally enrich with username and empresa_slug for better UX
+    username = None
+    empresa_slug = None
+    try:
+        uid = int(user_id) if user_id and user_id.isdigit() else None
+    except Exception:
+        uid = None
+    if uid is not None:
+        u = db.query(UsuarioEmpresa).filter(UsuarioEmpresa.id == uid).first()
+        if u is not None:
+            username = getattr(u, "username", None)
+            try:
+                empresa_slug = getattr(getattr(u, "empresa", None), "slug", None)
+            except Exception:
+                empresa_slug = None
+
     return {
         "tenant_id": str(tenant_id),
         "user_id": user_id,
+        "username": username,
+        "empresa_slug": empresa_slug,
         "scope": "tenant",
     }
 

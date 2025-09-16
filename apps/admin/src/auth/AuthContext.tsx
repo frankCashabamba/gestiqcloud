@@ -53,10 +53,28 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
   }
 
-  // Al montar: intenta recuperar sesión y carga /me
+  // Al montar: recoge token por fragment (handoff) si viene del tenant y luego intenta recuperar sesión
   useEffect(() => {
     (async () => {
       try {
+        // Handoff: si llega #access_token=... desde el tenant, úsalo
+        try {
+          const hash = (typeof window !== 'undefined' ? window.location.hash : '') || ''
+          if (hash.startsWith('#')) {
+            const p = new URLSearchParams(hash.slice(1))
+            const tHash = p.get('access_token') || p.get('access_token_admin')
+            if (tHash && !sessionStorage.getItem('access_token_admin')) {
+              sessionStorage.setItem('access_token_admin', tHash)
+              setToken(tHash)
+              // limpia el fragment sin recargar
+              if (typeof window !== 'undefined' && window.history?.replaceState) {
+                const url = window.location.pathname + window.location.search
+                window.history.replaceState({}, document.title, url)
+              }
+            }
+          }
+        } catch {}
+
         const t = tokenRef.current ?? (await refreshOnce())
         if (t) {
           sessionStorage.setItem('access_token_admin', t)

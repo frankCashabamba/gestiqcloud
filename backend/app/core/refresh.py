@@ -181,6 +181,27 @@ def token_get_family(jti: str) -> Optional[str]:
     return str(row["family_id"]) if row else None
 
 
+def token_fingerprint_matches_request(jti: str, user_agent: str, ip: str) -> bool:
+    """Compara fingerprint (UA/IP) almacenado para un jti con el de la request."""
+    want_ua = _hash(user_agent or "")
+    want_ip = _hash(ip or "")
+    with _with_session() as db:
+        row = db.execute(
+            text(
+                """
+                SELECT ua_hash, ip_hash
+                  FROM auth_refresh_token
+                 WHERE jti = :jti
+                 LIMIT 1
+                """
+            ),
+            {"jti": jti},
+        ).mappings().first()
+    if row is None:
+        return False
+    return (row.get("ua_hash") == want_ua) and (row.get("ip_hash") == want_ip)
+
+
 # ---------------------------
 # JWT helpers 
 # ---------------------------

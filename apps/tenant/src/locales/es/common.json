@@ -1,0 +1,13 @@
+{
+  "loading": {
+    "module": "Cargando módulo…"
+  },
+  "table": {
+    "movimientos": "Movimientos contables"
+  },
+  "actions": {
+    "+create": "+ Crear",
+    "save": "Guardar",
+    "cancel": "Cancelar"
+  }
+}

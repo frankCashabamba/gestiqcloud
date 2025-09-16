@@ -5,7 +5,8 @@ from typing import Optional, Sequence, Mapping
 from app.modules.empresa.application.ports import EmpresaRepo, EmpresaDTO
 from app.models.empresa.empresa import Empresa as EmpresaORM
 from app.modules.shared.infrastructure.sqlalchemy_repo import SqlAlchemyRepo
-
+import logging
+logger = logging.getLogger(__name__)
 
 class SqlEmpresaRepo(SqlAlchemyRepo, EmpresaRepo):
 
@@ -17,7 +18,11 @@ class SqlEmpresaRepo(SqlAlchemyRepo, EmpresaRepo):
         )
 
     def list_all(self) -> Sequence[EmpresaDTO]:
-        rows = self.db.query(EmpresaORM).order_by(EmpresaORM.id.desc()).limit(200).all()
+        logger.debug("DB URL: %s", str(self.db.get_bind().url))
+        rows = (self.db.query(EmpresaORM)
+                .order_by(EmpresaORM.id.desc())
+                .limit(200).all())
+        logger.debug("Empresas encontradas: %d", len(rows))
         return [self._to_dto(e) for e in rows]
 
     def list_by_tenant(self, *, tenant_id: int) -> Sequence[EmpresaDTO]:

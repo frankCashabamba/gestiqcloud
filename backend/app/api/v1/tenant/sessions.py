@@ -3,9 +3,15 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.authz import require_scope
+from app.core.access_guard import with_access_claims
+from app.db.rls import ensure_rls
 from app.models.auth.refresh_family import RefreshFamily  # ajusta a tu modelo real
 
-router = APIRouter(prefix="/me", tags=["Me"])
+router = APIRouter(
+    prefix="/me",
+    tags=["Me"],
+    dependencies=[Depends(with_access_claims), Depends(ensure_rls)],
+)
 
 @router.get("/sessions", dependencies=[Depends(require_scope("tenant"))])
 def list_sessions(request: Request, db: Session = Depends(get_db)):

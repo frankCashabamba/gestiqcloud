@@ -1,4 +1,4 @@
-from typing import Mapping, Optional
+ 
 
 from fastapi import APIRouter, Depends, HTTPException, Response, Request
 from pydantic import BaseModel
@@ -9,25 +9,16 @@ from app.core.perm_loader import build_tenant_claims
 from app.core.i18n import t
 from app.core.audit import audit as audit_log
 from app.config.database import get_db
-from app.core.security import verify_password
-from app.core.csrf import issue_csrf_token
 from app.core.deps import set_tenant_scope
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
 from app.config.settings import settings
 
-from app.core.refresh import (
-    family_create,
-    token_issue,
-    create_access,
-    create_refresh,
-    token_mark_used,
-    token_is_reused_or_revoked,
-    family_revoke,
-    token_get_family,
-    decode_and_validate,
-)
 
-from app.core.login_rate_limit import check as rl_check, incr_fail as rl_fail, reset as rl_reset
+from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
+from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
+from app.modules.identity.infrastructure.rate_limit import SimpleRateLimiter
+from app.modules.identity.infrastructure.refresh_repo import SqlRefreshTokenRepo
+from app.api.email.email_utils import verificar_token_email
 
 from app.core.auth_http import (
     set_refresh_cookie,
@@ -35,12 +26,18 @@ from app.core.auth_http import (
     best_effort_family_revoke,
     refresh_cookie_path_tenant,  # <- IMPORT NECESARIO
 )
+from app.core.auth_shared import ensure_session, issue_csrf_and_cookie, rotate_refresh
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 class LoginTenant(BaseModel):
     identificador: str
+    password: str
+
+
+class SetPasswordIn(BaseModel):
+    token: str
     password: str
 
 
@@ -54,7 +51,7 @@ def tenant_login(
     ident = data.identificador.strip().lower()
 
     # 0) Rate limiting
-    rl = rl_check(request, ident)
+    rl = limiter.check(request, ident)
     if not rl.allowed:
         raise HTTPException(
             status_code=429,
@@ -79,13 +76,13 @@ def tenant_login(
 
     # 2) Validaciones básicas
     if not user or not user.empresa_id or not user.empresa:
-        rl_fail(request, ident)
+        limiter.incr_fail(request, ident)
         audit_log(db, kind="login_failed", scope="tenant", user_id=None, tenant_id=None, req=request)
         raise HTTPException(status_code=401, detail=t(request, "invalid_credentials"))
 
-    ok, new_hash = verify_password(data.password, user.password_hash)
+    ok, new_hash = hasher.verify(data.password, user.password_hash)
     if not ok:
-        rl_fail(request, ident)
+        limiter.incr_fail(request, ident)
         audit_log(db, kind="login_failed", scope="tenant", user_id=str(user.id), tenant_id=None, req=request)
         raise HTTPException(status_code=401, detail=t(request, "invalid_credentials"))
 
@@ -96,51 +93,48 @@ def tenant_login(
         db.commit()
 
     # OK → resetea contador
-    rl_reset(request, ident)
+    limiter.reset(request, ident)
 
     tenant_id = str(user.empresa.id)
+    # UUID para familia de refresh (si el modelo lo tiene); si no, NULL en la tabla
+    try:
+        tenant_uuid_for_family = str(getattr(user, "tenant_id")) if getattr(user, "tenant_id", None) else None
+    except Exception:
+        tenant_uuid_for_family = None
 
     # 3) Sesión + scope
-    if not hasattr(request, "state") or not hasattr(request.state, "session"):
-        request.state.session = {}
-    request.state.session.update(
-        {"kind": "tenant", "tenant_user_id": str(user.id), "tenant_id": tenant_id}
-    )
+    s = ensure_session(request)
+    s.update({"kind": "tenant", "tenant_user_id": str(user.id), "tenant_id": tenant_id})
     request.state.session_dirty = True
     set_tenant_scope(request, tenant_id)
 
     # 4) CSRF (cookie legible por JS)
-    csrf = issue_csrf_token(request)
-    response.set_cookie(
-        "csrf_token",
-        csrf,
-        httponly=False,
-        samesite="lax",
-        secure=not settings.debug,
-    )
+    issue_csrf_and_cookie(request, response, path="/")
 
     # Claims (permisos, tenant, etc.)
     claims = build_tenant_claims(db, user)
     if not claims:
-        rl_fail(request, ident)
+        limiter.incr_fail(request, ident)
         audit_log(db, kind="login_failed", scope="tenant", user_id=str(user.id), tenant_id=None, req=request)
         raise HTTPException(status_code=401, detail=t(request, "invalid_credentials"))
 
     # 5) Refresh family + primer token
-    family_id = family_create(user_id=str(user.id), tenant_id=tenant_id)
-    jti = token_issue(
-        family_id,
+    repo = SqlRefreshTokenRepo(db)
+    family_id = repo.create_family(user_id=str(user.id), tenant_id=tenant_uuid_for_family)
+    jti = repo.issue_token(
+        family_id=family_id,
         prev_jti=None,
         user_agent=request.headers.get("user-agent", ""),
         ip=request.client.host if request.client else "",
     )
 
     # 6) JWTs (devuelven strings)
-    access = create_access(claims)
-    refresh = create_refresh(
+    access = token_service.issue_access(claims)
+    refresh = token_service.issue_refresh(
         {
             "sub": claims["sub"],
             "user_id": claims["user_id"],
+            "tenant_id": claims.get("tenant_id"),
             "kind": "tenant",
             "family_id": family_id,
         },
@@ -173,54 +167,16 @@ def tenant_login(
 
 
 @router.post("/refresh")
-def tenant_refresh(request: Request, response: Response):
-    token = request.cookies.get("refresh_token")
-    if not token:
-        raise HTTPException(status_code=401, detail=t(request, "invalid_refresh_token"))
-
-    try:
-        payload: Mapping[str, object] = decode_and_validate(token, expected_type="refresh")
-    except Exception:
-        raise HTTPException(status_code=401, detail=t(request, "invalid_refresh_token"))
-
-    # jti debe ser str
-    jti_obj = payload.get("jti")
-    if not isinstance(jti_obj, str) or not jti_obj:
-        raise HTTPException(status_code=401, detail=t(request, "invalid_refresh_token"))
-    jti: str = jti_obj
-
-    # family_id desde DB o del payload
-    family_from_db: Optional[str] = token_get_family(jti)
-    fam_payload_obj = payload.get("family_id")
-    fam_payload: Optional[str] = fam_payload_obj if isinstance(fam_payload_obj, str) else None
-    family_id: Optional[str] = family_from_db or fam_payload
-    if family_id is None:
-        raise HTTPException(status_code=401, detail=t(request, "invalid_refresh_token"))
-
-    # Reuse / revoked / used
-    if token_is_reused_or_revoked(jti):
-        family_revoke(family_id)
-        raise HTTPException(status_code=401, detail=t(request, "compromised_refresh_token"))
-
-    # Rotación
-    token_mark_used(jti)
-    new_jti = token_issue(
-        family_id=family_id,
-        prev_jti=jti,
-        user_agent=request.headers.get("user-agent", ""),
-        ip=request.client.host if request.client else "",
+def tenant_refresh(request: Request, response: Response, db: Session = Depends(get_db)):
+    repo = SqlRefreshTokenRepo(db)
+    return rotate_refresh(
+        request,
+        response,
+        token_service=token_service,
+        repo=repo,
+        expected_kind="tenant",
+        cookie_path=refresh_cookie_path_tenant(),
     )
-
-    minimal = {"sub": payload.get("sub"), "user_id": payload.get("user_id")}
-    access = create_access({**minimal, "kind": "tenant"})
-    new_refresh = create_refresh(
-        {**minimal, "kind": "tenant", "family_id": family_id},
-        jti=new_jti,
-        prev_jti=jti,
-    )
-
-    set_refresh_cookie(response, new_refresh, path=refresh_cookie_path_tenant())
-    return {"access_token": access, "token_type": "bearer"}
 
 
 @router.post("/logout")
@@ -236,4 +192,41 @@ def tenant_logout(request: Request, response: Response):
         request.state.session.clear()
         request.state.session_dirty = True
 
+    return {"ok": True}
+token_service = PyJWTTokenService()
+hasher = PasslibPasswordHasher()
+limiter = SimpleRateLimiter()
+
+
+@router.post("/set-password")
+def tenant_set_password(payload: SetPasswordIn, db: Session = Depends(get_db)):
+    """Establece nueva contraseña a partir de un token de email válido.
+
+    - El token incluye el email del usuario.
+    - Requiere password >= 8 chars (validación básica en FE; reforzamos aquí).
+    """
+    tok = (payload.token or "").strip()
+    new_pwd = (payload.password or "").strip()
+    if not tok or not new_pwd:
+        raise HTTPException(status_code=400, detail="invalid_request")
+    if len(new_pwd) < 8:
+        raise HTTPException(status_code=400, detail="weak_password")
+    try:
+        email = verificar_token_email(tok, max_age=60 * 60 * 24)  # 24h
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid_or_expired_token")
+
+    user = db.query(UsuarioEmpresa).filter(func.lower(UsuarioEmpresa.email) == str(email).lower()).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="user_not_found")
+
+    user.password_hash = hasher.hash(new_pwd)
+    # marca como verificado si ese campo existe en el modelo
+    try:
+        if hasattr(user, "is_verified"):
+            setattr(user, "is_verified", True)
+    except Exception:
+        pass
+    db.add(user)
+    db.commit()
     return {"ok": True}

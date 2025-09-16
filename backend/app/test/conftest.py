@@ -20,6 +20,7 @@ from app.core.sessions import SessionMiddlewareServerSide
 
 # Modelos usados por factories
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
+from app.models.auth.useradmis import SuperUser
 try:
     from app.models.empresa.empresa import Empresa
 except Exception:
@@ -174,32 +175,34 @@ def client():
 # ---------------- FACTORIES ----------------
 @pytest.fixture
 def superuser_factory(db):
-    """Crea un superusuario (admin)."""
+    """Crea un superusuario (admin) en tabla auth_user."""
     def _make(*, email: str, username: str, password: str):
-        empresa_id = None
-        if Empresa is not None:
-            try:
-                e = Empresa(nombre="Dummy SA")
-                db.add(e)
-                db.flush()
-                empresa_id = getattr(e, "id", None)
-            except Exception:
-                pass
-
-        user = UsuarioEmpresa(
+        # Idempotente por email/username para evitar conflictos en tests
+        existing = (
+            db.query(SuperUser)
+            .filter((SuperUser.email == email) | (SuperUser.username == username))
+            .first()
+        )
+        if existing:
+            # opcional: actualizar hash si cambia
+            existing.password_hash = hash_password(password)
+            existing.is_active = True
+            existing.is_superadmin = True
+            db.add(existing)
+            db.commit()
+            db.refresh(existing)
+            return existing
+        admin = SuperUser(
             email=email,
             username=username,
             password_hash=hash_password(password),
-            activo=True,
-            es_admin_empresa=True,
-            nombre_encargado="Admin",
-            apellido_encargado="Root",
-            **({"empresa_id": empresa_id} if empresa_id is not None else {}),
+            is_active=True,
+            is_superadmin=True,
         )
-        db.add(user)
+        db.add(admin)
         db.commit()
-        db.refresh(user)
-        return user
+        db.refresh(admin)
+        return admin
     return _make
 
 

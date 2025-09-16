@@ -8,7 +8,6 @@ Base = declarative_base()
 def make_db_url() -> str:
     # Ya es str y viene normalizada desde Settings.database_url
     url = settings.database_url
-    print(url)
     if settings.ENV == "production" and "sslmode" not in url:
         sep = "&" if "?" in url else "?"
         url = f"{url}{sep}sslmode=require"

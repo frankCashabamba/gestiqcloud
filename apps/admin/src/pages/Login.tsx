@@ -10,12 +10,16 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
+  const TENANT_ORIGIN =
+    (import.meta as any).env?.VITE_TENANT_ORIGIN || window.location.origin.replace('8081', '8082')
+
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setSubmitting(true)
     try {
-      await login({ identificador, password }) // → /api/v1/admin/auth/login
+      await login({ identificador, password }) // → /v1/admin/auth/login
       navigate('/admin', { replace: true });
     } catch (err: any) {
       setError(err?.message || 'Credenciales inválidas')
@@ -39,6 +43,9 @@ export default function Login() {
         {error && <div className='error' style={{marginBottom:'.75rem'}}>{error}</div>}
         <button className='btn' type='submit' disabled={submitting}>{submitting ? 'Entrando…' : 'Entrar'}</button>
       </form>
+      <p style={{marginTop:'.5rem', fontSize:'.85rem', color:'#64748b'}}>
+        ¿Eres usuario de empresa? <a href={TENANT_ORIGIN + '/login'}>Inicia sesión aquí</a>
+      </p>
     </div>
   )
 }

@@ -1,0 +1,13 @@
+{
+  "loading": {
+    "module": "Loading module…"
+  },
+  "table": {
+    "movimientos": "Accounting movements"
+  },
+  "actions": {
+    "+create": "+ Create",
+    "save": "Save",
+    "cancel": "Cancel"
+  }
+}

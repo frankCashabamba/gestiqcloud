@@ -9,18 +9,24 @@ export const useEmpresas = () => {
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    setLoading(true);
-    getEmpresas()
-      .then((data) => {
-        setEmpresas(data);
+    let alive = true;
+    (async () => {
+      try {
+        const data = await getEmpresas();
+        if (!alive) return;
+        setEmpresas(Array.isArray(data) ? data : []);
         setError(null);
-      })
-      .catch((err) => {
-        setError(err);
-        console.error("❌ Error al cargar empresas:", err);
-      })
-      .finally(() => setLoading(false));
+      } catch (e: any) {
+        if (!alive) return;
+        console.error("getEmpresas error:", e);
+        setError(e?.message || "Error al cargar empresas");
+        setEmpresas([]); // sólo para estado consistente
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
   }, []);
 
   return { empresas, loading, error };
-};
+}

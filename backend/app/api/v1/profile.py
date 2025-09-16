@@ -2,8 +2,13 @@
 from fastapi import APIRouter, Depends, Request
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
+from app.db.rls import ensure_rls
 
-router = APIRouter(prefix="/me", tags=["Me"], dependencies=[Depends(with_access_claims)])
+router = APIRouter(
+    prefix="/me",
+    tags=["Me"],
+    dependencies=[Depends(with_access_claims), Depends(ensure_rls)],
+)
 
 @router.get("/tenant", dependencies=[Depends(require_scope("tenant"))])
 def me_tenant(request: Request):

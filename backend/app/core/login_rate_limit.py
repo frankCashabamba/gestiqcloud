@@ -12,7 +12,7 @@ except Exception:  # pragma: no cover - redis optional
 
 # ---------- Config (override via settings) ----------
 WINDOW_SECONDS = getattr(settings, "LOGIN_WINDOW_SECONDS", 900)           # 15 min
-MAX_ATTEMPTS = getattr(settings, "LOGIN_MAX_ATTEMPTS", 999)               # 10 fallos
+MAX_ATTEMPTS = int(getattr(settings, "LOGIN_MAX_ATTEMPTS", 10))           # 10 fallos (por defecto)
 COOLDOWN_SECONDS = getattr(settings, "LOGIN_COOLDOWN_SECONDS", 900)      # 15 min cool-down
 BACKOFF_BASE = getattr(settings, "LOGIN_BACKOFF_BASE", 2)                 # 2^n
 BACKOFF_STEP = getattr(settings, "LOGIN_BACKOFF_STEP", 2)                 # cada 2 fallos

@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Request, Response, HTTPException, Depends
 from sqlalchemy.orm import Session
 from app.config.database import get_db
-from app.core.refresh import decode_and_validate
+from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
 from app.api.v1.tenant.auth import refresh as tenant_refresh
 from app.api.v1.admin.auth import refresh as admin_refresh
 
@@ -19,7 +19,7 @@ def access_renew(request: Request, response: Response, db: Session = Depends(get
     if not rt:
         raise HTTPException(status_code=401, detail="Missing refresh token")
     try:
-        payload = decode_and_validate(rt, expected_type="refresh")
+        payload = PyJWTTokenService().decode_and_validate(rt, expected_type="refresh")
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
     _deprecate(response)

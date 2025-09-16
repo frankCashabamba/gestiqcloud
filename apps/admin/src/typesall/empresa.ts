@@ -26,7 +26,7 @@ export interface FormularioEmpresa {
   apellido_encargado: string;
   email: string;
   username: string;
-  password: string;
+  password?: string;
   modulos: number[];
 }
 

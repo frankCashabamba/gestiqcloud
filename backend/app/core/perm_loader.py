@@ -9,10 +9,12 @@ from app.models.empresa.usuario_rolempresa import UsuarioRolempresa
 from app.models.core.modulo import Modulo, ModuloAsignado
 
 def build_tenant_claims(db: Session, user: UsuarioEmpresa) -> Dict[str, Any]:
-    # Empresa
-    empresa = db.query(Empresa).filter(Empresa.id == user.empresa_id).first()
+    # Empresa: prioriza relación ya cargada para evitar problemas de visibilidad/expiración
+    empresa = getattr(user, "empresa", None)
+    if empresa is None and user.empresa_id:
+        empresa = db.query(Empresa).filter(Empresa.id == user.empresa_id).first()
     if not empresa:
-        # deja que el login falle fuera con 404 company_not_found
+        # Deja que el login falle fuera con invalid_credentials
         return {}
 
     # Rol activo

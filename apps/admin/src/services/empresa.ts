@@ -1,25 +1,20 @@
 // src/services/empresa.ts
 
-import type { Empresa } from "../typesall/empresa";
-import { apiGet, apiPost, apiPut, apiDelete,apiPostForm } from "../lib/api";
-import type { CrearEmpresaResponse } from "../typesall/empresa";
+import api from '../shared/api/client'
+import { ADMIN_EMPRESAS } from '@shared/endpoints'
+import { createEmpresaService } from '@shared/domain/empresa'
 
-const BASE = "/lista/empresas";
+const svc = createEmpresaService(api, { base: ADMIN_EMPRESAS.base })
 
-// GET: listar todas las empresas
-export const getEmpresas = () => apiGet<Empresa[]>(BASE);
+// Re-export solo los usados actualmente (alta completa usa createFull)
+export const { getEmpresas, updateEmpresa, deleteEmpresa } = svc as any
 
-// POST: crear empresa
-export const createEmpresa = (data: Partial<Empresa>) =>
-  apiPost<Empresa>(BASE, data);
+export async function createEmpresaFull(payload: any): Promise<{ msg: string; id?: number }> {
+  const { data } = await api.post(ADMIN_EMPRESAS.createFull, payload)
+  return data
+}
 
-// PUT: actualizar empresa
-export const updateEmpresa = (id: number, data: Partial<Empresa>) =>
-  apiPut<Empresa>(`${BASE}/${id}`, data);
-
-// DELETE: eliminar empresa
-export const deleteEmpresa = (id: number) =>
-  apiDelete<{ success: boolean }>(`${BASE}/${id}`);
-
-export const crearEmpresaCompleta = (form: FormData) =>
-  apiPostForm<CrearEmpresaResponse>("/empresas/completa", form);
+export async function getEmpresa(id: number | string): Promise<any> {
+  const { data } = await api.get(ADMIN_EMPRESAS.byId(id))
+  return data
+}

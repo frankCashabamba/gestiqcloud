@@ -1,106 +1,67 @@
-from fastapi import FastAPI
+﻿from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-from app.middleware.security_headers import security_headers_middleware
-from app.config.settings import settings
-from app.core.sessions import SessionMiddlewareServerSide
-
-
-import app.models  # asegura registro de modelos
-
-from app.middleware.require_csrf import RequireCSRFMiddleware
-from app.api.common.lang import router as lang_router
-from app.middleware.i18n_header import ContentLanguageMiddleware
-from app.middleware.request_log import RequestLogMiddleware
-from app.middleware.metrics import MetricsMiddleware
-from app.metrics.store import snapshot as metrics_snapshot
+from fastapi.staticfiles import StaticFiles
+import logging
 
 from app.platform.http.router import build_api_router
+from app.config.settings import settings
+from app.core.sessions import SessionMiddlewareServerSide
+from app.middleware.security_headers import security_headers_middleware
 
-app = FastAPI(title="Secure Multi-tenant BFF")
 
+app = FastAPI(title="GestiqCloud API", version="1.0.0")
 
-# Session middleware primero (para que request.state.session exista)
-app.add_middleware(
-    SessionMiddlewareServerSide,
-    cookie_name="sid",
-    secret_key=settings.SECRET_KEY.get_secret_value(),
-    https_only=False,  # en tests/local
-)
-
+# CORS (desde settings, con fallback seguro)
+allow_origins = settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else [settings.CORS_ORIGINS]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=list(getattr(settings, "CORS_ORIGINS", ["*"])),
-    allow_credentials=bool(getattr(settings, "CORS_ALLOW_CREDENTIALS", True)),
-    allow_methods=list(getattr(settings, "CORS_ALLOW_METHODS", ["*"])),
-    allow_headers=list(getattr(settings, "CORS_ALLOW_HEADERS", ["*"])),
-    allow_origin_regex=getattr(settings, "CORS_ALLOW_ORIGIN_REGEX", None),
-    expose_headers=["Content-Length"],
+    allow_origins=allow_origins,
+    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
+    allow_methods=settings.CORS_ALLOW_METHODS,
+    allow_headers=settings.CORS_ALLOW_HEADERS,
 )
-app.add_middleware(ContentLanguageMiddleware)
+
+# Sesiones server-side (cookies seguras segÃºn entorno)
+app.add_middleware(
+    SessionMiddlewareServerSide,
+    cookie_name=settings.SESSION_COOKIE_NAME,
+    secret_key=(settings.SECRET_KEY.get_secret_value() if hasattr(settings.SECRET_KEY, "get_secret_value") else str(settings.SECRET_KEY)),
+    https_only=(settings.ENV == "production"),
+    cookie_domain=settings.COOKIE_DOMAIN,
+)
+
+# Security headers (CSP, HSTS, etc.)
 app.middleware("http")(security_headers_middleware)
-app.add_middleware(RequireCSRFMiddleware)
-app.add_middleware(RequestLogMiddleware)
-app.add_middleware(MetricsMiddleware)
 
-# Routers
-app.include_router(lang_router)                                   # usa su propio prefijo interno
-app.include_router(build_api_router(), prefix="/api/v1")          # todos los routers API v1
 
-@app.get("/")
-def root():
-    return {"status": "ok", "app": settings.app_name}
-
-@app.get("/health")
+@app.get("/health", tags=["health"])  # simple healthcheck
 def health():
     return {"ok": True}
 
+# Archivos subidos (logos, etc.)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
-@app.get("/metrics")
-def metrics():
-    counts, dur_sum = metrics_snapshot()
-    # Prometheus exposition (básico)
-    lines = []
-    lines.append("# HELP http_requests_total Total HTTP requests")
-    lines.append("# TYPE http_requests_total counter")
-    for (method, path, status), val in sorted(counts.items()):
-        lines.append(
-            f'http_requests_total{{method="{method}",path="{path}",status="{status}"}} {val}'
-        )
-    lines.append("# HELP http_request_duration_ms_sum Cumulative request duration in ms")
-    lines.append("# TYPE http_request_duration_ms_sum counter")
-    for (method, path, status), val in sorted(dur_sum.items()):
-        lines.append(
-            f'http_request_duration_ms_sum{{method="{method}",path="{path}",status="{status}"}} {val}'
-        )
-    from fastapi import Response
+# Debug del enrutador central (ver quÃ© routers montan y cuÃ¡les fallan)
+_router_logger = logging.getLogger("app.router")
+if not _router_logger.handlers:
+    _h = logging.StreamHandler()
+    _h.setLevel(logging.DEBUG)
+    _h.setFormatter(logging.Formatter("[%(levelname)s] %(name)s: %(message)s"))
+    _router_logger.addHandler(_h)
+_router_logger.setLevel(logging.DEBUG)
+_router_logger.propagate = False
 
-    return Response("\n".join(lines) + "\n", media_type="text/plain; version=0.0.4")
+# Email logger to surface dev-email messages in docker logs
+_email_logger = logging.getLogger("app.email")
+if not _email_logger.handlers:
+    _eh = logging.StreamHandler()
+    _eh.setLevel(logging.INFO)
+    _eh.setFormatter(logging.Formatter("[%(levelname)s] %(name)s: %(message)s"))
+    _email_logger.addHandler(_eh)
+_email_logger.setLevel(logging.INFO)
+_email_logger.propagate = False
 
-@app.get("/health/redis")
-def health_redis():
-    """Optional Redis healthcheck.
-    - If REDIS_URL not set: returns enabled: False, ok: True (not required).
-    - If set: attempts a PING. On failure returns 503 with ok: False.
-    """
-    from fastapi import Response
-    try:
-        from app.config.settings import settings
-        redis_url = getattr(settings, "REDIS_URL", None)
-    except Exception:
-        redis_url = None
+# REST API v1 (compat con FE): monta todos los routers bajo /api/v1
+app.include_router(build_api_router(), prefix="/api/v1")
 
-    if not redis_url:
-        return {"enabled": False, "ok": True}
 
-    try:
-        import redis  # type: ignore
-        r = redis.Redis.from_url(redis_url, decode_responses=True)
-        r.ping()
-        return {"enabled": True, "ok": True}
-    except Exception as e:  # pragma: no cover - only runs when Redis down/missing
-        return Response(
-            content=f'{ {"enabled": True, "ok": False, "error": str(e)} }',
-            media_type="application/json",
-            status_code=503,
-        )

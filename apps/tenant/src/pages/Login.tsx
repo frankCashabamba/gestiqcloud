@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { API_URL } from '../lib/http'
+import { apiFetch, API_URL } from '../lib/http'
 
 const ADMIN_ORIGIN =
   import.meta.env.VITE_ADMIN_ORIGIN || window.location.origin.replace('8082', '8081')
@@ -17,22 +17,25 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false)
 
   async function loginAdminFallback() {
-    const res = await fetch(`${API_URL}/api/v1/auth/login`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identificador, password })
-    })
-    if (res.ok) {
-      // Set-Cookie (refresh admin) para host localhost; redirige al admin
-      window.location.href = ADMIN_ORIGIN
-      return
+    // Fallback directo contra endpoints de ADMIN.
+    // Capturamos el access_token y lo pasamos por fragment al admin para que establezca su sesión.
+    try {
+      try { await apiFetch('/v1/admin/auth/csrf', { retryOn401: false } as any) } catch {}
+      const data = await apiFetch<{ access_token?: string }>('/v1/admin/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ identificador: identificador.trim(), password }),
+        retryOn401: false,
+      } as any)
+      const tok = data?.access_token
+      const href = tok ? `${ADMIN_ORIGIN}/#access_token=${encodeURIComponent(tok)}` : ADMIN_ORIGIN
+      window.location.href = href
+    } catch (res: any) {
+      if (res?.status === 429) {
+        const ra = res?.retryAfter || 'unos'
+        throw new Error(`Demasiados intentos. Intenta en ${ra} segundos.`)
+      }
+      throw new Error('Credenciales inválidas')
     }
-    if (res.status === 429) {
-      const ra = res.headers.get('Retry-After')
-      throw new Error(ra ? `Demasiados intentos. Intenta en ${ra} segundos.` : 'Demasiados intentos.')
-    }
-    throw new Error('Credenciales inválidas')
   }
 
   const onSubmit = async (e: React.FormEvent) => {

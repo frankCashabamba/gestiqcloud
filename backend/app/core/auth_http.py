@@ -1,12 +1,14 @@
 # app/core/auth_http.py
 from typing import Optional, Mapping
 from fastapi import Response
-from app.core.refresh import decode_and_validate, token_get_family, family_revoke
+from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
+from app.modules.identity.infrastructure.refresh_repo import SqlRefreshTokenRepo
+from app.config.database import SessionLocal
 
 # --- Cookie PATHS (alineados con app.main) ---
 # Admin router:   main prefix "/api/v1"  + router prefix "/auth"   => /api/v1/auth
 # Tenant router:  main prefix "/api/v1/tenant" + router "/auth"    => /api/v1/tenant/auth
-ADMIN_REFRESH_COOKIE_PATH = "/api/v1/auth"
+ADMIN_REFRESH_COOKIE_PATH = "/api/v1/admin/auth"
 TENANT_REFRESH_COOKIE_PATH = "/api/v1/tenant/auth"
 
 # ---- Cookies ----
@@ -56,11 +58,13 @@ def delete_auth_cookies(response: Response, *, path: str) -> None:
 def extract_family_id_from_refresh(token: str) -> Optional[str]:
     """Best-effort para obtener family_id desde el refresh token."""
     try:
-        payload: Mapping[str, object] = decode_and_validate(token, expected_type="refresh")
+        payload: Mapping[str, object] = PyJWTTokenService().decode_and_validate(token, expected_type="refresh")
         jti = payload.get("jti")
         fam_payload = payload.get("family_id")
         if isinstance(jti, str) and jti:
-            fam_from_db = token_get_family(jti)
+            # lookup in DB
+            with SessionLocal() as db:
+                fam_from_db = SqlRefreshTokenRepo(db).get_family(jti=jti)
             if fam_from_db:
                 return fam_from_db
         if isinstance(fam_payload, str) and fam_payload:
@@ -75,7 +79,8 @@ def best_effort_family_revoke(refresh_token: str) -> None:
         fam = extract_family_id_from_refresh(refresh_token)
         if fam:
             try:
-                family_revoke(fam)
+                with SessionLocal() as db:
+                    SqlRefreshTokenRepo(db).revoke_family(family_id=fam)
             except Exception:
                 pass
     except Exception:

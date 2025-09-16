@@ -11,7 +11,7 @@ export default function AdminPanel() {
 
   const modulos = [
     { nombre: 'Empresas', descripcion: 'Gestión de empresas registradas.', icono: '/icons/empresas.png', url_completa: 'empresas' },
-    { nombre: 'Usuarios Principales', descripcion: 'Control de usuarios del sistema.', icono: '/icons/usuario.png', url_completa: '/admin/usuarios' },
+    { nombre: 'Usuarios Principales', descripcion: 'Control de usuarios del sistema.', icono: '/icons/usuario.png', url_completa: 'usuarios' },
     { nombre: 'Configuración de sistemas', descripcion: 'Sólo las configuraciones del sistema.', icono: '/icons/configuracion.jpeg', url_completa: '/admin/configuracion' },
   ]
 

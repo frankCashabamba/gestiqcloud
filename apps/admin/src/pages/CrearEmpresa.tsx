@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
-//import ModuloSelector from "../modules/modulos/ModuloSelector";  <ModuloSelector selected={formData.modulos} onChange={handleModuloChange} />
+import ModuloSelector from '../modulos/ModuloSelector';
 import { useCrearEmpresa } from "../hooks/useCrearEmpresa";
-import { buildEmpresaFormData } from '../utils/formToFormData';
 import type { FormularioEmpresa } from '../typesall/empresa';
 
 const INITIAL_STATE: FormularioEmpresa = {
@@ -33,7 +32,7 @@ export const CrearEmpresa: React.FC = () => {
   const [formData, setFormData] = useState<FormularioEmpresa>(INITIAL_STATE);
   const [usernameTouched, setUsernameTouched] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
-  const { crear, loading, error, success } = useCrearEmpresa();
+  const { crear, loading, error, success, fieldErrors } = useCrearEmpresa();
 
   // Generar automáticamente username
   useEffect(() => {
@@ -66,11 +65,33 @@ export const CrearEmpresa: React.FC = () => {
     }));
   };
 
+  // Validadores simples
+  const isValidEmail = (v: string) => /.+@.+\..+/.test(v)
+  const isValidUsername = (v: string) => /^[a-z0-9_.-]{3,32}$/.test(v)
+  const isStrongPassword = (v: string) => v.length >= 8
+  const isValidPhone = (v: string) => v.length === 0 || /^[0-9+()\-\s]{6,20}$/.test(v)
+  const isValidUrl = (v: string) => {
+    if (!v) return true
+    try { new URL(v.startsWith('http') ? v : `http://${v}`); return true } catch { return false }
+  }
+  const isValidJson = (v: string) => {
+    if (!v || !v.trim()) return true
+    try { JSON.parse(v); return true } catch { return false }
+  }
+
   const validateForm = (): string | null => {
+    if (!formData.nombre_empresa.trim()) return 'El nombre de la empresa es obligatorio.';
     if (!formData.nombre_encargado.trim()) return 'El nombre del encargado es obligatorio.';
     if (!formData.apellido_encargado.trim()) return 'El apellido del encargado es obligatorio.';
     if (!formData.email.trim()) return 'El correo es obligatorio.';
+    if (!isValidEmail(formData.email.trim())) return 'El correo no tiene un formato válido.';
     if (!formData.username.trim()) return 'El usuario es obligatorio.';
+    if (!isValidUsername(formData.username.trim())) return 'El usuario debe usar minúsculas, números o ._- (3-32).';
+    // Password opcional: si viene, validar fortaleza mínima
+    if (formData.password && !isStrongPassword(formData.password)) return 'La contraseña debe tener al menos 8 caracteres.';
+    if (!isValidPhone(formData.telefono || '')) return 'El teléfono solo admite dígitos, +, -, espacios y ().';
+    if (!isValidUrl(formData.sitio_web || '')) return 'El sitio web no es una URL válida.';
+    if (!isValidJson(formData.config_json || '')) return 'config_json debe ser un JSON válido.';
     return null;
   };
 
@@ -92,7 +113,7 @@ export const CrearEmpresa: React.FC = () => {
   };
 
   return (
- 
+   
       <div className="max-w-6xl mx-auto px-4 py-10 animate-fade-in">
         <div className="bg-white shadow-xl rounded-3xl p-8">
           <div className="text-center mb-10">
@@ -119,26 +140,61 @@ export const CrearEmpresa: React.FC = () => {
                   <option value="2">Servicios</option>
                   <option value="3">Manufactura</option>
                 </select>
-                {["ruc", "telefono", "direccion", "pais", "provincia", "ciudad", "cp", "sitio_web", "color_primario", "plantilla_inicio"].map((field) => (
-                  <input key={field} name={field} value={(formData as any)[field]} onChange={handleChange} placeholder={field.replace(/_/g, ' ')} className="border border-gray-300 rounded-lg px-4 py-2 text-sm" />
-                ))}
+                {["ruc", "telefono", "direccion", "pais", "provincia", "ciudad", "cp", "sitio_web", "color_primario", "plantilla_inicio"].map((field) => {
+                  const type = field === 'color_primario' ? 'color' : field === 'sitio_web' ? 'url' : 'text'
+                  const err = field === 'ruc' ? (fieldErrors as any)?.ruc : ''
+                  return (
+                    <div key={field} className="flex flex-col gap-1">
+                      <input
+                        name={field}
+                        type={type as any}
+                        value={(formData as any)[field]}
+                        onChange={handleChange}
+                        placeholder={field.replace(/_/g, ' ')}
+                        aria-invalid={!!err}
+                        className={`border rounded-lg px-4 py-2 text-sm ${err ? 'border-red-400' : 'border-gray-300'}`}
+                      />
+                      {err && <span className="text-xs text-red-600">{err}</span>}
+                    </div>
+                  )
+                })}
                 <input type="file" name="logo" onChange={handleChange} />
                 <textarea name="config_json" placeholder="config_json" value={formData.config_json} onChange={handleChange} className="md:col-span-2 border border-gray-300 rounded-lg px-4 py-2 text-sm" />
+                {/* Módulos dentro del mismo grid para mantener alineación visual */}
+                <div className="md:col-span-2">
+                  <ModuloSelector selected={formData.modulos} onChange={handleModuloChange} />
+                </div>
               </div>
             </section>
 
             <section>
               <h2 className="text-lg font-semibold text-gray-800 mb-4">👤 Usuario Administrador</h2>
               <div className="grid md:grid-cols-3 gap-6">
-                {["nombre_encargado", "apellido_encargado", "email"].map((field) => (
-                  <input key={field} name={field} value={(formData as any)[field]} onChange={handleChange} placeholder={field.replace(/_/g, ' ')} className="border border-gray-300 rounded-lg px-4 py-2 text-sm" />
-                ))}
-                <input name="username" type="text" value={formData.username} readOnly placeholder="username" className="border border-gray-300 rounded-lg px-4 py-2 text-sm bg-gray-100 text-gray-700 cursor-not-allowed" />
-                <input name="password" type="password" value={formData.password} onChange={handleChange} placeholder="Contraseña" className="border border-gray-300 rounded-lg px-4 py-2 text-sm" />
+                {["nombre_encargado", "apellido_encargado", "email"].map((field) => {
+                  const err = field === 'email' ? (fieldErrors as any)?.email : ''
+                  return (
+                    <div key={field} className="flex flex-col gap-1">
+                      <input
+                        name={field}
+                        type={field === 'email' ? 'email' : 'text'}
+                        required={field !== 'email' ? undefined : true}
+                        value={(formData as any)[field]}
+                        onChange={handleChange}
+                        placeholder={field.replace(/_/g, ' ')}
+                        aria-invalid={!!err}
+                        className={`border rounded-lg px-4 py-2 text-sm ${err ? 'border-red-400' : 'border-gray-300'}`}
+                      />
+                      {err && <span className="text-xs text-red-600">{err}</span>}
+                    </div>
+                  )
+                })}
+                <div className="flex flex-col gap-1">
+                  <input name="username" type="text" value={formData.username} onChange={handleChange} placeholder="username" aria-invalid={!!(fieldErrors as any)?.username} className={`border rounded-lg px-4 py-2 text-sm ${(fieldErrors as any)?.username ? 'border-red-400' : 'border-gray-300'}`} />
+                  {(fieldErrors as any)?.username && <span className="text-xs text-red-600">{(fieldErrors as any)?.username}</span>}
+                </div>
+                <input name="password" type="password" value={formData.password} onChange={handleChange} placeholder="Contraseña (opcional, se enviará email para crearla)" className="border border-gray-300 rounded-lg px-4 py-2 text-sm" />
               </div>
             </section>
-
-           
 
             <div className="text-center mt-8 space-y-4">
               <button type="submit" disabled={loading} className={`w-full sm:w-auto px-6 py-3 rounded-xl font-semibold text-white transition duration-300 shadow-md ${
@@ -172,6 +228,6 @@ export const CrearEmpresa: React.FC = () => {
           </form>
         </div>
       </div>
-
+ 
   );
 };
