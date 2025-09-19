@@ -17,7 +17,7 @@ def test_admin_empresas_crud(client: TestClient, db, superuser_factory):
     csrf = client.get("/api/v1/admin/auth/csrf").json().get("csrfToken")
     # create
     r = client.post(
-        "/api/v1/admin/empresas/",
+        "/api/v1/admin/empresas/completa-json",
         headers={
             "Authorization": f"Bearer {tok}",
             "X-CSRF-Token": csrf or client.cookies.get("csrf_token", ""),
@@ -29,7 +29,7 @@ def test_admin_empresas_crud(client: TestClient, db, superuser_factory):
     emp_id = emp["id"]
 
     # list
-    r = client.get("/api/v1/admin/empresas/", headers={"Authorization": f"Bearer {tok}"})
+    r = client.get("/api/v1/admin/empresas/completa-json", headers={"Authorization": f"Bearer {tok}"})
     assert r.status_code == 200
     assert any(e["id"] == emp_id for e in r.json())
 

@@ -4,7 +4,7 @@ Auto-generated module docstring."""
 
 from typing import Annotated, Any, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 #Esquema para lineas
@@ -26,10 +26,7 @@ class LineaPanaderia(LineaBase):
 
 class LineaPanaderiaOut(LineaPanaderia):
     """ Class LineaPanaderiaOut - auto-generated docstring. """
-    class Config:
-        """ Class Config - auto-generated docstring. """
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)
 # 🔧 Línea taller
 class LineaTaller(LineaBase):
     """ Class LineaTaller - auto-generated docstring. """
@@ -40,10 +37,7 @@ class LineaTaller(LineaBase):
 
 class LineaTallerOut(LineaTaller):
     """ Class LineaTallerOut - auto-generated docstring. """
-    class Config:
-        """ Class Config - auto-generated docstring. """
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)
 # 🎯 Unión de tipos posibles
 LineaFacturaIn = Union[LineaPanaderia, LineaTaller]
 LineaFacturaOut = Annotated[
@@ -58,11 +52,7 @@ class ClienteSchema(BaseModel):
     nombre: str
     email: str
     identificacion: str    
-    class Config:
-        """ Class Config - auto-generated docstring. """
-        from_attributes = True 
-
-
+    model_config = ConfigDict(from_attributes=True)
 class InvoiceCreate(BaseModel):
     """ Class InvoiceCreate - auto-generated docstring. """
     numero: str
@@ -74,11 +64,7 @@ class InvoiceCreate(BaseModel):
     total: float
     cliente_id: int
     lineas: List[LineaFacturaIn]
-    class Config:
-        """ Class Config - auto-generated docstring. """
-        from_attributes = True  
-
-
+    model_config = ConfigDict(from_attributes=True)
 class InvoiceOut(BaseModel):
     """ Class InvoiceOut - auto-generated docstring. """
     id: int
@@ -91,10 +77,7 @@ class InvoiceOut(BaseModel):
     cliente: ClienteSchema
     lineas: List[LineaFacturaOut]  # polimórficas  
 
-    class Config:
-        """ Class Config - auto-generated docstring. """
-        from_attributes = True  
-
+    model_config = ConfigDict(from_attributes=True)
 class InvoiceUpdate(BaseModel):
     """ Class InvoiceUpdate - auto-generated docstring. """
     estado: Optional[str]

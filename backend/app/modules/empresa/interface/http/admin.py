@@ -175,7 +175,8 @@ async def crear_empresa_completa_json(
         if not empresa_data.get("slug"):
             empresa_data["slug"] = slugify(empresa_data.get("nombre") or "")
         created = repo.create(empresa_data)
-        empresa_id = int(created.id)
+        # created es EmpresaDTO (dict-like), usar acceso por clave
+        empresa_id = int(created.get("id"))
 
         # Logo opcional
         if payload.logo is not None and payload.logo.data:

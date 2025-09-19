@@ -65,11 +65,7 @@ class EmpresaModuloOut(EmpresaModuloBase):
 
     modulo: ModuloOut
 
-    class Config:
-        """ Class Config - auto-generated docstring. """
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # ---------- MÓDULO ASIGNADO A USUARIO ----------
 class ModuloAsignadoBase(BaseModel):
     """ Class ModuloAsignadoBase - auto-generated docstring. """

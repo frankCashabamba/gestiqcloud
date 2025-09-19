@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
 
@@ -20,10 +20,7 @@ class IdiomaRead(BaseModel):
     nombre: str
     activo: bool
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class MonedaCreate(BaseModel):
     codigo: str
     nombre: str
@@ -45,10 +42,7 @@ class MonedaRead(BaseModel):
     simbolo: str
     activo: bool
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class DiaSemanaCreate(BaseModel):
     clave: str
     nombre: str
@@ -67,10 +61,7 @@ class DiaSemanaRead(BaseModel):
     nombre: str
     orden: int
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class HorarioAtencionCreate(BaseModel):
     dia_id: int
     inicio: str
@@ -89,10 +80,7 @@ class HorarioAtencionRead(BaseModel):
     inicio: str
     fin: str
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class SectorPlantillaCreate(BaseModel):
     nombre: str
     tipo_empresa_id: int
@@ -114,10 +102,7 @@ class SectorPlantillaRead(BaseModel):
     tipo_negocio_id: int
     config_json: dict
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class TipoEmpresaCreate(BaseModel):
     nombre: str
     descripcion: Optional[str] = None
@@ -133,10 +118,7 @@ class TipoEmpresaRead(BaseModel):
     nombre: str
     descripcion: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class TipoNegocioCreate(BaseModel):
     nombre: str
     descripcion: Optional[str] = None
@@ -152,5 +134,4 @@ class TipoNegocioRead(BaseModel):
     nombre: str
     descripcion: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

@@ -5,7 +5,7 @@ Auto-generated module docstring."""
 # schemas/configuracion.py
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class ConfiguracionEmpresaCreate(BaseModel):
@@ -25,6 +25,4 @@ class EmpresaConfiguracionOut(BaseModel):
     color_secundario: Optional[str] = "#6c757d"
     empresa_nombre: Optional[str] = None
 
-    class Config:
-        """ Class Config - auto-generated docstring. """
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

@@ -1,5 +1,8 @@
 # app/test/conftest.py
-import os
+import os, sys
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
 
 # --- Set required envs BEFORE importing any app modules ---
 os.environ.setdefault("DATABASE_URL", "sqlite://")
@@ -183,7 +186,10 @@ def client():
         )
         app.state.has_test_session_mw = True
 
-    with TestClient(app) as c:
+    # 👇 Fuerza HTTPS para que el guard de CSRF no bloquee
+    with TestClient(app, base_url="https://testserver") as c:
+        # Si tu app mira el proto de cabecera (reverse proxy), añade esto:
+        c.headers.update({"X-Forwarded-Proto": "https"})
         yield c
 
 

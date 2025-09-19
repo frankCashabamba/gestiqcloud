@@ -24,6 +24,7 @@ export interface FormularioEmpresa {
   config_json: string;
   nombre_encargado: string;
   apellido_encargado: string;
+  segundo_apellido_encargado?: string;
   email: string;
   username: string;
   password?: string;

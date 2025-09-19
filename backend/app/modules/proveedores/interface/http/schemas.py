@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, ConfigDict
 
 
 class ProveedorBase(BaseModel):
@@ -18,6 +18,4 @@ class ProveedorUpdate(ProveedorBase):
 class ProveedorOut(ProveedorBase):
     id: int
 
-    class Config:
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)

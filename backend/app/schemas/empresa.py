@@ -4,7 +4,7 @@ Auto-generated module docstring."""
 
 from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, ConfigDict
 
 
 class EmpresaCreate(BaseModel):
@@ -26,6 +26,4 @@ class EmpresaOut(BaseModel):
     nombre: str
     modulos: List[str] = []
 
-    class Config:
-        """ Class Config - auto-generated docstring. """
-        from_attributes = True  # Si us
+    model_config = ConfigDict(from_attributes=True  # Si us)

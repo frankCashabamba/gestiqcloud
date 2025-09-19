@@ -5,7 +5,7 @@ Auto-generated module docstring."""
 # settings/schemas/roles/roleemresas.py
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class RolBase(BaseModel):
@@ -32,11 +32,7 @@ class RolResponse(RolBase):
     empresa_id: int
     creado_por_empresa: bool
 
-    class Config:
-        """ Class Config - auto-generated docstring. """
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class RolEmpresaOut(BaseModel):
     """ Class RolEmpresaOut - auto-generated docstring. """
     id: int
@@ -44,7 +40,4 @@ class RolEmpresaOut(BaseModel):
     descripcion: Optional[str]
     permisos: Optional[Dict[str, bool]]
 
-    class Config:
-        """ Class Config - auto-generated docstring. """
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)

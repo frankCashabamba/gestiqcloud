@@ -13,7 +13,7 @@ const RolesRouter: React.FC = () => {
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   useEffect(() => {
-    apiGet<Role[]>('/roles-base/')
+    apiGet<Role[]>('/v1/roles-base/')
       .then(data => {
         const normalized = data.map(role => ({
           ...role,
@@ -33,8 +33,8 @@ const RolesRouter: React.FC = () => {
 
     try {
       const saved = roleData.id
-        ? await apiPut<RoleData>(`/roles-base/${roleData.id}`, payload)
-        : await apiPost<RoleData>('/roles-base/', payload);
+        ? await apiPut<RoleData>(`/v1/roles-base/${roleData.id}`, payload)
+        : await apiPost<RoleData>('/v1/roles-base/', payload);
 
       const normalized: Role = {
         ...saved,
@@ -57,7 +57,7 @@ const RolesRouter: React.FC = () => {
   const confirmDelete = async () => {
     if (deleteId !== null) {
       try {
-        await apiDelete(`/roles-base/${deleteId}`);
+        await apiDelete(`/v1/roles-base/${deleteId}`);
         setRoles(prev => prev.filter(r => r.id !== deleteId));
         setDeleteId(null);
       } catch (err) {
@@ -66,24 +66,14 @@ const RolesRouter: React.FC = () => {
     }
   };
 
-  const baseRoles: RoleData[] = roles.map(r => ({
-    id: r.id,
-    nombre: r.nombre,
-    descripcion: r.descripcion,
-    permisos: Object.entries(r.permisos)
-      .filter(([, val]) => val)
-      .map(([key]) => key),
-  }));
+  // Removed base role copy feature
 
   return (
     <>
       <Routes>
         
         <Route index element={<RoleList roles={roles} onDelete={handleDelete} />} />
-        <Route
-          path="nuevo"
-          element={<RoleForm mode="create" onSubmit={handleSave} baseRoles={baseRoles} />}
-        />
+        <Route path="nuevo" element={<RoleForm mode="create" onSubmit={handleSave} />} />
         <Route
           path=":id/editar"
           element={<EditWrapper roles={roles} onSubmit={handleSave} />}

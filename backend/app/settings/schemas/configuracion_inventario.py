@@ -6,7 +6,7 @@ Auto-generated module docstring."""
 
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class ConfiguracionInventarioBase(BaseModel):
@@ -31,6 +31,4 @@ class ConfiguracionInventarioOut(ConfiguracionInventarioBase):
     id: int
     empresa_id: int
 
-    class Config:
-        """ Class Config - auto-generated docstring. """
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

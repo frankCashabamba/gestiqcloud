@@ -3,11 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import type { RoleData } from './types/roles';
-import {
-  defaultPermissionKeys,
-  permisosToArray,
-  toPermisosObject,
-} from '@shared/utils/permissions';
+import { defaultPermissionKeys, permisosToArray, toPermisosObject } from '@shared/utils/permissions';
 import { apiPost, apiPut } from '../../../lib/api';
 // Layout no es necesario: ya hay LayoutAdmin en App
 
@@ -15,15 +11,9 @@ interface RoleFormProps {
   mode: 'create' | 'edit';
   initialData?: RoleData;
   onSubmit: (data: RoleData) => void;
-  baseRoles?: RoleData[];
 }
 
-const RoleForm: React.FC<RoleFormProps> = ({
-  mode,
-  initialData,
-  onSubmit,
-  baseRoles = [],
-}) => {
+const RoleForm: React.FC<RoleFormProps> = ({ mode, initialData, onSubmit }) => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -49,15 +39,7 @@ const RoleForm: React.FC<RoleFormProps> = ({
     }));
   };
 
-  const handleCopyFromBase = (id: number) => {
-    const base = baseRoles.find(r => r.id === id);
-    if (base) {
-      setForm(prev => ({
-        ...prev,
-        permisos: toPermisosObject(base.permisos),
-      }));
-    }
-  };
+  // Removed "Copiar desde rol base" feature
 
   const validate = () => {
     const newErrors: typeof errors = {};
@@ -80,8 +62,8 @@ const RoleForm: React.FC<RoleFormProps> = ({
     };
 
     const endpoint = mode === 'edit'
-      ? `/roles-base/${initialData?.id}`
-      : '/roles-base/';
+      ? `/v1/roles-base/${initialData?.id}`
+      : '/v1/roles-base/';
 
     try {
       const savedRole = mode === 'edit'
@@ -105,18 +87,7 @@ const RoleForm: React.FC<RoleFormProps> = ({
         {mode === 'edit' ? '✏️ Editar Rol' : '➕ Crear Rol'}
       </h1>
 
-      <div className="mb-6">
-        <label className="block font-medium text-sm mb-1">Copiar desde rol base</label>
-        <select
-          onChange={e => handleCopyFromBase(Number(e.target.value))}
-          className="w-full border p-2"
-        >
-          <option value="">-- Seleccionar rol base --</option>
-          {baseRoles.map(role => (
-            <option key={role.id} value={role.id}>{role.nombre}</option>
-          ))}
-        </select>
-      </div>
+      {/* Removed: Copiar desde rol base */}
 
       <div className="mb-4">
         <label className="block font-medium text-sm mb-1">

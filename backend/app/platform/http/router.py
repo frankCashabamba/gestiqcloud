@@ -7,6 +7,7 @@ from importlib import import_module
 from typing import Optional, Tuple, Callable
 
 from fastapi import APIRouter, Depends, Response
+import os
 
 logger = logging.getLogger("app.router")
 
@@ -170,16 +171,15 @@ def build_api_router() -> APIRouter:
     # Facturación
     include_router_safe(r, ("app.modules.facturacion.interface.http.tenant", "router"))
 
-    # Imports (con legacy envuelto y bajo /legacy)
-    if include_router_safe(r, ("app.modules.imports.interface.http.tenant", "router")):
-        include_router_safe(
-            r,
-            ("app.modules.imports.interface.http.tenant", "legacy_router"),
-            prefix="/legacy",
-            mark_deprecated=True,
-        )
-    else:
-        include_router_safe(r, ("app.modules.imports.interface.http.tenant", "router"))
+    # Imports (opcional: controlado por IMPORTS_ENABLED)
+    if os.getenv("IMPORTS_ENABLED", "0") in ("1", "true", "True"):  # habilita solo si está ON
+        if include_router_safe(r, ("app.modules.imports.interface.http.tenant", "router")):
+            include_router_safe(
+                r,
+                ("app.modules.imports.interface.http.tenant", "legacy_router"),
+                prefix="/legacy",
+                mark_deprecated=True,
+            )
 
     # Contabilidad
     include_router_safe(r, ("app.modules.contabilidad.interface.http.tenant", "router"))
@@ -198,6 +198,9 @@ def build_api_router() -> APIRouter:
 
     # Admin usuarios (router histórico): mantener mientras exista el panel actual
     include_router_safe(r, ("app.routers.admin.usuarios", "router"), prefix="/admin/usuarios")
+
+    # Roles base (histórico para admin actual): CRUD de roles
+    include_router_safe(r, ("app.routers.roles", "router"))
 
     # Legacy endpoints: removed (modern routers in use)
 

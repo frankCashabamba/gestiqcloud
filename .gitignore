@@ -57,3 +57,4 @@ src.zip
 # --- otros ---
 .eslintcache
 .pnpm-store/
+backend/scrtips/

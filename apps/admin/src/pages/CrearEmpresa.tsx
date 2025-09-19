@@ -30,25 +30,22 @@ const INITIAL_STATE: FormularioEmpresa = {
 
 export const CrearEmpresa: React.FC = () => {
   const [formData, setFormData] = useState<FormularioEmpresa>(INITIAL_STATE);
-  const [usernameTouched, setUsernameTouched] = useState(false);
+  // Username se autogenera y es solo lectura
   const [localError, setLocalError] = useState<string | null>(null);
-  const { crear, loading, error, success, fieldErrors } = useCrearEmpresa();
+  const { crear, loading, error, success, fieldErrors, needSecondSurname } = useCrearEmpresa();
 
-  // Generar automáticamente username
+  // Generar automáticamente username base: nombre.apellido
   useEffect(() => {
-    if (!usernameTouched) {
-      const nombre = formData.nombre_encargado.trim().toLowerCase();
-      const apellido = formData.apellido_encargado.trim().toLowerCase();
-      const sugerido = nombre && apellido ? `${nombre}.${apellido}`.replace(/\s+/g, '') : '';
-      setFormData(prev => ({ ...prev, username: sugerido }));
-    }
-  }, [formData.nombre_encargado, formData.apellido_encargado, usernameTouched]);
+    const nombre = formData.nombre_encargado.trim().toLowerCase();
+    const apellido = formData.apellido_encargado.trim().toLowerCase();
+    const sugerido = nombre && apellido ? `${nombre}.${apellido}`.replace(/\s+/g, '') : '';
+    setFormData(prev => ({ ...prev, username: sugerido }));
+  }, [formData.nombre_encargado, formData.apellido_encargado]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value, type } = e.target;
-    if (name === 'username') setUsernameTouched(true);
     if (type === 'file') {
       setFormData({ ...formData, [name]: (e.target as HTMLInputElement).files?.[0] || null });
     } else {
@@ -108,7 +105,7 @@ export const CrearEmpresa: React.FC = () => {
     const result = await crear(formData);
     if (result) {
       setFormData(INITIAL_STATE);
-      setUsernameTouched(false);
+      
     }
   };
 
@@ -188,8 +185,21 @@ export const CrearEmpresa: React.FC = () => {
                     </div>
                   )
                 })}
+                {needSecondSurname && (
+                  <div className="flex flex-col gap-1">
+                    <input
+                      name="segundo_apellido_encargado"
+                      type="text"
+                      value={(formData as any).segundo_apellido_encargado || ''}
+                      onChange={handleChange}
+                      placeholder="segundo apellido"
+                      className="border border-gray-300 rounded-lg px-4 py-2 text-sm"
+                    />
+                    <span className="text-xs text-gray-600">Se usará para sugerir un usuario único.</span>
+                  </div>
+                )}
                 <div className="flex flex-col gap-1">
-                  <input name="username" type="text" value={formData.username} onChange={handleChange} placeholder="username" aria-invalid={!!(fieldErrors as any)?.username} className={`border rounded-lg px-4 py-2 text-sm ${(fieldErrors as any)?.username ? 'border-red-400' : 'border-gray-300'}`} />
+                  <input name="username" type="text" value={formData.username} readOnly placeholder="username" aria-invalid={!!(fieldErrors as any)?.username} className={`bg-gray-50 border rounded-lg px-4 py-2 text-sm ${(fieldErrors as any)?.username ? 'border-red-400' : 'border-gray-300'}`} />
                   {(fieldErrors as any)?.username && <span className="text-xs text-red-600">{(fieldErrors as any)?.username}</span>}
                 </div>
                 <input name="password" type="password" value={formData.password} onChange={handleChange} placeholder="Contraseña (opcional, se enviará email para crearla)" className="border border-gray-300 rounded-lg px-4 py-2 text-sm" />

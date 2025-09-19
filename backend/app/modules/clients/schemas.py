@@ -4,7 +4,7 @@ Auto-generated module docstring."""
 
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class ClienteBase(BaseModel):
@@ -31,6 +31,4 @@ class ClienteOut(ClienteBase):
     """ Class ClienteOut - auto-generated docstring. """
     id: int
 
-    class Config:
-        """ Class Config - auto-generated docstring. """
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
