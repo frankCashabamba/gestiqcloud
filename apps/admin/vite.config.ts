@@ -23,6 +23,9 @@ const alias = {
   '@shared/domain': pkgPath('../packages/domain/src'),
   '@shared/utils': pkgPath('../packages/utils/src'),
   '@shared/telemetry': pkgPath('../packages/telemetry/src'),
+  // Ensure deps required by shared packages resolve from this app
+  'react-router-dom': pkgPath('./node_modules/react-router-dom'),
+  'axios': pkgPath('./node_modules/axios'),
 }
 
 export default defineConfig({

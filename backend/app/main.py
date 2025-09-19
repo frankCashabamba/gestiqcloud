@@ -1,6 +1,7 @@
 ﻿from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 import logging
 
 from app.platform.http.router import build_api_router
@@ -39,7 +40,13 @@ def health():
     return {"ok": True}
 
 # Archivos subidos (logos, etc.)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+# En entornos como CI, la carpeta puede no existir; evitamos fallar al importar app
+_uploads_dir = Path(settings.UPLOADS_DIR)
+if settings.UPLOADS_MOUNT_ENABLED:
+    if _uploads_dir.is_dir():
+        app.mount("/uploads", StaticFiles(directory=str(_uploads_dir)), name="uploads")
+    else:
+        logging.getLogger("app.startup").info("Uploads dir no existe; omitiendo mount de /uploads")
 
 # Debug del enrutador central (ver quÃ© routers montan y cuÃ¡les fallan)
 _router_logger = logging.getLogger("app.router")

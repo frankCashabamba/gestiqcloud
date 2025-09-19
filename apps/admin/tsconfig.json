@@ -29,7 +29,16 @@
       "@shared/utils": ["../packages/utils/src"],
       "@shared/utils/*": ["../packages/utils/src/*"],
       "@shared/telemetry": ["../packages/telemetry/src"],
-      "@shared/telemetry/*": ["../packages/telemetry/src/*"]
+      "@shared/telemetry/*": ["../packages/telemetry/src/*"],
+
+      "react": ["./node_modules/@types/react/index.d.ts"],
+      "react/*": ["./node_modules/@types/react/*"],
+      "react-dom": ["./node_modules/@types/react-dom/index.d.ts"],
+      "react-dom/*": ["./node_modules/@types/react-dom/*"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime.d.ts"],
+      "axios": ["./node_modules/axios/index.d.ts"],
+      "react-router-dom": ["./node_modules/react-router-dom/dist/index.d.ts"],
+      "react-router-dom/*": ["./node_modules/react-router-dom/dist/*"]
     }
   },
   "include": ["src"],

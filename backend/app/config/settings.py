@@ -80,6 +80,10 @@ class Settings(BaseSettings):
     # Password reset/link base (opcional). Si se define, se usa para construir el enlace de set-password
     PASSWORD_RESET_URL_BASE: str | None = None
 
+    # Uploads / Static user files
+    UPLOADS_DIR: str = "uploads"
+    UPLOADS_MOUNT_ENABLED: bool = True
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def split_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:

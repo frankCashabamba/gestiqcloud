@@ -43,18 +43,9 @@ const EditWrapper: React.FC<EditWrapperProps> = ({ roles, onSubmit }) => {
     <RoleForm
       mode="edit"
       initialData={roleAsRoleData}
-      baseRoles={roles.map(r => ({
-        id: r.id,
-        nombre: r.nombre,
-        descripcion: r.descripcion,
-        permisos: Object.entries(r.permisos)
-          .filter(([, val]) => val)
-          .map(([key]) => key),
-      }))}
       onSubmit={handleEditSubmit}
     />
   )
 }
 
 export default EditWrapper
-
