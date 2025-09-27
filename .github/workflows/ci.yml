@@ -14,27 +14,37 @@ jobs:
         working-directory: apps/backend
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
       - name: Run tests
         env:
+          # Clave: añade el monorepo root y la carpeta apps al PYTHONPATH
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/apps"
           DATABASE_URL: sqlite://
           FRONTEND_URL: http://localhost:8081
           TENANT_NAMESPACE_UUID: 0280249e-6707-40fb-8d60-1e8f3aea0f8e
           JWT_SECRET_KEY: devsecretdevsecretdevsecret
-        run: pytest -q
+          IMPORTS_ENABLED: "1"
+        run: pytest -q app/tests
+
       - name: Validate FE/BE endpoints
+        env:
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/apps"
         run: python ../../scripts/check_endpoints.py
 
   frontend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -42,15 +52,15 @@ jobs:
           cache-dependency-path: |
             apps/admin/package-lock.json
             apps/tenant/package-lock.json
+
       - name: Admin typecheck
         working-directory: apps/admin
         run: |
           npm ci
           npm run typecheck
+
       - name: Tenant typecheck
         working-directory: apps/tenant
         run: |
           npm ci
           npm run typecheck
-
-
