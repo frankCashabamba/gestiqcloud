@@ -13,7 +13,7 @@ jobs:
       run:
         working-directory: apps/backend
     env:
-      # 👇 común a todos los pasos del job (incluye init schema)
+      # Común a todos los pasos
       PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/apps:${{ github.workspace }}/apps/backend"
       DATABASE_URL: "sqlite:///./test.db"     # DB de archivo (no memoria)
       FRONTEND_URL: "http://localhost:8081"
@@ -36,19 +36,32 @@ jobs:
       - name: Clean test DB
         run: rm -f test.db
 
-      # Crea el esquema para SQLite con tu Base (evita "no such table")
+      # Crea el esquema con tu Base, importando desde app.config.database
       - name: Init schema (SQLAlchemy Base.create_all)
         run: |
           python - <<'PY'
-          import os
-          # Las envs ya vienen del job: DATABASE_URL, FRONTEND_URL, etc.
+          import sys
+          # Intentar ambas rutas según el PYTHONPATH
           try:
-              from app.db.base import Base
-              from app.db.session import engine
+              from app.config.database import Base, engine
           except ModuleNotFoundError:
-              from apps.backend.app.db.base import Base
-              from apps.backend.app.db.session import engine
-          Base.metadata.create_all(bind=engine)
+              from apps.backend.app.config.database import Base, engine
+
+          # Soportar sync y async engines
+          try:
+              from sqlalchemy.ext.asyncio import AsyncEngine
+          except Exception:
+              AsyncEngine = None
+
+          if AsyncEngine and isinstance(engine, AsyncEngine):
+              import asyncio
+              async def _go():
+                  async with engine.begin() as conn:
+                      await conn.run_sync(Base.metadata.create_all)
+              asyncio.run(_go())
+          else:
+              Base.metadata.create_all(bind=engine)
+
           print("✅ Schema creado en test.db")
           PY
 
