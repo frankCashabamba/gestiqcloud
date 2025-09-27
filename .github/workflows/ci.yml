@@ -12,6 +12,14 @@ jobs:
     defaults:
       run:
         working-directory: apps/backend
+    env:
+      # 👇 común a todos los pasos del job (incluye init schema)
+      PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/apps:${{ github.workspace }}/apps/backend"
+      DATABASE_URL: "sqlite:///./test.db"     # DB de archivo (no memoria)
+      FRONTEND_URL: "http://localhost:8081"
+      TENANT_NAMESPACE_UUID: "0280249e-6707-40fb-8d60-1e8f3aea0f8e"
+      JWT_SECRET_KEY: "devsecretdevsecretdevsecret"
+      IMPORTS_ENABLED: "1"
 
     steps:
       - uses: actions/checkout@v4
@@ -28,15 +36,12 @@ jobs:
       - name: Clean test DB
         run: rm -f test.db
 
-      # Crea el esquema vía SQLAlchemy (evita "no such table" en SQLite)
+      # Crea el esquema para SQLite con tu Base (evita "no such table")
       - name: Init schema (SQLAlchemy Base.create_all)
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/apps:${{ github.workspace }}/apps/backend"
-          DATABASE_URL: "sqlite:///./test.db"
         run: |
           python - <<'PY'
           import os
-          os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
+          # Las envs ya vienen del job: DATABASE_URL, FRONTEND_URL, etc.
           try:
               from app.db.base import Base
               from app.db.session import engine
@@ -48,19 +53,9 @@ jobs:
           PY
 
       - name: Run tests
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/apps:${{ github.workspace }}/apps/backend"
-          DATABASE_URL: "sqlite:///./test.db"
-          FRONTEND_URL: "http://localhost:8081"
-          TENANT_NAMESPACE_UUID: "0280249e-6707-40fb-8d60-1e8f3aea0f8e"
-          JWT_SECRET_KEY: "devsecretdevsecretdevsecret"
-          IMPORTS_ENABLED: "1"
         run: pytest -q app/tests
 
       - name: Validate FE/BE endpoints
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/apps:${{ github.workspace }}/apps/backend"
-          DATABASE_URL: "sqlite:///./test.db"
         run: python ../../scripts/check_endpoints.py
 
   frontend:
