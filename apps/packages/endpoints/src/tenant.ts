@@ -7,7 +7,7 @@ export const TENANT_AUTH = {
 }
 
 export const TENANT_MODULOS = {
-  // aÃ±ade endpoints de tenant si los expones pÃºblicamente
+  // añade endpoints de tenant si los expones públicamente
 }
 
 export const TENANT_EMPRESAS = {
@@ -20,7 +20,7 @@ export const TENANT_CLIENTES = {
 }
 
 export const TENANT_PROVEEDORES = {
-  base: '/v1/tenant/proveedores',
+  base: '/v1/tenant/proveedores/',
   byId: (id: number | string) => `/v1/tenant/proveedores/${id}`,
 }
 
@@ -49,6 +49,9 @@ export const TENANT_ONBOARDING = {
 export const TENANT_USUARIOS = {
   base: '/v1/tenant/usuarios',
   byId: (id: number | string) => `/v1/tenant/usuarios/${id}`,
+  modules: '/v1/tenant/usuarios/modulos',
+  roles: '/v1/tenant/usuarios/roles',
+  checkUsername: (username: string) => `/v1/usuarios/check-username/${encodeURIComponent(username)}`,
 }
 
 export const TENANT_SETTINGS = {

@@ -1,6 +1,22 @@
 import { API_URL } from '../../lib/http'
 import { apiFetch } from '../../lib/http'
 
+import { getOcrJob } from './services/importsApi'
+import type { OcrJobStatus } from './services/importsApi'
+
+const JOB_POLL_INTERVAL_MS = Number(import.meta.env.VITE_IMPORTS_JOB_POLL_INTERVAL ?? 1500)
+const JOB_POLL_MAX_ATTEMPTS = Number(import.meta.env.VITE_IMPORTS_JOB_POLL_ATTEMPTS ?? 80)
+
+type OcrJobResultPayload = { archivo: string; documentos: any[] }
+
+export type ProcesarDocumentoResult =
+  | { status: 'done'; jobId: string; payload: OcrJobResultPayload }
+  | { status: 'pending'; jobId: string }
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export type DatosImportadosCreate = {
   tipo: string
   origen: 'excel' | 'ocr' | 'manual'
@@ -11,7 +27,8 @@ export type DatosImportadosCreate = {
 
 export type DatosImportadosOut = DatosImportadosCreate & { id: number; empresa_id: number }
 
-export async function procesarDocumento(file: File, authToken?: string) {
+
+export async function procesarDocumento(file: File, authToken?: string): Promise<ProcesarDocumentoResult> {
   const url = `${API_URL}/v1/imports/procesar`
   const fd = new FormData()
   fd.append('file', file)
@@ -21,13 +38,64 @@ export async function procesarDocumento(file: File, authToken?: string) {
     headers: authToken ? { Authorization: `Bearer ${authToken}` } as any : undefined,
     credentials: 'include',
   })
-  const txt = await res.text()
-  const json = txt ? JSON.parse(txt) : null
-  if (!res.ok) {
-    const msg = (json && (json.detail || json.message)) || res.statusText
-    throw new Error(msg)
+
+  const raw = await res.text()
+  let json: any = null
+  if (raw) {
+    try {
+      json = JSON.parse(raw)
+    } catch {
+      if (!res.ok) {
+        const fallback = res.status === 504
+          ? 'El procesamiento tard? m?s de lo permitido (504). Intenta nuevamente o reduce el tama?o del archivo.'
+          : `El servidor devolvi? una respuesta inesperada (${res.status}).`
+        throw new Error(fallback)
+      }
+      throw new Error('El servidor devolvi? una respuesta que no es JSON v?lido.')
+    }
   }
-  return json as { archivo: string; documentos: any[] }
+
+  if (!res.ok) {
+    const msg = json?.detail || json?.message || (res.status === 504
+      ? 'El procesamiento tard? m?s de lo permitido (504). Intenta nuevamente o reduce el tama?o del archivo.'
+      : res.statusText)
+    throw new Error(msg || 'Error procesando el documento.')
+  }
+
+  const jobId: string | undefined = json?.job_id
+  if (!jobId) {
+    throw new Error('No se pudo encolar el procesamiento del documento.')
+  }
+
+  const result = await waitForOcrJob(jobId, authToken)
+  if (!result) {
+    return { status: 'pending', jobId }
+  }
+  return { status: 'done', jobId, payload: result }
+}
+
+export async function pollOcrJob(jobId: string, authToken?: string): Promise<ProcesarDocumentoResult> {
+  const result = await waitForOcrJob(jobId, authToken)
+  if (!result) {
+    return { status: 'pending', jobId }
+  }
+  return { status: 'done', jobId, payload: result }
+}
+
+async function waitForOcrJob(jobId: string, authToken?: string): Promise<OcrJobResultPayload | null> {
+  let lastStatus: OcrJobStatus | null = null
+  for (let attempt = 0; attempt < JOB_POLL_MAX_ATTEMPTS; attempt += 1) {
+    const status = await getOcrJob(jobId, authToken)
+    lastStatus = status
+    if (status.status === 'done' && status.result) {
+      return status.result
+    }
+    if (status.status === 'failed') {
+      throw new Error(status.error || 'El procesamiento del documento fall?.')
+    }
+    await sleep(JOB_POLL_INTERVAL_MS)
+  }
+  return lastStatus?.result ?? null
 }
 
 export async function guardarPendiente(payload: DatosImportadosCreate, authToken?: string) {

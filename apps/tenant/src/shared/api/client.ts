@@ -1,7 +1,7 @@
-import { createClient } from '@shared/http'
+import { createSharedClient } from '@shared'
 import { TENANT_AUTH } from '@shared/endpoints'
 
-const api = createClient({
+const api = createSharedClient({
   baseURL: '/api',
   tokenKey: 'access_token_tenant',
   refreshPath: TENANT_AUTH.refresh,

@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: backend
+        working-directory: apps/backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -29,7 +29,7 @@ jobs:
           JWT_SECRET_KEY: devsecretdevsecretdevsecret
         run: pytest -q
       - name: Validate FE/BE endpoints
-        run: python ../scripts/check_endpoints.py
+        run: python ../../scripts/check_endpoints.py
 
   frontend:
     runs-on: ubuntu-latest

@@ -1,0 +1,9 @@
+id: 2025-09-22_005_imports_full_schema
+title: "Imports module full schema + indexes"
+created_at: 2025-09-22T00:00:00Z
+requires: []
+tags:
+  - imports
+  - schema
+  - postgres
+

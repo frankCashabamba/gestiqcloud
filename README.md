@@ -8,7 +8,7 @@ Servicios:
 
 ## Uso rápido
 ```bash
-cp backend/.env.example backend/.env
+cp apps/backend/.env.example apps/backend/.env
 docker compose build
 docker compose up
 ```
@@ -18,11 +18,11 @@ Tenant → http://localhost:8082
 API → http://localhost:8000/docs
 
 > Los front llaman a `/api/...` (Nginx proxy), por lo que no necesitas CORS desde UI.
-> Si accedes a la API desde otros orígenes, configura `CORS_ORIGINS` en `backend/.env`.
+> Si accedes a la API desde otros orígenes, configura `CORS_ORIGINS` en `apps/backend/.env`.
 
 ## Configuración de uploads
 - El backend puede servir archivos subidos montando `/uploads`.
-- Variables en `backend/.env`:
+- Variables en `apps/backend/.env`:
   - `UPLOADS_DIR`: ruta de la carpeta (por defecto `uploads`).
   - `UPLOADS_MOUNT_ENABLED`: `true|false` para habilitar el mount.
 - En CI, si no existe la carpeta, puedes:

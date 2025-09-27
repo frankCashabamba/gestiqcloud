@@ -1,7 +1,6 @@
 import React from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
-import SessionKeepAlive from '../components/SessionKeepAlive'
 import { useMisModulos } from '../hooks/useMisModulos'
 import { useEffect, useState } from 'react'
 import { getMiEmpresa, type Empresa } from '../services/empresa'
@@ -15,7 +14,6 @@ export default function Dashboard() {
   useEffect(() => { getMiEmpresa().then(arr => setEmpresaInfo(arr[0] || null)).catch(()=>{}) }, [])
   return (
     <div>
-      <SessionKeepAlive warnAfterMs={60_000} responseWindowMs={60_000} />
       {/* Header general con Inicio/Cerrar sesión está en TenantShell */}
       <div style={{ maxWidth: 960, margin: '0 auto 1rem', color: 'var(--color-muted)', fontSize: 14, display: 'flex', gap: 16 }}>
         <span>Empresa: <strong>{empresaInfo?.nombre || empresa || '—'}</strong></span>
@@ -44,3 +42,5 @@ export default function Dashboard() {
     </div>
   )
 }
+
+

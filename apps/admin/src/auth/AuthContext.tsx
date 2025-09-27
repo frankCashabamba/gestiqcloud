@@ -1,6 +1,14 @@
-// AuthContext.tsx
+﻿// AuthContext.tsx
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { apiFetch, registerAuthHandlers } from '../lib/http'
+import { createSharedClient } from '@shared'
+
+const api = createSharedClient({
+  baseURL: '/api',
+  tokenKey: 'access_token_admin',
+  refreshPath: '/v1/admin/auth/refresh',
+  csrfPath: '/v1/admin/auth/csrf',
+  authExemptSuffixes: ['/v1/admin/auth/login', '/v1/admin/auth/refresh', '/v1/admin/auth/logout', '/v1/admin/auth/csrf']
+})
 
 type LoginBody = { identificador: string; password: string }
 type LoginResponse = { access_token: string; token_type: 'bearer'; scope?: string }
@@ -23,41 +31,33 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<MeAdmin | null>(null)
 
-  // Mantén el token en un ref para evitar carreras
   const tokenRef = useRef<string | null>(token)
   useEffect(() => { tokenRef.current = token }, [token])
 
-  // Registra los handlers UNA vez
+  // Sincroniza storage con token
   useEffect(() => {
-    registerAuthHandlers({
-      getToken: () => tokenRef.current,
-      setToken: (t) => {
-        setToken(t)
-        if (t) sessionStorage.setItem('access_token_admin', t)
-        else sessionStorage.removeItem('access_token_admin')
-      },
-      refresh: refreshOnce, // usará el endpoint de admin
-    })
-  }, [])
+    if (token) sessionStorage.setItem('access_token_admin', token)
+    else sessionStorage.removeItem('access_token_admin')
+  }, [token])
 
-  // helper: carga /me con el token pasado (y un reintento corto si justo se emitió)
   async function loadMeWith(accessTok: string) {
     try {
-      return await apiFetch<MeAdmin>('/v1/me/admin', { authToken: accessTok } as any)
+      const r = await api.get<MeAdmin>('/v1/me/admin')
+      return r.data
     } catch (e: any) {
       if (e?.status === 401) {
         await new Promise(r => setTimeout(r, 200))
-        return await apiFetch<MeAdmin>('/v1/me/admin', { authToken: accessTok, retryOn401: false } as any)
+        const r2 = await api.get<MeAdmin>('/v1/me/admin')
+        return r2.data
       }
       throw e
     }
   }
 
-  // Al montar: recoge token por fragment (handoff) si viene del tenant y luego intenta recuperar sesión
   useEffect(() => {
     (async () => {
       try {
-        // Handoff: si llega #access_token=... desde el tenant, úsalo
+        // Handoff hash access token
         try {
           const hash = (typeof window !== 'undefined' ? window.location.hash : '') || ''
           if (hash.startsWith('#')) {
@@ -66,7 +66,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             if (tHash && !sessionStorage.getItem('access_token_admin')) {
               sessionStorage.setItem('access_token_admin', tHash)
               setToken(tHash)
-              // limpia el fragment sin recargar
               if (typeof window !== 'undefined' && window.history?.replaceState) {
                 const url = window.location.pathname + window.location.search
                 window.history.replaceState({}, document.title, url)
@@ -88,16 +87,12 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         setLoading(false)
       }
     })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function refreshOnce(): Promise<string | null> {
     try {
-      const data = await apiFetch<{ access_token?: string }>('/v1/admin/auth/refresh', { // ✅ ADMIN
-        method: 'POST',
-        retryOn401: false,
-      } as any)
-      return data?.access_token ?? null
+      const r = await api.post<{ access_token?: string }>('/v1/admin/auth/refresh')
+      return r.data?.access_token ?? null
     } catch {
       return null
     }
@@ -110,25 +105,17 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }
 
   const login = async (body: LoginBody) => {
-    // (opcional) precalienta cookie CSRF específica de admin
-    try { await apiFetch('/v1/admin/auth/csrf', { retryOn401: false } as any) } catch {}
-
-    const data = await apiFetch<LoginResponse>('/v1/admin/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ identificador: body.identificador.trim(), password: body.password }),
-      retryOn401: false,
-      headers: { 'Content-Type': 'application/json' },
-    } as any)
-
+    try { await api.get('/v1/admin/auth/csrf') } catch {}
+    const r = await api.post<LoginResponse>('/v1/admin/auth/login', { identificador: body.identificador.trim(), password: body.password })
+    const data = r.data
     setToken(data.access_token)
     sessionStorage.setItem('access_token_admin', data.access_token)
-
-    const me = await loadMeWith(data.access_token) // ✅ primer /me con token explícito
+    const me = await loadMeWith(data.access_token)
     setProfile(me)
   }
 
   const logout = async () => {
-    try { await apiFetch('/v1/admin/auth/logout', { method: 'POST', retryOn401: false } as any) } catch {} // ✅ ADMIN
+    try { await api.post('/v1/admin/auth/logout') } catch {}
     clear()
   }
 
@@ -144,7 +131,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   const value = useMemo(
     () => ({ token, loading, profile, login, logout, brand: 'Admin', refresh }),
-    [token, loading, profile, login, logout, refresh] as any
+    [token, loading, profile, logout, refresh] as any
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

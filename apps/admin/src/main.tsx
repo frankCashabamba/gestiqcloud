@@ -5,22 +5,21 @@ import App from './app/App'
 import { AuthProvider } from './auth/AuthContext'
 import { ToastProvider } from './shared/toast'
 import './index.css'
-import { registerSW } from 'virtual:pwa-register'
-import { sendTelemetry } from './lib/telemetry'
+import { setupPWA } from '@pwa'
+import { sendTelemetry } from '@shared'
+import { IdleLogout } from '@ui'
+import { useAuth } from './auth/AuthContext'
+
+function IdleBridge() {
+  const { logout } = useAuth()
+  return <IdleLogout onLogout={logout} timeoutMs={30 * 60_000} />
+}
 
 // Register PWA service worker with auto updates and update prompt
-const updateSW = registerSW({
-  immediate: true,
-  onNeedRefresh() {
-    window.dispatchEvent(new Event('pwa:need-refresh'))
-    sendTelemetry('pwa_need_refresh')
-  },
-  onOfflineReady() {
-    window.dispatchEvent(new Event('pwa:offline-ready'))
-    sendTelemetry('pwa_offline_ready')
-  }
+setupPWA((ev: 'need-refresh' | 'offline-ready') => {
+  if (ev === 'need-refresh') sendTelemetry('pwa_need_refresh')
+  if (ev === 'offline-ready') sendTelemetry('pwa_offline_ready')
 })
-;(window as any).__updateSW = updateSW
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -28,6 +27,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <AuthProvider>
         <ToastProvider>
           <App />
+          <IdleBridge />
         </ToastProvider>
       </AuthProvider>
     </BrowserRouter>

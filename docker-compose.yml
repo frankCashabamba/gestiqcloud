@@ -19,12 +19,19 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: ./apps/backend
       dockerfile: Dockerfile
     container_name: backend
+    environment:
+      PYTHONPATH: "/app:/apps"
+      IMPORTS_ENABLED: "1"
+      DB_DSN: "postgresql://postgres:root@db:5432/gestiqclouddb_dev"
+      FRONTEND_URL: "http://localhost:8081"
     env_file:
-      - ./backend/.env
+      - ./apps/backend/.env.example
     depends_on:
+      migrations:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
     ports:
@@ -32,6 +39,31 @@ services:
     volumes:
       - ./uploads:/app/uploads
       - ./apps:/apps:ro
+      - ./scripts:/scripts:ro
+    command: ["uvicorn","app.main:app","--host","0.0.0.0","--port","8000","--workers","2","--app-dir","/app"]
+    healthcheck:
+      test: ["CMD-SHELL", "if [ \"$IMPORTS_ENABLED\" = \"1\" ] || [ \"$IMPORTS_ENABLED\" = \"true\" ] || [ \"$IMPORTS_ENABLED\" = \"True\" ]; then if [ -n \"$DB_DSN\" ] && [ -f /scripts/py/bootstrap_imports.py ]; then python /scripts/py/bootstrap_imports.py --check-only; else python -c 'import urllib.request,json,sys;\ntry:\n r=urllib.request.urlopen(\"http://localhost:8000/api/v1/imports/health\", timeout=5); data=json.loads(r.read().decode()); sys.exit(0 if data.get(\"ok\", True) else 1)\nexcept Exception:\n sys.exit(1)'; fi; else exit 0; fi"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  migrations:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: migrations
+    environment:
+      PYTHONPATH: "/app:/apps"
+      DB_DSN: "postgresql://postgres:root@db:5432/gestiqclouddb_dev"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./apps:/apps:ro
+      - ./scripts:/scripts:ro
+      - ./ops:/ops:ro
+    command: ["python","/scripts/py/bootstrap_imports.py","--dsn","postgresql://postgres:root@db:5432/gestiqclouddb_dev","--dir","/ops/migrations"]
+    restart: "no"
 
   admin:
     build:
@@ -55,3 +87,4 @@ services:
 
 volumes:
   db_data:
+

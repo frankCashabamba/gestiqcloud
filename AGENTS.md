@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- Backend: `backend/` (FastAPI, Alembic). DB via Postgres.
+- Backend: `apps/backend` (FastAPI). DB via Postgres.
 - Frontends: `apps/admin` (panel admin) y `apps/tenant` (app tenant), Vite + TS.
 - Shared packages: `apps/packages/*` (`ui`, `http-core`, `endpoints`, `domain`, `utils`, etc.).
 - Infra: `docker-compose.yml` en la raíz; scripts en `scripts/` (`init.ps1` y `init.sh`).

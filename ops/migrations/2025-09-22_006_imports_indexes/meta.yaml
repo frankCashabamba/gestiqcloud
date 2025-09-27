@@ -1,0 +1,9 @@
+id: 2025-09-22_006_imports_indexes
+title: "Imports: idempotency and dedupe indexes"
+created_at: 2025-09-22T00:00:00Z
+requires: [2025-09-22_000_baseline_full_schema]
+tags:
+  - imports
+  - indexes
+  - performance
+

@@ -1,66 +1,106 @@
-import React from 'react'
-import { Link, useParams } from 'react-router-dom'
+
+import React, { Children } from 'react'
+import { NavLink, useParams } from 'react-router-dom'
 
 type NavItem = { label: string; to: string }
 
 type Props = {
   title: string
+  subtitle?: string
   topNav?: NavItem[]
   sideNav?: NavItem[]
   kpis?: React.ReactNode
   children?: React.ReactNode
 }
 
-const linkStyle: React.CSSProperties = {
-  display: 'inline-block',
-  padding: '8px 12px',
-  borderRadius: 8,
-  color: 'inherit',
-  textDecoration: 'none',
-}
-
-export default function SectorLayout({ title, topNav = [], sideNav = [], kpis, children }: Props) {
+export default function SectorLayout({ title, subtitle, topNav = [], sideNav = [], kpis, children }: Props) {
   const { empresa } = useParams()
   const prefix = empresa ? `/${empresa}` : ''
+  const kpiItems = kpis ? Children.toArray(kpis) : []
+
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
-      <a href="#main" style={{ position: 'absolute', left: -9999, top: 'auto' }} onFocus={(e)=>{ e.currentTarget.style.left = '8px' }} onBlur={(e)=>{ e.currentTarget.style.left = '-9999px' }}>Saltar al contenido</a>
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 0', gap: 12 }}>
-        <h1 style={{ margin: 0 }}>{title}</h1>
-        {topNav.length > 0 && (
-          <nav aria-label="Acciones rápidas">
-            {topNav.map((n) => (
-              <Link key={n.to} to={`${prefix}${n.to}`} style={{ ...linkStyle, marginLeft: 8, border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>{n.label}</Link>
-            ))}
-          </nav>
-        )}
-      </header>
+    <div className="relative min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 pb-16">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-6 focus:top-6 focus:z-50 focus:rounded-md focus:bg-blue-600 focus:px-4 focus:py-2 focus:text-sm focus:text-white"
+      >
+        Saltar al contenido
+      </a>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 16 }}>
-        <aside aria-label="Navegación de módulo" style={{ border: '1px solid var(--color-border)', borderRadius: 12, background: 'var(--color-surface)', padding: 8 }}>
-          <nav>
-            <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-              {sideNav.map((n) => (
-                <li key={n.to}>
-                  <Link to={`${prefix}${n.to}`} style={{ display: 'block', padding: '10px 12px', borderRadius: 8, color: 'inherit', textDecoration: 'none' }} className="side-link">{n.label}</Link>
-                </li>
+      <div className="gc-container pt-10">
+        <header className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-3">
+            <span className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-700">
+              Espacio de trabajo
+            </span>
+            <div>
+              <h1 className="text-3xl font-semibold text-slate-900">{title}</h1>
+              {subtitle && <p className="mt-2 max-w-3xl text-sm text-slate-500">{subtitle}</p>}
+            </div>
+          </div>
+
+          {topNav.length > 0 && (
+            <nav aria-label="Acciones r?pidas" className="flex flex-wrap gap-2">
+              {topNav.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={`${prefix}${item.to}`}
+                  className={({ isActive }) =>
+                    `gc-button px-4 py-2 ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                    }`
+                  }
+                >
+                  {item.label}
+                </NavLink>
               ))}
-            </ul>
-          </nav>
-        </aside>
-
-        <main id="main" role="main">
-          {kpis && (
-            <section aria-label="Indicadores clave" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
-              {kpis}
-            </section>
+            </nav>
           )}
-          <section aria-label="Contenido">
-            {children}
-          </section>
-        </main>
+        </header>
+
+        <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,260px)_1fr]">
+          <aside className="lg:sticky lg:top-10">
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              {sideNav.length > 0 ? (
+                <nav aria-label="Navegaci?n de m?dulos" className="space-y-1">
+                  {sideNav.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={`${prefix}${item.to}`}
+                      className={({ isActive }) =>
+                        `flex items-center justify-between rounded-xl px-4 py-2 text-sm font-medium transition ${
+                          isActive
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                        }`
+                      }
+                    >
+                      <span>{item.label}</span>
+                      <span aria-hidden="true" className="text-xs">
+                        ?
+                      </span>
+                    </NavLink>
+                  ))}
+                </nav>
+              ) : (
+                <p className="text-xs text-slate-400">Todav?a no tienes m?dulos asignados en este espacio.</p>
+              )}
+            </div>
+          </aside>
+
+          <main id="main" className="space-y-8">
+            {kpiItems.length > 0 && (
+              <section aria-label="Indicadores clave" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {kpiItems}
+              </section>
+            )}
+
+            <section className="space-y-6">{children}</section>
+          </main>
+        </div>
       </div>
     </div>
   )
 }
-

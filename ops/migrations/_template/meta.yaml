@@ -1,0 +1,8 @@
+id: 20YY-MM-DD_HH_template_name
+title: "Short description of migration"
+created_at: 20YY-MM-DDTHH:MM:SSZ
+requires: []
+tags:
+  - feature
+  - schema
+

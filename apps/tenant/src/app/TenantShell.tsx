@@ -1,18 +1,48 @@
 import React from 'react'
 import { Link, Outlet, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import SessionKeepAlive from '@shared/ui'
+
+const SESSION_WARN_AFTER_MS = 9 * 60_000;
+const SESSION_RESPONSE_WINDOW_MS = 60_000;
 
 export default function TenantShell() {
   const { logout } = useAuth()
+  const useAuthHook = useAuth
   const { empresa } = useParams()
   const prefix = empresa ? `/${empresa}` : ''
+  const year = new Date().getFullYear()
+
   return (
-    <div>
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, padding: '12px 16px' }}>
-        <Link to={prefix || '/'} style={{ border: '1px solid var(--color-border)', background: 'var(--color-surface)', padding: '8px 12px', borderRadius: 8, textDecoration: 'none', color: 'inherit' }}>Inicio</Link>
-        <button onClick={logout} style={{ border: 0, background: 'var(--color-primary)', color: 'var(--color-on-primary)', padding: '8px 12px', borderRadius: 8 }}>Cerrar sesiÃ³n</button>
+    <div className="flex min-h-screen flex-col bg-slate-50">
+      <SessionKeepAlive useAuth={useAuthHook as any} warnAfterMs={SESSION_WARN_AFTER_MS} responseWindowMs={SESSION_RESPONSE_WINDOW_MS} />
+
+      <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
+        <div className="gc-container flex h-16 items-center justify-between">
+          <Link to={prefix || '/'} className="text-sm font-semibold text-slate-700 transition hover:text-blue-600">
+            GestiqCloud
+          </Link>
+          <nav className="flex items-center gap-3">
+            <Link to={prefix || '/'} className="gc-button gc-button--ghost hidden sm:inline-flex">
+              Ir al panel
+            </Link>
+            <button type='button' onClick={logout} className="gc-button gc-button--primary">
+              Cerrar sesión
+            </button>
+          </nav>
+        </div>
       </header>
-      <Outlet />
+
+      <main className="flex-1">
+        <Outlet />
+      </main>
+
+      <footer className="border-t border-slate-200 bg-white/90">
+        <div className="gc-container flex h-14 flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+          <span>© GestiqCloud {year}. Todos los derechos reservados.</span>
+          <span className="font-medium text-slate-400">ERP · CRM · Plataforma modular</span>
+        </div>
+      </footer>
     </div>
   )
 }

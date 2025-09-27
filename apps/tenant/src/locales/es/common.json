@@ -9,5 +9,12 @@
     "+create": "+ Crear",
     "save": "Guardar",
     "cancel": "Cancelar"
+  },
+  "availableModules": {
+    "proveedores": {
+      "title": "Proveedores",
+      "description": "Gestiona fichas, contactos y condiciones comerciales de tus proveedores",
+      "path": "/mod/proveedores"
+    }
   }
 }

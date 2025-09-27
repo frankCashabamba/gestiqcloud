@@ -1,0 +1,47 @@
+﻿services:
+  - type: web
+    name: gestiqcloud-api
+    env: docker
+    region: oregon
+    plan: starter
+    rootDir: apps/backend
+    dockerfilePath: Dockerfile
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: IMPORTS_ENABLED
+        value: "1"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: IMPORTS_EASYOCR_ENABLED
+        value: "0"
+    postDeployCommand: python /scripts/py/bootstrap_imports.py --dsn $DATABASE_URL --dir /ops/migrations
+
+  - type: static
+    name: gestiqcloud-tenant
+    region: oregon
+    buildCommand: |
+      npm ci --prefix apps/tenant
+      npm run build --prefix apps/tenant
+    publishPath: apps/tenant/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://gestiqcloud.com/api
+      - key: VITE_BASE_PATH
+        value: /
+
+  - type: static
+    name: gestiqcloud-admin
+    region: oregon
+    buildCommand: |
+      npm ci --prefix apps/admin
+      npm run build --prefix apps/admin
+    publishPath: apps/admin/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://gestiqcloud.com/api
+      - key: VITE_BASE_PATH
+        value: /

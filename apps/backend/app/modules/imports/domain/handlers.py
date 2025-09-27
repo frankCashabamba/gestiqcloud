@@ -1,0 +1,48 @@
+from __future__ import annotations
+
+from typing import Any, Dict, Optional, Tuple
+
+
+class PromoteResult:
+    def __init__(self, domain_id: Optional[str], skipped: bool = False):
+        self.domain_id = domain_id
+        self.skipped = skipped
+
+
+class InvoiceHandler:
+    @staticmethod
+    def promote(normalized: Dict[str, Any], promoted_id: Optional[str] = None) -> PromoteResult:
+        """Idempotent skeleton: if already promoted, skip; else return a fake id.
+        Replace with real insert into domain models.
+        """
+        if promoted_id:
+            return PromoteResult(domain_id=promoted_id, skipped=True)
+        # Minimal fake id composed from key fields
+        inv = str(normalized.get("invoice_number") or normalized.get("invoice") or "")
+        date = str(normalized.get("invoice_date") or normalized.get("date") or "")
+        domain_id = f"inv:{inv}:{date}" if inv or date else None
+        return PromoteResult(domain_id=domain_id, skipped=False)
+
+
+class BankHandler:
+    @staticmethod
+    def promote(normalized: Dict[str, Any], promoted_id: Optional[str] = None) -> PromoteResult:
+        if promoted_id:
+            return PromoteResult(domain_id=promoted_id, skipped=True)
+        ref = str(normalized.get("entry_ref") or normalized.get("description") or "")
+        date = str(normalized.get("transaction_date") or normalized.get("date") or "")
+        amt = normalized.get("amount")
+        domain_id = f"bnk:{date}:{amt}:{ref[:12]}" if date or amt else None
+        return PromoteResult(domain_id=domain_id, skipped=False)
+
+
+class ExpenseHandler:
+    @staticmethod
+    def promote(normalized: Dict[str, Any], promoted_id: Optional[str] = None) -> PromoteResult:
+        if promoted_id:
+            return PromoteResult(domain_id=promoted_id, skipped=True)
+        date = str(normalized.get("expense_date") or normalized.get("date") or "")
+        amt = normalized.get("amount")
+        domain_id = f"exp:{date}:{amt}" if date or amt else None
+        return PromoteResult(domain_id=domain_id, skipped=False)
+

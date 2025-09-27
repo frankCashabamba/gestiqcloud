@@ -1,4 +1,5 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "composite": true,
     "module": "ESNext",
@@ -6,5 +7,8 @@
     "types": ["node"],
     "skipLibCheck": true
   },
-  "include": ["vite.config.ts"]
+  "include": [
+    "vite.config.ts",
+    "../packages/pwa/src/**/*.ts"
+  ]
 }

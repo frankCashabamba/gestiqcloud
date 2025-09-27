@@ -1,6 +1,7 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 # Bring the whole apps/ tree so aliases like ../packages/* resolve
+COPY tsconfig.base.json ./tsconfig.base.json
 COPY apps ./apps
 WORKDIR /app/apps/admin
 RUN apk add --no-cache libc6-compat && \

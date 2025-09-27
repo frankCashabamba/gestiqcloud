@@ -3,20 +3,20 @@
 
 # Install backend dependencies into current environment
 b.setup:
-	python -m pip install -r backend/requirements.txt
+	python -m pip install -r apps/backend/requirements.txt
 
 # Run Ruff (lint) with autofix
 b.lint:
-	ruff check backend/app --fix
+	ruff check apps/backend/app --fix
 
 # Run isort and black formatting on backend
 b.format:
-	isort backend/app
-	black backend/app
+	isort apps/backend/app
+	black apps/backend/app
 
 # Run backend test suite (uses SQLite in-memory via conftest)
 b.test:
-	pytest -q backend/app/test -o cache_dir=/tmp/pytest_cache
+	cd apps/backend && pytest -q -o cache_dir=/tmp/pytest_cache
 
 # Convenience: lint + format + tests
 b.all: b.lint b.format b.test
