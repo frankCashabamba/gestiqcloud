@@ -157,3 +157,66 @@ async def _start_imports_job_runner() -> None:  # pragma: no cover - integration
 async def _stop_imports_job_runner() -> None:  # pragma: no cover - integration hook
     if _imports_job_runner is not None:
         _imports_job_runner.stop()
+
+# ... todo lo anterior de tu main igual ...
+
+try:
+    from app.modules.imports.application.job_runner import job_runner as _imports_job_runner
+except Exception:  # pragma: no cover - optional during tests
+    _imports_job_runner = None
+
+# --- Gate del runner: sólo arranca si IMPORTS_ENABLED=1 y existen tablas ---
+import os
+from sqlalchemy import inspect
+
+try:
+    # usa el mismo engine que en tu proyecto
+    from app.config.database import engine  # si rootDir=apps/backend
+except Exception:
+    try:
+        from apps.backend.app.config.database import engine
+    except Exception:
+        engine = None  # sin engine no podemos verificar tablas
+
+_REQUIRED_IMPORTS_TABLES = [
+    "import_batches",
+    "import_items",
+    "import_mappings",
+    "import_item_corrections",
+    "import_lineage",
+    "auditoria_importacion",
+    "import_ocr_jobs",
+]
+
+def _imports_enabled() -> bool:
+    return str(os.getenv("IMPORTS_ENABLED", "1")).lower() in ("1", "true")
+
+def _imports_tables_ready() -> bool:
+    if engine is None:
+        return False
+    try:
+        insp = inspect(engine)
+        return all(insp.has_table(t) for t in _REQUIRED_IMPORTS_TABLES)
+    except Exception:
+        return False
+
+# --- Lifespan moderno (reemplaza on_event) ---
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # startup
+    if _imports_job_runner and _imports_enabled() and _imports_tables_ready():
+        _imports_job_runner.start()
+    else:
+        logging.getLogger("app.startup").info("Imports runner omitido (deshabilitado o sin tablas).")
+    yield
+    # shutdown
+    if _imports_job_runner:
+        try:
+            _imports_job_runner.stop()
+        except Exception:
+            pass
+
+# Re-crear app con lifespan (conserva tu config previa)
+app.router.lifespan_context = lifespan

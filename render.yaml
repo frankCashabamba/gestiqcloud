@@ -1,47 +1,78 @@
 ﻿services:
+  # ------------ BACKEND API (FastAPI) ------------
   - type: web
     name: gestiqcloud-api
-    env: docker
+    env: python
     region: oregon
     plan: starter
+    branch: main
     rootDir: apps/backend
-    dockerfilePath: Dockerfile
     autoDeploy: true
+    domains:
+      - api.gestiqcloud.com
+    buildCommand: |
+      pip install -U pip
+      pip install -r requirements.txt
+    startCommand: python prod.py
     envVars:
+      # Rellena en el dashboard (secreto)
       - key: DATABASE_URL
         sync: false
-      - key: SECRET_KEY
-        generateValue: true
+      - key: JWT_SECRET_KEY
+        sync: false
+
+      # URLs y CORS
+      - key: FRONTEND_URL
+        value: https://gestiqcloud.com
+      - key: CORS_ORIGINS
+        value: '["https://gestiqcloud.com","https://admin.gestiqcloud.com"]'
+
+      # Hosts permitidos (JSON)
+      - key: ALLOWED_HOSTS
+        value: '["api.gestiqcloud.com","*.onrender.com"]'
+
+      # Cookies seguras cross-subdomain (si usas sesión en cookies)
+      - key: COOKIE_DOMAIN
+        value: .gestiqcloud.com
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAMESITE
+        value: none
+
+      # Otros requeridos por tu Settings
+      - key: TENANT_NAMESPACE_UUID
+        value: 0280249e-6707-40fb-8d60-1e8f3aea0f8e
       - key: IMPORTS_ENABLED
         value: "1"
-      - key: LOG_LEVEL
-        value: INFO
-      - key: IMPORTS_EASYOCR_ENABLED
-        value: "0"
-    postDeployCommand: python /scripts/py/bootstrap_imports.py --dsn $DATABASE_URL --dir /ops/migrations
 
+  # ------------ FRONTEND TENANT (Vite) ------------
   - type: static
     name: gestiqcloud-tenant
     region: oregon
+    plan: starter
+    branch: main
+    domains:
+      - gestiqcloud.com
     buildCommand: |
       npm ci --prefix apps/tenant
       npm run build --prefix apps/tenant
     publishPath: apps/tenant/dist
     envVars:
       - key: VITE_API_URL
-        value: https://gestiqcloud.com/api
-      - key: VITE_BASE_PATH
-        value: /
+        value: https://api.gestiqcloud.com
 
+  # ------------ FRONTEND ADMIN (Vite) ------------
   - type: static
     name: gestiqcloud-admin
     region: oregon
+    plan: starter
+    branch: main
+    domains:
+      - admin.gestiqcloud.com
     buildCommand: |
       npm ci --prefix apps/admin
       npm run build --prefix apps/admin
     publishPath: apps/admin/dist
     envVars:
       - key: VITE_API_URL
-        value: https://gestiqcloud.com/api
-      - key: VITE_BASE_PATH
-        value: /
+        value: https://api.gestiqcloud.com
