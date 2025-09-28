@@ -23,6 +23,8 @@
         sync: false
       - key: JWT_SECRET_KEY
         sync: false
+      - key: SECRET_KEY
+        sync: false
 
       # URLs y CORS
       - key: FRONTEND_URL
@@ -49,6 +51,18 @@
         value: 0280249e-6707-40fb-8d60-1e8f3aea0f8e
       - key: IMPORTS_ENABLED
         value: "1"
+
+      # Credenciales SMTP (obligatorias en prod)
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        value: no-reply@gestiqcloud.com
 
   # ------------ FRONTEND TENANT (Vite) ------------
   - type: static
