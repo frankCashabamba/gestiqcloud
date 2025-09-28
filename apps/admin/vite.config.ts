@@ -4,7 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 import fs from 'node:fs'
 import path from 'node:path'
 
-const rawBase = process.env.VITE_BASE_PATH || '/admin/'
+const rawBase = process.env.VITE_BASE_PATH || '/'
 const basePath = rawBase.endsWith('/') ? rawBase : `${rawBase}/`
 
 const buildId = process.env.VITE_BUILD_ID || new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)
