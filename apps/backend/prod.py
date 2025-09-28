@@ -31,8 +31,25 @@ def run_alembic() -> None:
         print(f"ℹ️  Alembic no configurado (no existe {alembic_ini}), se omite.")
         return
 
+    # Inyecta PYTHONPATH y DATABASE_URL al proceso hijo (alembic CLI)
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join([
+        str(ROOT),
+        str(APPS_DIR),
+        str(BACKEND_DIR),
+        env.get("PYTHONPATH", ""),
+    ])
+    if DB_DSN:
+        env.setdefault("DATABASE_URL", DB_DSN)
+
     print("📦 Alembic: upgrade head")
-    subprocess.run(["alembic", "upgrade", "head"], check=True, cwd=str(BACKEND_DIR))
+    subprocess.run(
+        ["alembic", "upgrade", "head"],
+        check=True,
+        cwd=str(BACKEND_DIR),
+        env=env,
+    )
+
 
 
 def run_legacy_migrations() -> None:

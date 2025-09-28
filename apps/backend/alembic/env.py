@@ -1,25 +1,57 @@
+# apps/backend/alembic/env.py
 from __future__ import annotations
 
-from logging.config import fileConfig
 import os
+import sys
+from pathlib import Path
+from logging.config import fileConfig
+
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 
-# Interpret the config file for Python logging.
+# ------------------------------------------------------------
+# Bootstrap de paths (monorepo) para que Alembic encuentre `app`
+# Estructura asumida: <root>/apps/backend/alembic/env.py
+# ------------------------------------------------------------
+BACKEND_DIR = Path(__file__).resolve().parents[1]   # apps/backend
+APPS_DIR = BACKEND_DIR.parent                       # apps
+ROOT = APPS_DIR.parent                              # repo root
+
+for p in (ROOT, APPS_DIR, BACKEND_DIR):
+    sp = str(p)
+    if sp not in sys.path:
+        sys.path.insert(0, sp)
+
+# ------------------------------------------------------------
+# Configuración base de Alembic
+# ------------------------------------------------------------
 config = context.config
+
+# Logging desde alembic.ini si existe
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Prefer DATABASE_URL env var
+# Prefiere DATABASE_URL del entorno si está presente
 db_url = os.getenv("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
 if db_url:
     config.set_main_option("sqlalchemy.url", db_url)
 
-# Import target metadata from app
-from app.db.base import target_metadata  # noqa: E402
+# ------------------------------------------------------------
+# Target metadata del modelo de la app
+# ------------------------------------------------------------
+try:
+    # Ruta "normal" cuando `app` es paquete (apps/backend/app)
+    from app.db.base import target_metadata  # type: ignore  # noqa: E402
+except ModuleNotFoundError:
+    # Fallback explícito por si el import absoluto falla
+    import importlib
+    target_metadata = importlib.import_module(
+        "apps.backend.app.db.base"
+    ).target_metadata  # type: ignore
 
 
 def run_migrations_offline() -> None:
+    """Ejecuta migraciones en modo 'offline' (sin conexión)."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -28,17 +60,20 @@ def run_migrations_offline() -> None:
         compare_type=True,
         compare_server_default=True,
     )
+
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
+    """Ejecuta migraciones en modo 'online' (con conexión)."""
     connectable = engine_from_config(
         config.get_section(config.config_ini_section) or {},
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
         future=True,
     )
+
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
@@ -46,6 +81,7 @@ def run_migrations_online() -> None:
             compare_type=True,
             compare_server_default=True,
         )
+
         with context.begin_transaction():
             context.run_migrations()
 
@@ -54,4 +90,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-
