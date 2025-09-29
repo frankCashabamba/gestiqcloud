@@ -15,7 +15,7 @@
       pip install -r requirements.txt
     startCommand: python prod.py
     # (opcional) Si tienes un endpoint de salud, añade esto:
-    # healthCheckPath: /healthz
+    healthCheckPath: /healthz
     envVars:
       - key: ENV
         value: production
