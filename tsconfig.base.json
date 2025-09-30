@@ -9,7 +9,8 @@
       "@assets": ["apps/packages/assets"],
       "@assets/*": ["apps/packages/assets/*"],
       "@pwa": ["apps/packages/pwa/src"],
-      "@pwa/*": ["apps/packages/pwa/src/*"]
+      "@pwa/*": ["apps/packages/pwa/src/*"],
+      "zod": ["apps/packages/zod/index.ts"]
     }
   }
 }

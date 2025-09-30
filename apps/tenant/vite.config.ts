@@ -23,6 +23,7 @@ const alias = {
   '@shared/utils': pkgPath('../packages/utils/src'),
   '@shared/telemetry': pkgPath('../packages/telemetry/src'),
   '@shared': pkgPath('../packages/shared/src'),
+  zod: pkgPath('../packages/zod/index.ts'),
   // Ensure deps required by shared packages resolve from this app
   'react-router-dom': pkgPath('./node_modules/react-router-dom'),
   'axios': pkgPath('./node_modules/axios'),
