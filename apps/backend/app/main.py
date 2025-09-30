@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -11,8 +11,8 @@ try:
     # Establish module aliases so dynamic import strings work in all entrypoints
     # Derive package roots from this module name (e.g., 'apps.backend.app.main')
     _this_pkg = __package__ or "apps.backend.app"
-    _app_pkg = importlib.import_module(_this_pkg)                 # apps.backend.app
-    _backend_pkg = importlib.import_module(_this_pkg.rsplit('.', 1)[0])  # apps.backend
+    _app_pkg = importlib.import_module(_this_pkg)                       # apps.backend.app
+    _backend_pkg = importlib.import_module(_this_pkg.rsplit('.', 1)[0]) # apps.backend
 
     # Map 'app' -> apps.backend.app and 'backend' -> apps.backend
     sys.modules.setdefault("app", _app_pkg)
@@ -33,7 +33,6 @@ from .config.settings import settings
 from .core.sessions import SessionMiddlewareServerSide
 from .middleware.security_headers import security_headers_middleware
 
-
 app = FastAPI(title="GestiqCloud API", version="1.0.0")
 
 # CORS (desde settings, con fallback seguro)
@@ -47,6 +46,7 @@ app.add_middleware(
 )
 
 # Sesiones server-side (cookies seguras según entorno)
+app.add_mmiddleware = app.add_middleware  # alias opcional si alguien la usa así
 app.add_middleware(
     SessionMiddlewareServerSide,
     cookie_name=settings.SESSION_COOKIE_NAME,
@@ -58,13 +58,32 @@ app.add_middleware(
 # Security headers (CSP, HSTS, etc.)
 app.middleware("http")(security_headers_middleware)
 
-
-@app.get("/health", tags=["health"])  # simple healthcheck
+# --- Health & raíz ------------------------------------------------------------
+@app.get("/health", tags=["health"])
 def health():
     return {"status": "ok"}
 
+# Alias para el healthcheck de Render (si el YAML usa /healthz)
+@app.get("/healthz", include_in_schema=False)
+def healthz():
+    return {"status": "ok"}
+
+@app.head("/healthz", include_in_schema=False)
+def healthz_head():
+    return Response(status_code=200)
+
+# Raíz con 200 para evitar 404 en navegadores/monitores
+@app.get("/", include_in_schema=False)
+def root():
+    return {
+        "service": "GestiqCloud API",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "health": "/health",
+        "api": "/api/v1",
+    }
+
 # Archivos subidos (logos, etc.)
-# En entornos como CI, la carpeta puede no existir; evitamos fallar al importar app
 _uploads_dir = Path(settings.UPLOADS_DIR)
 if settings.UPLOADS_MOUNT_ENABLED:
     if _uploads_dir.is_dir():
@@ -96,8 +115,6 @@ _email_logger.propagate = False
 app.include_router(build_api_router(), prefix="/api/v1")
 
 # Fallback: si por algún motivo el router de imports no quedó montado
-# (p.ej., en entornos de test donde la detección condicional se ejecutó antes
-# de inicializar variables de entorno), lo montamos explícitamente.
 try:
     has_imports = any(getattr(r, "path", "").startswith("/api/v1/imports") for r in app.router.routes)
 except Exception:
@@ -139,38 +156,17 @@ try:
 except Exception:  # keep app boot resilient
     pass
 
-
-
+# --- Runner de imports con gateos ---------------------------------------------
 try:
     from app.modules.imports.application.job_runner import job_runner as _imports_job_runner
 except Exception:  # pragma: no cover - optional during tests
     _imports_job_runner = None
 
-
-@app.on_event("startup")
-async def _start_imports_job_runner() -> None:  # pragma: no cover - integration hook
-    if _imports_job_runner is not None:
-        _imports_job_runner.start()
-
-
-@app.on_event("shutdown")
-async def _stop_imports_job_runner() -> None:  # pragma: no cover - integration hook
-    if _imports_job_runner is not None:
-        _imports_job_runner.stop()
-
-# ... todo lo anterior de tu main igual ...
-
-try:
-    from app.modules.imports.application.job_runner import job_runner as _imports_job_runner
-except Exception:  # pragma: no cover - optional during tests
-    _imports_job_runner = None
-
-# --- Gate del runner: sólo arranca si IMPORTS_ENABLED=1 y existen tablas ---
+# Gate del runner: sólo arranca si IMPORTS_ENABLED=1 y existen tablas
 import os
 from sqlalchemy import inspect
 
 try:
-    # usa el mismo engine que en tu proyecto
     from app.config.database import engine  # si rootDir=apps/backend
 except Exception:
     try:
@@ -200,7 +196,7 @@ def _imports_tables_ready() -> bool:
     except Exception:
         return False
 
-# --- Lifespan moderno (reemplaza on_event) ---
+# Lifespan moderno: reemplaza on_event startup/shutdown
 from contextlib import asynccontextmanager
 
 @asynccontextmanager
