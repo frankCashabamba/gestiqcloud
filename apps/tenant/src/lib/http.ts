@@ -1,5 +1,7 @@
 // lib/http.ts
-export const API_URL = ((import.meta.env.VITE_API_URL as string) || '/api').replace(/\/+$/g, '');
+import { env } from '../env'
+
+export const API_URL = (env.apiUrl || '/api').replace(/\/+$/g, '')
 
 export type HttpOptions = RequestInit & { authToken?: string; retryOn401?: boolean };
 
@@ -18,12 +20,21 @@ function needsCsrf(path: string, method: string) {
 
 // 🔧 Normaliza URL para evitar /api/api/... y // duplicadas
 function buildUrl(base: string, path: string) {
-  const b = (base || '').replace(/\/+$/g, '');         // sin barra final
-  let p = (path || '');
-  p = p.startsWith('/') ? p : `/${p}`;                 // asegurar que empieza con "/"
-  const baseHasApi = /^\/api(\/|$)/.test(b);
-  if (baseHasApi) p = p.replace(/^\/api(\/|$)/, '/');  // si base ya trae /api, quítalo del path
-  return (b + p).replace(/\/{2,}/g, '/');              // colapsa barras duplicadas
+  const b = (base || '').replace(/\/+$/g, '')
+  let p = path || ''
+  p = p.startsWith('/') ? p : `/${p}`
+
+  let basePathname = b
+  try {
+    basePathname = new URL(b, window.location.origin).pathname.replace(/\/+$/g, '')
+  } catch {
+    /* base relativa */
+  }
+  const baseHasApi = /^\/api(\/|$)/.test(basePathname)
+  if (baseHasApi) p = p.replace(/^\/api(\/|$)/, '/')
+
+  const joined = (b + p).replace(/([^:])\/{2,}/g, '$1/')
+  return joined
 }
 
 async function safeJson(res: Response) {

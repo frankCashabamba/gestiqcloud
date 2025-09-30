@@ -9,6 +9,8 @@ import { setupPWA } from '@pwa'
 import { sendTelemetry } from '@shared'
 import { IdleLogout } from '@ui'
 import { useAuth } from './auth/AuthContext'
+import { EnvProvider } from '@ui/env'
+import { env } from './env'
 
 function IdleBridge() {
   const { logout } = useAuth()
@@ -23,13 +25,15 @@ setupPWA((ev: 'need-refresh' | 'offline-ready') => {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <ToastProvider>
-          <App />
-          <IdleBridge />
-        </ToastProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <EnvProvider value={env}>
+      <BrowserRouter>
+        <AuthProvider>
+          <ToastProvider>
+            <App />
+            <IdleBridge />
+          </ToastProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </EnvProvider>
   </React.StrictMode>
 )
