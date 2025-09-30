@@ -213,6 +213,9 @@ async def lifespan(app: FastAPI):
             _imports_job_runner.stop()
         except Exception:
             pass
-
+        
+@app.head("/", include_in_schema=False)
+def root_head():
+    return Response(status_code=200)
 # Re-crear app con lifespan (conserva tu config previa)
 app.router.lifespan_context = lifespan
