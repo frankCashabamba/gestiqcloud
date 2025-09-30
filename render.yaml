@@ -91,9 +91,9 @@
         value: https://api.gestiqcloud.com
       - key: VITE_BASE_PATH
         value: /
-      - key: VITE_APP_URL
+      - key: VITE_TENANT_ORIGIN
         value: https://gestiqcloud.com
-      - key: VITE_ADMIN_URL
+      - key: VITE_ADMIN_ORIGIN
         value: https://admin.gestiqcloud.com
 
   # ------------ FRONTEND ADMIN (Vite) ------------
@@ -113,7 +113,7 @@
         value: https://api.gestiqcloud.com
       - key: VITE_BASE_PATH
         value: /
-      - key: VITE_APP_URL
+      - key: VITE_ADMIN_ORIGIN
         value: https://admin.gestiqcloud.com
-      - key: VITE_TENANT_URL
+      - key: VITE_TENANT_ORIGIN
         value: https://gestiqcloud.com
