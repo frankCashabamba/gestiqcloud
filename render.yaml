@@ -30,11 +30,11 @@
 
       # 🌐 URLs y CORS
       - key: FRONTEND_URL
-        value: https://gestiqcloud.com
+        value: https://www.gestiqcloud.com
       - key: ADMIN_URL
         value: https://admin.gestiqcloud.com
       - key: CORS_ORIGINS
-        value: '["https://gestiqcloud.com","https://admin.gestiqcloud.com"]'
+        value: '["https://gestiqcloud.com","https://www.gestiqcloud.com","https://admin.gestiqcloud.com","https://www.admin.gestiqcloud.com"]'
 
       # ✅ Hosts permitidos (JSON)
       - key: ALLOWED_HOSTS
@@ -97,7 +97,7 @@
       - key: VITE_BASE_PATH
         value: /
       - key: VITE_TENANT_ORIGIN
-        value: https://gestiqcloud.com
+        value: https://www.gestiqcloud.com
       - key: VITE_ADMIN_ORIGIN
         value: https://admin.gestiqcloud.com
 
