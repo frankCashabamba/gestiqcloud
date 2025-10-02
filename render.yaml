@@ -85,7 +85,7 @@
       - gestiqcloud.com
     routes:
       - type: rewrite
-        source: /.*
+        source: /*
         destination: /index.html
     buildCommand: |
       npm ci
@@ -116,7 +116,7 @@
         destination: /login
         status: 302
       - type: rewrite
-        source: /.*
+        source: /*
         destination: /index.html
     buildCommand: |
       npm ci
