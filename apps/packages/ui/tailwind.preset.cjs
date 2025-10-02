@@ -1,5 +1,18 @@
-﻿const defaultTheme = require('tailwindcss/defaultTheme')
-const plugin = require('tailwindcss/plugin')
+// Tailwind preset shared across apps in the monorepo.
+// It resolves tailwind modules from the consumer app (cwd) to work when builds
+// run from a subdirectory (e.g., apps/tenant or apps/admin on Render).
+
+function resolveFromCwd(id) {
+  try {
+    return require(id)
+  } catch (_) {
+    const resolved = require.resolve(id, { paths: [process.cwd()] })
+    return require(resolved)
+  }
+}
+
+const defaultTheme = resolveFromCwd('tailwindcss/defaultTheme')
+const plugin = resolveFromCwd('tailwindcss/plugin')
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
@@ -38,3 +51,4 @@ module.exports = {
     })
   ]
 }
+
