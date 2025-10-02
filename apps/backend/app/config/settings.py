@@ -63,7 +63,14 @@ class Settings(BaseSettings):
     CORS_ALLOW_ORIGIN_REGEX: Optional[str] = None
     CORS_ALLOW_CREDENTIALS: bool = True
     CORS_ALLOW_METHODS: List[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
-    CORS_ALLOW_HEADERS: List[str] = ["Authorization", "Content-Type", "X-CSRF-Token", "X-CSRF"]
+    CORS_ALLOW_HEADERS: List[str] = [
+        "Authorization",
+        "Content-Type",
+        "X-CSRF-Token",
+        "X-CSRF",
+        "X-Client-Version",
+        "X-Client-Revision",
+    ]
     ALLOWED_HOSTS: List[str] = Field(default_factory=list)
 
     # Base de datos

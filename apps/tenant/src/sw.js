@@ -1,5 +1,6 @@
 /* Service Worker (injectManifest) for Tenant */
 import { precacheAndRoute } from 'workbox-precaching'
+import { clientsClaim } from 'workbox-core'
 import { createStore, set, del, entries } from 'idb-keyval'
 
 // Injected by workbox at build time
@@ -7,7 +8,7 @@ import { createStore, set, del, entries } from 'idb-keyval'
 precacheAndRoute(self.__WB_MANIFEST || [])
 
 self.skipWaiting()
-self.clientsClaim()
+clientsClaim()
 
 const RUNTIME_CACHE = 'runtime-v1'
 const OFFLINE_URL = '/offline.html'
