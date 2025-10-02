@@ -83,6 +83,10 @@
     rootDir: apps/tenant
     domains:
       - gestiqcloud.com
+    routes:
+      - type: rewrite
+        source: /.*
+        destination: /index.html
     buildCommand: |
       npm ci
       npm run build
@@ -106,6 +110,14 @@
     rootDir: apps/admin
     domains:
       - admin.gestiqcloud.com
+    routes:
+      - type: redirect
+        source: /
+        destination: /login
+        status: 302
+      - type: rewrite
+        source: /.*
+        destination: /index.html
     buildCommand: |
       npm ci
       npm run build
