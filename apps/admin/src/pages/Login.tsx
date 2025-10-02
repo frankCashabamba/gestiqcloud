@@ -1,17 +1,16 @@
 import React, { useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { useEnv } from '@ui/env'
 
 export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
+  const { tenantOrigin } = useEnv()
   const [identificador, setIdentificador] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-
-  const TENANT_ORIGIN =
-    (import.meta as any).env?.VITE_TENANT_ORIGIN || window.location.origin.replace('8081', '8082')
 
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -44,7 +43,7 @@ export default function Login() {
         <button className='btn' type='submit' disabled={submitting}>{submitting ? 'Entrando…' : 'Entrar'}</button>
       </form>
       <p style={{marginTop:'.5rem', fontSize:'.85rem', color:'#64748b'}}>
-        ¿Eres usuario de empresa? <a href={TENANT_ORIGIN + '/login'}>Inicia sesión aquí</a>
+        ¿Eres usuario de empresa? <a href={`${tenantOrigin}/login`}>Inicia sesión aquí</a>
       </p>
     </div>
   )

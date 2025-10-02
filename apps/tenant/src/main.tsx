@@ -12,6 +12,8 @@ import { apiFetch } from './lib/http'
 import { applyTheme } from '@shared/ui'
 import { IdleLogout } from '@ui'
 import { useAuth } from './auth/AuthContext'
+import { EnvProvider } from '@ui/env'
+import { env } from './env'
 
 function IdleBridge() {
   const { logout } = useAuth()
@@ -34,15 +36,17 @@ setupPWA((ev) => {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <I18nProvider defaultLang="es">
-          <ToastProvider>
-            <App />
-            <IdleBridge />
-          </ToastProvider>
-        </I18nProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <EnvProvider value={env}>
+      <BrowserRouter>
+        <AuthProvider>
+          <I18nProvider defaultLang="es">
+            <ToastProvider>
+              <App />
+              <IdleBridge />
+            </ToastProvider>
+          </I18nProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </EnvProvider>
   </React.StrictMode>
 )

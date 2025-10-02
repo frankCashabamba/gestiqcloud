@@ -2,15 +2,12 @@ import React, { useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch } from '../lib/http'
-
-const ADMIN_ORIGIN =
-  import.meta.env.VITE_ADMIN_ORIGIN || window.location.origin.replace('8082', '8081')
-const TENANT_ORIGIN =
-  import.meta.env.VITE_TENANT_ORIGIN || window.location.origin
+import { useEnv } from '@ui/env'
 
 export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
+  const { adminOrigin } = useEnv()
   const [identificador, setIdentificador] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -31,7 +28,7 @@ export default function Login() {
         retryOn401: false,
       } as any)
       const token = data?.access_token
-      const target = token ? `${ADMIN_ORIGIN}/#access_token=${encodeURIComponent(token)}` : ADMIN_ORIGIN
+      const target = token ? `${adminOrigin}/#access_token=${encodeURIComponent(token)}` : adminOrigin
       window.location.href = target
     } catch (res: any) {
       if (res?.status === 429) {

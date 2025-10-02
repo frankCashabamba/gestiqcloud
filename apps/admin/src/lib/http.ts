@@ -1,6 +1,8 @@
 // lib/http.ts
 // Deprecated: this local HTTP helper has been superseded by @shared client.
-export const API_URL = ((import.meta.env.VITE_API_URL as string) || "/api").replace(/\/+$/g, "");
+import { env } from '../env'
+
+export const API_URL = (env.apiUrl || '/api').replace(/\/+$/g, '')
 
 export type HttpOptions = RequestInit & { authToken?: string; retryOn401?: boolean };
 
