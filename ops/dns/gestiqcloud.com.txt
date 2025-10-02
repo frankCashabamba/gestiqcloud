@@ -1,0 +1,19 @@
+$ORIGIN gestiqcloud.com.
+$TTL 3600
+
+; -------- Tenant (gestiqcloud.com) --------
+@           IN  A      216.24.57.1
+www         IN  CNAME  gestiqcloud-tenant.onrender.com.
+
+; -------- Admin (admin.gestiqcloud.com) --------
+admin       IN  CNAME  gestiqcloud-admin.onrender.com.
+www.admin   IN  CNAME  admin.gestiqcloud.com.
+
+; -------- API (api.gestiqcloud.com) --------
+api         IN  CNAME  gestiqcloud-api.onrender.com.
+
+; Notes:
+; - Import as a BIND zone file in Cloudflare if you intend to REPLACE existing DNS.
+;   If you only want to adjust these hosts, add them manually to avoid overwriting DKIM/MX.
+; - After Render verifies each domain, you may enable the Cloudflare proxy (orange cloud).
+
