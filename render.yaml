@@ -80,20 +80,21 @@
     region: oregon
     plan: starter
     branch: main
+    rootDir: apps/tenant
     domains:
       - gestiqcloud.com
     buildCommand: |
-      npm ci --prefix apps/tenant
-      npm run build --prefix apps/tenant
-    publishPath: apps/tenant/dist
+      npm ci
+      npm run build
+    publishPath: dist
     envVars:
       - key: VITE_API_URL
         value: https://api.gestiqcloud.com
       - key: VITE_BASE_PATH
         value: /
-      - key: VITE_APP_URL
+      - key: VITE_TENANT_ORIGIN
         value: https://gestiqcloud.com
-      - key: VITE_ADMIN_URL
+      - key: VITE_ADMIN_ORIGIN
         value: https://admin.gestiqcloud.com
 
   # ------------ FRONTEND ADMIN (Vite) ------------
@@ -102,18 +103,19 @@
     region: oregon
     plan: starter
     branch: main
+    rootDir: apps/admin
     domains:
       - admin.gestiqcloud.com
     buildCommand: |
-      npm ci --prefix apps/admin
-      npm run build --prefix apps/admin
-    publishPath: apps/admin/dist
+      npm ci
+      npm run build
+    publishPath: dist
     envVars:
       - key: VITE_API_URL
         value: https://api.gestiqcloud.com
       - key: VITE_BASE_PATH
         value: /
-      - key: VITE_APP_URL
+      - key: VITE_ADMIN_ORIGIN
         value: https://admin.gestiqcloud.com
-      - key: VITE_TENANT_URL
+      - key: VITE_TENANT_ORIGIN
         value: https://gestiqcloud.com
