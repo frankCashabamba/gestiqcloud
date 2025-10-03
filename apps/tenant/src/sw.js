@@ -85,7 +85,8 @@ async function flushQueue() {
         headers: item.headers,
         body: item.body ? new Uint8Array(item.body) : undefined,
         credentials: 'include',
-        mode: 'same-origin',
+        // Use CORS for cross-origin API (e.g., onrender host)
+        mode: 'cors',
       }
       const res = await fetch(item.url, init)
       if (res.ok) {
