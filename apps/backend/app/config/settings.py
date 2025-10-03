@@ -71,7 +71,8 @@ class Settings(BaseSettings):
         "X-Client-Version",
         "X-Client-Revision",
     ]
-    ALLOWED_HOSTS: List[str] = Field(default_factory=list)
+    # Permite string con comas o lista JSON
+    ALLOWED_HOSTS: Union[str, List[str]] = Field(default_factory=list)
 
     # Base de datos
     DATABASE_URL: SecretStr
