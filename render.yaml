@@ -34,7 +34,7 @@
       - key: ADMIN_URL
         value: https://admin.gestiqcloud.com
       - key: CORS_ORIGINS
-        value: '["https://gestiqcloud.com","https://www.gestiqcloud.com","https://admin.gestiqcloud.com","https://www.admin.gestiqcloud.com"]'
+        value: https://gestiqcloud.com,https://www.gestiqcloud.com,https://admin.gestiqcloud.com,https://www.admin.gestiqcloud.com
 
       # ✅ Hosts permitidos (JSON)
       - key: ALLOWED_HOSTS
