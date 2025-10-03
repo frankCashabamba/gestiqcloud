@@ -43,6 +43,7 @@ app.add_middleware(
     allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
     allow_methods=settings.CORS_ALLOW_METHODS,
     allow_headers=settings.CORS_ALLOW_HEADERS,
+    max_age=86400,  # cachea preflights (1 día)
 )
 
 # Sesiones server-side (cookies seguras según entorno)
