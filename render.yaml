@@ -33,6 +33,8 @@
         value: https://www.gestiqcloud.com
       - key: ADMIN_URL
         value: https://admin.gestiqcloud.com
+      - key: CORS_ALLOW_ORIGIN_REGEX
+        value: ^https://(www\.)?(gestiqcloud\.com|admin\.gestiqcloud\.com)$
       - key: CORS_ORIGINS
         value: https://gestiqcloud.com,https://www.gestiqcloud.com,https://admin.gestiqcloud.com,https://www.admin.gestiqcloud.com
 
