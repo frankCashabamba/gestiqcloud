@@ -37,9 +37,17 @@ app = FastAPI(title="GestiqCloud API", version="1.0.0")
 
 # CORS (desde settings, con fallback seguro)
 allow_origins = settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else [settings.CORS_ORIGINS]
+# Log de CORS efectivos al arranque (ayuda a diagnosticar en prod)
+try:
+    logging.getLogger("app.cors").info(
+        "CORS configured: allow_origins=%s allow_origin_regex=%s", allow_origins, getattr(settings, "CORS_ALLOW_ORIGIN_REGEX", None)
+    )
+except Exception:
+    pass
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
+    allow_origin_regex=getattr(settings, "CORS_ALLOW_ORIGIN_REGEX", None),
     allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
     allow_methods=settings.CORS_ALLOW_METHODS,
     allow_headers=settings.CORS_ALLOW_HEADERS,
