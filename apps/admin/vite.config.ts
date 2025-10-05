@@ -52,7 +52,7 @@ export default defineConfig({
       srcDir: 'src',
       filename: 'sw.js',
       injectRegister: null,
-      includeAssets: ['offline.html', 'index.html'],
+      includeAssets: ['offline.html', 'index.html', 'icon.svg'],
       manifest: {
         name: 'GestiqCloud Admin',
         short_name: 'Admin',
@@ -62,9 +62,7 @@ export default defineConfig({
         theme_color: '#0f172a',
         background_color: '#ffffff',
         icons: [
-          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }
         ]
       }
     })
