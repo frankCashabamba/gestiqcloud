@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build",\n    "postbuild": "cp dist/index.html dist/200.html || copy dist/index.html dist/200.html",
     "preview": "vite preview --port 4173",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.json --noEmit",
     "check": "npm run typecheck"
