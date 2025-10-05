@@ -1,5 +1,6 @@
 /* Service Worker (injectManifest) for Admin */
 import { precacheAndRoute } from 'workbox-precaching'
+import { clientsClaim } from 'workbox-core'
 import { createStore, set, del, entries } from 'idb-keyval'
 
 // Injected by workbox at build time
@@ -7,7 +8,7 @@ import { createStore, set, del, entries } from 'idb-keyval'
 precacheAndRoute(self.__WB_MANIFEST || [])
 
 self.skipWaiting()
-self.clientsClaim()
+clientsClaim()
 
 const RUNTIME_CACHE = 'runtime-v1'
 const OFFLINE_URL = '/offline.html'
@@ -84,7 +85,7 @@ async function flushQueue() {
         headers: item.headers,
         body: item.body ? new Uint8Array(item.body) : undefined,
         credentials: 'include',
-        mode: 'same-origin',
+        mode: 'cors',
       }
       const res = await fetch(item.url, init)
       if (res.ok) {
