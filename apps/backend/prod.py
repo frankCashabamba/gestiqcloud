@@ -117,4 +117,32 @@ if __name__ == "__main__":
         print(f"❌ Error en migraciones: {e}")
         sys.exit(e.returncode)
 
+    # Fallback opcional: bootstrap ORM si la DB está vacía
+    try:
+        if os.getenv("ORM_BOOTSTRAP", "0").lower() in ("1", "true", "yes"):
+            print("🧰 ORM bootstrap habilitado: creando tablas si faltan…")
+            try:
+                from app.config.database import Base, engine
+            except Exception:
+                from apps.backend.app.config.database import Base, engine
+            from sqlalchemy import inspect
+            insp = inspect(engine)
+            # Heurística: si no existe una tabla crítica, crea todo
+            critical = [
+                "usuarios_usuarioempresa",
+                "auth_user",
+            ]
+            missing = [t for t in critical if not insp.has_table(t)]
+            if missing:
+                print(f"↪️  Tablas críticas ausentes {missing}; ejecutando Base.metadata.create_all()")
+                try:
+                    Base.metadata.create_all(bind=engine)
+                    print("✅ ORM bootstrap completado")
+                except Exception as e:
+                    print(f"❌ Error en ORM bootstrap: {e}")
+            else:
+                print("✔️  Esquema presente; no se requiere ORM bootstrap")
+    except Exception as e:
+        print(f"⚠️  No se pudo evaluar ORM bootstrap: {e}")
+
     start_app()
