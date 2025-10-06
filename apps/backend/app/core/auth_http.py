@@ -31,8 +31,9 @@ def refresh_cookie_kwargs(*, path: str) -> dict:
     """Atributos estándar para la cookie de refresh."""
     try:
         from app.config.settings import settings
-        secure = (settings.ENV == "production")
-        samesite = "strict" if settings.ENV == "production" else "lax"
+        # Prefer explicit cookie settings when provided
+        secure = bool(getattr(settings, "COOKIE_SECURE", (settings.ENV == "production")))
+        samesite = getattr(settings, "COOKIE_SAMESITE", "lax") or ("strict" if settings.ENV == "production" else "lax")
     except Exception:
         secure = False
         samesite = "lax"

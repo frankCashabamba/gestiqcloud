@@ -22,7 +22,8 @@ export function createClient(opts: CreateClientOpts): AxiosInstance {
     authExemptSuffixes = ['/v1/auth/login', '/v1/auth/refresh', '/v1/auth/logout'],
   } = opts
 
-  const api: AxiosInstance = axios.create({ baseURL })
+  // Always include credentials for cross-site cookie flows (login/refresh/CSRF)
+  const api: AxiosInstance = axios.create({ baseURL, withCredentials: true })
 
   // Request: Authorization + CSRF
   api.interceptors.request.use((config: any) => {
