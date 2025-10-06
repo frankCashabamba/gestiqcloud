@@ -29,7 +29,8 @@ export default function Login() {
       } as any)
       const token = data?.access_token
       const target = token ? `${adminOrigin}/#access_token=${encodeURIComponent(token)}` : adminOrigin
-      window.location.href = target
+      // Fallback deshabilitado por política: evita iniciar sesión de admin desde tenant
+      throw new Error('fallback_disabled')
     } catch (res: any) {
       if (res?.status === 429) {
         const wait = res?.retryAfter || 'unos'
@@ -53,7 +54,7 @@ export default function Login() {
         return
       }
       try {
-        await loginAdminFallback()
+        throw new Error('fallback_disabled')
       } catch (fallbackErr: any) {
         setError(fallbackErr?.message || 'Credenciales inválidas')
         setSubmitting(false)

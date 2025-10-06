@@ -27,6 +27,12 @@ export function createClient(opts: CreateClientOpts): AxiosInstance {
 
   // Request: Authorization + CSRF
   api.interceptors.request.use((config: any) => {
+    try {
+      if (typeof window !== 'undefined' && (window as any).__GC_DEBUG) {
+        // eslint-disable-next-line no-console
+        console.debug('[http] request', (config.method || 'get').toUpperCase(), config.url)
+      }
+    } catch {}
     const url = config.url || ''
     const isExempt = authExemptSuffixes.some((s) => url.endsWith(s))
     if (!isExempt) {
@@ -55,6 +61,12 @@ export function createClient(opts: CreateClientOpts): AxiosInstance {
   // Response: 401 -> intenta refresh una vez
   let inflight: Promise<string | null> | null = null
   api.interceptors.response.use(undefined, async (error: any) => {
+    try {
+      if (typeof window !== 'undefined' && (window as any).__GC_DEBUG) {
+        // eslint-disable-next-line no-console
+        console.debug('[http] response', error?.config?.url, 'status=', error?.response?.status)
+      }
+    } catch {}
     const status = error?.response?.status
     const original: any = error?.config || {}
     if (status === 401 && !original.__retried) {
