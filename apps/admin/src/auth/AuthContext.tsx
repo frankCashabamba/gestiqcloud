@@ -1,9 +1,10 @@
 ﻿// AuthContext.tsx
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { createSharedClient } from '@shared'
+import { env } from '../env'
 
 const api = createSharedClient({
-  baseURL: '/api',
+  baseURL: env.apiUrl,
   tokenKey: 'access_token_admin',
   refreshPath: '/v1/admin/auth/refresh',
   csrfPath: '/v1/admin/auth/csrf',
