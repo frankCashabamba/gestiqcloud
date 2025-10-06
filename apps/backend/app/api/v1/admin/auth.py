@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, Request
+import logging
 from pydantic import BaseModel
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
@@ -24,6 +25,7 @@ from app.modules.identity.infrastructure.refresh_repo import SqlRefreshTokenRepo
 from app.core.csrf import issue_csrf_token
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+log = logging.getLogger("app.auth.admin")
 
 
 class LoginAdmin(BaseModel):
@@ -47,6 +49,14 @@ def admin_login(
     db: Session = Depends(get_db),
 ):
     ident = data.identificador.strip().lower()
+    try:
+        log.info("admin.login.attempt origin=%s ua=%s ip=%s ident=%s",
+                 request.headers.get("origin"),
+                 request.headers.get("user-agent", ""),
+                 request.client.host if request.client else "",
+                 ident)
+    except Exception:
+        pass
 
     # 0) Rate limiting
     rl = limiter.check(request, ident)
@@ -82,6 +92,7 @@ def admin_login(
             tenant_id=admin_tenant_id,
             req=request,
         )
+        log.warning("admin.login.invalid_credentials ident=%s", ident)
         raise HTTPException(status_code=401, detail=t(request, "invalid_credentials"))
 
     ok, new_hash = hasher.verify(data.password, user.password_hash)
@@ -95,6 +106,7 @@ def admin_login(
             tenant_id=admin_tenant_id,
             req=request,
         )
+        log.warning("admin.login.invalid_credentials ident=%s", ident)
         raise HTTPException(status_code=401, detail=t(request, "invalid_credentials"))
 
     if new_hash:
@@ -140,6 +152,10 @@ def admin_login(
         tenant_id=admin_tenant_id,
         req=request,
     )
+    try:
+        log.info("admin.login.ok user_id=%s", str(user.id))
+    except Exception:
+        pass
     return {"access_token": access, "token_type": "bearer", "scope": "admin"}
 
 
@@ -147,7 +163,13 @@ def admin_login(
 def refresh(request: Request, response: Response, db: Session = Depends(get_db)):
     """Rotación de refresh token para admin (unificado)."""
     repo = SqlRefreshTokenRepo(db)
-    return rotate_refresh(
+    try:
+        log.debug("admin.refresh.attempt ua=%s ip=%s",
+                  request.headers.get("user-agent", ""),
+                  request.client.host if request.client else "")
+    except Exception:
+        pass
+    res = rotate_refresh(
         request,
         response,
         token_service=token_service,
@@ -155,6 +177,11 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
         expected_kind="admin",
         cookie_path=refresh_cookie_path_admin(),
     )
+    try:
+        log.debug("admin.refresh.ok")
+    except Exception:
+        pass
+    return res
 
 
 @router.post("/logout")
@@ -170,6 +197,10 @@ def admin_logout(request: Request, response: Response):
         request.state.session.clear()
         request.state.session_dirty = True
 
+    try:
+        log.info("admin.logout.ok")
+    except Exception:
+        pass
     return {"ok": True}
 
 

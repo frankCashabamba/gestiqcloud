@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, Literal, Mapping, Optional
+import logging
 
 from fastapi import Request, Response
 
@@ -46,8 +47,16 @@ def rotate_refresh(
     cookie_path: str,
 ) -> Dict[str, Any]:
     """Common refresh rotation flow shared by admin and tenant endpoints."""
+    logger = logging.getLogger("app.auth.refresh")
     token = request.cookies.get("refresh_token")
     if not token:
+        try:
+            logger.debug("refresh.missing_cookie origin=%s ua=%s ip=%s",
+                         request.headers.get("origin"),
+                         request.headers.get("user-agent", ""),
+                         request.client.host if request.client else "")
+        except Exception:
+            pass
         from fastapi import HTTPException
         from app.core.i18n import t
 
@@ -56,6 +65,10 @@ def rotate_refresh(
     try:
         payload: Mapping[str, object] = token_service.decode_and_validate(token, expected_type="refresh")
     except Exception:
+        try:
+            logger.debug("refresh.invalid_token")
+        except Exception:
+            pass
         from fastapi import HTTPException
         from app.core.i18n import t
 
@@ -64,6 +77,10 @@ def rotate_refresh(
     # jti
     jti_obj = payload.get("jti")
     if not isinstance(jti_obj, str) or not jti_obj:
+        try:
+            logger.debug("refresh.missing_jti")
+        except Exception:
+            pass
         from fastapi import HTTPException
         from app.core.i18n import t
 
@@ -76,6 +93,10 @@ def rotate_refresh(
     fam_payload: Optional[str] = fam_payload_obj if isinstance(fam_payload_obj, str) else None
     family_id: Optional[str] = family_from_db or fam_payload
     if family_id is None:
+        try:
+            logger.debug("refresh.family_not_found")
+        except Exception:
+            pass
         from fastapi import HTTPException
         from app.core.i18n import t
 
@@ -89,6 +110,10 @@ def rotate_refresh(
         ip = request.client.host if request.client else ""
         if not token_fingerprint_matches_request(jti, ua, ip):
             repo.revoke_family(family_id=family_id)
+            try:
+                logger.warning("refresh.fingerprint_mismatch family=%s", (family_id or "")[:8])
+            except Exception:
+                pass
             from fastapi import HTTPException
             from app.core.i18n import t
 
@@ -97,6 +122,10 @@ def rotate_refresh(
     # Reuse/revoked detection
     if repo.is_reused_or_revoked(jti=jti):
         repo.revoke_family(family_id=family_id)
+        try:
+            logger.warning("refresh.reuse_or_revoked family=%s", (family_id or "")[:8])
+        except Exception:
+            pass
         from fastapi import HTTPException
         from app.core.i18n import t
 
@@ -128,4 +157,8 @@ def rotate_refresh(
     from app.core.auth_http import set_refresh_cookie
 
     set_refresh_cookie(response, new_refresh, path=cookie_path)
+    try:
+        logger.debug("refresh.rotated ok family=%s", (family_id or "")[:8])
+    except Exception:
+        pass
     return {"access_token": access, "token_type": "bearer"}

@@ -1,6 +1,7 @@
  
 
 from fastapi import APIRouter, Depends, HTTPException, Response, Request
+import logging
 from pydantic import BaseModel
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
@@ -29,6 +30,7 @@ from app.core.auth_http import (
 from app.core.auth_shared import ensure_session, issue_csrf_and_cookie, rotate_refresh
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+log = logging.getLogger("app.auth.tenant")
 
 
 class LoginTenant(BaseModel):
@@ -49,6 +51,14 @@ def tenant_login(
     db: Session = Depends(get_db),
 ):
     ident = data.identificador.strip().lower()
+    try:
+        log.info("tenant.login.attempt origin=%s ua=%s ip=%s ident=%s",
+                 request.headers.get("origin"),
+                 request.headers.get("user-agent", ""),
+                 request.client.host if request.client else "",
+                 ident)
+    except Exception:
+        pass
 
     # 0) Rate limiting
     rl = limiter.check(request, ident)
@@ -78,12 +88,14 @@ def tenant_login(
     if not user or not user.empresa_id or not user.empresa:
         limiter.incr_fail(request, ident)
         audit_log(db, kind="login_failed", scope="tenant", user_id=None, tenant_id=None, req=request)
+        log.warning("tenant.login.invalid_credentials ident=%s", ident)
         raise HTTPException(status_code=401, detail=t(request, "invalid_credentials"))
 
     ok, new_hash = hasher.verify(data.password, user.password_hash)
     if not ok:
         limiter.incr_fail(request, ident)
         audit_log(db, kind="login_failed", scope="tenant", user_id=str(user.id), tenant_id=None, req=request)
+        log.warning("tenant.login.invalid_credentials ident=%s", ident)
         raise HTTPException(status_code=401, detail=t(request, "invalid_credentials"))
 
     # Rehash transparente si procede
@@ -169,7 +181,13 @@ def tenant_login(
 @router.post("/refresh")
 def tenant_refresh(request: Request, response: Response, db: Session = Depends(get_db)):
     repo = SqlRefreshTokenRepo(db)
-    return rotate_refresh(
+    try:
+        log.debug("tenant.refresh.attempt ua=%s ip=%s",
+                  request.headers.get("user-agent", ""),
+                  request.client.host if request.client else "")
+    except Exception:
+        pass
+    res = rotate_refresh(
         request,
         response,
         token_service=token_service,
@@ -177,6 +195,11 @@ def tenant_refresh(request: Request, response: Response, db: Session = Depends(g
         expected_kind="tenant",
         cookie_path=refresh_cookie_path_tenant(),
     )
+    try:
+        log.debug("tenant.refresh.ok")
+    except Exception:
+        pass
+    return res
 
 
 @router.post("/logout")
