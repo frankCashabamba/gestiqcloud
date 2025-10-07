@@ -17,6 +17,21 @@ function IdleBridge() {
   return <IdleLogout onLogout={logout} timeoutMs={30 * 60_000} />
 }
 
+// Build stamp / runtime debug: ayuda a verificar que el bundle cargado es el más reciente
+try {
+  if (typeof window !== 'undefined') {
+    // Activa trazas del cliente HTTP si quieres: window.__GC_DEBUG = true en consola
+    // eslint-disable-next-line no-console
+    console.info('[admin] build', {
+      mode: import.meta.env.MODE,
+      apiUrl: import.meta.env.VITE_API_URL,
+      adminOrigin: import.meta.env.VITE_ADMIN_ORIGIN,
+      tenantOrigin: import.meta.env.VITE_TENANT_ORIGIN,
+      ts: new Date().toISOString(),
+    })
+  }
+} catch {}
+
 // Register PWA service worker with auto updates and update prompt
 setupPWA((ev: 'need-refresh' | 'offline-ready') => {
   if (ev === 'need-refresh') sendTelemetry('pwa_need_refresh')
