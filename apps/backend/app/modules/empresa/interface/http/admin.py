@@ -156,6 +156,27 @@ async def crear_empresa_completa_json(
 
     email_clean = (str(payload.admin.email) or "").strip().lower()
     username_clean = (payload.admin.username or "").strip().lower()
+
+    # Autogenera username si no viene: nombre.apellido (normalizado), garantizando unicidad
+    if not username_clean:
+        try:
+            first = slugify(payload.admin.nombre_encargado or "", separator="")
+            last = slugify(payload.admin.apellido_encargado or "", separator="")
+            base = ".".join([p for p in [first, last] if p]).strip(".")
+            if not base:
+                base = (email_clean.split("@")[0] or "usuario").strip(".")
+            candidate = base.lower()
+            # si existe, agrega sufijos incrementales
+            i = 1
+            while db.query(UsuarioEmpresa).filter(func.lower(UsuarioEmpresa.username) == candidate).first():
+                i += 1
+                candidate = f"{base}{i}".lower()
+            username_clean = candidate
+        except Exception:
+            # fallback mínimo
+            username_clean = (email_clean.split("@")[0] or "usuario").lower()
+
+    # Verificación de unicidad email/username definitivos
     if email_clean or username_clean:
         exists_user = (
             db.query(UsuarioEmpresa)

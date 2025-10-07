@@ -9,7 +9,7 @@ import { I18nProvider } from './i18n/I18nProvider'
 import { setupPWA } from '@pwa'
 import { sendTelemetry } from '@shared'
 import { apiFetch } from './lib/http'
-import { applyTheme } from '@shared/ui'
+import { applyTheme, OutboxIndicator } from '@shared/ui'
 import { IdleLogout } from '@ui'
 import { useAuth } from './auth/AuthContext'
 import { EnvProvider } from '@ui/env'
@@ -40,10 +40,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <BrowserRouter>
         <AuthProvider>
           <I18nProvider defaultLang="es">
-            <ToastProvider>
-              <App />
-              <IdleBridge />
-            </ToastProvider>
+          <ToastProvider>
+            <App />
+            <IdleBridge />
+            <OutboxIndicator />
+          </ToastProvider>
           </I18nProvider>
         </AuthProvider>
       </BrowserRouter>
