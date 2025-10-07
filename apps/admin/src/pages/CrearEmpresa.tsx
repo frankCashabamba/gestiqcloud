@@ -264,7 +264,7 @@ export const CrearEmpresa: React.FC = () => {
             </div>
           </section>
 
-          <div className="flex items-center justify-between gap-4 pt-2">
+          <div className="sticky bottom-0 left-0 right-0 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-t border-slate-200 px-4 py-4 mt-6 flex items-center justify-between gap-4">
             <button
               type="submit"
               disabled={loading}
@@ -281,7 +281,7 @@ export const CrearEmpresa: React.FC = () => {
               {loading ? 'Guardando…' : 'Crear empresa y usuario'}
             </button>
 
-            <a href="/admin/empresas" className="text-sm text-indigo-600 hover:underline">Volver al listado de empresas</a>
+            <a href="/admin/empresas" className="text-sm font-medium text-indigo-600 hover:underline">Volver al listado de empresas</a>
           </div>
 
           {success && (
