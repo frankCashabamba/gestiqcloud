@@ -5,6 +5,7 @@ export interface Modulo {
   id: number;
   nombre: string;
   icono: string;
+  descripcion?: string;
 }
 
 export type UseModulosResult = {
