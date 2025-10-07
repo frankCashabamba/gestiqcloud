@@ -6,6 +6,7 @@ import AdminPanel from '../pages/AdminPanel'
 import { LayoutAdmin } from '../style/LayoutAdmin'
 import { CrearEmpresa } from '../pages/CrearEmpresa'
 import { EmpresaPanel } from '../pages/EmpresaPanel'
+import ImportarEmpresas from '../pages/ImportarEmpresas'
 import ConfiguracionSistema from '../features/configuracion/ConfiguracionSistema'
 import ModuleRoutes from '../features/modulos/ModuleRoutes'
 import Usuarios from '../pages/Usuarios'
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="/admin" element={<LayoutRoute />}>
           <Route index element={<AdminPanel />} />
           <Route path="empresas" element={<EmpresaPanel />} />
+          <Route path="empresas/import" element={<ImportarEmpresas />} />
           <Route path="empresas/crear" element={<CrearEmpresa />} />
           <Route path="usuarios" element={<Usuarios />} />
           <Route path="usuarios/:id/asignar-nuevo-admin" element={<AsignarNuevoAdmin />} />
