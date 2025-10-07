@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
-
-import ModuloSelector from '../modulos/ModuloSelector';
-import { useCrearEmpresa } from "../hooks/useCrearEmpresa";
-import type { FormularioEmpresa } from '../typesall/empresa';
+import React, { useEffect, useState } from 'react'
+import ModuloSelector from '../modulos/ModuloSelector'
+import { useCrearEmpresa } from '../hooks/useCrearEmpresa'
+import type { FormularioEmpresa } from '../typesall/empresa'
 
 const INITIAL_STATE: FormularioEmpresa = {
   nombre_empresa: '',
@@ -26,232 +25,270 @@ const INITIAL_STATE: FormularioEmpresa = {
   username: '',
   password: '',
   modulos: [],
-};
+}
 
 export const CrearEmpresa: React.FC = () => {
-  const [formData, setFormData] = useState<FormularioEmpresa>(INITIAL_STATE);
-  // Username se autogenera y es solo lectura
-  const [localError, setLocalError] = useState<string | null>(null);
-  const { crear, loading, error, success, fieldErrors, needSecondSurname } = useCrearEmpresa();
+  const [formData, setFormData] = useState<FormularioEmpresa>(INITIAL_STATE)
+  const [localError, setLocalError] = useState<string | null>(null)
+  const { crear, loading, error, success, fieldErrors, needSecondSurname } = useCrearEmpresa()
 
-  // Generar automáticamente username base: nombre.apellido
+  // Autogenerar username visual (no editable) nombre.apellido
   useEffect(() => {
-    const nombre = formData.nombre_encargado.trim().toLowerCase();
-    const apellido = formData.apellido_encargado.trim().toLowerCase();
-    const sugerido = nombre && apellido ? `${nombre}.${apellido}`.replace(/\s+/g, '') : '';
-    setFormData(prev => ({ ...prev, username: sugerido }));
-  }, [formData.nombre_encargado, formData.apellido_encargado]);
+    const nombre = (formData.nombre_encargado || '').trim().toLowerCase()
+    const apellido = (formData.apellido_encargado || '').trim().toLowerCase()
+    const sugerido = nombre && apellido ? `${nombre}.${apellido}`.replace(/\s+/g, '') : ''
+    setFormData((prev) => ({ ...prev, username: sugerido }))
+  }, [formData.nombre_encargado, formData.apellido_encargado])
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value, type } = e.target;
+  function onChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
+  ) {
+    const { name, value, type } = e.target
     if (type === 'file') {
-      setFormData({ ...formData, [name]: (e.target as HTMLInputElement).files?.[0] || null });
+      setFormData({ ...formData, [name]: (e.target as HTMLInputElement).files?.[0] || null })
     } else {
-      setFormData({ ...formData, [name]: value });
+      setFormData({ ...formData, [name]: value })
     }
-  };
+  }
 
-  const handleModuloChange = (moduloId: number) => {
-    setFormData(prev => ({
+  function onModuloChange(moduloId: number) {
+    setFormData((prev) => ({
       ...prev,
       modulos: prev.modulos.includes(moduloId)
-        ? prev.modulos.filter(id => id !== moduloId)
+        ? prev.modulos.filter((id) => id !== moduloId)
         : [...prev.modulos, moduloId],
-    }));
-  };
-
-  // Validadores simples
-  const isValidEmail = (v: string) => /.+@.+\..+/.test(v)
-  const isValidUsername = (v: string) => /^[a-z0-9_.-]{3,32}$/.test(v)
-  const isStrongPassword = (v: string) => v.length >= 8
-  const isValidPhone = (v: string) => v.length === 0 || /^[0-9+()\-\s]{6,20}$/.test(v)
-  const isValidUrl = (v: string) => {
-    if (!v) return true
-    try { new URL(v.startsWith('http') ? v : `http://${v}`); return true } catch { return false }
-  }
-  const isValidJson = (v: string) => {
-    if (!v || !v.trim()) return true
-    try { JSON.parse(v); return true } catch { return false }
+    }))
   }
 
-  const validateForm = (): string | null => {
-    if (!formData.nombre_empresa.trim()) return 'El nombre de la empresa es obligatorio.';
-    if (!formData.nombre_encargado.trim()) return 'El nombre del encargado es obligatorio.';
-    if (!formData.apellido_encargado.trim()) return 'El apellido del encargado es obligatorio.';
-    if (!formData.email.trim()) return 'El correo es obligatorio.';
-    if (!isValidEmail(formData.email.trim())) return 'El correo no tiene un formato válido.';
-    if (!formData.username.trim()) return 'El usuario es obligatorio.';
-    if (!isValidUsername(formData.username.trim())) return 'El usuario debe usar minúsculas, números o ._- (3-32).';
-    // Password opcional: si viene, validar fortaleza mínima
-    if (formData.password && !isStrongPassword(formData.password)) return 'La contraseña debe tener al menos 8 caracteres.';
-    if (!isValidPhone(formData.telefono || '')) return 'El teléfono solo admite dígitos, +, -, espacios y ().';
-    if (!isValidUrl(formData.sitio_web || '')) return 'El sitio web no es una URL válida.';
-    if (!isValidJson(formData.config_json || '')) return 'config_json debe ser un JSON válido.';
-    return null;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLocalError(null);
-
-    const validationError = validateForm();
-    if (validationError) {
-      setLocalError(validationError);
-      return;
+  function validateRucByCountry(country: string, ruc: string): string | null {
+    const c = (country || '').trim().toLowerCase()
+    const v = (ruc || '').trim()
+    if (!v) return null
+    // Perú: RUC 11 dígitos
+    if (/(peru|perú)/.test(c)) {
+      if (!/^\d{11}$/.test(v)) return 'RUC (Perú) debe tener 11 dígitos.'
+      return null
     }
-
-    const result = await crear(formData);
-    if (result) {
-      setFormData(INITIAL_STATE);
-      
+    // Ecuador: RUC 13 dígitos
+    if (/ecuador/.test(c)) {
+      if (!/^\d{13}$/.test(v)) return 'RUC (Ecuador) debe tener 13 dígitos.'
+      return null
     }
-  };
+    // Argentina: CUIT/CUIL 11 dígitos
+    if (/argentina/.test(c)) {
+      if (!/^\d{11}$/.test(v)) return 'CUIT/CUIL (Argentina) debe tener 11 dígitos.'
+      return null
+    }
+    // Chile: RUT NN.NNN.NNN-D (permitimos formateado o compacto con dígito verificador)
+    if (/chile/.test(c)) {
+      if (!/^[0-9]{7,8}-[0-9kK]$/.test(v) && !/^[0-9]{7,8}[0-9kK]$/.test(v)) {
+        return 'RUT (Chile) debe ser 8 dígitos + dígito verificador (ej: 12345678-9)'
+      }
+      return null
+    }
+    // España: CIF/NIF básicos (muy simplificado)
+    if (/(españa|espana|spain)/.test(c)) {
+      if (!/^([A-Z]\d{7}[A-Z0-9]|\d{8}[A-Z])$/.test(v.toUpperCase())) {
+        return 'CIF/NIF (España) con formato básico inválido.'
+      }
+      return null
+    }
+    // Otros países: sin validación estricta
+    return null
+  }
+
+  function validate(): string | null {
+    const isEmail = /.+@.+\..+/
+    const isPhone = (v: string) => v.length === 0 || /^[0-9+()\-\s]{6,20}$/.test(v)
+    const isUrl = (v: string) => {
+      if (!v) return true
+      try {
+        // Permite sin protocolo
+        // eslint-disable-next-line no-new
+        new URL(v.startsWith('http') ? v : `http://${v}`)
+        return true
+      } catch {
+        return false
+      }
+    }
+    if (!formData.nombre_empresa.trim()) return 'El nombre de la empresa es obligatorio.'
+    if (!formData.nombre_encargado.trim()) return 'El nombre del encargado es obligatorio.'
+    if (!formData.apellido_encargado.trim()) return 'El apellido del encargado es obligatorio.'
+    if (!formData.email.trim()) return 'El correo es obligatorio.'
+    if (!isEmail.test(formData.email.trim())) return 'El correo no tiene un formato válido.'
+    if (!isPhone(formData.telefono || '')) return 'Teléfono inválido.'
+    const rucErr = validateRucByCountry(formData.pais, formData.ruc)
+    if (rucErr) return rucErr
+    if (!isUrl(formData.sitio_web || '')) return 'El sitio web no es una URL válida.'
+    return null
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLocalError(null)
+    const v = validate()
+    if (v) return setLocalError(v)
+    const res = await crear(formData)
+    if (res) setFormData(INITIAL_STATE)
+  }
+
+  const err = (k: string) => (fieldErrors as any)?.[k]
 
   return (
-   
-      <div className="max-w-6xl mx-auto px-4 py-10 animate-fade-in">
-        <div className="bg-white shadow-xl rounded-3xl p-8">
-          <div className="text-center mb-10">
-            <h1 className="text-3xl font-bold text-indigo-700 mb-2">🚀 Registrar nueva empresa</h1>
-            <p className="text-gray-500 text-sm">
+    <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-200">
+        <header className="px-6 py-5 border-b border-slate-200 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Registrar nueva empresa</h1>
+            <p className="text-slate-500 text-sm mt-1">
               Completa los datos para crear una empresa, su usuario principal y módulos activos.
             </p>
           </div>
+          <div className="flex items-center gap-2">
+            <input id="import-excel" type="file" accept=".xlsx,.xls" className="hidden" disabled title="Próximamente" />
+            <label
+              htmlFor="import-excel"
+              className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-semibold border border-slate-300 text-slate-600 bg-white opacity-60 cursor-not-allowed"
+              title="Importar empresas desde Excel (próximamente)"
+            >
+              Importar Excel
+            </label>
+          </div>
+        </header>
 
-          <form onSubmit={handleSubmit} className="space-y-10">
-            {(localError || error) && (
-              <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                {localError || error}
-              </div>
-            )}
-            <section>
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">🏢 Datos de la Empresa</h2>
-              <div className="grid md:grid-cols-2 gap-6">
-                <input name="nombre_empresa" value={formData.nombre_empresa} onChange={handleChange} placeholder="Nombre de la empresa" className="border border-gray-300 rounded-lg px-4 py-2 text-sm" />
-                <select name="tipo_empresa" value={formData.tipo_empresa} onChange={handleChange} className="border border-gray-300 rounded-lg px-4 py-2 text-sm">
-                  <option value="">Tipo de empresa</option>
-                  <option value="1">SRL</option>
-                  <option value="2">SAC</option>
-                  <option value="3">EIRL</option>
-                </select>
-                <select name="tipo_negocio" value={formData.tipo_negocio} onChange={handleChange} className="border border-gray-300 rounded-lg px-4 py-2 text-sm">
-                  <option value="">Tipo de negocio</option>
-                  <option value="1">Comercio</option>
-                  <option value="2">Servicios</option>
-                  <option value="3">Manufactura</option>
-                </select>
-                {["ruc", "telefono", "direccion", "pais", "provincia", "ciudad", "cp", "sitio_web", "color_primario", "plantilla_inicio"].map((field) => {
-                  const type = field === 'color_primario' ? 'color' : field === 'sitio_web' ? 'url' : 'text'
-                  const err = field === 'ruc' ? (fieldErrors as any)?.ruc : ''
-                  return (
-                    <div key={field} className="flex flex-col gap-1">
-                      <input
-                        name={field}
-                        type={type as any}
-                        value={(formData as any)[field]}
-                        onChange={handleChange}
-                        placeholder={field.replace(/_/g, ' ')}
-                        aria-invalid={!!err}
-                        className={`border rounded-lg px-4 py-2 text-sm ${err ? 'border-red-400' : 'border-gray-300'}`}
-                      />
-                      {err && <span className="text-xs text-red-600">{err}</span>}
-                    </div>
-                  )
-                })}
-                <input type="file" name="logo" onChange={handleChange} />
-                <textarea name="config_json" placeholder="config_json" value={formData.config_json} onChange={handleChange} className="md:col-span-2 border border-gray-300 rounded-lg px-4 py-2 text-sm" />
-                {/* Módulos dentro del mismo grid para mantener alineación visual */}
-                <div className="md:col-span-2">
-                  <ModuloSelector selected={formData.modulos} onChange={handleModuloChange} />
-                </div>
-              </div>
-            </section>
+        <form onSubmit={onSubmit} className="px-6 py-6 space-y-10">
+          {(localError || error) && (
+            <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {localError || error}
+            </div>
+          )}
 
-            <section>
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">👤 Usuario Administrador</h2>
-              <div className="grid md:grid-cols-3 gap-6">
-                {["nombre_encargado", "apellido_encargado", "email"].map((field) => {
-                  const err = field === 'email' ? (fieldErrors as any)?.email : ''
-                  return (
-                    <div key={field} className="flex flex-col gap-1">
-                      <input
-                        name={field}
-                        type={field === 'email' ? 'email' : 'text'}
-                        required={field !== 'email' ? undefined : true}
-                        value={(formData as any)[field]}
-                        onChange={handleChange}
-                        placeholder={field.replace(/_/g, ' ')}
-                        aria-invalid={!!err}
-                        className={`border rounded-lg px-4 py-2 text-sm ${err ? 'border-red-400' : 'border-gray-300'}`}
-                      />
-                      {err && <span className="text-xs text-red-600">{err}</span>}
-                    </div>
-                  )
-                })}
-                {needSecondSurname && (
-                  <div className="flex flex-col gap-1">
-                    <input
-                      name="segundo_apellido_encargado"
-                      type="text"
-                      value={(formData as any).segundo_apellido_encargado || ''}
-                      onChange={handleChange}
-                      placeholder="segundo apellido"
-                      className="border border-gray-300 rounded-lg px-4 py-2 text-sm"
-                    />
-                    <span className="text-xs text-gray-600">Se usará para sugerir un usuario único.</span>
-                  </div>
-                )}
+          {/* Datos de la empresa */}
+          <section>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Datos de la empresa</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-600">Nombre de la empresa *</label>
+                <input name="nombre_empresa" value={formData.nombre_empresa} onChange={onChange} className="border border-slate-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-600">RUC</label>
+                <input name="ruc" value={formData.ruc} onChange={onChange} className="border border-slate-300 rounded-lg px-4 py-2 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-600">Teléfono</label>
+                <input name="telefono" value={formData.telefono} onChange={onChange} placeholder="+34 600 000 000" className="border border-slate-300 rounded-lg px-4 py-2 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1 md:col-span-2">
+                <label className="text-xs font-semibold text-slate-600">Dirección</label>
+                <input name="direccion" value={formData.direccion} onChange={onChange} className="border border-slate-300 rounded-lg px-4 py-2 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-600">País</label>
+                <input name="pais" value={formData.pais} onChange={onChange} className="border border-slate-300 rounded-lg px-4 py-2 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-600">Provincia</label>
+                <input name="provincia" value={formData.provincia} onChange={onChange} className="border border-slate-300 rounded-lg px-4 py-2 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-600">Ciudad</label>
+                <input name="ciudad" value={formData.ciudad} onChange={onChange} className="border border-slate-300 rounded-lg px-4 py-2 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-600">Código postal</label>
+                <input name="cp" value={formData.cp} onChange={onChange} className="border border-slate-300 rounded-lg px-4 py-2 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1 md:col-span-2">
+                <label className="text-xs font-semibold text-slate-600">Sitio web</label>
+                <input name="sitio_web" value={formData.sitio_web} onChange={onChange} placeholder="https://" className="border border-slate-300 rounded-lg px-4 py-2 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-600">Color primario</label>
+                <input name="color_primario" type="color" value={formData.color_primario} onChange={onChange} className="h-10 w-20 border border-slate-300 rounded" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-600">Logo</label>
+                <input name="logo" type="file" onChange={onChange} className="text-sm" />
+              </div>
+              <div className="flex flex-col gap-1 md:col-span-2">
+                <label className="text-xs font-semibold text-slate-600">Config JSON (opcional)</label>
+                <textarea name="config_json" value={formData.config_json} onChange={onChange} className="border border-slate-300 rounded-lg px-4 py-2 text-sm min-h-[90px]" />
+              </div>
+            </div>
+          </section>
+
+          {/* Módulos */}
+          <section>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Módulos a contratar</h2>
+            <ModuloSelector selected={formData.modulos} onChange={onModuloChange} />
+          </section>
+
+          {/* Usuario administrador */}
+          <section>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Usuario administrador</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-600">Nombre *</label>
+                <input name="nombre_encargado" value={formData.nombre_encargado} onChange={onChange} className="border border-slate-300 rounded-lg px-4 py-2 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-600">Apellido *</label>
+                <input name="apellido_encargado" value={formData.apellido_encargado} onChange={onChange} className="border border-slate-300 rounded-lg px-4 py-2 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-600">Correo *</label>
+                <input name="email" type="email" value={formData.email} onChange={onChange} aria-invalid={!!err('email')} className={`border rounded-lg px-4 py-2 text-sm ${err('email') ? 'border-rose-400' : 'border-slate-300'}`} />
+                {err('email') && <span className="text-xs text-rose-600">{err('email')}</span>}
+              </div>
+
+              {needSecondSurname && (
                 <div className="flex flex-col gap-1">
-                  <input
-                    name="username"
-                    type="text"
-                    value={formData.username}
-                    disabled
-                    title="Se genera automáticamente como nombre.apellido"
-                    placeholder="username"
-                    aria-invalid={!!(fieldErrors as any)?.username}
-                    className={`bg-gray-100 text-gray-500 border rounded-lg px-4 py-2 text-sm ${(fieldErrors as any)?.username ? 'border-red-400' : 'border-gray-300'}`}
-                  />
-                  {(fieldErrors as any)?.username && <span className="text-xs text-red-600">{(fieldErrors as any)?.username}</span>}
+                  <label className="text-xs font-semibold text-slate-600">Segundo apellido (para sugerir username único)</label>
+                  <input name="segundo_apellido_encargado" value={(formData as any).segundo_apellido_encargado || ''} onChange={onChange} className="border border-slate-300 rounded-lg px-4 py-2 text-sm" />
                 </div>
-                <input name="password" type="password" value={formData.password} onChange={handleChange} placeholder="Contraseña (opcional, se enviará email para crearla)" className="border border-gray-300 rounded-lg px-4 py-2 text-sm" />
+              )}
+
+              <div className="flex flex-col gap-1 md:col-span-2">
+                <label className="text-xs font-semibold text-slate-600">Usuario generado</label>
+                <div className={`bg-slate-50 border rounded-lg px-3 py-2 text-sm ${err('username') ? 'border-rose-400' : 'border-slate-300'}`} title="Se genera automáticamente como nombre.apellido">
+                  <span className="font-mono text-slate-700 select-all">{formData.username || '—'}</span>
+                </div>
+                {err('username') && <span className="text-xs text-rose-600">{err('username')}</span>}
               </div>
-            </section>
 
-            <div className="text-center mt-8 space-y-4">
-              <button type="submit" disabled={loading} className={`w-full sm:w-auto px-6 py-3 rounded-xl font-semibold text-white transition duration-300 shadow-md ${
-                loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
-              }`}>
-                {loading ? 'Guardando...' : '✅ Crear empresa y usuario'}
-              </button>
-
-              {localError && (
-                <div className="max-w-xl mx-auto bg-red-100 border border-red-300 text-red-700 px-6 py-3 rounded-lg text-sm shadow">
-                  {localError}
-                </div>
-              )}
-              {error && (
-                <div className="max-w-xl mx-auto bg-red-100 border border-red-300 text-red-700 px-6 py-3 rounded-lg text-sm shadow">
-                  {error}
-                </div>
-              )}
-              {success && (
-                <div className="max-w-xl mx-auto bg-green-100 border border-green-300 text-green-700 px-6 py-3 rounded-lg text-sm shadow">
-                  {success}
-                </div>
-              )}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-600">Contraseña (opcional)</label>
+                <input name="password" type="password" value={formData.password} onChange={onChange} placeholder="Se enviará email si no la informas" className="border border-slate-300 rounded-lg px-4 py-2 text-sm" />
+              </div>
             </div>
+          </section>
 
-            <div className="text-center mt-8">
-              <a href="/admin/empresas" className="text-sm text-indigo-600 hover:underline">
-                ⬅️ Volver al listado de empresas
-              </a>
-            </div>
-          </form>
-        </div>
+          <div className="flex items-center justify-between gap-4 pt-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className={`inline-flex items-center justify-center rounded-xl px-6 py-3 font-semibold text-white shadow-sm transition ${
+                loading ? 'bg-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
+              }`}
+            >
+              {loading && (
+                <svg className="-ml-1 mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                </svg>
+              )}
+              {loading ? 'Guardando…' : 'Crear empresa y usuario'}
+            </button>
+
+            <a href="/admin/empresas" className="text-sm text-indigo-600 hover:underline">Volver al listado de empresas</a>
+          </div>
+
+          {success && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div>
+          )}
+        </form>
       </div>
- 
-  );
-};
+    </div>
+  )
+}
