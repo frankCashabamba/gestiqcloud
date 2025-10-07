@@ -121,6 +121,11 @@ export const CrearEmpresa: React.FC = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-10">
+            {(localError || error) && (
+              <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {localError || error}
+              </div>
+            )}
             <section>
               <h2 className="text-lg font-semibold text-gray-800 mb-4">🏢 Datos de la Empresa</h2>
               <div className="grid md:grid-cols-2 gap-6">
@@ -199,7 +204,16 @@ export const CrearEmpresa: React.FC = () => {
                   </div>
                 )}
                 <div className="flex flex-col gap-1">
-                  <input name="username" type="text" value={formData.username} readOnly placeholder="username" aria-invalid={!!(fieldErrors as any)?.username} className={`bg-gray-50 border rounded-lg px-4 py-2 text-sm ${(fieldErrors as any)?.username ? 'border-red-400' : 'border-gray-300'}`} />
+                  <input
+                    name="username"
+                    type="text"
+                    value={formData.username}
+                    disabled
+                    title="Se genera automáticamente como nombre.apellido"
+                    placeholder="username"
+                    aria-invalid={!!(fieldErrors as any)?.username}
+                    className={`bg-gray-100 text-gray-500 border rounded-lg px-4 py-2 text-sm ${(fieldErrors as any)?.username ? 'border-red-400' : 'border-gray-300'}`}
+                  />
                   {(fieldErrors as any)?.username && <span className="text-xs text-red-600">{(fieldErrors as any)?.username}</span>}
                 </div>
                 <input name="password" type="password" value={formData.password} onChange={handleChange} placeholder="Contraseña (opcional, se enviará email para crearla)" className="border border-gray-300 rounded-lg px-4 py-2 text-sm" />

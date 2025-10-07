@@ -17,7 +17,7 @@ const OUTBOX_DB = createStore('pwa-store', 'outbox')
 const BUILD_ID = __APP_BUILD_ID__
 const APP_VERSION = __APP_VERSION__
 // Do not cache GET responses for these sensitive API routes
-const SENSITIVE_API = [/\/api\/.*auth/i, /\/api\/.*token/i, /\/api\/.*profile/i]
+const SENSITIVE_API = [/\/api\/.*auth/i, /\/api\/.*token/i, /\/api\/.*profile/i, /\/api\/.*\/me(\/|$)/i]
 const MAX_BACKOFF_MS = 5 * 60 * 1000 // 5 min cap
 const BASE_BACKOFF_MS = 2000
 

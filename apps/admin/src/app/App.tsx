@@ -16,7 +16,7 @@ import { EmpresaModulos } from '../pages/EmpresaModulos'
 
 import SessionKeepAlive from '@shared/ui'
 import { useAuth } from '../auth/AuthContext'
-import { OfflineBanner, BuildBadge, UpdatePrompt, OfflineReadyToast } from '@shared/ui'
+import { OfflineBanner, BuildBadge, UpdatePrompt, OfflineReadyToast, OutboxIndicator } from '@shared/ui'
 
 const SESSION_WARN_AFTER_MS = 9 * 60_000;
 const SESSION_RESPONSE_WINDOW_MS = 60_000;
@@ -31,6 +31,7 @@ function LayoutRoute() {
       <BuildBadge />
       <UpdatePrompt />
       <OfflineReadyToast />
+      <OutboxIndicator />
       <Outlet />
     </LayoutAdmin>
   )
