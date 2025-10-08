@@ -78,6 +78,3 @@ def smtp_test(payload: EmailTestIn, background: BackgroundTasks):
   except Exception as e:
     # Propagar error para verlo en logs/clientes
     raise HTTPException(status_code=500, detail=f"smtp_test_failed: {e}")
-  except Exception as e:
-    result.update({"ok": False, "error": str(e)})
-    return result
