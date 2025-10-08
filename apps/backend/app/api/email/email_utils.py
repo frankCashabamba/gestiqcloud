@@ -37,9 +37,14 @@ def send_email_mailtrap(to_email: str, subject: str, html_content: str) -> None:
     msg["To"] = to_email
 
     try:
-        server = smtplib.SMTP(host=settings.EMAIL_HOST, port=int(settings.EMAIL_PORT))
-        if settings.EMAIL_USE_TLS:
-            server.starttls()
+        port = int(getattr(settings, "EMAIL_PORT", 0) or 0)
+        use_ssl = bool(getattr(settings, "EMAIL_USE_SSL", False) or port == 465)
+        if use_ssl:
+            server = smtplib.SMTP_SSL(host=settings.EMAIL_HOST, port=port or 465)
+        else:
+            server = smtplib.SMTP(host=settings.EMAIL_HOST, port=port or 587)
+            if getattr(settings, "EMAIL_USE_TLS", True):
+                server.starttls()
         if settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD:
             server.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
         server.send_message(msg)
@@ -80,6 +85,10 @@ def enviar_correo_bienvenida(user_email: str, username: str, empresa_nombre: str
     if getattr(settings, "ENV", "development") == "development" and (getattr(settings, "EMAIL_DEV_LOG_ONLY", False) or not getattr(settings, "EMAIL_HOST", None)):
         logger.info("[DEV EMAIL] Bienvenida link: %s", enlace)
     background_tasks.add_task(send_email_mailtrap, user_email, "Bienvenido a GestiqCloud", html_content)
+    try:
+        logger.info("Queued welcome email to %s", user_email)
+    except Exception:
+        pass
 
 
 def reenviar_correo_reset(user_email: str, background_tasks: BackgroundTasks) -> None:
