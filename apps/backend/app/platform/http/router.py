@@ -150,6 +150,8 @@ def build_api_router() -> APIRouter:
     include_router_safe(r, ("app.api.v1.auth", "router"))
     include_router_safe(r, ("app.api.v1.me", "router"))
     include_router_safe(r, ("app.api.v1.telemetry", "router"))
+    # Email health
+    include_router_safe(r, ("app.api.v1.email_health", "router"))
     include_router_safe(
         r,
         ("app.modules.identity.interface.http.sessions", "router"),
