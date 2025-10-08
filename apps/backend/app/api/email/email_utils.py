@@ -1,8 +1,11 @@
 """Email utilities: token generation, rendering and SMTP send with dev fallback."""
 
 import smtplib
+import re
 from datetime import datetime
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.utils import formatdate, make_msgid, parseaddr, formataddr
 from typing import Tuple
 import logging
 
@@ -13,6 +16,17 @@ from app.config.settings import settings
 from app.utils.email_renderer import render_template
 
 logger = logging.getLogger("app.email")
+
+
+def _html_to_text(html: str) -> str:
+    try:
+        # Very small HTML→text fallback for better deliverability
+        text = re.sub(r"<\s*br\s*/?\s*>", "\n", html, flags=re.I)
+        text = re.sub(r"<\s*/p\s*>", "\n\n", text, flags=re.I)
+        text = re.sub(r"<[^>]+>", "", text)
+        return re.sub(r"\n{3,}", "\n\n", text).strip()
+    except Exception:
+        return html
 
 
 def send_email_mailtrap(to_email: str, subject: str, html_content: str) -> None:
@@ -31,10 +45,35 @@ def send_email_mailtrap(to_email: str, subject: str, html_content: str) -> None:
         logger.info("[DEV EMAIL] HTML:\n%s", html_content)
         return
 
-    msg = MIMEText(html_content, "html")
+    # Build multipart/alternative (plain + HTML) for better spam compliance
+    msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"] = settings.DEFAULT_FROM_EMAIL
-    msg["To"] = to_email
+
+    # Parse and normalize From/To to avoid SMTP 501 sender syntax errors
+    from_name, from_addr = parseaddr(getattr(settings, "DEFAULT_FROM_EMAIL", "") or "")
+    if not from_addr:
+        # Fallback: use SMTP user or a safe default
+        from_addr = (getattr(settings, "EMAIL_HOST_USER", None) or "no-reply@localhost").strip()
+    if not from_name:
+        from_name = getattr(settings, "app_name", "GestiqCloud")
+    msg["From"] = formataddr((from_name, from_addr))
+
+    to_name, to_addr = parseaddr(to_email or "")
+    if not to_addr:
+        to_addr = (to_email or "").strip()
+    msg["To"] = formataddr((to_name, to_addr))
+    msg["Date"] = formatdate(localtime=True)
+    msg["Message-Id"] = make_msgid(domain=None)
+    # Optional: Reply-To same as From (or adjust if you add a REPLY_TO setting)
+    try:
+        if getattr(settings, "DEFAULT_FROM_EMAIL", None):
+            msg["Reply-To"] = formataddr((from_name, from_addr))
+    except Exception:
+        pass
+
+    plain = _html_to_text(html_content)
+    msg.attach(MIMEText(plain, "plain", _charset="utf-8"))
+    msg.attach(MIMEText(html_content, "html", _charset="utf-8"))
 
     try:
         port = int(getattr(settings, "EMAIL_PORT", 0) or 0)
@@ -47,13 +86,14 @@ def send_email_mailtrap(to_email: str, subject: str, html_content: str) -> None:
                 server.starttls()
         if settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD:
             server.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
-        result = server.send_message(msg)
+        # Envelope addresses: be explicit to satisfy providers expecting RFC-compliant MAIL FROM
+        result = server.send_message(msg, from_addr=from_addr, to_addrs=[to_addr])
         try:
             # send_message returns a dict of {recipient: error} on failure
             if result:
                 logger.warning("SMTP send_message reported failures: %s", result)
             else:
-                logger.info("SMTP send_message accepted for delivery to %s", to_email)
+                logger.info("SMTP send_message accepted for delivery to %s", to_addr)
         except Exception:
             pass
         server.quit()
