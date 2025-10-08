@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -27,6 +28,8 @@ router = APIRouter(
     tags=["Admin Empresas"],
     dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))],
 )
+
+logger = logging.getLogger("app.empresa.admin")
 
 
 @router.get("", response_model=list[EmpresaOutSchema])
@@ -250,7 +253,8 @@ async def crear_empresa_completa_json(
 
     try:
         enviar_correo_bienvenida(user.email, user.username, payload.empresa.nombre, background_tasks)
-    except Exception:
-        pass
+    except Exception as e:
+        # Do not interrupt the flow on SMTP failure, but log for diagnosis
+        logger.warning("Failed to enqueue welcome email for %s: %s", user.email, e, exc_info=True)
 
     return {"msg": "ok", "id": empresa_id}
