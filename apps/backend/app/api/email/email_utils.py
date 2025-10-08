@@ -47,7 +47,15 @@ def send_email_mailtrap(to_email: str, subject: str, html_content: str) -> None:
                 server.starttls()
         if settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD:
             server.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
-        server.send_message(msg)
+        result = server.send_message(msg)
+        try:
+            # send_message returns a dict of {recipient: error} on failure
+            if result:
+                logger.warning("SMTP send_message reported failures: %s", result)
+            else:
+                logger.info("SMTP send_message accepted for delivery to %s", to_email)
+        except Exception:
+            pass
         server.quit()
     except Exception as e:
         if getattr(settings, "ENV", "development") == "development":
