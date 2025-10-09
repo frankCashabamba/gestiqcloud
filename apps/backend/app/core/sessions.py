@@ -104,14 +104,31 @@ class SessionMiddlewareServerSide(BaseHTTPMiddleware):
     ):
         super().__init__(app)
         self.signer = Signer(secret_key)
-        # Build config
+        # Build config (respect settings when available)
+        cookie_secure = https_only
+        cookie_samesite = "Strict"
+        cdomain = cookie_domain
+        try:
+            from app.config.settings import settings  # late import to avoid cycles
+
+            # Prefer explicit settings over constructor defaults
+            cookie_secure = bool(getattr(settings, "COOKIE_SECURE", https_only))
+            raw_samesite = str(getattr(settings, "COOKIE_SAMESITE", "Strict")).lower()
+            if raw_samesite not in ("lax", "strict", "none"):
+                raw_samesite = "lax"
+            cookie_samesite = raw_samesite.capitalize()  # store canonical, lower() on set_cookie
+            if cdomain is None:
+                cdomain = getattr(settings, "COOKIE_DOMAIN", None)
+        except Exception:
+            pass
+
         self.cfg = SessionConfig(
             cookie_name=cookie_name,
             ttl_seconds=ttl_seconds,
-            cookie_secure=https_only,
-            cookie_samesite="Strict",
+            cookie_secure=cookie_secure,
+            cookie_samesite=cookie_samesite,
             cookie_httponly=True,
-            cookie_domain=cookie_domain,
+            cookie_domain=cdomain,
         )
         # Build store (prefer Redis when REDIS_URL present)
         if store is not None:

@@ -1,184 +1,159 @@
-#!/usr/bin/env python
-"""Apply standard RLS policies to tenant-aware tables.
+#!/usr/bin/env python3
+"""
+Apply/repair tenant-based RLS on every table that has a `tenant_id` column.
+
+Adds:
+  - ENABLE + FORCE ROW LEVEL SECURITY
+  - Single policy `rls_tenant` with USING + WITH CHECK on tenant_id
+  - Ensures an index on (tenant_id)
+Optional:
+  - `--set-default` sets DEFAULT tenant_id := current_tenant()
+  - creates helper function current_tenant() if missing
+
+Idempotent and safe to re-run.
 
 Usage:
-    python scripts/py/apply_rls.py --dsn postgresql://user:pass@host:5432/db
+  DATABASE_URL=postgres://user:pass@host:5432/db \
+  python scripts/py/apply_rls.py --schema public --set-default
 
-The script looks for tables in the public schema that expose an `empresa_id`
-column and ensures that row level security is enabled for them with the
-standard set of policies (`tenant_isolation_*`, `tenant_insert_*`,
-`tenant_update_*`).
-
-For join tables that do not expose `empresa_id` directly, provide the
-referencing parent table and foreign-key column in the `CHILD_TABLES` map
-below.
-
-The application is expected to execute::
-
-    SET app.tenant_id = '<empresa_id>';
-    SET app.user_id   = '<usuario_id>';
-
-This script does not attempt to handle custom ownership logic (admins only,
-assigned user, etc.). Add those tables manually to the map with the required
-`USING`/`WITH CHECK` clauses if they differ from the default behaviour.
+You can pass multiple --schema flags.
 """
 from __future__ import annotations
-
+import os
+import sys
 import argparse
-from dataclasses import dataclass
-from typing import Mapping, Sequence
+import contextlib
+import psycopg2
+from psycopg2 import sql
 
-from sqlalchemy import create_engine, text
-from textwrap import dedent
-from sqlalchemy.engine import Connection
+QUERY_TABLES = sql.SQL(
+    """
+    SELECT c.table_schema, c.table_name
+    FROM information_schema.columns c
+    WHERE c.column_name = 'tenant_id'
+      AND c.table_schema NOT IN ('pg_catalog','information_schema')
+      {schema_filter}
+    GROUP BY c.table_schema, c.table_name
+    ORDER BY c.table_schema, c.table_name
+    """
+)
 
-# Tables without empresa_id but owned by a parent table that sí lo tiene.
-# Map format: table -> (parent_table, fk_column)
-CHILD_TABLES: Mapping[str, tuple[str, str]] = {
-    "proveedor_contactos": ("proveedores", "proveedor_id"),
-    "proveedor_direcciones": ("proveedores", "proveedor_id"),
-}
+SQL_ENABLE_RLS = sql.SQL(
+    """
+    ALTER TABLE {tbl} ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE {tbl} FORCE ROW LEVEL SECURITY;
+    """
+)
 
-def table_exists(conn: Connection, table: str) -> bool:
-    query = text("SELECT to_regclass('public.' || :table) IS NOT NULL")
-    return bool(conn.execute(query, {"table": table}).scalar())
+SQL_DROP_POLICY = sql.SQL("DROP POLICY IF EXISTS rls_tenant ON {tbl};")
 
+SQL_CREATE_POLICY = sql.SQL(
+    """
+    CREATE POLICY rls_tenant ON {tbl}
+      USING (tenant_id = current_setting('app.tenant_id')::uuid)
+      WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid);
+    """
+)
 
-@dataclass
-class PolicySQL:
-    enable: str
-    isolation: str
-    insert: str
-    update: str
+SQL_INDEX_EXISTS = sql.SQL(
+    """
+    SELECT 1
+    FROM pg_indexes
+    WHERE schemaname = %s AND tablename = %s AND indexname = %s
+    """
+)
 
+SQL_CREATE_INDEX = sql.SQL(
+    """
+    CREATE INDEX {ix} ON {tbl} (tenant_id);
+    """
+)
 
-def build_basic_policies(table: str) -> PolicySQL:
-    enable = dedent(f"""
-        ALTER TABLE public.{table} ENABLE ROW LEVEL SECURITY;
-        ALTER TABLE public.{table} FORCE ROW LEVEL SECURITY;
-    """).strip()
-    isolation = dedent(f"""
-        DROP POLICY IF EXISTS tenant_isolation_{table} ON public.{table};
-        CREATE POLICY tenant_isolation_{table}
-          ON public.{table}
-          USING (empresa_id = current_setting('app.tenant_id')::integer);
-    """).strip()
-    insert = dedent(f"""
-        DROP POLICY IF EXISTS tenant_insert_{table} ON public.{table};
-        CREATE POLICY tenant_insert_{table}
-          ON public.{table}
-          FOR INSERT
-          WITH CHECK (empresa_id = current_setting('app.tenant_id')::integer);
-    """).strip()
-    update = dedent(f"""
-        DROP POLICY IF EXISTS tenant_update_{table} ON public.{table};
-        CREATE POLICY tenant_update_{table}
-          ON public.{table}
-          FOR UPDATE
-          WITH CHECK (empresa_id = current_setting('app.tenant_id')::integer);
-    """).strip()
-    return PolicySQL(enable, isolation, insert, update)
+SQL_COL_DEFAULT = sql.SQL(
+    """
+    SELECT column_default
+    FROM information_schema.columns
+    WHERE table_schema = %s AND table_name = %s AND column_name = 'tenant_id'
+    """
+)
 
+SQL_CREATE_FN_CURRENT_TENANT = """
+CREATE OR REPLACE FUNCTION current_tenant() RETURNS uuid
+LANGUAGE sql STABLE AS $$
+  SELECT current_setting('app.tenant_id', true)::uuid
+$$;
+"""
 
-def build_child_policies(table: str, parent: str, fk_column: str) -> PolicySQL:
-    clause = dedent(f"""
-        EXISTS (
-          SELECT 1
-          FROM public.{parent} p
-          WHERE p.id = {table}.{fk_column}
-            AND p.empresa_id = current_setting('app.tenant_id')::integer
-        )
-    """).strip()
-
-    enable = dedent(f"""
-        ALTER TABLE public.{table} ENABLE ROW LEVEL SECURITY;
-        ALTER TABLE public.{table} FORCE ROW LEVEL SECURITY;
-    """).strip()
-    isolation = dedent(f"""
-        DROP POLICY IF EXISTS tenant_isolation_{table} ON public.{table};
-        CREATE POLICY tenant_isolation_{table}
-          ON public.{table}
-          USING ({clause});
-    """).strip()
-    insert = dedent(f"""
-        DROP POLICY IF EXISTS tenant_insert_{table} ON public.{table};
-        CREATE POLICY tenant_insert_{table}
-          ON public.{table}
-          FOR INSERT
-          WITH CHECK ({clause});
-    """).strip()
-    update = dedent(f"""
-        DROP POLICY IF EXISTS tenant_update_{table} ON public.{table};
-        CREATE POLICY tenant_update_{table}
-          ON public.{table}
-          FOR UPDATE
-          WITH CHECK ({clause});
-    """).strip()
-    return PolicySQL(enable, isolation, insert, update)
+SQL_SET_DEFAULT = sql.SQL(
+    """
+    ALTER TABLE {tbl}
+      ALTER COLUMN tenant_id SET DEFAULT current_tenant();
+    """
+)
 
 
-def fetch_tables_with_empresa(conn: Connection) -> Sequence[str]:
-    query = text(
-        """
-        SELECT table_name
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-          AND column_name = 'empresa_id'
-        ORDER BY table_name
-        """
-    )
-    rows = conn.execute(query).fetchall()
-    return [row[0] for row in rows]
+def apply_rls(conn, schemas: list[str], set_default: bool) -> None:
+    with conn, conn.cursor() as cur:
+        # Build schema filter
+        if schemas:
+            placeholders = sql.SQL(',').join(sql.Placeholder() * len(schemas))
+            schema_filter = sql.SQL("AND c.table_schema IN (" + placeholders.as_string(conn) + ")")
+        else:
+            schema_filter = sql.SQL("")
+
+        # Fetch tables
+        cur.execute(QUERY_TABLES.format(schema_filter=schema_filter), schemas)
+        tables = cur.fetchall()
+        print(f"Found {len(tables)} tenant tables.")
+
+        if set_default:
+            # Ensure helper function exists
+            cur.execute(SQL_CREATE_FN_CURRENT_TENANT)
+
+        for schema, table in tables:
+            tbl_ident = sql.Identifier(schema, table)
+            ix_name = f"ix_{table}_tenant_id"
+            ix_ident = sql.Identifier(ix_name)
+
+            print(f"→ Applying RLS on {schema}.{table} …")
+
+            # ENABLE + FORCE RLS
+            cur.execute(SQL_ENABLE_RLS.format(tbl=tbl_ident))
+
+            # (Re)create policy
+            cur.execute(SQL_DROP_POLICY.format(tbl=tbl_ident))
+            cur.execute(SQL_CREATE_POLICY.format(tbl=tbl_ident))
+
+            # Ensure index on tenant_id
+            cur.execute(SQL_INDEX_EXISTS, (schema, table, ix_name))
+            if cur.fetchone() is None:
+                cur.execute(SQL_CREATE_INDEX.format(ix=ix_ident, tbl=tbl_ident))
+                print(f"  + Created index {ix_name}")
+
+            # Optional: set DEFAULT tenant_id := current_tenant()
+            if set_default:
+                cur.execute(SQL_COL_DEFAULT, (schema, table))
+                default_expr = cur.fetchone()[0]
+                if not default_expr:
+                    cur.execute(SQL_SET_DEFAULT.format(tbl=tbl_ident))
+                    print("  + Set DEFAULT tenant_id := current_tenant()")
+
+        print("Done. RLS policies are in place and indexed.")
 
 
-def existing_policies(conn: Connection, table: str) -> set[str]:
-    query = text(
-        """
-        SELECT policyname
-        FROM pg_policies
-        WHERE schemaname = 'public' AND tablename = :table
-        """
-    )
-    return {row[0] for row in conn.execute(query, {"table": table})}
-
-
-def apply_segments(conn: Connection, segments: Sequence[str]) -> None:
-    for segment in segments:
-        conn.execute(text(segment))
-
-
-def ensure_policies(conn: Connection, table: str, policy: PolicySQL) -> None:
-    existing = existing_policies(conn, table)
-    expected = {
-        f"tenant_isolation_{table}",
-        f"tenant_insert_{table}",
-        f"tenant_update_{table}",
-    }
-    if expected.issubset(existing):
-        print(f"[RLS] OK {table}")
-        return
-    apply_segments(conn, [policy.enable, policy.isolation, policy.insert, policy.update])
-    print(f"[RLS] Updated policies for {table}")
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Ensure tenant RLS policies exist")
-    parser.add_argument("--dsn", required=True, help="PostgreSQL DSN")
+def main():
+    parser = argparse.ArgumentParser(description="Apply tenant RLS to all tables that contain tenant_id")
+    parser.add_argument('--schema', action='append', default=[], help='Schema to include (repeatable)')
+    parser.add_argument('--set-default', action='store_true', help='Set DEFAULT tenant_id := current_tenant()')
     args = parser.parse_args()
 
-    engine = create_engine(args.dsn, future=True)
-    with engine.begin() as conn:
-        tables = list(fetch_tables_with_empresa(conn))
-        for table in tables:
-            ensure_policies(conn, table, build_basic_policies(table))
+    dsn = os.environ.get('DATABASE_URL') or os.environ.get('POSTGRES_DSN')
+    if not dsn:
+        print("ERROR: set DATABASE_URL env var.", file=sys.stderr)
+        sys.exit(1)
 
-        for child, (parent, fk) in CHILD_TABLES.items():
-            if not table_exists(conn, child):
-                print(f'[RLS] Skip {child} (table not found)')
-                continue
-            ensure_policies(conn, child, build_child_policies(child, parent, fk))
-
-    print("RLS policies applied")
+    with contextlib.closing(psycopg2.connect(dsn)) as conn:
+        apply_rls(conn, args.schema, args.set_default)
 
 
 if __name__ == '__main__':
