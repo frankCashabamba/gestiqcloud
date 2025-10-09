@@ -48,9 +48,32 @@ def refresh_cookie_kwargs(*, path: str) -> dict:
 def set_refresh_cookie(response: Response, token_str: str, *, path: str) -> None:
     response.set_cookie("refresh_token", token_str, **refresh_cookie_kwargs(path=path))
 
+
+def set_access_cookie(response: Response, token_str: str, *, path: str = "/") -> None:
+    """Setea access_token en cookie HttpOnly con SameSite=Lax (solo navegación propia).
+
+    Nota: muchos clientes usan el access token en memoria y solo el refresh en cookie.
+    Si decides usar cookie también para access, mantenla Lax para evitar CSRF.
+    """
+    try:
+        from app.config.settings import settings
+        secure = bool(getattr(settings, "COOKIE_SECURE", (settings.ENV == "production")))
+    except Exception:
+        secure = False
+    response.set_cookie(
+        key="access_token",
+        value=token_str,
+        httponly=True,
+        samesite="lax",
+        secure=secure,
+        path=path,
+        domain=cookie_domain(),
+    )
+
 def delete_auth_cookies(response: Response, *, path: str) -> None:
     """Borra refresh y CSRF usando mismos atributos que al setear."""
     response.delete_cookie("refresh_token", path=path, domain=cookie_domain())
+    response.delete_cookie("access_token", path="/", domain=cookie_domain())
     # Si usas CSRF cookie legible por JS en '/', bórrala ahí también
     response.delete_cookie("csrf_token", path="/", domain=cookie_domain())
 
