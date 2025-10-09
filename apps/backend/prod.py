@@ -17,6 +17,46 @@ SCRIPTS = ROOT / "scripts" / "py"
 MIG_ROOT = ROOT / "ops" / "migrations"
 
 
+def run_apply_rls() -> None:
+    """Ejecuta scripts/py/apply_rls.py si RUN_RLS_APPLY=1.
+
+    Variables:
+      - RUN_RLS_APPLY=[1|true]
+      - RLS_SCHEMAS=public,otra (coma separadas; default: public)
+      - RLS_SET_DEFAULT=[1|true] (default: 1)
+    Requiere DATABASE_URL/DB_DSN.
+    """
+    flag = os.getenv("RUN_RLS_APPLY", "0").lower()
+    if flag not in ("1", "true", "yes"):
+        print("Skipping apply_rls (RUN_RLS_APPLY desactivado)")
+        return
+
+    dsn = DB_DSN or os.getenv("DATABASE_URL")
+    if not dsn:
+        print("DATABASE_URL/DB_DSN no seteado; no puedo ejecutar apply_rls.py")
+        return
+
+    rls_py = SCRIPTS / "apply_rls.py"
+    if not rls_py.exists():
+        print("scripts/py/apply_rls.py no existe; se omite.")
+        return
+
+    schemas = [s.strip() for s in (os.getenv("RLS_SCHEMAS", "public").split(",")) if s.strip()]
+    set_default = os.getenv("RLS_SET_DEFAULT", "1").lower() in ("1", "true", "yes")
+
+    env = os.environ.copy()
+    env.setdefault("DATABASE_URL", dsn)
+
+    cmd = [sys.executable, str(rls_py)]
+    for sc in schemas:
+        cmd += ["--schema", sc]
+    if set_default:
+        cmd.append("--set-default")
+
+    print(f"apply_rls.py: schemas={schemas} set_default={set_default}")
+    subprocess.run(cmd, check=True, cwd=str(ROOT), env=env)
+
+
 def run_alembic() -> None:
     """
     Ejecuta Alembic si está configurado. Por defecto ACTIVADO (RUN_ALEMBIC=1).
@@ -113,6 +153,7 @@ if __name__ == "__main__":
         # Orden recomendado: primero Alembic (si lo hay), luego legacy solo si está habilitado.
         run_alembic()
         run_legacy_migrations()
+        run_apply_rls()
     except subprocess.CalledProcessError as e:
         print(f"❌ Error en migraciones: {e}")
         sys.exit(e.returncode)

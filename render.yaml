@@ -76,6 +76,16 @@
       - key: PIP_ONLY_BINARY
         value: pandas,bcrypt,PyMuPDF,opencv-python-headless,psycopg2-binary,torch
 
+      # ---- Migraciones SQL legacy + RLS ----
+      - key: RUN_LEGACY_MIGRATIONS
+        value: "1"
+      - key: RUN_RLS_APPLY
+        value: "1"
+      - key: RLS_SCHEMAS
+        value: public
+      - key: RLS_SET_DEFAULT
+        value: "1"
+
   # ------------ FRONTEND TENANT (Vite) ------------
   - type: static
     name: gestiqcloud-tenant

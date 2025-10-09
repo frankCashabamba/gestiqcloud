@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Response, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -32,8 +32,9 @@ from .platform.http.router import build_api_router
 from .config.settings import settings
 from .core.sessions import SessionMiddlewareServerSide
 from .middleware.security_headers import security_headers_middleware
+from app.db.rls import ensure_rls
 
-app = FastAPI(title="GestiqCloud API", version="1.0.0")
+app = FastAPI(title="GestiqCloud API", version="1.0.0", dependencies=[Depends(ensure_rls)])
 
 # CORS (desde settings, con fallback seguro)
 allow_origins = settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else [settings.CORS_ORIGINS]
