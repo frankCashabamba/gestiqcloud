@@ -58,7 +58,7 @@ public_router = APIRouter(
 router = APIRouter(
     prefix="/imports",
     tags=["Imports"],
-    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant")), Depends(ensure_rls)],
+    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant"))],
 )
 
 # --- simple in-memory throttling (per-tenant) --------------------------------

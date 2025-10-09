@@ -165,6 +165,18 @@ try:
 except Exception:  # keep app boot resilient
     pass
 
+# Safety net: ensure generic /api/v1/auth and tenant auth exist even if router assembly skipped
+try:
+    from app.api.v1 import auth as _generic_auth
+    app.include_router(_generic_auth.router, prefix="/api/v1")
+except Exception:
+    pass
+try:
+    from app.api.v1.tenant import auth as _tenant_auth
+    app.include_router(_tenant_auth.router, prefix="/api/v1/tenant")
+except Exception:
+    pass
+
 # --- Runner de imports con gateos ---------------------------------------------
 try:
     from app.modules.imports.application.job_runner import job_runner as _imports_job_runner
