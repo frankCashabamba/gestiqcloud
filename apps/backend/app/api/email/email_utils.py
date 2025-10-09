@@ -51,7 +51,15 @@ def send_email_mailtrap(to_email: str, subject: str, html_content: str) -> None:
 
     # Parse and normalize From/To to avoid SMTP 501 sender syntax errors
     from_name, from_addr = parseaddr(getattr(settings, "DEFAULT_FROM_EMAIL", "") or "")
-    if not from_addr:
+    # Robust fallback: extract first email-looking token if parseaddr failed
+    if not from_addr or ("@" not in from_addr):
+        try:
+            m = re.search(r"([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})", getattr(settings, "DEFAULT_FROM_EMAIL", "") or "")
+            if m:
+                from_addr = m.group(1)
+        except Exception:
+            pass
+    if not from_addr or ("@" not in from_addr):
         # Fallback: use SMTP user or a safe default
         from_addr = (getattr(settings, "EMAIL_HOST_USER", None) or "no-reply@localhost").strip()
     if not from_name:
@@ -59,8 +67,13 @@ def send_email_mailtrap(to_email: str, subject: str, html_content: str) -> None:
     msg["From"] = formataddr((from_name, from_addr))
 
     to_name, to_addr = parseaddr(to_email or "")
-    if not to_addr:
-        to_addr = (to_email or "").strip()
+    if not to_addr or ("@" not in to_addr):
+        m_to = None
+        try:
+            m_to = re.search(r"([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})", to_email or "")
+        except Exception:
+            m_to = None
+        to_addr = (m_to.group(1) if m_to else (to_email or "").strip())
     msg["To"] = formataddr((to_name, to_addr))
     msg["Date"] = formatdate(localtime=True)
     msg["Message-Id"] = make_msgid(domain=None)
