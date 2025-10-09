@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from typing import Iterator
+from fastapi import Request
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
@@ -63,13 +64,45 @@ SessionLocal: sessionmaker[Session] = sessionmaker(
 # ---------------------------------------------------------------------------
 # Dependencia FastAPI: sesión por request
 # ---------------------------------------------------------------------------
-def get_db() -> Iterator[Session]:
+def get_db(request: Request | None = None) -> Iterator[Session]:
     """
     Uso:
         db: Session = Depends(get_db)
     """
     db = SessionLocal()
     try:
+        # If running inside a request, set RLS GUCs on THIS session
+        if request is not None:
+            try:
+                claims = getattr(request.state, "access_claims", None) or {}
+                sess = getattr(request.state, "session", {}) or {}
+                tenant_id = None
+                user_id = None
+                if isinstance(claims, dict):
+                    tenant_id = claims.get("tenant_id")
+                    user_id = claims.get("user_id")
+                if tenant_id is None or user_id is None:
+                    tenant_id = tenant_id or sess.get("tenant_id")
+                    user_id = user_id or sess.get("tenant_user_id")
+
+                if tenant_id is not None and user_id is not None:
+                    tid = str(tenant_id)
+                    uid = str(user_id)
+                    # translate legacy empresa_id (digits) -> tenant UUID
+                    if tid.isdigit():
+                        try:
+                            res = db.execute(text("SELECT id::text FROM public.tenants WHERE empresa_id = :eid"), {"eid": int(tid)})
+                            row = res.first()
+                            if row and row[0]:
+                                tid = row[0]
+                        except Exception:
+                            pass
+                    db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": tid})
+                    db.execute(text("SET LOCAL app.user_id = :uid"), {"uid": uid})
+            except Exception:
+                # Do not break request if setting GUCs fails
+                pass
+
         yield db
     finally:
         db.close()
