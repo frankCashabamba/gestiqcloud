@@ -1,39 +1,119 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from typing import Optional, List
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+
+from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.config.database import get_db
-from app.db.rls import ensure_rls
-from app.modules.productos.application.dto import ProductoIn, ProductoOut
-from app.modules.productos.application.use_cases import CrearProducto, ListarProductos
-from app.modules.productos.infrastructure.repositories import SqlAlchemyProductoRepo
-from app.modules.productos.interface.http.schemas import ProductoInSchema, ProductoOutSchema
-from sqlalchemy.orm import Session
+from app.models.catalog.product import Product
 
 
 router = APIRouter(
-    prefix="/productos",
-    tags=["Productos"],
-    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant")), Depends(ensure_rls)],
+    prefix="/products",
+    tags=["Products"],
+    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant"))],
 )
 
 
-@router.get("/", response_model=list[ProductoOutSchema])
-def listar_productos(request: Request, db: Session = Depends(get_db)):
-    claims = request.state.access_claims
-    empresa_id = int(claims.get("tenant_id"))
-    use = ListarProductos(SqlAlchemyProductoRepo(db))
-    items: list[ProductoOut] = list(use.execute(empresa_id=empresa_id))
-    return [ProductoOutSchema.model_construct(**item.__dict__) for item in items]
+class ProductIn(BaseModel):
+    name: str = Field(min_length=1)
+    price: float = Field(ge=0)
+    stock: float = Field(ge=0)
+    unit: str = Field(min_length=1)
+    sku: Optional[str] = None
+    product_metadata: Optional[dict] = None
 
 
-@router.post("/", response_model=ProductoOutSchema)
-def crear_producto(payload: ProductoInSchema, request: Request, db: Session = Depends(get_db)):
-    claims = request.state.access_claims
-    empresa_id = int(claims.get("tenant_id"))
-    use = CrearProducto(SqlAlchemyProductoRepo(db))
-    created = use.execute(empresa_id=empresa_id, data=ProductoIn(**payload.model_dump()))
-    return ProductoOutSchema.model_construct(**created.__dict__)
+class ProductOut(BaseModel):
+    id: int
+    name: str
+    price: float
+    stock: float
+    unit: str
+    sku: str
+    product_metadata: Optional[dict] = None
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/", response_model=List[ProductOut])
+def list_products(
+    request: Request,
+    db: Session = Depends(get_db),
+    q: Optional[str] = Query(default=None, description="text search on name"),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+):
+    query = select(Product)
+    if q:
+        like = f"%{q}%"
+        query = query.where(Product.name.ilike(like))
+    query = query.order_by(Product.id.asc()).limit(limit).offset(offset)
+    rows = db.execute(query).scalars().all()
+    return rows
+
+
+@router.get("/{product_id}", response_model=ProductOut)
+def get_product(product_id: int, db: Session = Depends(get_db)):
+    obj = db.get(Product, product_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="product_not_found")
+    return obj
+
+
+@router.post("/", response_model=ProductOut, status_code=201)
+def create_product(payload: ProductIn, request: Request, db: Session = Depends(get_db)):
+    # sku: if not provided, generate simple placeholder
+    sku = payload.sku or None
+    obj = Product(
+        name=payload.name,
+        price=payload.price,
+        stock=payload.stock,
+        unit=payload.unit,
+        sku=sku or "",  # DB constraint will enforce NOT NULL; we'll backfill on commit if empty
+        product_metadata=payload.product_metadata,
+    )
+    # If sku was empty, generate from name + id after flush
+    db.add(obj)
+    db.flush()
+    if not obj.sku:
+        obj.sku = f"SKU-{obj.id}"
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.put("/{product_id}", response_model=ProductOut)
+def update_product(product_id: int, payload: ProductIn, db: Session = Depends(get_db)):
+    obj = db.get(Product, product_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="product_not_found")
+    obj.name = payload.name
+    obj.price = payload.price
+    obj.stock = payload.stock
+    obj.unit = payload.unit
+    if payload.sku:
+        obj.sku = payload.sku
+    obj.product_metadata = payload.product_metadata
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.delete("/{product_id}", status_code=204)
+def delete_product(product_id: int, db: Session = Depends(get_db)):
+    obj = db.get(Product, product_id)
+    if not obj:
+        return  # idempotent
+    db.delete(obj)
+    db.commit()
+    return
 

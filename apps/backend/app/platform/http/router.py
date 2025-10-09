@@ -192,6 +192,13 @@ def build_api_router() -> APIRouter:
 
     # Facturación
     include_router_safe(r, ("app.modules.facturacion.interface.http.tenant", "router"))
+    # Inventario
+    # Inventario
+    include_router_safe(r, ("app.modules.inventario.interface.http.tenant", "router"))
+    # Ventas
+    include_router_safe(r, ("app.modules.ventas.interface.http.tenant", "router"))
+    include_router_safe(r, ("app.modules.ventas.interface.http.tenant", "deliveries_router"))
+    include_router_safe(r, ("app.modules.inventario.interface.http.tenant", "router"))
 
     # Imports (opcional: controlado por IMPORTS_ENABLED)
     if os.getenv("IMPORTS_ENABLED", "0") in ("1", "true", "True"):  # habilita solo si está ON
