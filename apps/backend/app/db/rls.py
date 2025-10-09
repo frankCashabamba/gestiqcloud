@@ -5,12 +5,11 @@ from sqlalchemy import text
 from app.config.database import get_db
 
 
-def _to_int(val) -> int | None:
+def _to_str(val) -> str | None:
     try:
         if val is None:
             return None
-        s = str(val)
-        return int(s)
+        return str(val)
     except Exception:
         return None
 
@@ -39,17 +38,27 @@ def ensure_rls(
         user_id = user_id or sess.get("tenant_user_id")
 
     # Si no hay tenant/user, no setear (admin u open routes)
-    t_id = _to_int(tenant_id)
-    u_id = _to_int(user_id)
+    t_id = _to_str(tenant_id)
+    u_id = _to_str(user_id)
     if t_id is None or u_id is None:
         return
 
     try:
-        db.execute(text("SET app.tenant_id = :tid"), {"tid": str(t_id)})
-        db.execute(text("SET app.user_id = :uid"), {"uid": str(u_id)})
+        # If tenant_id looks like an integer (legacy empresa_id), translate to UUID
+        if isinstance(t_id, str) and t_id.isdigit():
+            try:
+                res = db.execute(text("SELECT id::text FROM public.tenants WHERE empresa_id = :eid"), {"eid": int(t_id)})
+                row = res.first()
+                if row and row[0]:
+                    t_id = row[0]
+            except Exception:
+                pass
+
+        # Use SET LOCAL so it scopes to the current transaction/request
+        db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(t_id)})
+        db.execute(text("SET LOCAL app.user_id = :uid"), {"uid": str(u_id)})
     except Exception:
         # No romper la request si falla el SET
         pass
 
     return db
-

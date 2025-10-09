@@ -27,7 +27,7 @@ class DatosImportados(Base):
     __tablename__ = "datos_importados"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    tipo: Mapped[str] = mapped_column()  # "factura", "recibo", "movimiento"
+    tipo: Mapped[str] = mapped_column()  # "factura", "recibo", "movimiento" datos
     origen: Mapped[str] = mapped_column()  # "ocr", "excel", "manual"
     datos: Mapped[dict] = mapped_column(JSON)
     estado: Mapped[str] = mapped_column(default="pendiente")  # pendiente, validado, rechazado
