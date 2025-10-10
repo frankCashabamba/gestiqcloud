@@ -34,3 +34,7 @@ export async function desactivarEmpresa(id: number | string): Promise<void> {
 export async function asignarNuevoAdmin(id: number | string, payload: { email?: string; usuario_id?: number | string }) {
   await api.post(ADMIN_USUARIOS.asignarNuevoAdmin(id), payload)
 }
+
+export async function setPasswordDirect(id: number | string, password: string): Promise<void> {
+  await api.post(ADMIN_USUARIOS.setPassword(id), { password })
+}

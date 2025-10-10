@@ -1,4 +1,4 @@
-
+﻿
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
@@ -27,6 +27,23 @@ const emptyForm: UsuarioCreatePayload = {
 export default function UsuarioForm() {
   const { id } = useParams()
   const nav = useNavigate()
+  // Oculta/previene edición si el usuario actual no es admin de empresa
+  try {
+    // Lazy import to avoid circulars if any
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { useAuth } = require('../../auth/AuthContext') as typeof import('../../auth/AuthContext')
+    const { profile } = useAuth()
+    const isAdmin = Boolean((profile as any)?.es_admin_empresa) || Boolean(profile?.roles?.includes('admin'))
+    if (!isAdmin) {
+      return (
+        <div className="p-6">
+          <h2 className="text-lg font-semibold text-slate-900">Acceso restringido</h2>
+          <p className="mt-2 text-sm text-slate-600">No tienes permisos para gestionar usuarios.</p>
+          <button className="gc-button gc-button--ghost mt-4" onClick={() => nav('..')}>Volver</button>
+        </div>
+      )
+    }
+  } catch {}
   const [form, setForm] = useState<UsuarioCreatePayload>(emptyForm)
   const [editMode, setEditMode] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -109,13 +126,13 @@ export default function UsuarioForm() {
     event.preventDefault()
     try {
       if (!form.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-        throw new Error('Email inv�lido')
+        throw new Error('Email inválido')
       }
       if (!form.nombre_encargado?.trim()) {
         throw new Error('Nombre es requerido')
       }
       if (!editMode && !form.password) {
-        throw new Error('La contrase�a es obligatoria para nuevos usuarios')
+        throw new Error('La contraseña es obligatoria para nuevos usuarios')
       }
 
       if (editMode && id) {
@@ -190,7 +207,7 @@ export default function UsuarioForm() {
         </div>
 
         <label className="space-y-1 text-sm">
-          <span className="font-medium text-slate-600">Correo electr�nico</span>
+          <span className="font-medium text-slate-600">Correo electrónico</span>
           <input
             type="email"
             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
@@ -209,10 +226,10 @@ export default function UsuarioForm() {
               onChange={(e) => setForm({ ...form, username: e.target.value })}
               onBlur={handleUsernameBlur}
             />
-            {checkingUsername && <span className="text-xs text-slate-400">Verificando�</span>}
+            {checkingUsername && <span className="text-xs text-slate-400">Verificando…</span>}
           </label>
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-600">Contrase�a {editMode && '(opcional)'}</span>
+            <span className="font-medium text-slate-600">contraseña {editMode && '(opcional)'}</span>
             <input
               type="text"
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
@@ -234,8 +251,8 @@ export default function UsuarioForm() {
 
         {canEditModulos && (
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <h4 className="text-sm font-semibold text-slate-700">M�dulos habilitados</h4>
-            <p className="text-xs text-slate-500 mb-2">Selecciona los m�dulos a los que tendr� acceso este usuario.</p>
+            <h4 className="text-sm font-semibold text-slate-700">Módulos habilitados</h4>
+            <p className="text-xs text-slate-500 mb-2">Selecciona los Módulos a los que tendrá acceso este usuario.</p>
             <div className="grid gap-2 sm:grid-cols-2">
               {modules.map((mod) => (
                 <label key={mod.id} className="flex items-center gap-2 text-sm text-slate-600">
@@ -244,10 +261,10 @@ export default function UsuarioForm() {
                     checked={form.modulos.includes(mod.id)}
                     onChange={() => handleCheckboxChange('modulos', mod.id)}
                   />
-                  <span>{mod.nombre || `M�dulo #${mod.id}`}</span>
+                  <span>{mod.nombre || `Módulo #${mod.id}`}</span>
                 </label>
               ))}
-              {!modules.length && <p className="text-xs text-slate-400">No hay m�dulos contratados.</p>}
+              {!modules.length && <p className="text-xs text-slate-400">No hay Módulos contratados.</p>}
             </div>
           </div>
         )}
@@ -267,7 +284,7 @@ export default function UsuarioForm() {
                   <span>{rol.nombre}</span>
                 </label>
               ))}
-              {!roles.length && <p className="text-xs text-slate-400">No hay roles definidos. Puedes crearlos desde Configuraci�n.</p>}
+              {!roles.length && <p className="text-xs text-slate-400">No hay roles definidos. Puedes crearlos desde Configuración.</p>}
             </div>
           </div>
         )}
@@ -301,6 +318,7 @@ export default function UsuarioForm() {
     </div>
   )
 }
+
 
 
 

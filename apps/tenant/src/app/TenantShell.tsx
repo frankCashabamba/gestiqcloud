@@ -2,9 +2,10 @@ import React from 'react'
 import { Link, Outlet, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import SessionKeepAlive from '@shared/ui'
+import { env } from '../env'
 
-const SESSION_WARN_AFTER_MS = 9 * 60_000;
-const SESSION_RESPONSE_WINDOW_MS = 60_000;
+const SESSION_WARN_AFTER_MS = 9 * 60_000
+const SESSION_RESPONSE_WINDOW_MS = 60_000
 
 export default function TenantShell() {
   const { logout } = useAuth()
@@ -23,11 +24,11 @@ export default function TenantShell() {
             GestiqCloud
           </Link>
           <nav className="flex items-center gap-3">
-            <Link to={prefix || '/'} className="gc-button gc-button--ghost hidden sm:inline-flex">
-              Ir al panel
-            </Link>
+            <a href={env.adminOrigin} className="gc-button gc-button--ghost hidden sm:inline-flex" title="Ir al panel admin">
+              Panel Admin
+            </a>
             <button type='button' onClick={logout} className="gc-button gc-button--primary">
-              Cerrar sesión
+              Cerrar sesiÃ³n
             </button>
           </nav>
         </div>
@@ -39,8 +40,8 @@ export default function TenantShell() {
 
       <footer className="border-t border-slate-200 bg-white/90">
         <div className="gc-container flex h-14 flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-          <span>© GestiqCloud {year}. Todos los derechos reservados.</span>
-          <span className="font-medium text-slate-400">ERP · CRM · Plataforma modular</span>
+          <span>Â© GestiqCloud {year}. Todos los derechos reservados.</span>
+          <span className="font-medium text-slate-400">ERP Â· CRM Â· Plataforma modular</span>
         </div>
       </footer>
     </div>
