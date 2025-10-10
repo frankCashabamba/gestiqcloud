@@ -4,7 +4,18 @@ from typing import Optional, Tuple
 from dataclasses import dataclass
 from fastapi import Request
 from app.config.settings import settings
-from apps.backend.app.shared.utils import utcnow_iso, now_ts
+try:
+    # Prefer shared utils when available
+    from apps.backend.app.shared.utils import utcnow_iso, now_ts  # type: ignore
+except Exception:
+    # Minimal fallbacks for test/CI environments without 'apps' alias
+    def now_ts() -> int:
+        return int(time.time())
+
+    def utcnow_iso() -> str:
+        import datetime as _dt
+
+        return _dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
 try:
     import redis  # type: ignore
