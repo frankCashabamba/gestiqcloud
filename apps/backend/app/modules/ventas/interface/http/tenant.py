@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import List, Optional
+import uuid as _uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
+from app.db.rls import ensure_rls
 from app.models.sales.order import SalesOrder, SalesOrderItem
 from app.models.sales.delivery import Delivery
 from app.models.inventory.stock import StockMove, StockItem
@@ -17,7 +19,7 @@ from app.models.inventory.stock import StockMove, StockItem
 router = APIRouter(
     prefix="/sales_orders",
     tags=["Sales"],
-    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant"))],
+    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant")), Depends(ensure_rls)],
 )
 
 
@@ -86,6 +88,7 @@ def confirm_order(order_id: int, payload: ConfirmIn, request: Request, db: Sessi
         raise HTTPException(status_code=400, detail="no_items")
     for it in items:
         mv = StockMove(
+            id=str(_uuid.uuid4()),
             tenant_id=tid,
             product_id=it.product_id,
             warehouse_id=payload.warehouse_id,
@@ -106,7 +109,7 @@ def confirm_order(order_id: int, payload: ConfirmIn, request: Request, db: Sessi
 deliveries_router = APIRouter(
     prefix="/deliveries",
     tags=["Deliveries"],
-    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant"))],
+    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant")), Depends(ensure_rls)],
 )
 
 
@@ -150,6 +153,7 @@ def do_delivery(delivery_id: int, payload: DeliverIn, request: Request, db: Sess
     # Consume stock: for each item, create issue move and update stock_items
     for it in items:
         mv = StockMove(
+            id=str(_uuid.uuid4()),
             tenant_id=tid,
             product_id=it.product_id,
             warehouse_id=payload.warehouse_id,

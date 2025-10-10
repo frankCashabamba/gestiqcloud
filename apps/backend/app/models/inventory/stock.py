@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import String, Integer, Numeric
+from sqlalchemy import String, Integer, Numeric, text as sa_text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,7 +27,14 @@ class StockItem(Base):
 class StockMove(Base):
     __tablename__ = "stock_moves"
 
-    id: Mapped[str] = mapped_column(_uuid_col(), primary_key=True)
+    id: Mapped[str] = mapped_column(
+        _uuid_col(),
+        primary_key=True,
+        # Python-side default for when server func isn't available (e.g., SQLite)
+        default=lambda: __import__("uuid").uuid4(),
+        # Server-side default for Postgres so ORM inserts don't need to pass id
+        server_default=sa_text("gen_random_uuid()"),
+    )
     tenant_id: Mapped[str] = mapped_column(_uuid_col(), index=True)
     product_id: Mapped[int] = mapped_column(Integer, nullable=False)
     warehouse_id: Mapped[int] = mapped_column(Integer, nullable=False)
