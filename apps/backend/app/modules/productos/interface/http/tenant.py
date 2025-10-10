@@ -10,14 +10,14 @@ from sqlalchemy import select
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.models.catalog.product import Product
+from app.models.core.products import Product
 
 
 router = APIRouter(
     prefix="/products",
     tags=["Products"],
-    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant"))],
 )
+protected = [Depends(with_access_claims), Depends(require_scope("tenant"))]
 
 
 class ProductIn(BaseModel):
@@ -25,7 +25,6 @@ class ProductIn(BaseModel):
     price: float = Field(ge=0)
     stock: float = Field(ge=0)
     unit: str = Field(min_length=1)
-    sku: Optional[str] = None
     product_metadata: Optional[dict] = None
 
 
@@ -35,7 +34,6 @@ class ProductOut(BaseModel):
     price: float
     stock: float
     unit: str
-    sku: str
     product_metadata: Optional[dict] = None
 
     class Config:
@@ -67,30 +65,22 @@ def get_product(product_id: int, db: Session = Depends(get_db)):
     return obj
 
 
-@router.post("/", response_model=ProductOut, status_code=201)
+@router.post("/", response_model=ProductOut, status_code=201, dependencies=protected)
 def create_product(payload: ProductIn, request: Request, db: Session = Depends(get_db)):
-    # sku: if not provided, generate simple placeholder
-    sku = payload.sku or None
     obj = Product(
         name=payload.name,
         price=payload.price,
         stock=payload.stock,
         unit=payload.unit,
-        sku=sku or "",  # DB constraint will enforce NOT NULL; we'll backfill on commit if empty
         product_metadata=payload.product_metadata,
     )
-    # If sku was empty, generate from name + id after flush
-    db.add(obj)
-    db.flush()
-    if not obj.sku:
-        obj.sku = f"SKU-{obj.id}"
     db.add(obj)
     db.commit()
     db.refresh(obj)
     return obj
 
 
-@router.put("/{product_id}", response_model=ProductOut)
+@router.put("/{product_id}", response_model=ProductOut, dependencies=protected)
 def update_product(product_id: int, payload: ProductIn, db: Session = Depends(get_db)):
     obj = db.get(Product, product_id)
     if not obj:
@@ -99,8 +89,6 @@ def update_product(product_id: int, payload: ProductIn, db: Session = Depends(ge
     obj.price = payload.price
     obj.stock = payload.stock
     obj.unit = payload.unit
-    if payload.sku:
-        obj.sku = payload.sku
     obj.product_metadata = payload.product_metadata
     db.add(obj)
     db.commit()
@@ -108,7 +96,7 @@ def update_product(product_id: int, payload: ProductIn, db: Session = Depends(ge
     return obj
 
 
-@router.delete("/{product_id}", status_code=204)
+@router.delete("/{product_id}", status_code=204, dependencies=protected)
 def delete_product(product_id: int, db: Session = Depends(get_db)):
     obj = db.get(Product, product_id)
     if not obj:
@@ -116,4 +104,3 @@ def delete_product(product_id: int, db: Session = Depends(get_db)):
     db.delete(obj)
     db.commit()
     return
-

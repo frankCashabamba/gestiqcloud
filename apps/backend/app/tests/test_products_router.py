@@ -1,9 +1,10 @@
 from fastapi.testclient import TestClient
 
 
-def _ensure_product_table():
-    # Import Product model and create table in SQLite tests if missing
-    from app.models.catalog.product import Product  # noqa: F401
+def _ensure_product_table() -> None:
+    """Ensure the products table exists in SQLite tests."""
+    # Import the core Product model and create all tables
+    from app.models.core.products import Product  # noqa: F401
     from app.config.database import Base, engine
     Base.metadata.create_all(bind=engine)
 
