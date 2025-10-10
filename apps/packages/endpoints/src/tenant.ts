@@ -7,7 +7,7 @@ export const TENANT_AUTH = {
 }
 
 export const TENANT_MODULOS = {
-  // añade endpoints de tenant si los expones públicamente
+  // aÃ±ade endpoints de tenant si los expones pÃºblicamente
 }
 
 export const TENANT_EMPRESAS = {
@@ -52,6 +52,7 @@ export const TENANT_USUARIOS = {
   modules: '/v1/tenant/usuarios/modulos',
   roles: '/v1/tenant/usuarios/roles',
   checkUsername: (username: string) => `/v1/usuarios/check-username/${encodeURIComponent(username)}`,
+  setPassword: (id: number | string) => `/v1/tenant/usuarios/${id}/set-password`,
 }
 
 export const TENANT_SETTINGS = {
@@ -82,3 +83,4 @@ export const TENANT_RRHH = {
     byId: (id: number | string) => `/v1/tenant/rrhh/vacaciones/${id}`,
   },
 }
+

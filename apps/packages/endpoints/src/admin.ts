@@ -64,4 +64,5 @@ export const ADMIN_USUARIOS = {
   desactivar: (id: number | string) => `/v1/admin/usuarios/${id}/desactivar`,
   desactivarEmpresa: (id: number | string) => `/v1/admin/usuarios/${id}/desactivar-empresa`,
   asignarNuevoAdmin: (id: number | string) => `/v1/admin/usuarios/${id}/asignar-nuevo-admin`,
+  setPassword: (id: number | string) => `/v1/admin/usuarios/${id}/set-password`,
 }

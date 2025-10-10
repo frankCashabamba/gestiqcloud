@@ -3,7 +3,7 @@ import { apiFetch } from '../lib/http'
 
 type LoginBody = { identificador: string; password: string }
 type LoginResponse = { access_token: string; token_type: 'bearer'; scope?: string }
-type MeTenant = { user_id: string; username?: string; tenant_id: string; empresa_slug?: string; roles?: string[] }
+type MeTenant = { user_id: string; username?: string; tenant_id: string; empresa_slug?: string; es_admin_empresa?: boolean; roles?: string[] }
 
 type AuthContextType = {
   token: string | null

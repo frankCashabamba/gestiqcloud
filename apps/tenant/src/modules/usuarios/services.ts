@@ -46,3 +46,7 @@ export async function checkUsernameAvailability(username: string): Promise<boole
   const { data } = await tenantApi.get<{ available: boolean }>(TENANT_USUARIOS.checkUsername(username))
   return Boolean(data?.available)
 }
+
+export async function setUsuarioPassword(id: number | string, password: string): Promise<void> {
+  await tenantApi.post(TENANT_USUARIOS.setPassword(id), { password })
+}

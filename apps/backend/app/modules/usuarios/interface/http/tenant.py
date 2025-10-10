@@ -15,6 +15,7 @@ from app.modules.usuarios.infrastructure.schemas import (
     UsuarioEmpresaOut,
     UsuarioEmpresaUpdate,
 )
+from pydantic import BaseModel, Field
 
 router = APIRouter(
     prefix="/tenant/usuarios",
@@ -33,11 +34,15 @@ def _tenant_empresa_id(request: Request) -> int:
     return int(empresa_id)
 
 
+class SetPasswordIn(BaseModel):
+    password: str = Field(min_length=8)
+
+
 @router.get("/", response_model=List[UsuarioEmpresaOut])
 def listar_usuarios(
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(permissions.require_empresa_admin),
+    current_user=Depends(permissions.require_perm_update_tenant_user),
 ):
     empresa_id = _tenant_empresa_id(request)
     return services.listar_usuarios_empresa(db, empresa_id)
@@ -48,7 +53,7 @@ def crear_usuario(
     request: Request,
     usuario_in: UsuarioEmpresaCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(permissions.require_empresa_admin),
+    current_user=Depends(permissions.require_perm_create_tenant_user),
 ):
     empresa_id = _tenant_empresa_id(request)
     return services.crear_usuario_empresa(
@@ -65,10 +70,28 @@ def actualizar_usuario(
     usuario_id: int,
     usuario_in: UsuarioEmpresaUpdate,
     db: Session = Depends(get_db),
-    current_user=Depends(permissions.require_empresa_admin),
+    current_user=Depends(permissions.require_perm_update_tenant_user),
 ):
     empresa_id = _tenant_empresa_id(request)
     return services.actualizar_usuario_empresa(db, empresa_id, usuario_id, usuario_in)
+
+
+@router.post("/{usuario_id}/set-password")
+def set_password_usuario(
+    request: Request,
+    usuario_id: int,
+    payload: SetPasswordIn,
+    db: Session = Depends(get_db),
+    current_user=Depends(permissions.require_perm_set_password_tenant_user),
+):
+    """Establece la contraseña de un usuario de empresa del mismo tenant.
+
+    Requiere rol de admin de empresa. No devuelve datos sensibles.
+    """
+    empresa_id = _tenant_empresa_id(request)
+    update = UsuarioEmpresaUpdate(password=payload.password)
+    services.actualizar_usuario_empresa(db, empresa_id, usuario_id, update)
+    return {"ok": True}
 
 
 @router.delete("/{usuario_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -76,7 +99,7 @@ def desactivar_usuario(
     request: Request,
     usuario_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(permissions.require_empresa_admin),
+    current_user=Depends(permissions.require_perm_delete_tenant_user),
 ):
     empresa_id = _tenant_empresa_id(request)
     services.toggle_usuario_activo(db, empresa_id, usuario_id, activo=False)
@@ -87,7 +110,7 @@ def desactivar_usuario(
 def listar_modulos_empresa(
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(permissions.require_empresa_admin),
+    current_user=Depends(permissions.require_perm_update_tenant_user),
 ):
     empresa_id = _tenant_empresa_id(request)
     return services.listar_modulos_empresa(db, empresa_id)
@@ -97,7 +120,7 @@ def listar_modulos_empresa(
 def listar_roles_empresa(
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(permissions.require_empresa_admin),
+    current_user=Depends(permissions.require_perm_update_tenant_user),
 ):
     empresa_id = _tenant_empresa_id(request)
     return services.listar_roles_empresa(db, empresa_id)
