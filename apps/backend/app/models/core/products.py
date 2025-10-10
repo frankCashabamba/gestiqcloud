@@ -16,6 +16,7 @@ class Product(Base):
     __tablename__ = "products"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    sku: Mapped[str | None] = mapped_column(String, index=True, nullable=True)
     name: Mapped[str] = mapped_column(String, index=True)
     price: Mapped[float] = mapped_column(Float)
     stock: Mapped[float] = mapped_column(Float, default=0)
