@@ -5,7 +5,8 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
+from sqlalchemy.dialects.postgresql import JSONB
 
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -227,8 +228,10 @@ def post_receipt(receipt_id: str, payload: PostReceiptIn, request: Request, db: 
         )
 
     # Update receipt totals and status
+    stmt = text("UPDATE pos_receipts SET status='posted', totals=:tot WHERE id=CAST(:rid AS uuid)")
+    stmt = stmt.bindparams(bindparam("tot", type_=JSONB))
     db.execute(
-        text("UPDATE pos_receipts SET status='posted', totals=CAST(:tot AS jsonb) WHERE id=CAST(:rid AS uuid)"),
+        stmt,
         {"rid": receipt_id, "tot": {"subtotal": subtotal, "tax": tax, "total": total}},
     )
     db.commit()
