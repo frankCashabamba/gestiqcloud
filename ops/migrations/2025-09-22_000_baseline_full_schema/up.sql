@@ -5,18 +5,25 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-CREATE TYPE public.movimientoestado AS ENUM (
-    'PENDIENTE',
-    'CONCILIADO',
-    'RECHAZADO'
-);
-CREATE TYPE public.movimientotipo AS ENUM (
-    'RECIBO',
-    'TRANSFERENCIA',
-    'TARJETA',
-    'EFECTIVO',
-    'OTRO'
-);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'movimientoestado') THEN
+    CREATE TYPE public.movimientoestado AS ENUM (
+        'PENDIENTE',
+        'CONCILIADO',
+        'RECHAZADO'
+    );
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'movimientotipo') THEN
+    CREATE TYPE public.movimientotipo AS ENUM (
+        'RECIBO',
+        'TRANSFERENCIA',
+        'TARJETA',
+        'EFECTIVO',
+        'OTRO'
+    );
+  END IF;
+END $$;
 CREATE TABLE public.alembic_version (
     version_num character varying(32) NOT NULL
 );
