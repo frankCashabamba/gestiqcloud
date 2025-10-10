@@ -225,6 +225,32 @@ def post_receipt(receipt_id: str, payload: PostReceiptIn, request: Request, db: 
         {"rid": receipt_id, "tot": {"subtotal": subtotal, "tax": tax, "total": total}},
     )
     db.commit()
+    # Enqueue webhook delivery pos.receipt.posted (best-effort)
+    try:
+        payload = {"id": receipt_id, "total": total, "shift_id": shift_id}
+        db.execute(
+            text(
+                "INSERT INTO webhook_deliveries(tenant_id, event, payload, target_url, status)\n"
+                "SELECT current_setting('app.tenant_id', true)::uuid, 'pos.receipt.posted', :p::jsonb, s.url, 'PENDING'\n"
+                "FROM webhook_subscriptions s WHERE s.event='pos.receipt.posted' AND s.active"
+            ),
+            {"p": payload},
+        )
+        db.commit()
+        try:
+            from apps.backend.celery_app import celery_app  # type: ignore
+
+            rows = db.execute(
+                text(
+                    "SELECT id::text FROM webhook_deliveries WHERE event='pos.receipt.posted' ORDER BY created_at DESC LIMIT 10"
+                )
+            ).fetchall()
+            for r in rows:
+                celery_app.send_task("apps.backend.app.modules.webhooks.tasks.deliver", args=[str(r[0])])
+        except Exception:
+            pass
+    except Exception:
+        pass
     return {"id": receipt_id, "status": "posted", "total": total}
 
 

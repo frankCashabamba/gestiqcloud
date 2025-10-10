@@ -13,8 +13,6 @@
     buildCommand: |
       pip install -U pip
       pip install -r requirements.txt
-      # Ensure legacy SQL migrations are available even if only backend subtree is deployed
-      if [ -d ../../ops ]; then mkdir -p ops && cp -r ../../ops/* ./ops/; fi
     startCommand: python prod.py
     # (opcional) Si tienes un endpoint de salud, añade esto:
     healthCheckPath: /health
@@ -80,7 +78,7 @@
 
       # ---- Migraciones SQL legacy + RLS ----
       - key: RUN_LEGACY_MIGRATIONS
-        value: "1"
+        value: "0"
       - key: RUN_RLS_APPLY
         value: "1"
       - key: RLS_SCHEMAS
@@ -174,8 +172,6 @@
     buildCommand: |
       pip install -U pip
       pip install -r requirements.txt
-      # Ensure legacy SQL migrations are available even if only backend subtree is deployed
-      if [ -d ../../ops ]; then mkdir -p ops && cp -r ../../ops/* ./ops/; fi
     startCommand: celery -A apps.backend.celery_app worker -Q sri,sii -l info
     envVars:
       - key: ENV
@@ -204,7 +200,6 @@
     buildCommand: |
       pip install -U pip
       pip install -r requirements.txt
-      if [ -d ../../ops ]; then mkdir -p ops && cp -r ../../ops/* ./ops/; fi
     startCommand: celery -A apps.backend.celery_app beat -l info
     envVars:
       - key: ENV

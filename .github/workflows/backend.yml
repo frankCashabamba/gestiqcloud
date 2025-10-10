@@ -9,6 +9,20 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     defaults:
       run:
         working-directory: apps/backend
@@ -21,6 +35,38 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+      - name: Alembic sanity
+        run: |
+          alembic --version
+          alembic heads
+          alembic history -v | tail -n 50
+      - name: Alembic single-head check
+        run: |
+          set -euo pipefail
+          COUNT=$(alembic heads --verbose | grep -c '^Rev:')
+          echo "Alembic heads count: ${COUNT}"
+          if [ "$COUNT" -ne 1 ]; then
+            echo "ERROR: Multiple Alembic heads detected"
+            alembic heads --verbose
+            exit 1
+          fi
+      - name: Upgrade Alembic against Postgres service
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+        run: |
+          python -m pip install psycopg2-binary
+          # Wait for Postgres to be ready
+          for i in {1..30}; do
+            pg_isready -h localhost -p 5432 -U postgres && break || sleep 1;
+          done
+          alembic upgrade head
+      - name: Smoke test against Postgres DB
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+          FRONTEND_URL: http://localhost:5173
+          TENANT_NAMESPACE_UUID: 00000000-0000-0000-0000-000000000000
+        run: |
+          pytest -q apps/backend/app/tests/test_smoke_pg.py apps/backend/app/tests/test_smoke_pos_pg.py
       - name: Lint (compile)
         run: python -m py_compile $(git ls-files '*.py')
       - name: Tests
@@ -30,4 +76,3 @@ jobs:
         run: |
           pip install pytest
           pytest -q || echo "No tests or failures" 
-

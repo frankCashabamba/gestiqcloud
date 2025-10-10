@@ -17,6 +17,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import sys
+import os
+import hashlib
 
 
 def _read_sql(path: Path) -> str:
@@ -61,6 +63,47 @@ def _connect(dsn: str):
             raise SystemExit("Install psycopg (v3) or psycopg2-binary to use this script.") from e
 
 
+def _sha256(data: str) -> str:
+    return hashlib.sha256(data.encode("utf-8")).hexdigest()
+
+
+def _ensure_history_table(cur) -> None:
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS public.ops_migration_history (
+          dir text PRIMARY KEY,
+          checksum text NOT NULL,
+          applied_at timestamptz NOT NULL DEFAULT now()
+        )
+        """
+    )
+
+
+def _already_applied(cur, dir_name: str, checksum: str) -> tuple[bool, bool]:
+    """Return (exists, same_checksum)."""
+    cur.execute(
+        "SELECT checksum FROM public.ops_migration_history WHERE dir = %s",
+        (dir_name,),
+    )
+    row = cur.fetchone()
+    if row is None:
+        return False, False
+    prev = row[0]
+    return True, (prev == checksum)
+
+
+def _record_applied(cur, dir_name: str, checksum: str) -> None:
+    cur.execute(
+        """
+        INSERT INTO public.ops_migration_history(dir, checksum)
+        VALUES (%s, %s)
+        ON CONFLICT (dir)
+        DO UPDATE SET checksum = EXCLUDED.checksum, applied_at = now()
+        """,
+        (dir_name, checksum),
+    )
+
+
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--dsn", required=True, help="Postgres DSN, e.g., postgresql://user:pass@host/db")
@@ -79,7 +122,22 @@ def main() -> int:
     try:
         with conn:
             with conn.cursor() as cur:
+                # History guard: apply each migration directory at most once unless force reapply
+                dir_name = mig_dir.name
+                stripped = _strip_sql_comments(sql)
+                checksum = _sha256(stripped)
+                _ensure_history_table(cur)
+                exists, same = _already_applied(cur, dir_name, checksum)
+                if exists and same and args.action == "up":
+                    print(f"Skip already applied: {dir_name}")
+                    return 0
+                if exists and not same and os.getenv("OPS_MIG_FORCE_REAPPLY", "0").lower() not in ("1", "true", "yes"):
+                    print(f"Skip changed migration without force: {dir_name}")
+                    return 0
+
                 cur.execute(sql)
+                if args.action == "up":
+                    _record_applied(cur, dir_name, checksum)
         print(f"Applied {args.action} successfully: {sql_file}")
         return 0
     finally:

@@ -31,6 +31,9 @@ def set_password(user_id: int, payload: SetPasswordIn, db: Session = Depends(get
     user = db.get(UsuarioEmpresa, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="user_not_found")
+    # Solo admins de empresa; nunca superusuarios ni otros tipos
+    if not bool(getattr(user, "es_admin_empresa", False)):
+        raise HTTPException(status_code=403, detail="not_tenant_admin")
     if len(payload.password or "") < 8:
         raise HTTPException(status_code=400, detail="weak_password")
 

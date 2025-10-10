@@ -24,7 +24,7 @@ BEGIN
     );
   END IF;
 END $$;
-CREATE TABLE public.alembic_version (
+CREATE TABLE IF NOT EXISTS public.alembic_version (
     version_num character varying(32) NOT NULL
 );
 CREATE TABLE public.auditoria_importacion (
