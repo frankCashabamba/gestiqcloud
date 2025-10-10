@@ -87,6 +87,9 @@
         value: public
       - key: RLS_SET_DEFAULT
         value: "1"
+      # Default template for newly created tenants (bazar|bakery)
+      - key: DEFAULT_TENANT_TEMPLATE_KEY
+        value: bazar
       # Copilot feature flags
       - key: COPILOT_TENANT_ENABLED
         value: "1"
@@ -96,7 +99,7 @@
         value: es-ES
       # OpenTelemetry (optional)
       - key: OTEL_ENABLED
-        value: "0"
+        value: "1"
       - key: OTEL_SERVICE_NAME
         value: gestiqcloud-api
       - key: OTEL_EXPORTER_OTLP_ENDPOINT
@@ -183,6 +186,13 @@
         sync: false
       - key: CELERY_RESULT_BACKEND
         sync: false
+      # OpenTelemetry (optional but enabled)
+      - key: OTEL_ENABLED
+        value: "1"
+      - key: OTEL_SERVICE_NAME
+        value: gestiqcloud-worker
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
 
   - type: worker
     name: gestiqcloud-beat
@@ -208,7 +218,7 @@
       - key: ENABLE_EINVOICING_RETRY
         value: "1"
       - key: OTEL_ENABLED
-        value: "0"
+        value: "1"
       - key: OTEL_SERVICE_NAME
         value: gestiqcloud-beat
       - key: OTEL_EXPORTER_OTLP_ENDPOINT

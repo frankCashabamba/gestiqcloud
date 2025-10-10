@@ -243,7 +243,7 @@ async def crear_empresa_completa_json(
             m_in = mod_schemas.EmpresaModuloCreate(modulo_id=modulo_id)
             mod_services.asignar_modulo_a_empresa_si_no_existe(db, empresa_id, m_in)
 
-        # Auto-asignación de tenant + plantilla por defecto (bazar v1 más reciente)
+        # Auto-asignación de tenant + plantilla por defecto (key configurable por env; por defecto 'bazar')
         try:
             # Asegura fila en tenants (empresa_id único)
             db.execute(
@@ -254,20 +254,22 @@ async def crear_empresa_completa_json(
             )
             # Obtiene tenant_id UUID
             tid = db.execute(text("SELECT id::text FROM tenants WHERE empresa_id=:eid"), {"eid": empresa_id}).scalar()
-            # Última versión del paquete bazar
+            # Clave de paquete por env
+            tpl_key = os.getenv("DEFAULT_TENANT_TEMPLATE_KEY", "bazar").strip() or "bazar"
             ver = db.execute(
-                text("SELECT version FROM template_packages WHERE template_key='bazar' ORDER BY version DESC LIMIT 1")
+                text("SELECT version FROM template_packages WHERE template_key=:k ORDER BY version DESC LIMIT 1"),
+                {"k": tpl_key},
             ).scalar()
             if tid and ver:
                 db.execute(
                     text(
                         """
                         INSERT INTO tenant_templates(tenant_id, template_key, version, active)
-                        VALUES (:tid::uuid, 'bazar', :ver, true)
+                        VALUES (:tid::uuid, :k, :ver, true)
                         ON CONFLICT (tenant_id, template_key) DO UPDATE SET version=EXCLUDED.version, active=true
                         """
                     ),
-                    {"tid": tid, "ver": int(ver)},
+                    {"tid": tid, "k": tpl_key, "ver": int(ver)},
                 )
         except Exception:
             # No interrumpir la creación si falla auto-asignación
