@@ -63,3 +63,9 @@ src.zip
 # --- otros ---
 .pnpm-store/
 backend/scripts/
+
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
