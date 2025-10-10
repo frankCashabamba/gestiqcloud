@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 import logging
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -242,6 +242,36 @@ async def crear_empresa_completa_json(
         for modulo_id in payload.modulos or []:
             m_in = mod_schemas.EmpresaModuloCreate(modulo_id=modulo_id)
             mod_services.asignar_modulo_a_empresa_si_no_existe(db, empresa_id, m_in)
+
+        # Auto-asignación de tenant + plantilla por defecto (bazar v1 más reciente)
+        try:
+            # Asegura fila en tenants (empresa_id único)
+            db.execute(
+                text(
+                    "INSERT INTO tenants(empresa_id, slug) VALUES (:eid, :slug) ON CONFLICT (empresa_id) DO NOTHING"
+                ),
+                {"eid": empresa_id, "slug": empresa_data.get("slug")},
+            )
+            # Obtiene tenant_id UUID
+            tid = db.execute(text("SELECT id::text FROM tenants WHERE empresa_id=:eid"), {"eid": empresa_id}).scalar()
+            # Última versión del paquete bazar
+            ver = db.execute(
+                text("SELECT version FROM template_packages WHERE template_key='bazar' ORDER BY version DESC LIMIT 1")
+            ).scalar()
+            if tid and ver:
+                db.execute(
+                    text(
+                        """
+                        INSERT INTO tenant_templates(tenant_id, template_key, version, active)
+                        VALUES (:tid::uuid, 'bazar', :ver, true)
+                        ON CONFLICT (tenant_id, template_key) DO UPDATE SET version=EXCLUDED.version, active=true
+                        """
+                    ),
+                    {"tid": tid, "ver": int(ver)},
+                )
+        except Exception:
+            # No interrumpir la creación si falla auto-asignación
+            pass
 
         db.commit()
     except HTTPException:

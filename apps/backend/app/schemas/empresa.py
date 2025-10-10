@@ -17,4 +17,4 @@ class EmpresaOut(BaseModel):
     nombre: str
     modulos: List[str] = []
 
-    model_config = ConfigDict(from_attributes=True  # Si us)
+    model_config = ConfigDict(from_attributes=True)  # Si us)
