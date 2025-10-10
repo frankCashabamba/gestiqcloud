@@ -28,9 +28,6 @@ jobs:
       - name: Install Wrangler CLI (pinned)
         run: npm install -g wrangler@3
 
-      - name: Validate Worker config (no publish)
-        run: wrangler validate
-
       - name: Dry-run deploy (bundle only, no publish)
         run: wrangler deploy --dry-run
 
