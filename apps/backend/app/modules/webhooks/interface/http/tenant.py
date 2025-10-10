@@ -10,7 +10,7 @@ from sqlalchemy import text
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.config.database import get_db
-from app.db.rls import ensure_rls
+from app.db.rls import ensure_rls, tenant_id_sql_expr, tenant_id_from_request
 
 try:
     from apps.backend.celery_app import celery_app
@@ -32,12 +32,13 @@ class SubCreate(BaseModel):
 
 
 @router.post("/subscriptions", response_model=dict)
-def create_subscription(payload: SubCreate, db: Session = Depends(get_db)):
+def create_subscription(payload: SubCreate, request: Request, db: Session = Depends(get_db)):
+    tid = tenant_id_from_request(request)
     row = db.execute(
         text(
-            "INSERT INTO webhook_subscriptions(tenant_id, event, url, secret) VALUES (current_setting('app.tenant_id', true)::uuid, :e, :u, :s) RETURNING id"
+            f"INSERT INTO webhook_subscriptions(tenant_id, event, url, secret) VALUES ({tenant_id_sql_expr()}, :e, :u, :s) RETURNING id"
         ),
-        {"e": payload.event, "u": payload.url, "s": payload.secret},
+        {"tid": tid, "e": payload.event, "u": payload.url, "s": payload.secret},
     ).first()
     db.commit()
     return {"id": str(row[0])}
@@ -55,8 +56,9 @@ class DeliverIn(BaseModel):
 
 
 @router.post("/deliveries", response_model=dict)
-def enqueue_delivery(payload: DeliverIn, db: Session = Depends(get_db)):
+def enqueue_delivery(payload: DeliverIn, request: Request, db: Session = Depends(get_db)):
     # Enqueue one delivery per active subscription
+    tid = tenant_id_from_request(request)
     subs = db.execute(
         text("SELECT id, url FROM webhook_subscriptions WHERE event=:e AND active"), {"e": payload.event}
     ).fetchall()
@@ -66,13 +68,12 @@ def enqueue_delivery(payload: DeliverIn, db: Session = Depends(get_db)):
     for _ in subs:
         row = db.execute(
             text(
-                "INSERT INTO webhook_deliveries(tenant_id, event, payload, target_url, status) VALUES (current_setting('app.tenant_id', true)::uuid, :e, :p::jsonb, :u, 'PENDING') RETURNING id"
+                f"INSERT INTO webhook_deliveries(tenant_id, event, payload, target_url, status) VALUES ({tenant_id_sql_expr()}, :e, :p::jsonb, :u, 'PENDING') RETURNING id"
             ),
-            {"e": payload.event, "p": payload.payload, "u": _[1]},
+            {"tid": tid, "e": payload.event, "p": payload.payload, "u": _[1]},
         ).first()
         count += 1
         if celery_app:
             celery_app.send_task("apps.backend.app.modules.webhooks.tasks.deliver", args=[str(row[0])])
     db.commit()
     return {"enqueued": count}
-
