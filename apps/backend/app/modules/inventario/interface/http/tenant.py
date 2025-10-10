@@ -21,6 +21,15 @@ router = APIRouter(
 )
 
 
+def _tenant_id_str(request: Request) -> str | None:
+    try:
+        claims = getattr(request.state, "access_claims", None) or {}
+        tid = claims.get("tenant_id") if isinstance(claims, dict) else None
+        return str(tid) if tid is not None else None
+    except Exception:
+        return None
+
+
 class WarehouseIn(BaseModel):
     code: str = Field(min_length=1)
     name: str = Field(min_length=1)
@@ -36,14 +45,25 @@ class WarehouseOut(WarehouseIn):
 
 
 @router.get("/warehouses", response_model=List[WarehouseOut])
-def list_warehouses(db: Session = Depends(get_db)):
-    rows = db.execute(select(Warehouse).order_by(Warehouse.id.asc())).scalars().all()
+def list_warehouses(request: Request, db: Session = Depends(get_db)):
+    tid = _tenant_id_str(request)
+    q = select(Warehouse)
+    if tid is not None:
+        q = q.where(Warehouse.tenant_id == tid)
+    rows = db.execute(q.order_by(Warehouse.id.asc())).scalars().all()
     return rows
 
 
 @router.post("/warehouses", response_model=WarehouseOut, status_code=201)
-def create_warehouse(payload: WarehouseIn, db: Session = Depends(get_db)):
-    obj = Warehouse(code=payload.code, name=payload.name, is_active=payload.is_active, metadata=payload.metadata)
+def create_warehouse(payload: WarehouseIn, request: Request, db: Session = Depends(get_db)):
+    tid = _tenant_id_str(request)
+    obj = Warehouse(
+        code=payload.code,
+        name=payload.name,
+        is_active=payload.is_active,
+        extra_metadata=payload.metadata,
+        tenant_id=tid,
+    )
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -51,22 +71,28 @@ def create_warehouse(payload: WarehouseIn, db: Session = Depends(get_db)):
 
 
 @router.get("/warehouses/{wid}", response_model=WarehouseOut)
-def get_warehouse(wid: int, db: Session = Depends(get_db)):
+def get_warehouse(wid: int, request: Request, db: Session = Depends(get_db)):
+    tid = _tenant_id_str(request)
     obj = db.get(Warehouse, wid)
     if not obj:
+        raise HTTPException(status_code=404, detail="warehouse_not_found")
+    if tid is not None and getattr(obj, "tenant_id", None) != tid:
         raise HTTPException(status_code=404, detail="warehouse_not_found")
     return obj
 
 
 @router.put("/warehouses/{wid}", response_model=WarehouseOut)
-def update_warehouse(wid: int, payload: WarehouseIn, db: Session = Depends(get_db)):
+def update_warehouse(wid: int, payload: WarehouseIn, request: Request, db: Session = Depends(get_db)):
+    tid = _tenant_id_str(request)
     obj = db.get(Warehouse, wid)
     if not obj:
+        raise HTTPException(status_code=404, detail="warehouse_not_found")
+    if tid is not None and getattr(obj, "tenant_id", None) != tid:
         raise HTTPException(status_code=404, detail="warehouse_not_found")
     obj.code = payload.code
     obj.name = payload.name
     obj.is_active = payload.is_active
-    obj.metadata = payload.metadata
+    obj.extra_metadata = payload.metadata
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -74,9 +100,12 @@ def update_warehouse(wid: int, payload: WarehouseIn, db: Session = Depends(get_d
 
 
 @router.delete("/warehouses/{wid}", status_code=204)
-def delete_warehouse(wid: int, db: Session = Depends(get_db)):
+def delete_warehouse(wid: int, request: Request, db: Session = Depends(get_db)):
+    tid = _tenant_id_str(request)
     obj = db.get(Warehouse, wid)
     if not obj:
+        return
+    if tid is not None and getattr(obj, "tenant_id", None) != tid:
         return
     db.delete(obj)
     db.commit()
@@ -107,11 +136,15 @@ class StockItemOut(BaseModel):
 
 @router.get("/stock", response_model=List[StockItemOut])
 def get_stock(
+    request: Request,
     db: Session = Depends(get_db),
     warehouse_id: Optional[int] = Query(default=None),
     product_id: Optional[int] = Query(default=None),
 ):
+    tid = _tenant_id_str(request)
     q = select(StockItem)
+    if tid is not None:
+        q = q.where(StockItem.tenant_id == tid)
     if warehouse_id is not None:
         q = q.where(StockItem.warehouse_id == warehouse_id)
     if product_id is not None:
@@ -121,8 +154,9 @@ def get_stock(
 
 
 @router.post("/stock/adjust", response_model=StockItemOut)
-def adjust_stock(payload: StockAdjustIn, db: Session = Depends(get_db)):
+def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends(get_db)):
     # Find or create stock item
+    tid = _tenant_id_str(request)
     row = (
         db.query(StockItem)
         .filter(
@@ -132,13 +166,14 @@ def adjust_stock(payload: StockAdjustIn, db: Session = Depends(get_db)):
         .first()
     )
     if not row:
-        row = StockItem(warehouse_id=payload.warehouse_id, product_id=payload.product_id, qty=0)
+        row = StockItem(warehouse_id=payload.warehouse_id, product_id=payload.product_id, qty=0, tenant_id=tid)
         db.add(row)
         db.flush()
 
     # Create move
     kind = "receipt" if payload.delta >= 0 else "issue"
     move = StockMove(
+        tenant_id=tid,
         product_id=payload.product_id,
         warehouse_id=payload.warehouse_id,
         qty=abs(payload.delta),
@@ -155,4 +190,3 @@ def adjust_stock(payload: StockAdjustIn, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(row)
     return row
-

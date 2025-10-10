@@ -21,6 +21,15 @@ router = APIRouter(
 )
 
 
+def _tenant_id_str(request: Request) -> str | None:
+    try:
+        claims = getattr(request.state, "access_claims", None) or {}
+        tid = claims.get("tenant_id") if isinstance(claims, dict) else None
+        return str(tid) if tid is not None else None
+    except Exception:
+        return None
+
+
 class OrderItemIn(BaseModel):
     product_id: int
     qty: float = Field(gt=0)
@@ -44,14 +53,15 @@ class OrderOut(BaseModel):
 
 
 @router.post("/", response_model=OrderOut, status_code=201)
-def create_order(payload: OrderCreateIn, db: Session = Depends(get_db)):
+def create_order(payload: OrderCreateIn, request: Request, db: Session = Depends(get_db)):
     if not payload.items:
         raise HTTPException(status_code=400, detail="items_required")
-    so = SalesOrder(customer_id=payload.customer_id, currency=payload.currency, status="draft")
+    tid = _tenant_id_str(request)
+    so = SalesOrder(customer_id=payload.customer_id, currency=payload.currency, status="draft", tenant_id=tid)
     db.add(so)
     db.flush()
     for it in payload.items:
-        db.add(SalesOrderItem(order_id=so.id, product_id=it.product_id, qty=it.qty, unit_price=it.unit_price))
+        db.add(SalesOrderItem(order_id=so.id, product_id=it.product_id, qty=it.qty, unit_price=it.unit_price, tenant_id=tid))
     db.commit()
     db.refresh(so)
     return so
@@ -62,9 +72,12 @@ class ConfirmIn(BaseModel):
 
 
 @router.post("/{order_id}/confirm", response_model=OrderOut)
-def confirm_order(order_id: int, payload: ConfirmIn, db: Session = Depends(get_db)):
+def confirm_order(order_id: int, payload: ConfirmIn, request: Request, db: Session = Depends(get_db)):
+    tid = _tenant_id_str(request)
     so = db.get(SalesOrder, order_id)
     if not so:
+        raise HTTPException(status_code=404, detail="order_not_found")
+    if tid is not None and getattr(so, "tenant_id", None) != tid:
         raise HTTPException(status_code=404, detail="order_not_found")
     if so.status != "draft":
         raise HTTPException(status_code=400, detail="invalid_status")
@@ -73,6 +86,7 @@ def confirm_order(order_id: int, payload: ConfirmIn, db: Session = Depends(get_d
         raise HTTPException(status_code=400, detail="no_items")
     for it in items:
         mv = StockMove(
+            tenant_id=tid,
             product_id=it.product_id,
             warehouse_id=payload.warehouse_id,
             qty=it.qty,
@@ -101,11 +115,14 @@ class DeliveryCreateIn(BaseModel):
 
 
 @deliveries_router.post("/", response_model=dict, status_code=201)
-def create_delivery(payload: DeliveryCreateIn, db: Session = Depends(get_db)):
+def create_delivery(payload: DeliveryCreateIn, request: Request, db: Session = Depends(get_db)):
+    tid = _tenant_id_str(request)
     so = db.get(SalesOrder, payload.order_id)
     if not so or so.status != "confirmed":
         raise HTTPException(status_code=400, detail="order_not_confirmed")
-    d = Delivery(order_id=payload.order_id, status="pending")
+    if tid is not None and getattr(so, "tenant_id", None) != tid:
+        raise HTTPException(status_code=404, detail="order_not_found")
+    d = Delivery(order_id=payload.order_id, status="pending", tenant_id=tid)
     db.add(d)
     db.commit()
     return {"id": d.id, "status": d.status}
@@ -116,18 +133,24 @@ class DeliverIn(BaseModel):
 
 
 @deliveries_router.post("/{delivery_id}/deliver", response_model=dict)
-def do_delivery(delivery_id: int, payload: DeliverIn, db: Session = Depends(get_db)):
+def do_delivery(delivery_id: int, payload: DeliverIn, request: Request, db: Session = Depends(get_db)):
+    tid = _tenant_id_str(request)
     d = db.get(Delivery, delivery_id)
     if not d or d.status != "pending":
+        raise HTTPException(status_code=404, detail="delivery_not_pending")
+    if tid is not None and getattr(d, "tenant_id", None) != tid:
         raise HTTPException(status_code=404, detail="delivery_not_pending")
     so = db.get(SalesOrder, d.order_id)
     if not so or so.status != "confirmed":
         raise HTTPException(status_code=400, detail="order_not_confirmed")
+    if tid is not None and getattr(so, "tenant_id", None) != tid:
+        raise HTTPException(status_code=404, detail="order_not_found")
 
     items = db.query(SalesOrderItem).filter(SalesOrderItem.order_id == so.id).all()
     # Consume stock: for each item, create issue move and update stock_items
     for it in items:
         mv = StockMove(
+            tenant_id=tid,
             product_id=it.product_id,
             warehouse_id=payload.warehouse_id,
             qty=it.qty,
@@ -156,4 +179,3 @@ def do_delivery(delivery_id: int, payload: DeliverIn, db: Session = Depends(get_
     db.add(so)
     db.commit()
     return {"delivery_id": delivery_id, "status": d.status}
-

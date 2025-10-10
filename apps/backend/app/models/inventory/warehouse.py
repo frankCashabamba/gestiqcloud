@@ -24,5 +24,5 @@ class Warehouse(Base):
     code: Mapped[str] = mapped_column(String, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-
+    # Avoid reserved attribute name 'metadata'
+    extra_metadata: Mapped[Optional[dict]] = mapped_column("metadata", JSON, nullable=True)
