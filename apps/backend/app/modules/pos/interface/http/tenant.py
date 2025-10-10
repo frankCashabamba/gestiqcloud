@@ -228,7 +228,7 @@ def post_receipt(receipt_id: str, payload: PostReceiptIn, request: Request, db: 
 
     # Update receipt totals and status
     db.execute(
-        text("UPDATE pos_receipts SET status='posted', totals=:tot WHERE id=CAST(:rid AS uuid)"),
+        text("UPDATE pos_receipts SET status='posted', totals=CAST(:tot AS jsonb) WHERE id=CAST(:rid AS uuid)"),
         {"rid": receipt_id, "tot": {"subtotal": subtotal, "tax": tax, "total": total}},
     )
     db.commit()
