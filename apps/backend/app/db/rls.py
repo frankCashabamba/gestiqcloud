@@ -77,8 +77,8 @@ def tenant_id_sql_expr(param_name: str = "tid") -> str:
         text(f"INSERT ... VALUES ({tenant_id_sql_expr()}, :other)")
         db.execute(..., {"tid": tid, "other": 123})
     """
-    # Use CAST(:param AS uuid) instead of :param::uuid to ensure SQLAlchemy
-    # recognizes the bind parameter reliably across dialects.
+    # Prefer CAST(:param AS uuid) over double-colon casts for bind params,
+    # so SQLAlchemy/psycopg parse parameters reliably across dialects.
     return (
         "COALESCE("
         "NULLIF(current_setting('app.tenant_id', true), '')::uuid, "
