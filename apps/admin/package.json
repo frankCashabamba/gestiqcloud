@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "postbuild": "cp dist/index.html dist/200.html || copy dist/index.html dist/200.html && (cp dist/index.html dist/404.html || copy dist/index.html dist/404.html)",
+    "postbuild": "node -e \"const fs=require('fs'); ['200.html','404.html'].forEach(f=>fs.copyFileSync('dist/index.html', 'dist/'+f)); console.log('Copied 200.html and 404.html');\"",
     "preview": "vite preview --port 4173",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.json --noEmit",
     "check": "npm run typecheck"

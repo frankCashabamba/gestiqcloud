@@ -13,6 +13,8 @@
     buildCommand: |
       pip install -U pip
       pip install -r requirements.txt
+      # Ensure legacy SQL migrations are available even if only backend subtree is deployed
+      if [ -d ../../ops ]; then mkdir -p ops && cp -r ../../ops/* ./ops/; fi
     startCommand: python prod.py
     # (opcional) Si tienes un endpoint de salud, añade esto:
     healthCheckPath: /health
@@ -125,7 +127,7 @@
     routes:
       - type: redirect
         source: /
-        destination: /login
+        destination: /admin
         status: 302
       - type: rewrite
         source: /*
