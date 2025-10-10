@@ -1,5 +1,5 @@
 import React from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { env } from '../env'
 
@@ -55,13 +55,13 @@ export const LayoutAdmin: React.FC<LayoutProps> = ({
 
           <nav style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {isAdmin && (
-              <a
-                href={env.basePath || '/'}
+              <Link
+                to="/admin"
                 style={{ padding: '8px 14px', borderRadius: 10, background: '#ffffff', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f172a', textDecoration: 'none', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}
                 title="Ir al panel principal"
               >
                 Panel Admin
-              </a>
+              </Link>
             )}
             <button
               onClick={handleLogout}
@@ -88,4 +88,3 @@ export const LayoutAdmin: React.FC<LayoutProps> = ({
     </div>
   )
 }
-

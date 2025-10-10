@@ -1,8 +1,13 @@
 import { createClient } from '@shared/http'
 import { ADMIN_AUTH } from '@shared/endpoints'
+import { env } from '../../env'
+
+// Ensure baseURL includes /api path once
+const baseNoSlash = env.apiUrl.replace(/\/+$/g, '')
+const baseWithApi = /\/api$/i.test(baseNoSlash) ? baseNoSlash : `${baseNoSlash}/api`
 
 const api = createClient({
-  baseURL: '/api',
+  baseURL: baseWithApi,
   tokenKey: 'access_token_admin',
   refreshPath: ADMIN_AUTH.refresh,
   csrfPath: ADMIN_AUTH.csrf,

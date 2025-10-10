@@ -15,6 +15,7 @@ sys.path[:0] = [str(ROOT), str(APPS_DIR), str(BACKEND_DIR)]
 DB_DSN = os.getenv("DATABASE_URL") or os.getenv("DB_DSN")
 SCRIPTS = ROOT / "scripts" / "py"
 MIG_ROOT = ROOT / "ops" / "migrations"
+MIG_ROOT_LOCAL = BACKEND_DIR / "ops" / "migrations"  # fallback when only backend subtree is deployed
 
 
 def run_apply_rls() -> None:
@@ -107,25 +108,54 @@ def run_legacy_migrations() -> None:
         sys.exit(1)
 
     apply_py = SCRIPTS / "apply_migration.py"
-    if not apply_py.exists() or not MIG_ROOT.exists():
-        print("ℹ️  Runner o carpeta de migraciones legacy no existe; se omite.")
+    if not apply_py.exists() and not (SCRIPTS / "apply_migration.py").exists():
+        print("ℹ️  Runner de migraciones legacy no existe; se omite.")
         return
 
     env = os.environ.copy()
     env["DB_DSN"] = DB_DSN
 
-    # Aplica TODAS las carpetas en orden; si falta up.sql → se salta.
-    for d in sorted(p for p in MIG_ROOT.iterdir() if p.is_dir()):
+    # Recoge posibles raíces de migraciones
+    roots = []
+    if MIG_ROOT.exists():
+        roots.append(MIG_ROOT)
+    if MIG_ROOT_LOCAL.exists() and MIG_ROOT_LOCAL != MIG_ROOT:
+        roots.append(MIG_ROOT_LOCAL)
+    if not roots:
+        print("ℹ️  Carpeta de migraciones legacy no existe; se omite.")
+        return
+
+    # Acumula carpetas únicas por nombre en orden lexicográfico
+    seen = set()
+    dirs = []
+    for r in roots:
+        for d in sorted(p for p in r.iterdir() if p.is_dir()):
+            if d.name in seen:
+                continue
+            seen.add(d.name)
+            dirs.append(d)
+
+    # Aplica TODAS las carpetas en orden
+    for d in dirs:
         up = d / "up.sql"
-        if not up.exists():
-            print(f"⚠️  Skipping {d.name}: falta up.sql")
-            continue
-        print(f"🚀 applying migration: {d.name}")
-        subprocess.run(
-            [sys.executable, str(apply_py), "--dsn", DB_DSN, "--dir", str(d), "--action", "up"],
-            check=True,
-            env=env,
-        )
+        py = d / "run.py"
+        if up.exists():
+            print(f"🚀 applying migration: {d.name} (up.sql)")
+            subprocess.run(
+                [sys.executable, str(apply_py), "--dsn", DB_DSN, "--dir", str(d), "--action", "up"],
+                check=True,
+                env=env,
+            )
+        elif py.exists():
+            print(f"🚀 applying migration: {d.name} (run.py)")
+            subprocess.run(
+                [sys.executable, str(py)],
+                check=True,
+                env=env,
+                cwd=str(d),
+            )
+        else:
+            print(f"⚠️  Skipping {d.name}: falta up.sql/run.py")
 
     # Chequeo no fatal
     check_py = SCRIPTS / "check_schema.py"
