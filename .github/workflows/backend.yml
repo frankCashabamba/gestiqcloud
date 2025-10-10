@@ -7,7 +7,33 @@ on:
     branches: [ main ]
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      admin: ${{ steps.filter.outputs.admin }}
+      tenant: ${{ steps.filter.outputs.tenant }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'apps/backend/**'
+              - 'ops/**'
+              - '.github/workflows/backend.yml'
+              - 'apps/packages/**'
+            admin:
+              - 'apps/admin/**'
+              - 'apps/packages/**'
+            tenant:
+              - 'apps/tenant/**'
+              - 'apps/packages/**'
+
   backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -31,6 +57,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Resolve pip cache directory
+        id: pip-cache
+        run: |
+          echo "dir=$(python -m pip cache dir)" >> $GITHUB_OUTPUT
+      - name: Pip cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pip-cache.outputs.dir }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('apps/backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
@@ -69,7 +106,46 @@ jobs:
           FRONTEND_URL: http://localhost:5173
           TENANT_NAMESPACE_UUID: 00000000-0000-0000-0000-000000000000
         run: |
-          pytest -q apps/backend/app/tests/test_smoke_pg.py apps/backend/app/tests/test_smoke_pos_pg.py
+          # working-directory is apps/backend, so test paths are relative to it
+          pytest -q app/tests/test_smoke_pg.py app/tests/test_smoke_pos_pg.py
+
+  admin-frontend:
+    needs: changes
+    if: needs.changes.outputs.admin == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'apps/admin/package-lock.json'
+      - name: Install deps (npm ci)
+        run: npm ci
+      - name: Build admin
+        run: npm run build --if-present
+
+  tenant-frontend:
+    needs: changes
+    if: needs.changes.outputs.tenant == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/tenant
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'apps/tenant/package-lock.json'
+      - name: Install deps (npm ci)
+        run: npm ci
+      - name: Build tenant
+        run: npm run build --if-present
       - name: Lint (compile)
         run: python -m py_compile $(git ls-files '*.py')
       - name: Tests
