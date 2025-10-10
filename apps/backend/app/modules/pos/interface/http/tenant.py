@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import text, bindparam
 from sqlalchemy.dialects.postgresql import JSONB
+from psycopg2.extras import Json
 
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -228,11 +229,9 @@ def post_receipt(receipt_id: str, payload: PostReceiptIn, request: Request, db: 
         )
 
     # Update receipt totals and status
-    stmt = text("UPDATE pos_receipts SET status='posted', totals=:tot WHERE id=CAST(:rid AS uuid)")
-    stmt = stmt.bindparams(bindparam("tot", type_=JSONB))
     db.execute(
-        stmt,
-        {"rid": receipt_id, "tot": {"subtotal": subtotal, "tax": tax, "total": total}},
+        text("UPDATE pos_receipts SET status='posted', totals=:tot WHERE id=CAST(:rid AS uuid)"),
+        {"rid": receipt_id, "tot": Json({"subtotal": subtotal, "tax": tax, "total": total})},
     )
     db.commit()
     # Enqueue webhook delivery pos.receipt.posted (best-effort)
@@ -241,10 +240,10 @@ def post_receipt(receipt_id: str, payload: PostReceiptIn, request: Request, db: 
         db.execute(
             text(
                 "INSERT INTO webhook_deliveries(event, payload, target_url, status)\n"
-                "SELECT 'pos.receipt.posted', :p::jsonb, s.url, 'PENDING'\n"
+                "SELECT 'pos.receipt.posted', :p, s.url, 'PENDING'\n"
                 "FROM webhook_subscriptions s WHERE s.event='pos.receipt.posted' AND s.active"
             ),
-            {"p": payload},
+            {"p": Json(payload)},
         )
         db.commit()
         try:
@@ -260,6 +259,10 @@ def post_receipt(receipt_id: str, payload: PostReceiptIn, request: Request, db: 
         except Exception:
             pass
     except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
         pass
     return {"id": receipt_id, "status": "posted", "total": total}
 
