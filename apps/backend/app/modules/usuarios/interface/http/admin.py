@@ -12,7 +12,7 @@ from app.models.auth.useradmis import SuperUser
 
 
 router = APIRouter(
-    prefix="/admin/usuarios",
+    prefix="/usuarios",  # se monta bajo /api/v1/admin desde build_api_router
     tags=["admin:usuarios"],
     dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))],
 )
@@ -38,4 +38,3 @@ def set_password(user_id: int, payload: SetPasswordIn, db: Session = Depends(get
     db.add(user)
     db.commit()
     return {"ok": True}
-
