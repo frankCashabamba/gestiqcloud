@@ -18,6 +18,15 @@ Refer to .github/workflows/db-pipeline.yml for how CI invokes these tools.
   - `python scripts/py/apply_migration.py --dsn postgresql://user:pass@localhost/dbname --dir ops/migrations/2025-09-22_004_imports_batch_pipeline --action up`
   - Or rollback with `--action down`.
 
+## API Gateway
+
+Backend can be fronted by a Cloudflare Worker at `api.gestiqcloud.com` to:
+- Enforce restrictive CORS with credentials
+- Harden cookies (Domain, Secure, HttpOnly, SameSite)
+- Propagate `X-Request-Id` and security headers
+
+See `workers/README.md` for configuration, `wrangler publish`, route setup and curl tests.
+
 ## Imports pipeline migration
 
 - Folder: `ops/migrations/2025-09-22_004_imports_batch_pipeline`

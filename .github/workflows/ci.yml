@@ -7,7 +7,38 @@ on:
     branches: [ main, master ]
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            frontend:
+              - 'apps/admin/**'
+              - 'apps/tenant/**'
+              - 'apps/packages/**'
+              - 'apps/**/package.json'
+              - 'apps/**/package-lock.json'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'yarn.lock'
+              - '.github/workflows/ci.yml'
+            backend:
+              - 'apps/backend/**'
+              - 'scripts/**'
+              - 'ops/**'
+              - 'render.yaml'
+              - 'apps/backend/requirements.txt'
+              - '.github/workflows/ci.yml'
   backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -72,6 +103,8 @@ jobs:
         run: python ../../scripts/check_endpoints.py
 
   frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -90,8 +123,37 @@ jobs:
           npm ci
           npm run typecheck
 
+      - name: Admin build (no deploy)
+        working-directory: apps/admin
+        run: |
+          npm run build
+        env:
+          VITE_API_URL: https://api.gestiqcloud.com
+          VITE_BASE_PATH: /
+          VITE_TENANT_ORIGIN: https://www.gestiqcloud.com
+          VITE_ADMIN_ORIGIN: https://admin.gestiqcloud.com
+
       - name: Tenant typecheck
         working-directory: apps/tenant
         run: |
           npm ci
           npm run typecheck
+
+      - name: Tenant build (no deploy)
+        working-directory: apps/tenant
+        run: |
+          npm run build
+        env:
+          VITE_API_URL: https://api.gestiqcloud.com
+          VITE_BASE_PATH: /
+          VITE_TENANT_ORIGIN: https://www.gestiqcloud.com
+          VITE_ADMIN_ORIGIN: https://admin.gestiqcloud.com
+
+      - name: Upload build artifacts (optional)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontends-build
+          path: |
+            apps/admin/dist
+            apps/tenant/dist
