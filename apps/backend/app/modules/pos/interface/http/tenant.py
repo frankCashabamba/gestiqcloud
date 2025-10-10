@@ -10,7 +10,7 @@ from sqlalchemy import text
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.config.database import get_db
-from app.db.rls import ensure_rls
+from app.db.rls import ensure_rls, tenant_id_sql_expr
 
 
 router = APIRouter(
@@ -38,10 +38,10 @@ def create_register(payload: RegisterIn, request: Request, db: Session = Depends
     tid = _tid(request)
     row = db.execute(
         text(
-            "INSERT INTO pos_registers(tenant_id, code, name, default_warehouse_id, metadata) "
-            "VALUES (current_setting('app.tenant_id', true)::uuid, :code, :name, :wh, :md) RETURNING id"
+            f"INSERT INTO pos_registers(tenant_id, code, name, default_warehouse_id, metadata) "
+            f"VALUES ({tenant_id_sql_expr()}, :code, :name, :wh, :md) RETURNING id"
         ),
-        {"code": payload.code, "name": payload.name, "wh": payload.default_warehouse_id, "md": payload.metadata},
+        {"tid": tid, "code": payload.code, "name": payload.name, "wh": payload.default_warehouse_id, "md": payload.metadata},
     ).first()
     db.commit()
     return {"id": int(row[0])}
@@ -54,12 +54,13 @@ class OpenShiftIn(BaseModel):
 
 @router.post("/open_shift", response_model=dict)
 def open_shift(payload: OpenShiftIn, request: Request, db: Session = Depends(get_db)):
+    tid = _tid(request)
     row = db.execute(
         text(
-            "INSERT INTO pos_shifts(tenant_id, register_id, opening_cash, status) "
-            "VALUES (current_setting('app.tenant_id', true)::uuid, :rid, :cash, 'open') RETURNING id"
+            f"INSERT INTO pos_shifts(tenant_id, register_id, opening_cash, status) "
+            f"VALUES ({tenant_id_sql_expr()}, :rid, :cash, 'open') RETURNING id"
         ),
-        {"rid": payload.register_id, "cash": payload.opening_cash},
+        {"tid": tid, "rid": payload.register_id, "cash": payload.opening_cash},
     ).first()
     db.commit()
     return {"id": int(row[0])}
@@ -71,12 +72,13 @@ class ReceiptCreateIn(BaseModel):
 
 @router.post("/receipts", response_model=dict, status_code=201)
 def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Depends(get_db)):
+    tid = _tid(request)
     row = db.execute(
         text(
-            "INSERT INTO pos_receipts(tenant_id, shift_id, status) "
-            "VALUES (current_setting('app.tenant_id', true)::uuid, :sid, 'draft') RETURNING id"
+            f"INSERT INTO pos_receipts(tenant_id, shift_id, status) "
+            f"VALUES ({tenant_id_sql_expr()}, :sid, 'draft') RETURNING id"
         ),
-        {"sid": payload.shift_id},
+        {"tid": tid, "sid": payload.shift_id},
     ).first()
     db.commit()
     return {"id": str(row[0])}
@@ -94,12 +96,13 @@ def add_item(receipt_id: str, payload: ItemIn, request: Request, db: Session = D
     rec = db.execute(text("SELECT status FROM pos_receipts WHERE id=:id::uuid"), {"id": receipt_id}).first()
     if not rec or rec[0] != "draft":
         raise HTTPException(status_code=400, detail="receipt_not_draft")
+    tid = _tid(request)
     row = db.execute(
         text(
-            "INSERT INTO pos_items(tenant_id, receipt_id, product_id, qty, unit_price, tax) "
-            "VALUES (current_setting('app.tenant_id', true)::uuid, :rid::uuid, :pid, :q, :p, :t) RETURNING id"
+            f"INSERT INTO pos_items(tenant_id, receipt_id, product_id, qty, unit_price, tax) "
+            f"VALUES ({tenant_id_sql_expr()}, :rid::uuid, :pid, :q, :p, :t) RETURNING id"
         ),
-        {"rid": receipt_id, "pid": payload.product_id, "q": payload.qty, "p": payload.unit_price, "t": payload.tax},
+        {"tid": tid, "rid": receipt_id, "pid": payload.product_id, "q": payload.qty, "p": payload.unit_price, "t": payload.tax},
     ).first()
     db.commit()
     return {"id": int(row[0])}
@@ -130,12 +133,13 @@ def take_payment(receipt_id: str, payload: PaymentIn, request: Request, db: Sess
     rec = db.execute(text("SELECT status FROM pos_receipts WHERE id=:id::uuid"), {"id": receipt_id}).first()
     if not rec or rec[0] != "draft":
         raise HTTPException(status_code=400, detail="receipt_not_draft")
+    tid = _tid(request)
     db.execute(
         text(
-            "INSERT INTO pos_payments(tenant_id, receipt_id, method, amount, bank_transaction_id) "
-            "VALUES (current_setting('app.tenant_id', true)::uuid, :rid::uuid, :m, :a, :btid)"
+            f"INSERT INTO pos_payments(tenant_id, receipt_id, method, amount, bank_transaction_id) "
+            f"VALUES ({tenant_id_sql_expr()}, :rid::uuid, :m, :a, :btid)"
         ),
-        {"rid": receipt_id, "m": payload.method, "a": payload.amount, "btid": payload.bank_transaction_id},
+        {"tid": tid, "rid": receipt_id, "m": payload.method, "a": payload.amount, "btid": payload.bank_transaction_id},
     )
     db.commit()
     return {"ok": True}
@@ -188,13 +192,14 @@ def post_receipt(receipt_id: str, payload: PostReceiptIn, request: Request, db: 
     items = db.execute(
         text("SELECT product_id, qty FROM pos_items WHERE receipt_id=:rid::uuid"), {"rid": receipt_id}
     ).fetchall()
+    tid = _tid(request)
     for it in items:
         db.execute(
             text(
-                "INSERT INTO stock_moves(tenant_id, product_id, warehouse_id, qty, kind, tentative, posted, ref_type, ref_id) "
-                "VALUES (current_setting('app.tenant_id', true)::uuid, :pid, :wid, :q, 'issue', false, true, 'pos_receipt', :rid)"
+                f"INSERT INTO stock_moves(tenant_id, product_id, warehouse_id, qty, kind, tentative, posted, ref_type, ref_id) "
+                f"VALUES ({tenant_id_sql_expr()}, :pid, :wid, :q, 'issue', false, true, 'pos_receipt', :rid)"
             ),
-            {"pid": int(it[0]), "wid": int(wh_id), "q": float(it[1]), "rid": receipt_id},
+            {"tid": tid, "pid": int(it[0]), "wid": int(wh_id), "q": float(it[1]), "rid": receipt_id},
         )
         # update stock_items
         row = db.execute(
@@ -206,9 +211,9 @@ def post_receipt(receipt_id: str, payload: PostReceiptIn, request: Request, db: 
         if row is None:
             db.execute(
                 text(
-                    "INSERT INTO stock_items(tenant_id, warehouse_id, product_id, qty) VALUES (current_setting('app.tenant_id', true)::uuid, :wid, :pid, 0)"
+                    f"INSERT INTO stock_items(tenant_id, warehouse_id, product_id, qty) VALUES ({tenant_id_sql_expr()}, :wid, :pid, 0)"
                 ),
-                {"wid": int(wh_id), "pid": int(it[0])},
+                {"tid": tid, "wid": int(wh_id), "pid": int(it[0])},
             )
             cur_qty = 0.0
         else:
@@ -230,11 +235,11 @@ def post_receipt(receipt_id: str, payload: PostReceiptIn, request: Request, db: 
         payload = {"id": receipt_id, "total": total, "shift_id": shift_id}
         db.execute(
             text(
-                "INSERT INTO webhook_deliveries(tenant_id, event, payload, target_url, status)\n"
-                "SELECT current_setting('app.tenant_id', true)::uuid, 'pos.receipt.posted', :p::jsonb, s.url, 'PENDING'\n"
+                f"INSERT INTO webhook_deliveries(tenant_id, event, payload, target_url, status)\n"
+                f"SELECT {tenant_id_sql_expr()}, 'pos.receipt.posted', :p::jsonb, s.url, 'PENDING'\n"
                 "FROM webhook_subscriptions s WHERE s.event='pos.receipt.posted' AND s.active"
             ),
-            {"p": payload},
+            {"tid": tid, "p": payload},
         )
         db.commit()
         try:

@@ -77,7 +77,7 @@ def confirm_order(order_id: int, payload: ConfirmIn, request: Request, db: Sessi
     so = db.get(SalesOrder, order_id)
     if not so:
         raise HTTPException(status_code=404, detail="order_not_found")
-    if tid is not None and getattr(so, "tenant_id", None) != tid:
+    if tid and str(getattr(so, "tenant_id", None)) != tid:
         raise HTTPException(status_code=404, detail="order_not_found")
     if so.status != "draft":
         raise HTTPException(status_code=400, detail="invalid_status")
@@ -120,7 +120,7 @@ def create_delivery(payload: DeliveryCreateIn, request: Request, db: Session = D
     so = db.get(SalesOrder, payload.order_id)
     if not so or so.status != "confirmed":
         raise HTTPException(status_code=400, detail="order_not_confirmed")
-    if tid is not None and getattr(so, "tenant_id", None) != tid:
+    if tid and str(getattr(so, "tenant_id", None)) != tid:
         raise HTTPException(status_code=404, detail="order_not_found")
     d = Delivery(order_id=payload.order_id, status="pending", tenant_id=tid)
     db.add(d)
@@ -138,12 +138,12 @@ def do_delivery(delivery_id: int, payload: DeliverIn, request: Request, db: Sess
     d = db.get(Delivery, delivery_id)
     if not d or d.status != "pending":
         raise HTTPException(status_code=404, detail="delivery_not_pending")
-    if tid is not None and getattr(d, "tenant_id", None) != tid:
+    if tid and str(getattr(d, "tenant_id", None)) != tid:
         raise HTTPException(status_code=404, detail="delivery_not_pending")
     so = db.get(SalesOrder, d.order_id)
     if not so or so.status != "confirmed":
         raise HTTPException(status_code=400, detail="order_not_confirmed")
-    if tid is not None and getattr(so, "tenant_id", None) != tid:
+    if tid and str(getattr(so, "tenant_id", None)) != tid:
         raise HTTPException(status_code=404, detail="order_not_found")
 
     items = db.query(SalesOrderItem).filter(SalesOrderItem.order_id == so.id).all()

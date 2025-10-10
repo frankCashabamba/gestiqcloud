@@ -62,3 +62,29 @@ def ensure_rls(
         pass
 
     return db
+
+
+def tenant_id_sql_expr(param_name: str = "tid") -> str:
+    """SQL fragment that resolves tenant_id safely.
+
+    Uses the session GUC when present and falls back to a bound parameter.
+    Example usage with SQLAlchemy text():
+        text(f"INSERT ... VALUES ({tenant_id_sql_expr()}, :other)")
+        db.execute(..., {"tid": tid, "other": 123})
+    """
+    return f"COALESCE(NULLIF(current_setting('app.tenant_id', true), '')::uuid, :{param_name}::uuid)"
+
+
+def tenant_id_from_request(request: Request) -> str | None:
+    """Extract tenant_id from request.state access claims or session.
+
+    Returns string UUID when available, else None.
+    """
+    claims = getattr(request.state, "access_claims", None) or {}
+    if isinstance(claims, dict):
+        tid = claims.get("tenant_id")
+        if tid is not None:
+            return str(tid)
+    sess = getattr(request.state, "session", {}) or {}
+    tid = sess.get("tenant_id")
+    return str(tid) if tid is not None else None
