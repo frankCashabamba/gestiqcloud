@@ -29,15 +29,23 @@ class SendIn(BaseModel):
 
 @router.post("/send/{invoice_id}", response_model=dict)
 def send(invoice_id: int, payload: SendIn, request: Request, db: Session = Depends(get_db)):
+    # Resolve tenant UUID to propagate to async task
+    claims = getattr(request.state, "access_claims", {}) or {}
+    raw_tid = str(claims.get("tenant_id")) if isinstance(claims, dict) and claims.get("tenant_id") is not None else None
+    tenant_uuid = None
+    if raw_tid:
+        if raw_tid.isdigit():
+            row = db.execute(text("SELECT id::text FROM public.tenants WHERE empresa_id=:eid"), {"eid": int(raw_tid)}).first()
+            tenant_uuid = row[0] if row and row[0] else None
+        else:
+            tenant_uuid = raw_tid
     if payload.country == "EC":
         # enqueue SRI task
         if not celery_app:
-            # run inline stub
             from app.modules.einvoicing.tasks import sign_and_send
-
-            return sign_and_send(invoice_id)
+            return sign_and_send(invoice_id, tenant_uuid)
         r = celery_app.send_task(
-            "apps.backend.app.modules.einvoicing.tasks.sign_and_send", args=[invoice_id]
+            "apps.backend.app.modules.einvoicing.tasks.sign_and_send", args=[invoice_id, tenant_uuid]
         )
         return {"task_id": r.id}
     elif payload.country == "ES":
@@ -45,10 +53,9 @@ def send(invoice_id: int, payload: SendIn, request: Request, db: Session = Depen
         per = payload.period or "0000Q0"
         if not celery_app:
             from app.modules.einvoicing.tasks import build_and_send_sii
-
-            return build_and_send_sii(per)
+            return build_and_send_sii(per, tenant_uuid)
         r = celery_app.send_task(
-            "apps.backend.app.modules.einvoicing.tasks.build_and_send_sii", args=[per]
+            "apps.backend.app.modules.einvoicing.tasks.build_and_send_sii", args=[per, tenant_uuid]
         )
         return {"task_id": r.id}
     else:
@@ -102,4 +109,3 @@ def explain_error(payload: ExplainIn, request: Request, db: Session = Depends(ge
         return {"explanation": "Sin errores registrados"}
     # Placeholder NLP explanation (deterministic)
     return {"explanation": f"Error del proveedor fiscal: {msg}. Revisa credenciales y formato XML."}
-

@@ -145,3 +145,27 @@
         value: https://admin.gestiqcloud.com
       - key: VITE_TENANT_ORIGIN
         value: https://gestiqcloud.com
+
+  # ------------ WORKER (Celery) ------------
+  - type: worker
+    name: gestiqcloud-worker
+    env: python
+    region: oregon
+    plan: starter
+    branch: main
+    rootDir: apps/backend
+    buildCommand: |
+      pip install -U pip
+      pip install -r requirements.txt
+      # Ensure legacy SQL migrations are available even if only backend subtree is deployed
+      if [ -d ../../ops ]; then mkdir -p ops && cp -r ../../ops/* ./ops/; fi
+    startCommand: celery -A apps.backend.celery_app worker -Q sri,sii -l info
+    envVars:
+      - key: ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: CELERY_RESULT_BACKEND
+        sync: false
