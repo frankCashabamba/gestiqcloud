@@ -49,11 +49,16 @@ backend/.env
 # --- datos locales / dumps ---
 postgres-data/
 db-data/
-*.sql
 *.dump
 *.tar
 *.zip
 src.zip
+
+# Ignorar .sql por defecto (dumps), PERO permitir migraciones/scripts versionados
+*.sql
+!ops/migrations/**/*.sql
+!ops/scripts/**/*.sql
+!ops/sql/**/*.sql
 
 # --- otros ---
 .pnpm-store/
