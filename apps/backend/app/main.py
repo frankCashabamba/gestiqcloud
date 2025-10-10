@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response
+﻿from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -32,6 +32,7 @@ from .platform.http.router import build_api_router
 from .config.settings import settings
 from .core.sessions import SessionMiddlewareServerSide
 from .middleware.security_headers import security_headers_middleware
+from .middleware.request_log import RequestLogMiddleware
 
 app = FastAPI(title="GestiqCloud API", version="1.0.0")
 
@@ -51,11 +52,11 @@ app.add_middleware(
     allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
     allow_methods=settings.CORS_ALLOW_METHODS,
     allow_headers=settings.CORS_ALLOW_HEADERS,
-    max_age=86400,  # cachea preflights (1 día)
+    max_age=86400,  # cachea preflights (1 dÃ­a)
 )
 
-# Sesiones server-side (cookies seguras según entorno)
-app.add_mmiddleware = app.add_middleware  # alias opcional si alguien la usa así
+# Sesiones server-side (cookies seguras segÃºn entorno)
+app.add_mmiddleware = app.add_middleware  # alias opcional si alguien la usa asÃ­
 app.add_middleware(
     SessionMiddlewareServerSide,
     cookie_name=settings.SESSION_COOKIE_NAME,
@@ -64,10 +65,13 @@ app.add_middleware(
     cookie_domain=settings.COOKIE_DOMAIN,
 )
 
+# Request log + X-Request-ID propagation
+app.add_middleware(RequestLogMiddleware)
+
 # Security headers (CSP, HSTS, etc.)
 app.middleware("http")(security_headers_middleware)
 
-# --- Health & raíz ------------------------------------------------------------
+# --- Health & raÃ­z ------------------------------------------------------------
 @app.get("/health", tags=["health"])
 def health():
     return {"status": "ok"}
@@ -81,7 +85,7 @@ def healthz():
 def healthz_head():
     return Response(status_code=200)
 
-# Raíz con 200 para evitar 404 en navegadores/monitores
+# RaÃ­z con 200 para evitar 404 en navegadores/monitores
 @app.get("/", include_in_schema=False)
 def root():
     return {
@@ -100,7 +104,7 @@ if settings.UPLOADS_MOUNT_ENABLED:
     else:
         logging.getLogger("app.startup").info("Uploads dir no existe; omitiendo mount de /uploads")
 
-# Debug del enrutador central (ver qué routers montan y cuáles fallan)
+# Debug del enrutador central (ver quÃ© routers montan y cuÃ¡les fallan)
 _router_logger = logging.getLogger("app.router")
 if not _router_logger.handlers:
     _h = logging.StreamHandler()
@@ -123,7 +127,7 @@ _email_logger.propagate = False
 # REST API v1 (compat con FE): monta todos los routers bajo /api/v1
 app.include_router(build_api_router(), prefix="/api/v1")
 
-# Fallback: si por algún motivo el router de imports no quedó montado
+# Fallback: si por algÃºn motivo el router de imports no quedÃ³ montado
 try:
     has_imports = any(getattr(r, "path", "").startswith("/api/v1/imports") for r in app.router.routes)
 except Exception:
@@ -183,7 +187,7 @@ try:
 except Exception:  # pragma: no cover - optional during tests
     _imports_job_runner = None
 
-# Gate del runner: sólo arranca si IMPORTS_ENABLED=1 y existen tablas
+# Gate del runner: sÃ³lo arranca si IMPORTS_ENABLED=1 y existen tablas
 import os
 from sqlalchemy import inspect
 
@@ -240,3 +244,4 @@ def root_head():
     return Response(status_code=200)
 # Re-crear app con lifespan (conserva tu config previa)
 app.router.lifespan_context = lifespan
+

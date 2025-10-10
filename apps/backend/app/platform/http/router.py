@@ -259,6 +259,13 @@ def build_api_router() -> APIRouter:
 
     # Legacy routers retirados: no intentar montarlos para evitar ruido en logs
 
+    # E-invoicing (SRI/SII)
+    include_router_safe(r, ("app.modules.einvoicing.interface.http.tenant", "router"))
+
+    # Templates & Overlays
+    include_router_safe(r, ("app.modules.templates.interface.http.tenant", "router"))
+    include_router_safe(r, ("app.modules.templates.interface.http.admin", "router"), prefix="/admin")
+
     # Final safeguard: ensure imports router is mounted in non-production envs
     try:
         env = os.getenv("ENV", "development").lower()
