@@ -25,6 +25,26 @@ def _read_sql(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _strip_sql_comments(sql: str) -> str:
+    """Remove line (--) and block (/* */) comments and trim whitespace.
+
+    This is a best‑effort stripper sufficient to detect truly empty files.
+    It is not a full SQL parser.
+    """
+    import re
+    # Remove block comments
+    sql = re.sub(r"/\*.*?\*/", " ", sql, flags=re.DOTALL)
+    # Remove line comments
+    lines = []
+    for line in sql.splitlines():
+        # Drop anything after -- (not inside strings; best effort)
+        if "--" in line:
+            line = line.split("--", 1)[0]
+        lines.append(line)
+    stripped = "\n".join(lines).strip()
+    return stripped
+
+
 def _connect(dsn: str):
     try:
         import psycopg
@@ -41,7 +61,7 @@ def _connect(dsn: str):
             raise SystemExit("Install psycopg (v3) or psycopg2-binary to use this script.") from e
 
 
-def main():
+def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--dsn", required=True, help="Postgres DSN, e.g., postgresql://user:pass@host/db")
     p.add_argument("--dir", dest="dir", required=True, help="Migration folder path")
@@ -51,6 +71,9 @@ def main():
     mig_dir = Path(args.dir)
     sql_file = mig_dir / ("up.sql" if args.action == "up" else "down.sql")
     sql = _read_sql(sql_file)
+    if not _strip_sql_comments(sql):
+        print(f"Skip empty SQL: {sql_file}")
+        return 0
 
     conn = _connect(args.dsn)
     try:
@@ -58,6 +81,7 @@ def main():
             with conn.cursor() as cur:
                 cur.execute(sql)
         print(f"Applied {args.action} successfully: {sql_file}")
+        return 0
     finally:
         try:
             conn.close()
@@ -67,4 +91,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
