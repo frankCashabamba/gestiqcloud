@@ -11,6 +11,7 @@ import {
 } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import type { UsuarioCreatePayload, UsuarioUpdatePayload, ModuloOption, RolOption } from './types'
+import { useAuth } from '../../auth/AuthContext'
 
 const emptyForm: UsuarioCreatePayload = {
   nombre_encargado: '',
@@ -27,26 +28,22 @@ const emptyForm: UsuarioCreatePayload = {
 export default function UsuarioForm() {
   const { id } = useParams()
   const nav = useNavigate()
-  // Oculta/previene edición si el usuario actual no es admin de empresa
-  try {
-    // Lazy import to avoid circulars if any
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { useAuth } = require('../../auth/AuthContext') as typeof import('../../auth/AuthContext')
-    const { profile } = useAuth()
-    const isAdmin = Boolean((profile as any)?.es_admin_empresa) || Boolean(profile?.roles?.includes('admin'))
-    if (!isAdmin) {
-      return (
-        <div className="p-6">
-          <h2 className="text-lg font-semibold text-slate-900">Acceso restringido</h2>
-          <p className="mt-2 text-sm text-slate-600">No tienes permisos para gestionar usuarios.</p>
-          <button className="gc-button gc-button--ghost mt-4" onClick={() => nav('..')}>Volver</button>
-        </div>
-      )
-    }
-  } catch {}
+  // Validación de permisos: solo admins de empresa pueden gestionar usuarios
+  const { loading, profile } = useAuth()
+  const isAdmin = Boolean((profile as any)?.es_admin_empresa) || Boolean(profile?.roles?.includes('admin'))
+  if (loading) return null
+  if (!isAdmin) {
+    return (
+      <div className="p-6">
+        <h2 className="text-lg font-semibold text-slate-900">Acceso restringido</h2>
+        <p className="mt-2 text-sm text-slate-600">No tienes permisos para gestionar usuarios.</p>
+        <button className="gc-button gc-button--ghost mt-4" onClick={() => nav('..')}>Volver</button>
+      </div>
+    )
+  }
   const [form, setForm] = useState<UsuarioCreatePayload>(emptyForm)
   const [editMode, setEditMode] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [modules, setModules] = useState<ModuloOption[]>([])
   const [roles, setRoles] = useState<RolOption[]>([])
   const [checkingUsername, setCheckingUsername] = useState(false)
@@ -78,7 +75,7 @@ export default function UsuarioForm() {
 
   useEffect(() => {
     if (!id) return
-    setLoading(true)
+    setBusy(true)
     let cancelled = false
     ;(async () => {
       try {
@@ -102,7 +99,7 @@ export default function UsuarioForm() {
         }
       } finally {
         if (!cancelled) {
-          setLoading(false)
+          setBusy(false)
         }
       }
     })()
@@ -302,7 +299,7 @@ export default function UsuarioForm() {
           <button
             type="submit"
             className="gc-button gc-button--primary"
-            disabled={loading}
+            disabled={busy}
           >
             {editMode ? 'Guardar cambios' : 'Crear usuario'}
           </button>
