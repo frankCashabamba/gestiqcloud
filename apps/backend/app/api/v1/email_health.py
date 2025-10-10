@@ -46,6 +46,10 @@ def smtp_health():
     server.quit()
     result.update({"ok": True})
     return result
+  except Exception as e:
+    # Best-effort: devuelve estado y error sin romper el esquema
+    result.update({"ok": False, "error": str(e)})
+    return result
 
 
 class EmailTestIn(BaseModel):

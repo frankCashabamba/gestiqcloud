@@ -11,6 +11,7 @@ from app.models.auth.useradmis import SuperUser
 from app.config.settings import settings
 from app.core.auth_http import (
     set_refresh_cookie,
+    set_access_cookie,
     delete_auth_cookies,
     best_effort_family_revoke,
     refresh_cookie_path_admin,
@@ -143,6 +144,11 @@ def admin_login(
 
     # 7) Cookie refresh (pasa el string, no .token)
     set_refresh_cookie(response, refresh, path=refresh_cookie_path_admin())
+    # Access token en cookie Lax (además del body)
+    try:
+        set_access_cookie(response, access, path="/")
+    except Exception:
+        pass
 
     audit_log(
         db,
