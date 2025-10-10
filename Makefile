@@ -1,61 +1,28 @@
-.PHONY: b.setup b.lint b.format b.test b.all
-.PHONY: d.up d.down d.down.v d.build d.rebuild.backend d.logs d.ps d.restart.backend d.exec.backend
+DB?=$(DATABASE_URL)
 
-# Install backend dependencies into current environment
-b.setup:
-	python -m pip install -r apps/backend/requirements.txt
+.PHONY: migrate rls api worker front-admin front-tenant fmt lint test
 
-# Run Ruff (lint) with autofix
-b.lint:
-	ruff check apps/backend/app --fix
+migrate:
+	psql "$(DB)" -v ON_ERROR_STOP=1 -f ops/migrations/apply.sql
 
-# Run isort and black formatting on backend
-b.format:
-	isort apps/backend/app
-	black apps/backend/app
+rls:
+	DATABASE_URL="$(DB)" python scripts/py/apply_rls.py --schema public --set-default
 
-# Run backend test suite (uses SQLite in-memory via conftest)
-b.test:
-	cd apps/backend && pytest -q -o cache_dir=/tmp/pytest_cache
+api:
+	uvicorn apps.backend.prod:app --host 0.0.0.0 --port 8000
 
-# Convenience: lint + format + tests
-b.all: b.lint b.format b.test
+worker:
+	celery -A apps.backend.celery_app worker -Q sri,sii -l info
 
-# -------------------- Docker Compose helpers --------------------
-S ?= backend
+front-admin front-tenant:
+	npm run --prefix apps/$(@:front-%=%) dev
 
-# Bring up all services (detached)
-d.up:
-	docker compose up -d
+fmt:
+	python -m black apps/backend || true
 
-# Build all images
-d.build:
-	docker compose build
+lint:
+	python -m pyflakes apps/backend || true
 
-# Rebuild and restart only backend service
-d.rebuild.backend:
-	docker compose build backend && docker compose up -d backend
+test:
+	pytest -q || true
 
-# Follow logs (use: make d.logs S=backend)
-d.logs:
-	docker compose logs -f $(S)
-
-# Show compose status
-d.ps:
-	docker compose ps
-
-# Restart backend service
-d.restart.backend:
-	docker compose restart backend
-
-# Exec into backend container (bash)
-d.exec.backend:
-	docker compose exec backend bash
-
-# Stop and remove containers
-d.down:
-	docker compose down
-
-# Stop, remove containers and volumes
-d.down.v:
-	docker compose down -v

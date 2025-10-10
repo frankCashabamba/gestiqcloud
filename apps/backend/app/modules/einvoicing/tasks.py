@@ -68,3 +68,93 @@ def build_and_send_sii(period: str, tenant_id: str | None = None) -> dict:
         )
         db.commit()
     return {"batch_id": str(batch_id), "status": "ACCEPTED"}
+
+
+@shared_task(name="apps.backend.app.modules.einvoicing.tasks.scheduled_build_sii")
+def scheduled_build_sii() -> dict:
+    """
+    Beat-friendly task: computes period based on environment and enqueues a single-tenant SII build.
+
+    Env vars:
+      - EINV_SII_PERIOD_MODE: 'monthly' (YYYYMM), 'quarterly' (YYYYQn), default 'monthly'
+      - EINV_TENANT_ID: tenant UUID to use (required)
+    """
+    import os
+    from datetime import datetime
+
+    tenant_id = os.getenv("EINV_TENANT_ID")
+    if not tenant_id:
+        return {"skipped": True, "reason": "EINV_TENANT_ID not set"}
+
+    mode = (os.getenv("EINV_SII_PERIOD_MODE") or "monthly").lower()
+    now = datetime.utcnow()
+    if mode == "quarterly":
+        q = (now.month - 1) // 3 + 1
+        period = f"{now.year}Q{q}"
+    else:
+        period = f"{now.year}{now.month:02d}"
+
+    # run synchronously in this task to keep logs together
+    return build_and_send_sii(period, tenant_id)
+
+
+@shared_task(name="apps.backend.app.modules.einvoicing.tasks.scheduled_retry")
+def scheduled_retry() -> dict:
+    """
+    Retry loop for SRI/SII errors for a single tenant.
+
+    Env vars:
+      - EINV_TENANT_ID: tenant UUID (required)
+      - EINV_RETRY_MAX: max items per run (default 25)
+      - EINV_SII_PERIOD_MODE: 'monthly'|'quarterly' (default 'monthly') for SII rebuild
+    """
+    import os
+    from datetime import datetime
+
+    tenant_id = os.getenv("EINV_TENANT_ID")
+    if not tenant_id:
+        return {"skipped": True, "reason": "EINV_TENANT_ID not set"}
+
+    max_items = int(os.getenv("EINV_RETRY_MAX", "25") or 25)
+
+    retried_sri: int = 0
+    retried_sii: int = 0
+
+    # SRI: find failed submissions and re-send
+    with SessionLocal() as db:
+        db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_id)})
+        sri_rows = db.execute(
+            text(
+                """
+                SELECT DISTINCT invoice_id
+                FROM sri_submissions
+                WHERE status IN ('ERROR','REJECTED')
+                ORDER BY updated_at DESC
+                LIMIT :lim
+                """
+            ).bindparams(lim=max_items)
+        ).fetchall()
+
+    for r in sri_rows:
+        try:
+            sign_and_send(int(r[0]), tenant_id)
+            retried_sri += 1
+        except Exception:
+            # keep looping
+            pass
+
+    # SII: rebuild batch for current period (idempotent in our stub)
+    mode = (os.getenv("EINV_SII_PERIOD_MODE") or "monthly").lower()
+    now = datetime.utcnow()
+    if mode == "quarterly":
+        q = (now.month - 1) // 3 + 1
+        period = f"{now.year}Q{q}"
+    else:
+        period = f"{now.year}{now.month:02d}"
+    try:
+        build_and_send_sii(period, tenant_id)
+        retried_sii = 1
+    except Exception:
+        retried_sii = 0
+
+    return {"sri_retried": retried_sri, "sii_retried": retried_sii}

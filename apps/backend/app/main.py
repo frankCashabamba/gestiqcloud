@@ -32,9 +32,12 @@ from .platform.http.router import build_api_router
 from .config.settings import settings
 from .core.sessions import SessionMiddlewareServerSide
 from .middleware.security_headers import security_headers_middleware
+from .telemetry.otel import init_fastapi
 from .middleware.request_log import RequestLogMiddleware
+from .middleware.rate_limit import RateLimitMiddleware
 
 app = FastAPI(title="GestiqCloud API", version="1.0.0")
+init_fastapi(app)
 
 # CORS (desde settings, con fallback seguro)
 allow_origins = settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else [settings.CORS_ORIGINS]
@@ -67,6 +70,13 @@ app.add_middleware(
 
 # Request log + X-Request-ID propagation
 app.add_middleware(RequestLogMiddleware)
+
+# Rate limit (Redis-based) opt-in
+try:
+    if str(os.getenv("RATE_LIMIT_ENABLED", "1")).lower() in ("1", "true"):
+        app.add_middleware(RateLimitMiddleware, limit_per_minute=int(os.getenv("RATE_LIMIT_PER_MIN", "120") or 120))
+except Exception:
+    pass
 
 # Security headers (CSP, HSTS, etc.)
 app.middleware("http")(security_headers_middleware)
