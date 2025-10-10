@@ -43,6 +43,17 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
             resp.headers.setdefault("X-Client-Version", client_ver)
 
         try:
+            # Try to include tenant/user from access_claims
+            tenant_id = None
+            user_id = None
+            try:
+                claims = getattr(request.state, "access_claims", None) or {}
+                if isinstance(claims, dict):
+                    tenant_id = claims.get("tenant_id")
+                    user_id = claims.get("user_id")
+            except Exception:
+                pass
+
             logger.info(
                 _json(
                     {
@@ -56,6 +67,8 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
                         "ua": request.headers.get("user-agent"),
                         "client_rev": client_rev,
                         "client_ver": client_ver,
+                        "tenant_id": tenant_id,
+                        "user_id": user_id,
                     }
                 )
             )

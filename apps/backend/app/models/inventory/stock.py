@@ -34,6 +34,6 @@ class StockMove(Base):
     qty: Mapped[float] = mapped_column(Numeric, nullable=False)
     kind: Mapped[str] = mapped_column(String, nullable=False)
     tentative: Mapped[bool] = mapped_column(default=False)
+    posted: Mapped[bool] = mapped_column(default=False)
     ref_type: Mapped[str | None]
     ref_id: Mapped[str | None]
-

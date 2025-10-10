@@ -266,6 +266,12 @@ def build_api_router() -> APIRouter:
     include_router_safe(r, ("app.modules.templates.interface.http.tenant", "router"))
     include_router_safe(r, ("app.modules.templates.interface.http.admin", "router"), prefix="/admin")
 
+    # Copilot (tenant-first)
+    include_router_safe(r, ("app.modules.copilot.interface.http.tenant", "router"))
+
+    # POS / Caja
+    include_router_safe(r, ("app.modules.pos.interface.http.tenant", "router"))
+
     # Final safeguard: ensure imports router is mounted in non-production envs
     try:
         env = os.getenv("ENV", "development").lower()

@@ -87,6 +87,20 @@
         value: public
       - key: RLS_SET_DEFAULT
         value: "1"
+      # Copilot feature flags
+      - key: COPILOT_TENANT_ENABLED
+        value: "1"
+      - key: COPILOT_ALLOWED_ACTIONS
+        value: create_invoice_draft,create_order_draft,create_transfer_draft,suggest_overlay_fields
+      - key: COPILOT_LOCALE
+        value: es-ES
+      # OpenTelemetry (optional)
+      - key: OTEL_ENABLED
+        value: "0"
+      - key: OTEL_SERVICE_NAME
+        value: gestiqcloud-api
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
 
   # ------------ FRONTEND TENANT (Vite) ------------
   - type: static
@@ -168,4 +182,34 @@
       - key: REDIS_URL
         sync: false
       - key: CELERY_RESULT_BACKEND
+        sync: false
+
+  - type: worker
+    name: gestiqcloud-beat
+    env: python
+    region: oregon
+    plan: starter
+    branch: main
+    rootDir: apps/backend
+    buildCommand: |
+      pip install -U pip
+      pip install -r requirements.txt
+      if [ -d ../../ops ]; then mkdir -p ops && cp -r ../../ops/* ./ops/; fi
+    startCommand: celery -A apps.backend.celery_app beat -l info
+    envVars:
+      - key: ENV
+        value: production
+      - key: ENABLE_EINVOICING_BEAT
+        value: "1"
+      - key: EINV_SII_PERIOD_MODE
+        value: monthly
+      - key: EINV_TENANT_ID
+        sync: false
+      - key: ENABLE_EINVOICING_RETRY
+        value: "1"
+      - key: OTEL_ENABLED
+        value: "0"
+      - key: OTEL_SERVICE_NAME
+        value: gestiqcloud-beat
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
         sync: false

@@ -190,3 +190,112 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
     db.commit()
     db.refresh(row)
     return row
+
+
+class TransferIn(BaseModel):
+    from_warehouse_id: int
+    to_warehouse_id: int
+    product_id: int
+    qty: float = Field(gt=0)
+
+
+@router.post("/stock/transfer", response_model=dict)
+def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(get_db)):
+    tid = _tenant_id_str(request)
+    # Create issue from source and receipt to destination, post atomically
+    # Source
+    src_item = (
+        db.query(StockItem)
+        .filter(StockItem.warehouse_id == payload.from_warehouse_id, StockItem.product_id == payload.product_id)
+        .first()
+    )
+    if not src_item:
+        src_item = StockItem(warehouse_id=payload.from_warehouse_id, product_id=payload.product_id, qty=0, tenant_id=tid)
+        db.add(src_item)
+        db.flush()
+    if (src_item.qty or 0) < payload.qty:
+        raise HTTPException(status_code=400, detail="insufficient_stock")
+
+    # Destination
+    dst_item = (
+        db.query(StockItem)
+        .filter(StockItem.warehouse_id == payload.to_warehouse_id, StockItem.product_id == payload.product_id)
+        .first()
+    )
+    if not dst_item:
+        dst_item = StockItem(warehouse_id=payload.to_warehouse_id, product_id=payload.product_id, qty=0, tenant_id=tid)
+        db.add(dst_item)
+        db.flush()
+
+    # Moves
+    mv_issue = StockMove(
+        tenant_id=tid,
+        product_id=payload.product_id,
+        warehouse_id=payload.from_warehouse_id,
+        qty=payload.qty,
+        kind="issue",
+        tentative=False,
+        posted=True,
+        ref_type="transfer",
+    )
+    mv_receipt = StockMove(
+        tenant_id=tid,
+        product_id=payload.product_id,
+        warehouse_id=payload.to_warehouse_id,
+        qty=payload.qty,
+        kind="receipt",
+        tentative=False,
+        posted=True,
+        ref_type="transfer",
+    )
+    db.add(mv_issue)
+    db.add(mv_receipt)
+
+    # Update stock atomically
+    src_item.qty = (src_item.qty or 0) - payload.qty
+    dst_item.qty = (dst_item.qty or 0) + payload.qty
+    db.add(src_item)
+    db.add(dst_item)
+    db.commit()
+    return {"status": "ok", "moved": payload.qty}
+
+
+class CycleCountIn(BaseModel):
+    warehouse_id: int
+    product_id: int
+    counted_qty: float = Field(ge=0)
+
+
+@router.post("/stock/cycle_count", response_model=StockItemOut)
+def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(get_db)):
+    tid = _tenant_id_str(request)
+    item = (
+        db.query(StockItem)
+        .filter(StockItem.warehouse_id == payload.warehouse_id, StockItem.product_id == payload.product_id)
+        .first()
+    )
+    if not item:
+        item = StockItem(warehouse_id=payload.warehouse_id, product_id=payload.product_id, qty=0, tenant_id=tid)
+        db.add(item)
+        db.flush()
+    current = float(item.qty or 0)
+    delta = float(payload.counted_qty) - current
+    if delta != 0:
+        # create adjust move posted
+        move = StockMove(
+            tenant_id=tid,
+            product_id=payload.product_id,
+            warehouse_id=payload.warehouse_id,
+            qty=abs(delta),
+            kind=("receipt" if delta > 0 else "issue"),
+            tentative=False,
+            posted=True,
+            ref_type="cycle_count",
+            ref_id=str(payload.counted_qty),
+        )
+        db.add(move)
+        item.qty = current + delta
+        db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
