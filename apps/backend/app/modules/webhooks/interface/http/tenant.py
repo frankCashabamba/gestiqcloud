@@ -10,7 +10,7 @@ from sqlalchemy import text
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.config.database import get_db
-from app.db.rls import ensure_rls, tenant_id_sql_expr, tenant_id_from_request
+from app.db.rls import ensure_rls
 
 try:
     from apps.backend.celery_app import celery_app
@@ -32,13 +32,12 @@ class SubCreate(BaseModel):
 
 
 @router.post("/subscriptions", response_model=dict)
-def create_subscription(payload: SubCreate, request: Request, db: Session = Depends(get_db)):
-    tid = tenant_id_from_request(request)
+def create_subscription(payload: SubCreate, db: Session = Depends(get_db)):
     row = db.execute(
         text(
-            f"INSERT INTO webhook_subscriptions(tenant_id, event, url, secret) VALUES ({tenant_id_sql_expr()}, :e, :u, :s) RETURNING id"
+            "INSERT INTO webhook_subscriptions(event, url, secret) VALUES (:e, :u, :s) RETURNING id"
         ),
-        {"tid": tid, "e": payload.event, "u": payload.url, "s": payload.secret},
+        {"e": payload.event, "u": payload.url, "s": payload.secret},
     ).first()
     db.commit()
     return {"id": str(row[0])}
@@ -56,7 +55,7 @@ class DeliverIn(BaseModel):
 
 
 @router.post("/deliveries", response_model=dict)
-def enqueue_delivery(payload: DeliverIn, request: Request, db: Session = Depends(get_db)):
+def enqueue_delivery(payload: DeliverIn, db: Session = Depends(get_db)):
     # Enqueue one delivery per active subscription
     tid = tenant_id_from_request(request)
     subs = db.execute(
@@ -68,9 +67,9 @@ def enqueue_delivery(payload: DeliverIn, request: Request, db: Session = Depends
     for _ in subs:
         row = db.execute(
             text(
-                f"INSERT INTO webhook_deliveries(tenant_id, event, payload, target_url, status) VALUES ({tenant_id_sql_expr()}, :e, :p::jsonb, :u, 'PENDING') RETURNING id"
+                "INSERT INTO webhook_deliveries(event, payload, target_url, status) VALUES (:e, :p::jsonb, :u, 'PENDING') RETURNING id"
             ),
-            {"tid": tid, "e": payload.event, "p": payload.payload, "u": _[1]},
+            {"e": payload.event, "p": payload.payload, "u": _[1]},
         ).first()
         count += 1
         if celery_app:

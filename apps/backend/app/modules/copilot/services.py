@@ -128,18 +128,18 @@ def create_invoice_draft(db: Session, tenant_empresa_id: int, payload: Dict[str,
 def create_order_draft(db: Session, payload: Dict[str, Any], tenant_id: str | None = None) -> Dict[str, Any]:
     cur = db.execute(
         text(
-            f"INSERT INTO sales_orders(tenant_id, customer_id, status, created_at) VALUES ({tenant_id_sql_expr()}, :cid, 'draft', now()) RETURNING id"
+            "INSERT INTO sales_orders(customer_id, status, created_at) VALUES (:cid, 'draft', now()) RETURNING id"
         ),
-        {"tid": tenant_id, "cid": payload.get("customer_id")},
+        {"cid": payload.get("customer_id")},
     )
     oid = cur.scalar()
     items = payload.get("items") or []
     for it in items:
         db.execute(
             text(
-                f"INSERT INTO sales_order_items(tenant_id, order_id, product_id, qty, unit_price) VALUES ({tenant_id_sql_expr()}, :oid, :pid, :qty, :price)"
+                "INSERT INTO sales_order_items(order_id, product_id, qty, unit_price) VALUES (:oid, :pid, :qty, :price)"
             ),
-            {"tid": tenant_id, "oid": oid, "pid": it.get("product_id"), "qty": float(it.get("qty") or 0), "price": float(it.get("unit_price") or 0)},
+            {"oid": oid, "pid": it.get("product_id"), "qty": float(it.get("qty") or 0), "price": float(it.get("unit_price") or 0)},
         )
     return {"id": int(oid), "status": "draft"}
 
@@ -153,9 +153,9 @@ def create_transfer_draft(db: Session, payload: Dict[str, Any], tenant_id: str |
     for wh, kind in ((src, "issue"), (dst, "receipt")):
         db.execute(
             text(
-                f"INSERT INTO stock_moves(tenant_id, product_id, warehouse_id, qty, kind, tentative, ref_type) VALUES ({tenant_id_sql_expr()}, :pid, :wid, :q, :k, true, 'transfer_draft')"
+                "INSERT INTO stock_moves(product_id, warehouse_id, qty, kind, tentative, ref_type) VALUES (:pid, :wid, :q, :k, true, 'transfer_draft')"
             ),
-            {"tid": tenant_id, "pid": prod, "wid": wh, "q": qty, "k": kind},
+            {"pid": prod, "wid": wh, "q": qty, "k": kind},
         )
     return {"status": "draft_transfer"}
 

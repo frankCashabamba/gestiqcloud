@@ -41,7 +41,7 @@ def generar_numero_factura(db: Session, empresa_id: int) -> str:
         if tenant_uuid and year:
             num = db.execute(
                 text(
-                    "SELECT public.assign_next_number(:tenant::uuid, :tipo, :anio, :serie)"
+                    "SELECT public.assign_next_number(CAST(:tenant AS uuid), :tipo, :anio, :serie)"
                 ),
                 {"tenant": tenant_uuid, "tipo": "invoice", "anio": int(year), "serie": "A"},
             ).scalar()

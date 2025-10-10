@@ -22,12 +22,12 @@ def sign_and_send(invoice_id: int, tenant_id: str | None = None) -> dict:
         db.execute(
             text(
                 """
-                INSERT INTO sri_submissions(tenant_id, invoice_id, status)
-                VALUES (""" + tenant_id_sql_expr() + ", :iid, 'PENDING')
+                INSERT INTO sri_submissions(invoice_id, status)
+                VALUES (:iid, 'PENDING')
                 ON CONFLICT DO NOTHING
                 """
             ),
-            {"tid": tenant_id, "iid": invoice_id},
+            {"iid": invoice_id},
         )
         # Simulate success
         db.execute(
@@ -55,12 +55,12 @@ def build_and_send_sii(period: str, tenant_id: str | None = None) -> dict:
         res = db.execute(
             text(
                 """
-                INSERT INTO sii_batches(tenant_id, period, status)
-                VALUES (""" + tenant_id_sql_expr() + ", :p, 'PENDING')
+                INSERT INTO sii_batches(period, status)
+                VALUES (:p, 'PENDING')
                 RETURNING id
                 """
             ),
-            {"tid": tenant_id, "p": period},
+            {"p": period},
         )
         batch_id = res.scalar()
         # For demo, mark accepted
