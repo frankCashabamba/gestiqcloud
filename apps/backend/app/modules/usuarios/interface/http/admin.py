@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -8,7 +8,7 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.core.security import get_password_hash
-from app.models.auth.useradmis import SuperUser
+from app.models.empresa.usuarioempresa import UsuarioEmpresa
 
 
 router = APIRouter(
@@ -24,11 +24,11 @@ class SetPasswordIn(BaseModel):
 
 @router.post("/{user_id}/set-password")
 def set_password(user_id: int, payload: SetPasswordIn, db: Session = Depends(get_db)):
-    """Establece una contraseña para un usuario admin (SuperUser).
+    """Establece una contraseÃ±a para un usuario admin (UsuarioEmpresa).
 
-    Requiere scope admin. No devuelve la contraseña ni el hash.
+    Requiere scope admin. No devuelve la contraseÃ±a ni el hash.
     """
-    user = db.get(SuperUser, user_id)
+    user = db.get(UsuarioEmpresa, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="user_not_found")
     if len(payload.password or "") < 8:
@@ -38,3 +38,4 @@ def set_password(user_id: int, payload: SetPasswordIn, db: Session = Depends(get
     db.add(user)
     db.commit()
     return {"ok": True}
+
