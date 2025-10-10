@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useAuthGuard } from '../hooks/useAuthGuard'
 import { useToast, getErrorMessage } from '../shared/toast'
 import {
   listUsuarios,
@@ -11,6 +12,8 @@ import {
 } from '../services/usuarios'
 
 export default function Usuarios() {
+  // Solo superadmin puede ver/editar usuarios principales
+  useAuthGuard('superadmin')
   const [items, setItems] = useState<AdminUsuario[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)

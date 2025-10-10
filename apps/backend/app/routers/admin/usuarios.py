@@ -6,9 +6,14 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.api.email.email_utils import reenviar_correo_reset
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
+from app.core.access_guard import with_access_claims
+from app.core.authz import require_scope
 
 
-router = APIRouter()
+router = APIRouter(
+    prefix="",
+    dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))],
+)
 
 
 @router.get("")
@@ -27,7 +32,8 @@ def listar_usuarios(db: Session = Depends(get_db)):
             "id": u.id,
             "nombre": nombre,
             "email": getattr(u, "email", None),
-            "es_admin": True,
+            "es_admin": False,
+            "es_admin_empresa": True,
             "activo": bool(getattr(u, "activo", False)),
         }
     return [to_item(u) for u in rows]
@@ -55,6 +61,8 @@ def activar_usuario(usuario_id: int, db: Session = Depends(get_db)):
     u = db.query(UsuarioEmpresa).get(usuario_id)
     if not u:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if not bool(getattr(u, "es_admin_empresa", False)):
+        raise HTTPException(status_code=403, detail="not_tenant_admin")
     u.activo = True
     db.add(u)
     db.commit()
@@ -66,6 +74,8 @@ def desactivar_usuario(usuario_id: int, db: Session = Depends(get_db)):
     u = db.query(UsuarioEmpresa).get(usuario_id)
     if not u:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if not bool(getattr(u, "es_admin_empresa", False)):
+        raise HTTPException(status_code=403, detail="not_tenant_admin")
     u.activo = False
     db.add(u)
     db.commit()

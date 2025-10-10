@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import HTTPException
+from sqlalchemy import text
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, joinedload
 
@@ -186,5 +187,39 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
         factura.estado = "emitida"
         db.commit()
         db.refresh(factura)
+
+        # Enqueue webhook delivery invoice.posted (best-effort)
+        try:
+            payload = {
+                "id": factura.id,
+                "numero": factura.numero,
+                "total": getattr(factura, "total", getattr(factura, "monto", None)),
+                "cliente_id": getattr(factura, "cliente_id", None),
+            }
+            # Insert delivery row (one per active subscription will be created via API normally; here push a generic)
+            db.execute(
+                text(
+                    "INSERT INTO webhook_deliveries(tenant_id, event, payload, target_url, status)\n"
+                    "SELECT current_setting('app.tenant_id', true)::uuid, 'invoice.posted', :p::jsonb, s.url, 'PENDING'\n"
+                    "FROM webhook_subscriptions s WHERE s.event='invoice.posted' AND s.active"
+                ),
+                {"p": payload},
+            )
+            db.commit()
+            try:
+                from apps.backend.celery_app import celery_app  # type: ignore
+
+                rows = db.execute(
+                    text(
+                        "SELECT id::text FROM webhook_deliveries WHERE event='invoice.posted' ORDER BY created_at DESC LIMIT 10"
+                    )
+                ).fetchall()
+                for r in rows:
+                    celery_app.send_task("apps.backend.app.modules.webhooks.tasks.deliver", args=[str(r[0])])
+            except Exception:
+                pass
+        except Exception:
+            pass
+
         return factura    
 factura_crud = FacturaCRUD(Invoice) 
