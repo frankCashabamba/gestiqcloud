@@ -57,6 +57,11 @@ def ensure_rls(
         # Use SET LOCAL so it scopes to the current transaction/request
         db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(t_id)})
         db.execute(text("SET LOCAL app.user_id = :uid"), {"uid": str(u_id)})
+        # Expose tenant_id in session.info for ORM hooks/utilities
+        try:
+            db.info["tenant_id"] = str(t_id)
+        except Exception:
+            pass
     except Exception:
         # No romper la request si falla el SET
         pass
@@ -72,7 +77,14 @@ def tenant_id_sql_expr(param_name: str = "tid") -> str:
         text(f"INSERT ... VALUES ({tenant_id_sql_expr()}, :other)")
         db.execute(..., {"tid": tid, "other": 123})
     """
-    return f"COALESCE(NULLIF(current_setting('app.tenant_id', true), '')::uuid, :{param_name}::uuid)"
+    # Use CAST(:param AS uuid) instead of :param::uuid to ensure SQLAlchemy
+    # recognizes the bind parameter reliably across dialects.
+    return (
+        "COALESCE("
+        "NULLIF(current_setting('app.tenant_id', true), '')::uuid, "
+        f"CAST(:{param_name} AS uuid)"
+        ")"
+    )
 
 
 def tenant_id_from_request(request: Request) -> str | None:

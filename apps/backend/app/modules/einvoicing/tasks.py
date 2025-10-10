@@ -3,6 +3,7 @@ from __future__ import annotations
 from celery import shared_task
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from app.db.rls import tenant_id_sql_expr
 
 from app.config.database import SessionLocal
 
@@ -22,11 +23,11 @@ def sign_and_send(invoice_id: int, tenant_id: str | None = None) -> dict:
             text(
                 """
                 INSERT INTO sri_submissions(tenant_id, invoice_id, status)
-                VALUES (current_setting('app.tenant_id', true)::uuid, :iid, 'PENDING')
+                VALUES (""" + tenant_id_sql_expr() + ", :iid, 'PENDING')
                 ON CONFLICT DO NOTHING
                 """
             ),
-            {"iid": invoice_id},
+            {"tid": tenant_id, "iid": invoice_id},
         )
         # Simulate success
         db.execute(
@@ -55,11 +56,11 @@ def build_and_send_sii(period: str, tenant_id: str | None = None) -> dict:
             text(
                 """
                 INSERT INTO sii_batches(tenant_id, period, status)
-                VALUES (current_setting('app.tenant_id', true)::uuid, :p, 'PENDING')
+                VALUES (""" + tenant_id_sql_expr() + ", :p, 'PENDING')
                 RETURNING id
                 """
             ),
-            {"p": period},
+            {"tid": tenant_id, "p": period},
         )
         batch_id = res.scalar()
         # For demo, mark accepted

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from typing import Iterator
 from fastapi import Request
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, event
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
 
 from app.config.settings import settings
@@ -105,6 +105,25 @@ def get_db(request: Request) -> Iterator[Session]:
         yield db
     finally:
         db.close()
+
+# ---------------------------------------------------------------------------
+# ORM hook: auto-fill tenant_id and UUID PKs when missing (best-effort)
+# ---------------------------------------------------------------------------
+@event.listens_for(SessionLocal, "before_flush")
+def _auto_fill_multitenant_fields(session: Session, flush_context, instances):
+    try:
+        tid = session.info.get("tenant_id")
+    except Exception:
+        tid = None
+    if not tid:
+        return
+    for obj in list(session.new):
+        try:
+            if hasattr(obj, "tenant_id") and getattr(obj, "tenant_id", None) in (None, ""):
+                setattr(obj, "tenant_id", tid)
+        except Exception:
+            # do not block flush
+            pass
 
 # ---------------------------------------------------------------------------
 # (Opcional) Multitenancy por schema (search_path)
