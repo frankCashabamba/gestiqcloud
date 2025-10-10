@@ -12,6 +12,9 @@ from app.db.rls import ensure_rls
 from app.modules.facturacion import schemas, services
 from app.modules.facturacion.crud import factura_crud
 from app.models.core.facturacion import Invoice
+from fastapi.responses import Response
+from pathlib import Path
+import os
 
 
 router = APIRouter(
@@ -75,6 +78,44 @@ def obtener_factura_por_id(
     return factura
 
 
+@router.get("/{factura_id}/pdf", response_class=Response)
+def descargar_pdf(
+    factura_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    empresa_id = int(request.state.access_claims.get("tenant_id"))
+    factura = db.query(Invoice).filter_by(id=factura_id, empresa_id=empresa_id).first()
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    # Render con Jinja2 (template por vertical si existe)
+    try:
+        from weasyprint import HTML
+        from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+        # Cargar templates PDF
+        base_dir = Path(__file__).resolve().parents[5]  # apps/backend
+        tmpl_dir = base_dir / "app" / "templates" / "pdf"
+        env = Environment(loader=FileSystemLoader(str(tmpl_dir)), autoescape=select_autoescape(['html']))
+
+        # Selección simple de template (futuro: según tenant/vertical)
+        tmpl_name = os.getenv("INVOICE_PDF_TEMPLATE", "invoice_base.html")
+        template = env.get_template(tmpl_name)
+
+        # Relación de líneas si está mapeada en ORM
+        lineas = getattr(factura, 'lineas', [])
+        html = template.render(factura=factura, lineas=lineas)
+        pdf_bytes = HTML(string=html).write_pdf()
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=invoice_{factura.id}.pdf"
+            },
+        )
+    except Exception:
+        raise HTTPException(status_code=501, detail="Renderizador PDF/plantilla no disponible (instala WeasyPrint/Jinja2)")
+
 @router.post("/archivo/procesar")
 async def procesar_archivo_factura(
     file: UploadFile = File(...),
@@ -84,4 +125,3 @@ async def procesar_archivo_factura(
     usuario_id = int(request.state.access_claims.get("user_id"))
     empresa_id = int(request.state.access_claims.get("tenant_id"))
     return await services.procesar_archivo_factura(file, usuario_id, empresa_id, db)
-

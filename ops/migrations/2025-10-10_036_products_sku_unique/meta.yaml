@@ -1,0 +1,3 @@
+id: 2025-10-10_036_products_sku_unique
+description: Add products.sku and unique index (tenant_id, sku) when sku is not null
+

@@ -50,8 +50,8 @@ SQL_DROP_POLICY = sql.SQL("DROP POLICY IF EXISTS rls_tenant ON {tbl};")
 SQL_CREATE_POLICY = sql.SQL(
     """
     CREATE POLICY rls_tenant ON {tbl}
-      USING (tenant_id = current_setting('app.tenant_id')::uuid)
-      WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid);
+      USING (tenant_id = current_setting('app.tenant_id', true)::uuid)
+      WITH CHECK (tenant_id = current_setting('app.tenant_id', true)::uuid);
     """
 )
 
