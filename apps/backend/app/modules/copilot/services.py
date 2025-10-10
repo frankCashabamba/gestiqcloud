@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Tuple
 
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from app.db.rls import tenant_id_sql_expr
 
 
 def _mask_email(val: str | None) -> str | None:
@@ -124,26 +125,26 @@ def create_invoice_draft(db: Session, tenant_empresa_id: int, payload: Dict[str,
     return {"id": int(row[0]), "status": "draft"}
 
 
-def create_order_draft(db: Session, payload: Dict[str, Any]) -> Dict[str, Any]:
+def create_order_draft(db: Session, payload: Dict[str, Any], tenant_id: str | None = None) -> Dict[str, Any]:
     cur = db.execute(
         text(
-            "INSERT INTO sales_orders(tenant_id, customer_id, status, created_at) VALUES (current_setting('app.tenant_id', true)::uuid, :cid, 'draft', now()) RETURNING id"
+            f"INSERT INTO sales_orders(tenant_id, customer_id, status, created_at) VALUES ({tenant_id_sql_expr()}, :cid, 'draft', now()) RETURNING id"
         ),
-        {"cid": payload.get("customer_id")},
+        {"tid": tenant_id, "cid": payload.get("customer_id")},
     )
     oid = cur.scalar()
     items = payload.get("items") or []
     for it in items:
         db.execute(
             text(
-                "INSERT INTO sales_order_items(tenant_id, order_id, product_id, qty, unit_price) VALUES (current_setting('app.tenant_id', true)::uuid, :oid, :pid, :qty, :price)"
+                f"INSERT INTO sales_order_items(tenant_id, order_id, product_id, qty, unit_price) VALUES ({tenant_id_sql_expr()}, :oid, :pid, :qty, :price)"
             ),
-            {"oid": oid, "pid": it.get("product_id"), "qty": float(it.get("qty") or 0), "price": float(it.get("unit_price") or 0)},
+            {"tid": tenant_id, "oid": oid, "pid": it.get("product_id"), "qty": float(it.get("qty") or 0), "price": float(it.get("unit_price") or 0)},
         )
     return {"id": int(oid), "status": "draft"}
 
 
-def create_transfer_draft(db: Session, payload: Dict[str, Any]) -> Dict[str, Any]:
+def create_transfer_draft(db: Session, payload: Dict[str, Any], tenant_id: str | None = None) -> Dict[str, Any]:
     # Draft transfer: two stock_move tentative rows (no stock_items update)
     src = int(payload.get("from_warehouse_id"))
     dst = int(payload.get("to_warehouse_id"))
@@ -152,9 +153,9 @@ def create_transfer_draft(db: Session, payload: Dict[str, Any]) -> Dict[str, Any
     for wh, kind in ((src, "issue"), (dst, "receipt")):
         db.execute(
             text(
-                "INSERT INTO stock_moves(tenant_id, product_id, warehouse_id, qty, kind, tentative, ref_type) VALUES (current_setting('app.tenant_id', true)::uuid, :pid, :wid, :q, :k, true, 'transfer_draft')"
+                f"INSERT INTO stock_moves(tenant_id, product_id, warehouse_id, qty, kind, tentative, ref_type) VALUES ({tenant_id_sql_expr()}, :pid, :wid, :q, :k, true, 'transfer_draft')"
             ),
-            {"pid": prod, "wid": wh, "q": qty, "k": kind},
+            {"tid": tenant_id, "pid": prod, "wid": wh, "q": qty, "k": kind},
         )
     return {"status": "draft_transfer"}
 
@@ -174,4 +175,3 @@ def suggest_overlay_fields(db: Session) -> Dict[str, Any]:
         }
     }
     return overlay
-

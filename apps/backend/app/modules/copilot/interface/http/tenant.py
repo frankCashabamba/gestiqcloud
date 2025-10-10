@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.config.database import get_db
-from app.db.rls import ensure_rls
+from app.db.rls import ensure_rls, tenant_id_from_request
 from app.modules.copilot.services import (
     query_readonly,
     create_invoice_draft,
@@ -72,13 +72,14 @@ def ai_act(payload: ActIn, request: Request, db: Session = Depends(get_db)):
         return create_invoice_draft(db, int(empresa_id), payload.payload or {})
 
     if payload.action == "create_order_draft":
-        return create_order_draft(db, payload.payload or {})
+        tid = tenant_id_from_request(request)
+        return create_order_draft(db, payload.payload or {}, tenant_id=tid)
 
     if payload.action == "create_transfer_draft":
-        return create_transfer_draft(db, payload.payload or {})
+        tid = tenant_id_from_request(request)
+        return create_transfer_draft(db, payload.payload or {}, tenant_id=tid)
 
     if payload.action == "suggest_overlay_fields":
         return suggest_overlay_fields(db)
 
     raise HTTPException(status_code=400, detail="unknown_action")
-

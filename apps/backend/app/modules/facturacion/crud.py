@@ -8,6 +8,7 @@ from typing import Optional
 
 from fastapi import HTTPException
 from sqlalchemy import text
+from app.db.rls import tenant_id_sql_expr
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, joinedload
 
@@ -199,11 +200,11 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
             # Insert delivery row (one per active subscription will be created via API normally; here push a generic)
             db.execute(
                 text(
-                    "INSERT INTO webhook_deliveries(tenant_id, event, payload, target_url, status)\n"
-                    "SELECT current_setting('app.tenant_id', true)::uuid, 'invoice.posted', :p::jsonb, s.url, 'PENDING'\n"
+                    f"INSERT INTO webhook_deliveries(tenant_id, event, payload, target_url, status)\n"
+                    f"SELECT {tenant_id_sql_expr()}, 'invoice.posted', :p::jsonb, s.url, 'PENDING'\n"
                     "FROM webhook_subscriptions s WHERE s.event='invoice.posted' AND s.active"
                 ),
-                {"p": payload},
+                {"tid": None, "p": payload},
             )
             db.commit()
             try:
