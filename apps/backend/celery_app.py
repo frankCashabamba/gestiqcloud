@@ -29,6 +29,7 @@ celery_app.conf.update(
         "apps.backend.app.modules.einvoicing.tasks.build_and_send_sii": {"queue": "sii"},
         "apps.backend.app.modules.einvoicing.tasks.scheduled_build_sii": {"queue": "sii"},
         "apps.backend.app.modules.einvoicing.tasks.scheduled_retry": {"queue": "sii"},
+        "apps.backend.app.modules.webhooks.tasks.deliver": {"queue": "default"},
     },
 )
 

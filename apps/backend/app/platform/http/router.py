@@ -196,6 +196,7 @@ def build_api_router() -> APIRouter:
 
     # Facturación
     include_router_safe(r, ("app.modules.facturacion.interface.http.tenant", "router"))
+    include_router_safe(r, ("app.modules.facturacion.interface.http.send_email", "router"))
     # Inventario
     # Inventario
     include_router_safe(r, ("app.modules.inventario.interface.http.tenant", "router"))
@@ -271,6 +272,15 @@ def build_api_router() -> APIRouter:
 
     # POS / Caja
     include_router_safe(r, ("app.modules.pos.interface.http.tenant", "router"))
+
+    # Reconciliation (Payments AR/AP)
+    include_router_safe(r, ("app.modules.reconciliation.interface.http.tenant", "router"))
+
+    # Export CSV
+    include_router_safe(r, ("app.modules.export.interface.http.tenant", "router"))
+
+    # Webhooks per tenant
+    include_router_safe(r, ("app.modules.webhooks.interface.http.tenant", "router"))
 
     # Final safeguard: ensure imports router is mounted in non-production envs
     try:
