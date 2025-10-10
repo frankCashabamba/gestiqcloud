@@ -100,3 +100,31 @@ def tenant_id_from_request(request: Request) -> str | None:
     sess = getattr(request.state, "session", {}) or {}
     tid = sess.get("tenant_id")
     return str(tid) if tid is not None else None
+
+
+def set_tenant_guc(db: Session, tenant_id: str, persist: bool = False) -> None:
+    """Set tenant GUC on this DB session.
+
+    - persist=False → SET LOCAL (scoped to current transaction)
+    - persist=True  → SET (persists for session until RESET or close)
+    """
+    if not tenant_id:
+        return
+    try:
+        if persist:
+            db.execute(text("SET app.tenant_id = :tid"), {"tid": str(tenant_id)})
+        else:
+            db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_id)})
+        try:
+            db.info["tenant_id"] = str(tenant_id)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
+def ensure_guc_from_request(request: Request, db: Session, persist: bool = False) -> None:
+    """Extract tenant from request and set it as GUC on this session."""
+    tid = tenant_id_from_request(request)
+    if tid:
+        set_tenant_guc(db, tid, persist=persist)

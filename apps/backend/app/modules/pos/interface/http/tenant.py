@@ -10,7 +10,7 @@ from sqlalchemy import text
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.config.database import get_db
-from app.db.rls import ensure_rls
+from app.db.rls import ensure_rls, ensure_guc_from_request
 
 
 router = APIRouter(
@@ -35,6 +35,8 @@ class RegisterIn(BaseModel):
 
 @router.post("/registers", response_model=dict, status_code=201)
 def create_register(payload: RegisterIn, request: Request, db: Session = Depends(get_db)):
+    # Persist GUC for this session to satisfy DB trigger even if tests call directly
+    ensure_guc_from_request(request, db, persist=True)
     row = db.execute(
         text(
             "INSERT INTO pos_registers(code, name, default_warehouse_id, metadata) "
@@ -53,6 +55,7 @@ class OpenShiftIn(BaseModel):
 
 @router.post("/open_shift", response_model=dict)
 def open_shift(payload: OpenShiftIn, request: Request, db: Session = Depends(get_db)):
+    ensure_guc_from_request(request, db, persist=True)
     row = db.execute(
         text(
             "INSERT INTO pos_shifts(register_id, opening_cash, status) "
@@ -70,6 +73,7 @@ class ReceiptCreateIn(BaseModel):
 
 @router.post("/receipts", response_model=dict, status_code=201)
 def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Depends(get_db)):
+    ensure_guc_from_request(request, db, persist=True)
     row = db.execute(
         text(
             "INSERT INTO pos_receipts(shift_id, status) "
@@ -90,6 +94,7 @@ class ItemIn(BaseModel):
 
 @router.post("/receipts/{receipt_id}/add_item", response_model=dict)
 def add_item(receipt_id: str, payload: ItemIn, request: Request, db: Session = Depends(get_db)):
+    ensure_guc_from_request(request, db, persist=True)
     rec = db.execute(text("SELECT status FROM pos_receipts WHERE id=CAST(:id AS uuid)"), {"id": receipt_id}).first()
     if not rec or rec[0] != "draft":
         raise HTTPException(status_code=400, detail="receipt_not_draft")
@@ -110,6 +115,7 @@ class RemoveItemIn(BaseModel):
 
 @router.post("/receipts/{receipt_id}/remove_item", response_model=dict)
 def remove_item(receipt_id: str, payload: RemoveItemIn, request: Request, db: Session = Depends(get_db)):
+    ensure_guc_from_request(request, db, persist=True)
     rec = db.execute(text("SELECT status FROM pos_receipts WHERE id=CAST(:id AS uuid)"), {"id": receipt_id}).first()
     if not rec or rec[0] != "draft":
         raise HTTPException(status_code=400, detail="receipt_not_draft")
@@ -126,6 +132,7 @@ class PaymentIn(BaseModel):
 
 @router.post("/receipts/{receipt_id}/take_payment", response_model=dict)
 def take_payment(receipt_id: str, payload: PaymentIn, request: Request, db: Session = Depends(get_db)):
+    ensure_guc_from_request(request, db, persist=True)
     rec = db.execute(text("SELECT status FROM pos_receipts WHERE id=CAST(:id AS uuid)"), {"id": receipt_id}).first()
     if not rec or rec[0] != "draft":
         raise HTTPException(status_code=400, detail="receipt_not_draft")
@@ -146,6 +153,7 @@ class PostReceiptIn(BaseModel):
 
 @router.post("/receipts/{receipt_id}/post", response_model=dict)
 def post_receipt(receipt_id: str, payload: PostReceiptIn, request: Request, db: Session = Depends(get_db)):
+    ensure_guc_from_request(request, db, persist=True)
     # Ensure draft
     rec = db.execute(text("SELECT shift_id, status FROM pos_receipts WHERE id=CAST(:id AS uuid)"), {"id": receipt_id}).first()
     if not rec or rec[1] != "draft":
