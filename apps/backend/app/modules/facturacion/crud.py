@@ -200,11 +200,11 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
             # Insert delivery row (one per active subscription will be created via API normally; here push a generic)
             db.execute(
                 text(
-                    f"INSERT INTO webhook_deliveries(tenant_id, event, payload, target_url, status)\n"
-                    f"SELECT {tenant_id_sql_expr()}, 'invoice.posted', :p::jsonb, s.url, 'PENDING'\n"
+                    "INSERT INTO webhook_deliveries(event, payload, target_url, status)\n"
+                    "SELECT 'invoice.posted', :p::jsonb, s.url, 'PENDING'\n"
                     "FROM webhook_subscriptions s WHERE s.event='invoice.posted' AND s.active"
                 ),
-                {"tid": None, "p": payload},
+                {"p": payload},
             )
             db.commit()
             try:

@@ -77,6 +77,28 @@ jobs:
           alembic --version
           alembic heads
           alembic history -v | tail -n 50
+      - name: Static guard — forbid legacy ::uuid param casts
+        run: |
+          set -e
+          echo "Checking for legacy :param::uuid casts in app/ (use CAST(:param AS uuid) instead)"
+          if grep -RInE ":[A-Za-z_][A-Za-z0-9_]*::uuid" app \
+              --exclude-dir=alembic --exclude-dir=tests --exclude=db/rls.py; then
+            echo "ERROR: Found legacy ::uuid casts above. Replace with CAST(:param AS uuid)." >&2
+            exit 1
+          else
+            echo "OK: no legacy ::uuid casts found"
+          fi
+      - name: Static guard — forbid direct current_setting in app (use helper)
+        run: |
+          set -e
+          echo "Checking for direct current_setting('app.tenant_id' usage in app/ (use tenant_id_sql_expr/ensure_rls)"
+          if grep -RIn "current_setting('app.tenant_id'" app \
+              --exclude-dir=alembic --exclude-dir=tests --exclude=db/rls.py; then
+            echo "ERROR: Found direct current_setting usage in app/. Use helper tenant_id_sql_expr() and ensure_rls." >&2
+            exit 1
+          else
+            echo "OK: no direct current_setting usages found"
+          fi
       - name: Alembic single-head check
         run: |
           set -euo pipefail

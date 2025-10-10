@@ -265,7 +265,7 @@ async def crear_empresa_completa_json(
                     text(
                         """
                         INSERT INTO tenant_templates(tenant_id, template_key, version, active)
-                        VALUES (:tid::uuid, :k, :ver, true)
+                        VALUES (CAST(:tid AS uuid), :k, :ver, true)
                         ON CONFLICT (tenant_id, template_key) DO UPDATE SET version=EXCLUDED.version, active=true
                         """
                     ),

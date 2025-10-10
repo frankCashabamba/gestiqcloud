@@ -38,7 +38,7 @@ def assign_template(payload: AssignIn, db: Session = Depends(get_db)):
         text(
             """
             INSERT INTO tenant_templates(tenant_id, template_key, version, active)
-            VALUES (:tid::uuid, :key, :ver, true)
+            VALUES (CAST(:tid AS uuid), :key, :ver, true)
             ON CONFLICT (tenant_id, template_key)
             DO UPDATE SET version = EXCLUDED.version, active = true
             """
@@ -61,7 +61,7 @@ def create_overlay(payload: OverlayIn, db: Session = Depends(get_db)):
     # Load or default limits
     lim = db.execute(
         text(
-            "SELECT limits FROM template_policies WHERE tenant_id=:tid::uuid"
+            "SELECT limits FROM template_policies WHERE tenant_id=CAST(:tid AS uuid)"
         ),
         {"tid": payload.tenant_id},
     ).scalar() or {"max_fields": 15, "max_bytes": 8192, "max_depth": 2}
@@ -74,7 +74,7 @@ def create_overlay(payload: OverlayIn, db: Session = Depends(get_db)):
         text(
             """
             INSERT INTO template_overlays(tenant_id, name, config, active)
-            VALUES (:tid::uuid, :name, :cfg::jsonb, :active)
+            VALUES (CAST(:tid AS uuid), :name, :cfg::jsonb, :active)
             RETURNING id
             """
         ),
@@ -86,7 +86,6 @@ def create_overlay(payload: OverlayIn, db: Session = Depends(get_db)):
 
 @router.post("/overlays/{overlay_id}/activate", response_model=dict)
 def activate_overlay(overlay_id: str, db: Session = Depends(get_db)):
-    db.execute(text("UPDATE template_overlays SET active=true WHERE id=:id::uuid"), {"id": overlay_id})
+    db.execute(text("UPDATE template_overlays SET active=true WHERE id=CAST(:id AS uuid)"), {"id": overlay_id})
     db.commit()
     return {"ok": True}
-
