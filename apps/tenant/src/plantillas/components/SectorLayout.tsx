@@ -30,7 +30,7 @@ export default function SectorLayout({ title, subtitle, topNav = [], sideNav = [
       <div className="gc-container pt-10">
         <header className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-3">
-            <span className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-700">
+            <span className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700">
               Espacio de trabajo
             </span>
             <div>
@@ -40,7 +40,7 @@ export default function SectorLayout({ title, subtitle, topNav = [], sideNav = [
           </div>
 
           {topNav.length > 0 && (
-            <nav aria-label="Acciones r?pidas" className="flex flex-wrap gap-2">
+            <nav aria-label="Acciones rápidas" className="flex flex-wrap gap-2">
               {topNav.map((item) => (
                 <NavLink
                   key={item.to}
@@ -50,7 +50,7 @@ export default function SectorLayout({ title, subtitle, topNav = [], sideNav = [
                       isActive
                         ? 'bg-blue-600 text-white shadow-sm'
                         : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
-                    }`
+                  }`
                   }
                 >
                   {item.label}
@@ -64,7 +64,7 @@ export default function SectorLayout({ title, subtitle, topNav = [], sideNav = [
           <aside className="lg:sticky lg:top-10">
             <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
               {sideNav.length > 0 ? (
-                <nav aria-label="Navegaci?n de m?dulos" className="space-y-1">
+                <nav aria-label="Navegación de módulos" className="space-y-1">
                   {sideNav.map((item) => (
                     <NavLink
                       key={item.to}
@@ -78,14 +78,12 @@ export default function SectorLayout({ title, subtitle, topNav = [], sideNav = [
                       }
                     >
                       <span>{item.label}</span>
-                      <span aria-hidden="true" className="text-xs">
-                        ?
-                      </span>
+                      <span aria-hidden="true" className="text-xs text-slate-400">›</span>
                     </NavLink>
                   ))}
                 </nav>
               ) : (
-                <p className="text-xs text-slate-400">Todav?a no tienes m?dulos asignados en este espacio.</p>
+                <p className="text-xs text-slate-400">Todavía no tienes módulos asignados en este espacio.</p>
               )}
             </div>
           </aside>

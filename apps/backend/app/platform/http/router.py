@@ -179,9 +179,10 @@ def build_api_router() -> APIRouter:
     include_router_safe(r, ("app.modules.modulos.interface.http.tenant", "router"))
     include_router_safe(r, ("app.modules.modulos.interface.http.public", "router"))
 
-    # Usuarios de empresa
+    # Usuarios de empresa (tenant) y admin
     include_router_safe(r, ("app.modules.usuarios.interface.http.tenant", "router"))
     include_router_safe(r, ("app.modules.usuarios.interface.http.tenant", "public_router"))
+    include_router_safe(r, ("app.modules.usuarios.interface.http.admin", "router"), prefix="/admin")
 
     # Module registry (catalog)
     include_router_safe(r, ("app.modules.registry.interface.http.admin", "router"), prefix="/admin")

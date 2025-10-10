@@ -71,6 +71,7 @@ def me_tenant(request: Request, db: Session = Depends(get_db)):
     # Optionally enrich with username and empresa_slug for better UX
     username = None
     empresa_slug = None
+    es_admin_empresa = None
     try:
         uid = int(user_id) if user_id and user_id.isdigit() else None
     except Exception:
@@ -83,12 +84,17 @@ def me_tenant(request: Request, db: Session = Depends(get_db)):
                 empresa_slug = getattr(getattr(u, "empresa", None), "slug", None)
             except Exception:
                 empresa_slug = None
+            try:
+                es_admin_empresa = bool(getattr(u, "es_admin_empresa", None))
+            except Exception:
+                es_admin_empresa = None
 
     return {
         "tenant_id": str(tenant_id),
         "user_id": user_id,
         "username": username,
         "empresa_slug": empresa_slug,
+        "es_admin_empresa": es_admin_empresa,
         "scope": "tenant",
     }
 
