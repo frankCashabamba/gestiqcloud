@@ -1,23 +1,24 @@
 name = "edge-gateway"
 main = "edge-gateway.js"
 compatibility_date = "2024-10-01"
+workers_dev = false
 
-# Configure your route in Cloudflare dashboard or here:
-# routes = [
-#   { pattern = "api.gestiqcloud.com/*", zone_name = "gestiqcloud.com" }
-# ]
+Rutas del Worker (puedes gestionarlas también desde el dashboard)
+routes = [
+{ pattern = "admin.gestiqcloud.com/api/", zone_name = "gestiqcloud.com" },
+{ pattern = "www.gestiqcloud.com/api/", zone_name = "gestiqcloud.com" }
+]
 
 [vars]
-# Backend origin base (Render service URL)
-# Example: "https://gestiqcloud-api.onrender.com"
-UPSTREAM_BASE = "https://REPLACE-WITH-YOUR-BACKEND"
 
-# Allowed CORS origins (comma-separated)
-ALLOWED_ORIGINS = "https://gestiqcloud.com,https://www.gestiqcloud.com,https://admin.gestiqcloud.com"
+Debe llamarse TARGET porque tu worker lee env.TARGET
+TARGET = "https://gestiqcloud-api.onrender.com"
 
-# Cookie domain for Set-Cookie rewriting
+Orígenes permitidos (evita el root domain si no lo usas desde frontend)
+ALLOWED_ORIGINS = "https://admin.gestiqcloud.com,https://www.gestiqcloud.com"
+
+Reescritura de cookies para subdominios
 COOKIE_DOMAIN = ".gestiqcloud.com"
 
-# Enable HSTS header over HTTPS
+HSTS ON
 HSTS_ENABLED = "1"
-
