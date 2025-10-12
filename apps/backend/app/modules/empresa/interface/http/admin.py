@@ -180,18 +180,32 @@ async def crear_empresa_completa_json(
             # fallback mínimo
             username_clean = (email_clean.split("@")[0] or "usuario").lower()
 
-    # Verificación de unicidad email/username definitivos
+    # Verificación de unicidad email/username definitivos (con rollback defensivo si la sesión viene abortada)
     if email_clean or username_clean:
-        exists_user = (
-            db.query(UsuarioEmpresa)
-            .filter(
-                (func.lower(UsuarioEmpresa.email) == email_clean)
-                | (func.lower(UsuarioEmpresa.username) == username_clean)
+        try:
+            # Si una operación previa en esta request abortó la transacción, limpia antes de consultar
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            exists_user = (
+                db.query(UsuarioEmpresa)
+                .filter(
+                    (func.lower(UsuarioEmpresa.email) == email_clean)
+                    | (func.lower(UsuarioEmpresa.username) == username_clean)
+                )
+                .first()
             )
-            .first()
-        )
-        if exists_user:
-            raise HTTPException(status_code=400, detail="user_email_or_username_taken")
+            if exists_user:
+                raise HTTPException(status_code=400, detail="user_email_or_username_taken")
+        except Exception as e:
+            # Limpia el estado abortado y devuelve un error claro
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            logger.exception("DB error during uniqueness check")
+            raise HTTPException(status_code=400, detail="db_error_check_user_unique") from e
 
     empresa_id: int | None = None
     try:

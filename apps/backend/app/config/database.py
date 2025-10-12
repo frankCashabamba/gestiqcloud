@@ -71,6 +71,12 @@ def get_db(request: Request) -> Iterator[Session]:
     """
     db = SessionLocal()
     try:
+        # Defensive: clear any leftover GUCs from pooled connections
+        try:
+            db.execute(text("RESET app.tenant_id"))
+            db.execute(text("RESET app.user_id"))
+        except Exception:
+            pass
         # Set RLS GUCs on THIS session using request context
         try:
             claims = getattr(request.state, "access_claims", None) or {}

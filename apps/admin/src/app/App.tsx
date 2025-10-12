@@ -14,6 +14,7 @@ import AsignarNuevoAdmin from '../pages/AsignarNuevoAdmin'
 import ErrorPage from '../pages/ErrorPage'
 import { EditarEmpresa } from '../pages/EditarEmpresa'
 import { EmpresaModulos } from '../pages/EmpresaModulos'
+import Migraciones from '../pages/Migraciones'
 
 import SessionKeepAlive from '@shared/ui'
 import { useAuth } from '../auth/AuthContext'
@@ -55,6 +56,7 @@ export default function App() {
           <Route path="modulos/*" element={<ModuleRoutes />} />
           <Route path="empresas/:id/editar" element={<EditarEmpresa />} />
           <Route path="empresas/modulos/:id" element={<EmpresaModulos />} />
+          <Route path="ops/migraciones" element={<Migraciones />} />
         </Route>
       </Route>
 

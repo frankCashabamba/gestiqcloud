@@ -1,4 +1,4 @@
-// src/pages/AdminPanel.tsx
+﻿// src/pages/AdminPanel.tsx
 import React from 'react'
 import { LayoutAdmin } from '../style/LayoutAdmin'
 import { useAuthGuard } from '../hooks/useAuthGuard'
@@ -13,10 +13,10 @@ export default function AdminPanel() {
     { nombre: 'Empresas', descripcion: 'Gestión de empresas registradas.', icono: '/icons/empresas.png', url_completa: 'empresas' },
     { nombre: 'Usuarios Principales', descripcion: 'Control de usuarios del sistema.', icono: '/icons/usuario.png', url_completa: 'usuarios' },
     { nombre: 'Configuración de sistemas', descripcion: 'Sólo las configuraciones del sistema.', icono: '/icons/configuracion.jpeg', url_completa: '/admin/configuracion' },
+    { nombre: 'Migraciones', descripcion: 'Ejecutar migraciones (Render Job)', icono: '/icons/configuracion.jpeg', url_completa: 'ops/migraciones' },
   ]
 
   return (
-   
       <div className="admin-container">
         <header><h1 className="admin-title">🛠️ Panel de Administración</h1></header>
 
@@ -43,6 +43,5 @@ export default function AdminPanel() {
           </div>
         </section>
       </div>
-  
   )
 }
