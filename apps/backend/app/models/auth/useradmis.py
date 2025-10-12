@@ -25,8 +25,7 @@ class SuperUser(Base):
     is_staff: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
 
-    # Multi-tenant (ajusta a tu tipo real: UUID si tus tenants son UUID; si no, String)
-    tenant_id: Mapped[UUID | None] = mapped_column(UUID(as_uuid=True), index=True, nullable=True)# pylint: ignore
+    # Nota: SuperUser es global (no por tenant); no incluir tenant_id
 
     # Auditoría de acceso / seguridad
     failed_login_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
