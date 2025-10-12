@@ -1,24 +1,16 @@
 name = "edge-gateway"
 main = "edge-gateway.js"
 compatibility_date = "2024-10-01"
+account_id = "0347e711dc94c7d155ad900b0d6c19fd"
 workers_dev = false
 
-Rutas del Worker (también puedes gestionarlas desde el dashboard)
 routes = [
-{ pattern = "admin.gestiqcloud.com/api/", zone_name = "gestiqcloud.com" },
-{ pattern = "www.gestiqcloud.com/api/", zone_name = "gestiqcloud.com" }
+  { pattern = "admin.gestiqcloud.com/api/*", zone_name = "gestiqcloud.com" },
+  { pattern = "www.gestiqcloud.com/api/*", zone_name = "gestiqcloud.com" }
 ]
 
 [vars]
-
-Tu backend real (Render), sin barra final
 TARGET = "https://gestiqcloud-api.onrender.com"
-
-Orígenes de CORS permitidos (frontends)
 ALLOWED_ORIGINS = "https://admin.gestiqcloud.com,https://www.gestiqcloud.com"
-
-Dominio de cookies para compartir entre subdominios
 COOKIE_DOMAIN = ".gestiqcloud.com"
-
-HSTS activado
 HSTS_ENABLED = "1"
