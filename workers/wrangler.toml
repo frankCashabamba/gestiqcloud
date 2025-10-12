@@ -5,6 +5,7 @@ account_id = "0347e711dc94c7d155ad900b0d6c19fd"
 workers_dev = false
 
 routes = [
+  { pattern = "api.gestiqcloud.com/*",  zone_name = "gestiqcloud.com" },
   { pattern = "admin.gestiqcloud.com/api/*", zone_name = "gestiqcloud.com" },
   { pattern = "www.gestiqcloud.com/api/*", zone_name = "gestiqcloud.com" },
   { pattern = "admin.gestiqcloud.com/v1/*",  zone_name = "gestiqcloud.com" },
