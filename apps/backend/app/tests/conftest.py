@@ -36,6 +36,8 @@ def _load_all_models():
         "app.models.empresa.usuario_rolempresa",
         "app.models.empresa.rolempresas",
         "app.models.empresa.settings",
+        # Tenancy model so SQLite create_all creates the tenants table used by admin flows
+        "app.models.tenant",
         # Imports pipeline models (UUID/JSON fields are SQLite-friendly in tests)
         "app.models.core.modelsimport",
     ]

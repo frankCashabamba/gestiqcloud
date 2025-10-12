@@ -193,6 +193,7 @@ async def crear_empresa_completa_json(
         if exists_user:
             raise HTTPException(status_code=400, detail="user_email_or_username_taken")
 
+    empresa_id: int | None = None
     try:
         # Empresa
         repo = SqlEmpresaRepo(db)
@@ -289,9 +290,30 @@ async def crear_empresa_completa_json(
         db.commit()
     except HTTPException:
         db.rollback()
+        # Best-effort cleanup: si la empresa quedó creada por commits internos, elimínala
+        if empresa_id:
+            try:
+                # Borrar dependientes suaves primero
+                db.execute(text("DELETE FROM tenants WHERE empresa_id=:eid"), {"eid": empresa_id})
+                db.execute(text("DELETE FROM modulos_empresamodulo WHERE empresa_id=:eid"), {"eid": empresa_id})
+                db.execute(text("DELETE FROM usuarios_usuarioempresa WHERE empresa_id=:eid"), {"eid": empresa_id})
+                db.execute(text("DELETE FROM core_empresa WHERE id=:eid"), {"eid": empresa_id})
+                db.commit()
+            except Exception:
+                db.rollback()
         raise
     except Exception as e:
         db.rollback()
+        # Best-effort cleanup: si la empresa quedó creada por commits internos, elimínala
+        if empresa_id:
+            try:
+                db.execute(text("DELETE FROM tenants WHERE empresa_id=:eid"), {"eid": empresa_id})
+                db.execute(text("DELETE FROM modulos_empresamodulo WHERE empresa_id=:eid"), {"eid": empresa_id})
+                db.execute(text("DELETE FROM usuarios_usuarioempresa WHERE empresa_id=:eid"), {"eid": empresa_id})
+                db.execute(text("DELETE FROM core_empresa WHERE id=:eid"), {"eid": empresa_id})
+                db.commit()
+            except Exception:
+                db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
     try:
