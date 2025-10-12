@@ -6,7 +6,9 @@ workers_dev = false
 
 routes = [
   { pattern = "admin.gestiqcloud.com/api/*", zone_name = "gestiqcloud.com" },
-  { pattern = "www.gestiqcloud.com/api/*", zone_name = "gestiqcloud.com" }
+  { pattern = "www.gestiqcloud.com/api/*", zone_name = "gestiqcloud.com" },
+  { pattern = "admin.gestiqcloud.com/v1/*",  zone_name = "gestiqcloud.com" },
+  { pattern = "www.gestiqcloud.com/v1/*",   zone_name = "gestiqcloud.com" }
 ]
 
 [vars]

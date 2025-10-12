@@ -12,6 +12,8 @@
  * - HSTS_ENABLED: "1" to enable HSTS
  */
 
+/* Edge Gateway (Cloudflare Worker) — robust login cookies & CORS */
+
 export default {
   async fetch(request, env, ctx) {
     const upstreamBase = (env.UPSTREAM_BASE || '').replace(/\/+$/g, '');
@@ -22,63 +24,97 @@ export default {
     const url = new URL(request.url);
     const reqHeaders = new Headers(request.headers);
 
-    // Create or propagate request id
+    // Request ID
     const reqId = reqHeaders.get('X-Request-Id') || crypto.randomUUID();
     reqHeaders.set('X-Request-Id', reqId);
 
-    // CORS handling
+    // CORS
     const allowed = parseAllowedOrigins(env.ALLOWED_ORIGINS);
-    const origin = reqHeaders.get('Origin');
+    const origin = reqHeaders.get('Origin') || '';
     const isPreflight = request.method === 'OPTIONS';
 
-    // Block disallowed origins when credentials are used
+    // Bloquear orígenes no permitidos (con credenciales)
     if (origin && !isOriginAllowed(origin, allowed)) {
       if (isPreflight) {
-        return withCors(new Response(null, { status: 204 }), origin, allowed);
+        return preflightResponse(origin, allowed, request);
       }
-      return withCors(new Response(JSON.stringify({ detail: 'origin_not_allowed' }), { status: 403 }), origin, allowed);
+      return withCors(
+        new Response(JSON.stringify({ detail: 'origin_not_allowed' }), {
+          status: 403,
+          headers: { 'content-type': 'application/json' },
+        }),
+        origin,
+        allowed
+      );
     }
 
-    // Preflight response
+    // Preflight
     if (isPreflight) {
-      return withCors(new Response(null, { status: 204 }), origin, allowed);
+      return preflightResponse(origin, allowed, request);
     }
 
-    // Proxy to upstream
+    // Proxy a upstream (preserva path+query)
     const upstreamURL = upstreamBase + url.pathname + url.search;
+
+    // Clonar request y ajustar hop-by-hop
     const init = {
       method: request.method,
-      headers: reqHeaders,
-      body: request.body,
-      redirect: 'follow',
+      headers: new Headers(reqHeaders),
+      // MUY IMPORTANTE: no sigas redirecciones para no perder Set-Cookie en 3xx
+      redirect: 'manual',
     };
+    if (!['GET', 'HEAD'].includes(request.method)) {
+      // Pasa el cuerpo tal cual
+      init.body = request.body;
+    }
+    // hop-by-hop
+    init.headers.delete('host');
+    init.headers.delete('content-length');
+    init.headers.set('x-forwarded-host', url.hostname);
+    init.headers.set('x-forwarded-proto', 'https');
 
-    // Ensure cookies are forwarded
-    // (Workers include cookies by default; explicitly set header if needed)
-    const resp = await fetch(upstreamURL, init);
+    let upstreamResp;
+    try {
+      upstreamResp = await fetch(upstreamURL, init);
+    } catch (e) {
+      return withCors(
+        new Response('Upstream unavailable', { status: 502 }),
+        origin,
+        allowed
+      );
+    }
 
-    // Clone headers and add security + CORS
-    const respHdrs = new Headers(resp.headers);
-    // Security headers
+    // Clonar headers de respuesta
+    const respHdrs = new Headers(upstreamResp.headers);
+
+    // Seguridad
     respHdrs.set('X-Request-Id', reqId);
     respHdrs.set('X-Frame-Options', 'DENY');
     respHdrs.set('X-Content-Type-Options', 'nosniff');
-    respHdrs.set('Referrer-Policy', 'no-referrer');
+    respHdrs.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     if ((env.HSTS_ENABLED || '1') === '1' && url.protocol === 'https:') {
-      respHdrs.set('Strict-Transport-Security', 'max-age=15552000; includeSubDomains; preload');
+      respHdrs.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
     }
 
-    // CORS for actual response
-    const corsed = withCorsHeaders(resp, respHdrs, origin, allowed);
+    // CORS (respuesta real)
+    applyCorsHeaders(respHdrs, origin, allowed);
 
-    // Cookie rewriting
-    rewriteCookies(respHdrs, env.COOKIE_DOMAIN || extractCookieDomain(url.host));
+    // Reescritura de cookies (robusta y forzando Path=/)
+    rewriteCookiesRobust(upstreamResp.headers, respHdrs, env.COOKIE_DOMAIN || extractCookieDomain(url.host));
 
-    // Return final response with possibly adjusted headers
-    const body = await resp.arrayBuffer();
-    return new Response(body, { status: resp.status, headers: respHdrs });
+    // Importante: evita content-length incoherente (lo recalcula CF)
+    respHdrs.delete('content-length');
+
+    // Devuelve la respuesta tal cual (incluida 3xx si la hay) con sus headers reescritos
+    return new Response(upstreamResp.body, {
+      status: upstreamResp.status,
+      statusText: upstreamResp.statusText,
+      headers: respHdrs,
+    });
   },
 };
+
+/* ===== Helpers ===== */
 
 function parseAllowedOrigins(csv) {
   const defaults = [
@@ -103,91 +139,95 @@ function isOriginAllowed(origin, list) {
   }
 }
 
-function withCors(resp, origin, allowed) {
-  const h = new Headers(resp.headers);
+function preflightResponse(origin, allowed, request) {
+  const h = new Headers();
   if (origin && isOriginAllowed(origin, allowed)) {
+    const acrh = request.headers.get('Access-Control-Request-Headers');
     h.set('Access-Control-Allow-Origin', origin);
-    h.set('Vary', 'Origin');
+    h.append('Vary', 'Origin');
     h.set('Access-Control-Allow-Credentials', 'true');
     h.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-    h.set('Access-Control-Allow-Headers', 'Authorization,Content-Type,X-Client-Version,X-Client-Revision,X-CSRF-Token,X-CSRFToken');
+    // Reflejar lo pedido + tu lista por si acaso
+    h.set(
+      'Access-Control-Allow-Headers',
+      acrh || 'Authorization,Content-Type,X-Client-Version,X-Client-Revision,X-CSRF-Token,X-CSRFToken'
+    );
     h.set('Access-Control-Max-Age', '86400');
   }
   return new Response(null, { status: 204, headers: h });
 }
 
-function withCorsHeaders(resp, headers, origin, allowed) {
+function withCors(resp, origin, allowed) {
+  const h = new Headers(resp.headers);
+  if (origin && isOriginAllowed(origin, allowed)) {
+    h.set('Access-Control-Allow-Origin', origin);
+    // conservar otros Vary si existiesen
+    const vary = h.get('Vary');
+    h.set('Vary', vary ? `${vary}, Origin` : 'Origin');
+    h.set('Access-Control-Allow-Credentials', 'true');
+  }
+  return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers: h });
+}
+
+function applyCorsHeaders(headers, origin, allowed) {
   if (origin && isOriginAllowed(origin, allowed)) {
     headers.set('Access-Control-Allow-Origin', origin);
-    headers.set('Vary', 'Origin');
+    const vary = headers.get('Vary');
+    headers.set('Vary', vary ? `${vary}, Origin` : 'Origin');
     headers.set('Access-Control-Allow-Credentials', 'true');
+  } else {
+    headers.delete('Access-Control-Allow-Origin');
+    headers.delete('Access-Control-Allow-Credentials');
   }
-  return resp;
 }
 
 function extractCookieDomain(host) {
-  // Convert api.example.com -> .example.com
   const parts = String(host).split('.');
-  if (parts.length >= 2) {
-    return '.' + parts.slice(-2).join('.');
-  }
+  if (parts.length >= 2) return '.' + parts.slice(-2).join('.');
   return host;
 }
 
-function rewriteCookies(headers, cookieDomain) {
-  // Cloudflare Workers allow multiple Set-Cookie headers via append
-  // Get all set-cookie headers (runtime provides get/append support)
-  const setCookie = headers.getAll ? headers.getAll('Set-Cookie') : getSetCookieFallback(headers);
-  if (!setCookie || !setCookie.length) return;
-  headers.delete('Set-Cookie');
-  for (const c of setCookie) {
+function rewriteCookiesRobust(srcHeaders, dstHeaders, cookieDomain) {
+  // Recoge todas las ocurrencias reales de Set-Cookie
+  const cookies = [];
+  srcHeaders.forEach((v, k) => {
+    if (k.toLowerCase() === 'set-cookie') cookies.push(v);
+  });
+  if (!cookies.length) return;
+
+  dstHeaders.delete('Set-Cookie');
+
+  for (let c of cookies) {
     let v = c;
-    // Enforce Domain
+
+    // Normaliza Domain
     if (/;\s*Domain=/i.test(v)) {
       v = v.replace(/;\s*Domain=[^;]*/i, `; Domain=${cookieDomain}`);
     } else {
       v += `; Domain=${cookieDomain}`;
     }
-    // Ensure Secure and HttpOnly
+
+    // **Forzar Path=/** (clave para que aplique en todas las rutas)
+    if (/;\s*Path=/i.test(v)) {
+      v = v.replace(/;\s*Path=[^;]*/i, '; Path=/');
+    } else {
+      v += '; Path=/';
+    }
+
+    // Asegurar Secure/HttpOnly
     if (!/;\s*Secure/i.test(v)) v += '; Secure';
     if (!/;\s*HttpOnly/i.test(v)) v += '; HttpOnly';
-    // SameSite based on cookie name
-    if (/^refresh_token=/.test(v)) {
+
+    // SameSite por nombre
+    if (/^refresh_token=/i.test(v)) {
       v = v.replace(/;\s*SameSite=[^;]*/i, '');
       v += '; SameSite=None';
-    }
-    if (/^access_token=/.test(v)) {
+    } else if (/^access_token=/i.test(v)) {
       v = v.replace(/;\s*SameSite=[^;]*/i, '');
       v += '; SameSite=Lax';
     }
-    headers.append('Set-Cookie', v);
+    // si hay otras cookies, no tocamos SameSite (o podrías fijar Lax por defecto)
+
+    dstHeaders.append('Set-Cookie', v);
   }
 }
-
-function getSetCookieFallback(headers) {
-  const raw = headers.get('Set-Cookie');
-  if (!raw) return [];
-  // Fallback parser: try to split by Set-Cookie boundaries respecting Expires commas
-  const out = [];
-  let i = 0;
-  let start = 0;
-  let inExpires = false;
-  while (i < raw.length) {
-    const ch = raw[i];
-    if (ch === ',') {
-      const seg = raw.slice(start, i);
-      if (/\bExpires=/i.test(seg)) {
-        // within cookie; keep scanning until ';' seen after this comma
-        // do nothing special; just continue and rely on next branch
-      } else {
-        out.push(seg.trim());
-        start = i + 1;
-      }
-    }
-    i++;
-  }
-  const tail = raw.slice(start).trim();
-  if (tail) out.push(tail);
-  return out;
-}
-
