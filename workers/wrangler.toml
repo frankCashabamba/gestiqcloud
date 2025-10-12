@@ -1,4 +1,4 @@
-name = "edge-gateway"
+name = "api-proxy"  
 main = "edge-gateway.js"
 compatibility_date = "2024-10-01"
 account_id = "0347e711dc94c7d155ad900b0d6c19fd"
