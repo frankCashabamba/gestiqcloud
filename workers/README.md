@@ -1,6 +1,6 @@
 # Edge Gateway (Cloudflare Worker)
 
-This Worker fronts the backend API with restrictive CORS, cookie hardening and request ID propagation. It is intended to be routed at `api.gestiqcloud.com/*`.
+This Worker fronts the backend API with restrictive CORS, cookie hardening and request ID propagation. In the current setup it is routed at `admin.gestiqcloud.com/api/*` (Admin) and `www.gestiqcloud.com/api/*` (Tenant). The upstream API runs on Render.
 
 ## Prerequisites
 - Cloudflare account + zone `gestiqcloud.com`
@@ -8,9 +8,8 @@ This Worker fronts the backend API with restrictive CORS, cookie hardening and r
 
 ## Configure
 Edit `workers/wrangler.toml` and set:
-- `vars.UPSTREAM_BASE`: Public URL of the backend (Render), no trailing slash.
-- `vars.ALLOWED_ORIGINS`: Comma-separated allowed origins, e.g.
-  `https://gestiqcloud.com,https://www.gestiqcloud.com,https://admin.gestiqcloud.com`
+- `vars.TARGET` (o `vars.UPSTREAM_BASE`): Public URL of the backend (Render), sin barra final. Ej.: `https://gestiqcloud-api.onrender.com`
+- `vars.ALLOWED_ORIGINS`: Comma-separated allowed origins. Ej.: `https://admin.gestiqcloud.com,https://www.gestiqcloud.com`
 - `vars.COOKIE_DOMAIN`: `.gestiqcloud.com`
 - `vars.HSTS_ENABLED`: `"1"`
 
@@ -21,9 +20,9 @@ Alternatively set them with `wrangler secret put` / `wrangler kv` if preferred.
 cd workers
 wrangler publish
 ```
-Add a route in Cloudflare (Dashboard or wrangler):
-- Pattern: `api.gestiqcloud.com/*`
-- Service: `edge-gateway`
+Add routes in Cloudflare (Dashboard or wrangler):
+- `admin.gestiqcloud.com/api/*`
+- `www.gestiqcloud.com/api/*`
 
 ## What it does
 - CORS (credentials=true), only echoes allowed Origin
@@ -36,6 +35,11 @@ Add a route in Cloudflare (Dashboard or wrangler):
   - `SameSite=Lax` for `access_token`
 
 ## Quick tests (curl)
+- Admin/Tenant health
+```
+curl -i -H "Origin: https://admin.gestiqcloud.com" https://admin.gestiqcloud.com/api/v1/health
+```
+
 - Tenant login
 ```
 curl -i -s -X POST https://api.gestiqcloud.com/api/v1/tenant/auth/login \
