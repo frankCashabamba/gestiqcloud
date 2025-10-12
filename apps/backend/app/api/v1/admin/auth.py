@@ -17,6 +17,7 @@ from app.core.auth_http import (
     refresh_cookie_path_admin,
 )
 from app.core.auth_shared import ensure_session, issue_csrf_and_cookie, rotate_refresh
+from app.db.rls import set_tenant_guc
 
 # Identity services (ports/adapters)
 from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
@@ -124,6 +125,12 @@ def admin_login(
     request.state.session_dirty = True
     issue_csrf_and_cookie(request, response, path="/")
 
+    # 3.b) Fijar GUC para RLS (tenant del sistema)
+    try:
+        set_tenant_guc(db, str(settings.ADMIN_SYSTEM_TENANT_ID), persist=True)
+    except Exception:
+        pass
+
     # 5) Refresh family + primer token
     repo = SqlRefreshTokenRepo(db)
     family_id = repo.create_family(user_id=str(user.id), tenant_id=admin_tenant_id)
@@ -168,6 +175,11 @@ def admin_login(
 @router.post("/refresh")
 def refresh(request: Request, response: Response, db: Session = Depends(get_db)):
     """Rotación de refresh token para admin (unificado)."""
+    # Asegura GUC de tenant del sistema para pasar RLS en tablas de refresh/tokens
+    try:
+        set_tenant_guc(db, str(settings.ADMIN_SYSTEM_TENANT_ID), persist=True)
+    except Exception:
+        pass
     repo = SqlRefreshTokenRepo(db)
     try:
         log.debug("admin.refresh.attempt ua=%s ip=%s",
