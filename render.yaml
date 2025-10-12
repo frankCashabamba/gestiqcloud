@@ -220,3 +220,38 @@
         value: gestiqcloud-beat
       - key: OTEL_EXPORTER_OTLP_ENDPOINT
         sync: false
+
+  # ------------ JOB: DB migrations + RLS ------------
+  - type: job
+    name: gestiqcloud-migrate
+    env: python
+    region: oregon
+    plan: starter
+    branch: main
+    rootDir: apps/backend
+    autoDeploy: false
+    buildCommand: |
+      pip install -U pip
+      pip install -r requirements.txt
+    startCommand: |
+      set -e
+      echo "⏳ Checking Alembic pending migrations..."
+      CURRENT=$(alembic current 2>/dev/null | awk '{print $1}' | tail -n1 || true)
+      HEADS=$(alembic heads 2>/dev/null | awk '{print $1}' | tr '\n' ' ' || true)
+      if [ -n "$HEADS" ] && echo "$HEADS" | grep -q "$CURRENT"; then
+        echo "✅ No Alembic migrations pending ($CURRENT is at heads: $HEADS)"
+      else
+        echo "🚀 Applying Alembic migrations to head"
+        alembic upgrade head
+      fi
+      echo "🔐 Applying RLS defaults/policies (idempotent)"
+      python ../scripts/py/apply_rls.py --schema public --set-default
+    envVars:
+      - key: ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: RLS_SCHEMAS
+        value: public
+      - key: RLS_SET_DEFAULT
+        value: "1"
