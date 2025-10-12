@@ -179,6 +179,13 @@ try:
 except Exception:  # keep app boot resilient
     pass
 
+# Admin ops (trigger migrations job)
+try:
+    from backend.app.routers.admin import ops as _admin_ops
+    app.include_router(_admin_ops.router, prefix="/api/v1/admin")
+except Exception:
+    pass
+
 # Safety net: ensure generic /api/v1/auth and tenant auth exist even if router assembly skipped
 try:
     from app.api.v1 import auth as _generic_auth

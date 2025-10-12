@@ -59,7 +59,9 @@ class SqlEmpresaRepo(SqlAlchemyRepo, EmpresaRepo):
             config_json=data.get("config_json"),
         )
         self.db.add(m)
-        self.db.commit()
+        # No commit here: allow caller to wrap company+admin user in a single transaction
+        # Flush to obtain PK and keep atomicity at endpoint level
+        self.db.flush()
         self.db.refresh(m)
         return self._to_dto(m)
 
