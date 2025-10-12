@@ -3,7 +3,7 @@ main = "edge-gateway.js"
 compatibility_date = "2024-10-01"
 workers_dev = false
 
-Rutas del Worker (puedes gestionarlas también desde el dashboard)
+Rutas del Worker (también puedes gestionarlas desde el dashboard)
 routes = [
 { pattern = "admin.gestiqcloud.com/api/", zone_name = "gestiqcloud.com" },
 { pattern = "www.gestiqcloud.com/api/", zone_name = "gestiqcloud.com" }
@@ -11,14 +11,14 @@ routes = [
 
 [vars]
 
-Debe llamarse TARGET porque tu worker lee env.TARGET
+Tu backend real (Render), sin barra final
 TARGET = "https://gestiqcloud-api.onrender.com"
 
-Orígenes permitidos (evita el root domain si no lo usas desde frontend)
+Orígenes de CORS permitidos (frontends)
 ALLOWED_ORIGINS = "https://admin.gestiqcloud.com,https://www.gestiqcloud.com"
 
-Reescritura de cookies para subdominios
+Dominio de cookies para compartir entre subdominios
 COOKIE_DOMAIN = ".gestiqcloud.com"
 
-HSTS ON
+HSTS activado
 HSTS_ENABLED = "1"
