@@ -13,7 +13,7 @@
     buildCommand: |
       pip install -U pip
       pip install -r requirements.txt
-    startCommand: python prod.py
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     # (opcional) Si tienes un endpoint de salud, añade esto:
     healthCheckPath: /health
     envVars:
@@ -31,6 +31,8 @@
       # 🌐 URLs y CORS
       - key: FRONTEND_URL
         value: https://www.gestiqcloud.com
+      - key: PUBLIC_API_ORIGIN
+        value: https://api.gestiqcloud.com
       - key: ADMIN_URL
         value: https://admin.gestiqcloud.com
       - key: CORS_ALLOW_ORIGIN_REGEX
