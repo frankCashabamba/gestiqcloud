@@ -60,6 +60,20 @@ export default {
     // Soporte limpio en api.gestiqcloud.com: acepta /v1/* y /health sin prefijo /api
     let forwardPath = path;
     if (host === 'api.gestiqcloud.com') {
+      if (path === '/') {
+        const body = JSON.stringify({
+          service: 'GestiqCloud API',
+          version: env.API_VERSION || '1.0.0',
+          docs: '/docs',
+          health: '/health',
+          api: '/api/v1',
+        });
+        return withCors(
+          new Response(body, { status: 200, headers: { 'content-type': 'application/json' } }),
+          origin,
+          allowed
+        );
+      }
       if (path === '/health') {
         return withCors(new Response('ok', { status: 200 }), origin, allowed);
       }
