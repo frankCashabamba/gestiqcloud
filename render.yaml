@@ -2,25 +2,26 @@
   # ------------ BACKEND API (FastAPI) ------------
   - type: web
     name: gestiqcloud-api
-    env: python
-    region: oregon
-    plan: starter
+    runtime: python
     branch: main
     rootDir: apps/backend
-    autoDeploy: true
-    domains:
-      - api.gestiqcloud.com
     buildCommand: |
       pip install -U pip
       pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    # (opcional) Si tienes un endpoint de salud, añade esto:
     healthCheckPath: /health
+    # Autodeploy solo si cambia backend (o lo que añadas aquí)
+    buildFilter:
+      paths:
+        - apps/backend/**
+        # - packages/shared/**   # <-- añade libs compartidas si aplican
+      ignoredPaths:
+        - '**/*.md'
+        - .github/**
+        - docs/**
     envVars:
       - key: ENV
         value: production
-
-      # 🔐 Secrets
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET_KEY
@@ -28,23 +29,21 @@
       - key: SECRET_KEY
         sync: false
 
-      # 🌐 URLs y CORS
       - key: FRONTEND_URL
         value: https://www.gestiqcloud.com
       - key: PUBLIC_API_ORIGIN
         value: https://api.gestiqcloud.com
       - key: ADMIN_URL
         value: https://admin.gestiqcloud.com
+
       - key: CORS_ALLOW_ORIGIN_REGEX
         value: ^https://(www\.)?(gestiqcloud\.com|admin\.gestiqcloud\.com)$
       - key: CORS_ORIGINS
         value: https://gestiqcloud.com,https://www.gestiqcloud.com,https://admin.gestiqcloud.com,https://www.admin.gestiqcloud.com
 
-      # ✅ Hosts permitidos (JSON)
       - key: ALLOWED_HOSTS
         value: '["api.gestiqcloud.com","*.onrender.com"]'
 
-      # 🍪 Cookies
       - key: COOKIE_DOMAIN
         value: .gestiqcloud.com
       - key: COOKIE_SECURE
@@ -52,13 +51,11 @@
       - key: COOKIE_SAMESITE
         value: "none"
 
-      # ⚙️ Otros requeridos por tu Settings
       - key: TENANT_NAMESPACE_UUID
         value: 0280249e-6707-40fb-8d60-1e8f3aea0f8e
       - key: IMPORTS_ENABLED
         value: "1"
 
-      # ✉️ Credenciales SMTP (obligatorias en prod)
       - key: EMAIL_HOST
         sync: false
       - key: EMAIL_PORT
@@ -70,15 +67,12 @@
       - key: DEFAULT_FROM_EMAIL
         value: no-reply@gestiqcloud.com
 
-      # 🔽 NUEVO: fija versión de Python (o usa 3.12.7 si lo prefieres)
       - key: PYTHON_VERSION
         value: 3.13.5
-
-      # 🔽 NUEVO: fuerza wheels (evita compilar C en build)
       - key: PIP_ONLY_BINARY
         value: pandas,bcrypt,PyMuPDF,opencv-python-headless,psycopg2-binary,torch
 
-      # ---- Migraciones SQL legacy + RLS ----
+      # ---- Migraciones/Policies flags (opcionales) ----
       - key: RUN_LEGACY_MIGRATIONS
         value: "0"
       - key: RUN_RLS_APPLY
@@ -87,17 +81,18 @@
         value: public
       - key: RLS_SET_DEFAULT
         value: "1"
-      # Default template for newly created tenants (bazar|bakery)
+
+      # Defaults y Copilot
       - key: DEFAULT_TENANT_TEMPLATE_KEY
         value: bazar
-      # Copilot feature flags
       - key: COPILOT_TENANT_ENABLED
         value: "1"
       - key: COPILOT_ALLOWED_ACTIONS
         value: create_invoice_draft,create_order_draft,create_transfer_draft,suggest_overlay_fields
       - key: COPILOT_LOCALE
         value: es-ES
-      # OpenTelemetry (optional)
+
+      # OpenTelemetry
       - key: OTEL_ENABLED
         value: "1"
       - key: OTEL_SERVICE_NAME
@@ -106,22 +101,28 @@
         sync: false
 
   # ------------ FRONTEND TENANT (Vite) ------------
-  - type: static
+  - type: web
     name: gestiqcloud-tenant
-    region: oregon
-    plan: starter
+    runtime: static
     branch: main
     rootDir: apps/tenant
+    buildCommand: |
+      npm ci
+      npm run build
+    staticPublishPath: dist     # relativo a rootDir
     domains:
       - gestiqcloud.com
     routes:
       - type: rewrite
         source: /*
         destination: /index.html
-    buildCommand: |
-      npm ci
-      npm run build
-    publishPath: dist
+    buildFilter:
+      paths:
+        - apps/tenant/**
+      ignoredPaths:
+        - '**/*.md'
+        - .github/**
+        - docs/**
     envVars:
       - key: VITE_API_URL
         value: https://api.gestiqcloud.com
@@ -133,12 +134,15 @@
         value: https://admin.gestiqcloud.com
 
   # ------------ FRONTEND ADMIN (Vite) ------------
-  - type: static
+  - type: web
     name: gestiqcloud-admin
-    region: oregon
-    plan: starter
+    runtime: static
     branch: main
     rootDir: apps/admin
+    buildCommand: |
+      npm ci
+      npm run build
+    staticPublishPath: dist     # relativo a rootDir
     domains:
       - admin.gestiqcloud.com
     routes:
@@ -149,10 +153,13 @@
       - type: rewrite
         source: /*
         destination: /index.html
-    buildCommand: |
-      npm ci
-      npm run build
-    publishPath: dist
+    buildFilter:
+      paths:
+        - apps/admin/**
+      ignoredPaths:
+        - '**/*.md'
+        - .github/**
+        - docs/**
     envVars:
       - key: VITE_API_URL
         value: https://api.gestiqcloud.com
@@ -166,15 +173,20 @@
   # ------------ WORKER (Celery) ------------
   - type: worker
     name: gestiqcloud-worker
-    env: python
-    region: oregon
-    plan: starter
+    runtime: python
     branch: main
     rootDir: apps/backend
     buildCommand: |
       pip install -U pip
       pip install -r requirements.txt
     startCommand: celery -A apps.backend.celery_app worker -Q sri,sii -l info
+    buildFilter:
+      paths:
+        - apps/backend/**
+      ignoredPaths:
+        - '**/*.md'
+        - .github/**
+        - docs/**
     envVars:
       - key: ENV
         value: production
@@ -184,7 +196,6 @@
         sync: false
       - key: CELERY_RESULT_BACKEND
         sync: false
-      # OpenTelemetry (optional but enabled)
       - key: OTEL_ENABLED
         value: "1"
       - key: OTEL_SERVICE_NAME
@@ -192,17 +203,23 @@
       - key: OTEL_EXPORTER_OTLP_ENDPOINT
         sync: false
 
+  # ------------ BEAT (Celery) ------------
   - type: worker
     name: gestiqcloud-beat
-    env: python
-    region: oregon
-    plan: starter
+    runtime: python
     branch: main
     rootDir: apps/backend
     buildCommand: |
       pip install -U pip
       pip install -r requirements.txt
     startCommand: celery -A apps.backend.celery_app beat -l info
+    buildFilter:
+      paths:
+        - apps/backend/**
+      ignoredPaths:
+        - '**/*.md'
+        - .github/**
+        - docs/**
     envVars:
       - key: ENV
         value: production
@@ -221,15 +238,13 @@
       - key: OTEL_EXPORTER_OTLP_ENDPOINT
         sync: false
 
-  # ------------ JOB: DB migrations + RLS ------------
-  - type: job
+  # ------------ (Opcional) JOB de migraciones como CRON ------------
+  - type: cron
     name: gestiqcloud-migrate
-    env: python
-    region: oregon
-    plan: starter
+    runtime: python
     branch: main
     rootDir: apps/backend
-    autoDeploy: false
+    schedule: "0 4 * * *"   # podrás hacer "Run now" cuando quieras
     buildCommand: |
       pip install -U pip
       pip install -r requirements.txt
@@ -246,6 +261,9 @@
       fi
       echo "🔐 Applying RLS defaults/policies (idempotent)"
       python ../scripts/py/apply_rls.py --schema public --set-default
+    buildFilter:
+      paths:
+        - apps/backend/**
     envVars:
       - key: ENV
         value: production
