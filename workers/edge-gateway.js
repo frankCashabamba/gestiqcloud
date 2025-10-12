@@ -16,9 +16,9 @@
 
 export default {
   async fetch(request, env, ctx) {
-    const upstreamBase = (env.UPSTREAM_BASE || '').replace(/\/+$/g, '');
+    const upstreamBase = (env.TARGET || env.UPSTREAM_BASE || '').replace(/\/+$/g, '');
     if (!upstreamBase) {
-      return new Response('Gateway misconfigured: missing UPSTREAM_BASE', { status: 500 });
+      return new Response('Gateway misconfigured: missing TARGET/UPSTREAM_BASE', { status: 500 });
     }
 
     const url = new URL(request.url);
@@ -51,6 +51,19 @@ export default {
     // Preflight
     if (isPreflight) {
       return preflightResponse(origin, allowed, request);
+    }
+
+    // Allow-list por path (/api/*) y bloqueo cruzado opcional
+    const path = url.pathname;
+    const host = url.hostname;
+    if (!path.startsWith('/api/')) {
+      return new Response('Not found', { status: 404 });
+    }
+    if (host === 'admin.gestiqcloud.com' && path.startsWith('/api/v1/tenant/')) {
+      return new Response('Forbidden', { status: 403 });
+    }
+    if (host === 'www.gestiqcloud.com' && path.startsWith('/api/v1/admin/')) {
+      return new Response('Forbidden', { status: 403 });
     }
 
     // Proxy a upstream (preserva path+query)
