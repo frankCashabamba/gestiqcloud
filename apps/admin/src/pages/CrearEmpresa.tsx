@@ -32,6 +32,18 @@ export const CrearEmpresa: React.FC = () => {
   const [localError, setLocalError] = useState<string | null>(null)
   const { crear, loading, error, success, fieldErrors, needSecondSurname } = useCrearEmpresa()
 
+  // Habilitar el submit solo cuando los campos mínimos estén completos
+  const canSubmit = React.useMemo(() => {
+    const nonEmpty = (v?: string) => (v || '').trim().length > 0
+    const emailOk = /.+@.+\..+/.test((formData.email || '').trim())
+    return (
+      nonEmpty(formData.nombre_empresa) &&
+      nonEmpty(formData.nombre_encargado) &&
+      nonEmpty(formData.apellido_encargado) &&
+      emailOk
+    )
+  }, [formData.nombre_empresa, formData.nombre_encargado, formData.apellido_encargado, formData.email])
+
   // Autogenerar username visual (no editable) nombre.apellido
   useEffect(() => {
     const nombre = (formData.nombre_encargado || '').trim().toLowerCase()
@@ -267,9 +279,9 @@ export const CrearEmpresa: React.FC = () => {
           <div className="sticky bottom-0 left-0 right-0 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-t border-slate-200 px-4 py-4 mt-6 flex items-center justify-between gap-4">
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !canSubmit}
               className={`inline-flex items-center justify-center rounded-xl px-6 py-3 font-semibold text-white shadow-sm transition ${
-                loading ? 'bg-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
+                loading || !canSubmit ? 'bg-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
               }`}
             >
               {loading && (
@@ -280,6 +292,12 @@ export const CrearEmpresa: React.FC = () => {
               )}
               {loading ? 'Guardando…' : 'Crear empresa y usuario'}
             </button>
+
+            {!canSubmit && (
+              <div className="text-xs text-slate-600">
+                Completa: nombre de empresa, nombre y apellido del administrador y correo válido.
+              </div>
+            )}
 
             <a href="/admin/empresas" className="text-sm font-medium text-indigo-600 hover:underline">Volver al listado de empresas</a>
           </div>
