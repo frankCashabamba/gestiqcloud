@@ -203,6 +203,13 @@ def usuario_empresa_factory(db):
                 existing.password_hash = hasher.hash(password)
             existing.es_admin_empresa = es_admin_empresa
             existing.activo = True
+            # Ensure tenant_id present for SQLite (no server DEFAULT/GUC)
+            try:
+                import uuid as _uuid
+                if getattr(existing, "tenant_id", None) in (None, ""):
+                    existing.tenant_id = _uuid.uuid4()
+            except Exception:
+                pass
 
             db.commit()
             db.refresh(existing)
@@ -225,6 +232,13 @@ def usuario_empresa_factory(db):
             password_hash=hasher.hash(password),
             activo=True,
         )
+        # Ensure tenant_id for SQLite tests
+        try:
+            import uuid as _uuid
+            if getattr(usuario, "tenant_id", None) in (None, ""):
+                usuario.tenant_id = _uuid.uuid4()
+        except Exception:
+            pass
         db.add(usuario)
         db.commit()
         db.refresh(usuario)

@@ -54,7 +54,8 @@ class UsuarioEmpresa(Base):
     is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
 
     # Multi-tenant (ajusta a tu tipo real: UUID si tus tenants son UUID; si no, String)
-    tenant_id: Mapped[UUID | None] = mapped_column(UUID(as_uuid=True), index=True, nullable=True)# pylint: ignore
+    # Keep ORM nullable for test (SQLite) friendliness; DB enforces NOT NULL via migrations on Postgres
+    tenant_id: Mapped[UUID | None] = mapped_column(UUID(as_uuid=True), index=True, nullable=True)  # pylint: ignore
 
     # Auditoría de acceso / seguridad
     failed_login_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
