@@ -53,21 +53,46 @@ export default {
       return preflightResponse(origin, allowed, request);
     }
 
-    // Allow-list por path (/api/*) y bloqueo cruzado opcional
+    // Allow-list por path y reescrituras según host
     const path = url.pathname;
     const host = url.hostname;
-    if (!path.startsWith('/api/')) {
-      return new Response('Not found', { status: 404 });
+
+    // Soporte limpio en api.gestiqcloud.com: acepta /v1/* y /health sin prefijo /api
+    let forwardPath = path;
+    if (host === 'api.gestiqcloud.com') {
+      if (path === '/health') {
+        return withCors(new Response('ok', { status: 200 }), origin, allowed);
+      }
+      if (path.startsWith('/v1/')) {
+        forwardPath = '/api' + path; // reescribe a upstream /api/v1/*
+      } else if (!path.startsWith('/api/')) {
+        return new Response('Not found', { status: 404 });
+      }
+    } else if (host === 'admin.gestiqcloud.com' || host === 'www.gestiqcloud.com') {
+      // Acepta /v1/* para admin/www y reescribe a /api/v1/*
+      if (path.startsWith('/v1/')) {
+        forwardPath = '/api' + path;
+      } else if (path.startsWith('/api/')) {
+        forwardPath = path;
+      } else {
+        return new Response('Not found', { status: 404 });
+      }
+    } else {
+      // Otros hosts: exigir prefijo /api/
+      if (!path.startsWith('/api/')) {
+        return new Response('Not found', { status: 404 });
+      }
     }
-    if (host === 'admin.gestiqcloud.com' && path.startsWith('/api/v1/tenant/')) {
+
+    if (host === 'admin.gestiqcloud.com' && forwardPath.startsWith('/api/v1/tenant/')) {
       return new Response('Forbidden', { status: 403 });
     }
-    if (host === 'www.gestiqcloud.com' && path.startsWith('/api/v1/admin/')) {
+    if (host === 'www.gestiqcloud.com' && forwardPath.startsWith('/api/v1/admin/')) {
       return new Response('Forbidden', { status: 403 });
     }
 
     // Proxy a upstream (preserva path+query)
-    const upstreamURL = upstreamBase + url.pathname + url.search;
+    const upstreamURL = upstreamBase + forwardPath + url.search;
 
     // Clonar request y ajustar hop-by-hop
     const init = {
