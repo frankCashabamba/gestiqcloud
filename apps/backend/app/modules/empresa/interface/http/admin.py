@@ -9,6 +9,7 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.config.database import get_db
 from app.modules.empresa.application.use_cases import ListarEmpresasAdmin, crear_usuario_admin
+from app.db.rls import set_tenant_guc
 from app.modules.empresa.infrastructure.repositories import SqlEmpresaRepo
 from app.modules.empresa.interface.http.schemas import EmpresaInSchema, EmpresaOutSchema
 from app.models.empresa.empresa import Empresa
@@ -225,25 +226,7 @@ async def crear_empresa_completa_json(
             dest.write_bytes(raw)
             repo.update(empresa_id, {"logo": f"/uploads/logos/{fname}"})
 
-        # Usuario admin (contraseña opcional)
-        import secrets
-        tmp_password = payload.admin.password or secrets.token_urlsafe(24)
-        user = crear_usuario_admin(
-            db,
-            empresa_id=empresa_id,
-            nombre_encargado=payload.admin.nombre_encargado,
-            apellido_encargado=payload.admin.apellido_encargado,
-            email=email_clean,
-            username=username_clean,
-            password=tmp_password,
-        )
-
-        # Módulos
-        for modulo_id in payload.modulos or []:
-            m_in = mod_schemas.EmpresaModuloCreate(modulo_id=modulo_id)
-            mod_services.asignar_modulo_a_empresa_si_no_existe(db, empresa_id, m_in)
-
-        # Auto-asignación de tenant + plantilla por defecto (key configurable por env; por defecto 'bazar')
+        # Auto-asignación de tenant + plantilla y fijar contexto RLS ANTES de crear usuario
         try:
             # Asegura fila en tenants (empresa_id único)
             db.execute(
@@ -254,6 +237,9 @@ async def crear_empresa_completa_json(
             )
             # Obtiene tenant_id UUID
             tid = db.execute(text("SELECT id::text FROM tenants WHERE empresa_id=:eid"), {"eid": empresa_id}).scalar()
+            if tid:
+                # Fija GUC en esta sesión/transacción para que DEFAULTs/Policies apliquen
+                set_tenant_guc(db, tid, persist=False)
             # Clave de paquete por env
             tpl_key = os.getenv("DEFAULT_TENANT_TEMPLATE_KEY", "bazar").strip() or "bazar"
             ver = db.execute(
@@ -273,7 +259,32 @@ async def crear_empresa_completa_json(
                 )
         except Exception:
             # No interrumpir la creación si falla auto-asignación
+            tid = None
             pass
+
+        # Usuario admin (contraseña opcional) — requiere tenant GUC activo o asignación explícita
+        import secrets
+        tmp_password = payload.admin.password or secrets.token_urlsafe(24)
+        user = crear_usuario_admin(
+            db,
+            empresa_id=empresa_id,
+            nombre_encargado=payload.admin.nombre_encargado,
+            apellido_encargado=payload.admin.apellido_encargado,
+            email=email_clean,
+            username=username_clean,
+            password=tmp_password,
+        )
+        # En caso de que el ORM vaya a enviar tenant_id NULL, fuerza el valor correcto
+        try:
+            if tid and getattr(user, "tenant_id", None) in (None, ""):
+                user.tenant_id = tid
+        except Exception:
+            pass
+
+        # Módulos
+        for modulo_id in payload.modulos or []:
+            m_in = mod_schemas.EmpresaModuloCreate(modulo_id=modulo_id)
+            mod_services.asignar_modulo_a_empresa_si_no_existe(db, empresa_id, m_in)
 
         db.commit()
     except HTTPException:

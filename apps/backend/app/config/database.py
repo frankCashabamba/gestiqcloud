@@ -98,6 +98,11 @@ def get_db(request: Request) -> Iterator[Session]:
                         pass
                 db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": tid})
                 db.execute(text("SET LOCAL app.user_id = :uid"), {"uid": uid})
+                # Expose resolved tenant to ORM hooks/utilities on this Session
+                try:
+                    db.info["tenant_id"] = tid
+                except Exception:
+                    pass
         except Exception:
             # Do not break request if setting GUCs fails
             pass
