@@ -13,6 +13,7 @@ from itsdangerous import Signer, BadSignature
 import secrets
 import time
 import json
+import logging
 
 
 @dataclass
@@ -101,6 +102,7 @@ class SessionMiddlewareServerSide(BaseHTTPMiddleware):
         ttl_seconds: int = 60 * 60 * 4,
         store: Optional[SessionStore] = None,
         cookie_domain: Optional[str] = None,
+        fallback_window_seconds: int = 30,
     ):
         super().__init__(app)
         self.signer = Signer(secret_key)
@@ -132,38 +134,75 @@ class SessionMiddlewareServerSide(BaseHTTPMiddleware):
         )
         # Build store (prefer Redis when REDIS_URL present)
         if store is not None:
-            self.store = store
+            primary_store: SessionStore = store
         else:
             try:
                 from app.config.settings import settings
 
                 redis_url = getattr(settings, "REDIS_URL", None)
                 if redis_url:
-                    self.store = RedisSessionStore(redis_url)
+                    primary_store = RedisSessionStore(redis_url)
                 else:
-                    self.store = InMemorySessionStore()
+                    primary_store = InMemorySessionStore()
             except Exception:
-                self.store = InMemorySessionStore()
+                primary_store = InMemorySessionStore()
+
+        self._primary_store: SessionStore = primary_store
+        self._fallback_store: SessionStore = InMemorySessionStore()
+        self._fallback_window_seconds = max(1, int(fallback_window_seconds))
+        self._fallback_until = 0.0
+        self._logger = logging.getLogger("app.sessions")
+
+        # For backward compatibility with any external references
+        self.store = self._primary_store
 
     async def dispatch(self, request: Request, call_next):
         raw = request.cookies.get(self.cfg.cookie_name)
         sid = None
         session: Dict[str, Any] = {}
+        store_for_read = self._fallback_store if self._using_fallback() else self._primary_store
         if raw:
             try:
                 sid = self.signer.unsign(raw.encode()).decode()
-                session = await self.store.get(sid)
             except BadSignature:
-                pass
+                sid = None
+            else:
+                try:
+                    session = await store_for_read.get(sid)
+                except Exception as exc:  # pragma: no cover - depends on store backend
+                    self._handle_store_error("get", exc)
+                    if store_for_read is not self._fallback_store:
+                        try:
+                            session = await self._fallback_store.get(sid)
+                        except Exception:  # pragma: no cover - fallback should not fail
+                            session = {}
+                            sid = None
+                        else:
+                            if session:
+                                # Keep using fallback for a bit if we recovered data
+                                self._activate_fallback()
+                            else:
+                                sid = None
+                                session = {}
+                    else:
+                        sid = None
+                        session = {}
 
         request.state.session = session
         response: Response = await call_next(request)
 
         # Persist session if it's dirty or a known sid with content
         if getattr(request.state, "session_dirty", False) or (sid and request.state.session):
+            data = dict(request.state.session)
             if not sid:
                 sid = secrets.token_urlsafe(32)
-            await self.store.set(sid, dict(request.state.session), self.cfg.ttl_seconds)
+            store_for_write = self._fallback_store if self._using_fallback() else self._primary_store
+            try:
+                await store_for_write.set(sid, data, self.cfg.ttl_seconds)
+            except Exception as exc:  # pragma: no cover - depends on store backend
+                self._handle_store_error("set", exc)
+                store_for_write = self._fallback_store
+                await store_for_write.set(sid, data, self.cfg.ttl_seconds)
             signed = self.signer.sign(sid.encode()).decode()
             response.set_cookie(
                 key=self.cfg.cookie_name,
@@ -175,3 +214,17 @@ class SessionMiddlewareServerSide(BaseHTTPMiddleware):
                 domain=self.cfg.cookie_domain,
             )
         return response
+
+    def _using_fallback(self) -> bool:
+        return time.time() < self._fallback_until
+
+    def _activate_fallback(self) -> None:
+        self._fallback_until = time.time() + self._fallback_window_seconds
+
+    def _handle_store_error(self, action: str, exc: Exception) -> None:
+        msg = f"Session store {action} failed; falling back to in-memory"
+        try:
+            self._logger.warning("%s: %s", msg, exc)
+        except Exception:  # pragma: no cover - logging shouldn't break request flow
+            pass
+        self._activate_fallback()
