@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 import logging
+import os
 
 import sys
 import types
@@ -199,10 +200,8 @@ except Exception:
     pass
 
 # --- Runner de imports con gateos ---------------------------------------------
-try:
-    from app.modules.imports.application.job_runner import job_runner as _imports_job_runner
-except Exception:  # pragma: no cover - optional during tests
-    _imports_job_runner = None
+# Evita importar el runner en import-time para no bloquear el arranque.
+_imports_job_runner = None  # se resolverá en runtime dentro del lifespan
 
 # Gate del runner: sÃ³lo arranca si IMPORTS_ENABLED=1 y existen tablas
 import os
@@ -244,10 +243,30 @@ from contextlib import asynccontextmanager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # startup
-    if _imports_job_runner and _imports_enabled() and _imports_tables_ready():
-        _imports_job_runner.start()
-    else:
-        logging.getLogger("app.startup").info("Imports runner omitido (deshabilitado o sin tablas).")
+    global _imports_job_runner
+    try:
+        if _imports_job_runner is None and _imports_enabled() and _imports_tables_ready():
+            try:
+                from app.modules.imports.application.job_runner import (
+                    job_runner as _jr,
+                )
+            except Exception:
+                _jr = None
+            if _jr is not None:
+                _jr.start()
+                _imports_job_runner = _jr
+            else:
+                logging.getLogger("app.startup").info(
+                    "Imports runner no disponible (import fallido)."
+                )
+        else:
+            logging.getLogger("app.startup").info(
+                "Imports runner omitido (deshabilitado o sin tablas)."
+            )
+    except Exception:
+        logging.getLogger("app.startup").exception(
+            "Fallo iniciando imports runner; continuando sin él."
+        )
     yield
     # shutdown
     if _imports_job_runner:

@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session
 
 from app.config.database import session_scope
 from app.models.core.modelsimport import ImportOCRJob
-from app.modules.imports import services
 
 _LOGGER = logging.getLogger("imports.ocr_jobs")
 
@@ -120,6 +119,8 @@ class OCRJobRunner:
 
     def _process_job(self, job_id: UUID, filename: str, payload: bytes) -> None:
         try:
+            # Import lazily to avoid heavy OCR libs at process startup
+            from app.modules.imports import services
             documentos = services.procesar_documento(payload, filename)
             result = {"archivo": filename, "documentos": _serialize_documentos(documentos)}
             self._update_job(job_id, status="done", result=result, error=None)
