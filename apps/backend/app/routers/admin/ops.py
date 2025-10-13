@@ -6,8 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pathlib import Path
 import subprocess
 from app.core.authz import require_scope
+from app.core.access_guard import with_access_claims
 
-router = APIRouter(dependencies=[Depends(require_scope("admin"))])
+router = APIRouter(dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))])
 
 
 @router.post("/ops/migrate")

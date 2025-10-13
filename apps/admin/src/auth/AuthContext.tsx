@@ -1,6 +1,7 @@
 ﻿// AuthContext.tsx
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { createSharedClient } from '@shared'
+import { registerAuthHandlers } from '../lib/http'
 import { env } from '../env'
 
 const api = createSharedClient({
@@ -134,6 +135,19 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     () => ({ token, loading, profile, login, logout, brand: 'Admin', refresh }),
     [token, loading, profile, logout, refresh] as any
   )
+
+  // Bridge tokens into legacy apiFetch helper used by some services (ops.ts)
+  useEffect(() => {
+    registerAuthHandlers({
+      getToken: () => (typeof window !== 'undefined' ? sessionStorage.getItem('access_token_admin') : null),
+      setToken: (t) => {
+        if (typeof window === 'undefined') return
+        if (t) sessionStorage.setItem('access_token_admin', t)
+        else sessionStorage.removeItem('access_token_admin')
+      },
+      refresh: refreshOnce,
+    })
+  }, [])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
