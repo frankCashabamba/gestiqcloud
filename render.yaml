@@ -54,7 +54,9 @@
       - key: TENANT_NAMESPACE_UUID
         value: 0280249e-6707-40fb-8d60-1e8f3aea0f8e
       - key: IMPORTS_ENABLED
-        value: "1"
+        value: "0"
+      - key: IMPORTS_EASYOCR_WARM_ON_START
+        value: "0"
 
       - key: EMAIL_HOST
         sync: false

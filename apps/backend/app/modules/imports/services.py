@@ -43,8 +43,8 @@ _easyocr_reader: Optional[object] = None
 
 
 
-try:  # eager warm-up to avoid first-request latency due to model download
-    if bool(getattr(settings, "IMPORTS_EASYOCR_WARM_ON_START", True)):
+try:  # eager warm-up (desactivado por defecto en prod)
+    if bool(getattr(settings, "IMPORTS_EASYOCR_WARM_ON_START", False)):
         _get_easyocr_reader()
 except Exception:
     # best-effort; on failure the reader will be lazily retried later
