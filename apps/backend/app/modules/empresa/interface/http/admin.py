@@ -242,40 +242,46 @@ async def crear_empresa_completa_json(
             repo.update(empresa_id, {"logo": f"/uploads/logos/{fname}"})
 
         # Auto-asignación de tenant + plantilla y fijar contexto RLS ANTES de crear usuario
+        # Usa un SAVEPOINT para que un fallo NO aborte la transacción exterior
         try:
-            # Asegura fila en tenants (empresa_id único)
-            db.execute(
-                text(
-                    "INSERT INTO tenants(empresa_id, slug) VALUES (:eid, :slug) ON CONFLICT (empresa_id) DO NOTHING"
-                ),
-                {"eid": empresa_id, "slug": empresa_data.get("slug")},
-            )
-            # Obtiene tenant_id UUID
-            tid = db.execute(text("SELECT id::text FROM tenants WHERE empresa_id=:eid"), {"eid": empresa_id}).scalar()
-            if tid:
-                # Fija GUC en esta sesión/transacción para que DEFAULTs/Policies apliquen
-                set_tenant_guc(db, tid, persist=False)
-            # Clave de paquete por env
-            tpl_key = os.getenv("DEFAULT_TENANT_TEMPLATE_KEY", "bazar").strip() or "bazar"
-            ver = db.execute(
-                text("SELECT version FROM template_packages WHERE template_key=:k ORDER BY version DESC LIMIT 1"),
-                {"k": tpl_key},
-            ).scalar()
-            if tid and ver:
+            with db.begin_nested():
+                # Asegura fila en tenants (empresa_id único)
                 db.execute(
                     text(
-                        """
-                        INSERT INTO tenant_templates(tenant_id, template_key, version, active)
-                        VALUES (CAST(:tid AS uuid), :k, :ver, true)
-                        ON CONFLICT (tenant_id, template_key) DO UPDATE SET version=EXCLUDED.version, active=true
-                        """
+                        "INSERT INTO tenants(empresa_id, slug) VALUES (:eid, :slug) ON CONFLICT (empresa_id) DO NOTHING"
                     ),
-                    {"tid": tid, "k": tpl_key, "ver": int(ver)},
+                    {"eid": empresa_id, "slug": empresa_data.get("slug")},
                 )
+                # Obtiene tenant_id UUID
+                tid = db.execute(
+                    text("SELECT id::text FROM tenants WHERE empresa_id=:eid"), {"eid": empresa_id}
+                ).scalar()
+                if tid:
+                    # Fija GUC en esta sesión/transacción para que DEFAULTs/Policies apliquen
+                    set_tenant_guc(db, tid, persist=False)
+                # Clave de paquete por env
+                tpl_key = os.getenv("DEFAULT_TENANT_TEMPLATE_KEY", "bazar").strip() or "bazar"
+                ver = db.execute(
+                    text(
+                        "SELECT version FROM template_packages WHERE template_key=:k ORDER BY version DESC LIMIT 1"
+                    ),
+                    {"k": tpl_key},
+                ).scalar()
+                if tid and ver:
+                    db.execute(
+                        text(
+                            """
+                            INSERT INTO tenant_templates(tenant_id, template_key, version, active)
+                            VALUES (CAST(:tid AS uuid), :k, :ver, true)
+                            ON CONFLICT (tenant_id, template_key) DO UPDATE SET version=EXCLUDED.version, active=true
+                            """
+                        ),
+                        {"tid": tid, "k": tpl_key, "ver": int(ver)},
+                    )
         except Exception:
-            # No interrumpir la creación si falla auto-asignación
+            # No interrumpir la creación si falla auto-asignación; el SAVEPOINT ya fue revertido
             tid = None
-            pass
+            logger.warning("Auto-asignación tenant/template fallida; continuando", exc_info=True)
 
         # Usuario admin (contraseña opcional) — requiere tenant GUC activo o asignación explícita
         import secrets
