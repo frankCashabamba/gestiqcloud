@@ -116,8 +116,10 @@ if (tokenToUse && !h.has('Authorization')) {
   // CSRF (para métodos no seguros, excepto exentos)
   if (needsCsrf(path, method)) {
     const csrf = getCookie("csrf_token") || getCookie("csrftoken") || getCookie("XSRF-TOKEN");
-    if (csrf && !h.has("X-CSRFToken") && !h.has("X-CSRF-Token") && !h.has("X-XSRF-TOKEN")) {
-      h.set("X-CSRFToken", csrf); // ajusta al header que tu backend espere
+    if (csrf && !h.has("X-CSRF-Token") && !h.has("X-CSRF") && !h.has("X-XSRF-TOKEN")) {
+      // Backend middleware acepta X-CSRF-Token o X-CSRF
+      h.set("X-CSRF-Token", csrf);
+      h.set("X-CSRF", csrf);
     }
   }
 

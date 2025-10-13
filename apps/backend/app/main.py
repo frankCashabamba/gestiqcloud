@@ -96,6 +96,11 @@ def healthz():
 def healthz_head():
     return Response(status_code=200)
 
+# Soporta health por HEAD (algunos checkers usan HEAD en vez de GET)
+@app.head("/health", include_in_schema=False)
+def health_head():
+    return Response(status_code=200)
+
 # RaÃ­z con 200 para evitar 404 en navegadores/monitores
 @app.get("/", include_in_schema=False)
 def root():
