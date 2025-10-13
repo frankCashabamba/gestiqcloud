@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import TimeoutError as SATimeoutError
 
 from app.config.database import session_scope
 from app.models.core.modelsimport import ImportOCRJob
@@ -111,6 +112,10 @@ class OCRJobRunner:
                     self._stop_event.wait(self._poll_interval)
                     continue
                 self._process_job(job_id, filename, payload)
+            except SATimeoutError:
+                # Pool exhausted or DB under pressure; back off briefly
+                _LOGGER.warning("DB pool timeout while polling jobs; backing off")
+                self._stop_event.wait(max(self._poll_interval * 2, 2.0))
             except Exception:
                 _LOGGER.exception("Unexpected error in OCR job runner loop")
                 self._stop_event.wait(self._poll_interval)

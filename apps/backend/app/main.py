@@ -231,7 +231,8 @@ _REQUIRED_IMPORTS_TABLES = [
 ]
 
 def _imports_enabled() -> bool:
-    return str(os.getenv("IMPORTS_ENABLED", "1")).lower() in ("1", "true")
+    # Default to disabled unless explicitly enabled via env
+    return str(os.getenv("IMPORTS_ENABLED", "0")).lower() in ("1", "true")
 
 def _imports_tables_ready() -> bool:
     if engine is None:
