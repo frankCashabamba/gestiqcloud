@@ -42,7 +42,7 @@ function LayoutRoute() {
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/admin" replace />} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
 
       <Route element={<ProtectedRoute />}>
         <Route path="/admin" element={<LayoutRoute />}>
@@ -62,7 +62,7 @@ export default function App() {
 
       <Route path="/login" element={<Login />} />
       <Route path="/error" element={<ErrorPage />} />
-      <Route path="*" element={<Navigate to="/admin" replace />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   )
 }

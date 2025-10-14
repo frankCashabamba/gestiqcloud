@@ -11,11 +11,19 @@ export default function Migraciones() {
     setMsg(null)
     try {
       const res = await runMigrations()
-      setMsg(res?.ok ? 'Migraciones disparadas correctamente' : 'No se pudo disparar el job')
+      if (res?.ok && res?.started === false && res?.message === 'sin_migraciones_pendientes') {
+        setMsg('Sin migraciones pendientes')
+      } else {
+        setMsg(res?.ok ? 'Migraciones disparadas correctamente' : 'No se pudo disparar el job')
+      }
       // empieza a refrescar estado si inline
       try { const s = await getMigrationStatus(); setState(s) } catch {}
     } catch (e: any) {
-      setMsg(`Error al ejecutar migraciones: ${e?.message || 'desconocido'}`)
+      if (e?.status === 409) {
+        setMsg('Ya hay una migracion en curso')
+      } else {
+        setMsg(`Error al ejecutar migraciones: ${e?.message || 'desconocido'}`)
+      }
     } finally {
       setLoading(false)
     }
@@ -43,7 +51,7 @@ export default function Migraciones() {
       <h2 className="text-lg font-semibold mb-3">Migraciones de base de datos</h2>
       <p className="text-sm text-slate-600 mb-4">Este botón solicita al backend que dispare el Job de Render configurado (RENDER_MIGRATE_JOB_ID). Úsalo tras cambios de esquema.</p>
       <button
-        disabled={loading}
+        disabled={loading || (state?.running ?? false)}
         onClick={onRun}
         className={`inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm ${loading ? 'bg-slate-400' : 'bg-indigo-600 hover:bg-indigo-700'}`}
       >
