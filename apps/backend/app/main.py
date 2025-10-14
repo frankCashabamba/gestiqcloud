@@ -273,10 +273,14 @@ def _imports_tables_ready() -> bool:
 
 # Lifespan moderno: reemplaza on_event startup/shutdown
 from contextlib import asynccontextmanager
+import asyncio
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # startup
+    # startup: do not start heavy background runners before binding the port
+    # Defer runner start until after yield to let Uvicorn bind quickly
+    start_after_bind = False
+    runner_to_start = None
     global _imports_job_runner
     try:
         if _imports_job_runner is None and _imports_enabled() and _imports_tables_ready():
@@ -284,12 +288,9 @@ async def lifespan(app: FastAPI):
                 from app.modules.imports.application.job_runner import (
                     job_runner as _jr,
                 )
+                runner_to_start = _jr
+                start_after_bind = True
             except Exception:
-                _jr = None
-            if _jr is not None:
-                _jr.start()
-                _imports_job_runner = _jr
-            else:
                 logging.getLogger("app.startup").info(
                     "Imports runner no disponible (import fallido)."
                 )
@@ -299,9 +300,25 @@ async def lifespan(app: FastAPI):
             )
     except Exception:
         logging.getLogger("app.startup").exception(
-            "Fallo iniciando imports runner; continuando sin él."
+            "Fallo preparando imports runner; continuando sin él."
         )
+    # Let the server finish startup (bind port) before starting background tasks
     yield
+    if start_after_bind and runner_to_start is not None:
+        try:
+            def _start_runner():
+                try:
+                    runner_to_start.start()
+                finally:
+                    # remember the instance so we can stop it on shutdown
+                    globals()["_imports_job_runner"] = runner_to_start
+            # schedule in a thread to avoid blocking the event loop
+            loop = asyncio.get_event_loop()
+            loop.run_in_executor(None, _start_runner)
+        except Exception:
+            logging.getLogger("app.startup").exception(
+                "Fallo arrancando imports runner post-bind"
+            )
     # shutdown
     if _imports_job_runner:
         try:
