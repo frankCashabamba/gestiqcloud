@@ -79,21 +79,26 @@ export default {
       }
       if (path.startsWith('/v1/')) {
         forwardPath = '/api' + path; // reescribe a upstream /api/v1/*
-      } else if (!path.startsWith('/api/')) {
+      } else {
+        // Bloquear /api/* público en el edge; sólo exponer /v1/* y health/ready
         return new Response('Not found', { status: 404 });
       }
     } else if (host === 'admin.gestiqcloud.com' || host === 'www.gestiqcloud.com') {
-      // Acepta /v1/* para admin/www y reescribe a /api/v1/*
+      // Acepta sólo /v1/* para admin/www y reescribe a /api/v1/* (bloquea /api/*)
       if (path.startsWith('/v1/')) {
         forwardPath = '/api' + path;
-      } else if (path.startsWith('/api/')) {
-        forwardPath = path;
+      } else if (path === '/health' || path === '/ready') {
+        return withCors(new Response('ok', { status: 200 }), origin, allowed);
       } else {
         return new Response('Not found', { status: 404 });
       }
     } else {
-      // Otros hosts: exigir prefijo /api/
-      if (!path.startsWith('/api/')) {
+      // Otros hosts: exponer sólo /v1/* (bloquea /api/*)
+      if (path.startsWith('/v1/')) {
+        forwardPath = '/api' + path;
+      } else if (path === '/health' || path === '/ready') {
+        return withCors(new Response('ok', { status: 200 }), origin, allowed);
+      } else {
         return new Response('Not found', { status: 404 });
       }
     }

@@ -13,8 +13,13 @@
     # Autodeploy solo si cambia backend (o lo que añadas aquí)
     buildFilter:
       paths:
+        # Backend app code
         - apps/backend/**
-        # - packages/shared/**   # <-- añade libs compartidas si aplican
+        # Shared libs used by backend (HTTP client/contracts, etc.)
+        - apps/packages/http-core/**
+        # SQL and migration scripts that affect runtime behavior
+        - ops/migrations/**
+        - scripts/**
       ignoredPaths:
         - '**/*.md'
         - .github/**
@@ -126,7 +131,11 @@
         destination: /index.html
     buildFilter:
       paths:
+        # Tenant SPA
         - apps/tenant/**
+        # Shared UI/components and HTTP client consumed by tenant
+        - apps/packages/ui/**
+        - apps/packages/http-core/**
       ignoredPaths:
         - '**/*.md'
         - .github/**
@@ -162,7 +171,11 @@
         destination: /index.html
     buildFilter:
       paths:
+        # Admin SPA
         - apps/admin/**
+        # Shared UI/components and HTTP client consumed by admin
+        - apps/packages/ui/**
+        - apps/packages/http-core/**
       ignoredPaths:
         - '**/*.md'
         - .github/**
@@ -190,6 +203,9 @@
     buildFilter:
       paths:
         - apps/backend/**
+        - ops/migrations/**
+        - scripts/**
+        - apps/packages/http-core/**
       ignoredPaths:
         - '**/*.md'
         - .github/**
@@ -223,6 +239,9 @@
     buildFilter:
       paths:
         - apps/backend/**
+        - ops/migrations/**
+        - scripts/**
+        - apps/packages/http-core/**
       ignoredPaths:
         - '**/*.md'
         - .github/**
