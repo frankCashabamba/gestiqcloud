@@ -1,34 +1,23 @@
 """Resilient OCR pipeline and document extraction services for Imports.
 
-- Lazy-load OCR backends to avoid heavy init at import time.
+- Fully lazy-load OCR backends to avoid heavy init at import time.
 - Graceful degradation if libraries are missing.
 - Normalization helpers to keep downstream consistent.
 """
 
+import importlib
 import re
 import tempfile
 from pathlib import Path
 from typing import Callable, List, Optional
 
-try:  # optional deps
-    import fitz  # type: ignore  # PyMuPDF
-except Exception:  # pragma: no cover
-    fitz = None  # type: ignore
+fitz = None  # type: ignore
 
-try:  # optional deps
-    import easyocr  # type: ignore
-except Exception:  # pragma: no cover
-    easyocr = None  # type: ignore
+easyocr = None  # type: ignore
 
-try:  # optional deps
-    from PIL import Image  # type: ignore
-except Exception:  # pragma: no cover
-    Image = None  # type: ignore
+Image = None  # type: ignore
 
-try:  # optional deps
-    import pytesseract  # type: ignore
-except Exception:  # pragma: no cover
-    pytesseract = None  # type: ignore
+pytesseract = None  # type: ignore
 
 from app.modules.imports.schemas import DocumentoProcesado
 from app.config.settings import settings
@@ -57,7 +46,10 @@ def _get_easyocr_reader() -> Optional[object]:
     # flag por configuración
     if not bool(getattr(settings, "IMPORTS_EASYOCR_ENABLED", True)):
         return None
-    if easyocr is None:  # lib not installed
+    try:
+        if easyocr is None:
+            easyocr = importlib.import_module("easyocr")  # type: ignore
+    except Exception:
         return None
     try:
         langs = getattr(settings, "IMPORTS_OCR_LANGS", ["es", "en"]) or ["es", "en"]
@@ -83,6 +75,14 @@ def extraer_texto_ocr_hibrido_paginas(file_bytes: bytes) -> List[str]:
     """
     paginas: List[str] = []
 
+    # Lazy import fitz (PyMuPDF) to avoid heavy import at startup
+    if fitz is None:
+        try:
+            fitz_mod = importlib.import_module("fitz")  # type: ignore
+            globals()["fitz"] = fitz_mod
+        except Exception:
+            pass
+
     if fitz is None:  # no PDF rasterizer available
         return paginas  # devolver vacío; el caller manejará fallback
 
@@ -101,17 +101,20 @@ def extraer_texto_ocr_hibrido_paginas(file_bytes: bytes) -> List[str]:
                 continue
 
             text_page = ""
-            # 1) Tesseract (configurable)
-            if (
-                Image is not None
-                and pytesseract is not None
-                and bool(getattr(settings, "IMPORTS_TESSERACT_ENABLED", True))
-            ):
+            # 1) Tesseract (configurable) with lazy import
+            if bool(getattr(settings, "IMPORTS_TESSERACT_ENABLED", True)):
                 try:
-                    image = Image.open(img_path)
-                    text_page = pytesseract.image_to_string(image, lang="eng") or ""
+                    _Image = importlib.import_module("PIL.Image")  # type: ignore
+                    _pytesseract = importlib.import_module("pytesseract")  # type: ignore
                 except Exception:
-                    text_page = ""
+                    _Image = None  # type: ignore
+                    _pytesseract = None  # type: ignore
+                if _Image is not None and _pytesseract is not None:
+                    try:
+                        image = _Image.open(img_path)  # type: ignore[attr-defined]
+                        text_page = _pytesseract.image_to_string(image, lang="eng") or ""  # type: ignore[attr-defined]
+                    except Exception:
+                        text_page = ""
 
             # 2) EasyOCR fallback
             if not text_page and _get_easyocr_reader() is not None:
