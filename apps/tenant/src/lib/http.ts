@@ -50,17 +50,18 @@ export async function apiFetch<T = unknown>(
   const method = (init.method ?? 'GET').toUpperCase();
 
   const h = new Headers(headers || {});
-  if (!h.has('Content-Type')) h.set('Content-Type', 'application/json');
+  // Accept siempre; Content-Type solo en métodos no seguros y cuando no es FormData
+  if (!h.has('Accept')) h.set('Accept', 'application/json');
+  const isFormData = typeof FormData !== 'undefined' && (init as any)?.body instanceof FormData;
+  if (method !== 'GET' && !isFormData && !h.has('Content-Type')) h.set('Content-Type', 'application/json');
   if (authToken) h.set('Authorization', `Bearer ${authToken}`);
 
   // CSRF: soporta varios nombres de cookie habituales
   if (needsCsrf(path, method)) {
-    const csrf =
-      getCookie('csrf_token') ||
-      getCookie('csrftoken') ||
-      getCookie('XSRF-TOKEN');
-    if (csrf && !h.has('X-CSRFToken') && !h.has('X-CSRF-Token') && !h.has('X-XSRF-TOKEN')) {
-      h.set('X-CSRFToken', csrf); // cambia a la cabecera que tu backend espere si es otra
+    const csrf = getCookie('csrf_token') || getCookie('csrftoken') || getCookie('XSRF-TOKEN');
+    if (csrf && !h.has('X-CSRF-Token') && !h.has('X-CSRF') && !h.has('X-XSRF-TOKEN')) {
+      h.set('X-CSRF-Token', csrf);
+      h.set('X-CSRF', csrf);
     }
   }
 

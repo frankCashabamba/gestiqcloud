@@ -72,6 +72,20 @@ def _run_inline_migrations() -> None:
 
 @router.post("/ops/migrate")
 def trigger_migrations(background_tasks: BackgroundTasks):
+    # Prevent concurrent runs
+    try:
+        if migration_state.get("running"):
+            raise HTTPException(status_code=409, detail="migration_in_progress")
+    except Exception:
+        pass
+    # Optional: short-circuit if there are no pending Alembic migrations
+    try:
+        pending, count, _ = _alembic_has_pending()
+        if not pending:
+            return {"ok": True, "mode": "noop", "started": False, "message": "sin_migraciones_pendientes", "pending_count": count}
+    except Exception:
+        # If the check fails, proceed to try migrations to avoid false negatives
+        pass
     """Trigger the Render migrate job if configured.
 
     Requires env vars:
@@ -118,3 +132,42 @@ def trigger_migrations(background_tasks: BackgroundTasks):
 @router.get("/ops/migrate/status")
 def migrate_status():
     return migration_state
+
+
+def _alembic_has_pending() -> tuple[bool, int, list[str]]:
+    """Return (pending, count, revisions[]) using Alembic APIs.
+
+    Falls back to considering pending=True on error to be safe.
+    """
+    try:
+        from alembic.config import Config
+        from alembic.script import ScriptDirectory
+        from alembic.runtime.migration import MigrationContext
+        from sqlalchemy import create_engine
+        from app.config.database import make_db_url
+
+        backend_dir = Path(__file__).resolve().parents[3]
+        cfg = Config(str(backend_dir / "alembic.ini"))
+        cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+
+        engine = create_engine(make_db_url(), future=True)
+        with engine.connect() as conn:
+            context = MigrationContext.configure(conn)
+            current = context.get_current_revision()
+
+        script = ScriptDirectory.from_config(cfg)
+        heads = set(script.get_heads())
+        if current in heads:
+            return (False, 0, [])
+
+        # Collect revisions between current and heads (best-effort)
+        revs: list[str] = []
+        for rev in script.walk_revisions(head="heads"):
+            # walk_revisions yields from heads backward; stop at current
+            if rev.revision == current:
+                break
+            revs.append(rev.revision)
+        revs = list(reversed(revs))
+        return (len(revs) > 0, len(revs), revs)
+    except Exception:
+        return (True, -1, [])

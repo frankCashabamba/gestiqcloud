@@ -87,6 +87,25 @@ app.middleware("http")(security_headers_middleware)
 def health():
     return {"status": "ok"}
 
+# Readiness: verifica dependencias clave (DB, etc.) y devuelve 503 si fallan
+@app.get("/ready", tags=["health"], include_in_schema=False)
+def ready():
+    ok = True
+    details = {}
+    try:
+        # DB ping (usa timeout configurado)
+        from app.config.database import ping as db_ping  # type: ignore
+        db_ok = bool(db_ping())
+        details["db"] = "ok" if db_ok else "fail"
+        ok = ok and db_ok
+    except Exception:
+        details["db"] = "error"
+        ok = False
+    if not ok:
+        from fastapi import Response as _Resp
+        return _Resp(content=b"{\"status\":\"fail\"}", media_type="application/json", status_code=503)
+    return {"status": "ok"}
+
 # Alias para el healthcheck de Render (si el YAML usa /healthz)
 @app.get("/healthz", include_in_schema=False)
 def healthz():
@@ -96,6 +115,15 @@ def healthz():
 def healthz_head():
     return Response(status_code=200)
 
+# Soporta health por HEAD (algunos checkers usan HEAD en vez de GET)
+@app.head("/health", include_in_schema=False)
+def health_head():
+    return Response(status_code=200)
+
+# Readiness HEAD
+@app.head("/ready", include_in_schema=False)
+def ready_head():
+    return Response(status_code=200)
 # Soporta health por HEAD (algunos checkers usan HEAD en vez de GET)
 @app.head("/health", include_in_schema=False)
 def health_head():

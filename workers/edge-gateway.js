@@ -74,7 +74,7 @@ export default {
           allowed
         );
       }
-      if (path === '/health') {
+      if (path === '/health' || path === '/ready') {
         return withCors(new Response('ok', { status: 200 }), origin, allowed);
       }
       if (path.startsWith('/v1/')) {

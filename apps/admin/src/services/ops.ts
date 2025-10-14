@@ -1,6 +1,6 @@
 import { apiFetch } from '../lib/http'
 
-export async function runMigrations(): Promise<{ ok: boolean; job_id?: string }>{
+export async function runMigrations(): Promise<{ ok: boolean; job_id?: string; started?: boolean; mode?: string; message?: string; pending_count?: number }>{
   // Backend mounts admin ops under /api/v1; Worker accepts /v1/*
   return apiFetch('/v1/admin/ops/migrate', { method: 'POST' })
 }

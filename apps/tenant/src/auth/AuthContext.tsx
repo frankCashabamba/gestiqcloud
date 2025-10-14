@@ -41,16 +41,24 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Single-flight refresh to avoid concurrent rotations
+  let inflightRefresh: Promise<string | null> | null = null
   async function refreshOnce(): Promise<string | null> {
-    try {
-      const data = await apiFetch<{ access_token?: string }>(
-        '/v1/tenant/auth/refresh',
-        { method: 'POST' } as any
-      )
-      return data?.access_token ?? null
-    } catch {
-      return null
-    }
+    if (inflightRefresh) return inflightRefresh
+    inflightRefresh = (async () => {
+      try {
+        const data = await apiFetch<{ access_token?: string }>(
+          '/v1/tenant/auth/refresh',
+          { method: 'POST' } as any
+        )
+        return data?.access_token ?? null
+      } catch {
+        return null
+      } finally {
+        inflightRefresh = null
+      }
+    })()
+    return inflightRefresh
   }
 
   async function loadMe(tok: string) {

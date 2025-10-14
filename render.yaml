@@ -8,7 +8,7 @@
     buildCommand: |
       pip install -U pip
       pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     # Autodeploy solo si cambia backend (o lo que añadas aquí)
     buildFilter:
@@ -44,12 +44,10 @@
       - key: ALLOWED_HOSTS
         value: '["api.gestiqcloud.com","*.onrender.com"]'
 
-      - key: COOKIE_DOMAIN
-        value: .gestiqcloud.com
       - key: COOKIE_SECURE
         value: "true"
       - key: COOKIE_SAMESITE
-        value: "none"
+        value: "lax"
 
       - key: TENANT_NAMESPACE_UUID
         value: 0280249e-6707-40fb-8d60-1e8f3aea0f8e
@@ -57,6 +55,14 @@
         value: "0"
       - key: IMPORTS_EASYOCR_WARM_ON_START
         value: "0"
+      - key: POOL_SIZE
+        value: "15"
+      - key: MAX_OVERFLOW
+        value: "15"
+      - key: POOL_TIMEOUT
+        value: "5"
+      - key: DB_STATEMENT_TIMEOUT_MS
+        value: "30000"
 
       - key: EMAIL_HOST
         sync: false
@@ -127,7 +133,7 @@
         - docs/**
     envVars:
       - key: VITE_API_URL
-        value: https://api.gestiqcloud.com
+        value: /v1
       - key: VITE_BASE_PATH
         value: /
       - key: VITE_TENANT_ORIGIN
@@ -150,7 +156,7 @@
     routes:
       - type: redirect
         source: /
-        destination: /admin        
+        destination: /login        
       - type: rewrite
         source: /*
         destination: /index.html
@@ -163,7 +169,7 @@
         - docs/**
     envVars:
       - key: VITE_API_URL
-        value: https://api.gestiqcloud.com
+        value: /v1
       - key: VITE_BASE_PATH
         value: /
       - key: VITE_ADMIN_ORIGIN
