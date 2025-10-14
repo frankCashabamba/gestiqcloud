@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ADMIN_USUARIOS } from '@shared/endpoints'
 
 import { loadServiceModule, restoreModules } from './helpers'
@@ -66,5 +66,38 @@ describe('admin usuarios service routes', () => {
     await setPasswordDirect('u-5', 's3cr3t')
 
     expect(api.post).toHaveBeenCalledWith(ADMIN_USUARIOS.setPassword('u-5'), { password: 's3cr3t' })
+  })
+
+  it('returns list payloads and resolves usuario mutations', async () => {
+    const listResult = [{ id: 1, nombre: 'Admin' }]
+    const getMock = vi.fn().mockResolvedValue({ data: listResult })
+    const postMock = vi
+      .fn()
+      .mockResolvedValueOnce({ data: undefined })
+      .mockResolvedValueOnce({ data: undefined })
+      .mockResolvedValueOnce({ data: undefined })
+      .mockResolvedValueOnce({ data: undefined })
+      .mockResolvedValueOnce({ data: { reassigned: true } })
+      .mockResolvedValueOnce({ data: undefined })
+
+    const {
+      module: {
+        listUsuarios,
+        reenviarReset,
+        activarUsuario,
+        desactivarUsuario,
+        desactivarEmpresa,
+        asignarNuevoAdmin,
+        setPasswordDirect,
+      },
+    } = await loadServiceModule<typeof import('../usuarios')>('../usuarios', { getMock, postMock })
+
+    await expect(listUsuarios()).resolves.toEqual(listResult)
+    await expect(reenviarReset(10)).resolves.toBeUndefined()
+    await expect(activarUsuario(11)).resolves.toBeUndefined()
+    await expect(desactivarUsuario(12)).resolves.toBeUndefined()
+    await expect(desactivarEmpresa(13)).resolves.toBeUndefined()
+    await expect(asignarNuevoAdmin(14, { email: 'nuevo@example.com' })).resolves.toBeUndefined()
+    await expect(setPasswordDirect(15, 'pw')).resolves.toBeUndefined()
   })
 })

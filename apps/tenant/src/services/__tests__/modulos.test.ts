@@ -13,18 +13,18 @@ describe('tenant módulos service routes', () => {
 
     const { listMisModulos } = await import('../modulos')
 
-    await listMisModulos('token')
+    await expect(listMisModulos('token')).resolves.toEqual([])
 
     expect(apiFetch).toHaveBeenCalledWith('/v1/modulos/', { authToken: 'token' })
   })
 
   it('fetches selectable modules using the empresa slug route', async () => {
-    const apiFetch = vi.fn().mockResolvedValue([])
+    const apiFetch = vi.fn().mockResolvedValue([{ id: 1 }])
     vi.doMock('../lib/http', () => ({ apiFetch }))
 
     const { listModulosSeleccionablesPorEmpresa } = await import('../modulos')
 
-    await listModulosSeleccionablesPorEmpresa('bazár demo')
+    await expect(listModulosSeleccionablesPorEmpresa('bazár demo')).resolves.toEqual([{ id: 1 }])
 
     expect(apiFetch).toHaveBeenCalledWith('/v1/modulos/empresa/baz%C3%A1r%20demo/seleccionables')
   })

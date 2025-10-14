@@ -1,4 +1,4 @@
-import { describe, expect, it, afterEach } from 'vitest'
+import { describe, expect, it, afterEach, vi } from 'vitest'
 import { ADMIN_EMPRESAS } from '@shared/endpoints'
 
 import { loadServiceModule, restoreModules } from './helpers'
@@ -65,5 +65,32 @@ describe('admin empresa service routes', () => {
     await deleteEmpresa('empresa-9')
 
     expect(api.delete).toHaveBeenCalledWith(`${ADMIN_EMPRESAS.base}/empresa-9`)
+  })
+
+  it('returns backend payloads for empresa CRUD operations', async () => {
+    const listResult = [{ id: 1, nombre: 'Demo' }]
+    const detailResult = { id: 42, nombre: 'Detail' }
+    const createResult = { msg: 'ok', id: 77 }
+    const updateResult = { ok: true }
+
+    const getMock = vi
+      .fn()
+      .mockResolvedValueOnce({ data: listResult })
+      .mockResolvedValueOnce({ data: detailResult })
+    const postMock = vi.fn().mockResolvedValueOnce({ data: createResult })
+    const putMock = vi.fn().mockResolvedValue({ data: updateResult })
+
+    const {
+      module: { getEmpresas, getEmpresa, createEmpresaFull, updateEmpresa },
+    } = await loadServiceModule<typeof import('../empresa')>('../empresa', {
+      getMock,
+      postMock,
+      putMock,
+    })
+
+    await expect(getEmpresas()).resolves.toEqual(listResult)
+    await expect(getEmpresa(42)).resolves.toEqual(detailResult)
+    await expect(createEmpresaFull({})).resolves.toEqual(createResult)
+    await expect(updateEmpresa(7, {})).resolves.toEqual(updateResult)
   })
 })

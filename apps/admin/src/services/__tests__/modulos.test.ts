@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ADMIN_MODULOS, ADMIN_MODULOS_EMPRESA } from '@shared/endpoints'
 
 import { loadServiceModule, restoreModules } from './helpers'
@@ -134,5 +134,68 @@ describe('admin modulos service routes', () => {
     await removeEmpresaModulo('emp-1', 'mod-9')
 
     expect(api.delete).toHaveBeenCalledWith(ADMIN_MODULOS_EMPRESA.remove('emp-1', 'mod-9'))
+  })
+
+  it('returns backend payloads across módulo operations', async () => {
+    const listResult = [{ id: 1, nombre: 'Inventario' }]
+    const detailResult = { id: 11, nombre: 'POS' }
+    const publicosResult = [{ id: 9 }]
+    const empresaModulosResult = [{ id: 3, empresa_id: 7 }]
+    const createResult = { id: 99 }
+    const toggleResult = { id: 11, activo: true }
+    const registrarResult = { registrados: ['pos'] }
+    const upsertResult = { id: 'rel-1' }
+    const updateResult = { id: 11, nombre: 'POS+', activo: true }
+
+    const getMock = vi
+      .fn()
+      .mockResolvedValueOnce({ data: listResult })
+      .mockResolvedValueOnce({ data: detailResult })
+      .mockResolvedValueOnce({ data: publicosResult })
+      .mockResolvedValueOnce({ data: empresaModulosResult })
+    const postMock = vi
+      .fn()
+      .mockResolvedValueOnce({ data: createResult })
+      .mockResolvedValueOnce({ data: toggleResult })
+      .mockResolvedValueOnce({ data: registrarResult })
+      .mockResolvedValueOnce({ data: upsertResult })
+    const putMock = vi.fn().mockResolvedValue({ data: updateResult })
+    const deleteMock = vi
+      .fn()
+      .mockResolvedValueOnce({ data: undefined })
+      .mockResolvedValueOnce({ data: undefined })
+
+    const {
+      module: {
+        listModulos,
+        getModulo,
+        listModulosPublicos,
+        listEmpresaModulos,
+        createModulo,
+        toggleModulo,
+        registrarModulosFS,
+        upsertEmpresaModulo,
+        updateModulo,
+        removeModulo,
+        removeEmpresaModulo,
+      },
+    } = await loadServiceModule<typeof import('../modulos')>('../modulos', {
+      getMock,
+      postMock,
+      putMock,
+      deleteMock,
+    })
+
+    await expect(listModulos()).resolves.toEqual(listResult)
+    await expect(getModulo(11)).resolves.toEqual(detailResult)
+    await expect(listModulosPublicos()).resolves.toEqual(publicosResult)
+    await expect(listEmpresaModulos('emp-1')).resolves.toEqual(empresaModulosResult)
+    await expect(createModulo({})).resolves.toEqual(createResult)
+    await expect(toggleModulo(11, true)).resolves.toEqual(toggleResult)
+    await expect(registrarModulosFS()).resolves.toEqual(registrarResult)
+    await expect(upsertEmpresaModulo('emp-1', 9)).resolves.toEqual(upsertResult)
+    await expect(updateModulo('mod-1', {})).resolves.toEqual(updateResult)
+    await expect(removeModulo('mod-1')).resolves.toBeUndefined()
+    await expect(removeEmpresaModulo('emp-1', 'mod-2')).resolves.toBeUndefined()
   })
 })

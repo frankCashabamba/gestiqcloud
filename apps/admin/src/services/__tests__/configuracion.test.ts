@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ADMIN_CONFIG } from '@shared/endpoints'
 
 import { loadServiceModule, restoreModules } from './helpers'
@@ -121,6 +121,34 @@ describe('admin configuración service routes', () => {
 
         expect(api.delete).toHaveBeenCalledWith(spec.byId('id-4'))
       })
+
+      it('returns the API payloads for CRUD helpers', async () => {
+        const listResult = [{ id: 'id-1' }]
+        const detailResult = { id: 'id-2' }
+        const createdResult = { id: 'created' }
+        const updatedResult = { id: 'updated' }
+
+        const getMock = vi
+          .fn()
+          .mockResolvedValueOnce({ data: listResult })
+          .mockResolvedValueOnce({ data: detailResult })
+        const postMock = vi.fn().mockResolvedValue({ data: createdResult })
+        const putMock = vi.fn().mockResolvedValue({ data: updatedResult })
+        const deleteMock = vi.fn().mockResolvedValue({ data: undefined })
+
+        const { module } = await loadServiceModule<any>(spec.modulePath, {
+          getMock,
+          postMock,
+          putMock,
+          deleteMock,
+        })
+
+        await expect(module[spec.listFn]()).resolves.toEqual(listResult)
+        await expect(module[spec.getFn]('id-2')).resolves.toEqual(detailResult)
+        await expect(module[spec.createFn]({ nombre: 'nuevo' })).resolves.toEqual(createdResult)
+        await expect(module[spec.updateFn]('id-2', { nombre: 'upd' })).resolves.toEqual(updatedResult)
+        await expect(module[spec.removeFn]('id-2')).resolves.toBeUndefined()
+      })
     })
   })
 
@@ -153,6 +181,35 @@ describe('admin configuración service routes', () => {
       expect(api.post).toHaveBeenCalledWith(ADMIN_CONFIG.horarioAtencion.base, payload)
       expect(api.put).toHaveBeenCalledWith(ADMIN_CONFIG.horarioAtencion.byId(3), payload)
       expect(api.delete).toHaveBeenCalledWith(ADMIN_CONFIG.horarioAtencion.byId(3))
+    })
+
+    it('exposes horario payloads from API responses', async () => {
+      const horariosList = [{ id: 1 }]
+      const horarioDetail = { id: 2 }
+      const created = { id: 3 }
+      const updated = { id: 2, fin: '18:00' }
+      const dias = [{ id: 1, nombre: 'Lunes' }]
+
+      const getMock = vi
+        .fn()
+        .mockResolvedValueOnce({ data: horariosList })
+        .mockResolvedValueOnce({ data: dias })
+        .mockResolvedValueOnce({ data: horarioDetail })
+      const postMock = vi.fn().mockResolvedValueOnce({ data: created })
+      const putMock = vi.fn().mockResolvedValue({ data: updated })
+      const deleteMock = vi.fn().mockResolvedValue({ data: undefined })
+
+      const { module } = await loadServiceModule<typeof import('../configuracion/horarios')>(
+        '../configuracion/horarios',
+        { getMock, postMock, putMock, deleteMock },
+      )
+
+      await expect(module.listHorarios()).resolves.toEqual(horariosList)
+      await expect(module.listDiasSemana()).resolves.toEqual(dias)
+      await expect(module.getHorario(2)).resolves.toEqual(horarioDetail)
+      await expect(module.createHorario({ dia_id: 1, inicio: '08:00', fin: '17:00' })).resolves.toEqual(created)
+      await expect(module.updateHorario(2, { dia_id: 1, inicio: '08:00', fin: '17:00' })).resolves.toEqual(updated)
+      await expect(module.removeHorario(3)).resolves.toBeUndefined()
     })
   })
 })

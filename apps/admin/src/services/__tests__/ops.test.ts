@@ -13,7 +13,7 @@ describe('admin ops service routes', () => {
 
     const { runMigrations } = await import('../ops')
 
-    await runMigrations()
+    await expect(runMigrations()).resolves.toEqual({ ok: true })
 
     expect(apiFetch).toHaveBeenCalledWith('/v1/admin/ops/migrate', { method: 'POST' })
   })
@@ -24,7 +24,7 @@ describe('admin ops service routes', () => {
 
     const { getMigrationStatus } = await import('../ops')
 
-    await getMigrationStatus()
+    await expect(getMigrationStatus()).resolves.toEqual({ running: false })
 
     expect(apiFetch).toHaveBeenCalledWith('/v1/admin/ops/migrate/status', { method: 'GET' })
   })

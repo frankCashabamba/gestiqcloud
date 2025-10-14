@@ -12,15 +12,19 @@ export type ApiMockOptions = {
   postReturn?: unknown
   putReturn?: unknown
   deleteReturn?: unknown
+  getMock?: ReturnType<typeof vi.fn>
+  postMock?: ReturnType<typeof vi.fn>
+  putMock?: ReturnType<typeof vi.fn>
+  deleteMock?: ReturnType<typeof vi.fn>
 }
 
 export async function loadTenantServiceModule<T>(modulePath: string, options: ApiMockOptions = {}) {
   vi.resetModules()
 
-  const get = vi.fn().mockResolvedValue({ data: options.getReturn })
-  const post = vi.fn().mockResolvedValue({ data: options.postReturn })
-  const put = vi.fn().mockResolvedValue({ data: options.putReturn })
-  const del = vi.fn().mockResolvedValue({ data: options.deleteReturn })
+  const get = options.getMock ?? vi.fn().mockResolvedValue({ data: options.getReturn })
+  const post = options.postMock ?? vi.fn().mockResolvedValue({ data: options.postReturn })
+  const put = options.putMock ?? vi.fn().mockResolvedValue({ data: options.putReturn })
+  const del = options.deleteMock ?? vi.fn().mockResolvedValue({ data: options.deleteReturn })
 
   vi.doMock('../shared/api/client', () => ({
     default: {
