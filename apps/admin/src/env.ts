@@ -1,15 +1,9 @@
 import { z } from 'zod'
 import type { UiEnv } from '@ui/env'
 
-// Accept absolute URL or leading-slash path (e.g., '/v1') for same-origin via gateway
-const UrlOrPath = z.string().refine((v) => {
-  if (!v) return false
-  if (v.startsWith('/')) return true
-  try { new URL(v); return true } catch { return false }
-}, { message: 'VITE_API_URL must be an absolute URL or a leading-slash path' })
-
+// Parse raw envs with permissive types; validate API URL manually for broader compatibility
 const Schema = z.object({
-  VITE_API_URL: UrlOrPath,
+  VITE_API_URL: z.string(),
   VITE_BASE_PATH: z.string().min(1).default('/'),
   VITE_TENANT_ORIGIN: z.string().url(),
   VITE_ADMIN_ORIGIN: z.string().url(),
@@ -22,6 +16,16 @@ if (!parsed.success) {
 }
 
 const e = parsed.data
+
+function isAbsUrlOrPath(v: string): boolean {
+  if (!v) return false
+  if (v.startsWith('/')) return true
+  try { new URL(v); return true } catch { return false }
+}
+if (!isAbsUrlOrPath(e.VITE_API_URL)) {
+  console.error({ VITE_API_URL: ['Invalid: must be absolute URL or path starting with /'] })
+  throw new Error('Invalid VITE_* environment variables for ADMIN')
+}
 
 export const env: UiEnv = {
   apiUrl: e.VITE_API_URL,
