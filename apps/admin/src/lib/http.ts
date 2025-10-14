@@ -38,7 +38,7 @@ function buildUrl(base: string, path: string) {
   let p = path || "";
   p = p.startsWith("/") ? p : `/${p}`;
 
-  // Detecta si la BASE tiene /api en el pathname (soporta absolutas o relativas)
+  // Detecta si la BASE tiene /api o /v1 en el pathname (soporta absolutas o relativas)
   let basePathname = b;
   try {
     basePathname = new URL(b, window.location.origin).pathname.replace(/\/+$/g, "");
@@ -46,9 +46,12 @@ function buildUrl(base: string, path: string) {
     /* base relativa, usamos tal cual */
   }
   const baseHasApi = /^\/api(\/|$)/.test(basePathname);
+  const baseHasV1 = /^\/v1(\/|$)/.test(basePathname);
 
   // Si base ya trae /api, quitar /api inicial del path
   if (baseHasApi) p = p.replace(/^\/api(\/|$)/, "/");
+  // Si base ya trae /v1, quitar /v1 inicial del path
+  if (baseHasV1) p = p.replace(/^\/v1(\/|$)/, "/");
 
   // Une sin colapsar el protocolo
   const joined = (b + p).replace(/([^:])\/{2,}/g, "$1/");

@@ -7,9 +7,10 @@ import { env } from '../env'
 const api = createSharedClient({
   baseURL: env.apiUrl,
   tokenKey: 'access_token_admin',
-  refreshPath: '/v1/admin/auth/refresh',
-  csrfPath: '/v1/admin/auth/csrf',
-  authExemptSuffixes: ['/v1/admin/auth/login', '/v1/admin/auth/refresh', '/v1/admin/auth/logout', '/v1/admin/auth/csrf']
+  // Base ya incluye '/v1' en producción; evita duplicar '/v1'
+  refreshPath: '/admin/auth/refresh',
+  csrfPath: '/admin/auth/csrf',
+  authExemptSuffixes: ['/admin/auth/login', '/admin/auth/refresh', '/admin/auth/logout', '/admin/auth/csrf']
 })
 
 type LoginBody = { identificador: string; password: string }
@@ -44,12 +45,12 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   async function loadMeWith(accessTok: string) {
     try {
-      const r = await api.get<MeAdmin>('/v1/me/admin')
+      const r = await api.get<MeAdmin>('/me/admin')
       return r.data
     } catch (e: any) {
       if (e?.status === 401) {
         await new Promise(r => setTimeout(r, 200))
-        const r2 = await api.get<MeAdmin>('/v1/me/admin')
+        const r2 = await api.get<MeAdmin>('/me/admin')
         return r2.data
       }
       throw e
@@ -93,7 +94,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   async function refreshOnce(): Promise<string | null> {
     try {
-      const r = await api.post<{ access_token?: string }>('/v1/admin/auth/refresh')
+      const r = await api.post<{ access_token?: string }>('/admin/auth/refresh')
       return r.data?.access_token ?? null
     } catch {
       return null
@@ -107,8 +108,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }
 
   const login = async (body: LoginBody) => {
-    try { await api.get('/v1/admin/auth/csrf') } catch {}
-    const r = await api.post<LoginResponse>('/v1/admin/auth/login', { identificador: body.identificador.trim(), password: body.password })
+    try { await api.get('/admin/auth/csrf') } catch {}
+    const r = await api.post<LoginResponse>('/admin/auth/login', { identificador: body.identificador.trim(), password: body.password })
     const data = r.data
     setToken(data.access_token)
     sessionStorage.setItem('access_token_admin', data.access_token)
@@ -117,7 +118,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }
 
   const logout = async () => {
-    try { await api.post('/v1/admin/auth/logout') } catch {}
+    try { await api.post('/admin/auth/logout') } catch {}
     clear()
   }
 
