@@ -1,8 +1,9 @@
-import { createSharedClient } from '@shared'
+import { createSharedClient, normalizeBaseUrl } from '@shared'
 import { TENANT_AUTH } from '@shared/endpoints'
+import { env } from '../../env'
 
 export const tenantApiConfig = {
-  baseURL: '/api',
+  baseURL: normalizeBaseUrl(env.apiUrl),
   tokenKey: 'access_token_tenant',
   refreshPath: TENANT_AUTH.refresh,
   csrfPath: TENANT_AUTH.csrf,

@@ -13,7 +13,8 @@ vi.mock('../../env', () => ({
 }))
 
 import { ADMIN_AUTH } from '@shared/endpoints'
-import { adminApiConfig, normalizeBaseUrl } from './client'
+import { normalizeBaseUrl } from '@shared/api/baseUrl'
+import { adminApiConfig } from './client'
 
 describe('normalizeBaseUrl', () => {
   const cases: Array<{ input: string; expected: string }> = [

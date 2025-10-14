@@ -1,10 +1,33 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
+vi.mock('../../env', () => ({
+  env: {
+    apiUrl: '/api',
+    basePath: '/',
+    tenantOrigin: 'https://tenant.test',
+    adminOrigin: 'https://admin.test',
+    mode: 'test' as const,
+    dev: false,
+    prod: false,
+  },
+}))
+
+import { normalizeBaseUrl } from '@shared/api/baseUrl'
 import { TENANT_AUTH } from '@shared/endpoints'
 import { tenantApiConfig } from './client'
 
+describe('normalizeBaseUrl (shared)', () => {
+  it('appends /api for bare origins', () => {
+    expect(normalizeBaseUrl('https://tenant.gestiqcloud.com')).toBe('https://tenant.gestiqcloud.com/api')
+  })
+
+  it('respects explicit /v1 suffixes', () => {
+    expect(normalizeBaseUrl('/v1')).toBe('/v1')
+  })
+})
+
 describe('tenantApiConfig', () => {
-  it('uses the worker proxy base', () => {
+  it('normalizes worker base URL from env', () => {
     expect(tenantApiConfig.baseURL).toBe('/api')
   })
 
