@@ -170,12 +170,7 @@ jobs:
         run: npm ci
       - name: Build tenant
         run: npm run build --if-present
-      - name: Lint (compile)
-        run: python -m py_compile $(git ls-files '*.py')
-      - name: Tests
-        env:
-          DATABASE_URL: sqlite:///./test.db
-          ENV: development
-        run: |
-          pip install pytest
-          pytest -q || echo "No tests or failures" 
+      - name: Lint (eslint)
+        run: npm run lint --if-present
+      - name: Tests (jest/vitest)
+        run: npm test --if-present
