@@ -7,7 +7,7 @@ WORKDIR /app/apps/admin
 RUN apk add --no-cache libc6-compat && \
     npm i --silent || yarn install --frozen-lockfile || true
 RUN ln -s /app/apps/admin/node_modules /app/apps/node_modules || true
-RUN echo 'VITE_API_URL=/api' > .env.production
+# Usa el .env.production commiteado en el repo (no sobrescribir). 
 RUN npm run build
 
 FROM nginx:1.27-alpine

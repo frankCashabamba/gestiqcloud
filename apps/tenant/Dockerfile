@@ -8,7 +8,11 @@ WORKDIR /app/apps/tenant
 RUN apk add --no-cache libc6-compat && \
     npm i --silent || yarn install --frozen-lockfile || true
 RUN ln -s /app/apps/tenant/node_modules /app/apps/node_modules || true
-RUN echo 'VITE_API_URL=/api' > .env.production
+# Variables de entorno para build en producción
+RUN echo 'VITE_API_URL=https://api.gestiqcloud.com' > .env.production \
+ && echo 'VITE_BASE_PATH=/' >> .env.production \
+ && echo 'VITE_TENANT_ORIGIN=https://gestiqcloud.com' >> .env.production \
+ && echo 'VITE_ADMIN_ORIGIN=https://admin.gestiqcloud.com' >> .env.production
 RUN npm run build
 
 FROM nginx:1.27-alpine
