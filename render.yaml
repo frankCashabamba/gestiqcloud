@@ -78,7 +78,13 @@
       - key: EMAIL_HOST_PASSWORD
         sync: false
       - key: DEFAULT_FROM_EMAIL
-        value: no-reply@gestiqcloud.com
+        value: GestiqCloud <no-reply@gestiqcloud.com>
+      - key: RENDER_API_KEY
+        sync: false
+      - key: RENDER_MIGRATE_JOB_ID
+        sync: false
+      - key: ALLOW_INLINE_MIGRATIONS
+        value: "0"
 
       - key: PYTHON_VERSION
         value: 3.13.5

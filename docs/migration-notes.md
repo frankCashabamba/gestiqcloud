@@ -28,6 +28,19 @@ Set these in non-dev environments (dev/test have safe defaults):
 - All JWT decode paths route through `JwtService`.
 - Error handling standardized on `jwt.ExpiredSignatureError` and `jwt.InvalidTokenError`.
 
+### Admin “Ejecutar migraciones” button
+
+- Backend endpoint: `/v1/admin/ops/migrate` triggers a Render Job if configured.
+- Required env on backend service:
+  - `RENDER_API_KEY` (Render API key with Jobs access)
+  - `RENDER_MIGRATE_JOB_ID` (ID of the Render Job that runs migrations)
+  - Optional fallback: `ALLOW_INLINE_MIGRATIONS=1` to run Alembic + RLS inline (not recommended in prod).
+- Status endpoint: `/v1/admin/ops/migrate/status`.
+- Render Job command should include:
+  - `alembic upgrade head`
+  - `python ../scripts/py/apply_rls.py --schema public --set-default`
+  - Any supplementary SQL now covered by Alembic (e.g., tenants bootstrap `a20005_tenants_bootstrap`).
+
 
 ## Tenancy Migrations (2025-10-09)
 

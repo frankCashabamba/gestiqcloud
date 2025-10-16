@@ -109,9 +109,17 @@ def tenant_login(
     limiter.reset(request, ident)
 
     tenant_id = str(user.empresa.id)
-    # UUID para familia de refresh (si el modelo lo tiene); si no, NULL en la tabla
+    # UUID para familia de refresh: intenta del modelo; si no, resuelve por tenants(empresa_id)
     try:
-        tenant_uuid_for_family = str(getattr(user, "tenant_id")) if getattr(user, "tenant_id", None) else None
+        if getattr(user, "tenant_id", None):
+            tenant_uuid_for_family = str(getattr(user, "tenant_id"))
+        else:
+            from sqlalchemy import text as _text
+            row = db.execute(
+                _text("SELECT id::text FROM public.tenants WHERE empresa_id = :eid LIMIT 1"),
+                {"eid": int(user.empresa_id) if str(user.empresa_id).isdigit() else user.empresa_id},
+            ).first()
+            tenant_uuid_for_family = row[0] if row and row[0] else None
     except Exception:
         tenant_uuid_for_family = None
 

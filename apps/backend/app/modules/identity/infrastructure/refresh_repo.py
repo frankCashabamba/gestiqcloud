@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Optional
 
@@ -22,7 +22,7 @@ class SqlRefreshTokenRepo(RefreshTokenRepo):
             text(
                 """
                 INSERT INTO auth_refresh_family (id, user_id, tenant_id, created_at, revoked_at)
-                VALUES (:id, :user_id, :tenant_id, :created_at, NULL)
+                VALUES (:id, :user_id, NULLIF(:tenant_id, '')::uuid, :created_at, NULL)
                 """
             ),
             {"id": family_id, "user_id": user_id, "tenant_id": tenant_id, "created_at": _utcnow()},
@@ -137,4 +137,5 @@ class SqlRefreshTokenRepo(RefreshTokenRepo):
             .first()
         )
         return str(row["family_id"]) if row else None
+
 

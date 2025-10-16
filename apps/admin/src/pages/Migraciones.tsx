@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react'
-import { runMigrations, getMigrationStatus, type MigrationState } from '../services/ops'
+import { runMigrations, getMigrationStatus, getMigrationHistory, refreshMigrations, type MigrationState, type MigrationHistoryItem } from '../services/ops'
 
 export default function Migraciones() {
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [state, setState] = useState<MigrationState | null>(null)
+  const [history, setHistory] = useState<MigrationHistoryItem[]>([])
 
   async function onRun() {
     setLoading(true)
@@ -33,18 +34,36 @@ export default function Migraciones() {
     let timer: any
     async function tick() {
       try {
+        // Intenta cerrar runs de Render consultando el backend
+        try { await refreshMigrations() } catch {}
         const s = await getMigrationStatus()
         setState(s)
         if (s.running) {
           timer = setTimeout(tick, 3000)
+        } else {
+          // Al terminar, recarga historial
+          try {
+            const r = await getMigrationHistory(20)
+            if (r?.ok && Array.isArray(r.items)) setHistory(r.items)
+          } catch {}
         }
       } catch {
         timer = setTimeout(tick, 5000)
       }
     }
     tick()
+    // carga inicial de historial
+    getMigrationHistory(20)
+      .then((r) => { if (r?.ok && Array.isArray(r.items)) setHistory(r.items) })
+      .catch(() => {})
     return () => { if (timer) clearTimeout(timer) }
   }, [])
+
+  async function onRefresh() {
+    try { await refreshMigrations() } catch {}
+    try { const s = await getMigrationStatus(); setState(s) } catch {}
+    try { const r = await getMigrationHistory(20); if (r?.ok && Array.isArray(r.items)) setHistory(r.items) } catch {}
+  }
 
   return (
     <div className="p-4">
@@ -57,6 +76,12 @@ export default function Migraciones() {
       >
         {loading ? 'Ejecutando…' : 'Ejecutar migraciones'}
       </button>
+      <button
+        onClick={onRefresh}
+        className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-semibold text-indigo-700 border border-indigo-300 ml-2"
+      >
+        Refrescar estado
+      </button>
       {msg && <div className="mt-3 text-sm text-slate-700">{msg}</div>}
       {state && (
         <div className="mt-3 text-sm text-slate-700">
@@ -67,6 +92,38 @@ export default function Migraciones() {
           {state.error && <div className="text-red-600">Error: {state.error}</div>}
         </div>
       )}
+      <div className="mt-6">
+        <h3 className="text-base font-semibold mb-2">Historial</h3>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="text-left text-slate-500">
+                <th className="px-2 py-1">Inicio</th>
+                <th className="px-2 py-1">Fin</th>
+                <th className="px-2 py-1">Modo</th>
+                <th className="px-2 py-1">OK</th>
+                <th className="px-2 py-1">Job</th>
+                <th className="px-2 py-1">Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.length === 0 && (
+                <tr><td className="px-2 py-2 text-slate-500" colSpan={6}>Sin registros</td></tr>
+              )}
+              {history.map((h) => (
+                <tr key={h.id} className="border-t border-slate-200">
+                  <td className="px-2 py-1">{new Date(h.started_at).toLocaleString()}</td>
+                  <td className="px-2 py-1">{h.finished_at ? new Date(h.finished_at).toLocaleString() : '-'}</td>
+                  <td className="px-2 py-1">{h.mode}</td>
+                  <td className="px-2 py-1">{h.ok === true ? '✔' : h.ok === false ? '✖' : '-'}</td>
+                  <td className="px-2 py-1">{h.job_id || '-'}</td>
+                  <td className="px-2 py-1 text-red-600">{h.error || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }

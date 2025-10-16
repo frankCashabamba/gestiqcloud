@@ -42,7 +42,7 @@ curl -i -H "Origin: https://admin.gestiqcloud.com" https://admin.gestiqcloud.com
 
 - Tenant login
 ```
-curl -i -s -X POST https://api.gestiqcloud.com/api/v1/tenant/auth/login \
+curl -i -s -X POST https://api.gestiqcloud.com/v1/tenant/auth/login \
   -H "Origin: https://gestiqcloud.com" \
   -H "Content-Type: application/json" \
   --data '{"identificador":"USER","password":"secret"}' -c cookies.txt
@@ -51,14 +51,14 @@ Should return 200, CORS headers, and Set-Cookie for `refresh_token` (SameSite=No
 
 - Refresh
 ```
-curl -i -s -X POST https://api.gestiqcloud.com/api/v1/tenant/auth/refresh \
+curl -i -s -X POST https://api.gestiqcloud.com/v1/tenant/auth/refresh \
   -H "Origin: https://gestiqcloud.com" -b cookies.txt -c cookies.txt
 ```
 Should rotate `refresh_token` and return a new `access_token`.
 
 - Preflight
 ```
-curl -i -s -X OPTIONS https://api.gestiqcloud.com/api/v1/tenant/auth/login \
+curl -i -s -X OPTIONS https://api.gestiqcloud.com/v1/tenant/auth/login \
   -H "Origin: https://gestiqcloud.com" \
   -H "Access-Control-Request-Method: POST" \
   -H "Access-Control-Request-Headers: content-type,authorization"
