@@ -72,10 +72,17 @@ def get_db(request: Request) -> Iterator[Session]:
     db = SessionLocal()
     try:
         # Defensive: clear any leftover GUCs from pooled connections
+        # Use set_config(..., NULL, true) instead of RESET to avoid
+        # aborting the transaction when the custom GUC was never set.
         try:
-            db.execute(text("RESET app.tenant_id"))
-            db.execute(text("RESET app.user_id"))
+            db.execute(text("SELECT set_config('app.tenant_id', NULL, true)"))
+            db.execute(text("SELECT set_config('app.user_id', NULL, true)"))
         except Exception:
+            # If anything goes wrong, ensure we don't leave the session aborted
+            try:
+                db.rollback()
+            except Exception:
+                pass
             pass
         # Set RLS GUCs on THIS session using request context
         try:
@@ -101,6 +108,11 @@ def get_db(request: Request) -> Iterator[Session]:
                         if row and row[0]:
                             tid = row[0]
                     except Exception:
+                        # Ensure we don't leave the session aborted if the lookup fails
+                        try:
+                            db.rollback()
+                        except Exception:
+                            pass
                         pass
                 db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": tid})
                 db.execute(text("SET LOCAL app.user_id = :uid"), {"uid": uid})
@@ -110,8 +122,21 @@ def get_db(request: Request) -> Iterator[Session]:
                 except Exception:
                     pass
         except Exception:
-            # Do not break request if setting GUCs fails
+            # Do not break request if setting GUCs fails, but clean aborted tx
+            try:
+                db.rollback()
+            except Exception:
+                pass
             pass
+
+        # Final safeguard: ensure session isn't in aborted state before yielding
+        try:
+            db.execute(text("SELECT 1"))
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
 
         yield db
     finally:
