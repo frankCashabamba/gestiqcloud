@@ -1,12 +1,9 @@
-name: Migrate on schema changes
+name: Migrate on schema changes (manual only)
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'apps/backend/alembic/versions/**'
-      - 'ops/migrations/**'
-      - 'scripts/py/apply_rls.py'
+  # We disable automatic runs to avoid unintended costs.
+  # Trigger manually from the Actions tab if needed.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -31,19 +28,18 @@ jobs:
           fi
 
       - name: Run Render Job (migrate)
-        if: steps.changes.outputs.run == 'yes'
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           RENDER_JOB_ID: ${{ secrets.RENDER_MIGRATE_JOB_ID }}
         run: |
           set -e
           if [ -z "$RENDER_API_KEY" ] || [ -z "$RENDER_JOB_ID" ]; then
-            echo "Render secrets missing. Please set RENDER_API_KEY and RENDER_MIGRATE_JOB_ID in repo secrets." >&2
-            exit 1
+            echo "Render secrets missing. Please set RENDER_API_KEY and RENDER_MIGRATE_JOB_ID in repo secrets. Skipping." >&2
+            exit 0
           fi
           echo "Triggering Render job $RENDER_JOB_ID..."
           curl -fsS -X POST "https://api.render.com/v1/jobs/$RENDER_JOB_ID/runs" \
             -H "Authorization: Bearer $RENDER_API_KEY" \
             -H "Content-Type: application/json" \
             -d '{}'
-

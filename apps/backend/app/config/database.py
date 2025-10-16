@@ -1,4 +1,4 @@
-# app/config/database.py
+﻿# app/config/database.py
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -15,8 +15,8 @@ Base = declarative_base()
 def make_db_url() -> str:
     """
     Usa la URL normalizada de settings.database_url.
-    Nota: si necesitas forzar SSL (cloud providers), añade `sslmode=require` en tu DATABASE_URL
-    o deja esta lógica activa en prod. Ajusta a tu política.
+    Nota: si necesitas forzar SSL (cloud providers), aÃ±ade `sslmode=require` en tu DATABASE_URL
+    o deja esta lÃ³gica activa en prod. Ajusta a tu polÃ­tica.
     """
     url = settings.database_url
     if settings.ENV == "production" and "sslmode" not in url:
@@ -25,9 +25,9 @@ def make_db_url() -> str:
     return url
 
 # ---------------------------------------------------------------------------
-# Engine con pooling, pre_ping y statement_timeout (vía psycopg/pg options)
+# Engine con pooling, pre_ping y statement_timeout (vÃ­a psycopg/pg options)
 # ---------------------------------------------------------------------------
-STATEMENT_TIMEOUT_MS = max(1000, settings.DB_STATEMENT_TIMEOUT_MS)  # mínimo 1s
+STATEMENT_TIMEOUT_MS = max(1000, settings.DB_STATEMENT_TIMEOUT_MS)  # mÃ­nimo 1s
 
 CONNECT_ARGS = {
     # Requiere driver psycopg (postgresql+psycopg://) para respetar options
@@ -62,7 +62,7 @@ SessionLocal: sessionmaker[Session] = sessionmaker(
 )
 
 # ---------------------------------------------------------------------------
-# Dependencia FastAPI: sesión por request
+# Dependencia FastAPI: sesiÃ³n por request
 # ---------------------------------------------------------------------------
 def get_db(request: Request) -> Iterator[Session]:
     """
@@ -96,7 +96,7 @@ def get_db(request: Request) -> Iterator[Session]:
                 # translate legacy empresa_id (digits) -> tenant UUID
                 if tid.isdigit():
                     try:
-                        res = db.execute(text("SELECT id::text FROM public.tenants WHERE empresa_id = :eid"), {"eid": int(tid)})
+                        res = db.execute(text("SELECT id FROM tenants WHERE empresa_id = :eid"), {"eid": int(tid)})
                         row = res.first()
                         if row and row[0]:
                             tid = row[0]
@@ -141,8 +141,8 @@ def _auto_fill_multitenant_fields(session: Session, flush_context, instances):
 # ---------------------------------------------------------------------------
 def set_search_path(db: Session, tenant_schema: str) -> None:
     """
-    Fija el search_path por sesión. Incluye siempre 'public' como fallback.
-    Llamar tras abrir la sesión (en una dependencia que resuelva el tenant).
+    Fija el search_path por sesiÃ³n. Incluye siempre 'public' como fallback.
+    Llamar tras abrir la sesiÃ³n (en una dependencia que resuelva el tenant).
     """
     db.execute(text("SET search_path TO :schema, public").bindparams(schema=tenant_schema))
 
@@ -165,7 +165,7 @@ def get_tenant_db(tenant_schema: str) -> Iterator[Session]:
 def ping() -> bool:
     """
     Verifica conectividad y (si es posible) el statement_timeout actual.
-    Útil para /health.
+    Ãštil para /health.
     """
     with SessionLocal() as db:
         db.execute(text("SELECT 1"))
@@ -180,7 +180,7 @@ def session_scope() -> Iterator[Session]:
     """
     Context manager de conveniencia:
         with session_scope() as db:
-            ...  # commit/rollback automático
+            ...  # commit/rollback automÃ¡tico
     """
     db = SessionLocal()
     try:
@@ -191,3 +191,4 @@ def session_scope() -> Iterator[Session]:
         raise
     finally:
         db.close()
+

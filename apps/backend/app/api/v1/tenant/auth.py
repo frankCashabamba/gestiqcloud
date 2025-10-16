@@ -116,10 +116,10 @@ def tenant_login(
         else:
             from sqlalchemy import text as _text
             row = db.execute(
-                _text("SELECT id::text FROM public.tenants WHERE empresa_id = :eid LIMIT 1"),
+                _text("SELECT id FROM tenants WHERE empresa_id = :eid LIMIT 1"),
                 {"eid": int(user.empresa_id) if str(user.empresa_id).isdigit() else user.empresa_id},
             ).first()
-            tenant_uuid_for_family = row[0] if row and row[0] else None
+            tenant_uuid_for_family = str(row[0]) if row and row[0] is not None else None
     except Exception:
         tenant_uuid_for_family = None
 
