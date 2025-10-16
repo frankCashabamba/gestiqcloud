@@ -1,7 +1,7 @@
 // lib/http.ts
 import { env } from '../env'
 
-export const API_URL = (env.apiUrl || '/api').replace(/\/+$/g, '')
+export const API_URL = (env.apiUrl || '/v1').replace(/\/+$/g, '')
 
 export type HttpOptions = RequestInit & { authToken?: string; retryOn401?: boolean };
 

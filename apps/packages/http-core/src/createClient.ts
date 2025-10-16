@@ -17,7 +17,8 @@ function getCookie(name: string): string | null {
 }
 
 export function createClient(cfg: ClientConfig): AxiosInstance {
-  const baseURL = (cfg.baseURL ?? '/api').replace(/\/+$/g, '')
+  // Default API path exposed at the gateway is '/v1'
+  const baseURL = (cfg.baseURL ?? '/v1').replace(/\/+$/g, '')
   const authExempt = cfg.authExemptSuffixes ?? []
 
   const api = axios.create({ baseURL, withCredentials: true })

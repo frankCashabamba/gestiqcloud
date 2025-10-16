@@ -2,12 +2,11 @@ import { createClient } from '@shared/http'
 import { ADMIN_AUTH } from '@shared/endpoints'
 import { env } from '../../env'
 
-// Ensure baseURL includes /api path once
-const baseNoSlash = env.apiUrl.replace(/\/+$/g, '')
-const baseWithApi = /\/api$/i.test(baseNoSlash) ? baseNoSlash : `${baseNoSlash}/api`
+// Base profesional: usamos el gateway con rutas '/v1/*' sin añadir '/api'
+const baseURL = env.apiUrl.replace(/\/+$/g, '')
 
 const api = createClient({
-  baseURL: baseWithApi,
+  baseURL,
   tokenKey: 'access_token_admin',
   refreshPath: ADMIN_AUTH.refresh,
   csrfPath: ADMIN_AUTH.csrf,

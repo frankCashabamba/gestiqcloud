@@ -1,4 +1,4 @@
-/* Edge Gateway (Cloudflare Worker)
+﻿/* Edge Gateway (Cloudflare Worker)
  * - Restrictive CORS with credentials
  * - Host allow-list and path allow-list (optional)
  * - Request ID propagation (X-Request-Id)
@@ -12,7 +12,7 @@
  * - HSTS_ENABLED: "1" to enable HSTS
  */
 
-/* Edge Gateway (Cloudflare Worker) — robust login cookies & CORS */
+/* Edge Gateway (Cloudflare Worker) â€” robust login cookies & CORS */
 
 export default {
   async fetch(request, env, ctx) {
@@ -33,7 +33,7 @@ export default {
     const origin = reqHeaders.get('Origin') || '';
     const isPreflight = request.method === 'OPTIONS';
 
-    // Bloquear orígenes no permitidos (con credenciales)
+    // Bloquear orÃ­genes no permitidos (con credenciales)
     if (origin && !isOriginAllowed(origin, allowed)) {
       if (isPreflight) {
         return preflightResponse(origin, allowed, request);
@@ -53,7 +53,7 @@ export default {
       return preflightResponse(origin, allowed, request);
     }
 
-    // Allow-list por path y reescrituras según host
+    // Allow-list por path y reescrituras segÃºn host
     const path = url.pathname;
     const host = url.hostname;
 
@@ -80,34 +80,34 @@ export default {
       if (path.startsWith('/v1/')) {
         forwardPath = '/api' + path; // reescribe a upstream /api/v1/*
       } else {
-        // Bloquear /api/* público en el edge; sólo exponer /v1/* y health/ready
-        return new Response('Not found', { status: 404 });
+        // Bloquear /api/* pÃºblico en el edge; sÃ³lo exponer /v1/* y health/ready
+        return withCors(new Response('Not found', { status: 404 }), origin, allowed);
       }
     } else if (host === 'admin.gestiqcloud.com' || host === 'www.gestiqcloud.com') {
-      // Acepta sólo /v1/* para admin/www y reescribe a /api/v1/* (bloquea /api/*)
+      // Acepta sÃ³lo /v1/* para admin/www y reescribe a /api/v1/* (bloquea /api/*)
       if (path.startsWith('/v1/')) {
         forwardPath = '/api' + path;
       } else if (path === '/health' || path === '/ready') {
         return withCors(new Response('ok', { status: 200 }), origin, allowed);
       } else {
-        return new Response('Not found', { status: 404 });
+        return withCors(new Response('Not found', { status: 404 }), origin, allowed);
       }
     } else {
-      // Otros hosts: exponer sólo /v1/* (bloquea /api/*)
+      // Otros hosts: exponer sÃ³lo /v1/* (bloquea /api/*)
       if (path.startsWith('/v1/')) {
         forwardPath = '/api' + path;
       } else if (path === '/health' || path === '/ready') {
         return withCors(new Response('ok', { status: 200 }), origin, allowed);
       } else {
-        return new Response('Not found', { status: 404 });
+        return withCors(new Response('Not found', { status: 404 }), origin, allowed);
       }
     }
 
     if (host === 'admin.gestiqcloud.com' && forwardPath.startsWith('/api/v1/tenant/')) {
-      return new Response('Forbidden', { status: 403 });
+      return withCors(new Response('Forbidden', { status: 403 }), origin, allowed);
     }
     if (host === 'www.gestiqcloud.com' && forwardPath.startsWith('/api/v1/admin/')) {
-      return new Response('Forbidden', { status: 403 });
+      return withCors(new Response('Forbidden', { status: 403 }), origin, allowed);
     }
 
     // Proxy a upstream (preserva path+query)
@@ -283,8 +283,9 @@ function rewriteCookiesRobust(srcHeaders, dstHeaders, cookieDomain) {
       v = v.replace(/;\s*SameSite=[^;]*/i, '');
       v += '; SameSite=Lax';
     }
-    // si hay otras cookies, no tocamos SameSite (o podrías fijar Lax por defecto)
+    // si hay otras cookies, no tocamos SameSite (o podrÃ­as fijar Lax por defecto)
 
     dstHeaders.append('Set-Cookie', v);
   }
 }
+

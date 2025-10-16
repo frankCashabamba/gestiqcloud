@@ -8,7 +8,8 @@ export function createSharedClient(cfg: {
   csrfPath: string
   authExemptSuffixes?: string[]
 }) {
-  const api = createClient({ baseURL: cfg.baseURL ?? '/api', ...cfg } as any)
+  // Default to '/v1' to align with edge gateway routing
+  const api = createClient({ baseURL: cfg.baseURL ?? '/v1', ...cfg } as any)
 
   async function sendWithOutbox(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', url: string, data?: any, headers?: any) {
     try {
