@@ -120,7 +120,16 @@ def tenant_login(
                 {"eid": int(user.empresa_id) if str(user.empresa_id).isdigit() else user.empresa_id},
             ).first()
             tenant_uuid_for_family = str(row[0]) if row and row[0] is not None else None
-    except Exception:
+    except Exception as e:
+        # Log root error y limpia la transacción
+        try:
+            log.exception("tenant.login.tenant_uuid_resolve_error empresa_id=%s", str(user.empresa_id))
+        except Exception:
+            pass
+        try:
+            db.rollback()
+        except Exception:
+            pass
         tenant_uuid_for_family = None
 
     # 3) Sesión + scope
@@ -133,7 +142,32 @@ def tenant_login(
     issue_csrf_and_cookie(request, response, path="/")
 
     # Claims (permisos, tenant, etc.)
-    claims = build_tenant_claims(db, user)
+    # Asegura que la sesión no esté en estado aborted por alguna consulta previa
+    try:
+        from sqlalchemy import text as _text
+        db.execute(_text("SELECT 1"))
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    try:
+        claims = build_tenant_claims(db, user)
+    except Exception as e:
+        # Log del error real que está abortando la transacción
+        try:
+            log.exception(
+                "tenant.login.claims_error usuario_id=%s empresa_id=%s",
+                str(getattr(user, "id", None)),
+                str(getattr(user, "empresa_id", None)),
+            )
+        except Exception:
+            pass
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail="claims_error")
     if not claims:
         limiter.incr_fail(request, ident)
         audit_log(db, kind="login_failed", scope="tenant", user_id=str(user.id), tenant_id=None, req=request)
@@ -141,13 +175,28 @@ def tenant_login(
 
     # 5) Refresh family + primer token
     repo = SqlRefreshTokenRepo(db)
-    family_id = repo.create_family(user_id=str(user.id), tenant_id=tenant_uuid_for_family)
-    jti = repo.issue_token(
-        family_id=family_id,
-        prev_jti=None,
-        user_agent=request.headers.get("user-agent", ""),
-        ip=request.client.host if request.client else "",
-    )
+    try:
+        family_id = repo.create_family(user_id=str(user.id), tenant_id=tenant_uuid_for_family)
+        jti = repo.issue_token(
+            family_id=family_id,
+            prev_jti=None,
+            user_agent=request.headers.get("user-agent", ""),
+            ip=request.client.host if request.client else "",
+        )
+    except Exception as e:
+        # Log del error raíz al crear familia/emitir token
+        try:
+            log.exception(
+                "tenant.login.refresh_family_error usuario_id=%s tenant_uuid=%s",
+                str(getattr(user, "id", None)), tenant_uuid_for_family,
+            )
+        except Exception:
+            pass
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail="refresh_family_error")
 
     # 6) JWTs (devuelven strings)
     access = token_service.issue_access(claims)
