@@ -138,6 +138,19 @@ def tenant_login(
     request.state.session_dirty = True
     set_tenant_scope(request, tenant_id)
 
+    # Si resolvimos UUID de tenant, propágalo a la sesión DB (GUC + session.info)
+    try:
+        if tenant_uuid_for_family:
+            from sqlalchemy import text as _text
+            db.execute(_text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_uuid_for_family)})
+            try:
+                db.info["tenant_id"] = str(tenant_uuid_for_family)
+            except Exception:
+                pass
+    except Exception:
+        # No bloquear el login por fallos al fijar el GUC
+        pass
+
     # 4) CSRF (cookie legible por JS)
     issue_csrf_and_cookie(request, response, path="/")
 
