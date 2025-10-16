@@ -103,7 +103,37 @@ def _run_inline_migrations(db: Session | None = None) -> None:
         # Apply RLS defaults/policies (idempotent)
         rls_py = root / "scripts" / "py" / "apply_rls.py"
         if rls_py.exists():
-            subprocess.run(["python", str(rls_py), "--schema", "public", "--set-default"], check=True, cwd=str(root), env=env)
+            cmd = ["python", str(rls_py), "--schema", "public", "--set-default"]
+            res = subprocess.run(cmd, cwd=str(root), env=env, capture_output=True, text=True)
+            if res.returncode != 0:
+                try:
+                    log.error(
+                        "inline_migration.rls_failed code=%s stdout=%s stderr=%s",
+                        res.returncode,
+                        (res.stdout or "").strip(),
+                        (res.stderr or "").strip(),
+                    )
+                except Exception:
+                    pass
+                # Fallback: try without --set-default (policies only)
+                cmd2 = ["python", str(rls_py), "--schema", "public"]
+                res2 = subprocess.run(cmd2, cwd=str(root), env=env, capture_output=True, text=True)
+                if res2.returncode != 0:
+                    try:
+                        log.error(
+                            "inline_migration.rls_fallback_failed code=%s stdout=%s stderr=%s",
+                            res2.returncode,
+                            (res2.stdout or "").strip(),
+                            (res2.stderr or "").strip(),
+                        )
+                    except Exception:
+                        pass
+                    raise subprocess.CalledProcessError(returncode=res2.returncode, cmd=cmd2, output=res2.stdout, stderr=res2.stderr)
+                else:
+                    try:
+                        log.info("inline_migration.rls_applied_without_default")
+                    except Exception:
+                        pass
         log.info("Inline migrations completed successfully")
         migration_state.update({
             "running": False,
