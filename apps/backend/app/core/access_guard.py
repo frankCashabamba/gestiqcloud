@@ -1,4 +1,4 @@
-# app/core/access_guard.py
+﻿# app/core/access_guard.py
 from fastapi import HTTPException, Request
 from sqlalchemy import text
 from app.config.database import SessionLocal
@@ -24,14 +24,14 @@ def with_access_claims(request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=401, detail="Invalid token") from None
     if not isinstance(claims, dict):
         raise HTTPException(status_code=401, detail="Invalid token payload")
-    # Validación opcional: X-Tenant-Slug debe corresponder al tenant del token
+    # ValidaciÃ³n opcional: X-Tenant-Slug debe corresponder al tenant del token
     try:
         tenant_slug = (request.headers.get("X-Tenant-Slug") or "").strip()
         if tenant_slug:
-            # Soporta tokens con tenant_id como empresa_id (int) o UUID según despliegue
+            # Soporta tokens con tenant_id como empresa_id (int) o UUID segÃºn despliegue
             tid = str(claims.get("tenant_id")) if isinstance(claims, dict) and claims.get("tenant_id") is not None else None
             if tid:
-                # Primero intenta core_empresa.slug si tid es numérico
+                # Primero intenta core_empresa.slug si tid es numÃ©rico
                 ok = False
                 if tid.isdigit():
                     try:
@@ -44,11 +44,11 @@ def with_access_claims(request: Request) -> Dict[str, Any]:
                 if not ok:
                     try:
                         with SessionLocal() as db:
-                            # tid puede ser UUID; compara por id::text o por empresa_id si es dígito
+                            # tid puede ser UUID; compara por id::text o por empresa_id si es dÃ­gito
                             if tid.isdigit():
                                 row = db.execute(text("SELECT slug FROM tenants WHERE empresa_id=:id"), {"id": int(tid)}).first()
                             else:
-                                row = db.execute(text("SELECT slug FROM tenants WHERE id::text=:id"), {"id": tid}).first()
+                                row = db.execute(text("SELECT slug FROM tenants WHERE CAST(id AS TEXT)=:id"), {"id": tid}).first()
                             ok = bool(row and row[0] and str(row[0]).strip() == tenant_slug)
                     except Exception:
                         ok = False
@@ -57,8 +57,9 @@ def with_access_claims(request: Request) -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception:
-        # No romper si la validación no se puede realizar
+        # No romper si la validaciÃ³n no se puede realizar
         pass
 
     request.state.access_claims = claims
     return claims
+
