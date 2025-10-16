@@ -23,11 +23,10 @@ Goal: keep web startup fast and run DB changes only when needed.
 - Env: `DATABASE_URL`, `ENV=production`, `RLS_SCHEMAS=public`, `RLS_SET_DEFAULT=1`.
 
 3) CI trigger (GitHub Actions)
-- Workflow: `.github/workflows/migrate-on-migrations.yml` runs only when files change in:
-  - `apps/backend/alembic/versions/**`
-  - `ops/migrations/**`
-  - `scripts/py/apply_rls.py`
-- Calls Render Jobs API with secrets `RENDER_API_KEY` and `RENDER_MIGRATE_JOB_ID`.
+- Preferred: use the Admin button to trigger migrations (see below). It calls Render Jobs from the backend.
+- Optional workflow: `.github/workflows/migrate-on-migrations.yml` is manual‑only (`workflow_dispatch`) to avoid unintended costs.
+  - You can run it on‑demand from the Actions tab.
+  - Future: it can be re‑enabled on push once budgets/limits are approved.
 
 4) Cloudflare Worker (Edge Gateway)
 - Routes include `api.gestiqcloud.com/*` and admin/www `*/api/*`.
@@ -67,6 +66,14 @@ Backend can be fronted by a Cloudflare Worker at `api.gestiqcloud.com` to:
 - Propagate `X-Request-Id` and security headers
 
 See `workers/README.md` for configuration, `wrangler publish`, route setup and curl tests.
+
+## Migrations trigger (Admin‑first)
+
+- Admin UI → “Ejecutar migraciones” dispara el Job de Render desde el backend.
+  - Requiere en Render: `RENDER_API_KEY` y `RENDER_MIGRATE_JOB_ID`.
+  - El panel muestra estado en vivo e historial persistente.
+- El workflow de GitHub queda solo como alternativa manual.
+  - Futuro: volver a activar automático en push cuando se apruebe automatización de costes.
 
 ## Imports pipeline migration
 
