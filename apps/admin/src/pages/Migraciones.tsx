@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
 import { runMigrations, getMigrationStatus, getMigrationHistory, refreshMigrations, type MigrationState, type MigrationHistoryItem } from '../services/ops'
 
 export default function Migraciones() {
@@ -67,14 +67,27 @@ export default function Migraciones() {
 
   return (
     <div className="p-4">
-      <h2 className="text-lg font-semibold mb-3">Migraciones de base de datos</h2>
-      <p className="text-sm text-slate-600 mb-4">Este botón solicita al backend que dispare el Job de Render configurado (RENDER_MIGRATE_JOB_ID). Úsalo tras cambios de esquema.</p>
+      `<h2 className="text-lg font-semibold mb-3">Migraciones de base de datos</h2>
+      <p className="text-sm text-slate-600 mb-2">Este botón solicita al backend que dispare el Job de Render configurado (RENDER_MIGRATE_JOB_ID). Úsalo tras cambios de esquema.</p>\n      <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800 text-sm">\n        Nota: Por ahora el pipeline es manual; en el futuro se activará automáticamente al detectar cambios de esquema.\n      </div>
+      {state?.alembic_heads && state.alembic_heads.count -ne 1 && (
+        <div className="mb-4 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-red-800 text-sm">
+          Advertencia: se detectaron {state.alembic_heads.count} heads de Alembic. Heads: {state.alembic_heads.heads.join(',')}
+        </div>
+      )}
+      <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800 text-sm">
+        Nota: Por ahora el pipeline es manual; en el futuro se activara automaticamente al detectar cambios de esquema.
+      </div>
+      {state?.alembic_heads && state.alembic_heads.count !== 1 && (
+        <div className="mb-4 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-red-800 text-sm">
+          Advertencia: se detectaron {state.alembic_heads.count} heads de Alembic. Heads: {state.alembic_heads.heads.join(', ')}
+        </div>
+      )}
       <button
         disabled={loading || (state?.running ?? false)}
         onClick={onRun}
         className={`inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm ${loading ? 'bg-slate-400' : 'bg-indigo-600 hover:bg-indigo-700'}`}
       >
-        {loading ? 'Ejecutando…' : 'Ejecutar migraciones'}
+        {loading ? 'Ejecutandoâ€¦' : 'Ejecutar migraciones'}
       </button>
       <button
         onClick={onRefresh}
@@ -85,7 +98,7 @@ export default function Migraciones() {
       {msg && <div className="mt-3 text-sm text-slate-700">{msg}</div>}
       {state && (
         <div className="mt-3 text-sm text-slate-700">
-          <div>Estado: {state.running ? 'En ejecución' : (state.ok === true ? 'Completado' : state.ok === false ? 'Error' : 'Desconocido')}</div>
+          <div>Estado: {state.running ? 'En ejecuciÃ³n' : (state.ok === true ? 'Completado' : state.ok === false ? 'Error' : 'Desconocido')}</div>
           <div>Modo: {state.mode || 'n/d'}</div>
           {state.started_at && <div>Inicio: {new Date(state.started_at).toLocaleString()}</div>}
           {state.finished_at && <div>Fin: {new Date(state.finished_at).toLocaleString()}</div>}
@@ -115,7 +128,7 @@ export default function Migraciones() {
                   <td className="px-2 py-1">{new Date(h.started_at).toLocaleString()}</td>
                   <td className="px-2 py-1">{h.finished_at ? new Date(h.finished_at).toLocaleString() : '-'}</td>
                   <td className="px-2 py-1">{h.mode}</td>
-                  <td className="px-2 py-1">{h.ok === true ? '✔' : h.ok === false ? '✖' : '-'}</td>
+                  <td className="px-2 py-1">{h.ok === true ? 'âœ”' : h.ok === false ? 'âœ–' : '-'}</td>
                   <td className="px-2 py-1">{h.job_id || '-'}</td>
                   <td className="px-2 py-1 text-red-600">{h.error || '-'}</td>
                 </tr>
@@ -127,3 +140,6 @@ export default function Migraciones() {
     </div>
   )
 }
+
+
+

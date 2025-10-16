@@ -112,3 +112,24 @@ Note: legacy `empresa_id` is intentionally kept during transition. Drop in a lat
 ### Post-deploy smoke
 - Make authenticated tenant request and confirm cross-tenant reads return empty.
 - Verify cookies and CORS still work via `https://api.gestiqcloud.com`.
+
+## Alembic: Resolver múltiples heads (merge)
+
+Cuando aparecen dos o más heads en Alembic, hay que crear una revisión de "merge" para linearizar el grafo y recuperar un único head.
+
+Caso actual (ejemplo real):
+- Heads detectados: `a20006_admin_migration_runs` y `a20030_superuser_drop_tenant`.
+- Revisión de merge añadida: `a20040_merge_heads` con `down_revision = ("a20006_admin_migration_runs", "a20030_superuser_drop_tenant")`.
+
+Pasos para resolverlo en el futuro:
+1) Ejecuta `alembic heads --verbose` y anota los Revision ID de ambos heads.
+2) Crea una revisión de merge: `alembic revision -m "merge heads <id1> <id2>" --head <id1> --branch-label <id2>` o añade un archivo manualmente siguiendo el patrón de `a20040_merge_heads.py`.
+3) En el archivo de merge, define:
+   - `revision = "<nuevo_id>"`
+   - `down_revision = ("<head1>", "<head2>")`
+   - `upgrade()/downgrade()` vacíos (no-op), salvo que necesites unificar datos.
+4) Ejecuta `alembic upgrade head` y confirma que `alembic heads` devuelve 1.
+
+Notas:
+- Evita modificar migraciones ya aplicadas en producción; usa merge revisions para linearizar.
+- CI puede validar esto con un check que falle si `alembic heads` > 1 (ya configurado en workflows).

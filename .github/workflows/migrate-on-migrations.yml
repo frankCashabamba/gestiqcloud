@@ -3,6 +3,13 @@ name: Migrate on schema changes (manual only)
 on:
   # We disable automatic runs to avoid unintended costs.
   # Trigger manually from the Actions tab if needed.
+  # Future: to re‑enable automatic on push, replace with:
+  #   push:
+  #     branches: [ main ]
+  #     paths:
+  #       - 'apps/backend/alembic/versions/**'
+  #       - 'ops/migrations/**'
+  #       - 'scripts/py/apply_rls.py'
   workflow_dispatch:
 
 permissions:

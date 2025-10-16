@@ -210,7 +210,21 @@ def trigger_migrations(background_tasks: BackgroundTasks, db: Session = Depends(
 
 @router.get("/ops/migrate/status")
 def migrate_status():
-    return migration_state
+    # Enriquecer con estado Alembic (heads)
+    info = {}
+    try:
+        from alembic.config import Config
+        from alembic.script import ScriptDirectory
+        backend_dir = Path(__file__).resolve().parents[3]
+        cfg = Config(str(backend_dir / "alembic.ini"))
+        cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+        script = ScriptDirectory.from_config(cfg)
+        heads = list(script.get_heads())
+        info = {"alembic_heads": {"count": len(heads), "heads": heads}}
+    except Exception:
+        # no romper si Alembic no está disponible en este entorno
+        info = {"alembic_heads": {"count": -1, "heads": []}}
+    return {**migration_state, **info}
 
 
 @router.get("/ops/migrate/history")
