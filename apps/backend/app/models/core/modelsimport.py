@@ -30,7 +30,7 @@ from app.config.database import Base
 class DatosImportados(Base):
     __tablename__ = "datos_importados"
 
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(primary_key=True)
     tipo: Mapped[str] = mapped_column()  # "factura", "recibo", "movimiento"
     origen: Mapped[str] = mapped_column()  # "ocr", "excel", "manual"
     datos: Mapped[dict] = mapped_column(JSON)
