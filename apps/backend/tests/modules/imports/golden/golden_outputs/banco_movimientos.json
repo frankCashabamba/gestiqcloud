@@ -1,0 +1,42 @@
+[
+  {
+    "fecha": "2025-01-01",
+    "concepto": "Saldo inicial",
+    "debe": 0.0,
+    "haber": 5000.0,
+    "saldo": 5000.0,
+    "referencia": "INIT001"
+  },
+  {
+    "fecha": "2025-01-02",
+    "concepto": "Pago proveedor A",
+    "debe": 200.0,
+    "haber": 0.0,
+    "saldo": 4800.0,
+    "referencia": "PAG001"
+  },
+  {
+    "fecha": "2025-01-03",
+    "concepto": "Cobro cliente B",
+    "debe": 0.0,
+    "haber": 1500.0,
+    "saldo": 6300.0,
+    "referencia": "COB001"
+  },
+  {
+    "fecha": "2025-01-04",
+    "concepto": "Transferencia externa",
+    "debe": 300.0,
+    "haber": 0.0,
+    "saldo": 6000.0,
+    "referencia": "TRF001"
+  },
+  {
+    "fecha": "2025-01-05",
+    "concepto": "Cobro efectivo",
+    "debe": 0.0,
+    "haber": 250.0,
+    "saldo": 6250.0,
+    "referencia": "EFE001"
+  }
+]
