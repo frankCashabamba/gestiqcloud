@@ -259,7 +259,7 @@ Todas las tablas de imports tienen **RLS habilitado**:
 ```sql
 -- Política por tenant
 CREATE POLICY tenant_isolation ON import_batches
-  USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
+  USING (tenant_id = tenant_id_sql_expr());
 ```
 
 Middleware de API configura `SET LOCAL app.tenant_id` en cada request.

@@ -417,13 +417,13 @@ class ImportItem(Base):
 
 #### A.3 RLS (Row‑Level Security) en PostgreSQL
 
-- **Estrategia**: fijar al abrir la sesión DB `SET app.tenant_id = '<uuid>'`; las políticas usan `current_setting('app.tenant_id', true)::uuid`.
+- Estrategia: fijar al abrir la sesión DB `SET app.tenant_id = '<uuid>'` y usar el helper `tenant_id_sql_expr()` (ver `app/db/rls.py`) en políticas/consultas en lugar de referenciar `current_setting` directamente.
 
 ```sql
 ALTER TABLE import_items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY p_import_items_tenant ON import_items
-  USING (tenant_id = current_setting('app.tenant_id', true)::uuid)
-  WITH CHECK (tenant_id = current_setting('app.tenant_id', true)::uuid);
+  USING (tenant_id = tenant_id_sql_expr())
+  WITH CHECK (tenant_id = tenant_id_sql_expr());
 
 -- Repetir para import_batches, import_mappings, import_item_corrections, import_lineage, import_attachments,
 -- import_ocr_jobs, auditoria_importacion y las tablas destino (expenses, incomes, bank_movements, attachments).
@@ -571,4 +571,3 @@ def set_tenant(session, tenant_id: str):
 1) Antes de tocar nada, pega el **Prompt 1** en tu PR → tendrás un review automatizado y guía de cambios.  
 2) Si falta alguna pieza, pega el prompt correspondiente (2–11) y aplica el diff que te devuelva.  
 3) Ejecuta el **Prompt 12** antes de cerrar el PR para validar que cumpliste el DoD.
-

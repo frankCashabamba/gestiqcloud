@@ -335,20 +335,20 @@ async def tenant_middleware(request: Request, call_next):
 CREATE POLICY tenant_isolation ON import_batches
   FOR ALL
   TO authenticated_user
-  USING (tenant_id = current_setting('app.tenant_id', true)::uuid)
-  WITH CHECK (tenant_id = current_setting('app.tenant_id', true)::uuid);
+  USING (tenant_id = tenant_id_sql_expr())
+  WITH CHECK (tenant_id = tenant_id_sql_expr());
 
 -- import_items
 CREATE POLICY tenant_isolation ON import_items
   FOR ALL
   TO authenticated_user
-  USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
+  USING (tenant_id = tenant_id_sql_expr());
 
 -- import_lineage
 CREATE POLICY tenant_isolation ON import_lineage
   FOR ALL
   TO authenticated_user
-  USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
+  USING (tenant_id = tenant_id_sql_expr());
 ```
 
 ## Escalabilidad

@@ -64,12 +64,12 @@
 **Tareas**
 - `001_tenants.sql`: crear `tenants(id uuid, empresa_id int unique, slug, ...)` + backfill desde `core_empresa`.
 - `010_add_tenant_uuid_auto.sql`: añadir `tenant_id uuid` en tablas con `empresa_id`, poblar, FK, índices.
-- `020_rls_policies_auto.sql`: ENABLE/FORCE RLS + política `USING/WITH CHECK` (con `current_setting('app.tenant_id', true)`).
+- `020_rls_policies_auto.sql`: ENABLE/FORCE RLS + política `USING/WITH CHECK` (usa el helper `tenant_id_sql_expr()` del backend en lugar de referenciar `current_setting` directamente).
 - Middleware DB: **`SET LOCAL app.tenant_id`** en **la misma Session** de cada request (arregla el anti‑patrón de dos sesiones). Usa `get_db()` con transacción abierta.
 
 **Aceptación**
 - Usuarios de otro tenant → 0 filas/403.
-- `SELECT current_setting('app.tenant_id', true)` devuelve UUID válido en request.
+- Usa `tenant_id_sql_expr()`/`ensure_rls` para resolver el tenant; evitar referencias directas a `current_setting` en código de aplicación.
 
 ---
 
@@ -336,4 +336,3 @@ front-admin front-tenant:
 - Cualquier `UNIQUE(code)` global → pasar a `UNIQUE(tenant_id, code)`.
 - Índices por expresión en `extra` **sólo** si hay uso frecuente.
 - **i18n**: `tenant.locale` (inicial `es-ES`); glosario fiscal por país; formateo por moneda/fecha.
-
