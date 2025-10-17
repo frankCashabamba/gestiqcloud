@@ -69,3 +69,7 @@ opentelemetry-instrumentation-sqlalchemy==0.47b0
 opentelemetry-instrumentation-celery==0.47b0
 PyJWT==2.9.0
 opencv-python-headless>=4.12.0.88
+pyzbar==0.1.9
+python-magic>=0.4.14; platform_system != "Windows"
+python-magic-bin>=0.4.14; platform_system == "Windows"
+clamd==1.0.2

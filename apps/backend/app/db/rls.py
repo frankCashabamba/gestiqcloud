@@ -1,8 +1,21 @@
+from __future__ import annotations
+
 from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.sql import literal_column
 
 from app.config.database import get_db
+
+
+__all__ = [
+    "ensure_rls",
+    "tenant_id_sql_expr",
+    "tenant_id_sql_expr_text",
+    "tenant_id_from_request",
+    "set_tenant_guc",
+    "ensure_guc_from_request",
+]
 
 
 def _to_str(val) -> str | None:
@@ -44,20 +57,24 @@ def ensure_rls(
         return
 
     try:
-        # If tenant_id looks like an integer (legacy empresa_id), translate to UUID
+        # Si tenant_id parece entero (legacy empresa_id), tradúcelo a UUID
         if isinstance(t_id, str) and t_id.isdigit():
             try:
-                res = db.execute(text("SELECT id::text FROM public.tenants WHERE empresa_id = :eid"), {"eid": int(t_id)})
+                res = db.execute(
+                    text("SELECT id::text FROM public.tenants WHERE empresa_id = :eid"),
+                    {"eid": int(t_id)},
+                )
                 row = res.first()
                 if row and row[0]:
                     t_id = row[0]
             except Exception:
                 pass
 
-        # Use SET LOCAL so it scopes to the current transaction/request
+        # Usa SET LOCAL para scope de transacción/request
         db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(t_id)})
         db.execute(text("SET LOCAL app.user_id = :uid"), {"uid": str(u_id)})
-        # Expose tenant_id in session.info for ORM hooks/utilities
+
+        # Expón tenant_id en session.info para hooks/utilidades ORM
         try:
             db.info["tenant_id"] = str(t_id)
         except Exception:
@@ -69,16 +86,27 @@ def ensure_rls(
     return db
 
 
-def tenant_id_sql_expr(param_name: str = "tid") -> str:
-    """SQL fragment that resolves tenant_id safely.
+# --- Helpers de expresión para tenant_id ---
 
-    Uses the session GUC when present and falls back to a bound parameter.
-    Example usage with SQLAlchemy text():
-        text(f"INSERT ... VALUES ({tenant_id_sql_expr()}, :other)")
-        db.execute(..., {"tid": tid, "other": 123})
+
+def tenant_id_sql_expr():
     """
-    # Prefer CAST(:param AS uuid) over double-colon casts for bind params,
-    # so SQLAlchemy/psycopg parse parameters reliably across dialects.
+    Devuelve una EXPRESIÓN SQLAlchemy que lee el tenant desde la GUC.
+    Úsala así:
+        db.scalar(select(tenant_id_sql_expr()))
+        stmt = select(Model).where(Model.tenant_id == tenant_id_sql_expr())
+    """
+    return literal_column("current_setting('app.tenant_id', true)::uuid").label("tenant_id")
+
+
+def tenant_id_sql_expr_text(param_name: str = "tid") -> str:
+    """
+    Devuelve un FRAGMENTO DE TEXTO SQL para usar con sqlalchemy.text().
+    Úsalo así:
+        text(f\"INSERT ... VALUES ({tenant_id_sql_expr_text()}, :other)\")
+        db.execute(..., {\"tid\": tid, \"other\": 123})
+    """
+    # Preferimos CAST(:param AS uuid) para bind params portables.
     return (
         "COALESCE("
         "NULLIF(current_setting('app.tenant_id', true), '')::uuid, "
@@ -88,9 +116,9 @@ def tenant_id_sql_expr(param_name: str = "tid") -> str:
 
 
 def tenant_id_from_request(request: Request) -> str | None:
-    """Extract tenant_id from request.state access claims or session.
+    """Extrae tenant_id desde claims o session en la request.
 
-    Returns string UUID when available, else None.
+    Devuelve UUID en string cuando está disponible, si no devuelve None.
     """
     claims = getattr(request.state, "access_claims", None) or {}
     if isinstance(claims, dict):
@@ -103,10 +131,10 @@ def tenant_id_from_request(request: Request) -> str | None:
 
 
 def set_tenant_guc(db: Session, tenant_id: str, persist: bool = False) -> None:
-    """Set tenant GUC on this DB session.
+    """Set tenant GUC en esta sesión de DB.
 
-    - persist=False → SET LOCAL (scoped to current transaction)
-    - persist=True  → SET (persists for session until RESET or close)
+    - persist=False → SET LOCAL (scope a la transacción actual)
+    - persist=True  → SET (persiste en la conexión)
     """
     if not tenant_id:
         return
@@ -124,7 +152,7 @@ def set_tenant_guc(db: Session, tenant_id: str, persist: bool = False) -> None:
 
 
 def ensure_guc_from_request(request: Request, db: Session, persist: bool = False) -> None:
-    """Extract tenant from request and set it as GUC on this session."""
+    """Extrae tenant de la request y lo setea como GUC en esta sesión."""
     tid = tenant_id_from_request(request)
     if tid:
         set_tenant_guc(db, tid, persist=persist)

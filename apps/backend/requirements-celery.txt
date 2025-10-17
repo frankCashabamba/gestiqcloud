@@ -1,0 +1,10 @@
+# Celery + Redis para imports pipeline
+celery[redis]==5.3.4
+redis==5.0.1
+kombu==5.3.4
+
+# Opcional: monitoring
+flower==2.0.1
+
+# Opcional: métricas
+prometheus-client==0.19.0

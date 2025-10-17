@@ -1,0 +1,18 @@
+{
+  "proveedor": {
+    "tax_id": "1790016919001",
+    "nombre": "PROVEEDOR TEST S.A.",
+    "direccion": null
+  },
+  "cliente": {
+    "tax_id": "0992345678001",
+    "nombre": "Cliente Test"
+  },
+  "totales": {
+    "subtotal": 100.00,
+    "iva": 12.00,
+    "total": 112.00
+  },
+  "fecha_emision": "2025-01-15",
+  "numero_factura": "001-001-000001234"
+}
