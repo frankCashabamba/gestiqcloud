@@ -6,8 +6,9 @@ import uuid
 from functools import wraps
 from typing import Any, Callable, TypeVar
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
+from app.db.rls import tenant_id_sql_expr
 
 logger = logging.getLogger(__name__)
 
@@ -106,9 +107,9 @@ def require_tenant_context(db: Session) -> None:
         return
 
     try:
-        result = db.execute(text("SELECT current_setting('app.tenant_id', true)"))
-        tenant_id = result.scalar()
-        if not tenant_id or tenant_id == "":
+        # Use the centralized helper instead of calling current_setting directly
+        tenant_id = db.scalar(select(tenant_id_sql_expr()))
+        if not tenant_id:
             raise RuntimeError(
                 "RLS context not set: app.tenant_id is empty. "
                 "Call set_tenant_context() before querying."
