@@ -1,0 +1,6 @@
+fecha,concepto,debe,haber,saldo,referencia
+2025-01-01,Saldo inicial,0.00,5000.00,5000.00,INIT001
+2025-01-02,Pago proveedor A,200.00,0.00,4800.00,PAG001
+2025-01-03,Cobro cliente B,0.00,1500.00,6300.00,COB001
+2025-01-04,Transferencia externa,300.00,0.00,6000.00,TRF001
+2025-01-05,Cobro efectivo,0.00,250.00,6250.00,EFE001

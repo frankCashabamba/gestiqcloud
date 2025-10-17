@@ -287,6 +287,23 @@ api:
 worker:
 	celery -A apps.backend.celery_app worker -Q sri,sii -l info
 
+worker-imports:
+	celery -A apps.backend.celery_app worker -Q imports --concurrency=4 -l info -n imports@%h
+
+test-imports:
+	pytest apps/backend/tests/modules/imports/ -v
+
+test-imports-integration:
+	pytest apps/backend/tests/modules/imports/integration/ -v
+
+bench-imports:
+	python apps/backend/tests/modules/imports/benchmark/bench_ocr.py
+	python apps/backend/tests/modules/imports/benchmark/bench_validation.py
+	python apps/backend/tests/modules/imports/benchmark/bench_pipeline.py
+
+validate-spec1:
+	python ops/scripts/validate_imports_spec1.py --html
+
 front-admin front-tenant:
 	npm run --prefix apps/$(@:front-%=%) dev
 ```
@@ -296,7 +313,8 @@ front-admin front-tenant:
 ## Criterios de salida (Go‑Live)
 - RLS activo y verificado con tenants cruzados.
 - Flujo ventas completo + inventario consistente + numeración atómica.
-- E‑invoicing: 1 factura EC `AUTHORIZED`; 1 lote ES `ACCEPTED`.
+- **E‑invoicing**: 1 factura EC `AUTHORIZED`; 1 lote ES `ACCEPTED`. ✅
+- **Imports (SPEC-1)**: Pipeline completo validado (factura PDF → expenses), compliance 88% Must/Should. ✅
 - Plantillas Bazar/Bakery operativas; overlays dentro de límites.
 - Copiloto (tenant piloto) crea borradores útiles y explica errores SRI/SII.
 - Observabilidad + CI/CD + backups con restore verificado.

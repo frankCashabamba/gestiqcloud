@@ -85,6 +85,39 @@ services:
     ports:
       - "8082:8082"
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  celery-worker:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: celery-worker
+    environment:
+      PYTHONPATH: "/app:/apps"
+      IMPORTS_ENABLED: "1"
+      IMPORTS_RUNNER_MODE: "celery"
+      DB_DSN: "postgresql://postgres:root@db:5432/gestiqclouddb_dev"
+      REDIS_URL: "redis://redis:6379/0"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./uploads:/app/uploads
+      - ./apps:/apps:ro
+      - ./scripts:/scripts:ro
+    command: ["python", "-m", "app.modules.imports.application.worker_main"]
+
 volumes:
   db_data:
 
