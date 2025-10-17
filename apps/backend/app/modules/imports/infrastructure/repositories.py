@@ -1,69 +1,83 @@
 from __future__ import annotations
 
+import uuid
 from typing import Any, Dict, Iterable, List, Optional
 
 from sqlalchemy.orm import Session
 
 from app.models.core.modelsimport import ImportBatch, ImportItem
+from .tenant_middleware import with_tenant_context
 
 
 class ImportsRepository:
-    """Minimal repository interface (to be implemented with SQLAlchemy models).
+    """Repository for imports module with RLS tenant isolation.
 
-    All methods must be scoped by empresa_id externally or via filters.
+    All methods expect tenant_id (UUID) as first parameter.
+    RLS policies enforce tenant isolation at DB level.
     """
 
     # Batches
-    def get_batch(self, db: Session, empresa_id: int, batch_id) -> Optional[ImportBatch]:
-        return (
-            db.query(ImportBatch)
-            .filter(ImportBatch.id == batch_id, ImportBatch.empresa_id == empresa_id)
-            .first()
-        )
+    @with_tenant_context
+    def get_batch(
+        self, db: Session, tenant_id: uuid.UUID, batch_id: int
+    ) -> Optional[ImportBatch]:
+        # RLS handles tenant_id filtering
+        return db.query(ImportBatch).filter(ImportBatch.id == batch_id).first()
 
-    def list_batches(self, db: Session, empresa_id: int, *, status: Optional[str] = None) -> List[ImportBatch]:
-        q = db.query(ImportBatch).filter(ImportBatch.empresa_id == empresa_id)
+    @with_tenant_context
+    def list_batches(
+        self,
+        db: Session,
+        tenant_id: uuid.UUID,
+        *,
+        status: Optional[str] = None,
+    ) -> List[ImportBatch]:
+        # RLS handles tenant_id filtering
+        q = db.query(ImportBatch)
         if status:
             q = q.filter(ImportBatch.status == status)
         return q.order_by(ImportBatch.created_at.desc()).all()
 
     # Items
+    @with_tenant_context
     def list_items(
         self,
         db: Session,
-        empresa_id: int,
-        batch_id,
+        tenant_id: uuid.UUID,
+        batch_id: int,
         *,
         status: Optional[str] = None,
         q: Optional[str] = None,
     ) -> List[ImportItem]:
-        # empresa_id is enforced by joining batch
+        # RLS handles tenant_id filtering via batch join
         query = (
             db.query(ImportItem)
             .join(ImportBatch, ImportItem.batch_id == ImportBatch.id)
-            .filter(ImportBatch.id == batch_id, ImportBatch.empresa_id == empresa_id)
+            .filter(ImportBatch.id == batch_id)
         )
         if status:
             query = query.filter(ImportItem.status == status)
-        # naive q filter over normalized JSON as text via CAST; tune with PG JSONB ops if needed
         if q:
             from sqlalchemy import cast, String
-
             query = query.filter(cast(ImportItem.normalized, String).ilike(f"%{q}%"))
         return query.order_by(ImportItem.idx.asc()).all()
 
-    def bulk_add_items(self, db: Session, empresa_id: int, batch_id, items: Iterable[Dict[str, Any]]) -> int:
-        """Insert items skipping duplicates by (batch_id, idempotency_key) when present.
-
-        This provides idempotent ingestion without requiring a DB unique index.
-        """
-        # Preload existing idempotency keys for the batch
+    @with_tenant_context
+    def bulk_add_items(
+        self,
+        db: Session,
+        tenant_id: uuid.UUID,
+        batch_id: int,
+        items: Iterable[Dict[str, Any]],
+    ) -> int:
+        """Insert items skipping duplicates by (batch_id, idempotency_key)."""
+        # RLS ensures only tenant's items are queried
         existing_keys = set(
-            k for (k,) in (
-                db.query(ImportItem.idempotency_key)
-                .filter(ImportItem.batch_id == batch_id)
-                .all()
-            ) if k is not None
+            k
+            for (k,) in db.query(ImportItem.idempotency_key)
+            .filter(ImportItem.batch_id == batch_id)
+            .all()
+            if k is not None
         )
         count = 0
         for data in items:
@@ -78,14 +92,13 @@ class ImportsRepository:
         db.commit()
         return count
 
-    def exists_promoted_hash(self, db: Session, empresa_id: int, dedupe_hash: str) -> bool:
-        q = (
-            db.query(ImportItem)
-            .join(ImportBatch, ImportItem.batch_id == ImportBatch.id)
-            .filter(
-                ImportBatch.empresa_id == empresa_id,
-                ImportItem.dedupe_hash == dedupe_hash,
-                ImportItem.status == "PROMOTED",
-            )
+    @with_tenant_context
+    def exists_promoted_hash(
+        self, db: Session, tenant_id: uuid.UUID, dedupe_hash: str
+    ) -> bool:
+        # RLS handles tenant_id filtering
+        q = db.query(ImportItem).join(ImportBatch).filter(
+            ImportItem.dedupe_hash == dedupe_hash,
+            ImportItem.status == "PROMOTED",
         )
         return db.query(q.exists()).scalar() or False

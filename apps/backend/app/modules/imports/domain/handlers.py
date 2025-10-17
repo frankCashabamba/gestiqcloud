@@ -46,3 +46,30 @@ class ExpenseHandler:
         domain_id = f"exp:{date}:{amt}" if date or amt else None
         return PromoteResult(domain_id=domain_id, skipped=False)
 
+
+def publish_to_destination(db, tenant_id, doc_type: str, extracted_data: Dict[str, Any]) -> Optional[str]:
+    """
+    Publica extracted_data a tablas destino según doc_type.
+    
+    Args:
+        db: SQLAlchemy Session
+        tenant_id: UUID del tenant
+        doc_type: tipo de documento (factura/recibo/banco/transferencia)
+        extracted_data: datos canónicos extraídos
+    
+    Returns:
+        destination_id: ID del registro creado en tabla destino
+    """
+    handler_map = {
+        "factura": InvoiceHandler,
+        "recibo": InvoiceHandler,
+        "banco": BankHandler,
+        "transferencia": BankHandler,
+        "desconocido": ExpenseHandler,
+    }
+    
+    handler = handler_map.get(doc_type, ExpenseHandler)
+    result = handler.promote(extracted_data)
+    
+    return result.domain_id if result and not result.skipped else None
+

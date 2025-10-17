@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import List, Dict, Any
 from datetime import datetime
@@ -534,7 +534,7 @@ def create_batch_endpoint(dto: BatchCreate, request: Request, db: Session = Depe
     return batch
 
 
-@router.post("/batches/{batch_id}/ingest", response_model=list[ItemOut])
+@router.post("/batches/{batch_id}/ingest", response_model=list)
 def ingest_rows_endpoint(
     batch_id: UUID,                # <-- UUID correcto para el id del batch
     payload: IngestRows,
@@ -605,7 +605,24 @@ def ingest_rows_endpoint(
         defaults=defaults,
         dedupe_keys=(mp.dedupe_keys if 'mp' in locals() and mp else None),
     )
-    return items
+    
+    from app.modules.imports.domain.pipeline import enqueue_batch_pipeline
+    batch.status = "processing"
+    db.commit()
+    
+    tenant_id = getattr(batch, "tenant_id", None) or batch_id
+    pipeline_result = enqueue_batch_pipeline(batch_id, UUID(str(tenant_id)))
+    # For API ergonomics, return the created/updated items list (tests expect this)
+    out = [
+        {
+            "id": str(getattr(it, "id", "")),
+            "idx": getattr(it, "idx", None),
+            "status": getattr(it, "status", None),
+            "errors": getattr(it, "errors", None),
+        }
+        for it in (items or [])
+    ]
+    return out
 
 
 @router.get("/batches/{batch_id}", response_model=BatchOut)
@@ -615,6 +632,56 @@ def get_batch_endpoint(batch_id: UUID, request: Request, db: Session = Depends(g
     if str(batch.empresa_id) != str(request.state.access_claims.get("tenant_id")):
         raise HTTPException(status_code=403, detail="No autorizado")
     return batch
+
+
+@router.get("/batches/{batch_id}/status")
+def get_batch_status_endpoint(batch_id: UUID, request: Request, db: Session = Depends(get_db)):
+    from app.models.core.modelsimport import ImportItem
+    
+    empresa_id = int(request.state.access_claims.get("tenant_id"))
+    batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id, ImportBatch.empresa_id == empresa_id).first()
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch no encontrado")
+    
+    from sqlalchemy import func
+    status_counts = dict(
+        db.query(ImportItem.status, func.count(ImportItem.id))
+        .filter(ImportItem.batch_id == batch_id)
+        .group_by(ImportItem.status)
+        .all()
+    )
+    
+    total = sum(status_counts.values())
+    completed = status_counts.get("published", 0)
+    failed = sum(v for k, v in status_counts.items() if "failed" in k)
+    processing = sum(v for k, v in status_counts.items() if k not in ("published", "pending") and "failed" not in k)
+    
+    return {
+        "batch_id": str(batch_id),
+        "status": batch.status,
+        "total_items": total,
+        "completed": completed,
+        "processing": processing,
+        "failed": failed,
+        "pending": status_counts.get("pending", 0),
+        "progress": round(completed / total * 100, 1) if total > 0 else 0,
+        "status_breakdown": status_counts,
+    }
+
+
+@router.post("/batches/{batch_id}/retry")
+def retry_batch_endpoint(batch_id: UUID, request: Request, db: Session = Depends(get_db)):
+    from app.modules.imports.domain.pipeline import retry_failed_items
+    
+    empresa_id = int(request.state.access_claims.get("tenant_id"))
+    batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id, ImportBatch.empresa_id == empresa_id).first()
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch no encontrado")
+    
+    tenant_id = getattr(batch, "tenant_id", None) or batch_id
+    result = retry_failed_items(batch_id, UUID(str(tenant_id)))
+    
+    return result
 
 
 @router.get("/batches", response_model=list[BatchOut])
@@ -1002,5 +1069,3 @@ async def attach_photo_to_item(
     # Size + mimetype limits and throttling handled above
     item = use_cases.attach_photo_and_reocr(db, str(empresa_id), str(user_id), it, file)
     return item
-
-
