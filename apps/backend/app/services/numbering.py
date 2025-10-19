@@ -47,10 +47,10 @@ def assign_doc_number(
             FROM doc_series
             WHERE tenant_id = :tenant_id
               AND doc_type = :doc_type
-              AND (:register_id::uuid IS NULL OR register_id = :register_id::uuid OR register_id IS NULL)
+              AND (:register_id IS NULL OR register_id = CAST(:register_id AS uuid) OR register_id IS NULL)
               AND active = true
             ORDER BY 
-              CASE WHEN register_id = :register_id::uuid THEN 0 ELSE 1 END,
+              CASE WHEN register_id = CAST(:register_id AS uuid) THEN 0 ELSE 1 END,
               created_at DESC
             LIMIT 1
             FOR UPDATE
@@ -152,7 +152,7 @@ def create_default_series(
             SELECT id FROM doc_series
             WHERE tenant_id = :tenant_id
               AND doc_type = :doc_type
-              AND (:register_id::uuid IS NULL OR register_id = :register_id::uuid)
+              AND (:register_id IS NULL OR register_id = CAST(:register_id AS uuid))
         """)
         
         exists = db.execute(
@@ -170,7 +170,7 @@ def create_default_series(
                     tenant_id, register_id, doc_type, name, current_no, active
                 )
                 VALUES (
-                    :tenant_id, :register_id::uuid, :doc_type, :name, 0, true
+                    :tenant_id, CAST(:register_id AS uuid), :doc_type, :name, 0, true
                 )
             """)
             
