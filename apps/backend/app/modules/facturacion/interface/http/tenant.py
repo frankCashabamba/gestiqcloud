@@ -55,6 +55,67 @@ def crear_factura(
     return factura_crud.create_with_lineas(db, empresa_id, factura)
 
 
+@router.put("/{factura_id}", response_model=schemas.InvoiceOut)
+def actualizar_factura(
+    factura_id: int,
+    factura: schemas.InvoiceUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Actualizar factura en borrador"""
+    empresa_id = int(request.state.access_claims.get("tenant_id"))
+    
+    invoice = db.query(Invoice).filter(
+        Invoice.id == factura_id,
+        Invoice.empresa_id == empresa_id
+    ).first()
+    
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    
+    if invoice.estado not in ['draft', 'borrador']:
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se pueden editar facturas en borrador"
+        )
+    
+    # Actualizar campos permitidos
+    update_data = factura.model_dump(exclude_unset=True, exclude_none=True)
+    for field, value in update_data.items():
+        if hasattr(invoice, field):
+            setattr(invoice, field, value)
+    
+    db.commit()
+    db.refresh(invoice)
+    
+    return invoice
+
+
+@router.delete("/{factura_id}")
+def anular_factura(factura_id: int, request: Request, db: Session = Depends(get_db)):
+    """Anular factura (soft delete)"""
+    empresa_id = int(request.state.access_claims.get("tenant_id"))
+    
+    invoice = db.query(Invoice).filter(
+        Invoice.id == factura_id,
+        Invoice.empresa_id == empresa_id
+    ).first()
+    
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    
+    if invoice.estado == 'paid':
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede anular una factura pagada. Use abonos/créditos."
+        )
+    
+    invoice.estado = 'void'
+    db.commit()
+    
+    return {"status": "ok", "message": f"Factura {invoice.numero} anulada"}
+
+
 @router.post("/{factura_id}/emitir", response_model=schemas.InvoiceOut)
 def emitir_factura(
     factura_id: int,

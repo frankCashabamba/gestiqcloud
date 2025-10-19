@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI, Response
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -170,6 +170,22 @@ _email_logger.propagate = False
 
 # REST API v1 (compat con FE): monta todos los routers bajo /api/v1
 app.include_router(build_api_router(), prefix="/api/v1")
+
+# POS Router (Point of Sale)
+try:
+    from app.routers.pos import router as pos_router
+    app.include_router(pos_router)
+    _router_logger.info("✅ POS router montado en /api/v1/pos")
+except Exception as e:
+    _router_logger.error(f"❌ Error montando POS router: {e}")
+
+# Payments Router (Enlaces de pago y webhooks)
+try:
+    from app.routers.payments import router as payments_router
+    app.include_router(payments_router)
+    _router_logger.info("✅ Payments router montado en /api/v1/payments")
+except Exception as e:
+    _router_logger.error(f"❌ Error montando Payments router: {e}")
 
 # Fallback: si por algÃºn motivo el router de imports no quedÃ³ montado
 try:
