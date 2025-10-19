@@ -54,6 +54,51 @@ class OrderOut(BaseModel):
         from_attributes = True
 
 
+@router.get("/", response_model=List[OrderOut])
+def list_orders(
+    request: Request,
+    db: Session = Depends(get_db),
+    status: Optional[str] = None,
+    customer_id: Optional[int] = None,
+    limit: int = 100,
+    offset: int = 0
+):
+    """Listar órdenes de venta"""
+    tid = _tenant_id_str(request)
+    
+    query = db.query(SalesOrder).filter(SalesOrder.tenant_id == tid)
+    
+    if status:
+        query = query.filter(SalesOrder.status == status)
+    
+    if customer_id:
+        query = query.filter(SalesOrder.customer_id == customer_id)
+    
+    orders = query.order_by(SalesOrder.created_at.desc()).offset(offset).limit(limit).all()
+    
+    return orders
+
+
+@router.get("/{order_id}", response_model=OrderOut)
+def get_order(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Obtener orden de venta por ID"""
+    tid = _tenant_id_str(request)
+    
+    order = db.query(SalesOrder).filter(
+        SalesOrder.id == order_id,
+        SalesOrder.tenant_id == tid
+    ).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    
+    return order
+
+
 @router.post("/", response_model=OrderOut, status_code=201)
 def create_order(payload: OrderCreateIn, request: Request, db: Session = Depends(get_db)):
     if not payload.items:
