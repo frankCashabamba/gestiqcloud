@@ -1,7 +1,7 @@
 ﻿# app/config/database.py
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, asynccontextmanager
 from typing import Iterator
 from fastapi import Request
 
@@ -60,6 +60,23 @@ SessionLocal: sessionmaker[Session] = sessionmaker(
     autocommit=False,
     future=True,
 )
+
+# ---------------------------------------------------------------------------
+# Async session shim for tests (patch target)
+# ---------------------------------------------------------------------------
+@asynccontextmanager
+async def get_db_session():  # pragma: no cover - used as patch target in tests
+    """
+    Async context manager placeholder to satisfy imports in modules that expect
+    an async DB session provider. Unit tests patch this symbol with an
+    AsyncMock that implements the async context manager protocol.
+
+    In production, use the synchronous dependencies (get_db/session_scope) or
+    provide a real AsyncSession provider.
+    """
+    raise NotImplementedError(
+        "get_db_session is a test-time placeholder; patch it or provide an async provider"
+    )
 
 # ---------------------------------------------------------------------------
 # Dependencia FastAPI: sesiÃ³n por request
