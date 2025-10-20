@@ -24,12 +24,14 @@ describe('Offline/Online Integration', () => {
     vi.clearAllMocks()
 
     // Mock online by default
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { isOnline } = require('../lib/electric')
     vi.mocked(isOnline).mockReturnValue(true)
   })
 
   describe('POS Operations Offline', () => {
     it('should allow creating receipts while offline', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { isOnline, initElectric } = require('../lib/electric')
 
       // Simulate going offline
@@ -56,6 +58,7 @@ describe('Offline/Online Integration', () => {
     })
 
     it('should queue operations when offline', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { isOnline } = require('../lib/electric')
 
       // Start online
@@ -77,6 +80,7 @@ describe('Offline/Online Integration', () => {
 
   describe('Sync on Reconnection', () => {
     it('should sync pending changes when coming online', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { setupOnlineSync, setConflictHandler } = require('../lib/electric')
 
       let syncCalled = false
@@ -116,6 +120,7 @@ describe('Offline/Online Integration', () => {
     })
 
     it('should handle sync conflicts gracefully', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { setConflictHandler } = require('../lib/electric')
 
       const mockConflicts = [
@@ -196,6 +201,7 @@ describe('Offline/Online Integration', () => {
       // - Click "Usar Cambios Locales"
       // - Verify resolution sent to backend
       // - Check modal closes
+      await user.click(screen.getByText('Resolution Test'))
     })
   })
 
@@ -216,3 +222,4 @@ describe('Offline/Online Integration', () => {
     })
   })
 })
+
