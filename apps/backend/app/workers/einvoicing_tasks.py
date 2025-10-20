@@ -1,12 +1,27 @@
 """
 E-invoicing Celery Tasks - SRI Ecuador & Facturae España
 """
-from celery import Task
 from typing import Dict, Any
 import logging
 import base64
 from datetime import datetime
 from decimal import Decimal
+import os
+
+# Celery is optional in the minimal test environment. Provide light shims so
+# importing this module doesn't fail when celery isn't installed.
+_MINIMAL = str(os.getenv("TEST_MINIMAL", "0")).lower() in ("1", "true", "yes")
+
+try:  # pragma: no cover - trivial shim when TEST_MINIMAL
+    from celery import Task  # type: ignore
+except Exception:  # pragma: no cover
+    if _MINIMAL:
+        class Task:  # minimal base class to satisfy attribute access
+            autoretry_for = tuple()
+            retry_kwargs = {}
+            retry_backoff = False
+    else:
+        raise
 
 logger = logging.getLogger(__name__)
 
@@ -381,7 +396,19 @@ def sign_facturae_xml(xml_content: str, cert_data: Dict[str, Any]) -> str:
 # Celery Tasks
 # ============================================================================
 
-from app.celery_app import celery_app
+try:  # pragma: no cover
+    from app.celery_app import celery_app  # type: ignore
+except Exception:  # Provide no-op task decorator in tests when minimal
+    if _MINIMAL:
+        class _DummyCeleryApp:
+            def task(self, *dargs, **dkwargs):
+                def _decorator(fn):
+                    return fn
+                return _decorator
+
+        celery_app = _DummyCeleryApp()  # type: ignore
+    else:
+        raise
 
 
 @celery_app.task(base=EInvoicingTask, name="einvoicing.sign_and_send_sri")
@@ -452,9 +479,20 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
         # 4. Generar XML
         xml_content = generate_sri_xml(invoice_data)
         
-        # 5. Cargar certificado desde CertificateManager
+        # 5. Cargar certificado desde CertificateManager (bridge async -> sync)
         from app.services.certificate_manager import certificate_manager
-        cert_info = await certificate_manager.get_certificate(tenant_id, "EC")
+        import asyncio
+        def _get_cert_ec():
+            return loop.run_until_complete(certificate_manager.get_certificate(tenant_id, "EC"))
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            cert_info = _get_cert_ec()
+        finally:
+            try:
+                loop.close()
+            except Exception:
+                pass
         if not cert_info:
             raise ValueError(f"No certificate found for tenant {tenant_id} in Ecuador")
 
@@ -527,25 +565,26 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
     """Tarea: Firmar y enviar Facturae España"""
     from app.config.database import SessionLocal
     from sqlalchemy import text
-    
+    import asyncio
+
     db = SessionLocal()
     try:
-    logger.info(f"Facturae task started: {invoice_id} for tenant {tenant_id}")
+        logger.info(f"Facturae task started: {invoice_id} for tenant {tenant_id}")
 
-    # 1. Obtener datos de factura
-    query = text("""
-        SELECT
-            f.id, f.numero, f.fecha, f.subtotal, f.iva, f.total,
-            e.nombre as empresa_nombre, e.ruc as empresa_ruc,
-        e.direccion as empresa_direccion,
-        c.nombre as cliente_nombre, c.identificacion as cliente_ruc,
-        c.email as cliente_email
-        FROM facturas f
-        JOIN tenants t ON t.id = f.tenant_id
-        JOIN core_empresa e ON e.id = t.empresa_id
-        JOIN clientes c ON c.id = f.cliente_id
-        WHERE f.id = :invoice_id AND f.tenant_id = :tenant_id
-    """)
+        # 1. Obtener datos de factura
+        query = text("""
+            SELECT
+                f.id, f.numero, f.fecha, f.subtotal, f.iva, f.total,
+                e.nombre as empresa_nombre, e.ruc as empresa_ruc,
+                e.direccion as empresa_direccion,
+                c.nombre as cliente_nombre, c.identificacion as cliente_ruc,
+                c.email as cliente_email
+            FROM facturas f
+            JOIN tenants t ON t.id = f.tenant_id
+            JOIN core_empresa e ON e.id = t.empresa_id
+            JOIN clientes c ON c.id = f.cliente_id
+            WHERE f.id = :invoice_id AND f.tenant_id = :tenant_id
+        """)
 
         invoice = db.execute(query, {"invoice_id": invoice_id, "tenant_id": tenant_id}).first()
         if not invoice:
@@ -571,9 +610,22 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
         }
         xml_content = generate_facturae_xml(invoice_data)
 
-        # 3. Firmar
+        # 3. Firmar (bridge async -> sync)
         from app.services.certificate_manager import certificate_manager
-        cert_info = await certificate_manager.get_certificate(tenant_id, "ES")
+
+        def _get_cert():
+            return loop.run_until_complete(certificate_manager.get_certificate(tenant_id, "ES"))
+
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            cert_info = _get_cert()
+        finally:
+            try:
+                loop.close()
+            except Exception:
+                pass
+
         if not cert_info:
             raise ValueError(f"No certificate found for tenant {tenant_id} in Spain")
 
@@ -587,7 +639,6 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
         result = {"status": "ACCEPTED", "message": "Facturae enviado (stub)"}
 
         # 5. Guardar resultado en SII batch
-        # Crear batch si no existe para el período
         from datetime import datetime
         period = datetime.now().strftime('%Y%m')
 
@@ -642,12 +693,10 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
 
         db.commit()
         return result
-    
     except Exception as e:
         db.rollback()
         logger.error(f"Error Facturae {invoice_id}: {e}")
         raise
-    
     finally:
         db.close()
 

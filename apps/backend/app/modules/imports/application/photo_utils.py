@@ -46,9 +46,9 @@ except ImportError:
 try:
     from pyzbar import pyzbar
     PYZBAR_AVAILABLE = True
-except ImportError:
+except Exception:
     PYZBAR_AVAILABLE = False
-    logger.warning("pyzbar not available - QR code detection disabled")
+    logger.warning("pyzbar unavailable or libzbar missing - QR code detection disabled")
 
 from .ocr_config import get_ocr_config
 from .security_config import get_security_config

@@ -53,12 +53,12 @@ async def get_einvoice_status(
                 detail="E-invoice status not found for this invoice ID.",
             )
         return status_data
-        except HTTPException as e:
+    except HTTPException as e:
         raise e
-        except Exception as e:
+    except Exception as e:
         raise HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail=f"Failed to retrieve e-invoice status: {str(e)}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve e-invoice status: {str(e)}",
         )
 
 
