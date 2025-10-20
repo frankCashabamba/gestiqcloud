@@ -49,7 +49,7 @@ describe('ElectricSQL Integration', () => {
       const mockPGlite = { connect: vi.fn() }
 
       // Mock the imports
-      const { electrify, PGlite } = await import('electric-sql/pglite')
+      const { electrify, PGlite } = (await import('electric-sql/pglite')) as any
       vi.mocked(PGlite).mockReturnValue(mockPGlite as any)
       vi.mocked(electrify).mockResolvedValue(mockElectric as any)
 
@@ -64,7 +64,7 @@ describe('ElectricSQL Integration', () => {
       const mockElectric = { sync: vi.fn() }
       const mockPGlite = { connect: vi.fn() }
 
-      const { electrify, PGlite } = await import('electric-sql/pglite')
+      const { electrify, PGlite } = (await import('electric-sql/pglite')) as any
       vi.mocked(PGlite).mockReturnValue(mockPGlite as any)
       vi.mocked(electrify).mockResolvedValue(mockElectric as any)
 
