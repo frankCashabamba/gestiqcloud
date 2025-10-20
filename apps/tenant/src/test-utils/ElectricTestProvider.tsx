@@ -73,7 +73,7 @@ export const ElectricTestProvider: React.FC<ElectricTestProviderProps> = ({
       // Setup mock event listeners
     })
 
-    vi.mocked(setConflictHandler).mockImplementation((callback) => {
+    vi.mocked(setConflictHandler).mockImplementation((callback: (conflicts: Conflict[]) => void) => {
       // If there are initial conflicts, call the callback
       if (conflicts.length > 0) {
         callback(conflicts)

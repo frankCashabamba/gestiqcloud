@@ -96,6 +96,46 @@ export async function getEinvoiceStatus(invoiceId: string): Promise<EinvoiceStat
 }
 
 // ============================================================================
+// Re-export Spanish aliases expected by UI components
+// ============================================================================
+
+export type Factura = Invoice
+export type FacturaCreate = InvoiceCreate
+
+export async function listFacturas(params?: {
+  estado?: string
+  cliente_id?: number
+  desde?: string
+  hasta?: string
+}): Promise<Factura[]> {
+  return listInvoices(params)
+}
+
+export async function getFactura(id: number): Promise<Factura> {
+  return getInvoice(id)
+}
+
+export async function createFactura(invoice: FacturaCreate): Promise<Factura> {
+  return createInvoice(invoice)
+}
+
+export async function updateFactura(id: number, invoice: Partial<Factura>): Promise<Factura> {
+  return updateInvoice(id, invoice)
+}
+
+export async function removeFactura(id: number): Promise<void> {
+  return deleteInvoice(id)
+}
+
+// Stub for Facturae export (downloads XML); adjust endpoint when backend is ready
+export async function exportarFacturae(id: string | number): Promise<Blob> {
+  const res = await tenantApi.get(`/einvoicing/facturae/${id}/export`, {
+    responseType: 'blob'
+  })
+  return res.data as Blob
+}
+
+// ============================================================================
 // Utilidades
 // ============================================================================
 

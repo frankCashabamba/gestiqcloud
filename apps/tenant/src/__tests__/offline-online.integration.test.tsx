@@ -94,7 +94,7 @@ describe('Offline/Online Integration', () => {
         window.addEventListener('online', onlineHandler)
       })
 
-      vi.mocked(setConflictHandler).mockImplementation((callback) => {
+      vi.mocked(setConflictHandler).mockImplementation((callback: any) => {
         // Mock conflict handler
         callback([{ id: 'conflict-1', table: 'products' }])
         conflictsHandled = true
@@ -134,7 +134,7 @@ describe('Offline/Online Integration', () => {
       ]
 
       let conflictCallback: any = null
-      vi.mocked(setConflictHandler).mockImplementation((callback) => {
+      vi.mocked(setConflictHandler).mockImplementation((callback: any) => {
         conflictCallback = callback
       })
 

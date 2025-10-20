@@ -1,8 +1,8 @@
 import React from 'react'
 
-const ProductosList = React.lazy(() => import('./components/ProductosList'))
-const KardexView = React.lazy(() => import('./components/KardexView'))
-const BodegasList = React.lazy(() => import('./components/BodegasList'))
+const ProductosList = React.lazy(() => import('./components/ProductosList').then(m => ({ default: (m as any).default || (m as any).ProductosList })))
+const KardexView = React.lazy(() => import('./components/KardexView').then(m => ({ default: (m as any).default || (m as any).KardexView })))
+const BodegasList = React.lazy(() => import('./components/BodegasList').then(m => ({ default: (m as any).default || (m as any).BodegasList })))
 
 export const manifest = {
   id: 'inventario',
