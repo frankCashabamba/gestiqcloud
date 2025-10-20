@@ -62,22 +62,17 @@ BEGIN
 
         -- Attach trigger if not present
         trg_name := 'trg_set_tenant_id_' || r.table_name;
-        EXECUTE format(
-            $$DO $$ BEGIN
-                IF NOT EXISTS (
-                    SELECT 1 FROM pg_trigger WHERE tgname = %L
-                ) THEN
-                    CREATE TRIGGER %I
-                    BEFORE INSERT ON %I.%I
-                    FOR EACH ROW EXECUTE FUNCTION set_tenant_id();
-                END IF;
-            END $$;$$,
-            trg_name, trg_name, r.table_schema, r.table_name
-        );
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_trigger WHERE tgname = trg_name
+        ) THEN
+            EXECUTE format(
+                'CREATE TRIGGER %I BEFORE INSERT ON %I.%I FOR EACH ROW EXECUTE FUNCTION set_tenant_id();',
+                trg_name, r.table_schema, r.table_name
+            );
+        END IF;
     END LOOP;
 END $$;
 
 -- Ensure UUID defaults for PKs we manage via ORM (example: stock_moves)
 ALTER TABLE IF EXISTS public.stock_moves
     ALTER COLUMN id SET DEFAULT gen_random_uuid();
-

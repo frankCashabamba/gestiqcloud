@@ -187,6 +187,24 @@ try:
 except Exception as e:
     _router_logger.error(f"❌ Error montando Payments router: {e}")
 
+# E-invoicing Router
+try:
+from app.routers.einvoicing import router as einvoicing_router
+app.include_router(einvoicing_router)
+_router_logger.info("✅ E-invoicing router montado en /api/v1/einvoicing")
+except Exception as e:
+_router_logger.error(f"❌ Error montando E-invoicing router: {e}")
+
+# ElectricSQL Shapes Router (for offline-first sync)
+try:
+from app.modules.electric_shapes import router as electric_router
+app.include_router(electric_router)
+_router_logger.info("ElectricSQL shapes router mounted at /api/v1/electric")
+except Exception as e:
+_router_logger.error(f"Error mounting ElectricSQL router: {e}")
+    import traceback
+    _router_logger.error(traceback.format_exc())
+
 # Fallback: si por algÃºn motivo el router de imports no quedÃ³ montado
 try:
     has_imports = any(getattr(r, "path", "").startswith("/api/v1/imports") for r in app.router.routes)
@@ -347,4 +365,3 @@ def root_head():
     return Response(status_code=200)
 # Re-crear app con lifespan (conserva tu config previa)
 app.router.lifespan_context = lifespan
-

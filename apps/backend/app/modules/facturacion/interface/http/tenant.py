@@ -51,8 +51,8 @@ def crear_factura(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    empresa_id = int(request.state.access_claims.get("tenant_id"))
-    return factura_crud.create_with_lineas(db, empresa_id, factura)
+    tenant_id = request.state.access_claims.get("tenant_id")
+    return factura_crud.create_with_lineas(db, tenant_id, factura)
 
 
 @router.put("/{factura_id}", response_model=schemas.InvoiceOut)
@@ -63,11 +63,11 @@ def actualizar_factura(
     db: Session = Depends(get_db),
 ):
     """Actualizar factura en borrador"""
-    empresa_id = int(request.state.access_claims.get("tenant_id"))
-    
+    tenant_id = request.state.access_claims.get("tenant_id")
+
     invoice = db.query(Invoice).filter(
-        Invoice.id == factura_id,
-        Invoice.empresa_id == empresa_id
+    Invoice.id == factura_id,
+    Invoice.tenant_id == tenant_id
     ).first()
     
     if not invoice:
@@ -94,11 +94,11 @@ def actualizar_factura(
 @router.delete("/{factura_id}")
 def anular_factura(factura_id: int, request: Request, db: Session = Depends(get_db)):
     """Anular factura (soft delete)"""
-    empresa_id = int(request.state.access_claims.get("tenant_id"))
-    
+    tenant_id = request.state.access_claims.get("tenant_id")
+
     invoice = db.query(Invoice).filter(
-        Invoice.id == factura_id,
-        Invoice.empresa_id == empresa_id
+    Invoice.id == factura_id,
+    Invoice.tenant_id == tenant_id
     ).first()
     
     if not invoice:

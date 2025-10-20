@@ -2,8 +2,8 @@ import { createSharedClient } from '@shared'
 import { TENANT_AUTH } from '@shared/endpoints'
 
 const api = createSharedClient({
-  // El gateway sólo expone '/v1/*' en producción
-  baseURL: '/v1',
+  // Base vacía: los endpoints ya incluyen '/v1/*' para evitar duplicados
+  baseURL: '',
   tokenKey: 'access_token_tenant',
   refreshPath: TENANT_AUTH.refresh,
   csrfPath: TENANT_AUTH.csrf,
@@ -11,3 +11,4 @@ const api = createSharedClient({
 })
 
 export default api
+

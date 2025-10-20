@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '../lib/http'
+import { initElectric, setupOnlineSync } from '../lib/electric'
 
 type LoginBody = { identificador: string; password: string }
 type LoginResponse = { access_token: string; token_type: 'bearer'; scope?: string }
@@ -31,6 +32,16 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           sessionStorage.setItem('access_token_tenant', t)
           const me = await apiFetch<MeTenant>('/v1/me/tenant', { headers: { Authorization: `Bearer ${t}` }, retryOn401: false })
           setProfile(me)
+
+           // Initialize ElectricSQL for offline sync
+           if (me?.tenant_id) {
+             try {
+               await initElectric(me.tenant_id)
+               setupOnlineSync(me.tenant_id)
+             } catch (error) {
+               console.warn('ElectricSQL init failed:', error)
+             }
+           }
         } else {
           clear()
         }

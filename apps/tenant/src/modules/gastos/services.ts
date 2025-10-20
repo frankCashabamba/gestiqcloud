@@ -10,8 +10,10 @@ export type Gasto = {
 }
 
 export async function listGastos(): Promise<Gasto[]> {
-  const { data } = await tenantApi.get<Gasto[]>(TENANT_GASTOS.base)
-  return data || []
+  const { data } = await tenantApi.get<Gasto[] | { items?: Gasto[] }>(TENANT_GASTOS.base)
+  if (Array.isArray(data)) return data
+  const items = (data as any)?.items
+  return Array.isArray(items) ? items : []
 }
 export async function getGasto(id: number | string): Promise<Gasto> {
   const { data } = await tenantApi.get<Gasto>(TENANT_GASTOS.byId(id))
@@ -28,4 +30,3 @@ export async function updateGasto(id: number | string, payload: Omit<Gasto,'id'>
 export async function removeGasto(id: number | string): Promise<void> {
   await tenantApi.delete(TENANT_GASTOS.byId(id))
 }
-

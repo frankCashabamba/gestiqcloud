@@ -9,8 +9,10 @@ export type Cliente = {
 }
 
 export async function listClientes(): Promise<Cliente[]> {
-  const { data } = await tenantApi.get<Cliente[]>(TENANT_CLIENTES.base)
-  return data || []
+  const { data } = await tenantApi.get<Cliente[] | { items?: Cliente[] }>(TENANT_CLIENTES.base)
+  if (Array.isArray(data)) return data
+  const items = (data as any)?.items
+  return Array.isArray(items) ? items : []
 }
 
 export async function getCliente(id: number | string): Promise<Cliente> {
@@ -31,4 +33,3 @@ export async function updateCliente(id: number | string, payload: Omit<Cliente, 
 export async function removeCliente(id: number | string): Promise<void> {
   await tenantApi.delete(TENANT_CLIENTES.byId(id))
 }
-

@@ -50,7 +50,13 @@ export function useMisModulos() {
         } else {
           mods = []
         }
-        if (!cancelled) setModules(mods || [])
+        // Asegura siempre un array aunque el backend devuelva null/objeto
+        const list = Array.isArray(mods)
+          ? mods
+          : (mods && Array.isArray((mods as any).items))
+          ? (mods as any).items
+          : []
+        if (!cancelled) setModules(list)
       } catch (e: any) {
         if (!cancelled) setError(e?.message || 'Error')
       } finally {
@@ -60,7 +66,10 @@ export function useMisModulos() {
     return () => { cancelled = true }
   }, [token, empresa])
 
-  const allowedSlugs = useMemo(() => new Set(modules.filter(m => m.activo !== false).map(toSlug)), [modules])
+  const allowedSlugs = useMemo(() => {
+    const list = Array.isArray(modules) ? modules : []
+    return new Set(list.filter((m) => m.activo !== false).map(toSlug))
+  }, [modules])
 
   return { modules, allowedSlugs, loading, error }
 }

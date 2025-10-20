@@ -11,7 +11,7 @@ from decimal import Decimal
 from typing import List, Optional
 import logging
 
-from app.db.session import get_db
+from app.config.database import get_db
 from app.middleware.tenant import ensure_tenant, get_current_user
 from app.schemas.pos import (
     ReceiptCreate, ReceiptResponse, ReceiptToInvoiceRequest, 
@@ -19,7 +19,7 @@ from app.schemas.pos import (
     StoreCreditCreate, StoreCreditResponse, StoreCreditRedeemRequest,
     ShiftOpen, ShiftClose, ShiftResponse, PrintReceiptRequest
 )
-from app.services.numbering import assign_doc_number, validate_receipt_number_unique
+from app.services.numbering import assign_doc_number, validate_receipt_number_unique, create_default_series
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/pos", tags=["pos"])
@@ -28,19 +28,6 @@ router = APIRouter(prefix="/api/v1/pos", tags=["pos"])
 # ============================================================================
 # Helper Functions
 # ============================================================================
-
-def get_empresa_id_from_tenant(tenant_id: str, db: Session) -> int:
-    """Obtener empresa_id (int) desde tenant_id (UUID)"""
-    result = db.execute(
-        text("SELECT empresa_id FROM tenants WHERE id = :tenant_id"),
-        {"tenant_id": tenant_id}
-    ).first()
-    
-    if not result:
-        raise HTTPException(404, "Tenant no encontrado")
-    
-    return result[0]
-
 
 def calculate_receipt_totals(lines: list) -> tuple:
     """Calcular totales de ticket"""
@@ -431,42 +418,39 @@ def ticket_to_invoice(
     if receipt[6]:  # invoice_id
         raise HTTPException(400, f"Ticket ya facturado: {receipt[6]}")
     
-    # 2. Obtener empresa_id
-    empresa_id = get_empresa_id_from_tenant(tenant_id, db)
-    
-    # 3. Crear o buscar cliente
+    # 2. Crear o buscar cliente
     customer_query = text("""
         SELECT id FROM clientes
-        WHERE empresa_id = :empresa_id
+        WHERE tenant_id = :tenant_id
           AND identificacion = :tax_id
         LIMIT 1
     """)
-    
+
     customer = db.execute(
         customer_query,
-        {"empresa_id": empresa_id, "tax_id": data.customer.tax_id}
+        {"tenant_id": tenant_id, "tax_id": data.customer.tax_id}
     ).first()
-    
+
     if customer:
         customer_id = customer[0]
     else:
         # Crear cliente
         insert_customer = text("""
             INSERT INTO clientes (
-                empresa_id, nombre, identificacion, 
+                tenant_id, nombre, identificacion,
                 pais, direccion, email, telefono
             )
             VALUES (
-                :empresa_id, :nombre, :identificacion,
+                :tenant_id, :nombre, :identificacion,
                 :pais, :direccion, :email, :telefono
             )
             RETURNING id
         """)
-        
+
         customer_result = db.execute(
             insert_customer,
             {
-                "empresa_id": empresa_id,
+                "tenant_id": tenant_id,
                 "nombre": data.customer.name,
                 "identificacion": data.customer.tax_id,
                 "pais": data.customer.country,
@@ -497,26 +481,26 @@ def ticket_to_invoice(
     
     # 5. Crear Invoice
     insert_invoice = text("""
-        INSERT INTO invoices (
-            empresa_id, numero, cliente_id, fecha,
-            subtotal, impuesto, total, estado
+        INSERT INTO facturas (
+            tenant_id, numero, cliente_id, fecha,
+            subtotal, iva, total, estado
         )
         VALUES (
-            :empresa_id, :numero, :cliente_id, :fecha,
-            :subtotal, :impuesto, :total, 'posted'
+            :tenant_id, :numero, :cliente_id, :fecha,
+            :subtotal, :iva, :total, 'posted'
         )
         RETURNING id
     """)
-    
+
     invoice_result = db.execute(
         insert_invoice,
         {
-            "empresa_id": empresa_id,
+            "tenant_id": tenant_id,
             "numero": invoice_number,
             "cliente_id": customer_id,
             "fecha": datetime.now().date(),
             "subtotal": float(receipt[3] - receipt[4]),  # gross - tax
-            "impuesto": float(receipt[4]),
+            "iva": float(receipt[4]),
             "total": float(receipt[3])
         }
     ).first()
@@ -746,33 +730,451 @@ def refund_receipt(
 
 
 # ============================================================================
+# Document Series Management
+# ============================================================================
+
+@router.get("/series")
+async def list_series(
+    register_id: Optional[UUID] = None,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """Listar series de numeración"""
+    query = text("""
+        SELECT id, register_id, doc_type, name, current_no, reset_policy, active, created_at
+        FROM doc_series
+        WHERE tenant_id = :tenant_id
+          AND (:register_id IS NULL OR register_id = CAST(:register_id AS uuid))
+        ORDER BY doc_type, name
+    """)
+
+    result = db.execute(query, {
+        "tenant_id": current_user.tenant_id,
+        "register_id": str(register_id) if register_id else None
+    }).fetchall()
+
+    return [{
+        "id": row[0],
+        "register_id": row[1],
+        "doc_type": row[2],
+        "name": row[3],
+        "current_no": row[4],
+        "reset_policy": row[5],
+        "active": row[6],
+        "created_at": row[7]
+    } for row in result]
+
+
+@router.post("/series")
+async def create_series(
+    series_data: dict,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """Crear nueva serie de numeración"""
+    try:
+        query = text("""
+            INSERT INTO doc_series (
+                tenant_id, register_id, doc_type, name, current_no, reset_policy, active
+            ) VALUES (
+                :tenant_id, CAST(:register_id AS uuid), :doc_type, :name, :current_no, :reset_policy, :active
+            )
+            RETURNING id
+        """)
+
+        result = db.execute(query, {
+            "tenant_id": current_user.tenant_id,
+            "register_id": str(series_data.get("register_id")) if series_data.get("register_id") else None,
+            "doc_type": series_data["doc_type"],
+            "name": series_data["name"],
+            "current_no": series_data.get("current_no", 0),
+            "reset_policy": series_data.get("reset_policy", "yearly"),
+            "active": series_data.get("active", True)
+        }).first()
+
+        db.commit()
+        return {"id": result[0], "message": "Serie creada"}
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(400, f"Error creando serie: {e}")
+
+
+@router.put("/series/{series_id}")
+async def update_series(
+    series_id: UUID,
+    series_data: dict,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """Actualizar serie de numeración"""
+    try:
+        query = text("""
+            UPDATE doc_series
+            SET name = :name, reset_policy = :reset_policy, active = :active
+            WHERE id = :series_id AND tenant_id = :tenant_id
+        """)
+
+        db.execute(query, {
+            "series_id": str(series_id),
+            "tenant_id": current_user.tenant_id,
+            "name": series_data["name"],
+            "reset_policy": series_data.get("reset_policy", "yearly"),
+            "active": series_data.get("active", True)
+        })
+
+        db.commit()
+        return {"message": "Serie actualizada"}
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(400, f"Error actualizando serie: {e}")
+
+
+# ============================================================================
+# Impresión Térmica
+# ============================================================================
+
+@router.get("/receipts/{receipt_id}/print", response_class=HTMLResponse)
+async def print_receipt(
+    receipt_id: UUID,
+    width: str = "58mm",  # 58mm o 80mm
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """Generar HTML para impresión térmica de ticket"""
+    try:
+        # Obtener datos del ticket
+        query = text("""
+            SELECT
+                r.number, r.created_at, r.gross_total, r.tax_total, r.currency,
+                e.nombre as empresa_nombre, e.ruc as empresa_ruc,
+                COALESCE(c.nombre, 'Cliente Final') as cliente_nombre,
+                t.empresa_id
+            FROM pos_receipts r
+            JOIN tenants t ON t.id = r.tenant_id
+            JOIN core_empresa e ON e.id = t.empresa_id
+            LEFT JOIN clientes c ON c.id = r.customer_id
+            WHERE r.id = :receipt_id AND r.tenant_id = :tenant_id
+        """)
+
+        receipt = db.execute(query, {
+            "receipt_id": str(receipt_id),
+            "tenant_id": current_user.tenant_id
+        }).first()
+
+        if not receipt:
+            raise HTTPException(404, "Ticket no encontrado")
+
+        # Obtener líneas del ticket
+        lines_query = text("""
+            SELECT
+                p.name as product_name, rl.qty, rl.unit_price, rl.line_total,
+                rl.tax_rate
+            FROM pos_receipt_lines rl
+            LEFT JOIN products p ON p.id = rl.product_id
+            WHERE rl.receipt_id = :receipt_id
+            ORDER BY rl.id
+        """)
+
+        lines = db.execute(lines_query, {"receipt_id": str(receipt_id)}).fetchall()
+
+        # Generar HTML según ancho
+        if width == "58mm":
+            html_content = generate_thermal_html_58mm(receipt, lines)
+        else:  # 80mm
+            html_content = generate_thermal_html_80mm(receipt, lines)
+
+        return html_content
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Error generando ticket: {e}")
+
+
+def generate_thermal_html_58mm(receipt, lines) -> str:
+    """Generar HTML para impresora térmica 58mm"""
+    total_width = 48  # mm efectivos
+
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Ticket #{receipt[0]}</title>
+        <style>
+            @page {{
+                size: {total_width}mm auto;
+                margin: 0;
+            }}
+            body {{
+                font-family: 'Courier New', monospace;
+                font-size: 9pt;
+                line-height: 1.2;
+                margin: 0;
+                padding: 2mm;
+                width: {total_width}mm;
+            }}
+            .center {{ text-align: center; }}
+            .right {{ text-align: right; }}
+            .bold {{ font-weight: bold; }}
+            .line {{ margin: 2mm 0; }}
+            .separator {{
+                border-top: 1px dashed #000;
+                margin: 3mm 0;
+            }}
+            .product-line {{
+                display: flex;
+                justify-content: space-between;
+                margin: 1mm 0;
+            }}
+            .product-name {{
+                flex: 1;
+                font-size: 8pt;
+            }}
+            .product-qty {{ margin-right: 2mm; }}
+            .product-price {{ font-weight: bold; }}
+        </style>
+    </head>
+    <body>
+        <div class="center bold">
+            {receipt[5]}<br>
+            RUC: {receipt[6]}
+        </div>
+
+        <div class="line center">
+            TICKET #{receipt[0]}
+        </div>
+
+        <div class="line">
+            Fecha: {receipt[1].strftime('%d/%m/%Y %H:%M')}<br>
+            Cliente: {receipt[7]}
+        </div>
+
+        <div class="separator"></div>
+
+        {"".join([f'''
+        <div class="product-line">
+            <span class="product-name">{line[0][:20]}</span>
+            <span class="product-qty">{line[1]}x</span>
+            <span class="product-price">{line[3]:.2f}{receipt[4]}</span>
+        </div>
+        ''' for line in lines])}
+
+        <div class="separator"></div>
+
+        <div class="right">
+            <div>Subtotal: {receipt[2] - receipt[3]:.2f}{receipt[4]}</div>
+            <div>IVA: {receipt[3]:.2f}{receipt[4]}</div>
+            <div class="bold">TOTAL: {receipt[2]:.2f}{receipt[4]}</div>
+        </div>
+
+        <div class="center line">
+            ¡Gracias por su compra!
+        </div>
+
+        <script>
+            window.onload = function() {{
+                window.print();
+            }}
+        </script>
+    </body>
+    </html>
+    """
+
+    return html
+
+
+def generate_thermal_html_80mm(receipt, lines) -> str:
+    """Generar HTML para impresora térmica 80mm"""
+    total_width = 72  # mm efectivos
+
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Ticket #{receipt[0]}</title>
+        <style>
+            @page {{
+                size: {total_width}mm auto;
+                margin: 0;
+            }}
+            body {{
+                font-family: 'Courier New', monospace;
+                font-size: 10pt;
+                line-height: 1.3;
+                margin: 0;
+                padding: 3mm;
+                width: {total_width}mm;
+            }}
+            .center {{ text-align: center; }}
+            .right {{ text-align: right; }}
+            .bold {{ font-weight: bold; }}
+            .line {{ margin: 3mm 0; }}
+            .separator {{
+                border-top: 1px dashed #000;
+                margin: 4mm 0;
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+            }}
+            th, td {{
+                padding: 2mm;
+                text-align: left;
+            }}
+            .qty {{ text-align: center; width: 15%; }}
+            .price {{ text-align: right; width: 25%; }}
+            .total {{ text-align: right; font-weight: bold; }}
+        </style>
+    </head>
+    <body>
+        <div class="center bold">
+            <div style="font-size: 12pt;">{receipt[5]}</div>
+            <div>RUC: {receipt[6]}</div>
+        </div>
+
+        <div class="line center bold">
+            TICKET DE VENTA #{receipt[0]}
+        </div>
+
+        <div class="line">
+            <div>Fecha: {receipt[1].strftime('%d/%m/%Y %H:%M')}</div>
+            <div>Cliente: {receipt[7]}</div>
+        </div>
+
+        <div class="separator"></div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th class="qty">Cant</th>
+                    <th class="price">Precio</th>
+                    <th class="total">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {"".join([f'''
+                <tr>
+                    <td>{line[0][:30]}</td>
+                    <td class="qty">{line[1]}</td>
+                    <td class="price">{line[2]:.2f}{receipt[4]}</td>
+                    <td class="total">{line[3]:.2f}{receipt[4]}</td>
+                </tr>
+                ''' for line in lines])}
+            </tbody>
+        </table>
+
+        <div class="separator"></div>
+
+        <div class="right">
+            <div style="margin-bottom: 2mm;">Subtotal: {(receipt[2] - receipt[3]):.2f}{receipt[4]}</div>
+            <div style="margin-bottom: 2mm;">IVA: {receipt[3]:.2f}{receipt[4]}</div>
+            <div class="bold" style="font-size: 12pt; margin-top: 3mm;">
+                TOTAL: {receipt[2]:.2f}{receipt[4]}
+            </div>
+        </div>
+
+        <div class="center line" style="margin-top: 5mm;">
+            ¡Gracias por su visita!<br>
+            <small>Conserve este ticket para cambios o devoluciones</small>
+        </div>
+
+        <script>
+            window.onload = function() {{
+                // Auto-imprimir cuando se carga
+                window.print();
+                // Cerrar ventana después de imprimir (opcional)
+                setTimeout(function() {{
+                    window.close();
+                }}, 1000);
+            }}
+        </script>
+    </body>
+    </html>
+    """
+
+    return html
+
+
+# ============================================================================
 # Impresión
 # ============================================================================
 
 @router.get("/receipts/{receipt_id}/print", response_class=HTMLResponse)
-def print_receipt(
+async def print_receipt(
+receipt_id: UUID,
+width: str = "58mm",  # 58mm o 80mm
+db: Session = Depends(get_db),
+current_user = Depends(get_current_user)
+):
+    """Generar HTML para impresión térmica de ticket"""
+try:
+    # Obtener datos del ticket
+    query = text("""
+        SELECT
+        r.number, r.created_at, r.gross_total, r.tax_total, r.currency,
+    e.nombre as empresa_nombre, e.ruc as empresa_ruc,
+    COALESCE(c.nombre, 'Cliente Final') as cliente_nombre,
+        t.empresa_id
+    FROM pos_receipts r
+    JOIN tenants t ON t.id = r.tenant_id
+    JOIN core_empresa e ON e.id = t.empresa_id
+  LEFT JOIN clientes c ON c.id = r.customer_id
+        WHERE r.id = :receipt_id AND r.tenant_id = :tenant_id
+    """)
+
+receipt = db.execute(query, {
+            "receipt_id": str(receipt_id),
+            "tenant_id": current_user.tenant_id
+        }).first()
+
+        if not receipt:
+            raise HTTPException(404, "Ticket no encontrado")
+
+        # Obtener líneas del ticket
+        lines_query = text("""
+            SELECT
+                p.name as product_name, rl.qty, rl.unit_price, rl.line_total,
+                rl.tax_rate
+            FROM pos_receipt_lines rl
+            LEFT JOIN products p ON p.id = rl.product_id
+            WHERE rl.receipt_id = :receipt_id
+            ORDER BY rl.id
+        """)
+
+        lines = db.execute(lines_query, {"receipt_id": str(receipt_id)}).fetchall()
+
+        # Generar HTML según ancho
+        if width == "58mm":
+            html_content = generate_thermal_html_58mm(receipt, lines)
+        else:  # 80mm
+            html_content = generate_thermal_html_80mm(receipt, lines)
+
+        return html_content
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Error generando ticket: {e}")
+
+
+# ============================================================================
+# Impresión (Legacy - mantener por compatibilidad)
+# ============================================================================
+
+@router.get("/receipts/{receipt_id}/print-legacy", response_class=HTMLResponse)
+def print_receipt_legacy(
     receipt_id: UUID,
     width: int = 58,
     db: Session = Depends(get_db),
     tenant_id: str = Depends(ensure_tenant),
     current_user: dict = Depends(get_current_user)
 ):
-    """Generar HTML para impresión térmica"""
-    
-    # Obtener datos completos del ticket
-    receipt_query = text("""
-        SELECT 
-            r.id, r.number, r.gross_total, r.tax_total, r.currency, r.created_at,
-            e.nombre as empresa_nombre, e.ruc as empresa_ruc
-        FROM pos_receipts r
-        JOIN tenants t ON t.id = r.tenant_id
-        JOIN core_empresa e ON e.id = t.empresa_id
-        WHERE r.id = :receipt_id
-          AND r.tenant_id = :tenant_id
-    """)
-    
-    receipt = db.execute(
-        receipt_query,
+    """Legacy print endpoint - replaced by new implementation"""
         {"receipt_id": str(receipt_id), "tenant_id": tenant_id}
     ).first()
     

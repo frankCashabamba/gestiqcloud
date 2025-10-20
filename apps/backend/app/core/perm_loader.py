@@ -8,6 +8,7 @@ from app.models.empresa.rolempresas import RolEmpresa
 from app.models.empresa.usuario_rolempresa import UsuarioRolempresa
 from app.models.core.modulo import Modulo, ModuloAsignado
 
+
 def build_tenant_claims(db: Session, user: UsuarioEmpresa) -> Dict[str, Any]:
     # Empresa: prioriza relación ya cargada para evitar problemas de visibilidad/expiración
     empresa = getattr(user, "empresa", None)
@@ -45,10 +46,12 @@ def build_tenant_claims(db: Session, user: UsuarioEmpresa) -> Dict[str, Any]:
 
     permisos_finales: Dict[str, Any] = {**permisos, **permisos_modulos}
 
-    plantilla = empresa.plantilla_inicio or "DefaultPlantilla"
+    plantilla = getattr(empresa, "plantilla_inicio", None) or "DefaultPlantilla"
 
     claims = {
         "user_id": str(user.id),
+        # Compat: varios endpoints esperan 'tenant_user_id'
+        "tenant_user_id": str(user.id),
         "tenant_id": str(empresa.id),
         "empresa_slug": empresa.slug,
         "plantilla": plantilla,
@@ -60,3 +63,4 @@ def build_tenant_claims(db: Session, user: UsuarioEmpresa) -> Dict[str, Any]:
         "sub": user.email,
     }
     return claims
+

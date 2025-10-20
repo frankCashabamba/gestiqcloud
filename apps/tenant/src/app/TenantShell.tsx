@@ -24,9 +24,9 @@ export default function TenantShell() {
             GestiqCloud
           </Link>
           <nav className="flex items-center gap-3">
-            <a href={env.adminOrigin} className="gc-button gc-button--ghost hidden sm:inline-flex" title="Ir al panel admin">
+            <Link to={prefix || '/'} className="gc-button gc-button--ghost hidden sm:inline-flex" title="Ir al inicio del tenant">
               Panel Admin
-            </a>
+            </Link>
             <button type='button' onClick={logout} className="gc-button gc-button--primary">
               Cerrar sesión
             </button>

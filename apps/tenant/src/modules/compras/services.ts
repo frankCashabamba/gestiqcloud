@@ -10,8 +10,10 @@ export type Compra = {
 }
 
 export async function listCompras(): Promise<Compra[]> {
-  const { data } = await tenantApi.get<Compra[]>(TENANT_COMPRAS.base)
-  return data || []
+  const { data } = await tenantApi.get<Compra[] | { items?: Compra[] }>(TENANT_COMPRAS.base)
+  if (Array.isArray(data)) return data
+  const items = (data as any)?.items
+  return Array.isArray(items) ? items : []
 }
 
 export async function getCompra(id: number | string): Promise<Compra> {
@@ -32,4 +34,3 @@ export async function updateCompra(id: number | string, payload: Omit<Compra, 'i
 export async function removeCompra(id: number | string): Promise<void> {
   await tenantApi.delete(TENANT_COMPRAS.byId(id))
 }
-

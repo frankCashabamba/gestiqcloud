@@ -1,4 +1,4 @@
-ï»¿"""
+"""
 Bootstrap script for the Imports pipeline.
 
 Goals:
@@ -6,7 +6,7 @@ Goals:
 - Works in any server/container calling this script once.
 
 Behavior:
-- If IMPORTS_ENABLED is falsy Ã¢â€ â€™ exit(0) immediately (nothing to check/apply).
+- If IMPORTS_ENABLED is falsy â†’ exit(0) immediately (nothing to check/apply).
 - Else:
   - Auto-apply all migrations in ops/migrations (idempotent if SQL uses IF NOT EXISTS).
   - Verify required tables/columns/indexes for the Imports module.
@@ -53,14 +53,144 @@ def _iter_migration_dirs(root: Path) -> Iterable[Path]:
 
 def _auto_migrate(dsn: str, root_dir: Path) -> None:
     conn = _connect_psycopg(dsn)
+    # Autocommit mode to isolate each statement and avoid failed transaction state
     try:
-        with conn:
-            def _strip_sql_comments(s: str) -> str:
-                import re
-                s = re.sub(r"/\*.*?\*/", "", s, flags=re.S)
-                s = "\n".join([ln.split("--", 1)[0] for ln in s.splitlines()])
-                return s.strip()
+        conn.autocommit = True
+    except Exception:
+        pass
 
+    def _strip_sql_comments(s: str) -> str:
+        import re
+        s = re.sub(r"/\*.*?\*/", "", s, flags=re.S)
+        s = "\n".join([ln.split("--", 1)[0] for ln in s.splitlines()])
+        return s.strip()
+
+    def _split_sql_statements(sql: str) -> list[str]:
+        stmts: list[str] = []
+        buf: list[str] = []
+        in_single = False
+        in_double = False
+        in_line_comment = False
+        in_block_comment = False
+        dollar_tag: str | None = None
+
+        i = 0
+        n = len(sql)
+        while i < n:
+            ch = sql[i]
+            nxt = sql[i + 1] if i + 1 < n else ""
+
+            if in_line_comment:
+                buf.append(ch)
+                if ch == "\n":
+                    in_line_comment = False
+                i += 1
+                continue
+
+            if in_block_comment:
+                buf.append(ch)
+                if ch == "*" and nxt == "/":
+                    buf.append(nxt)
+                    i += 2
+                    in_block_comment = False
+                    continue
+                i += 1
+                continue
+
+            if not (in_single or in_double or dollar_tag):
+                if ch == "-" and nxt == "-":
+                    in_line_comment = True
+                    buf.append(ch)
+                    buf.append(nxt)
+                    i += 2
+                    continue
+                if ch == "/" and nxt == "*":
+                    in_block_comment = True
+                    buf.append(ch)
+                    buf.append(nxt)
+                    i += 2
+                    continue
+
+            if not (in_single or in_double) and ch == "$":
+                j = i + 1
+                while j < n and (sql[j].isalnum() or sql[j] == "_"):
+                    j += 1
+                if j < n and sql[j] == "$":
+                    tag = sql[i:j + 1]
+                    if dollar_tag is None:
+                        dollar_tag = tag
+                        buf.append(tag)
+                        i = j + 1
+                        continue
+                    elif dollar_tag == tag:
+                        dollar_tag = None
+                        buf.append(tag)
+                        i = j + 1
+                        continue
+
+            if dollar_tag is None:
+                if ch == "'" and not in_double:
+                    in_single = not in_single
+                    buf.append(ch)
+                    i += 1
+                    continue
+                if ch == '"' and not in_single:
+                    in_double = not in_double
+                    buf.append(ch)
+                    i += 1
+                    continue
+
+            if ch == ";" and not (in_single or in_double or dollar_tag or in_line_comment or in_block_comment):
+                stmt = "".join(buf).strip()
+                if stmt:
+                    stmts.append(stmt)
+                buf = []
+                i += 1
+                continue
+
+            buf.append(ch)
+            i += 1
+
+        tail = "".join(buf).strip()
+        if tail:
+            stmts.append(tail)
+        return stmts
+
+    def _is_idempotent_error(exc: Exception, stmt: str | None = None) -> bool:
+        # Try psycopg/psycopg2 typed errors
+        try:
+            from psycopg.errors import DuplicateTable, DuplicateObject, DuplicateSchema  # type: ignore
+            if isinstance(exc, (DuplicateTable, DuplicateObject, DuplicateSchema)):
+                return True
+        except Exception:
+            pass
+        try:
+            from psycopg2.errors import DuplicateTable as D2T, DuplicateObject as D2O, DuplicateSchema as D2S  # type: ignore
+            if isinstance(exc, (D2T, D2O, D2S)):
+                return True
+        except Exception:
+            pass
+
+        msg = str(exc).lower()
+        if any(p in msg for p in ("already exists", "duplicate", "ya existe", "já existe", "existe déjà", "existiert bereits")):
+            return True
+        # Missing object errors considered idempotent for DROP*/COMMENT ON
+        missing = ("does not exist", "no existe", "n'existe pas", "existiert nicht")
+        if stmt is not None:
+            s = stmt.strip().lower()
+            if any(p in msg for p in missing) and (
+                s.startswith("drop ") or s.startswith("drop index") or (s.startswith("alter table") and " drop " in s) or s.startswith("comment on ")
+            ):
+                return True
+            # Multiple primary keys when re-applying PK is benign
+            if ("primary key" in s) and any(p in msg for p in (
+                "multiple primary keys", "múltiples llaves primarias", "multiples llaves primarias", "múltiples claves primarias", "multiples claves primarias"
+            )):
+                return True
+        return False
+
+    try:
+        with conn.cursor() as cur:
             for mig in _iter_migration_dirs(root_dir):
                 raw_sql = (mig / "up.sql").read_text(encoding="utf-8")
                 up_sql = raw_sql.strip()
@@ -68,18 +198,38 @@ def _auto_migrate(dsn: str, root_dir: Path) -> None:
                 if not effective:
                     print(f"Skip (empty up.sql): {mig.name}")
                     continue
-                try:
-                    with conn.cursor() as cur:
-                        cur.execute(up_sql)
-                    conn.commit()
+
+                statements = _split_sql_statements(up_sql)
+                if not statements:
+                    print(f"Skip (empty up.sql): {mig.name}")
+                    continue
+
+                hard_error = None
+                for idx, stmt in enumerate(statements, start=1):
+                    try:
+                        stripped = _strip_sql_comments(stmt)
+                        if not stripped:
+                            continue
+                        s_low = stripped.strip().lower().rstrip(';')
+                        if s_low in ('begin', 'commit', 'rollback', 'end'):
+                            continue
+                        cur.execute(stripped)
+                    except Exception as e:
+                        if _is_idempotent_error(e, stmt):
+                            try:
+                                cur.execute('ROLLBACK')
+                            except Exception:
+                                pass
+                            continue
+                        hard_error = (idx, e)
+                        break
+
+                if hard_error is None:
                     print(f"Applied: {mig.name}")
-                except Exception as e:
-                    conn.rollback()
-                    msg = str(e).lower()
-                    if "already exists" in msg or "duplicate" in msg:
-                        print(f"Skip (already applied): {mig.name}")
-                        continue
-                    raise
+                else:
+                    idx, e = hard_error
+                    print(f"Error in migration {mig.name} at statement #{idx}")
+                    raise e
     finally:
         try:
             conn.close()
@@ -196,5 +346,6 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 
 

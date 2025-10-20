@@ -290,6 +290,7 @@ def _ensure_sqlite_stub_tables(engine):
                         id INTEGER PRIMARY KEY,
                         empresa_id INTEGER,
                         modulo_id INTEGER,
+                        tenant_id TEXT,
                         activo BOOLEAN,
                         fecha_activacion TEXT,
                         fecha_expiracion TEXT,

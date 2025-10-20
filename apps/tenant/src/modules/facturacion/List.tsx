@@ -4,6 +4,7 @@ import { listFacturas, removeFactura, type Factura } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import FacturaStatusBadge from './components/FacturaStatusBadge'
+import EinvoiceStatus from './components/EinvoiceStatus'
 
 export default function FacturasList() {
   const [items, setItems] = useState<Factura[]>([])
@@ -72,20 +73,27 @@ export default function FacturasList() {
       {errMsg && <div className="bg-red-100 text-red-700 px-3 py-2 rounded mb-3">{errMsg}</div>}
 
       <table className="min-w-full text-sm">
-        <thead><tr className="text-left border-b"><th>Fecha</th><th>Total</th><th>Estado</th><th>Acciones</th></tr></thead>
-        <tbody>
-          {view.map((v) => (
-            <tr key={v.id} className="border-b">
-              <td>{v.fecha}</td>
-              <td>{v.total.toFixed(2)}</td>
-              <td><FacturaStatusBadge estado={v.estado} /></td>
-              <td>
+      <thead><tr className="text-left border-b"><th>Fecha</th><th>Total</th><th>Estado</th><th>E-factura</th><th>Acciones</th></tr></thead>
+      <tbody>
+      {view.map((v) => (
+      <tr key={v.id} className="border-b">
+      <td>{v.fecha}</td>
+      <td>€{v.total.toFixed(2)}</td>
+      <td><FacturaStatusBadge estado={v.estado} /></td>
+      <td>
+      <EinvoiceStatus
+        invoiceId={v.id.toString()}
+          country="ES"  // TODO: Detectar desde tenant config
+            canSend={v.estado === 'posted'}
+            />
+          </td>
+            <td>
                 <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline mr-3">Editar</Link>
                 <button className="text-red-700" onClick={async ()=> { if(!confirm('¿Eliminar factura?')) return; try { await removeFactura(v.id); setItems((p)=>p.filter(x=>x.id!==v.id)); success('Factura eliminada') } catch(e:any){ toastError(getErrorMessage(e)) } }}>Eliminar</button>
               </td>
             </tr>
           ))}
-          {!loading && items.length===0 && <tr><td className="py-3 px-3" colSpan={4}>Sin registros</td></tr>}
+          {!loading && items.length===0 && <tr><td className="py-3 px-3" colSpan={5}>Sin registros</td></tr>}
         </tbody>
       </table>
       <Pagination page={page} setPage={setPage} totalPages={totalPages} />

@@ -2,13 +2,14 @@
 
 Auto-generated module docstring."""
 
+import uuid
 from typing import List, Optional
 
 from sqlalchemy import JSON, Float, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
-from app.models.empresa.empresa import Empresa
+from app.models.tenant import Tenant
 
 
 class Product(Base):
@@ -22,9 +23,9 @@ class Product(Base):
     stock: Mapped[float] = mapped_column(Float, default=0)
     unit: Mapped[str] = mapped_column(String, default="unidad")
     product_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    empresa_id: Mapped[int] = mapped_column(ForeignKey("core_empresa.id"))
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"))
 
-    empresa: Mapped["Empresa"] = relationship()
+    tenant: Mapped["Tenant"] = relationship()
 
     # Relación uno a uno (este producto tiene UNA receta asociada)
     recipe: Mapped[Optional["Recipe"]] = relationship(back_populates="product", uselist=False)

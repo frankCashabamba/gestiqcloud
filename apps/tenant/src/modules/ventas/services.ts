@@ -10,8 +10,10 @@ export type Venta = {
 }
 
 export async function listVentas(): Promise<Venta[]> {
-  const { data } = await tenantApi.get<Venta[]>(TENANT_VENTAS.base)
-  return data || []
+  const { data } = await tenantApi.get<Venta[] | { items?: Venta[] }>(TENANT_VENTAS.base)
+  if (Array.isArray(data)) return data
+  const items = (data as any)?.items
+  return Array.isArray(items) ? items : []
 }
 
 export async function getVenta(id: number | string): Promise<Venta> {
@@ -32,4 +34,3 @@ export async function updateVenta(id: number | string, payload: Omit<Venta, 'id'
 export async function removeVenta(id: number | string): Promise<void> {
   await tenantApi.delete(TENANT_VENTAS.byId(id))
 }
-

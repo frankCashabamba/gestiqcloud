@@ -3,7 +3,8 @@
  */
 import React, { useState } from 'react'
 import { payReceipt, redeemStoreCredit } from '../services'
-import type { POSPayment } from '../../../types/pos'
+import StoreCreditsModal from './StoreCreditsModal'
+import type { POSPayment, StoreCredit } from '../../../types/pos'
 
 interface PaymentModalProps {
   receiptId: string
@@ -16,6 +17,8 @@ export default function PaymentModal({ receiptId, totalAmount, onSuccess, onCanc
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'store_credit' | 'link'>('cash')
   const [cashAmount, setCashAmount] = useState(totalAmount.toFixed(2))
   const [storeCreditCode, setStoreCreditCode] = useState('')
+  const [selectedStoreCredit, setSelectedStoreCredit] = useState<StoreCredit | null>(null)
+  const [showStoreCreditsModal, setShowStoreCreditsModal] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const calculateChange = () => {
@@ -50,20 +53,22 @@ export default function PaymentModal({ receiptId, totalAmount, onSuccess, onCanc
           amount: totalAmount
         })
       } else if (paymentMethod === 'store_credit') {
-        if (!storeCreditCode.trim()) {
-          alert('Ingrese el código del vale')
+        if (!selectedStoreCredit && !storeCreditCode.trim()) {
+          alert('Seleccione un vale o ingrese un código')
           setLoading(false)
           return
         }
-        
+
+        const code = selectedStoreCredit?.code || storeCreditCode
+
         // Validar vale
         try {
-          await redeemStoreCredit(storeCreditCode, totalAmount)
+          await redeemStoreCredit(code, totalAmount)
           payments.push({
             receipt_id: receiptId,
             method: 'store_credit',
             amount: totalAmount,
-            ref: storeCreditCode
+            ref: code
           })
         } catch (error: any) {
           alert(error.response?.data?.detail || 'Vale inválido o insuficiente')
@@ -85,6 +90,17 @@ export default function PaymentModal({ receiptId, totalAmount, onSuccess, onCanc
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSelectStoreCredit = (credit: StoreCredit) => {
+    setSelectedStoreCredit(credit)
+    setStoreCreditCode(credit.code)
+    setShowStoreCreditsModal(false)
+  }
+
+  const handleClearStoreCredit = () => {
+    setSelectedStoreCredit(null)
+    setStoreCreditCode('')
   }
 
   const change = calculateChange()
@@ -158,15 +174,44 @@ export default function PaymentModal({ receiptId, totalAmount, onSuccess, onCanc
 
         {paymentMethod === 'store_credit' && (
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">Código del Vale</label>
-            <input
-              type="text"
-              value={storeCreditCode}
-              onChange={(e) => setStoreCreditCode(e.target.value.toUpperCase())}
-              className="w-full px-3 py-2 border rounded uppercase"
-              placeholder="XXXX-XXXX-XXXX"
-              autoFocus
-            />
+            <label className="block text-sm font-medium mb-2">Vale de Descuento</label>
+
+            {selectedStoreCredit ? (
+              <div className="p-3 bg-green-50 border border-green-200 rounded mb-2">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-mono font-bold">{selectedStoreCredit.code}</p>
+                    <p className="text-sm text-gray-600">
+                      Monto disponible: €{selectedStoreCredit.amount_remaining.toFixed(2)}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleClearStoreCredit}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={storeCreditCode}
+                  onChange={(e) => setStoreCreditCode(e.target.value.toUpperCase())}
+                  className="flex-1 px-3 py-2 border rounded uppercase"
+                  placeholder="XXXX-XXXX-XXXX"
+                  autoFocus
+                />
+                <button
+                  onClick={() => setShowStoreCreditsModal(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  title="Buscar vales disponibles"
+                >
+                  🔍 Buscar
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -186,6 +231,13 @@ export default function PaymentModal({ receiptId, totalAmount, onSuccess, onCanc
             Cancelar
           </button>
         </div>
+
+        {showStoreCreditsModal && (
+          <StoreCreditsModal
+            onSelect={handleSelectStoreCredit}
+            onClose={() => setShowStoreCreditsModal(false)}
+          />
+        )}
       </div>
     </div>
   )

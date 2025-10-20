@@ -4,6 +4,7 @@ E-invoicing Celery Tasks - SRI Ecuador & Facturae España
 from celery import Task
 from typing import Dict, Any
 import logging
+import base64
 from datetime import datetime
 from decimal import Decimal
 
@@ -20,6 +21,77 @@ class EInvoicingTask(Task):
 # ============================================================================
 # SRI Ecuador
 # ============================================================================
+
+def generate_facturae_xml(invoice_data: Dict[str, Any]) -> str:
+    """
+    Generar XML Facturae conforme a especificación española.
+    Versión simplificada para MVP.
+    """
+    from lxml import etree
+
+    # Estructura básica Facturae 3.2
+    root = etree.Element("facturae", nsmap={
+        None: "http://www.facturae.es/Facturae/2009/v3.2/Facturae",
+        "ds": "http://www.w3.org/2000/09/xmldsig#"
+    })
+    root.set("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance")
+
+    # FileHeader
+    file_header = etree.SubElement(root, "FileHeader")
+    etree.SubElement(file_header, "SchemaVersion").text = "3.2"
+    etree.SubElement(file_header, "Modality").text = "I"  # Individual
+    etree.SubElement(file_header, "InvoiceIssuerType").text = "EM"
+
+    # Parties
+    parties = etree.SubElement(root, "Parties")
+
+    # Seller
+    seller = etree.SubElement(parties, "SellerParty")
+    tax_id_seller = etree.SubElement(seller, "TaxIdentification")
+    etree.SubElement(tax_id_seller, "PersonTypeCode").text = "J"  # Jurídica
+    etree.SubElement(tax_id_seller, "ResidenceTypeCode").text = "R"  # Residente
+    etree.SubElement(tax_id_seller, "TaxIdentificationNumber").text = invoice_data['empresa']['ruc']
+
+    # Buyer
+    buyer = etree.SubElement(parties, "BuyerParty")
+    tax_id_buyer = etree.SubElement(buyer, "TaxIdentification")
+    etree.SubElement(tax_id_buyer, "PersonTypeCode").text = "J"
+    etree.SubElement(tax_id_buyer, "ResidenceTypeCode").text = "R"
+    etree.SubElement(tax_id_buyer, "TaxIdentificationNumber").text = invoice_data['cliente']['ruc']
+
+    # Invoices
+    invoices = etree.SubElement(root, "Invoices")
+    invoice = etree.SubElement(invoices, "Invoice")
+
+    # InvoiceHeader
+    header = etree.SubElement(invoice, "InvoiceHeader")
+    etree.SubElement(header, "InvoiceNumber").text = invoice_data['numero']
+    etree.SubElement(header, "InvoiceSeriesCode").text = "A"
+    etree.SubElement(header, "InvoiceDocumentType").text = "FC"  # Factura completa
+    etree.SubElement(header, "InvoiceClass").text = "OO"
+
+    # InvoiceIssueData
+    issue_data = etree.SubElement(invoice, "InvoiceIssueData")
+    etree.SubElement(issue_data, "IssueDate").text = invoice_data['fecha'].strftime('%Y-%m-%d')
+
+    # TaxesOutputs
+    taxes = etree.SubElement(invoice, "TaxesOutputs")
+    tax = etree.SubElement(taxes, "Tax")
+    etree.SubElement(tax, "TaxTypeCode").text = "01"  # IVA
+    etree.SubElement(tax, "TaxRate").text = "21.00"  # TODO: calcular dinámicamente
+    etree.SubElement(tax, "TaxableBase").text = f"{invoice_data['subtotal']:.2f}"
+    etree.SubElement(tax, "TaxAmount").text = f"{invoice_data['iva']:.2f}"
+
+    # InvoiceTotals
+    totals = etree.SubElement(invoice, "InvoiceTotals")
+    etree.SubElement(totals, "TaxOutputsTotal").text = f"{invoice_data['iva']:.2f}"
+    etree.SubElement(totals, "TotalGrossAmount").text = f"{invoice_data['total']:.2f}"
+    etree.SubElement(totals, "TotalGrossAmountBeforeTaxes").text = f"{invoice_data['subtotal']:.2f}"
+    etree.SubElement(totals, "TotalTaxesOutputs").text = f"{invoice_data['iva']:.2f}"
+    etree.SubElement(totals, "TotalExecutableAmount").text = f"{invoice_data['total']:.2f}"
+
+    return etree.tostring(root, encoding='unicode', pretty_print=True)
+
 
 def generate_sri_xml(invoice_data: Dict[str, Any]) -> str:
     """
@@ -313,41 +385,42 @@ from app.celery_app import celery_app
 
 
 @celery_app.task(base=EInvoicingTask, name="einvoicing.sign_and_send_sri")
-def sign_and_send_sri_task(invoice_id: str, env: str = "sandbox"):
+def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"):
     """Tarea: Firmar y enviar factura a SRI Ecuador"""
-    from app.db.session import SessionLocal
+    from app.config.database import SessionLocal
     from sqlalchemy import text
     
     db = SessionLocal()
     try:
         # 1. Obtener datos de factura
         query = text("""
-            SELECT 
-                i.id, i.numero, i.fecha, i.subtotal, i.impuesto, i.total,
-                e.nombre as empresa_nombre, e.ruc as empresa_ruc, 
-                e.direccion as empresa_direccion,
-                c.nombre as cliente_nombre, c.identificacion as cliente_ruc,
-                c.email as cliente_email
-            FROM invoices i
-            JOIN core_empresa e ON e.id = i.empresa_id
-            JOIN clientes c ON c.id = i.cliente_id
-            WHERE i.id = :invoice_id
+        SELECT
+        f.id, f.numero, f.fecha, f.subtotal, f.iva, f.total,
+        e.nombre as empresa_nombre, e.ruc as empresa_ruc,
+        e.direccion as empresa_direccion,
+        c.nombre as cliente_nombre, c.identificacion as cliente_ruc,
+        c.email as cliente_email
+        FROM facturas f
+        JOIN tenants t ON t.id = f.tenant_id
+        JOIN core_empresa e ON e.id = t.empresa_id
+        JOIN clientes c ON c.id = f.cliente_id
+            WHERE f.id = :invoice_id AND f.tenant_id = :tenant_id
         """)
-        
-        invoice = db.execute(query, {"invoice_id": invoice_id}).first()
+
+        invoice = db.execute(query, {"invoice_id": invoice_id, "tenant_id": tenant_id}).first()
         if not invoice:
             raise ValueError(f"Invoice {invoice_id} not found")
         
         # 2. Obtener líneas
         lines_query = text("""
-            SELECT 
-                il.cantidad, il.precio_unitario, il.total,
-                p.nombre as descripcion, p.sku
-            FROM invoice_lines il
-            LEFT JOIN products p ON p.id = il.producto_id
-            WHERE il.invoice_id = :invoice_id
+        SELECT
+        fl.cantidad, fl.precio_unitario, fl.total,
+        p.name as descripcion, p.sku
+        FROM invoice_lines fl
+        LEFT JOIN products p ON p.id = fl.producto_id
+        WHERE fl.invoice_id = :invoice_id
         """)
-        
+
         lines = db.execute(lines_query, {"invoice_id": invoice_id}).fetchall()
         
         # 3. Preparar datos
@@ -379,10 +452,15 @@ def sign_and_send_sri_task(invoice_id: str, env: str = "sandbox"):
         # 4. Generar XML
         xml_content = generate_sri_xml(invoice_data)
         
-        # 5. Cargar certificado (TODO: desde S3/DB)
+        # 5. Cargar certificado desde CertificateManager
+        from app.services.certificate_manager import certificate_manager
+        cert_info = await certificate_manager.get_certificate(tenant_id, "EC")
+        if not cert_info:
+            raise ValueError(f"No certificate found for tenant {tenant_id} in Ecuador")
+
         cert_data = {
-            'p12_base64': 'CERTIFICADO_BASE64',
-            'password': 'PASSWORD'
+            'p12_base64': base64.b64encode(cert_info['cert_data']).decode(),
+            'password': 'CERT_PASSWORD'  # TODO: Recuperar de credenciales seguras
         }
         
         # 6. Firmar
@@ -395,27 +473,26 @@ def sign_and_send_sri_task(invoice_id: str, env: str = "sandbox"):
         clave_acceso = generate_clave_acceso(invoice_data)
         
         insert_submission = text("""
-            INSERT INTO sri_submissions (
-                id, tenant_id, invoice_id, xml_content, clave_acceso,
-                status, error_message, submitted_at
-            )
-            VALUES (
-                gen_random_uuid(),
-                (SELECT tenant_id FROM invoices WHERE id = :invoice_id),
-                :invoice_id, :xml_content, :clave_acceso,
-                :status, :error_message, NOW()
-            )
+        INSERT INTO sri_submissions (
+        tenant_id, invoice_id, payload, receipt_number,
+        status, error_message
+        )
+        VALUES (
+        :tenant_id, :invoice_id, :payload, :receipt_number,
+        :status, :error_message
+        )
         """)
-        
+
         db.execute(
             insert_submission,
             {
-                "invoice_id": invoice_id,
-                "xml_content": signed_xml,
-                "clave_acceso": clave_acceso,
-                "status": result['status'],
-                "error_message": result.get('message')
-            }
+            "tenant_id": tenant_id,
+            "invoice_id": int(invoice_id),
+        "payload": signed_xml,
+        "receipt_number": clave_acceso,
+        "status": result['status'],
+        "error_message": result.get('message')
+        }
         )
         
         # 9. Actualizar invoice
@@ -446,29 +523,125 @@ def sign_and_send_sri_task(invoice_id: str, env: str = "sandbox"):
 
 
 @celery_app.task(base=EInvoicingTask, name="einvoicing.sign_and_send_facturae")
-def sign_and_send_facturae_task(invoice_id: str, env: str = "sandbox"):
+def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "sandbox"):
     """Tarea: Firmar y enviar Facturae España"""
-    from app.db.session import SessionLocal
+    from app.config.database import SessionLocal
     from sqlalchemy import text
     
     db = SessionLocal()
     try:
-        # Similar a SRI pero con Facturae
-        # TODO: Implementar lógica completa Facturae
-        
-        logger.info(f"Facturae task started: {invoice_id}")
-        
-        # Por ahora, solo marcar como enviado
-        update_query = text("""
-            UPDATE invoices 
-            SET estado = 'einvoice_sent'
-            WHERE id = :invoice_id
+    logger.info(f"Facturae task started: {invoice_id} for tenant {tenant_id}")
+
+    # 1. Obtener datos de factura
+    query = text("""
+        SELECT
+            f.id, f.numero, f.fecha, f.subtotal, f.iva, f.total,
+            e.nombre as empresa_nombre, e.ruc as empresa_ruc,
+        e.direccion as empresa_direccion,
+        c.nombre as cliente_nombre, c.identificacion as cliente_ruc,
+        c.email as cliente_email
+        FROM facturas f
+        JOIN tenants t ON t.id = f.tenant_id
+        JOIN core_empresa e ON e.id = t.empresa_id
+        JOIN clientes c ON c.id = f.cliente_id
+        WHERE f.id = :invoice_id AND f.tenant_id = :tenant_id
+    """)
+
+        invoice = db.execute(query, {"invoice_id": invoice_id, "tenant_id": tenant_id}).first()
+        if not invoice:
+            raise ValueError(f"Invoice {invoice_id} not found")
+
+        # 2. Preparar datos y generar XML Facturae
+        invoice_data = {
+            'numero': invoice[1],
+            'fecha': invoice[2],
+            'subtotal': invoice[3],
+            'iva': invoice[4],
+            'total': invoice[5],
+            'empresa': {
+                'nombre': invoice[6],
+                'ruc': invoice[7],
+                'direccion': invoice[8]
+            },
+            'cliente': {
+                'nombre': invoice[9],
+                'ruc': invoice[10],
+                'email': invoice[11]
+            }
+        }
+        xml_content = generate_facturae_xml(invoice_data)
+
+        # 3. Firmar
+        from app.services.certificate_manager import certificate_manager
+        cert_info = await certificate_manager.get_certificate(tenant_id, "ES")
+        if not cert_info:
+            raise ValueError(f"No certificate found for tenant {tenant_id} in Spain")
+
+        cert_data = {
+            'p12_base64': base64.b64encode(cert_info['cert_data']).decode(),
+            'password': 'CERT_PASSWORD'  # TODO: Recuperar de credenciales seguras
+        }
+        signed_xml = sign_facturae_xml(xml_content, cert_data)
+
+        # 4. Enviar a AEAT/SII (TODO: implementar)
+        result = {"status": "ACCEPTED", "message": "Facturae enviado (stub)"}
+
+        # 5. Guardar resultado en SII batch
+        # Crear batch si no existe para el período
+        from datetime import datetime
+        period = datetime.now().strftime('%Y%m')
+
+        # Insertar en batch
+        batch_query = text("""
+            INSERT INTO sii_batches (tenant_id, period, status)
+            VALUES (:tenant_id, :period, 'PENDING')
+            ON CONFLICT (tenant_id, period) DO NOTHING
+            RETURNING id
         """)
-        
-        db.execute(update_query, {"invoice_id": invoice_id})
+
+        batch_result = db.execute(batch_query, {
+            "tenant_id": tenant_id,
+            "period": period
+        }).first()
+
+        # Si no hay retorno, obtener el batch existente
+        if not batch_result:
+            existing_batch = db.execute(text("""
+                SELECT id FROM sii_batches
+                WHERE tenant_id = :tenant_id AND period = :period
+            """), {"tenant_id": tenant_id, "period": period}).first()
+            batch_id = existing_batch[0] if existing_batch else None
+        else:
+            batch_id = batch_result[0]
+
+        # Insertar item en el batch
+        if batch_id:
+            item_query = text("""
+                INSERT INTO sii_batch_items (
+                    tenant_id, batch_id, invoice_id, status
+                ) VALUES (
+                    :tenant_id, :batch_id, :invoice_id, :status
+                )
+            """)
+
+            db.execute(item_query, {
+                "tenant_id": tenant_id,
+                "batch_id": batch_id,
+                "invoice_id": int(invoice_id),
+                "status": result['status']
+            })
+
+        # 6. Actualizar factura
+        if result['status'] == 'ACCEPTED':
+            update_query = text("""
+                UPDATE facturas
+                SET estado = 'posted'
+                WHERE id = :invoice_id
+            """)
+            db.execute(update_query, {"invoice_id": invoice_id})
+
         db.commit()
-        
-        return {"status": "success", "message": "Facturae enviado (stub)"}
+        return result
     
     except Exception as e:
         db.rollback()
@@ -489,3 +662,4 @@ def send_einvoice_task(invoice_id: str, country: str, env: str = "sandbox"):
         return sign_and_send_facturae_task.delay(invoice_id, env)
     else:
         raise ValueError(f"País no soportado: {country}")
+

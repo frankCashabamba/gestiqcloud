@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import TimeoutError as SATimeoutError
 
 from app.config.database import session_scope
+from app.db.rls import set_tenant_guc
 from app.models.core.modelsimport import ImportOCRJob
 
 _LOGGER = logging.getLogger("imports.ocr_jobs")
@@ -155,6 +156,23 @@ class OCRJobRunner:
 def enqueue_job(*, empresa_id: int, filename: str, content_type: Optional[str], payload: bytes) -> UUID:
     """Inserta un trabajo OCR y devuelve su id."""
     with session_scope() as db:
+        # Fija GUC tenant_id en esta sesión nueva usando el UUID del tenant
+        try:
+            res = db.execute(
+                text("SELECT id::text FROM public.tenants WHERE empresa_id = :eid LIMIT 1"),
+                {"eid": int(empresa_id)},
+            )
+            row = res.first()
+            tid = row[0] if row and row[0] else None
+            if tid:
+                set_tenant_guc(db, str(tid), persist=False)
+                try:
+                    db.info["tenant_id"] = str(tid)
+                except Exception:
+                    pass
+        except Exception:
+            # No bloquear la inserción si no podemos resolver el UUID; triggers pueden fallar si es requerido
+            pass
         job = ImportOCRJob(
             id=uuid4(),
             empresa_id=empresa_id,

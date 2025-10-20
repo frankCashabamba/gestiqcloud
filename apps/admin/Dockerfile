@@ -4,6 +4,17 @@ WORKDIR /app
 COPY tsconfig.base.json ./tsconfig.base.json
 COPY apps ./apps
 WORKDIR /app/apps/admin
+
+# Accept VITE_* at build time to override .env.production when building dev images
+ARG VITE_API_URL
+ARG VITE_BASE_PATH
+ARG VITE_TENANT_ORIGIN
+ARG VITE_ADMIN_ORIGIN
+ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_BASE_PATH=${VITE_BASE_PATH}
+ENV VITE_TENANT_ORIGIN=${VITE_TENANT_ORIGIN}
+ENV VITE_ADMIN_ORIGIN=${VITE_ADMIN_ORIGIN}
+
 RUN apk add --no-cache libc6-compat && \
     npm i --silent || yarn install --frozen-lockfile || true
 RUN ln -s /app/apps/admin/node_modules /app/apps/node_modules || true
