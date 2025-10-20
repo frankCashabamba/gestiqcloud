@@ -23,7 +23,7 @@ export async function initElectric(tenantId: string): Promise<ElectricDatabase> 
   if (!enabled) {
     // No-op implementation to keep app functional
     electric = { sync: async () => ({ conflicts: [] }) }
-    return electric
+    return electric as ElectricDatabase
   }
 
   try {
@@ -43,11 +43,11 @@ export async function initElectric(tenantId: string): Promise<ElectricDatabase> 
     })
 
     console.log('ElectricSQL initialized for tenant:', tenantId)
-    return electric
+    return electric as ElectricDatabase
   } catch (error) {
     console.error('Failed to initialize ElectricSQL:', error)
     electric = { sync: async () => ({ conflicts: [] }) }
-    return electric
+    return electric as ElectricDatabase
   }
 }
 
@@ -88,4 +88,3 @@ export function setupOnlineSync(tenantId: string) {
     console.log('Going offline')
   })
 }
-
