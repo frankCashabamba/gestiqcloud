@@ -10,24 +10,24 @@ import tenantApi from '../../shared/api/client'
 
 export interface Invoice {
   id: number
-  numero: string
+  numero?: string
   fecha: string
-  subtotal: number
-  iva: number
+  subtotal?: number
+  iva?: number
   total: number
-  estado: string
-  cliente_id: number
-  tenant_id: string
+  estado?: string
+  cliente_id?: number
+  tenant_id?: string
 }
 
 export interface InvoiceCreate {
-  numero: string
+  numero?: string
   fecha: string
-  subtotal: number
-  iva: number
+  subtotal?: number
+  iva?: number
   total: number
-  cliente_id: number
-  lineas: InvoiceLine[]
+  cliente_id?: number
+  lineas?: InvoiceLine[]
 }
 
 export interface InvoiceLine {
@@ -48,22 +48,22 @@ export async function listInvoices(params?: {
   return data?.items || data || []
 }
 
-export async function getInvoice(id: number): Promise<Invoice> {
+export async function getInvoice(id: number | string): Promise<Invoice> {
   const { data } = await tenantApi.get(`/facturacion/${id}`)
   return data
 }
 
-export async function createInvoice(invoice: InvoiceCreate): Promise<Invoice> {
+export async function createInvoice(invoice: InvoiceCreate | Partial<InvoiceCreate>): Promise<Invoice> {
   const { data } = await tenantApi.post('/facturacion/', invoice)
   return data
 }
 
-export async function updateInvoice(id: number, invoice: Partial<Invoice>): Promise<Invoice> {
+export async function updateInvoice(id: number | string, invoice: Partial<Invoice>): Promise<Invoice> {
   const { data } = await tenantApi.put(`/facturacion/${id}`, invoice)
   return data
 }
 
-export async function deleteInvoice(id: number): Promise<void> {
+export async function deleteInvoice(id: number | string): Promise<void> {
   await tenantApi.delete(`/facturacion/${id}`)
 }
 
@@ -111,19 +111,19 @@ export async function listFacturas(params?: {
   return listInvoices(params)
 }
 
-export async function getFactura(id: number): Promise<Factura> {
+export async function getFactura(id: number | string): Promise<Factura> {
   return getInvoice(id)
 }
 
-export async function createFactura(invoice: FacturaCreate): Promise<Factura> {
+export async function createFactura(invoice: FacturaCreate | Partial<FacturaCreate>): Promise<Factura> {
   return createInvoice(invoice)
 }
 
-export async function updateFactura(id: number, invoice: Partial<Factura>): Promise<Factura> {
+export async function updateFactura(id: number | string, invoice: Partial<Factura>): Promise<Factura> {
   return updateInvoice(id, invoice)
 }
 
-export async function removeFactura(id: number): Promise<void> {
+export async function removeFactura(id: number | string): Promise<void> {
   return deleteInvoice(id)
 }
 

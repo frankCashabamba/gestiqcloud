@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { createFactura, getFactura, updateFactura, type Factura } from './services'
+import { createFactura, getFactura, updateFactura } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 
-type FormT = Omit<Factura,'id'|'estado'> & { estado?: string }
+type FormT = { fecha: string; total: number; cliente_id?: number; estado?: string }
 
 export default function FacturaForm() {
   const { id } = useParams()
@@ -11,15 +11,19 @@ export default function FacturaForm() {
   const { success, error } = useToast()
   const [form, setForm] = useState<FormT>({ fecha: new Date().toISOString().slice(0,10), total: 0, cliente_id: undefined, estado: 'borrador' })
 
-  useEffect(() => { if (id) { getFactura(id).then((x)=> setForm({ fecha: x.fecha, total: x.total, cliente_id: x.cliente_id, estado: x.estado })) } }, [id])
+  useEffect(() => {
+    if (id) {
+      getFactura(id).then((x:any)=> setForm({ fecha: x?.fecha ?? new Date().toISOString().slice(0,10), total: Number(x?.total ?? 0), cliente_id: x?.cliente_id, estado: x?.estado }))
+    }
+  }, [id])
 
   const onSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault()
     try {
       if (!form.fecha) throw new Error('Fecha requerida')
       if (form.total < 0) throw new Error('Total debe ser >= 0')
-      if (id) await updateFactura(id, form)
-      else await createFactura(form)
+      if (id) await updateFactura(id, form as any)
+      else await createFactura(form as any)
       success('Factura guardada')
       nav('..')
     } catch(e:any) { error(getErrorMessage(e)) }
@@ -37,4 +41,3 @@ export default function FacturaForm() {
     </div>
   )
 }
-
