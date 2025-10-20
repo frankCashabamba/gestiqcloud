@@ -26,6 +26,7 @@ export interface InvoiceCreate {
   subtotal?: number
   iva?: number
   total: number
+  estado?: string
   cliente_id?: number
   lineas?: InvoiceLine[]
 }
