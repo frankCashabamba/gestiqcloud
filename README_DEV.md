@@ -15,18 +15,20 @@ Project Scripts (shortcuts)
 - Bash (Linux/macOS): `./scripts/init.sh`
 
 Common Commands
-- Start full stack with migrations (Docker):
-  - `docker compose up -d --build`
-  - Services: db → migrations (applies SQL) → backend → admin/tenant
-- Minimal stack (DB + migrations + backend):
-  - PS: `scripts/init.ps1 compose-min`
-  - Bash: `./scripts/init.sh compose-min`
-- Backend only (assumes migrations already ran):
-  - PS: `scripts/init.ps1 compose-backend`
-  - Bash: `./scripts/init.sh compose-backend`
+LOCAL (with docker-compose.override.yml)
 - Full stack (db + migrations + backend + admin + tenant):
-  - PS: `scripts/init.ps1 compose-all`
-  - Bash: `./scripts/init.sh compose-all`
+  - ""docker compose up -d --build""
+- Minimal (db + migrations + backend):
+  - PS: ""scripts/init.ps1 compose-min""
+  - Bash: ""./scripts/init.sh compose-min""
+- Backend only (assumes migrations already ran):
+  - PS: ""scripts/init.ps1 compose-backend""
+  - Bash: ""./scripts/init.sh compose-backend""
+
+PRODUCTION-like (no override)
+- Disable migrations service and use Render job:
+  - Set ""RUN_MIGRATIONS=0"" in environment or compose
+  - Trigger job: ""scripts/init.ps1 render-migrate""
 
 Local (backend on host, DB in Docker)
 1) Start DB: `docker compose up -d db`
@@ -116,3 +118,4 @@ Validation Flags (env)
   - IMPORTS_REQUIRE_CATEGORIES=false
 - Implementation:
   - Flags consumed in pp.modules.imports.application.use_cases._validate_by_type and enforced in alidators.py.
+

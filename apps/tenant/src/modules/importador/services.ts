@@ -29,6 +29,15 @@ export type DatosImportadosOut = DatosImportadosCreate & { id: number; empresa_i
 
 
 export async function procesarDocumento(file: File, authToken?: string): Promise<ProcesarDocumentoResult> {
+  // OCR solo admite PDF/imagenes; bloquea Excel para evitar 422 del backend
+  try {
+    const name = (file?.name || '').toLowerCase()
+    const type = (file?.type || '').toLowerCase()
+    const isExcel = name.endsWith('.xlsx') || name.endsWith('.xls') || type.includes('spreadsheetml')
+    if (isExcel) {
+      throw new Error('Formato Excel (.xlsx/.xls) no soportado por OCR. Exporta a CSV o sube PDF/imagen.')
+    }
+  } catch {}
   const url = `${API_URL}/v1/imports/procesar`
   const fd = new FormData()
   fd.append('file', file)

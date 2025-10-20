@@ -16,16 +16,18 @@ import type {
   PaymentLinkRequest
 } from '../../types/pos'
 
-const BASE_URL = '/api/v1/pos'
-const PAYMENTS_URL = '/api/v1/payments'
+const BASE_URL = '/v1/pos'
+const PAYMENTS_URL = '/v1/payments'
 
 // ============================================================================
 // Registers
 // ============================================================================
 
 export async function listRegisters(): Promise<POSRegister[]> {
-  const { data } = await tenantApi.get<POSRegister[]>(`${BASE_URL}/registers`)
-  return data || []
+  const { data } = await tenantApi.get<POSRegister[] | { items?: POSRegister[] }>(`${BASE_URL}/registers`)
+  if (Array.isArray(data)) return data
+  const items = (data as any)?.items
+  return Array.isArray(items) ? items : []
 }
 
 export async function getRegister(id: string): Promise<POSRegister> {
@@ -72,8 +74,10 @@ export async function getReceipt(id: string): Promise<POSReceipt> {
 }
 
 export async function listReceipts(params?: { shift_id?: string; status?: string }): Promise<POSReceipt[]> {
-  const { data } = await tenantApi.get<POSReceipt[]>(`${BASE_URL}/receipts`, { params })
-  return data || []
+  const { data } = await tenantApi.get<POSReceipt[] | { items?: POSReceipt[] }>(`${BASE_URL}/receipts`, { params })
+  if (Array.isArray(data)) return data
+  const items = (data as any)?.items
+  return Array.isArray(items) ? items : []
 }
 
 export async function payReceipt(receiptId: string, payments: any[]): Promise<POSReceipt> {
@@ -103,8 +107,10 @@ export async function printReceipt(receiptId: string, width: '58mm' | '80mm' = '
 // ============================================================================
 
 export async function listStoreCredits(): Promise<StoreCredit[]> {
-  const { data } = await tenantApi.get<StoreCredit[]>(`${BASE_URL}/store_credits`)
-  return data || []
+  const { data } = await tenantApi.get<StoreCredit[] | { items?: StoreCredit[] }>(`${BASE_URL}/store_credits`)
+  if (Array.isArray(data)) return data
+  const items = (data as any)?.items
+  return Array.isArray(items) ? items : []
 }
 
 export async function getStoreCreditByCode(code: string): Promise<StoreCredit> {
@@ -170,3 +176,4 @@ export function addToOutbox(payload: any): void {
   })
   localStorage.setItem('pos_outbox', JSON.stringify(outbox))
 }
+

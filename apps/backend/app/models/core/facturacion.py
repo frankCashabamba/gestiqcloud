@@ -2,8 +2,9 @@
 
 Auto-generated module docstring."""
 
+import uuid
 from sqlalchemy import ForeignKey, text,String
-from sqlalchemy.dialects.postgresql import JSONB  # Asumiendo PostgreSQL
+from sqlalchemy.dialects.postgresql import JSONB, UUID  # Asumiendo PostgreSQL
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
@@ -11,6 +12,7 @@ from app.models.core.invoiceLine import LineaFactura
 
 from app.models.core.clients import Cliente
 from app.models.empresa.empresa import Empresa
+from app.models.tenant import Tenant
 from sqlalchemy import Enum as SAEnum
 from enum import Enum
 from datetime import date
@@ -45,13 +47,13 @@ class Invoice(Base):
     monto: Mapped[int] = mapped_column(default=0)
     estado: Mapped[str] = mapped_column(default="pendiente")  # pendiente, validado, rechazado
     fecha_creacion: Mapped[str] = mapped_column(server_default=text("now()"))
-    empresa_id: Mapped[int] = mapped_column(ForeignKey("core_empresa.id"))
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"))
     cliente_id: Mapped[int] = mapped_column(ForeignKey("clients.id"))
     subtotal: Mapped[float] = mapped_column()  # ✅ nuevo
     iva: Mapped[float] = mapped_column()       # ✅ nuevo
     total: Mapped[float] = mapped_column()     # ✅ nuevo
     #relacion para traernos los datos
-    empresa: Mapped[Empresa] = relationship(Empresa)
+    tenant: Mapped[Tenant] = relationship(Tenant)
     cliente: Mapped[Cliente] = relationship(Cliente)
     lineas: Mapped[list[LineaFactura]] = relationship(
         LineaFactura,      

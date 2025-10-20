@@ -5,8 +5,11 @@ Service layer helpers for module assignment to companies and users.
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from app.models.core.modulo import EmpresaModulo, ModuloAsignado
+from app.models.tenant import Tenant
+from app.db.rls import set_tenant_guc
 from app.modules import crud, schemas
 
 
@@ -71,6 +74,16 @@ def upsert_modulo_a_empresa(
     empresa_id: int,
     modulo_in: schemas.EmpresaModuloCreate,
 ) -> schemas.EmpresaModuloOutAdmin:
+    # Resolve tenant_id from empresa_id to avoid relying on GUC triggers in admin routes
+    tenant_row = db.query(Tenant).filter(Tenant.empresa_id == empresa_id).first()
+    if not tenant_row:
+        raise HTTPException(status_code=400, detail="Empresa sin tenant asociado")
+    tenant_uuid = getattr(tenant_row, "id")
+    # Set GUC locally for this transaction to satisfy any trigger relying on it
+    try:
+        set_tenant_guc(db, str(tenant_uuid), persist=False)
+    except Exception:
+        pass
     existente = db.query(EmpresaModulo).filter_by(
         empresa_id=empresa_id,
         modulo_id=modulo_in.modulo_id,
@@ -87,6 +100,7 @@ def upsert_modulo_a_empresa(
         asignacion = EmpresaModulo(
             empresa_id=empresa_id,
             modulo_id=modulo_in.modulo_id,
+            tenant_id=tenant_uuid,
             activo=modulo_in.activo,
             fecha_expiracion=modulo_in.fecha_expiracion,
             plantilla_inicial=modulo_in.plantilla_inicial,
@@ -118,4 +132,3 @@ def upsert_modulo_a_empresa(
         empresa_slug=empresa_slug,
         modulo=schemas.ModuloOut.from_orm(asignacion.modulo),
     )
-

@@ -27,7 +27,7 @@ BEGIN
     -- Drop/Create single tenant policy
     EXECUTE format('DROP POLICY IF EXISTS rls_tenant ON %I.%I', r.table_schema, r.table_name);
     EXECUTE format(
-      'CREATE POLICY rls_tenant ON %I.%I USING (tenant_id = current_setting(''app.tenant_id'', true)::uuid) WITH CHECK (tenant_id = current_setting(''app.tenant_id'', true)::uuid)',
+      'CREATE POLICY rls_tenant ON %I.%I USING (tenant_id::text = current_setting(''app.tenant_id'', true)) WITH CHECK (tenant_id::text = current_setting(''app.tenant_id'', true))',
       r.table_schema, r.table_name
     );
 
@@ -49,4 +49,3 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
-

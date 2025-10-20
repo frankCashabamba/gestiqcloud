@@ -11,7 +11,7 @@ from decimal import Decimal
 from typing import Optional, Dict, Any
 import logging
 
-from app.db.session import get_db
+from app.config.database import get_db
 from app.middleware.tenant import ensure_tenant, get_current_user
 from app.services.payments import get_provider
 

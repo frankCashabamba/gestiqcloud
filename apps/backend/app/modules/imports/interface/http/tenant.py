@@ -58,7 +58,7 @@ public_router = APIRouter(
 router = APIRouter(
     prefix="/imports",
     tags=["Imports"],
-    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant"))],
+    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant")), Depends(ensure_rls)],
 )
 
 # --- simple in-memory throttling (per-tenant) --------------------------------
@@ -140,6 +140,57 @@ async def procesar_documento_api(
         payload=contenido,
     )
     return {"job_id": str(job_id), "status": "pending"}
+
+
+@router.post("/excel/parse")
+async def parse_excel(
+    request: Request,
+    file: UploadFile = File(...),
+):
+    """Parsea un archivo Excel (xlsx/xls) y devuelve cabeceras y filas como strings.
+
+    Nota: requiere tener instalado el motor de lectura (openpyxl para xlsx). Si
+    falta, responde 501 con un mensaje claro.
+    """
+    access_claims = getattr(request.state, "access_claims", None)
+    empresa_id = access_claims.get("tenant_id") if access_claims else None
+    if not empresa_id:
+        raise HTTPException(status_code=400, detail="Falta empresa_id en el token")
+
+    content_type = (file.content_type or "").lower()
+    if not (content_type.endswith("spreadsheetml.sheet") or content_type.endswith("ms-excel") or file.filename.lower().endswith((".xlsx", ".xls"))):
+        raise HTTPException(status_code=415, detail=f"Unsupported file type: {file.content_type}")
+
+    try:
+        import pandas as pd  # type: ignore
+        from io import BytesIO
+
+        data = await file.read()
+        if not data:
+            raise HTTPException(status_code=400, detail="Archivo vacío")
+
+        with BytesIO(data) as bio:
+            try:
+                df = pd.read_excel(bio, engine=None)
+            except Exception:
+                try:
+                    df = pd.read_excel(bio, engine="openpyxl")
+                except Exception:
+                    raise
+
+        df = df.fillna("")
+        headers = [str(h) for h in list(df.columns)]
+        rows = [
+            {str(col): str(val) for col, val in row.items()}
+            for row in df.to_dict(orient="records")
+        ]
+        return {"headers": headers, "rows": rows}
+    except ImportError:
+        raise HTTPException(status_code=501, detail="Soporte XLSX no disponible en el servidor. Instala openpyxl para habilitarlo.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo leer el Excel: {e}")
 
 
 @router.get("/jobs/{job_id}", response_model=OCRJobStatusResponse)

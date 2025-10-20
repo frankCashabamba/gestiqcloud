@@ -72,8 +72,10 @@ export type ProveedorPayload = {
 }
 
 export async function listProveedores(): Promise<Proveedor[]> {
-  const { data } = await tenantApi.get<Proveedor[]>(TENANT_PROVEEDORES.base)
-  return data || []
+  const { data } = await tenantApi.get<Proveedor[] | { items?: Proveedor[] }>(TENANT_PROVEEDORES.base)
+  if (Array.isArray(data)) return data
+  const items = (data as any)?.items
+  return Array.isArray(items) ? items : []
 }
 
 export async function getProveedor(id: number | string): Promise<Proveedor> {

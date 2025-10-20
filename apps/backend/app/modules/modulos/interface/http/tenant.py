@@ -23,8 +23,9 @@ router = APIRouter(
 def listar_modulos_asignados(request: Request, db: Session = Depends(get_db)):
     claims = request.state.access_claims
     tenant_id = int(claims.get("tenant_id"))
-    tenant_user_id = int(claims.get("tenant_user_id"))
+    # Fallback a 'user_id' si falta 'tenant_user_id' en claims
+    raw_uid = claims.get("tenant_user_id") or claims.get("user_id")
+    tenant_user_id = int(raw_uid)
     use = ListarModulosAsignadosTenant(SqlModuloRepo(db))
     items = use.execute(tenant_user_id=tenant_user_id, tenant_id=tenant_id)
     return [ModuloOutSchema.model_construct(**i) for i in items]
-

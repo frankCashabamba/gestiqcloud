@@ -7,9 +7,11 @@ import re
 import shutil
 
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import text
 
 from app.models.empresa.empresa import Empresa
 from app.models.core.modulo import EmpresaModulo, Modulo, ModuloAsignado
+from app.models.tenant import Tenant
 from app.modules import schemas
 
 
@@ -145,14 +147,19 @@ def listar_modulos(db: Session) -> list[Modulo]:
 
 # ---------- EMPRESA-MODULO ----------
 def asignar_modulo_a_empresa(
- 
+
     db: Session,
     empresa_id: int,
     modulo_in: schemas.EmpresaModuloCreate
 ) -> EmpresaModulo:
+    # Resolve tenant_id from empresa_id to satisfy NOT NULL and triggers
+    tenant_row = db.query(Tenant).filter(Tenant.empresa_id == empresa_id).first()
+    if not tenant_row:
+        raise ValueError("Empresa sin tenant asociado")
     asignacion = EmpresaModulo(
         empresa_id=empresa_id,
         modulo_id=modulo_in.modulo_id,
+        tenant_id=getattr(tenant_row, "id"),
         fecha_expiracion=modulo_in.fecha_expiracion,
     )
     db.add(asignacion)

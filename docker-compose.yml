@@ -17,6 +17,23 @@ services:
       timeout: 5s
       retries: 10
 
+  electric:
+    image: electric-sql/electric:latest
+    container_name: electric
+    environment:
+      DATABASE_URL: "postgresql://postgres:root@db:5432/gestiqclouddb_dev"
+      LOG_LEVEL: "DEBUG"
+    ports:
+      - "5133:5133"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5133/api/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   backend:
     build:
       context: ./apps/backend
@@ -24,25 +41,22 @@ services:
     container_name: backend
     environment:
       PYTHONPATH: "/app:/apps"
-      IMPORTS_ENABLED: "1"
+      IMPORTS_ENABLED: "${IMPORTS_ENABLED:-1}"
       DB_DSN: "postgresql://postgres:root@db:5432/gestiqclouddb_dev"
-      FRONTEND_URL: "http://localhost:8081"
+      FRONTEND_URL: "${FRONTEND_URL:-http://localhost:8081}"
     env_file:
       - ./apps/backend/.env.example
     depends_on:
-      migrations:
-        condition: service_completed_successfully
       db:
         condition: service_healthy
-    ports:
-      - "8000:8000"
+    # Ports are defined in docker-compose.override.yml for local
     volumes:
       - ./uploads:/app/uploads
       - ./apps:/apps:ro
       - ./scripts:/scripts:ro
     command: ["uvicorn","app.main:app","--host","0.0.0.0","--port","8000","--workers","2","--app-dir","/app"]
     healthcheck:
-      test: ["CMD-SHELL", "if [ \"$IMPORTS_ENABLED\" = \"1\" ] || [ \"$IMPORTS_ENABLED\" = \"true\" ] || [ \"$IMPORTS_ENABLED\" = \"True\" ]; then if [ -n \"$DB_DSN\" ] && [ -f /scripts/py/bootstrap_imports.py ]; then python /scripts/py/bootstrap_imports.py --check-only; else python -c 'import urllib.request,json,sys;\ntry:\n r=urllib.request.urlopen(\"http://localhost:8000/api/v1/imports/health\", timeout=5); data=json.loads(r.read().decode()); sys.exit(0 if data.get(\"ok\", True) else 1)\nexcept Exception:\n sys.exit(1)'; fi; else exit 0; fi"]
+      test: ["CMD-SHELL", "if [ \"$IMPORTS_ENABLED\" = \"1\" ] || [ \"$IMPORTS_ENABLED\" = \"true\" ] || [ \"$IMPORTS_ENABLED\" = \"True\" ]; then python -c 'import urllib.request,json,sys;\ntry:\n r=urllib.request.urlopen(\"http://localhost:8000/api/v1/imports/health\", timeout=5); data=json.loads(r.read().decode()); sys.exit(0 if data.get(\"ok\", True) else 1)\nexcept Exception:\n sys.exit(1)'; else exit 0; fi"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -52,9 +66,11 @@ services:
       context: ./apps/backend
       dockerfile: Dockerfile
     container_name: migrations
+    profiles: ["migrate"]
     environment:
       PYTHONPATH: "/app:/apps"
       DB_DSN: "postgresql://postgres:root@db:5432/gestiqclouddb_dev"
+      RUN_MIGRATIONS: "${RUN_MIGRATIONS:-0}"
     depends_on:
       db:
         condition: service_healthy
@@ -62,7 +78,7 @@ services:
       - ./apps:/apps:ro
       - ./scripts:/scripts:ro
       - ./ops:/ops:ro
-    command: ["python","/scripts/py/bootstrap_imports.py","--dsn","postgresql://postgres:root@db:5432/gestiqclouddb_dev","--dir","/ops/migrations"]
+    command: ["/bin/sh","-lc","if [ \"$RUN_MIGRATIONS\" = \"0\" ] || [ \"$RUN_MIGRATIONS\" = \"false\" ] || [ \"$IMPORTS_ENABLED\" = \"0\" ] || [ \"$IMPORTS_ENABLED\" = \"false\" ]; then echo 'Migrations disabled'; exit 0; fi; echo Running migrations with DSN=postgresql://postgres:root@db:5432/gestiqclouddb_dev; python /scripts/py/auto_migrate.py --dsn postgresql://postgres:root@db:5432/gestiqclouddb_dev --dir /ops/migrations"]
     restart: "no"
 
   admin:
@@ -70,24 +86,25 @@ services:
       context: .
       dockerfile: apps/admin/Dockerfile
     container_name: admin
+    profiles: ["web"]
     depends_on:
       - backend
-    ports:
-      - "8081:8081"
+    # Ports defined in docker-compose.override.yml for local
 
   tenant:
     build:
       context: .
       dockerfile: apps/tenant/Dockerfile
     container_name: tenant
+    profiles: ["web"]
     depends_on:
       - backend
-    ports:
-      - "8082:8082"
+    # Ports defined in docker-compose.override.yml for local
 
   redis:
     image: redis:7-alpine
     container_name: redis
+    profiles: ["worker"]
     ports:
       - "6379:6379"
     healthcheck:
@@ -101,12 +118,15 @@ services:
       context: ./apps/backend
       dockerfile: Dockerfile
     container_name: celery-worker
+    profiles: ["worker"]
     environment:
       PYTHONPATH: "/app:/apps"
-      IMPORTS_ENABLED: "1"
+      IMPORTS_ENABLED: "${IMPORTS_ENABLED:-1}"
       IMPORTS_RUNNER_MODE: "celery"
       DB_DSN: "postgresql://postgres:root@db:5432/gestiqclouddb_dev"
-      REDIS_URL: "redis://redis:6379/0"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
+    env_file:
+      - ./apps/backend/.env.example
     depends_on:
       db:
         condition: service_healthy
@@ -120,4 +140,3 @@ services:
 
 volumes:
   db_data:
-

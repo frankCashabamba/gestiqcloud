@@ -26,7 +26,7 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
     """ Class FacturaCRUD - auto-generated docstring. """
 
     
-    def create_with_lineas(self, db: Session, empresa_id: int, factura_in: schemas.InvoiceCreate) -> Invoice:
+    def create_with_lineas(self, db: Session, tenant_id: str, factura_in: schemas.InvoiceCreate) -> Invoice:
         """ Function create_with_lineas - auto-generated docstring. """
    
         factura_data = factura_in.copy(exclude={"lineas"})
@@ -38,7 +38,7 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
         factura = self.create(
         db,
         factura_data,
-        extra_fields={"empresa_id": empresa_id}
+        extra_fields={"tenant_id": tenant_id}
     )
 
         for linea in factura_in.lineas:
@@ -75,9 +75,9 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
 
     
 
-    def delete_factura(self, db: Session, empresa_id: int, factura_id: int):
-        """ Function delete_factura - auto-generated docstring. """
-        db_factura = db.query(self.model).filter_by(id=factura_id, empresa_id=empresa_id).first()
+    def delete_factura(self, db: Session, tenant_id: str, factura_id: int):
+    """ Function delete_factura - auto-generated docstring. """
+    db_factura = db.query(self.model).filter_by(id=factura_id, tenant_id=tenant_id).first()
         if not db_factura:
             raise HTTPException(status_code=404, detail="Factura no encontrada")
         db.delete(db_factura)

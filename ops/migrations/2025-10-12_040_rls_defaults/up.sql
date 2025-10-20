@@ -9,19 +9,14 @@ BEGIN
   ) THEN
     RAISE NOTICE 'Table public.usuarios_usuarioempresa.tenant_id not found; skipping';
   ELSE
-    EXECUTE $$
-      ALTER TABLE public.usuarios_usuarioempresa
-        ALTER COLUMN tenant_id SET DEFAULT (current_setting('app.tenant_id', true))::uuid
-    $$;
+    EXECUTE 'ALTER TABLE public.usuarios_usuarioempresa
+              ALTER COLUMN tenant_id SET DEFAULT public.current_tenant()';
     BEGIN
-      EXECUTE $$
-        ALTER TABLE public.usuarios_usuarioempresa
-          ALTER COLUMN tenant_id SET NOT NULL
-      $$;
+      EXECUTE 'ALTER TABLE public.usuarios_usuarioempresa
+                ALTER COLUMN tenant_id SET NOT NULL';
     EXCEPTION WHEN others THEN
       -- If existing NULLs prevent NOT NULL, log and skip; admins must backfill first
       RAISE NOTICE 'Skipping NOT NULL on usuarios_usuarioempresa.tenant_id; existing NULLs?';
     END;
   END IF;
 END$$;
-

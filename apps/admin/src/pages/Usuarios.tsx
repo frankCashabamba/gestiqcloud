@@ -20,6 +20,7 @@ export default function Usuarios() {
   const [errMsg, setErrMsg] = useState<string | null>(null)
   const [confirmEmpresaId, setConfirmEmpresaId] = useState<number | string | null>(null)
   const [setPwdUserId, setSetPwdUserId] = useState<number | string | null>(null)
+  const [setPwdUser, setSetPwdUser] = useState<AdminUsuario | null>(null)
   const [newPwd, setNewPwd] = useState('')
   const { success, error: toastError } = useToast()
 
@@ -99,7 +100,7 @@ export default function Usuarios() {
                   Reenviar correo
                 </button>
                 <button
-                  onClick={() => { setSetPwdUserId(u.id); setNewPwd('') }}
+                  onClick={() => { setSetPwdUserId(u.id); setSetPwdUser(u); setNewPwd('') }}
                   className="rounded-md bg-blue-600 px-3 py-1.5 text-xs text-white hover:bg-blue-700"
                 >
                   Establecer contraseña
@@ -174,6 +175,12 @@ export default function Usuarios() {
           <div className="w-full max-w-sm space-y-4 rounded-xl bg-white p-6 shadow-lg">
             <h3 className="text-lg font-semibold text-slate-900">Establecer contraseña</h3>
             <p className="text-sm text-slate-600">Define una contraseña temporal para este usuario. Podrá cambiarla después.</p>
+            {setPwdUser && (
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+                <div className="font-medium text-slate-800">{setPwdUser.nombre || setPwdUser.email}</div>
+                <div className="text-slate-600">{setPwdUser.email || '-'}</div>
+              </div>
+            )}
             <input
               type="password"
               value={newPwd}
@@ -182,7 +189,7 @@ export default function Usuarios() {
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
             />
             <div className="flex items-center justify-end gap-2 pt-2">
-              <button onClick={() => { setSetPwdUserId(null); setNewPwd('') }} className="text-sm text-slate-600 hover:text-slate-900">
+              <button onClick={() => { setSetPwdUserId(null); setSetPwdUser(null); setNewPwd('') }} className="text-sm text-slate-600 hover:text-slate-900">
                 Cancelar
               </button>
               <button
@@ -192,6 +199,7 @@ export default function Usuarios() {
                     await setPasswordDirect(setPwdUserId!, newPwd)
                     success('Contraseña actualizada')
                     setSetPwdUserId(null)
+                    setSetPwdUser(null)
                     setNewPwd('')
                   } catch (e: any) {
                     toastError(getErrorMessage(e))
@@ -208,4 +216,6 @@ export default function Usuarios() {
     </div>
   )
 }
+
+
 

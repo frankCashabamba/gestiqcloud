@@ -29,7 +29,7 @@ async def procesar_archivo_factura(
     return {"status": "archivo procesado", "cantidad": len(facturas)}
 
 
-def generar_numero_factura(db: Session, empresa_id: int) -> str:
+def generar_numero_factura(db: Session, tenant_id: str) -> str:
     """
     Genera número de factura de forma atómica usando la función SQL assign_next_number
     si está disponible; cae a un algoritmo simple si no existe la función.
@@ -53,10 +53,10 @@ def generar_numero_factura(db: Session, empresa_id: int) -> str:
 
     # Fallback no atómico (sólo útil en dev/test): buscar último y sumar 1
     ultima = (
-        db.query(Invoice)
-        .filter(Invoice.empresa_id == empresa_id, Invoice.estado == "emitida")
-        .order_by(Invoice.id.desc())
-        .first()
+    db.query(Invoice)
+    .filter(Invoice.tenant_id == tenant_id, Invoice.estado == "emitida")
+    .order_by(Invoice.id.desc())
+    .first()
     )
     if ultima and isinstance(ultima.numero, str) and ultima.numero.strip():
         try:
