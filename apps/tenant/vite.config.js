@@ -19,6 +19,7 @@ var alias = {
     '@shared/utils': pkgPath('../packages/utils/src'),
     '@shared/telemetry': pkgPath('../packages/telemetry/src'),
     '@shared': pkgPath('../packages/shared/src'),
+    zod: pkgPath('../packages/zod/index.ts'),
     // Ensure deps required by shared packages resolve from this app
     'react-router-dom': pkgPath('./node_modules/react-router-dom'),
     'axios': pkgPath('./node_modules/axios'),
@@ -39,7 +40,7 @@ export default defineConfig({
             srcDir: 'src',
             filename: 'sw.js',
             injectRegister: null,
-            includeAssets: ['offline.html', 'index.html'],
+            includeAssets: ['offline.html', 'index.html', 'icon.svg'],
             manifest: {
                 name: 'GestiqCloud Tenant',
                 short_name: 'Tenant',
@@ -49,9 +50,7 @@ export default defineConfig({
                 theme_color: '#0f172a',
                 background_color: '#ffffff',
                 icons: [
-                    { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-                    { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
-                    { src: 'maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+                    { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }
                 ]
             }
         })
