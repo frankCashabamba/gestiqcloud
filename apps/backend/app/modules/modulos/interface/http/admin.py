@@ -244,7 +244,7 @@ def registrar_modulos(db: Session = Depends(get_db)):
             payload = {
                 "nombre": nombre,
                 "url": (manifest.get("url") if manifest else nombre) or nombre,
-                "icono": (manifest.get("icono") if manifest else default_icon) or default_icon,
+                "icono": (manifest.get("icono") if manifest else None),
                 "activo": manifest.get("activo", True) if manifest else True,
                 "plantilla_inicial": (manifest.get("plantilla_inicial", plantilla_detectada or nombre) if manifest else (plantilla_detectada or nombre)),
                 "context_type": manifest.get("context_type", "none") if manifest else "none",

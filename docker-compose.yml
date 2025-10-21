@@ -44,6 +44,8 @@ services:
       IMPORTS_ENABLED: "${IMPORTS_ENABLED:-1}"
       DB_DSN: "postgresql://postgres:root@db:5432/gestiqclouddb_dev"
       FRONTEND_URL: "${FRONTEND_URL:-http://localhost:8081}"
+      CORS_ORIGINS: "http://localhost:8081,http://localhost:8082"
+      CORS_ALLOW_CREDENTIALS: "true"
     env_file:
       - ./apps/backend/.env.example
     depends_on:

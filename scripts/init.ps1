@@ -130,9 +130,14 @@ switch ($cmd) {
     Write-Host "[2/6] Rebuilding images (no-cache): backend, admin, tenant, migrations..."
     docker compose build --no-cache backend admin tenant migrations
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    Write-Host "[3/6] Running migrations (one-off)..."
-    docker compose --profile migrate run --rm -e DB_DSN=postgresql://postgres:root@db:5432/gestiqclouddb_dev migrations
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    $runMigs = $env:RUN_MIGRATIONS
+    if ($runMigs -and ($runMigs -in @('1','true','True','TRUE'))) {
+      Write-Host "[3/6] Running migrations (one-off)..."
+      docker compose --profile migrate run --rm -e DB_DSN=postgresql://postgres:root@db:5432/gestiqclouddb_dev migrations
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    } else {
+      Write-Host "[3/6] Skipping migrations (RUN_MIGRATIONS=0)"
+    }
     Write-Host "[4/6] Starting backend..."
     docker compose up -d --build backend
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -162,6 +167,33 @@ switch ($cmd) {
     # Full stack
     Set-DevEnvDefaults
     docker compose up -d db migrations backend admin tenant
+  }
+  'seed-admin' {
+    # Create/update global SuperUser for Admin panel (local/dev)
+    # Usage: scripts/init.ps1 seed-admin [password]
+    # Env overrides: ADMIN_USER, ADMIN_EMAIL, ADMIN_PASS
+    Set-DevEnvDefaults
+    $user = if ($env:ADMIN_USER) { $env:ADMIN_USER } else { 'admin' }
+    $email = if ($env:ADMIN_EMAIL) { $env:ADMIN_EMAIL } else { 'admin@local' }
+    $pass = if ($arg1) { $arg1 } elseif ($env:ADMIN_PASS) { $env:ADMIN_PASS } else { 'Admin.2025' }
+    if (-not $env:DATABASE_URL -and $env:DB_DSN) { $env:DATABASE_URL = $env:DB_DSN }
+    Write-Host "Seeding SuperUser → username=$user email=$email"
+    # Prefer running inside backend container to guarantee same DB (host=db)
+    $ranInContainer = $false
+    try {
+      docker compose ps backend | Out-Null
+      if ($LASTEXITCODE -eq 0) {
+        docker compose exec backend python /scripts/py/create_superuser.py --username $user --email $email --password $pass
+        if ($LASTEXITCODE -eq 0) { $ranInContainer = $true }
+        else { Write-Error "Seeding inside container failed (see above). Not falling back to host to avoid wrong DB."; exit $LASTEXITCODE }
+      }
+    } catch {
+      # if docker compose not available, fallback to host
+    }
+    if (-not $ranInContainer) {
+      python scripts/py/create_superuser.py --username $user --email $email --password $pass
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
   }
   default { Write-Host "Usage: scripts/init.ps1 {up|down|rebuild|logs [svc]|typecheck|migrate [up|down] [dir]|schema-check|schema-explain|auto-migrate|migrate-local|alembic-draft|alembic-upgrade|baseline|local|compose-min|compose-backend|compose-no-migrations|compose-web|compose-worker|compose-migrate|compose-all|up-all|render-migrate}" }
 }

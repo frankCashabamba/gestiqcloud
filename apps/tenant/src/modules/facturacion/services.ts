@@ -3,6 +3,7 @@
  */
 
 import tenantApi from '../../shared/api/client'
+import { ensureArray } from '../../shared/utils/array'
 
 // ============================================================================
 // Facturas
@@ -46,7 +47,7 @@ export async function listInvoices(params?: {
   hasta?: string
 }): Promise<Invoice[]> {
   const { data } = await tenantApi.get('/facturacion/', { params })
-  return data?.items || data || []
+  return ensureArray<Invoice>(data)
 }
 
 export async function getInvoice(id: number | string): Promise<Invoice> {

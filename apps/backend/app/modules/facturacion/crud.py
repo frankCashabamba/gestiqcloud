@@ -76,8 +76,12 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
     
 
     def delete_factura(self, db: Session, tenant_id: str, factura_id: int):
-    """ Function delete_factura - auto-generated docstring. """
-    db_factura = db.query(self.model).filter_by(id=factura_id, tenant_id=tenant_id).first()
+        """ Function delete_factura - auto-generated docstring. """
+        db_factura = (
+            db.query(self.model)
+            .filter_by(id=factura_id, tenant_id=tenant_id)
+            .first()
+        )
         if not db_factura:
             raise HTTPException(status_code=404, detail="Factura no encontrada")
         db.delete(db_factura)

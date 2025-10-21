@@ -1,4 +1,5 @@
 import tenantApi from '../../shared/api/client'
+import { ensureArray } from '../../shared/utils/array'
 import { TENANT_VENTAS } from '@shared/endpoints'
 
 export type Venta = {
@@ -11,9 +12,7 @@ export type Venta = {
 
 export async function listVentas(): Promise<Venta[]> {
   const { data } = await tenantApi.get<Venta[] | { items?: Venta[] }>(TENANT_VENTAS.base)
-  if (Array.isArray(data)) return data
-  const items = (data as any)?.items
-  return Array.isArray(items) ? items : []
+  return ensureArray<Venta>(data)
 }
 
 export async function getVenta(id: number | string): Promise<Venta> {

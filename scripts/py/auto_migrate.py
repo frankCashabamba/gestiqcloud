@@ -239,6 +239,32 @@ def main() -> int:
                     return False
 
                 for mig in _iter_migration_dirs(root):
+                    mig_name = mig.name
+                    # Guard: skip baseline schema migration if DB isn't empty or core tables already exist
+                    # This prevents FK/column errors when applying a full dump-like migration onto a live schema.
+                    if (
+                        ("baseline_full_schema" in mig_name)
+                        and os.environ.get("FORCE_BASELINE", "0") not in ("1", "true", "TRUE")
+                    ):
+                        # If any well-known core/admin tables exist, skip baseline to avoid conflicts
+                        try:
+                            cur.execute(
+                                """
+                                SELECT EXISTS (
+                                  SELECT 1 FROM information_schema.tables
+                                  WHERE table_schema = 'public' AND table_name IN (
+                                    'core_empresa','auth_user','usuarios_usuarioempresa','tenants'
+                                  )
+                                )
+                                """
+                            )
+                            exists = bool(cur.fetchone()[0])
+                        except Exception:
+                            exists = False
+                        if exists:
+                            print(f"Skip (baseline detected existing schema markers): {mig_name}")
+                            continue
+
                     raw_sql = (mig / "up.sql").read_text(encoding="utf-8")
                     up_sql = raw_sql.strip()
                     effective = _strip_sql_comments(up_sql)
