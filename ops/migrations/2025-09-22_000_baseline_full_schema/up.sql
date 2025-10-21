@@ -788,7 +788,15 @@ CREATE UNIQUE INDEX ix_auth_refresh_token_jti ON public.auth_refresh_token USING
 CREATE INDEX ix_auth_refresh_token_prev_jti ON public.auth_refresh_token USING btree (prev_jti);
 CREATE UNIQUE INDEX ix_auth_user_email ON public.auth_user USING btree (email);
 CREATE INDEX ix_auth_user_id ON public.auth_user USING btree (id);
-CREATE INDEX ix_auth_user_tenant_id ON public.auth_user USING btree (tenant_id);
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='auth_user' AND column_name='tenant_id'
+  ) THEN
+    CREATE INDEX IF NOT EXISTS ix_auth_user_tenant_id ON public.auth_user USING btree (tenant_id);
+  END IF;
+END $$;
 CREATE UNIQUE INDEX ix_auth_user_username ON public.auth_user USING btree (username);
 CREATE INDEX ix_bank_accounts_empresa_id ON public.bank_accounts USING btree (empresa_id);
 CREATE INDEX ix_bank_accounts_iban ON public.bank_accounts USING btree (iban);

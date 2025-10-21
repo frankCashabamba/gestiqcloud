@@ -1,7 +1,13 @@
 -- Migrate products to tenant_id UUID (drop empresa_id)
 
--- Drop old RLS policy and disable RLS
+-- Drop all existing RLS policies first
 DROP POLICY IF EXISTS tenant_isolation ON products;
+DROP POLICY IF EXISTS tenant_isolation_products ON products;
+DROP POLICY IF EXISTS tenant_insert_products ON products;
+DROP POLICY IF EXISTS tenant_update_products ON products;
+DROP POLICY IF EXISTS tenant_delete_products ON products;
+
+-- Disable RLS temporarily
 ALTER TABLE products DISABLE ROW LEVEL SECURITY;
 
 -- Drop old index if exists
@@ -9,6 +15,7 @@ DROP INDEX IF EXISTS ix_products_empresa_id;
 
 -- Drop foreign key to empresa_id
 ALTER TABLE products DROP CONSTRAINT IF EXISTS fk_products_empresa;
+ALTER TABLE products DROP CONSTRAINT IF EXISTS products_empresa_id_fkey;
 
 -- Drop empresa_id column
 ALTER TABLE products DROP COLUMN IF EXISTS empresa_id;

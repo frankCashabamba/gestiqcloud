@@ -32,12 +32,12 @@ export default function Login() {
       <h1>Iniciar sesión (Admin)</h1>
       <form onSubmit={onSubmit}>
         <div style={{marginBottom:'.75rem'}}>
-          <label>Usuario o email</label>
-          <input value={identificador} onChange={e=>setIdentificador(e.target.value)} autoComplete='username' required/>
+          <label htmlFor='admin-identificador'>Usuario o email</label>
+          <input id='admin-identificador' name='identificador' value={identificador} onChange={e=>setIdentificador(e.target.value)} autoComplete='username' required/>
         </div>
         <div style={{marginBottom:'.75rem'}}>
           <label>Contraseña</label>
-          <input type='password' value={password} onChange={e=>setPassword(e.target.value)} autoComplete='current-password' required/>
+          <input id='admin-password' name='password' type='password' value={password} onChange={e=>setPassword(e.target.value)} autoComplete='current-password' required/>
         </div>
         {error && <div className='error' style={{marginBottom:'.75rem'}}>{error}</div>}
         <button className='btn' type='submit' disabled={submitting}>{submitting ? 'Entrando…' : 'Entrar'}</button>

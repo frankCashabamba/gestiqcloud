@@ -28,6 +28,23 @@ migration_state = {
 }
 
 
+@router.get("/ops/schema/missing-id-defaults")
+def list_missing_id_defaults(db: Session = Depends(get_db)):
+    """List public.* tables whose PK 'id' (integer/bigint) lacks IDENTITY/DEFAULT.
+    Helps detect autoincrement issues after resets/migrations.
+    """
+    try:
+        from app.shared.utils import find_missing_id_defaults  # lazy import
+        items = find_missing_id_defaults(db)
+        return {"ok": True, "count": len(items), "items": items}
+    except Exception as e:
+        try:
+            log.exception("missing_id_defaults_list_failed: %s", e)
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=f"schema_check_error:{e}")
+
+
 def _log_started(db: Session | None, mode: str, job_id: str | None = None,
                  pending_count: int | None = None, revisions: list[str] | None = None,
                  triggered_by: str | None = None) -> str | None:
@@ -35,6 +52,38 @@ def _log_started(db: Session | None, mode: str, job_id: str | None = None,
     try:
         if db is None:
             return None
+        # Ensure table exists when running inline (dev environments may not have applied Alembic yet)
+        try:
+            db.execute(
+                sql_text(
+                    """
+                    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+                    CREATE TABLE IF NOT EXISTS public.admin_migration_runs (
+                      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                      started_at timestamptz NOT NULL DEFAULT now(),
+                      finished_at timestamptz,
+                      mode text NOT NULL,
+                      ok boolean,
+                      error text,
+                      job_id text,
+                      pending_count integer,
+                      revisions jsonb,
+                      triggered_by text
+                    );
+                    CREATE INDEX IF NOT EXISTS ix_admin_migration_runs_started ON public.admin_migration_runs (started_at DESC);
+                    """
+                )
+            )
+            try:
+                db.commit()
+            except Exception:
+                pass
+        except Exception:
+            # Best-effort; if this fails, the insert may still succeed later if Alembic created the table
+            try:
+                db.rollback()
+            except Exception:
+                pass
         res = db.execute(
             sql_text(
                 """
@@ -185,9 +234,17 @@ def trigger_migrations(background_tasks: BackgroundTasks, db: Session = Depends(
         pass
     # Optional: short-circuit if there are no pending Alembic migrations
     try:
-        pending, count, _ = _alembic_has_pending()
+        pending, count, revs = _alembic_has_pending()
         if not pending:
-            return {"ok": True, "mode": "noop", "started": False, "message": "sin_migraciones_pendientes", "pending_count": count}
+            return {
+                "ok": True,
+                "mode": "noop",
+                "started": False,
+                "message": "sin_migraciones_pendientes",
+                "pending": False,
+                "pending_count": count,
+                "pending_revisions": revs or [],
+            }
     except Exception:
         # If the check fails, proceed to try migrations to avoid false negatives
         pass
@@ -200,14 +257,12 @@ def trigger_migrations(background_tasks: BackgroundTasks, db: Session = Depends(
     job_id = os.getenv("RENDER_MIGRATE_JOB_ID")
     api_key = os.getenv("RENDER_API_KEY")
     if not job_id or not api_key:
-        # Optional fallback: run inline Alembic + RLS if explicitly allowed
-        if str(os.getenv("ALLOW_INLINE_MIGRATIONS", "0")).lower() in ("1", "true", "yes"):
-            # Run asynchronously to avoid request timeouts (CF/Render ~100s)
-            rid = _log_started(db, mode="inline_async")
-            migration_state.update({"run_id": rid})
-            background_tasks.add_task(_run_inline_migrations)
-            return {"ok": True, "mode": "inline_async", "started": True, "run_id": rid}
-        raise HTTPException(status_code=501, detail="render_job_not_configured")
+        # Fallback-by-default: run inline Alembic + RLS when Render is not configured
+        # Works in DEV/PRO sin coste; ejecuta en background para no bloquear la petición.
+        rid = _log_started(db, mode="inline_async")
+        migration_state.update({"run_id": rid})
+        background_tasks.add_task(_run_inline_migrations)
+        return {"ok": True, "mode": "inline_async", "started": True, "run_id": rid, "configured": False, "pending": True, "pending_count": _pending_count if '_pending_count' in globals() else -1, "pending_revisions": _pending_revs if '_pending_revs' in globals() else []}
 
     try:
         resp = requests.post(
@@ -234,9 +289,98 @@ def trigger_migrations(background_tasks: BackgroundTasks, db: Session = Depends(
             "error": None,
             "run_id": rid,
         })
-        return {"ok": True, "job_id": job_id, "run_id": rid}
+        return {"ok": True, "mode": "render_job", "job_id": job_id, "run_id": rid, "pending": True, "pending_count": _pending_count if '_pending_count' in globals() else -1, "pending_revisions": _pending_revs if '_pending_revs' in globals() else []}
     raise HTTPException(status_code=502, detail=f"render_api_error:{resp.status_code}")
 
+
+@router.get("/ops/migrate/config")
+def migrate_config():
+    """Report migration execution capabilities for the Admin UI."""
+    job_id = os.getenv("RENDER_MIGRATE_JOB_ID")
+    api_key = os.getenv("RENDER_API_KEY")
+    render_configured = bool(job_id and api_key)
+    inline_enabled = True  # inline fallback is always available in this build
+    return {
+        "ok": True,
+        "render_configured": render_configured,
+        "inline_enabled": inline_enabled,
+        "mode": ("render" if render_configured else "inline"),
+    }
+
+
+@router.get("/ops/migrate/status/details")
+def migrate_status_details(db: Session = Depends(get_db)):
+    """Extended status including last run metadata and config.
+
+    Non-breaking addition to help Admin UI render richer status without
+    making multiple calls. Keeps the original /ops/migrate/status intact.
+    """
+    # Base state
+    state = dict(migration_state)
+
+    # Alembic heads (best-effort)
+    info = {}
+    try:
+        from alembic.config import Config
+        from alembic.script import ScriptDirectory
+        backend_dir = Path(__file__).resolve().parents[3]
+        cfg = Config(str(backend_dir / "alembic.ini"))
+        cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+        script = ScriptDirectory.from_config(cfg)
+        heads = list(script.get_heads())
+        info = {"alembic_heads": {"count": len(heads), "heads": heads}}
+    except Exception:
+        info = {"alembic_heads": {"count": -1, "heads": []}}
+
+    # Pending Alembic revisions (so UI can decide to disable the button when no changes)
+    pending_info = {"pending": True, "pending_count": -1, "pending_revisions": []}
+    try:
+        p, cnt, revs = _alembic_has_pending()
+        pending_info = {"pending": bool(p), "pending_count": int(cnt), "pending_revisions": revs}
+    except Exception:
+        pass
+
+    # Last run (if table exists)
+    last_run = None
+    try:
+        res = db.execute(
+            sql_text(
+                """
+                SELECT id::text, started_at, finished_at, mode, ok, error, job_id
+                FROM public.admin_migration_runs
+                ORDER BY started_at DESC
+                LIMIT 1
+                """
+            )
+        ).first()
+        if res:
+            last_run = {
+                "id": res[0],
+                "started_at": res[1].isoformat() if getattr(res[1], "isoformat", None) else res[1],
+                "finished_at": res[2].isoformat() if getattr(res[2], "isoformat", None) else res[2],
+                "mode": res[3],
+                "ok": res[4],
+                "error": res[5],
+                "job_id": res[6],
+            }
+    except Exception:
+        last_run = None
+
+    render_configured = bool(os.getenv("RENDER_MIGRATE_JOB_ID") and os.getenv("RENDER_API_KEY"))
+    inline_enabled = True
+
+    return {
+        **state,
+        **info,
+        **pending_info,
+        "config": {
+            "render_configured": render_configured,
+            "inline_enabled": inline_enabled,
+            "mode": ("render" if render_configured else "inline"),
+            "last_run": last_run,
+            "run_id": migration_state.get("run_id"),
+        },
+    }
 
 @router.get("/ops/migrate/status")
 def migrate_status():
@@ -274,6 +418,10 @@ def migrate_history(limit: int = 20, db: Session = Depends(get_db)):
         rows = [dict(zip([c for c in res.keys()], r)) for r in res.fetchall()]
         return {"ok": True, "items": rows}
     except Exception as e:
+        # If table doesn't exist yet, return empty history instead of 500
+        msg = str(e).lower()
+        if "admin_migration_runs" in msg and ("does not exist" in msg or "no existe" in msg or "undefined" in msg):
+            return {"ok": True, "items": []}
         raise HTTPException(status_code=500, detail=f"history_error:{e}")
 
 
@@ -282,7 +430,8 @@ def migrate_refresh(db: Session = Depends(get_db)):
     job_id = os.getenv("RENDER_MIGRATE_JOB_ID")
     api_key = os.getenv("RENDER_API_KEY")
     if not job_id or not api_key:
-        raise HTTPException(status_code=501, detail="render_job_not_configured")
+        # Graceful degrade for dev/manual mode: report not configured instead of 501
+        return {"ok": True, "configured": False, "status": "not_configured"}
     try:
         resp = requests.get(
             f"https://api.render.com/v1/jobs/{job_id}/runs?limit=1",

@@ -20,6 +20,10 @@ BEGIN
     GROUP BY c.table_schema, c.table_name
     ORDER BY c.table_schema, c.table_name
   LOOP
+    -- Exclusions: tables that must remain global (no RLS), even if they had tenant_id in legacy dumps
+    IF r.table_schema = 'public' AND r.table_name IN ('auth_user') THEN
+      CONTINUE;
+    END IF;
     -- Enable + Force RLS
     EXECUTE format('ALTER TABLE %I.%I ENABLE ROW LEVEL SECURITY', r.table_schema, r.table_name);
     EXECUTE format('ALTER TABLE %I.%I FORCE ROW LEVEL SECURITY', r.table_schema, r.table_name);

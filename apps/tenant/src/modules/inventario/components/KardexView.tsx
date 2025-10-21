@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { fetchKardex } from '../services/inventario'
+import { ensureArray } from '../../../shared/utils/array'
 import type { KardexEntry } from '../types/producto'
 import { usePagination, Pagination } from '../../../shared/pagination'
 
@@ -8,14 +9,19 @@ export function KardexView() {
   const [loading, setLoading] = useState(true)
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
-  useEffect(() => { fetchKardex().then((d)=> { setItems(d); setLoading(false) }) }, [])
-  if (loading) return <div className="p-4 text-sm text-gray-500">Cargando…</div>
-
-  const filtered = items.filter(k => (!from || k.fecha >= from) && (!to || k.fecha <= to))
+  useEffect(() => {
+    fetchKardex().then((d)=> {
+      setItems(ensureArray<KardexEntry>(d))
+      setLoading(false)
+    })
+  }, [])
+  const base = Array.isArray(items) ? items : []
+  const filtered = base.filter(k => (!from || k.fecha >= from) && (!to || k.fecha <= to))
   const { page, setPage, totalPages, view } = usePagination(filtered, 15)
 
   return (
     <div className="p-4">
+      {loading && <div className="text-sm text-gray-500">Cargando…</div>}
       <h2 className="font-semibold text-lg mb-4">Kardex</h2>
       <div className="flex gap-2 mb-3 text-sm">
         <div>
