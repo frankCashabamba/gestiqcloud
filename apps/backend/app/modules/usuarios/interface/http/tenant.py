@@ -18,7 +18,7 @@ from app.modules.usuarios.infrastructure.schemas import (
 from pydantic import BaseModel, Field
 
 router = APIRouter(
-    prefix="/tenant/usuarios",
+    prefix="/usuarios",
     tags=["Usuarios"],
     dependencies=[Depends(with_access_claims), Depends(require_scope("tenant")), Depends(ensure_rls)],
 )

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import logging
 import threading
@@ -165,7 +165,7 @@ def enqueue_job(*, empresa_id: int, filename: str, content_type: Optional[str], 
             row = res.first()
             tid = row[0] if row and row[0] else None
             if tid:
-                set_tenant_guc(db, str(tid), persist=False)
+                set_tenant_guc(db, str(tid), persist=True)
                 try:
                     db.info["tenant_id"] = str(tid)
                 except Exception:

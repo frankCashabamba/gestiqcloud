@@ -7,8 +7,11 @@ function toSlug(m: Modulo): string {
   if (m.slug) return m.slug.toLowerCase()
   if (m.url) {
     const u = m.url.trim()
-    const s = u.startsWith('/') ? u.slice(1) : u
-    const seg = s.split('/')[0] || s
+    let s = u.startsWith('/') ? u.slice(1) : u
+    // Quita prefijo /mod si existe (legacy)
+    if (s.startsWith('mod/')) s = s.slice(4)
+    const parts = s.split('/').filter(p => p)
+    const seg = parts[parts.length - 1] || s
     return seg.toLowerCase()
   }
   // fallback: normaliza nombre
@@ -27,26 +30,14 @@ export function useMisModulos() {
     ;(async () => {
       try {
         let mods: Modulo[] = []
-        if (empresa) {
-          // Público por empresa (módulos contratados por la empresa)
+        if (token) {
+          // Siempre usar endpoint autenticado cuando hay token
           try {
-            mods = await listModulosSeleccionablesPorEmpresa(empresa)
-          } catch (e) {
-            // Fallback a endpoint autenticado si falla o no existe público
-            if (token) {
-              try { mods = await listMisModulos(token) } catch {}
-            }
+            mods = await listMisModulos(token)
+          } catch (e: any) {
+            console.error('Error loading modules:', e)
+            setError(e?.message || 'Error loading modules')
           }
-          // Si el endpoint público respondió pero viene vacío, intenta también el autenticado
-          if ((mods?.length ?? 0) === 0 && token) {
-            try {
-              const authMods = await listMisModulos(token)
-              if (authMods?.length) mods = authMods
-            } catch {}
-          }
-        } else if (token) {
-          // Autenticado por usuario (módulos asignados al usuario)
-          mods = await listMisModulos(token)
         } else {
           mods = []
         }
@@ -58,13 +49,14 @@ export function useMisModulos() {
           : []
         if (!cancelled) setModules(list)
       } catch (e: any) {
+        console.error('Unexpected error in useMisModulos:', e)
         if (!cancelled) setError(e?.message || 'Error')
       } finally {
         if (!cancelled) setLoading(false)
       }
     })()
     return () => { cancelled = true }
-  }, [token, empresa])
+  }, [token])
 
   const allowedSlugs = useMemo(() => {
     const list = Array.isArray(modules) ? modules : []

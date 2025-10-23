@@ -7,8 +7,11 @@ import { useMisModulos } from '../hooks/useMisModulos'
 function buildSlug(name?: string, url?: string, slug?: string): string {
   if (slug) return slug.toLowerCase()
   if (url) {
-    const normalized = url.startsWith('/') ? url.slice(1) : url
-    const segment = normalized.split('/')[0] || normalized
+    let normalized = url.startsWith('/') ? url.slice(1) : url
+    // Quita prefijo /mod si existe (legacy)
+    if (normalized.startsWith('mod/')) normalized = normalized.slice(4)
+    const parts = normalized.split('/').filter(p => p)
+    const segment = parts[parts.length - 1] || normalized
     return segment.toLowerCase()
   }
   return (name || '')
@@ -37,7 +40,8 @@ const TallerPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
         .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''))
         .map((m) => ({
           label: m.nombre || buildSlug(m.nombre, m.url, m.slug),
-          to: `/mod/${buildSlug(m.nombre, m.url, m.slug)}`,
+          // 'to' relativo; el prefijo del tenant se añade al renderizar
+          to: `/${buildSlug(m.nombre, m.url, m.slug)}`,
         })),
     [modules]
   )

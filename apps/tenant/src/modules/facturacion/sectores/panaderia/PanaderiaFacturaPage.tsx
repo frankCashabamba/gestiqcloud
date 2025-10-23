@@ -30,7 +30,7 @@ export default function PanaderiaFacturaPage() {
       if (lineas.length === 0) throw new Error('Agrega al menos una línea')
       await createFactura({ fecha, total: Number(totals.total.toFixed(2)), estado, cliente_id: undefined })
       success('Factura creada (panadería)')
-      nav('/mod/facturacion')
+      nav('/facturacion')
     } catch(e:any) { error(getErrorMessage(e)) }
   }
 
@@ -67,7 +67,7 @@ export default function PanaderiaFacturaPage() {
 
         <div className="pt-2">
           <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">Guardar</button>
-          <button type="button" className="ml-3 px-3 py-2" onClick={()=> nav('/mod/facturacion/sectores')}>Cancelar</button>
+          <button type="button" className="ml-3 px-3 py-2" onClick={()=> nav('/facturacion/sectores')}>Cancelar</button>
         </div>
       </form>
     </div>

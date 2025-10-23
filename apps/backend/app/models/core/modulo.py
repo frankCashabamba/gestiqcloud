@@ -2,16 +2,17 @@
 
 Auto-generated module docstring."""
 # pylint: disable=unsubscriptable-object
+import uuid
 from datetime import datetime
 from typing import  Optional
 
 from sqlalchemy import (
-    Boolean,
-    Date,
-    DateTime,
-    ForeignKey,
-    String,
-    Text,
+Boolean,
+Date,
+DateTime,
+ForeignKey,
+String,
+Text,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -44,11 +45,7 @@ class EmpresaModulo(Base):
     empresa_id: Mapped[int] = mapped_column(ForeignKey("core_empresa.id"), nullable=False) # type: ignore
     modulo_id: Mapped[int] = mapped_column(ForeignKey("modulos_modulo.id"), nullable=False) # type: ignore
     # Multi-tenant: link to tenants UUID. Column added by migration 2025-10-09_022
-    try:
-        _uuid_col = PGUUID(as_uuid=True)
-    except Exception:  # pragma: no cover (SQLite/tests)
-        _uuid_col = String  # type: ignore
-    tenant_id: Mapped[object] = mapped_column(_uuid_col, ForeignKey("tenants.id"), nullable=False)  # type: ignore
+    tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
     activo: Mapped[bool] = mapped_column(Boolean, default=True) # type: ignore
     fecha_activacion: Mapped[datetime] = mapped_column(Date, default=datetime.utcnow) # type: ignore
     fecha_expiracion: Mapped[Optional[datetime]] = mapped_column(Date) # type: ignore

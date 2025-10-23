@@ -4,6 +4,7 @@
 
 import tenantApi from '../../shared/api/client'
 import { ensureArray } from '../../shared/utils/array'
+import { TENANT_FACTURACION } from '@shared/endpoints'
 
 // ============================================================================
 // Facturas
@@ -46,27 +47,27 @@ export async function listInvoices(params?: {
   desde?: string
   hasta?: string
 }): Promise<Invoice[]> {
-  const { data } = await tenantApi.get('/facturacion/', { params })
+  const { data } = await tenantApi.get(TENANT_FACTURACION.base, { params })
   return ensureArray<Invoice>(data)
 }
 
 export async function getInvoice(id: number | string): Promise<Invoice> {
-  const { data } = await tenantApi.get(`/facturacion/${id}`)
+  const { data } = await tenantApi.get(`${TENANT_FACTURACION.base}/${id}`)
   return data
 }
 
 export async function createInvoice(invoice: InvoiceCreate | Partial<InvoiceCreate>): Promise<Invoice> {
-  const { data } = await tenantApi.post('/facturacion/', invoice)
+  const { data } = await tenantApi.post(TENANT_FACTURACION.base, invoice)
   return data
 }
 
 export async function updateInvoice(id: number | string, invoice: Partial<Invoice>): Promise<Invoice> {
-  const { data } = await tenantApi.put(`/facturacion/${id}`, invoice)
+  const { data } = await tenantApi.put(`${TENANT_FACTURACION.base}/${id}`, invoice)
   return data
 }
 
 export async function deleteInvoice(id: number | string): Promise<void> {
-  await tenantApi.delete(`/facturacion/${id}`)
+  await tenantApi.delete(`${TENANT_FACTURACION.base}/${id}`)
 }
 
 // ============================================================================
@@ -88,12 +89,12 @@ export interface EinvoiceStatus {
 }
 
 export async function sendEinvoice(request: EinvoiceSendRequest): Promise<{ task_id: string }> {
-  const { data } = await tenantApi.post('/einvoicing/send', request)
+  const { data } = await tenantApi.post('/api/v1/einvoicing/send', request)
   return data
 }
 
 export async function getEinvoiceStatus(invoiceId: string): Promise<EinvoiceStatus> {
-  const { data } = await tenantApi.get(`/einvoicing/status/${invoiceId}`)
+  const { data } = await tenantApi.get(`/api/v1/einvoicing/status/${invoiceId}`)
   return data
 }
 
@@ -131,7 +132,7 @@ export async function removeFactura(id: number | string): Promise<void> {
 
 // Stub for Facturae export (downloads XML); adjust endpoint when backend is ready
 export async function exportarFacturae(id: string | number): Promise<Blob> {
-  const res = await tenantApi.get(`/einvoicing/facturae/${id}/export`, {
+  const res = await tenantApi.get(`/api/v1/einvoicing/facturae/${id}/export`, {
     responseType: 'blob'
   })
   return res.data as Blob

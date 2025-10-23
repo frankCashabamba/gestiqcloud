@@ -13,7 +13,7 @@ from app.modules.imports.application.use_utils import apply_mapping
 from app.modules.imports.application.status import ImportItemStatus, ImportBatchStatus
 from app.modules.imports.domain.handlers import BankHandler, ExpenseHandler, InvoiceHandler
 from app.modules.imports.infrastructure.repositories import ImportsRepository
-from app.modules.imports.validators import validate_bank, validate_expenses, validate_invoices
+from app.modules.imports.validators import validate_bank, validate_expenses, validate_invoices, validate_panaderia_diario
 from app.models.core.modelsimport import (
     ImportBatch,
     ImportItem,
@@ -51,6 +51,8 @@ def _validate_by_type(source_type: str, normalized: Dict[str, Any]) -> List[Dict
         return validate_bank(normalized)
     if source_type in ("expenses", "receipts"):
         return validate_expenses(normalized, require_categories=require_categories)
+    if source_type == "panaderia_diario":
+        return validate_panaderia_diario(normalized)
     return []
 
 def _dedupe_hash(source_type: str, data: Dict[str, Any], *, keys: Optional[List[str]] = None) -> str:
@@ -73,6 +75,10 @@ def _dedupe_hash(source_type: str, data: Dict[str, Any], *, keys: Optional[List[
                  g("transaction_date","date"),
                  g("amount","importe"),
                  g("description","concept","concepto")]
+    elif source_type == "panaderia_diario":
+    parts = [g("fecha","date"),
+             g("producto","product"),
+    g("cantidad_producida","cantidad","qty")]
     else:  # expenses/receipts
         parts = [g("expense_date","date"),
                  g("amount","importe"),

@@ -16,7 +16,7 @@ type ImportadorLayoutProps = {
 }
 
 function buildBasePath(pathname: string) {
-  const match = pathname.match(/^(.*?\/mod\/importador)/)
+  const match = pathname.match(/^(.*?\/importador)/)
   if (match && match[1]) return match[1]
   return pathname.replace(/\/$/, '')
 }

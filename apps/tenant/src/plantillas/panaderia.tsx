@@ -7,8 +7,11 @@ import { useMisModulos } from '../hooks/useMisModulos'
 function buildSlug(name?: string, url?: string, slug?: string): string {
   if (slug) return slug.toLowerCase()
   if (url) {
-    const normalized = url.startsWith('/') ? url.slice(1) : url
-    const segment = normalized.split('/')[0] || normalized
+    let normalized = url.startsWith('/') ? url.slice(1) : url
+    // Quita prefijo /mod si existe (legacy)
+    if (normalized.startsWith('mod/')) normalized = normalized.slice(4)
+    const parts = normalized.split('/').filter(p => p)
+    const segment = parts[parts.length - 1] || normalized
     return segment.toLowerCase()
   }
   return (name || '')
@@ -37,7 +40,8 @@ const PanaderiaPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
         .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''))
         .map((m) => ({
           label: m.nombre || buildSlug(m.nombre, m.url, m.slug),
-          to: `/mod/${buildSlug(m.nombre, m.url, m.slug)}`,
+          // 'to' debe ser solo el segmento del módulo
+          to: `/${buildSlug(m.nombre, m.url, m.slug)}`,
         })),
     [modules]
   )
@@ -97,12 +101,29 @@ const PanaderiaPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
           )}
 
           <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-4">
-            <h3 className="text-sm font-semibold text-slate-700">Checklist sugerido</h3>
-            <ul className="mt-3 space-y-2 text-sm text-slate-500">
-              <li>? Registrar la producci?n del d?a y validar los lotes pendientes.</li>
-              <li>? Actualizar mermas y ajustes de inventario antes del cierre.</li>
-              <li>? Revisar ventas por canal (sal?n, delivery y preventa corporativa).</li>
+          <h3 className="text-sm font-semibold text-slate-700">Checklist sugerido</h3>
+          <ul className="mt-3 space-y-2 text-sm text-slate-500">
+          <li>? Registrar la producci?n del d?a y validar los lotes pendientes.</li>
+          <li>? Actualizar mermas y ajustes de inventario antes del cierre.</li>
+          <li>? Revisar ventas por canal (sal?n, delivery y preventa corporativa).</li>
+            <li>? Importar diario de producci?n desde Excel para digitalizar registros.</li>
             </ul>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-slate-900">Diarios de Producción</h3>
+            <p className="mt-2 text-sm text-slate-500">
+              Importa tus diarios de producción desde Excel para mantener un registro digitalizado y automatizar el inventario.
+            </p>
+            <div className="mt-4 flex items-center gap-3">
+              <Link
+                to={`${prefix}/importador`}
+                className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-blue-500"
+              >
+                Importar Diario
+              </Link>
+              <span className="text-xs text-slate-400">Soporta Excel con columnas: Fecha, Producto, Cantidad, etc.</span>
+            </div>
           </div>
         </section>
 

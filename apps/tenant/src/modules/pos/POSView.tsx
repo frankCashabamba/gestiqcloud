@@ -1,7 +1,8 @@
 /**
- * POSView - Vista principal del módulo POS
- */
+* POSView - Vista principal del módulo POS
+*/
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import ShiftManager from './components/ShiftManager'
 import TicketCart from './components/TicketCart'
 import PaymentModal from './components/PaymentModal'
@@ -19,6 +20,9 @@ import {
 import type { POSRegister, POSShift, CartItem, Product } from '../../types/pos'
 
 export default function POSView() {
+console.log('POSView rendering')
+  const navigate = useNavigate()
+
   const [registers, setRegisters] = useState<POSRegister[]>([])
   const [selectedRegister, setSelectedRegister] = useState<POSRegister | null>(null)
   const [currentShift, setCurrentShift] = useState<POSShift | null>(null)
@@ -26,13 +30,15 @@ export default function POSView() {
   const [searchQuery, setSearchQuery] = useState('')
   const [products, setProducts] = useState<Product[]>([])
   const [currentReceiptId, setCurrentReceiptId] = useState<string | null>(null)
-  
+
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    console.log('POSView useEffect')
     loadRegisters()
     syncOfflineReceipts() // Sincronizar tickets offline al cargar
   }, [])
@@ -47,13 +53,17 @@ export default function POSView() {
 
   const loadRegisters = async () => {
     try {
+      console.log('Loading registers...')
       const data = await listRegisters()
+      console.log('Registers loaded:', data)
       setRegisters(data.filter((r) => r.active))
       if (data.length > 0) {
         setSelectedRegister(data[0])
       }
-    } catch (error) {
+      setError(null)
+    } catch (error: any) {
       console.error('Error loading registers:', error)
+      setError(`Error cargando registros: ${error.message}`)
     }
   }
 
@@ -205,6 +215,10 @@ export default function POSView() {
     alert('Factura generada correctamente')
   }
 
+  if (error) {
+    return <div className="p-4 text-red-600">Error: {error}</div>
+  }
+
   if (!selectedRegister) {
     return <div className="p-4">Cargando registros...</div>
   }
@@ -213,6 +227,12 @@ export default function POSView() {
     <div className="h-screen flex flex-col bg-gray-100">
       {/* Header */}
       <div className="bg-blue-600 text-white p-4 flex justify-between items-center">
+        <button
+          onClick={() => navigate(-1)}
+          className="mr-4 px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded"
+        >
+          ← Volver
+        </button>
         <h1 className="text-2xl font-bold">🛒 Punto de Venta</h1>
         <select
           value={selectedRegister.id}

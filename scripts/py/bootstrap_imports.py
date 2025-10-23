@@ -1,12 +1,14 @@
+# -*- coding: utf-8 -*-
 """
 Bootstrap script for the Imports pipeline.
+"""
 
 Goals:
 - Single entry point to run (optionally) migrations and verify schema.
 - Works in any server/container calling this script once.
 
 Behavior:
-- If IMPORTS_ENABLED is falsy â†’ exit(0) immediately (nothing to check/apply).
+- If IMPORTS_ENABLED is falsy -> exit(0) immediately (nothing to check/apply).
 - Else:
   - Auto-apply all migrations in ops/migrations (idempotent if SQL uses IF NOT EXISTS).
   - Verify required tables/columns/indexes for the Imports module.
@@ -172,7 +174,7 @@ def _auto_migrate(dsn: str, root_dir: Path) -> None:
             pass
 
         msg = str(exc).lower()
-        if any(p in msg for p in ("already exists", "duplicate", "ya existe", "já existe", "existe déjà", "existiert bereits")):
+        if any(p in msg for p in ("already exists", "duplicate", "ya existe", "jï¿½ existe", "existe dï¿½jï¿½", "existiert bereits")):
             return True
         # Missing object errors considered idempotent for DROP*/COMMENT ON
         missing = ("does not exist", "no existe", "n'existe pas", "existiert nicht")
@@ -184,7 +186,7 @@ def _auto_migrate(dsn: str, root_dir: Path) -> None:
                 return True
             # Multiple primary keys when re-applying PK is benign
             if ("primary key" in s) and any(p in msg for p in (
-                "multiple primary keys", "múltiples llaves primarias", "multiples llaves primarias", "múltiples claves primarias", "multiples claves primarias"
+                "multiple primary keys", "mï¿½ltiples llaves primarias", "multiples llaves primarias", "mï¿½ltiples claves primarias", "multiples claves primarias"
             )):
                 return True
         return False

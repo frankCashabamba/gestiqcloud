@@ -41,9 +41,9 @@ export default function UsuariosList() {
           listModuloOptions(),
           listRolOptions(),
         ])
-        setItems(usuarios)
-        setModulos(modOpts)
-        setRoles(rolOpts)
+        setItems(Array.isArray(usuarios) ? usuarios : [])
+        setModulos(Array.isArray(modOpts) ? modOpts : [])
+        setRoles(Array.isArray(rolOpts) ? rolOpts : [])
       } catch (e: any) {
         const m = getErrorMessage(e)
         setErrMsg(m)

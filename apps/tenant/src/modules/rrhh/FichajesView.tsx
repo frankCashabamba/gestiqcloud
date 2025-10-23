@@ -1,12 +1,22 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useFichajes } from './hooks/useFichajes'
 
 export default function FichajesView() {
+  const navigate = useNavigate()
   const { fichajes, loading } = useFichajes()
 
   return (
     <div style={{ padding: 16 }}>
-      <h2 style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>Fichajes</h2>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+        <button
+          onClick={() => navigate(-1)}
+          style={{ marginRight: 16, padding: '8px 12px', background: '#6b7280', color: 'white', border: 'none', borderRadius: 4 }}
+        >
+          ← Volver
+        </button>
+        <h2 style={{ fontWeight: 700, fontSize: 18 }}>Fichajes</h2>
+      </div>
       {loading ? (
         <div>Cargando…</div>
       ) : (

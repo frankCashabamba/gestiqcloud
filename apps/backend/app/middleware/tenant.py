@@ -14,6 +14,7 @@ from sqlalchemy import text
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.db.rls import set_tenant_guc
+from app.config.settings import settings
 
 
 def _resolve_tenant_uuid(claim_tid: str | None, db: Session) -> str:
@@ -40,9 +41,26 @@ def ensure_tenant(request: Request, db: Session = Depends(get_db)) -> str:
     - Sets `app.tenant_id` (SET LOCAL) for RLS/trigger coherence
     - Returns the tenant UUID string
     """
-    claims = with_access_claims(request)
-    claim_tid = claims.get("tenant_id") if isinstance(claims, dict) else None
-    tenant_uuid = _resolve_tenant_uuid(str(claim_tid) if claim_tid is not None else None, db)
+    tenant_uuid: str | None = None
+    try:
+        claims = with_access_claims(request)
+        claim_tid = claims.get("tenant_id") if isinstance(claims, dict) else None
+        tenant_uuid = _resolve_tenant_uuid(str(claim_tid) if claim_tid is not None else None, db)
+        try:
+            request.state.access_claims = claims
+        except Exception:
+            pass
+    except HTTPException as e:
+        # Dev-friendly fallback: allow resolving by X-Tenant-Slug without token
+        # Useful for local PWA flows before login. Guarded to non-production envs.
+        if str(getattr(settings, "ENV", "development")).lower() != "production":
+            slug = (request.headers.get("X-Tenant-Slug") or request.headers.get("x-tenant-slug") or "").strip()
+            if slug:
+                row = db.execute(text("SELECT id::text FROM tenants WHERE slug=:slug"), {"slug": slug}).first()
+                if row and row[0]:
+                    tenant_uuid = str(row[0])
+        if not tenant_uuid:
+            raise e
     try:
         set_tenant_guc(db, tenant_uuid, persist=False)
     except Exception:

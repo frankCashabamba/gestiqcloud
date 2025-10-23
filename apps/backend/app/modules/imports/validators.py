@@ -211,5 +211,39 @@ def validate_tax_breakdown(tax_breakdown: Optional[List[Dict[str, Any]]]) -> Lis
             errors.append({"field": f"tax_breakdown[{idx}].amount", "msg": "obligatorio"})
         if item.get("rate") is None:
             errors.append({"field": f"tax_breakdown[{idx}].rate", "msg": "obligatorio"})
-    
+
+    return errors
+
+
+def validate_panaderia_diario(n: Dict[str, Any]) -> List[dict]:
+    """Valida datos normalizados de diario de panadería."""
+    errors: List[dict] = []
+
+    # Fecha obligatoria
+    if not n.get("fecha"):
+        errors.append({"field": "fecha", "msg": "obligatoria"})
+    elif not _is_date_like(n["fecha"]):
+        errors.append({"field": "fecha", "msg": "debe ser una fecha válida"})
+
+    # Producto obligatorio
+    if not n.get("producto"):
+        errors.append({"field": "producto", "msg": "obligatorio"})
+
+    # Cantidad producida obligatoria y numérica >0
+    cantidad = n.get("cantidad_producida")
+    if cantidad is None:
+        errors.append({"field": "cantidad_producida", "msg": "obligatoria"})
+    else:
+        try:
+            qty = float(cantidad)
+            if qty <= 0:
+                errors.append({"field": "cantidad_producida", "msg": "debe ser mayor a 0"})
+        except (ValueError, TypeError):
+            errors.append({"field": "cantidad_producida", "msg": "debe ser numérico"})
+
+    # Unidad opcional pero si está, debe ser texto
+    unidad = n.get("unidad")
+    if unidad and not isinstance(unidad, str):
+        errors.append({"field": "unidad", "msg": "debe ser texto"})
+
     return errors

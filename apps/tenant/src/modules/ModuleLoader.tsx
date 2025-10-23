@@ -10,9 +10,30 @@ import { useMisModulos } from '../hooks/useMisModulos'
 const ROUTES = import.meta.glob('./*/Routes.tsx')
 const PANELS = import.meta.glob('./*/Panel.tsx')
 
-// Alias opcionales por compatibilidad (slug viejo -> carpeta nueva)
+// Alias profesionales para compatibilidad (slug antiguo/inglés -> carpeta actual)
+// Mantener orden alfabético por clave
 const ALIASES: Record<string, string> = {
-  // 'facturae': 'facturacion',
+  'accounting': 'contabilidad',
+  'billing': 'facturacion',
+  'cashier': 'pos',
+  'customers': 'clientes',
+  'expenses': 'gastos',
+  'facturae': 'facturacion',
+  'finance': 'finanzas',
+  'human-resources': 'rrhh',
+  'import': 'importador',
+  'imports': 'importador',
+  'importar': 'importador',
+  'inventory': 'inventario',
+  'invoicing': 'facturacion',
+  'products': 'inventario',
+  'providers': 'proveedores',
+  'purchases': 'compras',
+  'sales': 'ventas',
+  'settings': 'settings',
+  'stock': 'inventario',
+  'tpv': 'pos',
+  'compras-proveedores': 'compras',
 }
 
 export default function ModuleLoader() {
@@ -28,6 +49,16 @@ export default function ModuleLoader() {
   }, [mod])
   const keyRoutes = useMemo(() => (folder ? `./${folder}/Routes.tsx` : ''), [folder])
   const keyPanel = useMemo(() => (folder ? `./${folder}/Panel.tsx` : ''), [folder])
+
+  // Permisos: normaliza slugs permitidos aplicando ALIASES -> carpeta canónica
+  const allowedCanonical = useMemo(() => {
+    const set = new Set<string>()
+    allowedSlugs.forEach((s) => {
+      const norm = s.toLowerCase()
+      set.add(ALIASES[norm] || norm)
+    })
+    return set
+  }, [allowedSlugs])
 
   useEffect(() => {
     let cancelled = false
@@ -47,8 +78,15 @@ export default function ModuleLoader() {
   }, [mod, keyRoutes, keyPanel])
 
   if (!mod) return <Navigate to="/error" replace />
-  if (loading) return <div style={{ padding: 16 }}>{t('common:loading.module')}</div>
-  if (folder && !allowedSlugs.has(folder)) return <Navigate to="/unauthorized" replace />
+  // Reactiva validación de acceso: solo bloquea cuando dejó de cargar
+  // y el slug del módulo no está permitido para el tenant/usuario.
+  if (!loading && folder && !allowedCanonical.has(folder)) {
+    // Permitir módulos administrativos que no figuran en el catálogo público
+    const exempt = new Set(['usuarios'])
+    if (!exempt.has(folder)) {
+      return <Navigate to="/unauthorized" replace />
+    }
+  }
   if (!Component) return <div style={{ padding: 16 }}>{t('common:loading.module')}</div>
 
   return (

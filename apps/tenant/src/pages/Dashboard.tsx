@@ -28,7 +28,8 @@ export default function Dashboard() {
         {!loading && modules.length > 0 && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
           {[...modules].sort((a,b) => (a.nombre || '').localeCompare(b.nombre || '')).map((m) => {
-            const to = prefix + (m.url || `/mod/${(m.nombre || '').toLowerCase()}`)
+            const normalizedUrl = m.url ? m.url.replace(/^\/mod/, '').replace(new RegExp(`^\/${empresa || ''}`), '') : `/${(m.nombre || '').toLowerCase()}`
+            const to = prefix + normalizedUrl
             return (
               <Link key={m.id} to={to} style={{ display: 'block', padding: 16, border: '1px solid var(--color-border)', borderRadius: 12, background: 'var(--color-surface)', textDecoration: 'none', color: 'inherit' }}>
                 <div style={{ fontWeight: 600 }}>{m.nombre}</div>

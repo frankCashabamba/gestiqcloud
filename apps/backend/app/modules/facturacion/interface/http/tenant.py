@@ -18,9 +18,8 @@ import os
 
 
 router = APIRouter(
-    prefix="/facturacion",
-    tags=["Facturacion"],
-    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant")), Depends(ensure_rls)],
+tags=["Facturacion"],
+dependencies=[Depends(with_access_claims), Depends(require_scope("tenant")), Depends(ensure_rls)],
 )
 
 

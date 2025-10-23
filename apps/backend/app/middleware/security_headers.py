@@ -39,19 +39,20 @@ def _csp_for_request(request: Request) -> str:
             parts.append(f"report-uri {settings.CSP_REPORT_URI}")
         return "; ".join(parts)
     else:
-        # DEV: Vite/HMR
+        # DEV: permitir Vite/HMR y Swagger UI (CDN jsdelivr/cdnjs/unpkg)
         dev_hosts = "http://localhost:5173 http://localhost:5174"
         dev_ws = "ws://localhost:5173 ws://localhost:5174"
+        swagger_cdn = "https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com"
         return "; ".join([
             "default-src 'self' blob: data:",
             "object-src 'none'",
             "frame-ancestors 'none'",
             "form-action 'self'",
-            # Permisos para Vite: inline + eval + hosts/WS
-            f"script-src 'self' 'unsafe-inline' 'unsafe-eval' {dev_hosts}",
-            f"style-src 'self' 'unsafe-inline' {dev_hosts}",
-            f"font-src 'self' data: {dev_hosts}",
-            f"img-src 'self' data: blob: {dev_hosts}",
+            # Permisos para Vite: inline + eval + hosts/WS y Swagger UI CDN
+            f"script-src 'self' 'unsafe-inline' 'unsafe-eval' {dev_hosts} {swagger_cdn}",
+            f"style-src 'self' 'unsafe-inline' {dev_hosts} {swagger_cdn}",
+            f"font-src 'self' data: {dev_hosts} {swagger_cdn}",
+            f"img-src 'self' data: blob: {dev_hosts} {swagger_cdn}",
             f"connect-src 'self' {dev_hosts} {dev_ws}",
             "media-src 'self'",
             "manifest-src 'self'",

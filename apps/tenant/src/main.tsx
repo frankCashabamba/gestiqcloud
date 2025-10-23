@@ -31,11 +31,13 @@ function ConflictBridge() {
   return <ConflictResolver onResolve={handleResolve} />
 }
 
-// Register PWA service worker with auto updates and update prompt
-setupPWA((ev) => {
-  if (ev === 'need-refresh') sendTelemetry('pwa_need_refresh')
-  if (ev === 'offline-ready') sendTelemetry('pwa_offline_ready')
-})
+// Register PWA service worker only in production to avoid SW noise in dev
+if (env.prod) {
+  setupPWA((ev) => {
+    if (ev === 'need-refresh') sendTelemetry('pwa_need_refresh')
+    if (ev === 'offline-ready') sendTelemetry('pwa_offline_ready')
+  })
+}
 
 // Load tenant theme tokens (non-blocking)
 ;(async () => {

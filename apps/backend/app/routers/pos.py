@@ -117,6 +117,42 @@ def open_shift(
     )
 
 
+# ============================================================================
+# Registers (Cajas/Registros POS)
+# ============================================================================
+
+@router.get("/registers")
+def list_registers(
+    db: Session = Depends(get_db),
+    tenant_id: str = Depends(ensure_tenant),
+):
+    """Lista de registros/cajas POS del tenant actual.
+
+    Devuelve una lista de objetos básicos: {id, tenant_id, name, active, created_at}.
+    """
+    rows = db.execute(
+        text(
+            """
+            SELECT id::text, tenant_id::text, name, active, created_at
+            FROM pos_registers
+            WHERE tenant_id::text = :tid
+            ORDER BY created_at DESC
+            """
+        ),
+        {"tid": str(tenant_id)},
+    ).all()
+    return [
+        {
+            "id": r[0],
+            "tenant_id": r[1],
+            "name": r[2],
+            "active": r[3],
+            "created_at": r[4],
+        }
+        for r in rows
+    ]
+
+
 @router.post("/shifts/{shift_id}/close", response_model=ShiftResponse)
 def close_shift(
     shift_id: UUID,
@@ -835,63 +871,6 @@ async def update_series(
 # Impresión Térmica
 # ============================================================================
 
-@router.get("/receipts/{receipt_id}/print", response_class=HTMLResponse)
-async def print_receipt(
-    receipt_id: UUID,
-    width: str = "58mm",  # 58mm o 80mm
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """Generar HTML para impresión térmica de ticket"""
-    try:
-        # Obtener datos del ticket
-        query = text("""
-            SELECT
-                r.number, r.created_at, r.gross_total, r.tax_total, r.currency,
-                e.nombre as empresa_nombre, e.ruc as empresa_ruc,
-                COALESCE(c.nombre, 'Cliente Final') as cliente_nombre,
-                t.empresa_id
-            FROM pos_receipts r
-            JOIN tenants t ON t.id = r.tenant_id
-            JOIN core_empresa e ON e.id = t.empresa_id
-            LEFT JOIN clientes c ON c.id = r.customer_id
-            WHERE r.id = :receipt_id AND r.tenant_id = :tenant_id
-        """)
-
-        receipt = db.execute(query, {
-            "receipt_id": str(receipt_id),
-            "tenant_id": current_user.tenant_id
-        }).first()
-
-        if not receipt:
-            raise HTTPException(404, "Ticket no encontrado")
-
-        # Obtener líneas del ticket
-        lines_query = text("""
-            SELECT
-                p.name as product_name, rl.qty, rl.unit_price, rl.line_total,
-                rl.tax_rate
-            FROM pos_receipt_lines rl
-            LEFT JOIN products p ON p.id = rl.product_id
-            WHERE rl.receipt_id = :receipt_id
-            ORDER BY rl.id
-        """)
-
-        lines = db.execute(lines_query, {"receipt_id": str(receipt_id)}).fetchall()
-
-        # Generar HTML según ancho
-        if width == "58mm":
-            html_content = generate_thermal_html_58mm(receipt, lines)
-        else:  # 80mm
-            html_content = generate_thermal_html_80mm(receipt, lines)
-
-        return html_content
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(500, f"Error generando ticket: {e}")
-
 
 def generate_thermal_html_58mm(receipt, lines) -> str:
     """Generar HTML para impresora térmica 58mm"""
@@ -1166,76 +1145,85 @@ receipt = db.execute(query, {
 # Impresión (Legacy - mantener por compatibilidad)
 # ============================================================================
 
-@router.get("/receipts/{receipt_id}/print-legacy", response_class=HTMLResponse)
-def print_receipt_legacy(
-    receipt_id: UUID,
-    width: int = 58,
-    db: Session = Depends(get_db),
-    tenant_id: str = Depends(ensure_tenant),
-    current_user: dict = Depends(get_current_user)
-):
-    """Legacy print endpoint - replaced by new implementation"""
-        {"receipt_id": str(receipt_id), "tenant_id": tenant_id}
-    ).first()
-    
-    if not receipt:
-        raise HTTPException(404, "Ticket no encontrado")
-    
-    # Líneas
-    lines_query = text("""
-        SELECT 
-            prl.qty, prl.unit_price, prl.line_total,
-            p.nombre as product_name, p.sku
-        FROM pos_receipt_lines prl
-        JOIN products p ON p.id = prl.product_id
-        WHERE prl.receipt_id = :receipt_id
-        ORDER BY prl.id
-    """)
-    
-    lines = db.execute(
-        lines_query,
-        {"receipt_id": str(receipt_id)}
-    ).fetchall()
-    
-    # Renderizar plantilla
-    from jinja2 import Environment, FileSystemLoader, select_autoescape
-    import os
-    
-    template_dir = os.path.join(
-        os.path.dirname(__file__),
-        "..", "templates", "pos"
-    )
-    
-    env = Environment(
-        loader=FileSystemLoader(template_dir),
-        autoescape=select_autoescape(['html', 'xml'])
-    )
-    
-    template = env.get_template(f"ticket_{width}mm.html")
-    
-    html = template.render(
-        ticket={
-            "number": receipt[1],
-            "gross_total": receipt[2],
-            "tax_total": receipt[3],
-            "subtotal": receipt[2] - receipt[3],
-            "currency": receipt[4],
-            "created_at": receipt[5]
-        },
-        lines=[{
-            "qty": line[0],
-            "unit_price": line[1],
-            "line_total": line[2],
-            "product_name": line[3],
-            "sku": line[4]
-        } for line in lines],
-        empresa={
-            "nombre": receipt[6],
-            "ruc": receipt[7]
-        }
-    )
-    
-    return HTMLResponse(content=html)
+# @router.get("/receipts/{receipt_id}/print-legacy", response_class=HTMLResponse)
+# def print_receipt_legacy(
+#     receipt_id: UUID,
+#     width: int = 58,
+#     db: Session = Depends(get_db),
+#     tenant_id: str = Depends(ensure_tenant),
+#     current_user: dict = Depends(get_current_user)
+# ):
+# """Legacy print endpoint - replaced by new implementation"""
+# try:
+#     receipt = db.execute(
+#         text("""
+# SELECT r.number, r.created_at, r.gross_total, r.tax_total,
+#            e.nombre, e.ruc, COALESCE(c.nombre, 'Cliente Final')
+#     FROM pos_receipts r
+#     JOIN tenants t ON t.id = r.tenant_id
+#     JOIN core_empresa e ON e.id = t.empresa_id
+#     LEFT JOIN clientes c ON c.id = r.customer_id
+#     WHERE r.id = :receipt_id AND r.tenant_id = :tenant_id
+#     """),
+#         {"receipt_id": str(receipt_id), "tenant_id": tenant_id}
+#         ).first()
+#
+#         if not receipt:
+#             raise HTTPException(404, "Ticket no encontrado")
+#
+#         # Líneas
+#         lines_query = text("""
+#             SELECT
+#                 prl.qty, prl.unit_price, prl.line_total,
+#                 p.nombre as product_name, p.sku
+#             FROM pos_receipt_lines prl
+#             JOIN products p ON p.id = prl.product_id
+#             WHERE prl.receipt_id = :receipt_id
+#             ORDER BY prl.id
+#         """)
+#
+#         lines = db.execute(
+#             lines_query,
+#             {"receipt_id": str(receipt_id)}
+#         ).fetchall()
+#
+#         # Renderizar plantilla
+#         from jinja2 import Environment, FileSystemLoader, select_autoescape
+#         import os
+#
+#         template_dir = os.path.join(
+#             os.path.dirname(__file__),
+#             "..", "templates", "pos"
+#         )
+#
+#         env = Environment(
+#             loader=FileSystemLoader(template_dir),
+#             autoescape=select_autoescape(['html', 'xml'])
+#         )
+#
+#         template = env.get_template(f"ticket_{width}mm.html")
+#
+#         html = template.render(
+#             ticket={
+#                 "number": receipt[1],
+#                 "gross_total": receipt[2],
+#                 "tax_total": receipt[3],
+#                 "lines": [
+#                     {
+#                         "qty": line[0],
+#                         "unit_price": line[1],
+#                         "line_total": line[2],
+#                         "product_name": line[3],
+#                         "sku": line[4]
+#                     } for line in lines
+#                 ]
+#             }
+#         )
+#
+#         return html
+#
+#     except Exception as e:
+#         raise HTTPException(500, f"Error generando ticket: {e}")
 
 
 # ============================================================================

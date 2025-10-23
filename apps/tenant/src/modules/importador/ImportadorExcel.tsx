@@ -408,7 +408,7 @@ export default function ImportadorPage() {
         await videoRef.current.play().catch(() => {})
       }
     } catch (err: any) {
-      setCameraError(err?.message || 'No se pudo acceder a la cámara')
+      setCameraError(err?.message || 'No se pudo acceder a la cï¿½mara')
       stopCamera()
     } finally {
       setCameraInitializing(false)
@@ -417,14 +417,14 @@ export default function ImportadorPage() {
 
   const capturePhoto = useCallback(async () => {
     if (!videoRef.current) {
-      setCameraError('La cámara aún no está lista')
+      setCameraError('La cï¿½mara aï¿½n no estï¿½ lista')
       return
     }
     const video = videoRef.current
     const width = video.videoWidth || 1280
     const height = video.videoHeight || 720
     if (!width || !height) {
-      setCameraError('La cámara aún no está lista')
+      setCameraError('La cï¿½mara aï¿½n no estï¿½ lista')
       return
     }
     setCameraInitializing(true)
@@ -790,13 +790,13 @@ const processItem = useCallback(
               />
               {(cameraInitializing || cameraError) && (
                 <div className="flex h-full items-center justify-center px-3 text-center text-xs text-white">
-                  {cameraError || 'Iniciando cámara...'}
+                  {cameraError || 'Iniciando cï¿½mara...'}
                 </div>
               )}
             </div>
             <div className="mt-3 flex flex-col gap-1 text-xs text-neutral-500">
               <span>Alinea el documento antes de capturar.</span>
-              <span>Si tienes problemas, usa la opción de subir archivo.</span>
+              <span>Si tienes problemas, usa la opciï¿½n de subir archivo.</span>
             </div>
             <div className="mt-4 flex flex-wrap justify-between gap-2">
               <button
@@ -1236,7 +1236,7 @@ const processItem = useCallback(
 
             <Link
 
-              to={`${empresa ? `/${empresa}` : ''}/mod/importador/pendientes`}
+              to={`${empresa ? `/${empresa}` : ''}/importador/pendientes`}
 
               className="text-sm font-medium text-emerald-900 underline"
 

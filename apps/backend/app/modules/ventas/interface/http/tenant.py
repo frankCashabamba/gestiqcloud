@@ -17,7 +17,7 @@ from app.models.inventory.stock import StockMove, StockItem
 
 
 router = APIRouter(
-    prefix="/sales_orders",
+    prefix="/ventas",
     tags=["Sales"],
     dependencies=[Depends(with_access_claims), Depends(require_scope("tenant")), Depends(ensure_rls)],
 )

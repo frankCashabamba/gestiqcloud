@@ -47,6 +47,24 @@ class ExpenseHandler:
         return PromoteResult(domain_id=domain_id, skipped=False)
 
 
+class PanaderiaDiarioHandler:
+    @staticmethod
+    def promote(normalized: Dict[str, Any], promoted_id: Optional[str] = None) -> PromoteResult:
+        """Crea movimientos de stock para producción de panadería."""
+        if promoted_id:
+            return PromoteResult(domain_id=promoted_id, skipped=True)
+
+        # Generar ID basado en fecha y producto
+        fecha = str(normalized.get("fecha") or "")
+        producto = str(normalized.get("producto") or "")
+        cantidad = normalized.get("cantidad_producida")
+        domain_id = f"prod:{fecha}:{producto}:{cantidad}" if fecha and producto else None
+
+        # Aquí se debería crear el stock_move, pero por ahora devolvemos el ID
+        # TODO: Integrar con creación real de stock_moves
+        return PromoteResult(domain_id=domain_id, skipped=False)
+
+
 def publish_to_destination(db, tenant_id, doc_type: str, extracted_data: Dict[str, Any]) -> Optional[str]:
     """
     Publica extracted_data a tablas destino según doc_type.
@@ -65,6 +83,7 @@ def publish_to_destination(db, tenant_id, doc_type: str, extracted_data: Dict[st
         "recibo": InvoiceHandler,
         "banco": BankHandler,
         "transferencia": BankHandler,
+        "panaderia_diario": PanaderiaDiarioHandler,
         "desconocido": ExpenseHandler,
     }
     

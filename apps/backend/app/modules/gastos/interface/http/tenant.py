@@ -4,7 +4,7 @@ from app.config.database import get_db
 from ...infrastructure.repositories import GastoRepo
 from .schemas import GastoCreate, GastoUpdate, GastoOut
 
-router = APIRouter()
+router = APIRouter(prefix="/gastos")
 
 
 @router.get("", response_model=list[GastoOut])

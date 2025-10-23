@@ -31,7 +31,7 @@ export default function UsuarioForm() {
   // Validación de permisos: solo admins de empresa pueden gestionar usuarios
   const { loading, profile } = useAuth()
   const isAdmin = Boolean((profile as any)?.es_admin_empresa) || Boolean(profile?.roles?.includes('admin'))
-  if (loading) return null
+  if (loading) return <div className="p-4 text-sm text-slate-500">Cargando…</div>
   if (!isAdmin) {
     return (
       <div className="p-6">
