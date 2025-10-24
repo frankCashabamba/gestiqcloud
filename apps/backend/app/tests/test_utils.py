@@ -1,4 +1,4 @@
-from apps.backend.app.shared.utils import now_ts, ping_ok
+from app.shared.utils import now_ts, ping_ok
 
 
 def test_now_ts_and_ping_ok():

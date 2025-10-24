@@ -4,6 +4,7 @@ import hashlib
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional
 import os
+from fastapi import UploadFile  #
 
 from sqlalchemy.orm import Session
 import logging
@@ -56,34 +57,43 @@ def _validate_by_type(source_type: str, normalized: Dict[str, Any]) -> List[Dict
     return []
 
 def _dedupe_hash(source_type: str, data: Dict[str, Any], *, keys: Optional[List[str]] = None) -> str:
-    def g(*keys):
-        for k in keys:
+    def g(*ks):
+        for k in ks:
             if k in data and data[k] is not None:
                 return str(data[k])
         return ""
-    # If custom keys provided (from ImportMapping.dedupe_keys), honor them
+
     if keys:
         parts = [str(data.get(k) or "") for k in keys]
     elif source_type == "invoices":
-        parts = [g("issuer_tax_id","issuer","supplier_tax_id"),
-                 g("invoice_number","invoice","number"),
-                 g("invoice_date","date"),
-                 g("total_amount","total")]
+        parts = [
+            g("issuer_tax_id", "issuer", "supplier_tax_id"),
+            g("invoice_number", "invoice", "number"),
+            g("invoice_date", "date"),
+            g("total_amount", "total"),
+        ]
     elif source_type == "bank":
-        parts = [g("statement_id"),
-                 g("entry_ref","reference"),
-                 g("transaction_date","date"),
-                 g("amount","importe"),
-                 g("description","concept","concepto")]
+        parts = [
+            g("statement_id"),
+            g("entry_ref", "reference"),
+            g("transaction_date", "date"),
+            g("amount", "importe"),
+            g("description", "concept", "concepto"),
+        ]
     elif source_type == "panaderia_diario":
-    parts = [g("fecha","date"),
-             g("producto","product"),
-    g("cantidad_producida","cantidad","qty")]
+        parts = [
+            g("fecha", "date"),
+            g("producto", "product"),
+            g("cantidad_producida", "cantidad", "qty"),
+        ]
     else:  # expenses/receipts
-        parts = [g("expense_date","date"),
-                 g("amount","importe"),
-                 g("category","categoria"),
-                 g("description","concept","concepto")]
+        parts = [
+            g("expense_date", "date"),
+            g("amount", "importe"),
+            g("category", "categoria"),
+            g("description", "concept", "concepto"),
+        ]
+
     payload = "|".join(parts)
     return hashlib.sha256(payload.encode()).hexdigest()
 

@@ -1,51 +1,115 @@
-import React, { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { createCliente, getCliente, updateCliente, type Cliente as C } from './services'
-import { useToast, getErrorMessage } from '../../shared/toast'
-
-type FormT = Omit<C, 'id'>
+/**
+ * Cliente Form
+ */
+import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { createCliente } from './services'
 
 export default function ClienteForm() {
-  const { id } = useParams()
-  const nav = useNavigate()
-  const [form, setForm] = useState<FormT>({ nombre: '', email: '', telefono: '' })
-  const { success, error } = useToast()
+  const navigate = useNavigate()
+  const [nombre, setNombre] = useState('')
+  const [nif, setNif] = useState('')
+  const [email, setEmail] = useState('')
+  const [telefono, setTelefono] = useState('')
+  const [direccion, setDireccion] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => { if (id) { getCliente(id).then((x)=> setForm({ nombre: x.nombre, email: x.email||'', telefono: x.telefono||'' })) } }, [id])
-
-  const onSubmit: React.FormEventHandler = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (!nombre) {
+      alert('El nombre es obligatorio')
+      return
+    }
+    
     try {
-      if (!form.nombre?.trim()) throw new Error('Nombre es requerido')
-      if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) throw new Error('Email inválido')
-      if (id) await updateCliente(id, form)
-      else await createCliente(form)
-      success('Cliente guardado')
-      nav('..')
-    } catch (e: any) {
-      error(getErrorMessage(e))
+      setLoading(true)
+      await createCliente({ nombre, nif, email, telefono, direccion })
+      alert('Cliente creado')
+      navigate('/clientes')
+    } catch (err: any) {
+      alert(err.message || 'Error al crear cliente')
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
-    <div className="p-4">
-      <h3 className="text-xl font-semibold mb-3">{id ? 'Editar cliente' : 'Nuevo cliente'}</h3>
-      <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
-        <div>
-          <label className="block mb-1">Nombre</label>
-          <input value={form.nombre} onChange={(e)=> setForm({ ...form, nombre: e.target.value })} className="border px-2 py-1 w-full rounded" required />
-        </div>
-        <div>
-          <label className="block mb-1">Email</label>
-          <input type="email" value={form.email || ''} onChange={(e)=> setForm({ ...form, email: e.target.value })} className="border px-2 py-1 w-full rounded" />
-        </div>
-        <div>
-          <label className="block mb-1">Teléfono</label>
-          <input value={form.telefono || ''} onChange={(e)=> setForm({ ...form, telefono: e.target.value })} className="border px-2 py-1 w-full rounded" />
-        </div>
-        <div className="pt-2">
-          <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">Guardar</button>
-          <button type="button" className="ml-3 px-3 py-2" onClick={()=> nav('..')}>Cancelar</button>
+    <div className="max-w-2xl space-y-6">
+      <h1 className="text-2xl font-bold">Nuevo Cliente</h1>
+
+      <form onSubmit={handleSubmit} className="rounded-xl border bg-white p-6 shadow-sm">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium">Nombre *</label>
+            <input
+              type="text"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              className="mt-1 block w-full rounded-lg border px-3 py-2"
+              required
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium">NIF/CIF</label>
+              <input
+                type="text"
+                value={nif}
+                onChange={(e) => setNif(e.target.value)}
+                className="mt-1 block w-full rounded-lg border px-3 py-2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium">Teléfono</label>
+              <input
+                type="tel"
+                value={telefono}
+                onChange={(e) => setTelefono(e.target.value)}
+                className="mt-1 block w-full rounded-lg border px-3 py-2"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 block w-full rounded-lg border px-3 py-2"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium">Dirección</label>
+            <textarea
+              value={direccion}
+              onChange={(e) => setDireccion(e.target.value)}
+              className="mt-1 block w-full rounded-lg border px-3 py-2"
+              rows={3}
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-500 disabled:bg-slate-300"
+            >
+              {loading ? 'Guardando...' : 'Guardar Cliente'}
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => navigate('/clientes')}
+              className="rounded-lg border px-6 py-3 font-medium hover:bg-slate-50"
+            >
+              Cancelar
+            </button>
+          </div>
         </div>
       </form>
     </div>

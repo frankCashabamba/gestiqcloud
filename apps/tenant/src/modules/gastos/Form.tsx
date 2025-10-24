@@ -1,40 +1,71 @@
-import React, { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { createGasto, getGasto, updateGasto, type Gasto } from './services'
-import { useToast, getErrorMessage } from '../../shared/toast'
-
-type FormT = Omit<Gasto,'id'>
+/**
+ * Gasto Form
+ */
+import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { createGasto } from './services'
 
 export default function GastoForm() {
-  const { id } = useParams()
-  const nav = useNavigate()
-  const { success, error } = useToast()
-  const [form, setForm] = useState<FormT>({ fecha: new Date().toISOString().slice(0,10), monto: 0, proveedor_id: undefined, concepto: '' })
+  const navigate = useNavigate()
+  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
+  const [concepto, setConcepto] = useState('')
+  const [importe, setImporte] = useState('')
+  const [categoria, setCategoria] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => { if (id) { getGasto(id).then((x)=> setForm({ fecha: x.fecha, monto: x.monto, proveedor_id: x.proveedor_id, concepto: x.concepto })) } }, [id])
-
-  const onSubmit: React.FormEventHandler = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      if (!form.fecha) throw new Error('Fecha requerida')
-      if (form.monto <= 0) throw new Error('Monto debe ser > 0')
-      if (id) await updateGasto(id, form)
-      else await createGasto(form)
-      success('Gasto guardado')
-      nav('..')
-    } catch(e:any) { error(getErrorMessage(e)) }
+      setLoading(true)
+      await createGasto({ fecha, concepto, importe: parseFloat(importe), categoria })
+      alert('Gasto registrado')
+      navigate('/gastos')
+    } catch (err: any) {
+      alert(err.message || 'Error')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
-    <div className="p-4">
-      <h3 className="text-xl font-semibold mb-3">{id ? 'Editar gasto' : 'Nuevo gasto'}</h3>
-      <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
-        <div><label className="block mb-1">Fecha</label><input type="date" value={form.fecha} onChange={(e)=> setForm({ ...form, fecha: e.target.value })} className="border px-2 py-1 w-full rounded" required /></div>
-        <div><label className="block mb-1">Monto</label><input type="number" step="0.01" value={form.monto} onChange={(e)=> setForm({ ...form, monto: Number(e.target.value) })} className="border px-2 py-1 w-full rounded" required /></div>
-        <div><label className="block mb-1">Concepto</label><input value={form.concepto || ''} onChange={(e)=> setForm({ ...form, concepto: e.target.value })} className="border px-2 py-1 w-full rounded" /></div>
-        <div className="pt-2"><button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">Guardar</button><button type="button" className="ml-3 px-3 py-2" onClick={()=> nav('..')}>Cancelar</button></div>
+    <div className="max-w-2xl space-y-6">
+      <h1 className="text-2xl font-bold">Nuevo Gasto</h1>
+      <form onSubmit={handleSubmit} className="rounded-xl border bg-white p-6 shadow-sm">
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium">Fecha *</label>
+              <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="mt-1 block w-full rounded-lg border px-3 py-2" required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Categoría</label>
+              <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="mt-1 block w-full rounded-lg border px-3 py-2">
+                <option value="">Seleccionar...</option>
+                <option value="suministros">Suministros</option>
+                <option value="servicios">Servicios</option>
+                <option value="alquiler">Alquiler</option>
+                <option value="otros">Otros</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Concepto *</label>
+            <input type="text" value={concepto} onChange={(e) => setConcepto(e.target.value)} className="mt-1 block w-full rounded-lg border px-3 py-2" required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Importe (€) *</label>
+            <input type="number" step="0.01" value={importe} onChange={(e) => setImporte(e.target.value)} className="mt-1 block w-full rounded-lg border px-3 py-2" required />
+          </div>
+          <div className="flex gap-3">
+            <button type="submit" disabled={loading} className="flex-1 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-500 disabled:bg-slate-300">
+              {loading ? 'Guardando...' : 'Guardar'}
+            </button>
+            <button type="button" onClick={() => navigate('/gastos')} className="rounded-lg border px-6 py-3 font-medium hover:bg-slate-50">
+              Cancelar
+            </button>
+          </div>
+        </div>
       </form>
     </div>
   )
 }
-

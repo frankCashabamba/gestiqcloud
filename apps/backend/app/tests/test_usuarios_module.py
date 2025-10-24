@@ -150,7 +150,7 @@ def test_listar_roles(client: TestClient, tenant_headers):
 
 
 def test_check_username_public(client: TestClient):
-    r = client.get("/api/v1/usuarios/check-username/algunusuario")
+    r = client.get("/api/v1/tenant/usuarios/check-username/algunusuario")
     assert r.status_code in (200, 400)
 
 

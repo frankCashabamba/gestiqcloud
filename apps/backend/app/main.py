@@ -248,6 +248,43 @@ except Exception as e:
     except Exception as e2:  # pragma: no cover
         _router_logger.error(f"Error mounting E-invoicing stub router: {e2}")
 
+# Doc Series (Numeración documental)
+try:
+    from app.routers.doc_series import router as doc_series_router
+    app.include_router(doc_series_router, prefix="/api/v1")
+    _router_logger.info("Doc Series router mounted at /api/v1/doc-series")
+except Exception as e:
+    _router_logger.error(f"Error mounting Doc Series router: {e}")
+
+# SPEC-1 Routers (Digitalización de ventas y compras)
+try:
+    from app.routers.spec1_daily_inventory import router as daily_inventory_router
+    app.include_router(daily_inventory_router, prefix="/api/v1")
+    _router_logger.info("Daily Inventory router mounted at /api/v1/daily-inventory")
+except Exception as e:
+    _router_logger.error(f"Error mounting Daily Inventory router: {e}")
+
+try:
+    from app.routers.spec1_purchase import router as purchase_router
+    app.include_router(purchase_router, prefix="/api/v1")
+    _router_logger.info("Purchase router mounted at /api/v1/purchases")
+except Exception as e:
+    _router_logger.error(f"Error mounting Purchase router: {e}")
+
+try:
+    from app.routers.spec1_milk_record import router as milk_record_router
+    app.include_router(milk_record_router, prefix="/api/v1")
+    _router_logger.info("Milk Record router mounted at /api/v1/milk-records")
+except Exception as e:
+    _router_logger.error(f"Error mounting Milk Record router: {e}")
+
+try:
+    from app.routers.spec1_importer import router as spec1_importer_router
+    app.include_router(spec1_importer_router, prefix="/api/v1")
+    _router_logger.info("SPEC-1 Importer router mounted at /api/v1/imports/spec1")
+except Exception as e:
+    _router_logger.error(f"Error mounting SPEC-1 Importer router: {e}")
+
 # ElectricSQL shapes
 try:
     from app.modules.electric_shapes import router as electric_router

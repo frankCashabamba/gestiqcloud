@@ -11,11 +11,11 @@ def _ensure_product_table() -> None:
 
 def test_list_routes_has_products(client: TestClient):
     paths = sorted([getattr(r, "path", "") for r in client.app.router.routes])
-    assert any(p.startswith("/api/v1/products") for p in paths), "products routes not mounted"
+    assert any(p.startswith("/api/v1/tenant/products") for p in paths), "products routes not mounted"
 
 
 def test_products_list_empty_ok(client: TestClient):
     _ensure_product_table()
-    r = client.get("/api/v1/products")
+    r = client.get("/api/v1/tenant/products")
     assert r.status_code == 200
     assert isinstance(r.json(), list)

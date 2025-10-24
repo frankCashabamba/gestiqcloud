@@ -279,11 +279,11 @@ def tenant_refresh(request: Request, response: Response, db: Session = Depends(g
 
 
 @router.post("/logout")
-def tenant_logout(request: Request, response: Response):
+def tenant_logout(request: Request, response: Response, db: Session = Depends(get_db)):
     """Logout y revocación de refresh token para tenant (best-effort)."""
     token = request.cookies.get("refresh_token")
     if token:
-        best_effort_family_revoke(token)
+        best_effort_family_revoke(token, db=db)
 
     delete_auth_cookies(response, path=refresh_cookie_path_tenant())
 

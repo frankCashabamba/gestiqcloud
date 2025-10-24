@@ -115,14 +115,30 @@ const PanaderiaPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
             <p className="mt-2 text-sm text-slate-500">
               Importa tus diarios de producción desde Excel para mantener un registro digitalizado y automatizar el inventario.
             </p>
-            <div className="mt-4 flex items-center gap-3">
+            <div className="mt-4 flex flex-col gap-3">
               <Link
-                to={`${prefix}/importador`}
+                to={`${prefix}/panaderia/importador`}
                 className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-blue-500"
               >
-                Importar Diario
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                Importar Diario Excel
               </Link>
-              <span className="text-xs text-slate-400">Soporta Excel con columnas: Fecha, Producto, Cantidad, etc.</span>
+              <div className="flex gap-2">
+                <Link
+                  to={`${prefix}/panaderia/inventario`}
+                  className="flex-1 text-center rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Ver Inventario
+                </Link>
+                <Link
+                  to={`${prefix}/panaderia/compras`}
+                  className="flex-1 text-center rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Compras
+                </Link>
+              </div>
             </div>
           </div>
         </section>

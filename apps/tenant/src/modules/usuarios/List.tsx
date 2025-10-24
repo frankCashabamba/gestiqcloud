@@ -89,9 +89,17 @@ export default function UsuariosList() {
           <p className="text-sm text-slate-500">Gestiona accesos, módulos y roles asignados.</p>
         </div>
         {isAdminEmpresa && (
-          <button className="gc-button gc-button--primary" onClick={() => nav('nuevo')}>
-            Nuevo usuario
-          </button>
+          <div className="flex gap-2">
+            <button
+              className="gc-button gc-button--secondary"
+              onClick={() => nav('roles')}
+            >
+              🔐 Gestionar Roles
+            </button>
+            <button className="gc-button gc-button--primary" onClick={() => nav('nuevo')}>
+              Nuevo usuario
+            </button>
+          </div>
         )}
       </div>
 

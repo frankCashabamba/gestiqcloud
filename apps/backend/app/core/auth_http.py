@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from typing import Optional, Mapping
 from fastapi import Response
+from sqlalchemy.orm import Session
 from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
 from app.modules.identity.infrastructure.refresh_repo import SqlRefreshTokenRepo
 from app.config.database import SessionLocal
@@ -80,34 +81,41 @@ def delete_auth_cookies(response: Response, *, path: str) -> None:
     response.delete_cookie("csrf_token", path="/", domain=cookie_domain())
 
 
-def extract_family_id_from_refresh(token: str) -> Optional[str]:
+def extract_family_id_from_refresh(token: str, db: Optional[Session] = None) -> Optional[str]:
     """Best-effort para obtener family_id desde el refresh token."""
     try:
         payload: Mapping[str, object] = PyJWTTokenService().decode_and_validate(token, expected_type="refresh")
         jti = payload.get("jti")
         fam_payload = payload.get("family_id")
         if isinstance(jti, str) and jti:
-            with SessionLocal() as db:
+            if db:
                 fam_from_db = SqlRefreshTokenRepo(db).get_family(jti=jti)
-            if fam_from_db:
-                return fam_from_db
+                if fam_from_db:
+                    return fam_from_db
+            else:
+                with SessionLocal() as session:
+                    fam_from_db = SqlRefreshTokenRepo(session).get_family(jti=jti)
+                    if fam_from_db:
+                        return fam_from_db
         if isinstance(fam_payload, str) and fam_payload:
             return fam_payload
     except Exception:
         pass
     return None
 
-
-def best_effort_family_revoke(refresh_token: str) -> None:
+def best_effort_family_revoke(refresh_token: str, db: Optional[Session] = None) -> None:
     """Revoca la familia referida por un refresh token si es posible (no lanza)."""
-    try:
-        fam = extract_family_id_from_refresh(refresh_token)
-        if fam:
-            try:
-                with SessionLocal() as db:
-                    SqlRefreshTokenRepo(db).revoke_family(family_id=fam)
-            except Exception:
-                pass
-    except Exception:
-        pass
+    def _revoke(session: Session):
+        try:
+            fam = extract_family_id_from_refresh(refresh_token, db=session)
+            if fam:
+                SqlRefreshTokenRepo(session).revoke_family(family_id=fam)
+        except Exception:
+            pass
+
+    if db:
+        _revoke(db)
+    else:
+        with SessionLocal() as session:
+            _revoke(session)
 

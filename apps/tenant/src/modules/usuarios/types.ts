@@ -48,3 +48,13 @@ export type RolOption = {
   nombre: string
   descripcion?: string | null
 }
+
+export type Rol = {
+  id: number
+  empresa_id: number
+  nombre: string
+  descripcion?: string
+  permisos: Record<string, boolean>
+  rol_base_id?: number
+  creado_por_empresa: boolean
+}

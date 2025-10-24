@@ -9,6 +9,7 @@ from ..validators_impl import (
     validate_canonical,
     validate_totals,
     validate_tax_breakdown,
+    validate_panaderia_diario,
 )
 
 __all__ = [
@@ -24,4 +25,5 @@ __all__ = [
     "validate_canonical",
     "validate_totals",
     "validate_tax_breakdown",
+    "validate_panaderia_diario",
 ]

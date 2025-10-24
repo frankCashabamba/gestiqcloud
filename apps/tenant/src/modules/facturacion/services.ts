@@ -1,171 +1,86 @@
 /**
- * Facturación Services - API calls para facturas y e-invoicing
+ * Facturación Services - Extendido con E-factura
  */
-
 import tenantApi from '../../shared/api/client'
-import { ensureArray } from '../../shared/utils/array'
-import { TENANT_FACTURACION } from '@shared/endpoints'
 
-// ============================================================================
-// Facturas
-// ============================================================================
-
-export interface Invoice {
-  id: number
+export type Invoice = {
+  id: string
   numero?: string
   fecha: string
-  subtotal?: number
-  iva?: number
-  total: number
-  estado?: string
   cliente_id?: number
-  tenant_id?: string
-}
-
-export interface InvoiceCreate {
-  numero?: string
-  fecha: string
-  subtotal?: number
-  iva?: number
+  subtotal: number
+  impuesto: number
   total: number
-  estado?: string
-  cliente_id?: number
-  lineas?: InvoiceLine[]
+  estado: string
+  created_at: string
 }
 
-export interface InvoiceLine {
-  cantidad: number
-  precio_unitario: number
-  total: number
-  descripcion: string
-  sku?: string
-}
-
-export async function listInvoices(params?: {
-  estado?: string
-  cliente_id?: number
-  desde?: string
-  hasta?: string
-}): Promise<Invoice[]> {
-  const { data } = await tenantApi.get(TENANT_FACTURACION.base, { params })
-  return ensureArray<Invoice>(data)
-}
-
-export async function getInvoice(id: number | string): Promise<Invoice> {
-  const { data } = await tenantApi.get(`${TENANT_FACTURACION.base}/${id}`)
-  return data
-}
-
-export async function createInvoice(invoice: InvoiceCreate | Partial<InvoiceCreate>): Promise<Invoice> {
-  const { data } = await tenantApi.post(TENANT_FACTURACION.base, invoice)
-  return data
-}
-
-export async function updateInvoice(id: number | string, invoice: Partial<Invoice>): Promise<Invoice> {
-  const { data } = await tenantApi.put(`${TENANT_FACTURACION.base}/${id}`, invoice)
-  return data
-}
-
-export async function deleteInvoice(id: number | string): Promise<void> {
-  await tenantApi.delete(`${TENANT_FACTURACION.base}/${id}`)
-}
-
-// ============================================================================
-// E-invoicing
-// ============================================================================
-
-export interface EinvoiceSendRequest {
+export type EInvoiceStatus = {
   invoice_id: string
-  country: 'ES' | 'EC'
-}
-
-export interface EinvoiceStatus {
-  invoice_id: string
+  country: string
   status: string
   clave_acceso?: string
   error_message?: string
   submitted_at?: string
-  created_at: string
 }
 
-export async function sendEinvoice(request: EinvoiceSendRequest): Promise<{ task_id: string }> {
-  const { data } = await tenantApi.post('/api/v1/einvoicing/send', request)
+export type Credentials = {
+  country: string
+  has_certificate: boolean
+  sandbox: boolean
+  last_updated?: string
+}
+
+const BASE = '/api/v1/invoices'
+const EINV = '/api/v1/einvoicing'
+
+// Facturas básicas
+export async function listInvoices(params?: any): Promise<Invoice[]> {
+  const { data } = await tenantApi.get<Invoice[]>(BASE, { params })
+  return Array.isArray(data) ? data : (data as any)?.items || []
+}
+
+export async function getInvoice(id: string): Promise<Invoice> {
+  const { data } = await tenantApi.get<Invoice>(`${BASE}/${id}`)
   return data
 }
 
-export async function getEinvoiceStatus(invoiceId: string): Promise<EinvoiceStatus> {
-  const { data } = await tenantApi.get(`/api/v1/einvoicing/status/${invoiceId}`)
+// E-factura
+export async function sendEInvoice(invoiceId: string, country: string) {
+  const { data } = await tenantApi.post(`${EINV}/send`, { invoice_id: invoiceId, country })
   return data
 }
 
-// ============================================================================
-// Re-export Spanish aliases expected by UI components
-// ============================================================================
-
-export type Factura = Invoice
-export type FacturaCreate = InvoiceCreate
-
-export async function listFacturas(params?: {
-  estado?: string
-  cliente_id?: number
-  desde?: string
-  hasta?: string
-}): Promise<Factura[]> {
-  return listInvoices(params)
+export async function getEInvoiceStatus(invoiceId: string, country: string = 'EC'): Promise<EInvoiceStatus> {
+  const { data } = await tenantApi.get<EInvoiceStatus>(`${EINV}/status/${invoiceId}?country=${country}`)
+  return data
 }
 
-export async function getFactura(id: number | string): Promise<Factura> {
-  return getInvoice(id)
+export async function retrySRI(invoiceId: string) {
+  const { data } = await tenantApi.post(`${EINV}/sri/retry`, { invoice_id: invoiceId })
+  return data
 }
 
-export async function createFactura(invoice: FacturaCreate | Partial<FacturaCreate>): Promise<Factura> {
-  return createInvoice(invoice)
-}
-
-export async function updateFactura(id: number | string, invoice: Partial<Factura>): Promise<Factura> {
-  return updateInvoice(id, invoice)
-}
-
-export async function removeFactura(id: number | string): Promise<void> {
-  return deleteInvoice(id)
-}
-
-// Stub for Facturae export (downloads XML); adjust endpoint when backend is ready
-export async function exportarFacturae(id: string | number): Promise<Blob> {
-  const res = await tenantApi.get(`/api/v1/einvoicing/facturae/${id}/export`, {
-    responseType: 'blob'
+export async function exportFacturae(invoiceId: string): Promise<Blob> {
+  const response = await fetch(`/api/v1/einvoicing/facturae/${invoiceId}/export`, {
+    credentials: 'include',
   })
-  return res.data as Blob
+  return response.blob()
 }
 
-// ============================================================================
-// Utilidades
-// ============================================================================
-
-export function formatInvoiceNumber(invoice: Invoice): string {
-  return invoice.numero || `INV-${invoice.id}`
+export async function getCredentials(country: string = 'EC'): Promise<Credentials> {
+  const { data } = await tenantApi.get<Credentials>(`${EINV}/credentials?country=${country}`)
+  return data
 }
 
-export function getInvoiceStatusColor(status: string): string {
-  const colors = {
-    'draft': 'gray',
-    'sent': 'blue',
-    'paid': 'green',
-    'overdue': 'red',
-    'cancelled': 'red'
+export async function updateCredentials(country: string, sandbox: boolean, certFile?: File) {
+  const formData = new FormData()
+  formData.append('country', country)
+  formData.append('sandbox', String(sandbox))
+  if (certFile) {
+    formData.append('cert_file', certFile)
   }
-  return colors[status as keyof typeof colors] || 'gray'
-}
-
-export function getEinvoiceStatusColor(status: string): string {
-  const colors = {
-    'PENDING': 'yellow',
-    'SENT': 'blue',
-    'RECEIVED': 'blue',
-    'AUTHORIZED': 'green',
-    'ACCEPTED': 'green',
-    'REJECTED': 'red',
-    'ERROR': 'red'
-  }
-  return colors[status as keyof typeof colors] || 'gray'
+  
+  const { data } = await tenantApi.put(`${EINV}/credentials`, formData)
+  return data
 }

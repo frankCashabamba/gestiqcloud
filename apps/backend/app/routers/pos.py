@@ -11,7 +11,7 @@ from decimal import Decimal
 from typing import List, Optional
 import logging
 
-from app.config.database import get_db
+from app.config.database import get_db, engine
 from app.middleware.tenant import ensure_tenant, get_current_user
 from app.schemas.pos import (
     ReceiptCreate, ReceiptResponse, ReceiptToInvoiceRequest, 
@@ -23,6 +23,11 @@ from app.services.numbering import assign_doc_number, validate_receipt_number_un
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/pos", tags=["pos"])
+
+# Helper to detect database type
+def is_sqlite() -> bool:
+    """Check if running on SQLite (for test compatibility)"""
+    return str(engine.url).startswith("sqlite")
 
 
 # ============================================================================
@@ -121,6 +126,66 @@ def open_shift(
 # Registers (Cajas/Registros POS)
 # ============================================================================
 
+@router.post("/registers", status_code=201)
+def create_register(
+    data: dict,
+    db: Session = Depends(get_db),
+    tenant_id: str = Depends(ensure_tenant),
+    current_user: dict = Depends(get_current_user)
+):
+    """Crear nuevo registro/caja POS"""
+    from uuid import uuid4
+    
+    code = data.get("code", f"REG-{uuid4().hex[:8]}")
+    name = data.get("name", "Caja Principal")
+    
+    # SQLite compatible insert
+    if is_sqlite():
+        insert_sql = text("""
+            INSERT INTO pos_registers (tenant_id, code, name, metadata)
+            VALUES (:tenant_id, :code, :name, :metadata)
+        """)
+        result = db.execute(
+            insert_sql,
+            {
+                "tenant_id": tenant_id,
+                "code": code,
+                "name": name,
+                "metadata": "{}"
+            }
+        )
+        db.commit()
+        # Get last inserted id
+        register_id = result.lastrowid
+    else:
+        insert_sql = text("""
+            INSERT INTO pos_registers (tenant_id, code, name, metadata)
+            VALUES (:tenant_id, :code, :name, :metadata::jsonb)
+            RETURNING id
+        """)
+        result = db.execute(
+            insert_sql,
+            {
+                "tenant_id": tenant_id,
+                "code": code,
+                "name": name,
+                "metadata": "{}"
+            }
+        ).first()
+        db.commit()
+        register_id = result[0]
+    
+    logger.info(f"Register creado: {register_id} (code={code})")
+    
+    return {
+        "id": register_id,
+        "tenant_id": tenant_id,
+        "code": code,
+        "name": name,
+        "active": True
+    }
+
+
 @router.get("/registers")
 def list_registers(
     db: Session = Depends(get_db),
@@ -130,17 +195,24 @@ def list_registers(
 
     Devuelve una lista de objetos básicos: {id, tenant_id, name, active, created_at}.
     """
-    rows = db.execute(
-        text(
-            """
+    # SQLite compatible query (no ::text casting)
+    if is_sqlite():
+        query_sql = text("""
+            SELECT id, tenant_id, name, 1 as active, created_at
+            FROM pos_registers
+            WHERE tenant_id = :tid
+            ORDER BY created_at DESC
+        """)
+    else:
+        query_sql = text("""
             SELECT id::text, tenant_id::text, name, active, created_at
             FROM pos_registers
             WHERE tenant_id::text = :tid
             ORDER BY created_at DESC
-            """
-        ),
-        {"tid": str(tenant_id)},
-    ).all()
+        """)
+    
+    rows = db.execute(query_sql, {"tid": str(tenant_id)}).all()
+    
     return [
         {
             "id": r[0],
@@ -1085,31 +1157,31 @@ def generate_thermal_html_80mm(receipt, lines) -> str:
 
 @router.get("/receipts/{receipt_id}/print", response_class=HTMLResponse)
 async def print_receipt(
-receipt_id: UUID,
-width: str = "58mm",  # 58mm o 80mm
-db: Session = Depends(get_db),
-current_user = Depends(get_current_user)
+    receipt_id: UUID,
+    width: str = "58mm",  # 58mm o 80mm
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
 ):
     """Generar HTML para impresión térmica de ticket"""
-try:
-    # Obtener datos del ticket
-    query = text("""
-        SELECT
-        r.number, r.created_at, r.gross_total, r.tax_total, r.currency,
-    e.nombre as empresa_nombre, e.ruc as empresa_ruc,
-    COALESCE(c.nombre, 'Cliente Final') as cliente_nombre,
-        t.empresa_id
-    FROM pos_receipts r
-    JOIN tenants t ON t.id = r.tenant_id
-    JOIN core_empresa e ON e.id = t.empresa_id
-  LEFT JOIN clientes c ON c.id = r.customer_id
-        WHERE r.id = :receipt_id AND r.tenant_id = :tenant_id
-    """)
+    try:
+        # Obtener datos del ticket
+        query = text("""
+            SELECT
+            r.number, r.created_at, r.gross_total, r.tax_total, r.currency,
+        e.nombre as empresa_nombre, e.ruc as empresa_ruc,
+        COALESCE(c.nombre, 'Cliente Final') as cliente_nombre,
+            t.empresa_id
+        FROM pos_receipts r
+        JOIN tenants t ON t.id = r.tenant_id
+        JOIN core_empresa e ON e.id = t.empresa_id
+      LEFT JOIN clientes c ON c.id = r.customer_id
+            WHERE r.id = :receipt_id AND r.tenant_id = :tenant_id
+        """)
 
-receipt = db.execute(query, {
-            "receipt_id": str(receipt_id),
-            "tenant_id": current_user.tenant_id
-        }).first()
+        receipt = db.execute(query, {
+                    "receipt_id": str(receipt_id),
+                    "tenant_id": current_user.tenant_id
+                }).first()
 
         if not receipt:
             raise HTTPException(404, "Ticket no encontrado")
