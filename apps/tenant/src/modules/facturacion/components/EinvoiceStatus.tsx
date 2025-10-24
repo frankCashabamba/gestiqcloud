@@ -3,8 +3,8 @@
  */
 
 import React, { useState, useEffect } from 'react'
-import { sendEinvoice, getEinvoiceStatus, getEinvoiceStatusColor } from '../services'
-import type { EinvoiceStatus } from '../services'
+import { sendEInvoice, getEInvoiceStatus } from '../services'
+import type { EInvoiceStatus } from '../services'
 
 interface EinvoiceStatusProps {
   invoiceId: string
@@ -13,7 +13,7 @@ interface EinvoiceStatusProps {
 }
 
 export default function EinvoiceStatus({ invoiceId, country, canSend = true }: EinvoiceStatusProps) {
-  const [status, setStatus] = useState<EinvoiceStatus | null>(null)
+  const [status, setStatus] = useState<EInvoiceStatus | null>(null)
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -25,7 +25,7 @@ export default function EinvoiceStatus({ invoiceId, country, canSend = true }: E
   const loadStatus = async () => {
     try {
       setLoading(true)
-      const statusData = await getEinvoiceStatus(invoiceId)
+      const statusData = await getEInvoiceStatus(invoiceId, country)
       setStatus(statusData)
     } catch (err: any) {
       if (err.response?.status !== 404) {
@@ -41,7 +41,7 @@ export default function EinvoiceStatus({ invoiceId, country, canSend = true }: E
     try {
       setSending(true)
       setError(null)
-      await sendEinvoice({ invoice_id: invoiceId, country })
+      await sendEInvoice(invoiceId, country)
       // Recargar estado después de un delay
       setTimeout(loadStatus, 2000)
     } catch (err: any) {
@@ -72,17 +72,17 @@ export default function EinvoiceStatus({ invoiceId, country, canSend = true }: E
     )
   }
 
-  const statusColor = getEinvoiceStatusColor(status.status)
+  const getStatusColor = (status: string): string => {
+    if (status === 'authorized') return 'bg-green-500'
+    if (status === 'pending') return 'bg-yellow-500'
+    if (status === 'rejected') return 'bg-red-500'
+    return 'bg-blue-500'
+  }
 
   return (
     <div className="flex items-center gap-2">
       <span
-        className={`px-2 py-1 text-xs rounded-full text-white ${
-          statusColor === 'green' ? 'bg-green-500' :
-          statusColor === 'yellow' ? 'bg-yellow-500' :
-          statusColor === 'blue' ? 'bg-blue-500' :
-          'bg-red-500'
-        }`}
+        className={`px-2 py-1 text-xs rounded-full text-white ${getStatusColor(status.status)}`}
       >
         {status.status}
       </span>

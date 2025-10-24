@@ -84,3 +84,25 @@ export async function updateCredentials(country: string, sandbox: boolean, certF
   const { data } = await tenantApi.put(`${EINV}/credentials`, formData)
   return data
 }
+
+// ============================================================================
+// Alias de compatibilidad (para imports camelCase)
+// ============================================================================
+
+export async function createFactura(invoice: Partial<Invoice>): Promise<Invoice> {
+  const { data } = await tenantApi.post<Invoice>(BASE, invoice)
+  return data
+}
+
+export async function updateFactura(id: string, invoice: Partial<Invoice>): Promise<Invoice> {
+  const { data } = await tenantApi.put<Invoice>(`${BASE}/${id}`, invoice)
+  return data
+}
+
+export async function removeFactura(id: string): Promise<void> {
+  await tenantApi.delete(`${BASE}/${id}`)
+}
+
+export const listFacturas = listInvoices
+export const getFactura = getInvoice
+export type Factura = Invoice

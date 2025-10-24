@@ -17,7 +17,7 @@ export default function CompraForm() {
     e.preventDefault()
     try {
       setLoading(true)
-      await createCompra({ fecha, proveedor, concepto, importe: parseFloat(importe) })
+      await createCompra({ fecha, proveedor_id: proveedor, total: parseFloat(importe) })
       alert('Compra registrada')
       navigate('/compras')
     } catch (err: any) {

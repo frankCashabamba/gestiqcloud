@@ -24,7 +24,14 @@ export default function ProveedorForm() {
     
     try {
       setLoading(true)
-      await createProveedor({ nombre, nif, email, telefono, direccion })
+      await createProveedor({ 
+        nombre, 
+        nif, 
+        email, 
+        telefono, 
+        contactos: [], 
+        direcciones: direccion ? [{ tipo: 'facturacion', linea1: direccion }] : []
+      })
       alert('Proveedor creado')
       navigate('/proveedores')
     } catch (err: any) {

@@ -1,3 +1,11 @@
+#!/bin/bash
+# Script para corregir todos los errores de TypeScript del build
+
+echo "🔧 Corrigiendo errores de TypeScript en frontend tenant..."
+
+# 1. Exportar tipos necesarios desde pos/services.ts
+echo "1️⃣ Exportando tipos POSShift y POSReceipt desde pos/services.ts..."
+cat > apps/tenant/src/modules/pos/services.ts << 'EOF'
 /**
  * POS Services - API calls
  */
@@ -6,7 +14,6 @@ import type {
   POSRegister,
   POSShift,
   POSReceipt,
-  POSReceiptLine,
   StoreCredit,
   Product,
   ShiftOpenRequest,
@@ -18,7 +25,7 @@ import type {
 } from '../../types/pos'
 
 // Re-export types for convenience
-export type { POSRegister, POSShift, POSReceipt, POSReceiptLine, StoreCredit, Product }
+export type { POSRegister, POSShift, POSReceipt, StoreCredit, Product }
 
 const BASE_URL = '/v1/pos'
 const PAYMENTS_URL = '/v1/payments'
@@ -55,7 +62,7 @@ export async function closeShift(payload: ShiftCloseRequest): Promise<POSShift> 
 
 export async function getCurrentShift(registerId: string): Promise<POSShift | null> {
   try {
-    const { data } = await tenantApi.get<POSShift>(`${BASE_URL}/shifts/current/${registerId}`)
+    const { data} = await tenantApi.get<POSShift>(`${BASE_URL}/shifts/current/${registerId}`)
     return data
   } catch (error: any) {
     if (error.response?.status === 404) return null
@@ -82,10 +89,6 @@ export async function listReceipts(params?: { shift_id?: string; status?: string
   if (Array.isArray(data)) return data
   const items = (data as any)?.items
   return Array.isArray(items) ? items : []
-}
-
-export async function toInvoice(receiptId: string, payload: ReceiptToInvoiceRequest): Promise<any> {
-  return convertToInvoice(receiptId, payload)
 }
 
 export async function payReceipt(receiptId: string, payments: any[]): Promise<POSReceipt> {
@@ -184,4 +187,59 @@ export function addToOutbox(payload: any): void {
   })
   localStorage.setItem('pos_outbox', JSON.stringify(outbox))
 }
+EOF
 
+# 2. Añadir exportaciones a facturacion/services.ts
+echo "2️⃣ Añadiendo exportaciones faltantes en facturacion/services.ts..."
+cat >> apps/tenant/src/modules/facturacion/services.ts << 'EOF'
+
+// Alias de compatibilidad (por si se usa camelCase en imports)
+export async function createFactura(invoice: Partial<Invoice>): Promise<Invoice> {
+  const { data } = await tenantApi.post<Invoice>(BASE, invoice)
+  return data
+}
+
+export async function updateFactura(id: string, invoice: Partial<Invoice>): Promise<Invoice> {
+  const { data } = await tenantApi.put<Invoice>(`${BASE}/${id}`, invoice)
+  return data
+}
+
+export async function removeFactura(id: string): Promise<void> {
+  await tenantApi.delete(`${BASE}/${id}`)
+}
+
+// Alias adicionales
+export const listFacturas = listInvoices
+export const getFactura = getInvoice
+export type Factura = Invoice
+EOF
+
+# 3. Corregir clientes/Form.tsx - remover nif del payload
+echo "3️⃣ Corrigiendo clientes/Form.tsx..."
+sed -i 's/await createCliente({ nombre, nif, email, telefono, direccion })/await createCliente({ nombre, email, telefono })/' apps/tenant/src/modules/clientes/Form.tsx
+
+# 4. Corregir compras/Form.tsx - cambiar proveedor a proveedor_id y concepto/importe a total
+echo "4️⃣ Corrigiendo compras/Form.tsx..."
+sed -i 's/await createCompra({ fecha, proveedor, concepto, importe: parseFloat(importe) })/await createCompra({ fecha, proveedor_id: proveedor, total: parseFloat(importe) })/' apps/tenant/src/modules/compras/Form.tsx
+
+# 5. Corregir gastos/Form.tsx - cambiar importe a monto
+echo "5️⃣ Corrigiendo gastos/Form.tsx..."
+sed -i 's/await createGasto({ fecha, concepto, importe: parseFloat(importe), categoria })/await createGasto({ fecha, concepto, monto: parseFloat(importe) })/' apps/tenant/src/modules/gastos/Form.tsx
+
+# 6. Corregir proveedores/Form.tsx - usar contactos/direcciones arrays
+echo "6️⃣ Corrigiendo proveedores/Form.tsx..."
+sed -i 's/await createProveedor({ nombre, nif, email, telefono, direccion })/await createProveedor({ nombre, nif, email, telefono, contactos: [], direcciones: direccion ? [{ tipo: "facturacion", linea1: direccion }] : [] })/' apps/tenant/src/modules/proveedores/Form.tsx
+
+# 7. Corregir POS Dashboard - tipos string/number
+echo "7️⃣ Corrigiendo pos/Dashboard.tsx..."
+# Este archivo necesita ediciones más complejas, se hará manualmente después
+
+# 8. Corregir POS TicketCreator - uom y line_total
+echo "8️⃣ Corrigiendo pos/TicketCreator.tsx..."
+# Este archivo necesita ediciones más complejas, se hará manualmente después
+
+# 9. Corregir panaderia/ExcelImporter.tsx - remover referencias a stock_items_initialized
+echo "9️⃣ Corrigiendo panaderia/ExcelImporter.tsx..."
+# Este archivo necesita ediciones más complejas, se hará manualmente después
+
+echo "✅ Script de corrección completado. Ahora se aplicarán correcciones manuales..."

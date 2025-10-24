@@ -5,7 +5,7 @@ import React, { useState } from 'react'
 import { openShift, closeShift, type POSShift } from './services'
 
 type ShiftManagerProps = {
-  registerId: number
+  registerId: string
   currentShift: POSShift | null
   onShiftChange: () => void
 }

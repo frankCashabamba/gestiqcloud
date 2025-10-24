@@ -25,8 +25,8 @@ type TicketLine = {
 
 export default function TicketCreator() {
   const navigate = useNavigate()
-  const [registerId, setRegisterId] = useState<number | null>(null)
-  const [shiftId, setShiftId] = useState<number | null>(null)
+  const [registerId, setRegisterId] = useState<string | null>(null)
+  const [shiftId, setShiftId] = useState<string | null>(null)
   const [lines, setLines] = useState<TicketLine[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [showPayment, setShowPayment] = useState(false)
@@ -145,13 +145,16 @@ export default function TicketCreator() {
       const totals = calculateTotals()
       
       const receipt = await createReceipt({
+        register_id: registerId!,
         shift_id: shiftId,
         lines: lines.map((l) => ({
           product_id: l.product_id,
           qty: l.qty,
+          uom: 'unit',
           unit_price: l.unit_price,
           tax_rate: l.tax_rate,
           discount_pct: l.discount_pct,
+          line_total: l.qty * l.unit_price * (1 - l.discount_pct / 100),
         })),
       })
       

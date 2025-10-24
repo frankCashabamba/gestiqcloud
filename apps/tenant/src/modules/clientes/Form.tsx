@@ -24,7 +24,7 @@ export default function ClienteForm() {
     
     try {
       setLoading(true)
-      await createCliente({ nombre, nif, email, telefono, direccion })
+      await createCliente({ nombre, email, telefono })
       alert('Cliente creado')
       navigate('/clientes')
     } catch (err: any) {

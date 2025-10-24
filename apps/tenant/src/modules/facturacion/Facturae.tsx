@@ -1,6 +1,6 @@
 import React from 'react'
 import { useParams } from 'react-router-dom'
-import { exportarFacturae } from './services'
+import { exportFacturae } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 
 export default function FacturaePage() {
@@ -9,7 +9,7 @@ export default function FacturaePage() {
   const descargar = async () => {
     try {
       if (!id) throw new Error('Id requerido')
-      const blob = await exportarFacturae(id)
+      const blob = await exportFacturae(id)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url

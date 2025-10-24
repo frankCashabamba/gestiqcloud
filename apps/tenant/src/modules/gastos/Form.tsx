@@ -17,7 +17,7 @@ export default function GastoForm() {
     e.preventDefault()
     try {
       setLoading(true)
-      await createGasto({ fecha, concepto, importe: parseFloat(importe), categoria })
+      await createGasto({ fecha, concepto, monto: parseFloat(importe), proveedor_id: undefined })
       alert('Gasto registrado')
       navigate('/gastos')
     } catch (err: any) {

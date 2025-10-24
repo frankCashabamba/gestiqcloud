@@ -8,7 +8,7 @@ import ShiftManager from './ShiftManager'
 
 export default function Dashboard() {
   const [registers, setRegisters] = useState<POSRegister[]>([])
-  const [selectedRegister, setSelectedRegister] = useState<number | null>(null)
+  const [selectedRegister, setSelectedRegister] = useState<string | null>(null)
   const [currentShift, setCurrentShift] = useState<POSShift | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -75,12 +75,12 @@ export default function Dashboard() {
         {registers.length > 1 && (
           <select
             value={selectedRegister || ''}
-            onChange={(e) => setSelectedRegister(Number(e.target.value))}
+            onChange={(e) => setSelectedRegister(e.target.value)}
             className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium"
           >
             {registers.map((reg) => (
               <option key={reg.id} value={reg.id}>
-                {reg.name || `Caja ${reg.code}`}
+                {reg.name}
               </option>
             ))}
           </select>

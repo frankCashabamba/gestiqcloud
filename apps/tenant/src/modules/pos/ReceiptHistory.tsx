@@ -63,9 +63,9 @@ export default function ReceiptHistory() {
             <tbody className="divide-y divide-slate-100">
               {receipts.map((receipt) => (
                 <tr key={receipt.id} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 text-sm font-mono">{receipt.number || receipt.id.substring(0, 8)}</td>
+                  <td className="px-6 py-4 text-sm font-mono">{receipt.number || receipt.id?.substring(0, 8) || 'N/A'}</td>
                   <td className="px-6 py-4 text-sm">
-                    {new Date(receipt.created_at).toLocaleString('es-ES')}
+                    {receipt.created_at ? new Date(receipt.created_at).toLocaleString('es-ES') : 'N/A'}
                   </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${getStatusBadge(receipt.status)}`}>

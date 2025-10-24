@@ -242,22 +242,22 @@ export default function ExcelImporter() {
                 </div>
 
                 <div className="rounded-lg bg-white p-3 shadow-sm">
-                  <p className="text-xs font-medium text-slate-500">Stock Inicializado</p>
+                  <p className="text-xs font-medium text-slate-500">Compras</p>
                   <p className="mt-1 text-2xl font-bold text-blue-600">
-                    {result.stats.stock_items_initialized || 0}
+                    {result.stats.purchases_created || 0}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    Stock real poblado
+                    Registros de compra
                   </p>
                 </div>
 
                 <div className="rounded-lg bg-white p-3 shadow-sm">
-                  <p className="text-xs font-medium text-slate-500">Movimientos</p>
+                  <p className="text-xs font-medium text-slate-500">Registros Leche</p>
                   <p className="mt-1 text-2xl font-bold text-purple-600">
-                    {result.stats.stock_moves_created || 0}
+                    {result.stats.milk_records_created || 0}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    Ventas históricas
+                    Entradas de leche
                   </p>
                 </div>
 
