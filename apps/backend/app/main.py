@@ -285,6 +285,14 @@ try:
 except Exception as e:
     _router_logger.error(f"Error mounting SPEC-1 Importer router: {e}")
 
+# Products Importer (genérico para catálogo + stock)
+try:
+    from app.api.v1.import_products import router as import_products_router
+    app.include_router(import_products_router, prefix="/api/v1")
+    _router_logger.info("Products Importer mounted at /api/v1/import-products")
+except Exception as e:
+    _router_logger.error(f"Error mounting Products Importer: {e}")
+
 # ElectricSQL shapes
 try:
     from app.modules.electric_shapes import router as electric_router

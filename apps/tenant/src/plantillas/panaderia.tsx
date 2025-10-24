@@ -1,3 +1,7 @@
+/**
+ * Plantilla Panadería - Dashboard Principal
+ * Adaptable según plan contratado (basic, standard, professional)
+ */
 
 import React, { useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -110,34 +114,71 @@ const PanaderiaPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
             </ul>
           </div>
 
+          {/* Importación de Datos - BÁSICO para todos */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-900">Diarios de Producción</h3>
-            <p className="mt-2 text-sm text-slate-500">
-              Importa tus diarios de producción desde Excel para mantener un registro digitalizado y automatizar el inventario.
-            </p>
-            <div className="mt-4 flex flex-col gap-3">
-              <Link
-                to={`${prefix}/panaderia/importador`}
-                className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-blue-500"
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">Importar Datos</h3>
+                <p className="mt-2 text-sm text-slate-500">
+                  Digitaliza tu información existente desde archivos Excel o CSV.
+                </p>
+              </div>
+              <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+            </div>
+            
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <a
+                href="/api/v1/import-products"
+                onClick={(e) => {
+                  e.preventDefault()
+                  // Abrir modal de importación (implementar después)
+                  alert('Funcionalidad de importación: Sube tu archivo Excel/CSV con columnas PRODUCTO, CANTIDAD, PRECIO')
+                }}
+                className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-300 hover:bg-blue-50 cursor-pointer"
               >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z" />
+                    <path d="M3 8a2 2 0 012-2v10h8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+                  </svg>
+                  <span className="font-medium text-slate-900">Productos (Excel/CSV)</span>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Importa catálogo completo: productos, stock y precios
+                </p>
+                <span className="text-xs text-blue-600 font-medium">→ Usar importador genérico</span>
+              </a>
+
+              {allowedSlugs.has('inventario') && (
+                <Link
+                  to={`${prefix}/panaderia/importador`}
+                  className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-300 hover:bg-blue-50"
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="h-5 w-5 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                    </svg>
+                    <span className="font-medium text-slate-900">Diario de Producción</span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Importa registros históricos de producción diaria (SPEC-1)
+                  </p>
+                  <span className="text-xs text-amber-600 font-medium">→ Formato panadería avanzado</span>
+                </Link>
+              )}
+            </div>
+
+            <div className="mt-4 rounded-lg bg-blue-50 p-3">
+              <div className="flex items-start gap-2">
+                <svg className="h-5 w-5 flex-shrink-0 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                 </svg>
-                Importar Diario Excel
-              </Link>
-              <div className="flex gap-2">
-                <Link
-                  to={`${prefix}/panaderia/inventario`}
-                  className="flex-1 text-center rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Ver Inventario
-                </Link>
-                <Link
-                  to={`${prefix}/panaderia/compras`}
-                  className="flex-1 text-center rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Compras
-                </Link>
+                <p className="text-xs text-blue-800">
+                  <strong>Formatos soportados:</strong> Excel (.xlsx, .xls), CSV (.csv). 
+                  Máximo 5,000 filas por importación.
+                </p>
               </div>
             </div>
           </div>
