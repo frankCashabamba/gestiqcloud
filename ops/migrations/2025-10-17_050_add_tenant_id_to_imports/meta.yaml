@@ -1,0 +1,8 @@
+description: "Add tenant_id to imports module + JSONB conversion + GIN indexes"
+author: "Amp AI"
+depends_on:
+  - "2025-10-09_016_add_tenant_uuid_import_batches"
+  - "2025-10-09_017_add_tenant_uuid_import_item_corrections"
+  - "2025-10-09_018_add_tenant_uuid_import_lineage"
+  - "2025-10-09_019_add_tenant_uuid_import_mappings"
+applied_at: null

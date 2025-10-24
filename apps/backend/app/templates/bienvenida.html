@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Bienvenido a GestiqCloud</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin: 0; padding: 0; background-color: #f4f6f9; font-family: Arial, sans-serif; }
+    .card { max-width: 600px; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.07); }
+    .header { background: #4f46e5; color: #fff; text-align: center; padding: 24px; }
+    .content { padding: 36px 30px; text-align: center; color: #111827; }
+    .p { color: #374151; font-size: 16px; margin-bottom: 24px; }
+    .btn { display: inline-block; margin: 24px 0; background-color: #4f46e5; color: #fff; padding: 14px 28px; font-size: 16px; font-weight: 600; text-decoration: none; border-radius: 6px; }
+    .footer { padding: 20px 30px; text-align: center; background-color: #f9fafb; font-size: 12px; color: #9ca3af; }
+  </style>
+</head>
+<body>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#f4f6f9">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" width="100%" class="card">
+          <tr>
+            <td class="header"><h1 style="margin:0;font-size:26px;">GestiqCloud</h1></td>
+          </tr>
+          <tr>
+            <td class="content">
+              <h2 style="font-size:22px;margin:0 0 16px;">Hola, bienvenido a <strong>{{ nombre_empresa }}</strong> en GestiqCloud.</h2>
+              <p class="p">Has sido registrado como usuario de la empresa: <strong>{{ nombre_empresa }}</strong><br><br>Tu usuario es: <strong>{{ username }}</strong></p>
+              <p class="p">Para comenzar, por favor establece tu contraseña haciendo clic en el botón:</p>
+              <a class="btn" href="{{ enlace }}">Establecer mi contraseña</a>
+              <p style="color:#6b7280;font-size:14px;margin-top:20px;">¿Necesitas ayuda? <a href="mailto:soporte@gestiqcloud.com" style="color:#4f46e5;">soporte@gestiqcloud.com</a></p>
+            </td>
+          </tr>
+          <tr>
+            <td class="footer">Si no solicitaste esta cuenta, puedes ignorar este mensaje.<br>© {{ anio }} GestiqCloud</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+

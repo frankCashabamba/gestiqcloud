@@ -1,0 +1,3 @@
+id: 2025-10-10_037_stock_moves_posted
+description: Add posted flag to stock_moves and backfill
+

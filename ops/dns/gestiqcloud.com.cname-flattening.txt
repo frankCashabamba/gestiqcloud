@@ -1,0 +1,20 @@
+$ORIGIN gestiqcloud.com.
+$TTL 3600
+
+; Professional setup using Cloudflare CNAME Flattening at apex
+; Create these records in Cloudflare (UI recommended). If importing, review warnings.
+
+; -------- Tenant (primary site) --------
+@           IN  CNAME  gestiqcloud-tenant.onrender.com.
+www         IN  CNAME  gestiqcloud-tenant.onrender.com.
+
+; -------- Admin --------
+admin       IN  CNAME  gestiqcloud-admin.onrender.com.
+www.admin   IN  CNAME  admin.gestiqcloud.com.
+
+; -------- API --------
+api         IN  CNAME  gestiqcloud-api.onrender.com.
+
+; After adding, verify domains in Render for each service.
+; Then, consider enabling Cloudflare proxy (orange cloud) on all except during verification.
+

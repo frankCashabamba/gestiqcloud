@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE or 'es' }}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}GestiqCloud{% endblock %}</title>
+  <link rel="icon" href="{{ url_for('static', path='favicon.ico') }}" />
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <link rel="stylesheet" href="{{ url_for('static', path='css/button-icon.css') }}" />
+
+  <!-- Variables dinámicas de branding -->
+  <style>
+
+  </style>
+
+  <!-- CSS específico por plantilla -->
+
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen flex flex-col">
+
+
+
+  <!-- Contenido principal -->
+  <main class="flex-1 max-w-7xl mx-auto w-full p-6">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="text-center text-xs text-gray-500 py-6">
+    &copy; GestiqCloud. Todos los derechos reservados.
+  </footer>
+
+</body>
+</html>

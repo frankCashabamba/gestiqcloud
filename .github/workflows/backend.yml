@@ -1,0 +1,206 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      admin: ${{ steps.filter.outputs.admin }}
+      tenant: ${{ steps.filter.outputs.tenant }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'apps/backend/**'
+              - 'ops/**'
+              - '.github/workflows/backend.yml'
+              - 'apps/packages/**'
+            admin:
+              - 'apps/admin/**'
+              - 'apps/packages/**'
+            tenant:
+              - 'apps/tenant/**'
+              - 'apps/packages/**'
+
+  backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/backend
+    env:
+      TEST_MINIMAL: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Start Postgres (robust pull + run)
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGES=(
+            public.ecr.aws/docker/library/postgres:15
+            ghcr.io/library/postgres:15
+            postgres:15
+            postgres:15-alpine
+          )
+          pulled=0
+          for img in "${IMAGES[@]}"; do
+            echo "Trying to pull $img"
+            for i in {1..5}; do
+              if docker pull "$img"; then pulled=1; break; fi
+              echo "Pull failed for $img (attempt $i). Retrying in $((i*i))s"; sleep $((i*i));
+            done
+            if [ "$pulled" -eq 1 ]; then export PG_IMAGE="$img"; break; fi
+          done
+          if [ "$pulled" -ne 1 ]; then
+            echo "::error ::Failed to pull any Postgres image from mirrors" >&2
+            exit 1
+          fi
+          echo "Using image: $PG_IMAGE"
+          docker run -d --name pg -p 5432:5432 \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=testdb \
+            "$PG_IMAGE"
+          # Wait for readiness via pg_isready inside the container
+          for i in {1..60}; do
+            if docker exec pg pg_isready -U postgres >/dev/null 2>&1; then
+              echo "Postgres is ready"; break;
+            fi
+            sleep 1
+          done
+      - name: Resolve pip cache directory
+        id: pip-cache
+        run: |
+          echo "dir=$(python -m pip cache dir)" >> $GITHUB_OUTPUT
+      - name: Pip cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pip-cache.outputs.dir }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('apps/backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Alembic sanity
+        run: |
+          alembic --version
+          alembic heads
+          alembic history -v | tail -n 50
+      - name: Static guard — forbid legacy ::uuid param casts
+        run: |
+          set -e
+          echo "Checking for legacy :param::uuid casts in app/ (use CAST(:param AS uuid) instead)"
+          HITS=$(grep -RInE ":[A-Za-z_][A-Za-z0-9_]*::uuid" app | grep -vE "^app/db/rls\.py:" | grep -v "/alembic/" | grep -v "/tests/" || true)
+          if [ -n "$HITS" ]; then
+            echo "$HITS"
+            echo "ERROR: Found legacy ::uuid casts above. Replace with CAST(:param AS uuid)." >&2
+            exit 1
+          else
+            echo "OK: no legacy ::uuid casts found"
+          fi
+      - name: Static guard — forbid direct current_setting in app (use helper)
+        run: |
+          set -e
+          echo "Checking for direct current_setting('app.tenant_id' usage in app/ (use tenant_id_sql_expr/ensure_rls)"
+          HITS=$(grep -RIn "current_setting('app.tenant_id'" app | grep -vE "^app/db/rls\.py:" | grep -v "/alembic/" | grep -v "/tests/" || true)
+          if [ -n "$HITS" ]; then
+            echo "$HITS"
+            echo "ERROR: Found direct current_setting usage in app/. Use helper tenant_id_sql_expr() and ensure_rls." >&2
+            exit 1
+          else
+            echo "OK: no direct current_setting usages found"
+          fi
+      - name: Alembic single-head check
+        run: |
+          set -euo pipefail
+          COUNT=$(alembic heads --verbose | grep -c '^Rev:')
+          echo "Alembic heads count: ${COUNT}"
+          if [ "$COUNT" -ne 1 ]; then
+            echo "ERROR: Multiple Alembic heads detected"
+            alembic heads --verbose
+            exit 1
+          fi
+      - name: Upgrade Alembic against Postgres service
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+          FRONTEND_URL: http://localhost:5173
+          TENANT_NAMESPACE_UUID: 00000000-0000-0000-0000-000000000000
+          ENV: development
+        run: |
+          python -m pip install psycopg2-binary
+          # Already started above; sanity check connectivity using container's pg_isready
+          for i in {1..30}; do
+            docker exec pg pg_isready -U postgres && break || sleep 1;
+          done
+          alembic upgrade head
+      - name: Smoke test against Postgres DB
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+          FRONTEND_URL: http://localhost:5173
+          TENANT_NAMESPACE_UUID: 00000000-0000-0000-0000-000000000000
+        run: |
+          # working-directory is apps/backend, so test paths are relative to it
+          pytest -q app/tests/test_smoke_pg.py app/tests/test_smoke_pos_pg.py
+
+  admin-frontend:
+    needs: changes
+    if: needs.changes.outputs.admin == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'apps/admin/package-lock.json'
+      - name: Install deps (npm ci with fallback)
+        run: |
+          set -e
+          if ! npm ci; then
+            echo "::warning ::npm ci failed (lock mismatch). Falling back to npm install"
+            npm install --no-audit --no-fund
+          fi
+      - name: Build admin
+        run: npm run build --if-present
+
+  tenant-frontend:
+    needs: changes
+    if: needs.changes.outputs.tenant == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/tenant
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'apps/tenant/package-lock.json'
+      - name: Install deps (npm ci with fallback)
+        run: |
+          set -e
+          if ! npm ci; then
+            echo "::warning ::npm ci failed (lock mismatch). Falling back to npm install"
+            npm install --no-audit --no-fund
+          fi
+      - name: Build tenant
+        run: npm run build --if-present 

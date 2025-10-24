@@ -1,0 +1,9 @@
+id: 2025-09-22_000_baseline_full_schema
+title: "Baseline full schema (initial deploy)"
+created_at: 2025-09-22T00:00:00Z
+requires: []
+tags:
+  - baseline
+  - postgres
+  - schema
+

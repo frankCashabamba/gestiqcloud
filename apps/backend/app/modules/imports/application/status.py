@@ -1,0 +1,17 @@
+class ImportItemStatus:
+    PENDING = "PENDING"
+    OK = "OK"
+    ERROR_VALIDATION = "ERROR_VALIDATION"
+    ERROR_PROMOTION = "ERROR_PROMOTION"
+    PROMOTED = "PROMOTED"
+
+
+class ImportBatchStatus:
+    PENDING = "PENDING"
+    PARSING = "PARSING"
+    READY = "READY"
+    VALIDATED = "VALIDATED"
+    PARTIAL = "PARTIAL"
+    ERROR = "ERROR"
+    PROMOTED = "PROMOTED"
+

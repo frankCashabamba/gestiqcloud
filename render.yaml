@@ -1,0 +1,307 @@
+﻿services:
+  # ------------ BACKEND API (FastAPI) ------------
+  - type: web
+    name: gestiqcloud-api
+    runtime: python
+    branch: main
+    rootDir: apps/backend
+    buildCommand: |
+      pip install -U pip
+      pip install -r requirements.txt
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    # Autodeploy solo si cambia backend (o lo que añadas aquí)
+    buildFilter:
+      paths:
+        # Backend app code
+        - apps/backend/**
+        # Shared libs used by backend (HTTP client/contracts, etc.)
+        - apps/packages/http-core/**
+        # SQL and migration scripts that affect runtime behavior
+        - ops/migrations/**
+        - scripts/**
+      ignoredPaths:
+        - '**/*.md'
+        - .github/**
+        - docs/**
+    envVars:
+      - key: ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+
+      - key: FRONTEND_URL
+        value: https://www.gestiqcloud.com
+      - key: PUBLIC_API_ORIGIN
+        value: https://api.gestiqcloud.com
+      - key: ADMIN_URL
+        value: https://admin.gestiqcloud.com
+
+      - key: CORS_ALLOW_ORIGIN_REGEX
+        value: ^https://(www\.)?(gestiqcloud\.com|admin\.gestiqcloud\.com)$
+      - key: CORS_ORIGINS
+        value: https://gestiqcloud.com,https://www.gestiqcloud.com,https://admin.gestiqcloud.com,https://www.admin.gestiqcloud.com
+
+      - key: ALLOWED_HOSTS
+        value: '["api.gestiqcloud.com","*.onrender.com"]'
+
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAMESITE
+        value: "lax"
+
+      - key: TENANT_NAMESPACE_UUID
+        value: 0280249e-6707-40fb-8d60-1e8f3aea0f8e
+      - key: IMPORTS_ENABLED
+        value: "0"
+      - key: IMPORTS_EASYOCR_WARM_ON_START
+        value: "0"
+      - key: POOL_SIZE
+        value: "15"
+      - key: MAX_OVERFLOW
+        value: "15"
+      - key: POOL_TIMEOUT
+        value: "5"
+      - key: DB_STATEMENT_TIMEOUT_MS
+        value: "30000"
+
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        value: GestiqCloud <no-reply@gestiqcloud.com>
+      - key: RENDER_API_KEY
+        sync: false
+      - key: RENDER_MIGRATE_JOB_ID
+        sync: false
+      - key: ALLOW_INLINE_MIGRATIONS
+        value: "0"
+
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      - key: PIP_ONLY_BINARY
+        value: pandas,bcrypt,PyMuPDF,opencv-python-headless,psycopg2-binary,torch
+
+      # ---- Migraciones/Policies flags (opcionales) ----
+      - key: RUN_LEGACY_MIGRATIONS
+        value: "0"
+      - key: RUN_RLS_APPLY
+        value: "1"
+      - key: RLS_SCHEMAS
+        value: public
+      - key: RLS_SET_DEFAULT
+        value: "1"
+
+      # Defaults y Copilot
+      - key: DEFAULT_TENANT_TEMPLATE_KEY
+        value: bazar
+      - key: COPILOT_TENANT_ENABLED
+        value: "1"
+      - key: COPILOT_ALLOWED_ACTIONS
+        value: create_invoice_draft,create_order_draft,create_transfer_draft,suggest_overlay_fields
+      - key: COPILOT_LOCALE
+        value: es-ES
+
+      # OpenTelemetry
+      - key: OTEL_ENABLED
+        value: "1"
+      - key: OTEL_SERVICE_NAME
+        value: gestiqcloud-api
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+
+  # ------------ FRONTEND TENANT (Vite) ------------
+  - type: web
+    name: gestiqcloud-tenant
+    runtime: static
+    branch: main
+    rootDir: apps/tenant
+    buildCommand: |
+      npm ci
+      npm run build
+    staticPublishPath: dist     # relativo a rootDir
+    domains:
+      - gestiqcloud.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    buildFilter:
+      paths:
+        # Tenant SPA
+        - apps/tenant/**
+        # Shared UI/components and HTTP client consumed by tenant
+        - apps/packages/ui/**
+        - apps/packages/http-core/**
+      ignoredPaths:
+        - '**/*.md'
+        - .github/**
+        - docs/**
+    envVars:
+      - key: VITE_API_URL
+        value: /v1
+      - key: VITE_BASE_PATH
+        value: /
+      - key: VITE_TENANT_ORIGIN
+        value: https://www.gestiqcloud.com
+      - key: VITE_ADMIN_ORIGIN
+        value: https://admin.gestiqcloud.com
+
+  # ------------ FRONTEND ADMIN (Vite) ------------
+  - type: web
+    name: gestiqcloud-admin
+    runtime: static
+    branch: main
+    rootDir: apps/admin
+    buildCommand: |
+      npm ci
+      npm run build
+    staticPublishPath: dist     # relativo a rootDir
+    domains:
+      - admin.gestiqcloud.com
+    routes:
+      - type: redirect
+        source: /
+        destination: /login        
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    buildFilter:
+      paths:
+        # Admin SPA
+        - apps/admin/**
+        # Shared UI/components and HTTP client consumed by admin
+        - apps/packages/ui/**
+        - apps/packages/http-core/**
+      ignoredPaths:
+        - '**/*.md'
+        - .github/**
+        - docs/**
+    envVars:
+      - key: VITE_API_URL
+        value: /v1
+      - key: VITE_BASE_PATH
+        value: /
+      - key: VITE_ADMIN_ORIGIN
+        value: https://admin.gestiqcloud.com
+      - key: VITE_TENANT_ORIGIN
+        value: https://gestiqcloud.com
+
+  # ------------ WORKER (Celery) ------------
+  - type: worker
+    name: gestiqcloud-worker
+    runtime: python
+    branch: main
+    rootDir: apps/backend
+    buildCommand: |
+      pip install -U pip
+      pip install -r requirements.txt
+    startCommand: celery -A apps.backend.celery_app worker -Q sri,sii -l info
+    buildFilter:
+      paths:
+        - apps/backend/**
+        - ops/migrations/**
+        - scripts/**
+        - apps/packages/http-core/**
+      ignoredPaths:
+        - '**/*.md'
+        - .github/**
+        - docs/**
+    envVars:
+      - key: ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: CELERY_RESULT_BACKEND
+        sync: false
+      - key: OTEL_ENABLED
+        value: "1"
+      - key: OTEL_SERVICE_NAME
+        value: gestiqcloud-worker
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+
+  # ------------ BEAT (Celery) ------------
+  - type: worker
+    name: gestiqcloud-beat
+    runtime: python
+    branch: main
+    rootDir: apps/backend
+    buildCommand: |
+      pip install -U pip
+      pip install -r requirements.txt
+    startCommand: celery -A apps.backend.celery_app beat -l info
+    buildFilter:
+      paths:
+        - apps/backend/**
+        - ops/migrations/**
+        - scripts/**
+        - apps/packages/http-core/**
+      ignoredPaths:
+        - '**/*.md'
+        - .github/**
+        - docs/**
+    envVars:
+      - key: ENV
+        value: production
+      - key: ENABLE_EINVOICING_BEAT
+        value: "1"
+      - key: EINV_SII_PERIOD_MODE
+        value: monthly
+      - key: EINV_TENANT_ID
+        sync: false
+      - key: ENABLE_EINVOICING_RETRY
+        value: "1"
+      - key: OTEL_ENABLED
+        value: "1"
+      - key: OTEL_SERVICE_NAME
+        value: gestiqcloud-beat
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+
+  # ------------ (Opcional) JOB de migraciones como CRON ------------
+  - type: cron
+    name: gestiqcloud-migrate
+    runtime: python
+    branch: main
+    rootDir: apps/backend
+    schedule: "0 4 * * *"   # podrás hacer "Run now" cuando quieras
+    buildCommand: |
+      pip install -U pip
+      pip install -r requirements.txt
+    startCommand: |
+      set -e
+      echo "⏳ Checking Alembic pending migrations..."
+      CURRENT=$(alembic current 2>/dev/null | awk '{print $1}' | tail -n1 || true)
+      HEADS=$(alembic heads 2>/dev/null | awk '{print $1}' | tr '\n' ' ' || true)
+      if [ -n "$HEADS" ] && echo "$HEADS" | grep -q "$CURRENT"; then
+        echo "✅ No Alembic migrations pending ($CURRENT is at heads: $HEADS)"
+      else
+        echo "🚀 Applying Alembic migrations to head"
+        alembic upgrade head
+      fi
+      echo "🔐 Applying RLS defaults/policies (idempotent)"
+      python ../scripts/py/apply_rls.py --schema public --set-default
+    buildFilter:
+      paths:
+        - apps/backend/**
+    envVars:
+      - key: ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: RLS_SCHEMAS
+        value: public
+      - key: RLS_SET_DEFAULT
+        value: "1"

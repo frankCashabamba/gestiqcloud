@@ -1,0 +1,73 @@
+# --- SO / editores ---
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+.eslintcache
+
+# --- caches / logs / reports ---
+**/.mypy_cache/
+**/.ruff_cache/
+**/.pytest_cache/
+**/coverage/
+coverage/
+htmlcov/
+*.log
+
+# --- secretos / envs (mantén los .example) ---
+.env
+.env.*
+!.env.example
+apps/*/.env
+apps/*/.env.*
+!apps/*/.env.example
+backend/.env
+*.pem
+*.key
+*.secret
+
+# --- Python (en cualquier carpeta) ---
+**/__pycache__/
+**/*.py[cod]
+**/*.pyo
+**/*.egg-info/
+**/.cache/
+**/.coverage*
+**/.venv/
+.venv/
+
+# --- Node / TS (en cualquier carpeta) ---
+**/node_modules/
+**/dist/
+**/build/
+**/*.tsbuildinfo
+**/.eslintcache
+**/*.map
+
+# --- datos locales / dumps ---
+postgres-data/
+db-data/
+*.dump
+*.tar
+*.zip
+src.zip
+
+# Ignorar .sql por defecto (dumps), PERO permitir migraciones/scripts versionados
+*.sql
+!ops/migrations/**/*.sql
+!ops/scripts/**/*.sql
+!ops/sql/**/*.sql
+
+# --- otros ---
+.pnpm-store/
+backend/scripts/
+
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+67 Y 68 CATALOGO.xlsx

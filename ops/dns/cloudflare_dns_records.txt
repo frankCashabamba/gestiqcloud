@@ -1,0 +1,59 @@
+Cloudflare DNS records for gestiqcloud (apply exactly, then verify in Render)
+
+# Keep your existing MX/DKIM records. Only update the following:
+
+; -------- Tenant (gestiqcloud.com) --------
+; Option A (keep current): apex A to Render static anycast
+Type: A
+Name: gestiqcloud.com
+Content: 216.24.57.1
+Proxy status: DNS only (switch to Proxied after Render shows domain Ready)
+TTL: Auto
+
+; www -> tenant service
+Type: CNAME
+Name: www
+Content: gestiqcloud-tenant.onrender.com
+Proxy status: DNS only (switch to Proxied after Ready)
+TTL: Auto
+
+; -------- Admin (admin.gestiqcloud.com) --------
+Type: CNAME
+Name: admin
+Content: gestiqcloud-admin.onrender.com
+Proxy status: DNS only (switch to Proxied after Ready)
+TTL: Auto
+
+; optional www.admin -> admin
+Type: CNAME
+Name: www.admin
+Content: admin.gestiqcloud.com
+Proxy status: DNS only
+TTL: Auto
+
+; -------- API (api.gestiqcloud.com) --------
+Type: CNAME
+Name: api
+Content: gestiqcloud-api.onrender.com
+Proxy status: DNS only (switch to Proxied if desired after testing)
+TTL: Auto
+
+Notes:
+- Remove/replace wrong entries such as: CNAME admin -> gestiqcloud.com and CNAME www -> gestiqcloud.onrender.com.
+- Do NOT add gestiqcloud.com to the API service in Render.
+- After records propagate and Render shows each domain as Ready, you may turn Proxy status to Proxied.
+- If you prefer CNAME at apex instead of A, Cloudflare supports CNAME Flattening: set a CNAME for gestiqcloud.com -> gestiqcloud-tenant.onrender.com (Proxied). Use either A OR CNAME, not both.
+
+Render setup (confirm in each static service):
+- Tenant (gestiqcloud-tenant): Rewrite /* -> /index.html
+- Admin (gestiqcloud-admin): Redirect / -> /login (302) and Rewrite /* -> /index.html
+- Custom Domains: add the domains above and mark your primary; enable "Redirect to primary domain" if available.
+- Clear build cache & deploy after changing routes/domains.
+
+Verification checklist:
+- https://gestiqcloud-tenant.onrender.com/login refresh works
+- https://gestiqcloud.com/login refresh works
+- https://gestiqcloud-admin.onrender.com redirects to /login and refresh works
+- https://admin.gestiqcloud.com/login refresh works
+- https://api.gestiqcloud.com serves API (no HTML)
+

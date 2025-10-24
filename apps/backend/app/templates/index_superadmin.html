@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Panel de Administración{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-10 space-y-12">
+
+  <div class="text-center">
+    <h1 class="text-4xl font-extrabold text-gray-900 mb-2 animate-fade-in-up">
+      🛠️ Panel de Administración
+    </h1>
+  </div>
+
+  <section>
+    <h2 class="text-2xl font-semibold text-gray-800 mb-6 border-b pb-2">
+      ⚙️ Administración del SaaS
+    </h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+      <a class="admin-card" href="#">
+        <img alt="Empresas" class="icon-img" src="{{ url_for('static', path='icons/empresas.png') }}" />
+        <h3>Empresas</h3>
+        <p>Gestión de empresas registradas.</p>
+      </a>
+
+      <a class="admin-card" href="#">
+        <img alt="Usuarios" class="icon-img" src="{{ url_for('static', path='icons/usuario.png') }}" />
+        <h3>Usuarios Principales</h3>
+        <p>Control de usuarios del sistema.</p>
+      </a>
+
+      <a class="admin-card" href="#">
+        <img alt="Configuración" class="icon-img" src="{{ url_for('static', path='icons/configuracion.jpeg') }}" />
+        <h3>Configuración de sistemas</h3>
+        <p>Sólo las configuraciones del sistema.</p>
+      </a>
+
+      <a class="admin-card" href="#">
+        <img alt="Módulos" class="icon-img" src="{{ url_for('static', path='icons/modulo.png') }}" />
+        <h3>Gestión de Módulos</h3>
+        <p>Alta, edición y configuración de los módulos del sistema.</p>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="text-2xl font-semibold text-gray-800 mb-6 border-b pb-2">
+      📦 Módulos del sistema activos
+    </h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+      {% for modulo in modulos %}
+        <a class="admin-card" href="{{ modulo.url_completa }}">
+          <div class="text-5xl mb-3">{{ modulo.icono or "📦" }}</div>
+          <h3>{{ modulo.nombre }}</h3>
+          <p>{{ modulo.descripcion or "Módulo sin descripción" }}</p>
+        </a>
+      {% else %}
+        <p class="text-gray-400 col-span-full">
+          No hay módulos activos aún.
+        </p>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+<style>
+  .admin-card {
+    @apply bg-white p-6 rounded-2xl shadow hover:shadow-xl hover:-translate-y-1 transition transform border text-gray-800;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    text-decoration: none;
+  }
+
+  .admin-card h3 {
+    @apply text-lg font-semibold mt-2 mb-1;
+  }
+
+  .admin-card p {
+    @apply text-sm text-gray-500;
+  }
+
+  .icon-img {
+    width: 56px;
+    height: 56px;
+    border-radius: 9999px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1rem;
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 0.5s ease-out both;
+  }
+</style>
+{% endblock %}

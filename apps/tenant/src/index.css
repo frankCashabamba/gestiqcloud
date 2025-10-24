@@ -1,0 +1,113 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --gc-bg: #f9fafb;
+    --gc-surface: #ffffff;
+    --gc-border: #e5e7eb;
+    --gc-border-strong: #d1d5db;
+    --gc-muted: #6b7280;
+    --gc-foreground: #0f172a;
+    --gc-primary: #2563eb;
+    --gc-primary-dark: #1d4ed8;
+    --gc-success: #059669;
+    --gc-warning: #d97706;
+    --gc-danger: #dc2626;
+    --gc-radius-sm: 8px;
+    --gc-radius-md: 14px;
+    --gc-radius-lg: 18px;
+    --gc-shadow-sm: 0 4px 12px rgba(15, 23, 42, 0.06);
+    --gc-shadow-md: 0 20px 40px rgba(15, 23, 42, 0.08);
+  }
+
+  html {
+    font-size: 16px;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+    font-family: 'Inter', 'SF Pro Display', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, 'Roboto', 'Helvetica Neue', sans-serif;
+    letter-spacing: -0.01em;
+  }
+
+  a {
+    @apply text-blue-600 transition hover:text-blue-500;
+  }
+
+  button {
+    font-family: inherit;
+  }
+}
+
+@layer components {
+  .gc-container {
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
+  }
+
+  .gc-card {
+    @apply rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md;
+  }
+
+  .gc-card-muted {
+    @apply rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 p-6;
+  }
+
+  .gc-section-title {
+    @apply text-lg font-semibold text-slate-900;
+  }
+
+  .gc-section-subtitle {
+    @apply text-sm text-slate-500;
+  }
+
+  .gc-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .gc-button--primary {
+    @apply gc-button bg-blue-600 text-white shadow-sm hover:bg-blue-500;
+  }
+
+  .gc-button--ghost {
+    @apply gc-button border border-slate-200 bg-white text-slate-700 hover:bg-slate-100;
+  }
+
+  .gc-tag {
+    @apply inline-flex items-center gap-1 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700;
+  }
+
+  .gc-badge {
+    @apply inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600;
+  }
+
+  .gc-alert {
+    @apply rounded-xl border px-4 py-3 text-sm;
+  }
+
+  .gc-alert--error {
+    @apply gc-alert border-rose-200 bg-rose-50 text-rose-700;
+  }
+
+  .gc-alert--success {
+    @apply gc-alert border-emerald-200 bg-emerald-50 text-emerald-800;
+  }
+}
+
+@layer utilities {
+  .gc-grid-2 {
+    @apply grid gap-5 md:grid-cols-2;
+  }
+
+  .gc-grid-3 {
+    @apply grid gap-6 lg:grid-cols-[2fr_3fr];
+  }
+
+  .gc-stack {
+    @apply flex flex-col gap-6;
+  }
+}

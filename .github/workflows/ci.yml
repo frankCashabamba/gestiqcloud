@@ -1,0 +1,168 @@
+﻿name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            frontend:
+              - 'apps/admin/**'
+              - 'apps/tenant/**'
+              - 'apps/packages/**'
+              - 'apps/**/package.json'
+              - 'apps/**/package-lock.json'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'yarn.lock'
+              - '.github/workflows/ci.yml'
+            backend:
+              - 'apps/backend/**'
+              - 'scripts/**'
+              - 'ops/**'
+              - 'render.yaml'
+              - 'apps/backend/requirements.txt'
+              - '.github/workflows/ci.yml'
+  backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/backend
+    env:
+      # Común a todos los pasos
+      PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/apps:${{ github.workspace }}/apps/backend"
+      DATABASE_URL: "sqlite:///./test.db"     # DB de archivo (no memoria)
+      FRONTEND_URL: "http://localhost:8081"
+      TENANT_NAMESPACE_UUID: "0280249e-6707-40fb-8d60-1e8f3aea0f8e"
+      JWT_SECRET_KEY: "devsecrets@devsecretdevsecret"
+      IMPORTS_ENABLED: "1"
+      TEST_MINIMAL: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Clean test DB
+        run: rm -f test.db
+
+      # Crea el esquema con tu Base, importando desde app.config.database
+      - name: Init schema (SQLAlchemy Base.create_all)
+        run: |
+          python - <<'PY'
+          import sys
+          # Intentar ambas rutas según el PYTHONPATH
+          try:
+              from app.config.database import Base, engine
+          except ModuleNotFoundError:
+              from apps.backend.app.config.database import Base, engine
+
+          # Soportar sync y async engines
+          try:
+              from sqlalchemy.ext.asyncio import AsyncEngine
+          except Exception:
+              AsyncEngine = None
+
+          if AsyncEngine and isinstance(engine, AsyncEngine):
+              import asyncio
+              async def _go():
+                  async with engine.begin() as conn:
+                      await conn.run_sync(Base.metadata.create_all)
+              asyncio.run(_go())
+          else:
+              Base.metadata.create_all(bind=engine)
+
+          print("✅ Schema creado en test.db")
+          PY
+
+      - name: Run tests
+        run: pytest -q app/tests
+
+      - name: Validate FE/BE endpoints
+        run: python ../../scripts/check_endpoints.py
+
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            apps/admin/package-lock.json
+            apps/tenant/package-lock.json
+
+      - name: Admin typecheck
+        working-directory: apps/admin
+        run: |
+          set -e
+          if ! npm ci; then
+            echo "::warning ::npm ci failed (lock mismatch). Falling back to npm install"
+            npm install --no-audit --no-fund
+          fi
+          npm run typecheck
+
+      - name: Admin build (no deploy)
+        working-directory: apps/admin
+        run: |
+          npm run build
+        env:
+          VITE_API_URL: https://api.gestiqcloud.com
+          VITE_BASE_PATH: /
+          VITE_TENANT_ORIGIN: https://www.gestiqcloud.com
+          VITE_ADMIN_ORIGIN: https://admin.gestiqcloud.com
+
+      - name: Tenant typecheck
+        working-directory: apps/tenant
+        run: |
+          set -e
+          if ! npm ci; then
+            echo "::warning ::npm ci failed (lock mismatch). Falling back to npm install"
+            npm install --no-audit --no-fund
+          fi
+          npm run typecheck
+
+      - name: Tenant build (no deploy)
+        working-directory: apps/tenant
+        run: |
+          npm run build
+        env:
+          VITE_API_URL: https://api.gestiqcloud.com
+          VITE_BASE_PATH: /
+          VITE_TENANT_ORIGIN: https://www.gestiqcloud.com
+          VITE_ADMIN_ORIGIN: https://admin.gestiqcloud.com
+
+      - name: Upload build artifacts (optional)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontends-build
+          path: |
+            apps/admin/dist
+            apps/tenant/dist

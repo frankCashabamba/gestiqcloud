@@ -1,0 +1,1 @@
+export { setupPWA } from './setupPWA'

@@ -1,0 +1,42 @@
+/* src/pages/admin-panel.css */
+.admin-container {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.admin-title {
+  font-weight: 800;
+  font-size: 28px;
+  margin: 0 0 4px;
+}
+
+.admin-section {
+  margin-top: 32px;
+}
+
+.admin-section h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 640px) {
+  .admin-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 960px) {
+  .admin-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

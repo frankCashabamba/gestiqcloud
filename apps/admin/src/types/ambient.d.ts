@@ -1,0 +1,2 @@
+declare module 'idb-keyval'
+

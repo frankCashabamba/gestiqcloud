@@ -1,0 +1,20 @@
+name = "api-proxy"  
+main = "edge-gateway.js"
+compatibility_date = "2024-10-01"
+account_id = "0347e711dc94c7d155ad900b0d6c19fd"
+workers_dev = false
+
+routes = [
+  { pattern = "api.gestiqcloud.com/*",  zone_name = "gestiqcloud.com" },
+  { pattern = "admin.gestiqcloud.com/api/*", zone_name = "gestiqcloud.com" },
+  { pattern = "www.gestiqcloud.com/api/*", zone_name = "gestiqcloud.com" },
+  { pattern = "admin.gestiqcloud.com/v1/*",  zone_name = "gestiqcloud.com" },
+  { pattern = "www.gestiqcloud.com/v1/*",   zone_name = "gestiqcloud.com" }
+]
+
+[vars]
+TARGET = "https://gestiqcloud-api.onrender.com"
+ALLOWED_ORIGINS = "https://admin.gestiqcloud.com,https://www.gestiqcloud.com"
+COOKIE_DOMAIN = ".gestiqcloud.com"
+HSTS_ENABLED = "1"
+API_VERSION = "1.0.0"

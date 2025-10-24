@@ -1,0 +1,2 @@
+-- add customers table
+
