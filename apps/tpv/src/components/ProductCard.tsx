@@ -1,7 +1,7 @@
 /**
  * Product Card - Card individual de producto (touch-optimized)
  */
-import React from 'react'
+
 
 type Product = {
   id: string

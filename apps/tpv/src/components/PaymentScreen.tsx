@@ -1,7 +1,7 @@
 /**
  * Payment Screen - Pantalla de cobro (fullscreen)
  */
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { processPayment } from '../services/api'
 
 type PaymentScreenProps = {

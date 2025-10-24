@@ -1,7 +1,7 @@
 /**
  * Product Grid - Grid de productos con cards touch-optimized
  */
-import React from 'react'
+
 import ProductCard from './ProductCard'
 
 type Product = {

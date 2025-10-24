@@ -1,7 +1,7 @@
 /**
  * Offline Indicator - Indicador de estado de conexión
  */
-import React from 'react'
+
 
 type OfflineIndicatorProps = {
   isOnline: boolean

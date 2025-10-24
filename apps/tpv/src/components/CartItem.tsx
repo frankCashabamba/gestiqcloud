@@ -1,7 +1,7 @@
 /**
  * Cart Item - Item individual del carrito
  */
-import React from 'react'
+
 
 type CartItemProps = {
   item: {

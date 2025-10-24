@@ -1,7 +1,7 @@
 /**
  * Cart - Carrito lateral con totales y acciones
  */
-import React from 'react'
+
 import CartItem from './CartItem'
 
 type CartItem = {

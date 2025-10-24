@@ -44,8 +44,7 @@ async function getDB() {
       
       // Pending sales store
       if (!db.objectStoreNames.contains('pending_sales')) {
-        const store = db.createObjectStore('pending_sales', { keyPath: 'id' })
-        store.createIndex('synced', 'synced')
+        db.createObjectStore('pending_sales', { keyPath: 'id' })
       }
     },
   })
@@ -88,8 +87,8 @@ export async function savePendingSale(sale: {
 
 export async function getPendingSales() {
   const db = await getDB()
-  const index = db.transaction('pending_sales').store.index('synced')
-  return index.getAll(IDBKeyRange.only(false))
+  const allSales = await db.getAll('pending_sales')
+  return allSales.filter(sale => !sale.synced)
 }
 
 export async function markSaleAsSynced(id: string) {

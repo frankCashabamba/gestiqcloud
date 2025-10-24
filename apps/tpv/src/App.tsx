@@ -2,7 +2,7 @@
  * TPV App - Punto de Venta Universal
  * Diseñado para tablet/kiosko, offline-first, touch-optimized
  */
-import React, { useState, useEffect } from 'react'
+import { useState } from 'react'
 import ProductGrid from './components/ProductGrid'
 import Cart from './components/Cart'
 import PaymentScreen from './components/PaymentScreen'
@@ -20,7 +20,7 @@ export default function App() {
 
   // Filtrar productos por búsqueda
   const filteredProducts = searchTerm
-    ? products.filter((p) =>
+    ? products.filter((p: any) =>
         p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase()))
       )

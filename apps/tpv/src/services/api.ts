@@ -72,7 +72,7 @@ export async function processPayment(payload: {
   })
 
   // 2. Pagar
-  await payReceipt(receipt.id, [
+  await payReceipt((receipt as any).id, [
     {
       method: payload.method,
       amount: payload.amount_received,
