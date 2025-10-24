@@ -69,3 +69,9 @@ backend/scripts/
 *.sqlite3
 *.db-shm
 *.db-wal
+
+# --- archivos Excel grandes / catálogos ---
+*.xlsx
+*.xls
+!**/templates/**/*.xlsx
+!**/templates/**/*.xls
