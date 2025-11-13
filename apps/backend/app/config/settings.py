@@ -5,6 +5,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Literal, Optional, Union
+import hashlib
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -200,7 +201,18 @@ class Settings(BaseSettings):
                 "SECRET_KEY no puede ser 'change-me'. Genera una clave segura de ≥32 caracteres."
             )
         if len(val) < 32:
-            raise ValueError(f"SECRET_KEY debe tener al menos 32 caracteres (actual: {len(val)})")
+            env = os.getenv("ENV", "development").lower()
+            if env != "production":
+                derived = hashlib.sha256(val.encode("utf-8")).hexdigest()
+                print(
+                    "[settings][WARNING] SECRET_KEY demasiado corto (", len(val), "caracteres)",
+                    "→ derivando SHA-256 para entorno",
+                    env,
+                )
+                return SecretStr(derived)
+            raise ValueError(
+                f"SECRET_KEY debe tener al menos 32 caracteres (actual: {len(val)})"
+            )
         return v
 
     # Frontend
