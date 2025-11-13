@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from app.modules.admin_config.application.dias_semana.dto import DiaSemanaIn, DiaSemanaOut
 from app.modules.admin_config.application.dias_semana.ports import DiaSemanaRepo

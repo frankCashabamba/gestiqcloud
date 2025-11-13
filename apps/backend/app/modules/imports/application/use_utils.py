@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 
-def _to_iso_date(value: Any) -> Optional[str]:
+def _to_iso_date(value: Any) -> str | None:
     if value is None:
         return None
     s = str(value).strip()
@@ -33,11 +33,11 @@ def _to_iso_date(value: Any) -> Optional[str]:
 
 
 def apply_mapping(
-    raw: Dict[str, Any],
-    mappings: Dict[str, str] | None,
-    transforms: Dict[str, Any] | None,
-    defaults: Dict[str, Any] | None,
-) -> Dict[str, Any]:
+    raw: dict[str, Any],
+    mappings: dict[str, str] | None,
+    transforms: dict[str, Any] | None,
+    defaults: dict[str, Any] | None,
+) -> dict[str, Any]:
     """Map input `raw` fields into a normalized dict.
 
     - `mappings`: {'dest_field': 'source_field'}
@@ -48,7 +48,7 @@ def apply_mapping(
     transforms = transforms or {}
     defaults = defaults or {}
 
-    normalized: Dict[str, Any] = {}
+    normalized: dict[str, Any] = {}
 
     # 1) apply mappings
     for dest, src in mappings.items():

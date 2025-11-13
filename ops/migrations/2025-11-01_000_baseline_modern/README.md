@@ -1,7 +1,7 @@
 # Migración Baseline Moderna - v2.0
 
-**Fecha**: 2025-11-01  
-**Versión**: 2.0.0  
+**Fecha**: 2025-11-01
+**Versión**: 2.0.0
 **Tipo**: Baseline consolidada
 
 ## Descripción
@@ -112,6 +112,6 @@ ops/migrations/YYYY-MM-DD_NNN_description/
 
 ---
 
-**Estado**: ✅ Activa  
-**Compatible con**: Backend v2.0, Frontend v2.0  
+**Estado**: ✅ Activa
+**Compatible con**: Backend v2.0, Frontend v2.0
 **Aplicada en**: Desarrollo Local, Staging (pendiente), Producción (pendiente)

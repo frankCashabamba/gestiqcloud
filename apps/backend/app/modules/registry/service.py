@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import pkgutil
+from collections.abc import Iterable
 from importlib import import_module
-from typing import Iterable, List
 
 from .models import ModuleManifest
 
@@ -16,12 +16,12 @@ def _iter_subpackages(pkg_name: str) -> Iterable[str]:
         yield m.name
 
 
-def discover_manifests() -> List[ModuleManifest]:
+def discover_manifests() -> list[ModuleManifest]:
     """Discover MANIFEST objects defined in `app.modules.*.manifest`.
 
     Best-effort: skip modules without manifest or with invalid shapes.
     """
-    manifests: List[ModuleManifest] = []
+    manifests: list[ModuleManifest] = []
     for name in _iter_subpackages("app.modules"):
         if not name.endswith(".manifest") and not name.split(".")[-1] == "manifest":
             # Try to load `<module>.manifest` explicitly

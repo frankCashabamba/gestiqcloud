@@ -15,4 +15,3 @@ export function setupPWA(onEvent?: (ev: 'need-refresh' | 'offline-ready') => voi
   ;(window as any).__updateSW = updateSW
   return updateSW
 }
-

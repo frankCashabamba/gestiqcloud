@@ -136,7 +136,7 @@ describe('AuthContext', () => {
       // Verificar que NO se agregó Authorization header
       const fetchCall = (global.fetch as jest.Mock).mock.calls[0]
       const headers = fetchCall[1]?.headers || {}
-      
+
       expect(headers.Authorization).toBeUndefined()
 
       // Verificar que credentials: 'include' está presente

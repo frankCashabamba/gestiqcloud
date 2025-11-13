@@ -1,10 +1,9 @@
 """Schemas Pydantic para Ventas"""
 
 from datetime import date, datetime
-from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # Base schema
@@ -12,15 +11,13 @@ class VentaBase(BaseModel):
     """Campos comunes de Venta"""
 
     numero: str = Field(..., max_length=50, description="Número de venta")
-    cliente_id: Optional[UUID] = Field(None, description="ID del cliente")
+    cliente_id: UUID | None = Field(None, description="ID del cliente")
     fecha: date = Field(default_factory=date.today)
     subtotal: float = Field(default=0, ge=0)
     impuestos: float = Field(default=0, ge=0)
     total: float = Field(default=0, ge=0)
-    estado: str = Field(
-        default="draft", pattern="^(draft|confirmed|invoiced|cancelled)$"
-    )
-    notas: Optional[str] = None
+    estado: str = Field(default="draft", pattern="^(draft|confirmed|invoiced|cancelled)$")
+    notas: str | None = None
 
 
 # Create schema
@@ -34,16 +31,14 @@ class VentaCreate(VentaBase):
 class VentaUpdate(BaseModel):
     """Schema para actualizar venta (todos campos opcionales)"""
 
-    numero: Optional[str] = Field(None, max_length=50)
-    cliente_id: Optional[UUID] = None
-    fecha: Optional[date] = None
-    subtotal: Optional[float] = Field(None, ge=0)
-    impuestos: Optional[float] = Field(None, ge=0)
-    total: Optional[float] = Field(None, ge=0)
-    estado: Optional[str] = Field(
-        None, pattern="^(draft|confirmed|invoiced|cancelled)$"
-    )
-    notas: Optional[str] = None
+    numero: str | None = Field(None, max_length=50)
+    cliente_id: UUID | None = None
+    fecha: date | None = None
+    subtotal: float | None = Field(None, ge=0)
+    impuestos: float | None = Field(None, ge=0)
+    total: float | None = Field(None, ge=0)
+    estado: str | None = Field(None, pattern="^(draft|confirmed|invoiced|cancelled)$")
+    notas: str | None = None
 
     model_config = ConfigDict(extra="forbid")
 

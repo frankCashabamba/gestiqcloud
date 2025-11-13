@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import Sequence
-
-from sqlalchemy.orm import Session
+from collections.abc import Sequence
 
 from app.models.empresa.empresa import Moneda as MonedaORM
 from app.modules.admin_config.application.monedas.dto import MonedaIn, MonedaOut
 from app.modules.admin_config.application.monedas.ports import MonedaRepo
+from sqlalchemy.orm import Session
 
 
 class SqlAlchemyMonedaRepo(MonedaRepo):
@@ -23,11 +22,7 @@ class SqlAlchemyMonedaRepo(MonedaRepo):
         )
 
     def list(self) -> Sequence[MonedaOut]:
-        rows = (
-            self.db.query(MonedaORM)
-            .order_by(MonedaORM.code.asc())
-            .all()
-        )
+        rows = self.db.query(MonedaORM).order_by(MonedaORM.code.asc()).all()
         return [self._to_dto(r) for r in rows]
 
     def create(self, data: MonedaIn) -> MonedaOut:

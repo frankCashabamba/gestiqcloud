@@ -2,15 +2,14 @@ from __future__ import annotations
 
 import csv
 import io
-from fastapi import APIRouter, Depends, Response
-from sqlalchemy.orm import Session
-from sqlalchemy import text
 
+from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.config.database import get_db
 from app.db.rls import ensure_rls
-
+from fastapi import APIRouter, Depends, Response
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/export",
@@ -35,9 +34,7 @@ def _csv(rows, header):
 @router.get("/products.csv", response_class=Response)
 def export_products(db: Session = Depends(get_db)):
     rows = db.execute(
-        text(
-            "SELECT id, COALESCE(sku,'') AS sku, name, price, unit FROM products ORDER BY id"
-        )
+        text("SELECT id, COALESCE(sku,'') AS sku, name, price, unit FROM products ORDER BY id")
     )
     items = [dict(r) for r in rows.mappings().all()]
     data = _csv(items, ["id", "sku", "name", "price", "unit"])

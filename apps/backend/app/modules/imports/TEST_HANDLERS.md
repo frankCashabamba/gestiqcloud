@@ -134,9 +134,9 @@ uuid-producto-1  | tenant-1  | Pan Integral 500g | 2.50  | 150   | PAN-0023  | c
 ### Factura Promocionada
 
 ```sql
-SELECT i.numero, i.proveedor, i.total, c.nombre 
-FROM invoices i 
-JOIN clients c ON i.cliente_id = c.id 
+SELECT i.numero, i.proveedor, i.total, c.nombre
+FROM invoices i
+JOIN clients c ON i.cliente_id = c.id
 WHERE i.numero = 'B7322538-0003';
 
 -- Resultado:
@@ -145,8 +145,8 @@ numero          | proveedor  | total  | nombre
 B7322538-0003   | ACME Corp  | 112.00 | ACME Corp
 
 -- Líneas de factura:
-SELECT descripcion, cantidad, precio_unitario, iva 
-FROM invoice_lines 
+SELECT descripcion, cantidad, precio_unitario, iva
+FROM invoice_lines
 WHERE factura_id = 'uuid-factura-1';
 
 -- Resultado:
@@ -158,11 +158,11 @@ Servicio de consultoría  | 1.00     | 100.00          | 12.00
 ### Transacción Bancaria Promocionada
 
 ```sql
-SELECT 
-  bt.fecha, 
-  bt.concepto, 
-  bt.importe, 
-  bt.moneda, 
+SELECT
+  bt.fecha,
+  bt.concepto,
+  bt.importe,
+  bt.moneda,
   ba.nombre as cuenta
 FROM bank_transactions bt
 JOIN bank_accounts ba ON bt.cuenta_id = ba.id
@@ -177,8 +177,8 @@ fecha      | concepto                          | importe | moneda | cuenta
 ### Gasto Promocionado
 
 ```sql
-SELECT fecha, concepto, categoria, total, forma_pago 
-FROM gastos 
+SELECT fecha, concepto, categoria, total, forma_pago
+FROM gastos
 WHERE concepto LIKE '%Combustible%';
 
 -- Resultado:
@@ -229,7 +229,7 @@ Después de promover un batch, verificar:
 ### Ver últimos items promocionados
 
 ```sql
-SELECT 
+SELECT
   il.item_id,
   il.promoted_to,
   il.promoted_ref,
@@ -243,7 +243,7 @@ LIMIT 20;
 ### Ver items con errores
 
 ```sql
-SELECT 
+SELECT
   ii.id,
   ii.idx,
   ii.status,
@@ -260,7 +260,7 @@ ORDER BY ii.idx;
 ### Ver estadísticas por tipo
 
 ```sql
-SELECT 
+SELECT
   ib.source_type,
   COUNT(*) as total_batches,
   SUM(CASE WHEN ib.status = 'PROMOTED' THEN 1 ELSE 0 END) as promoted,
@@ -277,19 +277,19 @@ GROUP BY ib.source_type;
 ## 🐛 Troubleshooting
 
 ### Error: "Cliente not found"
-**Causa**: El modelo Cliente requiere ciertos campos.  
+**Causa**: El modelo Cliente requiere ciertos campos.
 **Solución**: El handler crea automáticamente un cliente básico si no existe.
 
 ### Error: "BankAccount not found"
-**Causa**: No hay cuenta bancaria para el tenant.  
+**Causa**: No hay cuenta bancaria para el tenant.
 **Solución**: El handler crea automáticamente "Cuenta Principal" si no existe.
 
 ### Error: "Proveedor.nombre not found"
-**Causa**: El modelo Proveedor no existe o tiene estructura diferente.  
+**Causa**: El modelo Proveedor no existe o tiene estructura diferente.
 **Solución**: El handler ya maneja la excepción y continúa sin proveedor_id si falla.
 
 ### Error: "Gasto.usuario_id required"
-**Causa**: El campo usuario_id es NOT NULL.  
+**Causa**: El campo usuario_id es NOT NULL.
 **Solución**: El handler genera un UUID genérico. En producción, obtener del contexto.
 
 ---
@@ -322,6 +322,6 @@ Medidas en servidor con 2 CPU:
 
 ---
 
-**Estado**: ✅ **100% FUNCIONAL - IMPLEMENTACIÓN REAL**  
-**Última actualización**: 2025-11-05  
+**Estado**: ✅ **100% FUNCIONAL - IMPLEMENTACIÓN REAL**
+**Última actualización**: 2025-11-05
 **Listo para producción**: Sí

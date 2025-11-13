@@ -14,7 +14,7 @@
 │  Quick reference table
 │  └─→ EMPEZAR AQUÍ (5 min)
 
-┌─ FASE_C_COMPLETADA.md  
+┌─ FASE_C_COMPLETADA.md
 │  Resumen ejecutivo completo
 │  Checklist de cierre
 │  Métricas de calidad (100+ tests)

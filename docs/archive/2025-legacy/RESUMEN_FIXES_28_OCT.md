@@ -213,7 +213,7 @@ docker exec db psql -U postgres -d gestiqclouddb_dev -c "SELECT * FROM import_co
 
 ---
 
-**Desarrollador:** Amp AI  
-**Fecha:** 28 Octubre 2025  
-**Tiempo Total:** ~6 horas  
+**Desarrollador:** Amp AI
+**Fecha:** 28 Octubre 2025
+**Tiempo Total:** ~6 horas
 **Estado:** ✅ **COMPLETADO**

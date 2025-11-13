@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from fastapi import Depends, Request
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from sqlalchemy.sql import literal_column
-
 from app.config.database import get_db
-
+from fastapi import Depends, Request
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+from sqlalchemy.sql import literal_column
 
 __all__ = [
     "ensure_rls",
@@ -105,9 +103,7 @@ def tenant_id_sql_expr():
         db.scalar(select(tenant_id_sql_expr()))
         stmt = select(Model).where(Model.tenant_id == tenant_id_sql_expr())
     """
-    return literal_column("current_setting('app.tenant_id', true)::uuid").label(
-        "tenant_id"
-    )
+    return literal_column("current_setting('app.tenant_id', true)::uuid").label("tenant_id")
 
 
 def tenant_id_sql_expr_text(param_name: str = "tid") -> str:
@@ -162,9 +158,7 @@ def set_tenant_guc(db: Session, tenant_id: str, persist: bool = False) -> None:
         pass
 
 
-def ensure_guc_from_request(
-    request: Request, db: Session, persist: bool = False
-) -> None:
+def ensure_guc_from_request(request: Request, db: Session, persist: bool = False) -> None:
     """Extrae tenant de la request y lo setea como GUC en esta sesión."""
     tid = tenant_id_from_request(request)
     if tid:

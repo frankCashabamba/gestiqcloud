@@ -20,7 +20,7 @@ __all__ = [
     # ... 75+ modelos exportados
 ]
 
-# apps/backend/app/modules/usuarios/__init__.py  
+# apps/backend/app/modules/usuarios/__init__.py
 __all__ = ["router", "public_router"]
 
 # apps/backend/app/modules/usuarios/application/__init__.py
@@ -168,7 +168,7 @@ $ ruff check apps/backend
 Found 179 errors.
 ```
 
-### Después  
+### Después
 ```bash
 $ ruff check apps/backend --select F401,F403,F821,F823,E402,F841
 ✨ Todo limpio! ✨
@@ -241,5 +241,5 @@ El código ahora:
 
 ---
 
-**Fecha**: Enero 2025  
+**Fecha**: Enero 2025
 **Estado**: ✅ COMPLETADO - Código 100% limpio

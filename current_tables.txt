@@ -1,4 +1,4 @@
-       tablename        
+       tablename
 ------------------------
  auth_refresh_family
  auth_refresh_token
@@ -20,4 +20,3 @@
  tenants
  warehouses
 (19 rows)
-

@@ -70,4 +70,3 @@ Should respond 204 with CORS headers and Allow-Credentials: true.
 - Missing cookies: Ensure backend sets Set-Cookie in login/refresh; gateway rewrites attributes.
 - Cross-site cookie blocked: confirm `SameSite=None; Secure` on `refresh_token` and HTTPS in browser.
 - HSTS not present: ensure the request is HTTPS and `HSTS_ENABLED=1`.
-

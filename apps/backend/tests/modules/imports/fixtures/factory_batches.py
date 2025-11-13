@@ -1,10 +1,12 @@
 """
 Factory para crear batches e items de prueba.
 """
+
 import uuid
-from typing import Dict, Any, List
-from sqlalchemy.orm import Session
 from datetime import datetime
+from typing import Any
+
+from sqlalchemy.orm import Session
 
 from app.models.core.modelsimport import ImportBatch, ImportItem
 
@@ -40,15 +42,15 @@ def create_test_item(
     file_key: str = None,
     file_sha256: str = None,
     status: str = "preprocessing",
-    normalized: Dict[str, Any] = None,
+    normalized: dict[str, Any] = None,
 ) -> ImportItem:
     """Crea un item de prueba."""
     if file_key is None:
         file_key = f"imports/{tenant_id}/{batch_id}/{filename}"
-    
+
     if file_sha256 is None:
         file_sha256 = f"sha256_{uuid.uuid4().hex[:16]}"
-    
+
     item = ImportItem(
         id=uuid.uuid4(),
         batch_id=batch_id,
@@ -67,7 +69,7 @@ def create_test_item(
     return item
 
 
-def create_mock_invoice_normalized() -> Dict[str, Any]:
+def create_mock_invoice_normalized() -> dict[str, Any]:
     """Devuelve normalized mock de factura válida."""
     return {
         "proveedor": {
@@ -97,7 +99,7 @@ def create_mock_invoice_normalized() -> Dict[str, Any]:
     }
 
 
-def create_mock_bank_normalized() -> Dict[str, Any]:
+def create_mock_bank_normalized() -> dict[str, Any]:
     """Devuelve normalized mock de movimiento bancario."""
     return {
         "cuenta_iban": "EC12345678901234567890",
@@ -116,7 +118,7 @@ def create_items_batch(
     count: int = 5,
     status: str = "extracted",
     normalized_factory=create_mock_invoice_normalized,
-) -> List[ImportItem]:
+) -> list[ImportItem]:
     """Crea múltiples items para un batch."""
     items = []
     for i in range(count):

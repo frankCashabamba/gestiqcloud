@@ -53,7 +53,7 @@ export interface ClassifyResponse {
 ### 3. ✅ Integrar `ClassificationSuggestion` en `Wizard.tsx`
 **Ubicación**: Paso 2 (Preview) - Ya existe la integración en línea 209-215
 
-**Status actual**: 
+**Status actual**:
 - El componente está importado ✅
 - Se pasa `result`, `loading`, `error`, `confidence` ✅
 - Hook `useClassifyFile` se usa correctamente ✅
@@ -103,7 +103,7 @@ try {
 }
 ```
 
-**Pendiente**: 
+**Pendiente**:
 - Guardar resultado en estado persistente
 - Usar en el batch creation
 
@@ -118,8 +118,8 @@ Wizard.tsx
 │   └── classifyApi.classifyFileWithAI()
 │       └── POST /imports/files/classify-with-ai
 └── createBatch() - Al final, pasar campos:
-    └── { 
-      source_type, origin, 
+    └── {
+      source_type, origin,
       suggested_parser,      ← DEL CLASSIFICATION RESULT
       classification_confidence,
       ai_enhanced, ai_provider

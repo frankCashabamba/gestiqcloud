@@ -9,12 +9,11 @@ bridges that gap and preserves the previous public API.
 
 from __future__ import annotations
 
-from fastapi import Depends, HTTPException, Request
-from sqlalchemy.orm import Session
-
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.db import rls as rls_core
+from fastapi import Depends, HTTPException, Request
+from sqlalchemy.orm import Session
 
 
 def ensure_rls(request: Request, db: Session = Depends(get_db)) -> str:

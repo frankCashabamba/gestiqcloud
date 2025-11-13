@@ -11,18 +11,18 @@ Soporta:
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
-from uuid import UUID, uuid4
-from datetime import datetime, date
+from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
+from uuid import UUID, uuid4
+
 from sqlalchemy.orm import Session
-from sqlalchemy import text
 
 
 class PromoteResult:
     """Resultado de una operación de promoción."""
 
-    def __init__(self, domain_id: Optional[str], skipped: bool = False, errors: Optional[list] = None):
+    def __init__(self, domain_id: str | None, skipped: bool = False, errors: list | None = None):
         self.domain_id = domain_id
         self.skipped = skipped
         self.errors = errors or []
@@ -40,9 +40,9 @@ class InvoiceHandler:
     def promote(
         db: Session,
         tenant_id: UUID,
-        normalized: Dict[str, Any],
-        promoted_id: Optional[str] = None,
-        **kwargs
+        normalized: dict[str, Any],
+        promoted_id: str | None = None,
+        **kwargs,
     ) -> PromoteResult:
         """
         Promociona factura completa a tabla invoices.
@@ -60,9 +60,9 @@ class InvoiceHandler:
         if promoted_id:
             return PromoteResult(domain_id=promoted_id, skipped=True)
 
+        from app.models.core.clients import Cliente
         from app.models.core.facturacion import Invoice
         from app.models.core.invoiceLine import LineaFactura
-        from app.models.core.clients import Cliente
 
         try:
             # Extraer campos requeridos con múltiples alias
@@ -93,7 +93,11 @@ class InvoiceHandler:
                 else:
                     fecha_emision = datetime.utcnow().date().isoformat()
             elif isinstance(fecha_raw, (date, datetime)):
-                fecha_emision = fecha_raw.isoformat() if isinstance(fecha_raw, date) else fecha_raw.date().isoformat()
+                fecha_emision = (
+                    fecha_raw.isoformat()
+                    if isinstance(fecha_raw, date)
+                    else fecha_raw.date().isoformat()
+                )
             else:
                 fecha_emision = datetime.utcnow().date().isoformat()
 
@@ -175,11 +179,15 @@ class InvoiceHandler:
                 ]
 
             for line in lines_data:
-                descripcion = str(line.get("descripcion") or line.get("desc") or line.get("description") or "").strip()
+                descripcion = str(
+                    line.get("descripcion") or line.get("desc") or line.get("description") or ""
+                ).strip()
                 if not descripcion:
                     continue
 
-                cantidad = float(line.get("cantidad") or line.get("qty") or line.get("quantity") or 1)
+                cantidad = float(
+                    line.get("cantidad") or line.get("qty") or line.get("quantity") or 1
+                )
                 precio_unitario = float(
                     line.get("precio_unitario")
                     or line.get("unit_price")
@@ -219,9 +227,9 @@ class BankHandler:
     def promote(
         db: Session,
         tenant_id: UUID,
-        normalized: Dict[str, Any],
-        promoted_id: Optional[str] = None,
-        **kwargs
+        normalized: dict[str, Any],
+        promoted_id: str | None = None,
+        **kwargs,
     ) -> PromoteResult:
         """
         Promociona transacción bancaria a tabla bank_transactions.
@@ -238,7 +246,12 @@ class BankHandler:
         if promoted_id:
             return PromoteResult(domain_id=promoted_id, skipped=True)
 
-        from app.models.core.facturacion import BankTransaction, BankAccount, MovimientoTipo, MovimientoEstado
+        from app.models.core.facturacion import (
+            BankAccount,
+            BankTransaction,
+            MovimientoEstado,
+            MovimientoTipo,
+        )
 
         try:
             # Fecha
@@ -292,13 +305,16 @@ class BankHandler:
             ).strip()
 
             # Referencia
-            referencia = str(
-                normalized.get("reference")
-                or normalized.get("referencia")
-                or normalized.get("external_ref")
-                or normalized.get("bank_tx", {}).get("external_ref")
-                or ""
-            ).strip() or None
+            referencia = (
+                str(
+                    normalized.get("reference")
+                    or normalized.get("referencia")
+                    or normalized.get("external_ref")
+                    or normalized.get("bank_tx", {}).get("external_ref")
+                    or ""
+                ).strip()
+                or None
+            )
 
             # IBAN (opcional)
             iban = str(normalized.get("iban") or "").strip() or None
@@ -307,7 +323,8 @@ class BankHandler:
             moneda = str(
                 normalized.get("currency")
                 or normalized.get("moneda")
-                or normalized.get("country") == "EC" and "USD"
+                or normalized.get("country") == "EC"
+                and "USD"
                 or "EUR"
             ).upper()
 
@@ -320,11 +337,7 @@ class BankHandler:
                 )
             else:
                 # Buscar cuenta por defecto del tenant
-                cuenta = (
-                    db.query(BankAccount)
-                    .filter(BankAccount.tenant_id == tenant_id)
-                    .first()
-                )
+                cuenta = db.query(BankAccount).filter(BankAccount.tenant_id == tenant_id).first()
 
             if not cuenta:
                 # Crear cuenta bancaria por defecto
@@ -393,9 +406,9 @@ class ExpenseHandler:
     def promote(
         db: Session,
         tenant_id: UUID,
-        normalized: Dict[str, Any],
-        promoted_id: Optional[str] = None,
-        **kwargs
+        normalized: dict[str, Any],
+        promoted_id: str | None = None,
+        **kwargs,
     ) -> PromoteResult:
         """
         Promociona gasto/recibo a tabla gastos.
@@ -445,11 +458,11 @@ class ExpenseHandler:
             ).strip()
 
             # Categoría
-            categoria = str(
-                normalized.get("category")
-                or normalized.get("categoria")
-                or "otros"
-            ).strip().lower()
+            categoria = (
+                str(normalized.get("category") or normalized.get("categoria") or "otros")
+                .strip()
+                .lower()
+            )
 
             # Importes
             iva = float(
@@ -483,12 +496,15 @@ class ExpenseHandler:
             forma_pago = payment_map.get(forma_pago_raw, forma_pago_raw)
 
             # Número de factura
-            factura_numero = str(
-                normalized.get("invoice_number")
-                or normalized.get("numero_factura")
-                or normalized.get("receipt_number")
-                or ""
-            ).strip() or None
+            factura_numero = (
+                str(
+                    normalized.get("invoice_number")
+                    or normalized.get("numero_factura")
+                    or normalized.get("receipt_number")
+                    or ""
+                ).strip()
+                or None
+            )
 
             # Proveedor (opcional)
             proveedor_nombre = str(
@@ -503,9 +519,12 @@ class ExpenseHandler:
                 # Intentar buscar proveedor existente
                 try:
                     from app.models.suppliers.proveedor import Proveedor
+
                     proveedor = (
                         db.query(Proveedor)
-                        .filter(Proveedor.tenant_id == tenant_id, Proveedor.nombre == proveedor_nombre)
+                        .filter(
+                            Proveedor.tenant_id == tenant_id, Proveedor.nombre == proveedor_nombre
+                        )
                         .first()
                     )
                     if proveedor:

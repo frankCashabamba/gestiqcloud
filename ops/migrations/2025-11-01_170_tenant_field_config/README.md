@@ -11,4 +11,3 @@ Cambios
 Uso previsto
 - GET /api/v1/tenant/settings/fields?module=clientes&empresa=:slug devuelve
   la configuración; si no hay filas, retorna defaults por sector.
-

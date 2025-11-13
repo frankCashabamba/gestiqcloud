@@ -37,21 +37,21 @@ RIESGO: BAJO (con backup de BD)
       - Modulo.id: int → UUID
       - EmpresaModulo.id: int → UUID
       - ModuloAsignado.id: int → UUID
-      
+
    ✅ app/models/empresa/rolempresas.py
       - RolEmpresa.id: int → UUID
       - RolEmpresa.rol_base_id: int → UUID
-      
+
    ✅ app/models/empresa/empresa.py
       - PerfilUsuario.usuario_id: int → UUID (FK)
 
 3. INTERFACES HTTP
    ✅ app/modules/usuarios/interface/http/tenant.py
       - PATCH /api/v1/tenant/usuarios/{usuario_id: UUID}
-      
+
    ✅ app/modules/clients/interface/http/tenant.py
       - PATCH /api/v1/tenant/clientes/{cliente_id: UUID}
-      
+
    ✅ app/modules/inventario/interface/http/tenant.py
       - PATCH /api/v1/tenant/almacenes/{wid: UUID}
 

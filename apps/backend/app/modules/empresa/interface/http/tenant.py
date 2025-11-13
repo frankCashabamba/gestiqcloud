@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request, HTTPException
-from sqlalchemy.orm import Session
+from uuid import UUID
 
+from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.config.database import get_db
 from app.db.rls import ensure_rls
 from app.modules.empresa.application.use_cases import ListarEmpresasTenant
 from app.modules.empresa.infrastructure.repositories import SqlEmpresaRepo
-from uuid import UUID
-
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/empresa",
@@ -35,9 +34,7 @@ def _tenant_uuid(request: Request) -> UUID:
 
 
 @router.get("", response_model=list[EmpresaOutSchema])
-def mi_empresa(
-    request: Request, db: Session = Depends(get_db)
-) -> list[EmpresaOutSchema]:
+def mi_empresa(request: Request, db: Session = Depends(get_db)) -> list[EmpresaOutSchema]:
     tenant_id = _tenant_uuid(request)
     use = ListarEmpresasTenant(SqlEmpresaRepo(db))
     items = use.execute(tenant_id=tenant_id)

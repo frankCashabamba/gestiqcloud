@@ -4,17 +4,17 @@ Server-side session middleware backed by pluggable stores (Redis or in-memory).
 
 from __future__ import annotations
 
+import json
+import logging
+import secrets
+import time
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Protocol
+from typing import Any, Protocol
 
+from itsdangerous import BadSignature, Signer
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
-from itsdangerous import Signer, BadSignature
-import secrets
-import time
-import json
-import logging
 
 
 @dataclass
@@ -24,26 +24,26 @@ class SessionConfig:
     cookie_samesite: str = "Strict"
     cookie_secure: bool = True
     cookie_httponly: bool = True
-    cookie_domain: Optional[str] = None
+    cookie_domain: str | None = None
 
 
 class SessionStore(Protocol):
-    async def create(self, sid: str, data: Dict[str, Any], ttl: int) -> None: ...
-    async def get(self, sid: str) -> Dict[str, Any]: ...
-    async def set(self, sid: str, data: Dict[str, Any], ttl: int) -> None: ...
+    async def create(self, sid: str, data: dict[str, Any], ttl: int) -> None: ...
+    async def get(self, sid: str) -> dict[str, Any]: ...
+    async def set(self, sid: str, data: dict[str, Any], ttl: int) -> None: ...
     async def delete(self, sid: str) -> None: ...
 
 
 class InMemorySessionStore:
     def __init__(self) -> None:
-        self._data: Dict[str, Dict[str, Any]] = {}
-        self._exp: Dict[str, int] = {}
+        self._data: dict[str, dict[str, Any]] = {}
+        self._exp: dict[str, int] = {}
 
-    async def create(self, sid: str, data: Dict[str, Any], ttl: int) -> None:
+    async def create(self, sid: str, data: dict[str, Any], ttl: int) -> None:
         self._data[sid] = dict(data)
         self._exp[sid] = int(time.time()) + int(ttl)
 
-    async def get(self, sid: str) -> Dict[str, Any]:
+    async def get(self, sid: str) -> dict[str, Any]:
         now = int(time.time())
         exp = self._exp.get(sid)
         if exp is None or exp < now:
@@ -52,7 +52,7 @@ class InMemorySessionStore:
             return {}
         return dict(self._data.get(sid, {}))
 
-    async def set(self, sid: str, data: Dict[str, Any], ttl: int) -> None:
+    async def set(self, sid: str, data: dict[str, Any], ttl: int) -> None:
         self._data[sid] = dict(data)
         self._exp[sid] = int(time.time()) + int(ttl)
 
@@ -73,10 +73,10 @@ class RedisSessionStore:
     def _k(self, sid: str) -> str:
         return f"{self._prefix}{sid}"
 
-    async def create(self, sid: str, data: Dict[str, Any], ttl: int) -> None:
+    async def create(self, sid: str, data: dict[str, Any], ttl: int) -> None:
         await self._redis.setex(self._k(sid), int(ttl), json.dumps(data))
 
-    async def get(self, sid: str) -> Dict[str, Any]:
+    async def get(self, sid: str) -> dict[str, Any]:
         raw = await self._redis.get(self._k(sid))
         if not raw:
             return {}
@@ -85,7 +85,7 @@ class RedisSessionStore:
         except Exception:
             return {}
 
-    async def set(self, sid: str, data: Dict[str, Any], ttl: int) -> None:
+    async def set(self, sid: str, data: dict[str, Any], ttl: int) -> None:
         await self._redis.setex(self._k(sid), int(ttl), json.dumps(data))
 
     async def delete(self, sid: str) -> None:
@@ -101,8 +101,8 @@ class SessionMiddlewareServerSide(BaseHTTPMiddleware):
         https_only: bool = True,
         *,
         ttl_seconds: int = 60 * 60 * 4,
-        store: Optional[SessionStore] = None,
-        cookie_domain: Optional[str] = None,
+        store: SessionStore | None = None,
+        cookie_domain: str | None = None,
         fallback_window_seconds: int = 30,
     ):
         super().__init__(app)
@@ -119,9 +119,7 @@ class SessionMiddlewareServerSide(BaseHTTPMiddleware):
             raw_samesite = str(getattr(settings, "COOKIE_SAMESITE", "Strict")).lower()
             if raw_samesite not in ("lax", "strict", "none"):
                 raw_samesite = "lax"
-            cookie_samesite = (
-                raw_samesite.capitalize()
-            )  # store canonical, lower() on set_cookie
+            cookie_samesite = raw_samesite.capitalize()  # store canonical, lower() on set_cookie
             if cdomain is None:
                 cdomain = getattr(settings, "COOKIE_DOMAIN", None)
         except Exception:
@@ -162,10 +160,8 @@ class SessionMiddlewareServerSide(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         raw = request.cookies.get(self.cfg.cookie_name)
         sid = None
-        session: Dict[str, Any] = {}
-        store_for_read = (
-            self._fallback_store if self._using_fallback() else self._primary_store
-        )
+        session: dict[str, Any] = {}
+        store_for_read = self._fallback_store if self._using_fallback() else self._primary_store
         if raw:
             try:
                 sid = self.signer.unsign(raw.encode()).decode()
@@ -197,9 +193,7 @@ class SessionMiddlewareServerSide(BaseHTTPMiddleware):
         response: Response = await call_next(request)
 
         # Persist session if it's dirty or a known sid with content
-        if getattr(request.state, "session_dirty", False) or (
-            sid and request.state.session
-        ):
+        if getattr(request.state, "session_dirty", False) or (sid and request.state.session):
             data = dict(request.state.session)
             if not sid:
                 sid = secrets.token_urlsafe(32)

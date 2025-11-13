@@ -7,9 +7,7 @@ def _tenant_token(client: TestClient, usuario_empresa_factory):
     suffix = uuid.uuid4().hex[:6]
     username = f"imp_{suffix}"
     email = f"imp_{suffix}@x.com"
-    usuario, tenant = usuario_empresa_factory(
-        email=email, username=username, password="secret"
-    )
+    usuario, tenant = usuario_empresa_factory(email=email, username=username, password="secret")
     r = client.post(
         "/api/v1/tenant/auth/login",
         json={"identificador": username, "password": "secret"},
@@ -187,9 +185,7 @@ def test_patch_and_revalidate(client: TestClient, db, usuario_empresa_factory):
     assert found.get("last_correction", {}).get("field") == "total_amount"
 
 
-def test_tenant_scoping_forbids_cross_access(
-    client: TestClient, db, usuario_empresa_factory
-):
+def test_tenant_scoping_forbids_cross_access(client: TestClient, db, usuario_empresa_factory):
     # Create tenant A and batch
     tok_a = _tenant_token(client, usuario_empresa_factory)
     headers_a = {"Authorization": f"Bearer {tok_a}"}

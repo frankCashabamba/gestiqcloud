@@ -53,7 +53,7 @@ async function queueRequest(request) {
       return
     }
   }
-  
+
   const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
   const headers = {}
   request.headers.forEach((v, k) => { headers[k] = v })
@@ -89,7 +89,7 @@ async function flushQueue() {
   let fail = 0
   let deferred = 0
   let discarded = 0
-  
+
   for (const [key, item] of items) {
     // Discard items that have failed too many times
     if ((item.attempts || 0) >= config.maxAttempts) {
@@ -97,9 +97,9 @@ async function flushQueue() {
       discarded += 1
       continue
     }
-    
+
     if (Date.now() < (item.nextAttemptAt || 0)) { deferred += 1; continue }
-    
+
     try {
       const init = {
         method: item.method,
@@ -129,18 +129,18 @@ async function flushQueue() {
       fail += 1
     }
   }
-  
+
   try {
     const clientsList = await self.clients.matchAll({ type: 'window' })
-    clientsList.forEach((c) => c.postMessage({ 
-      type: 'OUTBOX_SYNCED', 
-      ok, 
-      fail, 
+    clientsList.forEach((c) => c.postMessage({
+      type: 'OUTBOX_SYNCED',
+      ok,
+      fail,
       deferred,
-      discarded 
+      discarded
     }))
   } catch {}
-  
+
   const remaining = (await entries(OUTBOX_DB)).length
   if (remaining > 0) {
     try { await self.registration.sync.register('sync-api') } catch {}
@@ -188,7 +188,7 @@ self.addEventListener('fetch', (event) => {
   if (isApi(request)) {
     const url = new URL(request.url)
     const isTelemetry = config.skipTelemetry && url.pathname.includes('/telemetry')
-    
+
     if (request.method === 'GET') {
       event.respondWith(
         fetch(withVersionHeader(request))

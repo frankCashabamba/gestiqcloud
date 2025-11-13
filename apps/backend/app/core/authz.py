@@ -1,6 +1,7 @@
 # app/core/authz.py
+from collections.abc import Iterable
+
 from fastapi import HTTPException, Request
-from typing import Iterable
 
 
 def _extract_claims(request: Request) -> dict:

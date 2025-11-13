@@ -1,7 +1,7 @@
 # ✅ VERIFICACIÓN FRONTEND - RESUMEN EJECUTIVO
 
-**Fecha:** 2025-11-11  
-**Hallazgo principal:** ❌ La auditoría anterior afirmó 0% implementado. **INCORRECTO.**  
+**Fecha:** 2025-11-11
+**Hallazgo principal:** ❌ La auditoría anterior afirmó 0% implementado. **INCORRECTO.**
 **Realidad:** ✅ **99% implementado y funcional**
 
 ---
@@ -67,16 +67,16 @@
 // Línea 44: Definición componente
 export default function ImportadorWizard() {
   // Integraciones verificadas:
-  
+
   const { classify, loading, result, error, confidence } = useClassifyFile()
   // ✅ Hook de clasificación integrado
-  
+
   const { progress, progressPercent, isConnected } = useImportProgress({
     batchId: batchId || undefined,
     token: token || undefined
   })
   // ✅ WebSocket integrado
-  
+
   const batch = await createBatch(batchPayload, token)
   // ✅ API de batch integrada
 }
@@ -130,14 +130,14 @@ export function useClassifyFile(): UseClassifyFileReturn {
   const [loading, setLoading] = useState(false) ✅
   const [result, setResult] = useState<ClassifyResponse | null>(null) ✅
   const [error, setError] = useState<Error | null>(null) ✅
-  
+
   const classify = useCallback(async (file: File) => {
-    const classificationResult = 
+    const classificationResult =
       await classifyApi.classifyFileWithFallback(file)
     // ✅ Lógica de fallback implementada
     setResult(classificationResult)
   }, [])
-  
+
   const confidence = result
     ? getConfidenceLevel(result.confidence)
     : null
@@ -175,7 +175,7 @@ glob pattern: **/*.tsx
 workspace roots: [/apps/backend/alembic, /apps/backend/app, /apps/backend/tests]
 
 # Pero los archivos estaban en:
-/apps/tenant/src/modules/importador/ 
+/apps/tenant/src/modules/importador/
   ↑ Directorio NO incluido en workspace roots
 ```
 

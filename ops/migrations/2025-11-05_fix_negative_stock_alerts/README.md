@@ -1,6 +1,6 @@
 # Migración: Detectar y Alertar Stock Negativo
 
-**Fecha**: 2025-11-05  
+**Fecha**: 2025-11-05
 **Prioridad**: Alta
 
 ## Problema
@@ -37,16 +37,16 @@ Después de aplicar, verifica:
 
 ```sql
 -- Ver productos con stock negativo y sus alertas
-SELECT 
-  p.code, 
-  p.name, 
+SELECT
+  p.code,
+  p.name,
   si.qty,
   sa.alert_type,
   sa.status,
   sa.created_at
 FROM stock_items si
 JOIN products p ON p.id = si.product_id
-LEFT JOIN stock_alerts sa ON sa.product_id = si.product_id 
+LEFT JOIN stock_alerts sa ON sa.product_id = si.product_id
   AND sa.warehouse_id = si.warehouse_id
   AND sa.status = 'active'
 WHERE si.qty < 0

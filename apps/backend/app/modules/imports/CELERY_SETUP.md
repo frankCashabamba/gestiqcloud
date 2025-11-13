@@ -19,7 +19,7 @@ graph LR
     M --> N[Queue: imports_pub]
     N --> O[Task: Publish]
     O --> P[Destination Tables]
-    
+
     E -->|Error| Q[DLQ]
     G -->|Error| Q
     I -->|Error| Q
@@ -43,8 +43,8 @@ graph LR
 ## Estados de Item
 
 ```
-pending → preprocessing → preprocessed → ocr_processing → ocr_completed 
-  → classifying → classified → extracting → extracted → validating 
+pending → preprocessing → preprocessed → ocr_processing → ocr_completed
+  → classifying → classified → extracting → extracted → validating
   → validated → publishing → published
 
 *_failed (cualquier etapa puede fallar, con retry)

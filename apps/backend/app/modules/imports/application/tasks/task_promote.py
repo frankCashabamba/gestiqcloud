@@ -13,16 +13,18 @@ Flujo:
 from __future__ import annotations
 
 import logging
-from uuid import UUID
 from datetime import datetime
-from typing import Optional
+from uuid import UUID
 
 try:
     from celery import Task  # type: ignore
+
     _celery_available = True
 except Exception:  # pragma: no cover
+
     class Task:  # type: ignore
         pass
+
     _celery_available = False
 
 try:
@@ -32,7 +34,7 @@ except Exception:  # pragma: no cover
 
 from app.config.database import session_scope
 from app.db.rls import set_tenant_guc
-from app.models.core.modelsimport import ImportItem, ImportBatch
+from app.models.core.modelsimport import ImportBatch, ImportItem
 from app.modules.imports.domain.canonical_schema import validate_canonical
 from app.modules.imports.domain.handlers_router import HandlersRouter
 
@@ -41,6 +43,7 @@ logger = logging.getLogger(__name__)
 
 class PromoteTask(Task):
     """Celery task config para promover items."""
+
     autoretry_for = (Exception,)
     retry_kwargs = {"max_retries": 2}
     retry_backoff = True
@@ -52,7 +55,7 @@ def _impl_promote_item(
     item_id: str,
     tenant_id: str,
     batch_id: str,
-    task_id: Optional[str] = None,
+    task_id: str | None = None,
 ) -> dict:
     """
     Promueve un ImportItem validado a su tabla destino.
@@ -197,11 +200,13 @@ def _impl_promote_item(
             except Exception as handler_error:
                 item.status = "ERROR_PROMOTION"
                 item.errors = item.errors or []
-                item.errors.append({
-                    "phase": "promotion",
-                    "doc_type": doc_type,
-                    "message": str(handler_error),
-                })
+                item.errors.append(
+                    {
+                        "phase": "promotion",
+                        "doc_type": doc_type,
+                        "message": str(handler_error),
+                    }
+                )
                 db.commit()
                 logger.error(
                     f"Promotion failed for {item_id}: {handler_error}",
@@ -224,7 +229,7 @@ def _impl_promote_item(
 def _impl_promote_batch(
     batch_id: str,
     tenant_id: str,
-    task_id: Optional[str] = None,
+    task_id: str | None = None,
 ) -> dict:
     """
     Promueve todos los items OK de un batch.
@@ -313,7 +318,11 @@ def _impl_promote_batch(
                     if promote_result:
                         item.status = "PROMOTED"
                         item.promoted_to = promote_result.get("target")
-                        item.promoted_id = UUID(promote_result.get("domain_id")) if promote_result.get("domain_id") else None
+                        item.promoted_id = (
+                            UUID(promote_result.get("domain_id"))
+                            if promote_result.get("domain_id")
+                            else None
+                        )
                         item.promoted_at = datetime.utcnow()
                         promoted += 1
                     else:
@@ -358,9 +367,7 @@ if _celery_available and celery_app is not None:  # pragma: no cover
     @celery_app.task(base=PromoteTask, bind=True, name="imports.promote_batch")
     def promote_batch(self, batch_id: str, tenant_id: str) -> dict:
         """Promueve todos los items de un batch."""
-        return _impl_promote_batch(
-            batch_id, tenant_id, task_id=getattr(self.request, "id", None)
-        )
+        return _impl_promote_batch(batch_id, tenant_id, task_id=getattr(self.request, "id", None))
 
 else:
 

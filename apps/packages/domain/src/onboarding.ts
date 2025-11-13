@@ -8,4 +8,3 @@ export function createOnboardingService(api: AxiosInstance, basePath: string) {
     },
   }
 }
-

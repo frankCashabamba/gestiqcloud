@@ -17,7 +17,6 @@ import re
 import sys
 from pathlib import Path
 
-
 REPO = Path(__file__).resolve().parents[1]
 FE_ENDPOINTS_DIR = REPO / "apps" / "packages" / "endpoints" / "src"
 

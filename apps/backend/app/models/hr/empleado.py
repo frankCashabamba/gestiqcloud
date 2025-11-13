@@ -1,15 +1,13 @@
-﻿"""Modelos de RRHH"""
+"""Modelos de RRHH"""
 
 import uuid
 from datetime import date, datetime
-from typing import Optional, List
-
-from sqlalchemy import Date, String, Numeric, ForeignKey, Boolean, Integer
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
 from app.models.auth.useradmis import SuperUser
+from sqlalchemy import Boolean, Date, ForeignKey, Integer, Numeric, String
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 class Empleado(Base):
@@ -27,28 +25,24 @@ class Empleado(Base):
         nullable=False,
         index=True,
     )
-    usuario_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    usuario_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("auth_user.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
-    codigo: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    codigo: Mapped[str | None] = mapped_column(String(50), nullable=True)
     nombre: Mapped[str] = mapped_column(String(255), nullable=False)
-    apellidos: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    documento: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    fecha_nacimiento: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    apellidos: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    documento: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    fecha_nacimiento: Mapped[date | None] = mapped_column(Date, nullable=True)
     fecha_alta: Mapped[date] = mapped_column(Date, nullable=False, default=date.today)
-    fecha_baja: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    cargo: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    departamento: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    salario_base: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
-    activo: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, index=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow
-    )
+    fecha_baja: Mapped[date | None] = mapped_column(Date, nullable=True)
+    cargo: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    departamento: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    salario_base: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
@@ -57,7 +51,7 @@ class Empleado(Base):
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
     # Vincular al modelo de usuario administrativo correcto
     usuario = relationship(SuperUser, foreign_keys=[usuario_id])
-    vacaciones: Mapped[List["Vacacion"]] = relationship(
+    vacaciones: Mapped[list["Vacacion"]] = relationship(
         "Vacacion", back_populates="empleado", cascade="all, delete-orphan"
     )
 
@@ -96,13 +90,9 @@ class Vacacion(Base):
         index=True,
         # solicitada, aprobada, rechazada
     )
-    aprobado_por: Mapped[Optional[uuid.UUID]] = mapped_column(
-        PGUUID(as_uuid=True), nullable=True
-    )
-    notas: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow
-    )
+    aprobado_por: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    notas: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )

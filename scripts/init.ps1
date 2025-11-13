@@ -213,4 +213,3 @@ switch ($cmd) {
   }
   default { Write-Host "Usage: scripts/init.ps1 {up|down|rebuild|logs [svc]|typecheck|migrate [up|down] [dir]|schema-check|schema-explain|auto-migrate|migrate-local|alembic-draft|alembic-upgrade|baseline|local|compose-min|compose-backend|compose-no-migrations|compose-web|compose-worker|compose-migrate|compose-all|up-all|render-migrate}" }
 }
-

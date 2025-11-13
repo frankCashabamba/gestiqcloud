@@ -1,7 +1,7 @@
 /**
  * useClassifyFile.ts
  * Hook para clasificar archivos usando el servicio classifyApi
- * 
+ *
  * Maneja:
  * - Estado de carga (loading)
  * - Resultados de clasificación

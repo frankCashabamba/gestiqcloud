@@ -1,8 +1,8 @@
 # Tarea 3: Integración de Clasificación IA en Frontend - COMPLETADA ✅
 
-**Fecha Inicio:** 11/11/2025  
-**Fecha Completación:** 11/11/2025  
-**Tiempo Real:** ~1.5h  
+**Fecha Inicio:** 11/11/2025
+**Fecha Completación:** 11/11/2025
+**Tiempo Real:** ~1.5h
 **Estado:** ✅ COMPLETADO Y FUNCIONAL
 
 ---
@@ -76,7 +76,7 @@ onFile handler
                 ↓
 Avanza a Preview
     ↓
-<ClassificationSuggestion /> 
+<ClassificationSuggestion />
     └─ Muestra resultado + badge + barras
 ```
 
@@ -96,12 +96,12 @@ Avanza a Preview
    - Mensaje de error
 
 3. **Success**
-   - **Header:** 
+   - **Header:**
      - Icono ✨
      - Título "Clasificación automática"
      - Badge: "92% confianza" (color-coded)
      - Badge: "Potenciado con IA" (si aplica)
-   
+
    - **Sugerencia:**
      - Texto: "Parser sugerido:"
      - Código: `products_excel`
@@ -355,8 +355,8 @@ const result = await classifyFile(file, token)
 
 **Si necesitas renderizar resultado:**
 ```typescript
-<ClassificationSuggestion 
-  result={result} 
+<ClassificationSuggestion
+  result={result}
   loading={loading}
   error={error}
 />
@@ -364,6 +364,6 @@ const result = await classifyFile(file, token)
 
 ---
 
-**Implementado por:** Sistema Amp  
-**Fecha:** 11/11/2025  
+**Implementado por:** Sistema Amp
+**Fecha:** 11/11/2025
 **Próxima Tarea:** Tests endpoints (Tarea 4)

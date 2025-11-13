@@ -10,7 +10,7 @@ global.fetch = mockFetch
 // Componente de prueba que usa el hook
 function TestComponent() {
   const { user, isAuthenticated, loading } = useAuth()
-  
+
   return (
     <div>
       <div data-testid="loading">{loading ? 'loading' : 'ready'}</div>
@@ -45,7 +45,7 @@ describe('AuthContext', () => {
 
   it('debería detectar usuario autenticado si hay token', async () => {
     localStorage.setItem('access_token', 'mock-token')
-    
+
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ email: 'test@example.com', id: 1 })
@@ -66,7 +66,7 @@ describe('AuthContext', () => {
 
   it('debería manejar error de carga', async () => {
     localStorage.setItem('access_token', 'invalid-token')
-    
+
     mockFetch.mockRejectedValueOnce(new Error('Network error'))
 
     render(

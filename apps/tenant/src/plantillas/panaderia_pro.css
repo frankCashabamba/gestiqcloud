@@ -94,13 +94,13 @@
     gap: 8px;
     padding: 0 8px;
   }
-  
+
   .topbar select,
   .topbar input[type="date"],
   .topbar .btn:not(.btn--primary) {
     display: none;
   }
-  
+
   .search {
     flex: 1;
     min-width: 0;

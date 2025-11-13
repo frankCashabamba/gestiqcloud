@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
 from ...infrastructure.repositories import GastoRepo
-from .schemas import GastoCreate, GastoUpdate, GastoOut
+from .schemas import GastoCreate, GastoOut, GastoUpdate
 
 router = APIRouter(
     prefix="/gastos",
@@ -19,20 +20,13 @@ router = APIRouter(
 
 
 @router.get("", response_model=list[GastoOut])
-def list_gastos(
-    db: Session = Depends(get_db),
-    claims: dict = Depends(with_access_claims)
-):
+def list_gastos(db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)):
     tenant_id = claims["tenant_id"]
     return GastoRepo(db).list(tenant_id)
 
 
 @router.get("/{gid}", response_model=GastoOut)
-def get_gasto(
-    gid: int,
-    db: Session = Depends(get_db),
-    claims: dict = Depends(with_access_claims)
-):
+def get_gasto(gid: int, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)):
     tenant_id = claims["tenant_id"]
     obj = GastoRepo(db).get(tenant_id, gid)
     if not obj:
@@ -42,9 +36,7 @@ def get_gasto(
 
 @router.post("", response_model=GastoOut)
 def create_gasto(
-    payload: GastoCreate,
-    db: Session = Depends(get_db),
-    claims: dict = Depends(with_access_claims)
+    payload: GastoCreate, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
 ):
     tenant_id = claims["tenant_id"]
     return GastoRepo(db).create(tenant_id, **payload.model_dump())
@@ -55,7 +47,7 @@ def update_gasto(
     gid: int,
     payload: GastoUpdate,
     db: Session = Depends(get_db),
-    claims: dict = Depends(with_access_claims)
+    claims: dict = Depends(with_access_claims),
 ):
     tenant_id = claims["tenant_id"]
     try:
@@ -66,9 +58,7 @@ def update_gasto(
 
 @router.delete("/{gid}")
 def delete_gasto(
-    gid: int,
-    db: Session = Depends(get_db),
-    claims: dict = Depends(with_access_claims)
+    gid: int, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
 ):
     tenant_id = claims["tenant_id"]
     try:

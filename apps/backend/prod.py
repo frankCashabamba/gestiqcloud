@@ -1,7 +1,7 @@
 # apps/backend/prod.py
 import os
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 PORT = int(os.getenv("PORT", "8000"))
@@ -46,9 +46,7 @@ def run_apply_rls() -> None:
         print("scripts/py/apply_rls.py no existe; se omite.")
         return
 
-    schemas = [
-        s.strip() for s in (os.getenv("RLS_SCHEMAS", "public").split(",")) if s.strip()
-    ]
+    schemas = [s.strip() for s in (os.getenv("RLS_SCHEMAS", "public").split(",")) if s.strip()]
     set_default = os.getenv("RLS_SET_DEFAULT", "1").lower() in ("1", "true", "yes")
 
     env = os.environ.copy()
@@ -177,9 +175,7 @@ def run_legacy_migrations() -> None:
     check_py = SCRIPTS / "check_schema.py"
     if check_py.exists():
         try:
-            subprocess.run(
-                [sys.executable, str(check_py), "--dsn", DB_DSN], check=True, env=env
-            )
+            subprocess.run([sys.executable, str(check_py), "--dsn", DB_DSN], check=True, env=env)
         except subprocess.CalledProcessError as e:
             print(f"⚠️  Schema check warning: {e}")
 

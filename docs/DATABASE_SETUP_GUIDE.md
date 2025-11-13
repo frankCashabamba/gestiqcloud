@@ -160,7 +160,7 @@ cat ops/schema/complete_schema.sql | docker exec -i db psql -U postgres -d gesti
 
 ```sql
 -- Contar tablas
-SELECT COUNT(*) FROM information_schema.tables 
+SELECT COUNT(*) FROM information_schema.tables
 WHERE table_schema = 'public' AND table_type = 'BASE TABLE';
 -- Esperado: ~52 tablas
 ```
@@ -194,7 +194,7 @@ SELECT id, name, sku, price FROM products;
 ### 4. Verificar extensiones
 
 ```sql
-SELECT extname FROM pg_extension 
+SELECT extname FROM pg_extension
 WHERE extname IN ('uuid-ossp', 'pg_trgm');
 -- 2 extensiones
 ```
@@ -202,8 +202,8 @@ WHERE extname IN ('uuid-ossp', 'pg_trgm');
 ### 5. Verificar índices
 
 ```sql
-SELECT tablename, indexname 
-FROM pg_indexes 
+SELECT tablename, indexname
+FROM pg_indexes
 WHERE schemaname = 'public' AND tablename = 'products';
 
 -- Esperado:
@@ -367,7 +367,7 @@ old_empresas = old_db.execute("SELECT * FROM core_empresa").fetchall()
 for emp in old_empresas:
     new_db.execute("""
         INSERT INTO tenants (
-            nombre, ruc, country_code, base_currency, 
+            nombre, ruc, country_code, base_currency,
             telefono, ciudad, activo
         ) VALUES (
             :nombre, :ruc, :country, :currency,
@@ -390,7 +390,7 @@ for emp in old_empresas:
 
 ### Error: `relation "tenants" does not exist`
 
-**Causa**: Schema no aplicado  
+**Causa**: Schema no aplicado
 **Solución**:
 ```bash
 python scripts/init_database.py
@@ -398,7 +398,7 @@ python scripts/init_database.py
 
 ### Error: `permission denied for table tenants`
 
-**Causa**: Usuario sin permisos  
+**Causa**: Usuario sin permisos
 **Solución**:
 ```sql
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO your_user;
@@ -406,7 +406,7 @@ GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO your_user;
 
 ### Error: `duplicate key value violates unique constraint`
 
-**Causa**: Datos duplicados en migración  
+**Causa**: Datos duplicados en migración
 **Solución**:
 ```bash
 # Drop y recrear limpio
@@ -415,7 +415,7 @@ python scripts/init_database.py --confirm
 
 ### Error: `database "gestiqclouddb_dev" does not exist`
 
-**Causa**: DB no creada  
+**Causa**: DB no creada
 **Solución**:
 ```bash
 createdb -U postgres gestiqclouddb_dev
@@ -450,6 +450,6 @@ Antes de deploy en producción:
 
 ---
 
-**Versión**: 2.0  
-**Última actualización**: 26 Enero 2025  
+**Versión**: 2.0
+**Última actualización**: 26 Enero 2025
 **Estado**: ✅ PRODUCTION READY

@@ -64,6 +64,3 @@ export default function TenantShell() {
     </div>
   )
 }
-
-
-

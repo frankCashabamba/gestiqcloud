@@ -28,7 +28,7 @@ Total: **25+ Foreign Keys** migradas de int a UUID
 
 ### Constraint Renombrado
 
-- `modulos_moduloasignado_usuario_id_modulo_id_empresa_id_uniq` → 
+- `modulos_moduloasignado_usuario_id_modulo_id_empresa_id_uniq` →
 - `modulos_moduloasignado_usuario_id_modulo_id_tenant_id_uniq`
 
 ## Pre-requisitos
@@ -59,9 +59,9 @@ psql -U postgres -d gestiqclouddb -f ops/migrations/2025-10-26_200_uuid_complete
 
 # 3. Verificar
 psql -U postgres -d gestiqclouddb -c "
-  SELECT table_name, column_name, data_type 
-  FROM information_schema.columns 
-  WHERE column_name LIKE '%_id' 
+  SELECT table_name, column_name, data_type
+  FROM information_schema.columns
+  WHERE column_name LIKE '%_id'
     AND table_name IN ('clients', 'products', 'facturas')
   ORDER BY table_name;
 "
@@ -71,20 +71,20 @@ psql -U postgres -d gestiqclouddb -c "
 
 ### 1. Verificar PKs UUID
 ```sql
-SELECT 
-    t.table_name, 
-    k.column_name, 
+SELECT
+    t.table_name,
+    k.column_name,
     c.data_type
 FROM information_schema.table_constraints t
-JOIN information_schema.key_column_usage k 
+JOIN information_schema.key_column_usage k
   ON t.constraint_name = k.constraint_name
-JOIN information_schema.columns c 
-  ON k.table_name = c.table_name 
+JOIN information_schema.columns c
+  ON k.table_name = c.table_name
   AND k.column_name = c.column_name
 WHERE t.constraint_type = 'PRIMARY KEY'
   AND c.table_schema = 'public'
   AND t.table_name IN (
-    'clients', 'products', 'facturas', 
+    'clients', 'products', 'facturas',
     'bank_accounts', 'bank_transactions'
   );
 ```
@@ -93,19 +93,19 @@ WHERE t.constraint_type = 'PRIMARY KEY'
 
 ### 2. Verificar FKs
 ```sql
-SELECT 
+SELECT
     tc.table_name,
     kcu.column_name,
     ccu.table_name AS foreign_table_name,
     ccu.column_name AS foreign_column_name,
     c.data_type
-FROM information_schema.table_constraints AS tc 
+FROM information_schema.table_constraints AS tc
 JOIN information_schema.key_column_usage AS kcu
   ON tc.constraint_name = kcu.constraint_name
 JOIN information_schema.constraint_column_usage AS ccu
   ON ccu.constraint_name = tc.constraint_name
-JOIN information_schema.columns c 
-  ON kcu.table_name = c.table_name 
+JOIN information_schema.columns c
+  ON kcu.table_name = c.table_name
   AND kcu.column_name = c.column_name
 WHERE tc.constraint_type = 'FOREIGN KEY'
   AND kcu.column_name IN ('cliente_id', 'factura_id', 'product_id')
@@ -115,7 +115,7 @@ ORDER BY tc.table_name;
 ### 3. Contar Registros (Integridad)
 ```sql
 -- Antes y después deben coincidir
-SELECT 
+SELECT
     'clients' AS tabla, COUNT(*) AS registros FROM clients
 UNION ALL
 SELECT 'products', COUNT(*) FROM products
@@ -198,14 +198,14 @@ Todos los endpoints que devuelven IDs ahora devolverán UUIDs:
 
 ## Beneficios Post-Migración
 
-✅ **Consistencia arquitectónica:** 100% UUID en PKs principales  
-✅ **Multi-tenant sólido:** Todas las FKs alineadas con tenants.id (UUID)  
-✅ **Escalabilidad:** UUIDs permiten generación distribuida sin colisiones  
-✅ **Seguridad:** IDs no secuenciales (no predictibles)  
+✅ **Consistencia arquitectónica:** 100% UUID en PKs principales
+✅ **Multi-tenant sólido:** Todas las FKs alineadas con tenants.id (UUID)
+✅ **Escalabilidad:** UUIDs permiten generación distribuida sin colisiones
+✅ **Seguridad:** IDs no secuenciales (no predictibles)
 ✅ **Interoperabilidad:** Estándar RFC 4122
 
 ## Soporte
 
-**Equipo:** GestiQCloud Backend Team  
-**Contacto:** [Slack #backend-migrations]  
+**Equipo:** GestiQCloud Backend Team
+**Contacto:** [Slack #backend-migrations]
 **Documentación:** MODELS_UUID_MIGRATION_ANALYSIS.md

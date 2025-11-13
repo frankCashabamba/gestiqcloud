@@ -2,16 +2,15 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional, List
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ==================== REGISTER SCHEMAS ====================
 class POSRegisterBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
-    store_id: Optional[UUID] = None
+    store_id: UUID | None = None
     active: bool = True
 
 
@@ -20,8 +19,8 @@ class POSRegisterCreate(POSRegisterBase):
 
 
 class POSRegisterUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    active: Optional[bool] = None
+    name: str | None = Field(None, min_length=1, max_length=100)
+    active: bool | None = None
 
 
 class POSRegisterResponse(POSRegisterBase):
@@ -52,8 +51,8 @@ class POSShiftResponse(POSShiftBase):
     register_id: UUID
     opened_by: UUID
     opened_at: datetime
-    closed_at: Optional[datetime] = None
-    closing_total: Optional[Decimal] = None
+    closed_at: datetime | None = None
+    closing_total: Decimal | None = None
     status: str
 
 
@@ -83,7 +82,7 @@ class POSReceiptLineResponse(POSReceiptLineBase):
 class POSPaymentBase(BaseModel):
     method: str = Field(..., pattern="^(cash|card|store_credit|link)$")
     amount: Decimal = Field(..., gt=0, decimal_places=2)
-    ref: Optional[str] = None
+    ref: str | None = None
 
 
 class POSPaymentCreate(POSPaymentBase):
@@ -100,20 +99,20 @@ class POSPaymentResponse(POSPaymentBase):
 
 # ==================== RECEIPT SCHEMAS ====================
 class POSReceiptBase(BaseModel):
-    customer_id: Optional[UUID] = None
+    customer_id: UUID | None = None
     currency: str = Field(default="EUR", pattern="^(EUR|USD)$")
 
 
 class POSReceiptCreate(POSReceiptBase):
     register_id: UUID
     shift_id: UUID
-    lines: List[POSReceiptLineCreate] = Field(..., min_length=1)
-    payments: Optional[List[POSPaymentCreate]] = None
+    lines: list[POSReceiptLineCreate] = Field(..., min_length=1)
+    payments: list[POSPaymentCreate] | None = None
 
 
 class POSReceiptUpdate(BaseModel):
-    status: Optional[str] = Field(None, pattern="^(draft|paid|voided|invoiced)$")
-    customer_id: Optional[UUID] = None
+    status: str | None = Field(None, pattern="^(draft|paid|voided|invoiced)$")
+    customer_id: UUID | None = None
 
 
 class POSReceiptResponse(POSReceiptBase):
@@ -125,13 +124,13 @@ class POSReceiptResponse(POSReceiptBase):
     shift_id: UUID
     number: str
     status: str
-    invoice_id: Optional[UUID] = None
+    invoice_id: UUID | None = None
     gross_total: Decimal
     tax_total: Decimal
-    paid_at: Optional[datetime] = None
+    paid_at: datetime | None = None
     created_at: datetime
-    lines: List[POSReceiptLineResponse] = []
-    payments: List[POSPaymentResponse] = []
+    lines: list[POSReceiptLineResponse] = []
+    payments: list[POSPaymentResponse] = []
 
 
 # ==================== INVOICE CONVERSION SCHEMAS ====================
@@ -139,17 +138,17 @@ class CustomerDataForInvoice(BaseModel):
     name: str = Field(..., min_length=1)
     tax_id: str = Field(..., min_length=1)
     country: str = Field(..., pattern="^(ES|EC)$")
-    address: Optional[str] = None
-    email: Optional[str] = None
+    address: str | None = None
+    email: str | None = None
 
 
 class ReceiptToInvoiceRequest(BaseModel):
     customer: CustomerDataForInvoice
-    series: Optional[str] = None
+    series: str | None = None
 
 
 # ==================== REFUND SCHEMAS ====================
 class ReceiptRefundRequest(BaseModel):
     reason: str = Field(..., min_length=1, max_length=500)
     refund_method: str = Field(..., pattern="^(cash|card|store_credit)$")
-    store_credit_months: Optional[int] = Field(default=12, ge=1, le=24)
+    store_credit_months: int | None = Field(default=12, ge=1, le=24)

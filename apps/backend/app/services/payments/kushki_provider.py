@@ -2,12 +2,13 @@
 Kushki Payment Provider (Ecuador)
 """
 
-import requests
-from typing import Dict, Any
-from decimal import Decimal
-import logging
-import hmac
 import hashlib
+import hmac
+import logging
+from decimal import Decimal
+from typing import Any
+
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 class KushkiProvider:
     """Proveedor de pagos Kushki (Ecuador)"""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         self.merchant_id = config.get("merchant_id")
         self.public_key = config.get("public_key")
         self.private_key = config.get("private_key")
@@ -38,8 +39,8 @@ class KushkiProvider:
         invoice_id: str,
         success_url: str,
         cancel_url: str,
-        metadata: Dict[str, Any] = None,
-    ) -> Dict[str, str]:
+        metadata: dict[str, Any] = None,
+    ) -> dict[str, str]:
         """Crear enlace de pago Kushki"""
 
         try:
@@ -75,10 +76,7 @@ class KushkiProvider:
             data = response.json()
 
             payment_id = data.get("token")
-            payment_url = (
-                data.get("redirectUrl")
-                or f"{self.base_url}/checkout?token={payment_id}"
-            )
+            payment_url = data.get("redirectUrl") or f"{self.base_url}/checkout?token={payment_id}"
 
             logger.info(f"Kushki payment creado: {payment_id} (invoice={invoice_id})")
 
@@ -92,7 +90,7 @@ class KushkiProvider:
             logger.error(f"Error Kushki API: {e}")
             raise ValueError(f"Error creando pago: {str(e)}")
 
-    def handle_webhook(self, payload: bytes, headers: Dict[str, str]) -> Dict[str, Any]:
+    def handle_webhook(self, payload: bytes, headers: dict[str, str]) -> dict[str, Any]:
         """Procesar webhook de Kushki"""
 
         # Verificar firma HMAC si está configurada
@@ -121,8 +119,7 @@ class KushkiProvider:
                 "invoice_id": invoice_id,
                 "amount": Decimal(transaction.get("amount", 0)) / 100,
                 "currency": transaction.get("currency", "USD"),
-                "payment_id": transaction.get("ticketNumber")
-                or transaction.get("token"),
+                "payment_id": transaction.get("ticketNumber") or transaction.get("token"),
             }
 
         elif event_type in ["payment.failed", "charge.failed"]:
@@ -136,7 +133,7 @@ class KushkiProvider:
             logger.warning(f"Evento Kushki no manejado: {event_type}")
             return {"status": "ignored", "event_type": event_type}
 
-    def refund(self, payment_id: str, amount: Decimal = None) -> Dict[str, Any]:
+    def refund(self, payment_id: str, amount: Decimal = None) -> dict[str, Any]:
         """Reembolsar pago via Kushki"""
 
         try:

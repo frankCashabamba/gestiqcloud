@@ -42,4 +42,3 @@ export function SecureRoute({ children, rolesPermitidos = ['superadmin', 'admin_
     return <Navigate to="/login" replace state={{ from: location }} />
   }
 }
-

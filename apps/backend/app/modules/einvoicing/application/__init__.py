@@ -4,8 +4,8 @@ Expose `use_cases` lazily via module-level __getattr__ so that unittest.mock
 patch targets resolve without importing heavy dependencies prematurely.
 """
 
-from typing import Any
 import importlib
+from typing import Any
 
 
 def __getattr__(name: str) -> Any:  # PEP 562 lazy attribute loader

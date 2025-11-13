@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-
+from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.config.database import get_db
 from app.db.rls import ensure_rls
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 try:
     from apps.backend.celery_app import celery_app  # when root is repo
@@ -32,9 +31,7 @@ class SendIn(BaseModel):
 
 
 @router.post("/send/{invoice_id}", response_model=dict)
-def send(
-    invoice_id: int, payload: SendIn, request: Request, db: Session = Depends(get_db)
-):
+def send(invoice_id: int, payload: SendIn, request: Request, db: Session = Depends(get_db)):
     # Resolve tenant UUID to propagate to async task
     claims = getattr(request.state, "access_claims", {}) or {}
     raw_tid = (
@@ -114,9 +111,7 @@ def explain_error(payload: ExplainIn, request: Request, db: Session = Depends(ge
     # Basic explanation based on last error message
     if payload.kind == "sri":
         row = db.execute(
-            text(
-                "SELECT error_code, error_message FROM sri_submissions WHERE id::text=:id"
-            ),
+            text("SELECT error_code, error_message FROM sri_submissions WHERE id::text=:id"),
             {"id": payload.id},
         ).first()
     elif payload.kind == "sii":
@@ -128,13 +123,9 @@ def explain_error(payload: ExplainIn, request: Request, db: Session = Depends(ge
         raise HTTPException(status_code=400, detail="unsupported_kind")
 
     msg = (
-        (row[0] if row and row[0] else None)
-        if payload.kind == "sri"
-        else (row[0] if row else None)
+        (row[0] if row and row[0] else None) if payload.kind == "sri" else (row[0] if row else None)
     )
     if not msg:
         return {"explanation": "Sin errores registrados"}
     # Placeholder NLP explanation (deterministic)
-    return {
-        "explanation": f"Error del proveedor fiscal: {msg}. Revisa credenciales y formato XML."
-    }
+    return {"explanation": f"Error del proveedor fiscal: {msg}. Revisa credenciales y formato XML."}

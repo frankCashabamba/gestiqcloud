@@ -1,7 +1,7 @@
 /**
  * classifyApi.ts
  * Servicio para consumir endpoints de clasificación del backend
- * 
+ *
  * Endpoints disponibles:
  * - POST /api/v1/imports/files/classify (clasificación básica)
  * - POST /api/v1/imports/files/classify-with-ai (clasificación con IA)

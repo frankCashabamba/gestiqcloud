@@ -9,4 +9,3 @@ Notes
 - We do not add a foreign key to core_empresa because the modern schema
   does not include that table in the baseline. The column is a lightweight
   compatibility bridge for existing code paths.
-

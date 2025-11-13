@@ -17,4 +17,3 @@ api         IN  CNAME  gestiqcloud-api.onrender.com.
 
 ; After adding, verify domains in Render for each service.
 ; Then, consider enabling Cloudflare proxy (orange cloud) on all except during verification.
-

@@ -19,10 +19,9 @@ Ejemplo de uso:
     True
 """
 
-from typing import TypedDict, Optional, List, Literal, Tuple
-from datetime import datetime
 import re
-
+from datetime import datetime
+from typing import Literal, TypedDict
 
 # ============================================================================
 # Tipos y constantes
@@ -55,7 +54,7 @@ class TaxBreakdownItem(TypedDict, total=False):
     rate: float  # Tasa (p.ej. 12 para IVA 12%)
     amount: float  # Importe del impuesto
     code: str  # Código fiscal (p.ej. "IVA12-EC", "IVA21-ES")
-    base: Optional[float]  # Base imponible de este tramo
+    base: float | None  # Base imponible de este tramo
 
 
 class TotalsBlock(TypedDict, total=False):
@@ -64,20 +63,20 @@ class TotalsBlock(TypedDict, total=False):
     subtotal: float  # Subtotal/base imponible
     tax: float  # Total de impuestos
     total: float  # Total final (subtotal + tax)
-    tax_breakdown: List[TaxBreakdownItem]  # Desglose por tasa/código
-    discount: Optional[float]  # Descuentos aplicados
-    withholding: Optional[float]  # Retenciones
+    tax_breakdown: list[TaxBreakdownItem]  # Desglose por tasa/código
+    discount: float | None  # Descuentos aplicados
+    withholding: float | None  # Retenciones
 
 
 class PartyInfo(TypedDict, total=False):
     """Información de una parte (vendor/buyer)."""
 
     name: str
-    tax_id: Optional[str]  # RUC/NIF/CIF/DNI
-    country: Optional[str]  # ISO 3166-1 alpha-2
-    address: Optional[str]
-    email: Optional[str]
-    phone: Optional[str]
+    tax_id: str | None  # RUC/NIF/CIF/DNI
+    country: str | None  # ISO 3166-1 alpha-2
+    address: str | None
+    email: str | None
+    phone: str | None
 
 
 class DocumentLine(TypedDict, total=False):
@@ -85,20 +84,20 @@ class DocumentLine(TypedDict, total=False):
 
     desc: str  # Descripción del ítem
     qty: float  # Cantidad
-    unit: Optional[str]  # Unidad (pcs, kg, hrs)
+    unit: str | None  # Unidad (pcs, kg, hrs)
     unit_price: float  # Precio unitario
     total: float  # Total línea (qty * unit_price)
-    tax_code: Optional[str]  # Código de impuesto aplicado
-    tax_amount: Optional[float]  # Importe del impuesto en esta línea
+    tax_code: str | None  # Código de impuesto aplicado
+    tax_amount: float | None  # Importe del impuesto en esta línea
 
 
 class PaymentInfo(TypedDict, total=False):
     """Información de pago."""
 
     method: str  # cash|card|transfer|check|other
-    iban: Optional[str]  # IBAN para transferencias
-    card_last4: Optional[str]  # Últimos 4 dígitos de tarjeta
-    reference: Optional[str]  # Referencia de pago
+    iban: str | None  # IBAN para transferencias
+    card_last4: str | None  # Últimos 4 dígitos de tarjeta
+    reference: str | None  # Referencia de pago
 
 
 class BankTxInfo(TypedDict, total=False):
@@ -108,18 +107,18 @@ class BankTxInfo(TypedDict, total=False):
     direction: str  # debit|credit
     value_date: str  # Fecha valor (YYYY-MM-DD)
     narrative: str  # Concepto/narrativa
-    counterparty: Optional[str]  # Contraparte
-    external_ref: Optional[str]  # Referencia externa (statement ID)
+    counterparty: str | None  # Contraparte
+    external_ref: str | None  # Referencia externa (statement ID)
 
 
 class RoutingProposal(TypedDict, total=False):
     """Propuesta de enrutamiento a tablas destino."""
 
     target: str  # expenses|income|bank_movements
-    category_code: Optional[str]  # Categoría (FUEL, SUPPLIES, etc.)
-    account: Optional[str]  # Cuenta contable (PUC/PGC)
+    category_code: str | None  # Categoría (FUEL, SUPPLIES, etc.)
+    account: str | None  # Cuenta contable (PUC/PGC)
     confidence: float  # Confianza [0..1]
-    vendor_id: Optional[str]  # UUID de vendor si ya existe
+    vendor_id: str | None  # UUID de vendor si ya existe
 
 
 class AttachmentInfo(TypedDict, total=False):
@@ -128,23 +127,23 @@ class AttachmentInfo(TypedDict, total=False):
     file_key: str  # S3 key o ruta
     mime: str  # MIME type
     type: str  # original|thumbnail|xml|pdf
-    size: Optional[int]  # Tamaño en bytes
-    pages: Optional[int]  # Número de páginas (PDF)
+    size: int | None  # Tamaño en bytes
+    pages: int | None  # Número de páginas (PDF)
 
 
 class ProductInfo(TypedDict, total=False):
     """Información específica para documentos de tipo 'product'."""
 
     name: str  # Nombre del producto (REQUIRED)
-    sku: Optional[str]  # SKU/Código del producto
-    category: Optional[str]  # Categoría del producto
-    description: Optional[str]  # Descripción detallada
+    sku: str | None  # SKU/Código del producto
+    category: str | None  # Categoría del producto
+    description: str | None  # Descripción detallada
     price: float  # Precio unitario (REQUIRED)
     stock: float  # Cantidad en stock
-    unit: Optional[str]  # Unidad de medida (pcs, kg, hrs, etc)
-    currency: Optional[str]  # ISO 4217 (USD, EUR, etc)
-    supplier: Optional[PartyInfo]  # Proveedor del producto
-    barcode: Optional[str]  # Código de barras
+    unit: str | None  # Unidad de medida (pcs, kg, hrs, etc)
+    currency: str | None  # ISO 4217 (USD, EUR, etc)
+    supplier: PartyInfo | None  # Proveedor del producto
+    barcode: str | None  # Código de barras
 
 
 class ExpenseInfo(TypedDict, total=False):
@@ -153,12 +152,12 @@ class ExpenseInfo(TypedDict, total=False):
     description: str  # Descripción del gasto (REQUIRED)
     amount: float  # Monto del gasto (REQUIRED)
     expense_date: str  # Fecha del gasto YYYY-MM-DD (REQUIRED)
-    category: Optional[str]  # Categoría del gasto (combustible, suministros, etc)
-    subcategory: Optional[str]  # Subcategoría
-    payment_method: Optional[str]  # Método de pago (cash, card, transfer)
-    vendor: Optional[PartyInfo]  # Proveedor/Comercio
-    receipt_number: Optional[str]  # Número de recibo
-    notes: Optional[str]  # Notas adicionales
+    category: str | None  # Categoría del gasto (combustible, suministros, etc)
+    subcategory: str | None  # Subcategoría
+    payment_method: str | None  # Método de pago (cash, card, transfer)
+    vendor: PartyInfo | None  # Proveedor/Comercio
+    receipt_number: str | None  # Número de recibo
+    notes: str | None  # Notas adicionales
 
 
 class CanonicalDocument(TypedDict, total=False):
@@ -170,24 +169,24 @@ class CanonicalDocument(TypedDict, total=False):
     """
 
     doc_type: str  # REQUIRED: invoice|expense_receipt|bank_tx|product|expense|other
-    country: Optional[str]  # ISO 3166-1 alpha-2
-    currency: Optional[str]  # ISO 4217
-    issue_date: Optional[str]  # YYYY-MM-DD
-    due_date: Optional[str]  # YYYY-MM-DD (facturas)
-    invoice_number: Optional[str]  # Número de factura
-    vendor: Optional[PartyInfo]  # Proveedor/emisor
-    buyer: Optional[PartyInfo]  # Comprador/receptor
-    totals: Optional[TotalsBlock]  # Totales y desglose
-    lines: Optional[List[DocumentLine]]  # Líneas de detalle
-    payment: Optional[PaymentInfo]  # Información de pago
-    bank_tx: Optional[BankTxInfo]  # Específico para transacciones bancarias
-    product: Optional[ProductInfo]  # Específico para productos
-    expense: Optional[ExpenseInfo]  # Específico para gastos
-    routing_proposal: Optional[RoutingProposal]  # Propuesta de enrutamiento
-    attachments: Optional[List[AttachmentInfo]]  # Adjuntos relacionados
-    metadata: Optional[dict]  # Metadatos adicionales extensibles
-    source: Optional[str]  # ocr|xml|csv|api (origen del dato)
-    confidence: Optional[float]  # Confianza global [0..1]
+    country: str | None  # ISO 3166-1 alpha-2
+    currency: str | None  # ISO 4217
+    issue_date: str | None  # YYYY-MM-DD
+    due_date: str | None  # YYYY-MM-DD (facturas)
+    invoice_number: str | None  # Número de factura
+    vendor: PartyInfo | None  # Proveedor/emisor
+    buyer: PartyInfo | None  # Comprador/receptor
+    totals: TotalsBlock | None  # Totales y desglose
+    lines: list[DocumentLine] | None  # Líneas de detalle
+    payment: PaymentInfo | None  # Información de pago
+    bank_tx: BankTxInfo | None  # Específico para transacciones bancarias
+    product: ProductInfo | None  # Específico para productos
+    expense: ExpenseInfo | None  # Específico para gastos
+    routing_proposal: RoutingProposal | None  # Propuesta de enrutamiento
+    attachments: list[AttachmentInfo] | None  # Adjuntos relacionados
+    metadata: dict | None  # Metadatos adicionales extensibles
+    source: str | None  # ocr|xml|csv|api (origen del dato)
+    confidence: float | None  # Confianza global [0..1]
 
 
 # ============================================================================
@@ -195,7 +194,7 @@ class CanonicalDocument(TypedDict, total=False):
 # ============================================================================
 
 
-def _is_valid_date(d: Optional[str]) -> bool:
+def _is_valid_date(d: str | None) -> bool:
     """Valida formato YYYY-MM-DD."""
     if not d:
         return False
@@ -206,9 +205,7 @@ def _is_valid_date(d: Optional[str]) -> bool:
         return False
 
 
-def _is_valid_tax_id(
-    tax_id: Optional[str], country: Optional[str]
-) -> Tuple[bool, Optional[str]]:
+def _is_valid_tax_id(tax_id: str | None, country: str | None) -> tuple[bool, str | None]:
     """
     Valida formato básico de tax_id según país.
 
@@ -232,7 +229,7 @@ def _is_valid_tax_id(
     return True, None
 
 
-def validate_totals(totals: Optional[TotalsBlock]) -> List[str]:
+def validate_totals(totals: TotalsBlock | None) -> list[str]:
     """Valida que subtotal + tax = total y que tax_breakdown suma correctamente."""
     errors = []
 
@@ -255,16 +252,14 @@ def validate_totals(totals: Optional[TotalsBlock]) -> List[str]:
     if tax_breakdown:
         breakdown_sum = sum(item.get("amount", 0.0) for item in tax_breakdown)
         if abs(breakdown_sum - tax) > 0.01:
-            errors.append(
-                f"tax_breakdown suma {breakdown_sum:.2f} pero totals.tax es {tax:.2f}"
-            )
+            errors.append(f"tax_breakdown suma {breakdown_sum:.2f} pero totals.tax es {tax:.2f}")
 
     return errors
 
 
 def validate_tax_breakdown(
-    tax_breakdown: Optional[List[TaxBreakdownItem]],
-) -> List[str]:
+    tax_breakdown: list[TaxBreakdownItem] | None,
+) -> list[str]:
     """Valida estructura de tax_breakdown."""
     errors = []
 
@@ -282,7 +277,7 @@ def validate_tax_breakdown(
     return errors
 
 
-def validate_canonical(data: dict) -> Tuple[bool, List[str]]:
+def validate_canonical(data: dict) -> tuple[bool, list[str]]:
     """
     Valida un documento contra el schema canónico.
 
@@ -298,7 +293,7 @@ def validate_canonical(data: dict) -> Tuple[bool, List[str]]:
         >>> print(is_valid)
         True
     """
-    errors: List[str] = []
+    errors: list[str] = []
 
     # 1. doc_type es obligatorio
     doc_type = data.get("doc_type")
@@ -328,9 +323,7 @@ def validate_canonical(data: dict) -> Tuple[bool, List[str]]:
     # 4. Fechas
     issue_date = data.get("issue_date")
     if issue_date and not _is_valid_date(issue_date):
-        errors.append(
-            f"issue_date '{issue_date}' no válido. Formato esperado: YYYY-MM-DD"
-        )
+        errors.append(f"issue_date '{issue_date}' no válido. Formato esperado: YYYY-MM-DD")
 
     due_date = data.get("due_date")
     if due_date and not _is_valid_date(due_date):
@@ -362,14 +355,10 @@ def validate_canonical(data: dict) -> Tuple[bool, List[str]]:
             if not bank_tx.get("value_date"):
                 errors.append("bank_tx requiere 'value_date'")
             elif not _is_valid_date(bank_tx.get("value_date")):
-                errors.append(
-                    f"bank_tx.value_date '{bank_tx.get('value_date')}' inválido"
-                )
+                errors.append(f"bank_tx.value_date '{bank_tx.get('value_date')}' inválido")
             direction = bank_tx.get("direction")
             if direction and direction not in VALID_DIRECTIONS:
-                errors.append(
-                    f"bank_tx.direction '{direction}' no válido (debit|credit)"
-                )
+                errors.append(f"bank_tx.direction '{direction}' no válido (debit|credit)")
 
     elif doc_type == "product":
         product = data.get("product")
@@ -478,8 +467,8 @@ def validate_canonical(data: dict) -> Tuple[bool, List[str]]:
 
 def build_routing_proposal(
     doc: CanonicalDocument,
-    category_code: Optional[str] = None,
-    account: Optional[str] = None,
+    category_code: str | None = None,
+    account: str | None = None,
     confidence: float = 0.5,
 ) -> RoutingProposal:
     """

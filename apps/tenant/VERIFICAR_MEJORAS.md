@@ -15,7 +15,7 @@ npm run lint
 ```bash
 npm run typecheck
 ```
-**Esperado**: Pueden aparecer algunos errores nuevos por strict mode  
+**Esperado**: Pueden aparecer algunos errores nuevos por strict mode
 **Acción**: Revisar y corregir progresivamente
 
 ---
@@ -32,7 +32,7 @@ npm run test:run
 ```bash
 npm run build
 ```
-**Esperado**: 
+**Esperado**:
 - Build exitoso
 - Chunks separados en `dist/assets/`:
   - `vendor-react-*.js`

@@ -56,4 +56,3 @@ Verification checklist:
 - https://gestiqcloud-admin.onrender.com redirects to /login and refresh works
 - https://admin.gestiqcloud.com/login refresh works
 - https://api.gestiqcloud.com serves API (no HTML)
-

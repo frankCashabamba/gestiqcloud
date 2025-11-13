@@ -1,11 +1,12 @@
-﻿# app/models/usuarioempresa.py
+# app/models/usuarioempresa.py
 import uuid
-import sqlalchemy as sa
 from datetime import datetime
 from typing import TYPE_CHECKING
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+import sqlalchemy as sa
+from app.config.database import IS_SQLITE, Base
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from app.config.database import Base, IS_SQLITE
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
     from app.models.tenant import Tenant
@@ -15,12 +16,8 @@ class UsuarioEmpresa(Base):
     __tablename__ = "usuarios_usuarioempresa"
     __table_args__ = (
         # Unicidad por tenant (elige esto o uniques globales en columnas)
-        sa.UniqueConstraint(
-            "tenant_id", "email", name="uq_usuarioempresa_tenant_email"
-        ),
-        sa.UniqueConstraint(
-            "tenant_id", "username", name="uq_usuarioempresa_tenant_username"
-        ),
+        sa.UniqueConstraint("tenant_id", "email", name="uq_usuarioempresa_tenant_email"),
+        sa.UniqueConstraint("tenant_id", "username", name="uq_usuarioempresa_tenant_username"),
         {"extend_existing": True},
     )
 
@@ -49,25 +46,19 @@ class UsuarioEmpresa(Base):
     )  # considera CITEXT si quieres case-insensitive
     username: Mapped[str] = mapped_column(sa.String(100), nullable=False)
 
-    activo: Mapped[bool] = mapped_column(
-        sa.Boolean, nullable=False, server_default=sa.text("true")
-    )
+    activo: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.text("true"))
     es_admin_empresa: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("false")
     )
 
     password_hash: Mapped[str] = mapped_column(sa.String, nullable=False)
-    password_token_created: Mapped[datetime | None] = mapped_column(
-        sa.DateTime(timezone=True)
-    )
+    password_token_created: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     is_verified: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("false")
     )
 
     # Relación
-    tenant: Mapped["Tenant"] = relationship(
-        "Tenant"
-    )  # o back_populates si defines el lado inverso
+    tenant: Mapped["Tenant"] = relationship("Tenant")  # o back_populates si defines el lado inverso
 
     # Auditoría
     failed_login_count: Mapped[int] = mapped_column(
@@ -75,9 +66,7 @@ class UsuarioEmpresa(Base):
     )
     locked_until: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     last_login_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
-    last_password_change_at: Mapped[datetime | None] = mapped_column(
-        sa.DateTime(timezone=True)
-    )
+    last_password_change_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(

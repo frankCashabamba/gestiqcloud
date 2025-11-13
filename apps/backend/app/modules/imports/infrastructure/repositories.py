@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any, Dict, Iterable, List, Optional
-
-from sqlalchemy.orm import Session
+from collections.abc import Iterable
+from typing import Any
 
 from app.models.core.modelsimport import ImportBatch, ImportItem
+from sqlalchemy.orm import Session
+
 from .tenant_middleware import with_tenant_context
 
 
@@ -18,9 +19,7 @@ class ImportsRepository:
 
     # Batches
     @with_tenant_context
-    def get_batch(
-        self, db: Session, tenant_id: uuid.UUID, batch_id: int
-    ) -> Optional[ImportBatch]:
+    def get_batch(self, db: Session, tenant_id: uuid.UUID, batch_id: int) -> ImportBatch | None:
         # RLS handles tenant_id filtering
         return db.query(ImportBatch).filter(ImportBatch.id == batch_id).first()
 
@@ -30,8 +29,8 @@ class ImportsRepository:
         db: Session,
         tenant_id: uuid.UUID,
         *,
-        status: Optional[str] = None,
-    ) -> List[ImportBatch]:
+        status: str | None = None,
+    ) -> list[ImportBatch]:
         # RLS handles tenant_id filtering
         q = db.query(ImportBatch)
         if status:
@@ -46,9 +45,9 @@ class ImportsRepository:
         tenant_id: uuid.UUID,
         batch_id: int,
         *,
-        status: Optional[str] = None,
-        q: Optional[str] = None,
-    ) -> List[ImportItem]:
+        status: str | None = None,
+        q: str | None = None,
+    ) -> list[ImportItem]:
         # RLS handles tenant_id filtering via batch join
         query = (
             db.query(ImportItem)
@@ -58,7 +57,7 @@ class ImportsRepository:
         if status:
             query = query.filter(ImportItem.status == status)
         if q:
-            from sqlalchemy import cast, String
+            from sqlalchemy import String, cast
 
             query = query.filter(cast(ImportItem.normalized, String).ilike(f"%{q}%"))
         return query.order_by(ImportItem.idx.asc()).all()
@@ -70,7 +69,7 @@ class ImportsRepository:
         db: Session,
         tenant_id: uuid.UUID,
         batch_id: int,
-        items: Iterable[Dict[str, Any]],
+        items: Iterable[dict[str, Any]],
     ) -> int:
         """Insert items skipping duplicates by (batch_id, idempotency_key)."""
         from sqlalchemy.dialects.postgresql import insert
@@ -92,7 +91,7 @@ class ImportsRepository:
         print(f"🔍 DEBUG: First item sample: {items_list[0]}")
         # Batch insert without ON CONFLICT (let DB handle uniqueness)
         stmt = insert(ImportItem).values(items_list)
-        
+
         result = db.execute(stmt)
         print(f"🔍 DEBUG: Execute result rowcount={result.rowcount}")
         db.flush()  # Flush instead of commit, let caller commit
@@ -101,9 +100,7 @@ class ImportsRepository:
         return result.rowcount if result.rowcount is not None else 0
 
     @with_tenant_context
-    def exists_promoted_hash(
-        self, db: Session, tenant_id: uuid.UUID, dedupe_hash: str
-    ) -> bool:
+    def exists_promoted_hash(self, db: Session, tenant_id: uuid.UUID, dedupe_hash: str) -> bool:
         # RLS handles tenant_id filtering
         q = (
             db.query(ImportItem)

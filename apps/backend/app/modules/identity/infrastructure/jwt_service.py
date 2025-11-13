@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping, Optional
+from typing import Any
 
 import jwt
 from jwt import InvalidTokenError  # re-export usage convenience
@@ -21,8 +22,8 @@ class JwtSettings:
     refresh_ttl_days: int = 7
 
     @classmethod
-    def from_app(cls) -> "JwtSettings":
-        secret: Optional[str] = None
+    def from_app(cls) -> JwtSettings:
+        secret: str | None = None
         algo: str = "HS256"
         access_min: int = 15
         refresh_days: int = 7
@@ -66,11 +67,12 @@ class JwtSettings:
 
 
 class JwtService:
-    def __init__(self, cfg: Optional[JwtSettings] = None):
+    def __init__(self, cfg: JwtSettings | None = None):
         self.cfg = cfg or JwtSettings.from_app()
 
     def _now(self) -> int:
         import warnings
+
         from apps.backend.app.shared.utils import now_ts
 
         warnings.warn(
@@ -100,9 +102,7 @@ class JwtService:
         }
         return jwt.encode(claims, self.cfg.secret, algorithm=self.cfg.algorithm)
 
-    def decode(
-        self, token: str, *, expected_kind: Optional[str] = None
-    ) -> Mapping[str, Any]:
+    def decode(self, token: str, *, expected_kind: str | None = None) -> Mapping[str, Any]:
         payload = jwt.decode(token, self.cfg.secret, algorithms=[self.cfg.algorithm])
         if expected_kind is not None:
             tok_kind = payload.get("type") or payload.get("typ") or payload.get("kind")

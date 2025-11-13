@@ -22,7 +22,7 @@ export const ClassificationCard: React.FC<ClassificationCardProps> = ({
     if (!suggestedParser) return null
 
     // Determinar color de confianza
-    const confidenceColor = 
+    const confidenceColor =
         confidence > 0.8 ? 'bg-green-100 text-green-800 border-green-300' :
         confidence > 0.6 ? 'bg-amber-100 text-amber-800 border-amber-300' :
         'bg-red-100 text-red-800 border-red-300'

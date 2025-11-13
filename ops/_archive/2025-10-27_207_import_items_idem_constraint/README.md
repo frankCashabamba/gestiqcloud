@@ -15,4 +15,3 @@ Notes:
 - UNIQUE in Postgres allows multiple NULLs, so rows with NULL idempotency_key
   continue to be insertable; this preserves intended behavior while allowing
   ON CONFLICT inference to work.
-

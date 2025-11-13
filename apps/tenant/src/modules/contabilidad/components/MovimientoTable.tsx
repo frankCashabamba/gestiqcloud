@@ -67,4 +67,3 @@ export const MovimientoTable: React.FC<Props> = ({ asientos }) => {
     </div>
   )
 }
-

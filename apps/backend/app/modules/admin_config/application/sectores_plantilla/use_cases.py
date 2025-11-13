@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
-from app.modules.admin_config.application.sectores_plantilla.dto import SectorPlantillaIn, SectorPlantillaOut
+from app.modules.admin_config.application.sectores_plantilla.dto import (
+    SectorPlantillaIn,
+    SectorPlantillaOut,
+)
 from app.modules.admin_config.application.sectores_plantilla.ports import SectorPlantillaRepo
 from app.modules.shared.application.base import BaseUseCase
 

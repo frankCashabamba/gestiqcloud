@@ -1,9 +1,9 @@
 # 📋 INFORME DE AUDITORÍA TÉCNICA – FRONTEND
 
-**Proyecto**: GestiqCloud  
-**Tipo**: ERP/CRM Multi-Tenant (2 SPAs: Tenant + Admin)  
-**Stack**: React 18 | TypeScript 5.9 | Vite 5.2 | Material-UI 5 | Tailwind CSS  
-**Fecha**: 2025-11-06  
+**Proyecto**: GestiqCloud
+**Tipo**: ERP/CRM Multi-Tenant (2 SPAs: Tenant + Admin)
+**Stack**: React 18 | TypeScript 5.9 | Vite 5.2 | Material-UI 5 | Tailwind CSS
+**Fecha**: 2025-11-06
 **Auditor**: Sistema de Análisis Técnico Automatizado
 
 ---
@@ -505,7 +505,7 @@ npm install --save-dev eslint @typescript-eslint/parser @typescript-eslint/eslin
 1. **Decidir un framework único**:
    - Opción A: MUI puro (eliminar Tailwind)
    - Opción B: Tailwind puro + Headless UI (eliminar MUI)
-   
+
 2. **Si se mantienen ambos**: Documentar cuándo usar cada uno
    ```markdown
    # Guía de Estilos
@@ -704,7 +704,7 @@ apps/packages/
 | 1.0 | Iconos MUI duplicados | Múltiples imports | Exacto | 🔧 Usar imports individuales (ver Rendimiento) |
 | 0.92 | Plantillas de sector | `panaderia.tsx`, `retail.tsx`, `taller.tsx` | Near | ⚠️ Abstraer layout común |
 
-**Total Estimado**: ~500-800 líneas de código duplicado  
+**Total Estimado**: ~500-800 líneas de código duplicado
 **Impacto**: Reduce mantenimiento y mejora consistencia
 
 ---
@@ -789,4 +789,3 @@ App.tsx
 **FIN DEL INFORME FRONTEND**
 
 *Próximo paso*: Consolidar hallazgos y quick wins.
-

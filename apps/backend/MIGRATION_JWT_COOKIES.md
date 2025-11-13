@@ -37,7 +37,7 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
     # ... validación ...
     access_token = create_access_token(user.id)
     refresh_token = create_refresh_token(user.id)
-    
+
     # ❌ Cliente guarda en localStorage
     return {
         "access_token": access_token,
@@ -52,18 +52,18 @@ from app.core.auth_cookies import set_access_token_cookie, set_refresh_token_coo
 
 @router.post("/login")
 def login(
-    data: LoginRequest, 
+    data: LoginRequest,
     response: Response,  # ✅ Agregar Response
     db: Session = Depends(get_db)
 ):
     # ... validación ...
     access_token = create_access_token(user.id)
     refresh_token = create_refresh_token(user.id)
-    
+
     # ✅ Setear cookies HttpOnly
     set_access_token_cookie(response, access_token)
     set_refresh_token_cookie(response, refresh_token)
-    
+
     # ✅ Retornar solo datos de usuario (sin tokens)
     return {
         "user": {
@@ -136,9 +136,9 @@ const login = async (email: string, password: string) => {
     method: 'POST',
     body: JSON.stringify({ email, password })
   })
-  
+
   const data = await res.json()
-  
+
   // ❌ XSS vulnerable
   localStorage.setItem('access_token', data.access_token)
   localStorage.setItem('refresh_token', data.refresh_token)
@@ -147,7 +147,7 @@ const login = async (email: string, password: string) => {
 // Fetch protegido
 const fetchProtected = async (url: string) => {
   const token = localStorage.getItem('access_token')  // ❌
-  
+
   return fetch(url, {
     headers: {
       'Authorization': `Bearer ${token}`
@@ -165,9 +165,9 @@ const login = async (email: string, password: string) => {
     credentials: 'include',  // ✅ Envía/recibe cookies
     body: JSON.stringify({ email, password })
   })
-  
+
   const data = await res.json()
-  
+
   // ✅ NO guardar tokens (están en cookies HttpOnly)
   // Solo guardar datos de usuario si es necesario
   setUser(data.user)
@@ -187,7 +187,7 @@ const logout = async () => {
     method: 'POST',
     credentials: 'include'
   })
-  
+
   // ✅ Cookie eliminada por backend
   setUser(null)
 }
@@ -256,9 +256,9 @@ from fastapi.responses import Response
 def test_set_access_token_cookie():
     response = Response()
     token = "test_token_123"
-    
+
     set_access_token_cookie(response, token)
-    
+
     # Verificar que cookie existe
     assert "access_token" in response.headers.get("set-cookie", "")
     assert "HttpOnly" in response.headers.get("set-cookie", "")
@@ -274,11 +274,11 @@ import { useAuth } from './AuthContext'
 
 test('login sets cookie instead of localStorage', async () => {
   const { result } = renderHook(() => useAuth())
-  
+
   await act(async () => {
     await result.current.login('user@test.com', 'password123')
   })
-  
+
   // ✅ localStorage NO debe tener tokens
   expect(localStorage.getItem('access_token')).toBeNull()
   expect(localStorage.getItem('refresh_token')).toBeNull()
@@ -298,12 +298,12 @@ def get_token_from_cookie_or_header(request: Request) -> Optional[str]:
     token = get_token_from_cookie(request)
     if token:
         return token
-    
+
     # 2. Fallback: Authorization header (legacy)
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         return auth_header.replace("Bearer ", "").strip()
-    
+
     return None
 ```
 
@@ -414,5 +414,5 @@ app.add_middleware(
 
 ---
 
-**Última actualización**: 2025-11-06  
+**Última actualización**: 2025-11-06
 **Autor**: Auditoría Técnica

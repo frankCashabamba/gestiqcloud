@@ -7,4 +7,3 @@ Motivo
 Cambios
 - Tabla sector_field_defaults con (sector, module, field, visible, required, ord, label, help).
 - Índices por (sector, module) y unique por (sector, module, field).
-

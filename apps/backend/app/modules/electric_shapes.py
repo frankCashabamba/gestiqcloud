@@ -5,17 +5,18 @@ Defines the data shapes that should be synchronized for offline usage.
 Based on tenant_id for multi-tenant isolation.
 """
 
-from typing import Dict, Any
+from typing import Any
+
+from app.config.database import get_db
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
-from app.config.database import get_db
 from .electric_conflicts import handle_sync_conflicts
 
 router = APIRouter(prefix="/api/v1/electric", tags=["electric"])
 
 
-def get_tenant_shapes(tenant_id: str) -> Dict[str, Any]:
+def get_tenant_shapes(tenant_id: str) -> dict[str, Any]:
     """
     Define shapes for a specific tenant.
 
@@ -42,7 +43,7 @@ def get_tenant_shapes(tenant_id: str) -> Dict[str, Any]:
 
 
 @router.get("/shapes")
-async def get_shapes(request: Request, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def get_shapes(request: Request, db: Session = Depends(get_db)) -> dict[str, Any]:
     """
     Get ElectricSQL shapes for the current tenant.
 
@@ -60,7 +61,7 @@ async def get_shapes(request: Request, db: Session = Depends(get_db)) -> Dict[st
 
 @router.post("/sync-status")
 async def update_sync_status(
-    request: Request, status: Dict[str, Any], db: Session = Depends(get_db)
+    request: Request, status: dict[str, Any], db: Session = Depends(get_db)
 ):
     """
     Handle sync status updates from ElectricSQL.

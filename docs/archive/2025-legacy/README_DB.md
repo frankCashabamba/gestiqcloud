@@ -19,4 +19,3 @@
   - `python scripts/py/bootstrap_imports.py --dsn $DB_DSN --dir ops/migrations`
   - `python scripts/py/bootstrap_imports.py --dsn $DB_DSN --check-only` (verificación)
   - Desplegar backend/admin/tenant tras migraciones OK.
-

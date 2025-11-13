@@ -1,6 +1,6 @@
 # Parser Registry - Guía de Extensión
 
-**Fecha:** 11 Nov 2025  
+**Fecha:** 11 Nov 2025
 **Versión:** 1.0.0
 
 ---
@@ -34,17 +34,17 @@ app/modules/imports/parsers/
 
 class ParserRegistry:
     """Registry centralizado de parsers."""
-    
-    def register(self, parser_id: str, parser_class: Type[ParserBase], 
+
+    def register(self, parser_id: str, parser_class: Type[ParserBase],
                  metadata: ParserMetadata) -> None:
         """Registrar un parser nuevo."""
-    
+
     def get(self, parser_id: str) -> Optional[ParserBase]:
         """Obtener instancia de parser por ID."""
-    
+
     def list(self) -> List[ParserMetadata]:
         """Listar todos los parsers disponibles."""
-    
+
     def get_by_doc_type(self, doc_type: str) -> List[ParserBase]:
         """Obtener parsers para un doc_type específico."""
 ```
@@ -66,29 +66,29 @@ from ..domain.canonical_schema import CanonicalDocument, CanonicalItem
 
 class MyCustomParser(ParserBase):
     """Parser para formato personalizado."""
-    
+
     PARSER_ID = "my_custom_format"
     DOC_TYPE = "invoice"  # invoice, expense, product, bank_tx, etc.
     SUPPORTED_EXTENSIONS = [".custom", ".txt"]
-    
+
     async def parse(self, file_path: str, **kwargs) -> CanonicalDocument:
         """
         Parsear archivo y retornar CanonicalDocument.
-        
+
         Args:
             file_path: Ruta al archivo
             **kwargs: Opciones adicionales (tenant_id, user_id, etc.)
-        
+
         Returns:
             CanonicalDocument con items parseados
         """
         # 1. Leer archivo
         with open(file_path, 'r') as f:
             content = f.read()
-        
+
         # 2. Parsear contenido
         items = self._parse_content(content)
-        
+
         # 3. Construir CanonicalDocument
         doc = CanonicalDocument(
             doc_type=self.DOC_TYPE,
@@ -97,15 +97,15 @@ class MyCustomParser(ParserBase):
             items=items,
             metadata={"format": "custom"}
         )
-        
+
         return doc
-    
+
     def _parse_content(self, content: str) -> List[CanonicalItem]:
         """Parsear contenido específico."""
         items = []
         # Lógica de parsing
         return items
-    
+
     def validate(self, item: CanonicalItem) -> bool:
         """Validar item parseado."""
         return True
@@ -158,22 +158,22 @@ from ..domain.canonical_schema import CanonicalDocument, CanonicalItem
 
 class ParserBase(ABC):
     """Interface base para todos los parsers."""
-    
+
     # Metadata requerida (class attributes)
     PARSER_ID: str
     DOC_TYPE: str
     SUPPORTED_EXTENSIONS: List[str]
-    
+
     @abstractmethod
     async def parse(self, file_path: str, **kwargs) -> CanonicalDocument:
         """Parsear archivo → CanonicalDocument."""
         pass
-    
+
     @abstractmethod
     def validate(self, item: CanonicalItem) -> bool:
         """Validar item parseado."""
         pass
-    
+
     def is_compatible(self, filename: str) -> bool:
         """Chequear si parser puede manejar el archivo."""
         ext = Path(filename).suffix.lower()
@@ -330,7 +330,7 @@ def sample_file(tmp_path):
 async def test_parse(parser, sample_file):
     """Parsear archivo correctamente."""
     doc = await parser.parse(sample_file)
-    
+
     assert isinstance(doc, CanonicalDocument)
     assert doc.doc_type == "invoice"
     assert len(doc.items) > 0
@@ -339,7 +339,7 @@ async def test_parse(parser, sample_file):
 async def test_validate_items(parser, sample_file):
     """Validar items parseados."""
     doc = await parser.parse(sample_file)
-    
+
     for item in doc.items:
         assert parser.validate(item)
 
@@ -364,19 +364,19 @@ from ..domain.canonical_schema import CanonicalDocument, CanonicalItem
 
 class JSONInvoicesParser(ParserBase):
     """Parser para facturas en JSON."""
-    
+
     PARSER_ID = "json_invoices"
     DOC_TYPE = "invoice"
     SUPPORTED_EXTENSIONS = [".json"]
-    
+
     async def parse(self, file_path: str, **kwargs) -> CanonicalDocument:
         """Parsear JSON → CanonicalDocument."""
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        
+
         items = []
         invoices = data if isinstance(data, list) else [data]
-        
+
         for i, invoice in enumerate(invoices, 1):
             item = CanonicalItem(
                 item_type="invoice",
@@ -391,7 +391,7 @@ class JSONInvoicesParser(ParserBase):
                 line_number=i
             )
             items.append(item)
-        
+
         return CanonicalDocument(
             doc_type=self.DOC_TYPE,
             parser_id=self.PARSER_ID,
@@ -399,7 +399,7 @@ class JSONInvoicesParser(ParserBase):
             items=items,
             metadata={"format": "json", "total_items": len(items)}
         )
-    
+
     def validate(self, item: CanonicalItem) -> bool:
         """Validar campos requeridos."""
         required = ["invoice_number", "date", "total"]

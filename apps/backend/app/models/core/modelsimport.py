@@ -35,17 +35,17 @@ from app.config.database import Base  # noqa: E402
 class ImportBatch(Base):
     __tablename__ = "import_batches"
     id = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
-    tenant_id = mapped_column(
-        TENANT_UUID, ForeignKey("tenants.id"), index=True, nullable=False
-    )
-    source_type = mapped_column(
-        String, nullable=False
-    )  # 'invoices'|'bank'|'receipts'|'documento'
+    tenant_id = mapped_column(TENANT_UUID, ForeignKey("tenants.id"), index=True, nullable=False)
+    source_type = mapped_column(String, nullable=False)  # 'invoices'|'bank'|'receipts'|'documento'
     origin = mapped_column(String, nullable=False)  # 'excel'|'ocr'|'api'
     file_key = mapped_column(String)  # S3/MinIO path
     mapping_id = mapped_column(UUID, nullable=True)
-    parser_id = mapped_column(String, nullable=True)  # Parser elegido (products_excel, csv_invoices, etc)
-    parser_choice_confidence = mapped_column(String, nullable=True)  # Confianza de clasificación (JSON score)
+    parser_id = mapped_column(
+        String, nullable=True
+    )  # Parser elegido (products_excel, csv_invoices, etc)
+    parser_choice_confidence = mapped_column(
+        String, nullable=True
+    )  # Confianza de clasificación (JSON score)
     # Fase A - Clasificación persistida
     suggested_parser = mapped_column(String, nullable=True)  # Parser sugerido por IA/heurística
     classification_confidence = mapped_column(Float, nullable=True)  # Score 0.0-1.0
@@ -58,9 +58,7 @@ class ImportBatch(Base):
     created_by = mapped_column(String, nullable=False)
     created_at = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
-    items = relationship(
-        "ImportItem", back_populates="batch", cascade="all, delete-orphan"
-    )
+    items = relationship("ImportItem", back_populates="batch", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index(
@@ -79,17 +77,11 @@ class ImportItem(Base):
     id = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
     # Tenant isolation (primary key for multi-tenant)
     tenant_id = mapped_column(TENANT_UUID, index=True, nullable=True)
-    batch_id = mapped_column(
-        ForeignKey("import_batches.id"), index=True, nullable=False
-    )
+    batch_id = mapped_column(ForeignKey("import_batches.id"), index=True, nullable=False)
     idx = mapped_column(Integer, nullable=False)  # index within the file
     # JSONB columns for PostgreSQL (better indexing), JSON for SQLite compatibility
-    raw = mapped_column(
-        JSONB().with_variant(JSON(), "sqlite"), nullable=False
-    )  # as received
-    normalized = mapped_column(
-        JSONB().with_variant(JSON(), "sqlite")
-    )  # after template applied
+    raw = mapped_column(JSONB().with_variant(JSON(), "sqlite"), nullable=False)  # as received
+    normalized = mapped_column(JSONB().with_variant(JSON(), "sqlite"))  # after template applied
     canonical_doc = mapped_column(
         JSONB().with_variant(JSON(), "sqlite"), nullable=True
     )  # CanonicalDocument (SPEC-1) extracted/normalized
@@ -100,9 +92,7 @@ class ImportItem(Base):
         JSONB().with_variant(JSON(), "sqlite"), default=list
     )  # [{field, message}]
     dedupe_hash = mapped_column(String, index=True)  # sha256(...)
-    idempotency_key = mapped_column(
-        String, index=True
-    )  # tenant+file+idx (tenant-scoped)
+    idempotency_key = mapped_column(String, index=True)  # tenant+file+idx (tenant-scoped)
     promoted_to = mapped_column(String)  # 'invoices'|'expenses'|'bank_txn'
     promoted_id = mapped_column(UUID, nullable=True)
     promoted_at = mapped_column(DateTime(timezone=True), nullable=True)
@@ -119,9 +109,7 @@ class ImportItem(Base):
         self.errors = value
 
     __table_args__ = (
-        UniqueConstraint(
-            "tenant_id", "idempotency_key", name="uq_import_items_tenant_idem"
-        ),
+        UniqueConstraint("tenant_id", "idempotency_key", name="uq_import_items_tenant_idem"),
         Index("ix_import_items_tenant_dedupe", "tenant_id", "dedupe_hash"),
         Index("ix_import_items_normalized_gin", "normalized", postgresql_using="gin"),
         Index("ix_import_items_raw_gin", "raw", postgresql_using="gin"),
@@ -149,13 +137,9 @@ class ImportAttachment(Base):
 class ImportMapping(Base):
     __tablename__ = "import_mappings"
     id = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
-    tenant_id = mapped_column(
-        TENANT_UUID, ForeignKey("tenants.id"), index=True, nullable=False
-    )
+    tenant_id = mapped_column(TENANT_UUID, ForeignKey("tenants.id"), index=True, nullable=False)
     name = mapped_column(String, nullable=False)
-    source_type = mapped_column(
-        String, nullable=False
-    )  # 'invoices'|'bank'|'receipts'|...
+    source_type = mapped_column(String, nullable=False)  # 'invoices'|'bank'|'receipts'|...
     version = mapped_column(Integer, default=1)
     # JSONB columns for PostgreSQL (better indexing), JSON for SQLite compatibility
     mappings = mapped_column(
@@ -181,9 +165,7 @@ class ImportMapping(Base):
 class ImportItemCorrection(Base):
     __tablename__ = "import_item_corrections"
     id = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
-    tenant_id = mapped_column(
-        TENANT_UUID, ForeignKey("tenants.id"), index=True, nullable=False
-    )
+    tenant_id = mapped_column(TENANT_UUID, ForeignKey("tenants.id"), index=True, nullable=False)
     item_id = mapped_column(ForeignKey("import_items.id"), index=True, nullable=False)
     user_id = mapped_column(UUID, nullable=False)
     field = mapped_column(String, nullable=False)
@@ -195,9 +177,7 @@ class ImportItemCorrection(Base):
 class ImportLineage(Base):
     __tablename__ = "import_lineage"
     id = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
-    tenant_id = mapped_column(
-        TENANT_UUID, ForeignKey("tenants.id"), index=True, nullable=False
-    )
+    tenant_id = mapped_column(TENANT_UUID, ForeignKey("tenants.id"), index=True, nullable=False)
     item_id = mapped_column(ForeignKey("import_items.id"), index=True, nullable=False)
     promoted_to = mapped_column(String, nullable=False)  # 'invoices'|'bank'|'expenses'
     promoted_ref = mapped_column(String, nullable=True)  # domain identifier (string)

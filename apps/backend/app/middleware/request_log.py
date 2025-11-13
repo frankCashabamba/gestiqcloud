@@ -4,17 +4,16 @@ import json
 import logging
 import time
 import uuid
-from typing import Any, Dict
+from typing import Any
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-
 logger = logging.getLogger("app.request")
 
 
-def _json(obj: Dict[str, Any]) -> str:
+def _json(obj: dict[str, Any]) -> str:
     try:
         return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
     except Exception:

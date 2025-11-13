@@ -9,10 +9,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy.orm import Session
 
-from app.modules.imports.application.use_cases import (
-    create_batch,
-    ingest_file,
-)
+from app.modules.imports.application.use_cases import create_batch, ingest_file
 
 
 @pytest.fixture
@@ -34,9 +31,7 @@ def test_tenant_es(db_session: Session) -> dict:
 @pytest.fixture
 def recibo_gasolina_jpg() -> Path:
     """Path a foto de recibo de gasolina."""
-    return (
-        Path(__file__).parent.parent / "fixtures" / "documents" / "recibo_gasolina.jpg"
-    )
+    return Path(__file__).parent.parent / "fixtures" / "documents" / "recibo_gasolina.jpg"
 
 
 def test_full_pipeline_receipt_ocr(
@@ -85,10 +80,7 @@ def test_full_pipeline_receipt_ocr(
     assert "GASOLINA" in ocr_text.upper() or "TOTAL" in ocr_text.upper()
 
     # Simular extracción y validación (sync)
-    from app.modules.imports.application.use_cases import (
-        extract_item_sync,
-        validate_item_sync,
-    )
+    from app.modules.imports.application.use_cases import extract_item_sync, validate_item_sync
 
     extract_item_sync(db_session, tenant_id, str(item.id))
     db_session.refresh(item)
@@ -119,10 +111,8 @@ def test_image_enhancement_pipeline(recibo_gasolina_jpg: Path):
     - Contrast enhancement
     """
     from PIL import Image
-    from app.modules.imports.application.photo_utils import (
-        deskew_image,
-        denoise_image,
-    )
+
+    from app.modules.imports.application.photo_utils import denoise_image, deskew_image
 
     with open(recibo_gasolina_jpg, "rb") as f:
         img = Image.open(f)

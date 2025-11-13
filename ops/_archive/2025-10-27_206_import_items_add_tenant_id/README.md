@@ -12,4 +12,3 @@ Changes
 
 Rollback
 - Drops the index, FK constraint, and the column.
-

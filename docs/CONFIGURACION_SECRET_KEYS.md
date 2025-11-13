@@ -1,6 +1,6 @@
 # 🔐 Configuración de SECRET_KEY y JWT_SECRET_KEY
 
-**Fecha:** 06 Noviembre 2025  
+**Fecha:** 06 Noviembre 2025
 **Problema:** Confusión entre SECRET_KEY y JWT_SECRET_KEY
 
 ---
@@ -44,7 +44,7 @@ def validate_secret_key(cls, v: SecretStr) -> SecretStr:
 1. `apps/backend/app/main.py:83` - Firma de URLs
 2. `apps/backend/app/api/email/email_utils.py:135` - Tokens de email (password reset, confirmación)
 
-**Propósito:** 
+**Propósito:**
 - Firmar URLs de reset de contraseña
 - Firmar tokens de confirmación de email
 - Tokens de recuperación de cuenta
@@ -279,6 +279,6 @@ else:
 
 ---
 
-**Última actualización:** 06 Noviembre 2025  
-**Estado:** Documentación completa  
+**Última actualización:** 06 Noviembre 2025
+**Estado:** Documentación completa
 **Acción requerida:** Actualizar `.env` con SECRET_KEY

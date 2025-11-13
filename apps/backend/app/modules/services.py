@@ -1,16 +1,16 @@
-﻿"""Module: services.py
+"""Module: services.py
 
 Service layer helpers for module assignment to companies and users.
 """
 
-from fastapi import HTTPException
 import uuid
-from sqlalchemy.orm import Session
-from sqlalchemy import text
 
-from app.models.core.modulo import EmpresaModulo, ModuloAsignado
 from app.db.rls import set_tenant_guc
+from app.models.core.modulo import EmpresaModulo, ModuloAsignado
 from app.modules import crud, schemas
+from fastapi import HTTPException
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 
 # ---------- EMPRESA-MODULO ----------

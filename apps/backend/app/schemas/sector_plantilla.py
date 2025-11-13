@@ -1,8 +1,7 @@
-﻿"""
+"""
 Schemas para SectorPlantilla y su config_json validado con Pydantic
 """
 
-from typing import Dict, List, Optional
 from pydantic import BaseModel, Field, validator
 
 
@@ -11,15 +10,15 @@ class ModuleConfig(BaseModel):
 
     enabled: bool = True
     order: int = 0
-    permissions: Optional[List[str]] = None
-    config: Optional[Dict] = None
+    permissions: list[str] | None = None
+    config: dict | None = None
 
 
 class BrandingConfig(BaseModel):
     """Configuración de branding por sector"""
 
     color_primario: str = "#4f46e5"
-    logo: Optional[str] = None
+    logo: str | None = None
     plantilla_inicio: str = "default"  # panaderia, taller, retail, etc.
     dashboard_template: str = "default"  # Plantilla HTML a usar
 
@@ -27,7 +26,7 @@ class BrandingConfig(BaseModel):
 class DefaultsConfig(BaseModel):
     """Valores por defecto del sector"""
 
-    categories: List[str] = Field(default_factory=list)
+    categories: list[str] = Field(default_factory=list)
     tax_rate: float = 0.15
     currency: str = "EUR"
     locale: str = "es"
@@ -63,7 +62,7 @@ class SectorConfigJSON(BaseModel):
     cuando se cree un tenant con este sector.
     """
 
-    modules: Dict[str, ModuleConfig] = Field(
+    modules: dict[str, ModuleConfig] = Field(
         default_factory=dict,
         description="Configuración de módulos habilitados/deshabilitados",
     )
@@ -74,9 +73,7 @@ class SectorConfigJSON(BaseModel):
     defaults: DefaultsConfig = Field(
         default_factory=DefaultsConfig, description="Valores por defecto del negocio"
     )
-    pos: POSConfig = Field(
-        default_factory=POSConfig, description="Configuración del módulo POS"
-    )
+    pos: POSConfig = Field(default_factory=POSConfig, description="Configuración del módulo POS")
     inventory: InventoryConfig = Field(
         default_factory=InventoryConfig, description="Configuración de inventario"
     )

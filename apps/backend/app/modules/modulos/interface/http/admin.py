@@ -4,10 +4,6 @@ import json
 import os
 from pathlib import Path
 
-from apps.backend.app.shared.utils import ping_ok
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-
 from app.config.database import get_db
 from app.config.settings import settings
 from app.core.access_guard import with_access_claims
@@ -19,6 +15,10 @@ from app.modules import services as mod_services
 from app.modules.modulos.application.use_cases import ListarModulosAdmin
 from app.modules.modulos.infrastructure.repositories import SqlModuloRepo
 from app.modules.modulos.interface.http.schemas import ModuloOutSchema
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from apps.backend.app.shared.utils import ping_ok
 
 router = APIRouter(
     prefix="/admin/modulos",
@@ -282,7 +282,7 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
                     manifest: dict | None = None
                     if os.path.exists(manifest_path):
                         try:
-                            with open(manifest_path, "r", encoding="utf-8") as fh:
+                            with open(manifest_path, encoding="utf-8") as fh:
                                 manifest = json.load(fh)
                         except Exception as me:
                             errores.append({"modulo": name, "error": f"manifest invalido: {me}"})
@@ -333,7 +333,7 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
             manifest: dict | None = None
             if os.path.exists(manifest_path):
                 try:
-                    with open(manifest_path, "r", encoding="utf-8") as fh:
+                    with open(manifest_path, encoding="utf-8") as fh:
                         manifest = json.load(fh)
                 except Exception as me:
                     errores.append({"modulo": name, "error": f"manifest invalido: {me}"})
@@ -355,9 +355,7 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
                 "icono": (manifest.get("icono") if manifest else None),
                 # Mantener compatibilidad con manifests antiguos (activo) y nuevos (active)
                 "active": (
-                    manifest.get("active", manifest.get("activo", True))
-                    if manifest
-                    else True
+                    manifest.get("active", manifest.get("activo", True)) if manifest else True
                 ),
                 "plantilla_inicial": (
                     manifest.get("plantilla_inicial", plantilla_detectada or name)

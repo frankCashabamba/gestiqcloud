@@ -9,7 +9,7 @@
   - Conversión automática de decimales
   - Metadatos de importación
 
-- [x] **xml_products.py** - XML para productos  
+- [x] **xml_products.py** - XML para productos
   - Remoción automática de namespaces
   - Búsqueda flexible de elementos
   - Fallback a atributos

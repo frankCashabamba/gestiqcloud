@@ -1,8 +1,8 @@
 # Fase D - IA Configurable
 
-**Estado:** ✅ COMPLETA Y LISTA PARA PRODUCCIÓN  
-**Fecha Inicio:** 11 Nov 2025  
-**Fecha Finalización:** 11 Nov 2025  
+**Estado:** ✅ COMPLETA Y LISTA PARA PRODUCCIÓN
+**Fecha Inicio:** 11 Nov 2025
+**Fecha Finalización:** 11 Nov 2025
 **Complejidad:** Media-Alta
 
 > **Ver documentación completa:** `FASE_D_IMPLEMENTACION_COMPLETA.md`
@@ -156,16 +156,16 @@ from typing import Dict, Any, List, Optional
 
 class AIProvider(ABC):
     """Base class para proveedores de IA."""
-    
+
     @abstractmethod
     async def classify_document(
-        self, 
+        self,
         text: str,
         available_parsers: List[str],
     ) -> Dict[str, Any]:
         """
         Clasificar documento para seleccionar parser.
-        
+
         Returns:
             {
                 "suggested_parser": str,
@@ -175,7 +175,7 @@ class AIProvider(ABC):
             }
         """
         pass
-    
+
     @abstractmethod
     async def extract_fields(
         self,
@@ -185,7 +185,7 @@ class AIProvider(ABC):
     ) -> Dict[str, Any]:
         """Extraer campos específicos del documento."""
         pass
-    
+
     @abstractmethod
     def get_telemetry(self) -> Dict[str, Any]:
         """Obtener métricas de uso."""
@@ -203,11 +203,11 @@ import numpy as np
 
 class LocalAIProvider(AIProvider):
     """Proveedor IA local basado en embeddings y heurísticas."""
-    
+
     def __init__(self):
         # Cargar modelo BERT (primera vez descarga ~400MB)
         self.model = SentenceTransformer('sentence-transformers/multilingual-MiniLM-L12-v2')
-        
+
         # Definir patrones por tipo de documento
         self.doc_patterns = {
             "invoice": [
@@ -235,40 +235,40 @@ class LocalAIProvider(AIProvider):
                 r"description|descripción",
             ],
         }
-        
+
         # Cache en memoria
         self.cache = {}
-    
+
     async def classify_document(
         self,
         text: str,
         available_parsers: List[str],
     ) -> Dict[str, Any]:
         """Clasificar documento usando embeddings y patrones."""
-        
+
         # Normalizar texto
         text_lower = text.lower()
-        
+
         # 1. Pattern matching (rápido)
         pattern_scores = self._score_patterns(text_lower)
-        
+
         # 2. Embedding similarity (más preciso)
         embedding_scores = self._score_embeddings(text)
-        
+
         # 3. Combinar scores
         combined = {}
         for parser in available_parsers:
             doc_type = self._parser_to_doctype(parser)
             pattern_score = pattern_scores.get(doc_type, 0.0)
             embedding_score = embedding_scores.get(doc_type, 0.0)
-            
+
             # Pesar: patterns 30%, embeddings 70%
             combined[parser] = (pattern_score * 0.3) + (embedding_score * 0.7)
-        
+
         # 4. Seleccionar mejor
         best_parser = max(combined, key=combined.get)
         confidence = min(combined[best_parser], 1.0)
-        
+
         return {
             "suggested_parser": best_parser,
             "confidence": confidence,
@@ -276,23 +276,23 @@ class LocalAIProvider(AIProvider):
             "reasoning": f"Pattern + embedding matching. Best: {best_parser} ({confidence:.1%})",
             "provider": "local",
         }
-    
+
     def _score_patterns(self, text: str) -> Dict[str, float]:
         """Scoring basado en pattern matching."""
         scores = {}
-        
+
         for doc_type, patterns in self.doc_patterns.items():
             matches = sum(1 for p in patterns if re.search(p, text))
             score = min(matches / len(patterns), 1.0)  # Normalizar 0-1
             scores[doc_type] = score
-        
+
         return scores
-    
+
     def _score_embeddings(self, text: str) -> Dict[str, float]:
         """Scoring basado en embeddings (BERT)."""
         # Generar embedding del documento
         doc_embedding = self.model.encode(text, convert_to_tensor=True)
-        
+
         # Embeddings de referencia por tipo
         reference_texts = {
             "invoice": "Invoice number, total amount, customer, tax, billing",
@@ -300,20 +300,20 @@ class LocalAIProvider(AIProvider):
             "bank_tx": "Bank transaction, transfer, account, debit, credit",
             "product": "Product name, price, quantity, description, stock",
         }
-        
+
         ref_embeddings = {
             doc_type: self.model.encode(text, convert_to_tensor=True)
             for doc_type, text in reference_texts.items()
         }
-        
+
         # Calcular similitud coseno
         scores = {}
         for doc_type, ref_emb in ref_embeddings.items():
             similarity = util.pytorch_cos_sim(doc_embedding, ref_emb)[0][0].item()
             scores[doc_type] = similarity
-        
+
         return scores
-    
+
     def _parser_to_doctype(self, parser: str) -> str:
         """Mapear parser a doc_type."""
         mapping = {
@@ -324,7 +324,7 @@ class LocalAIProvider(AIProvider):
             "xml_camt053_bank": "bank_tx",
         }
         return mapping.get(parser, "invoice")
-    
+
     async def extract_fields(
         self,
         text: str,
@@ -333,7 +333,7 @@ class LocalAIProvider(AIProvider):
     ) -> Dict[str, Any]:
         """Extraer campos usando heurísticas y patrones."""
         extracted = {}
-        
+
         # Patrones comunes
         patterns = {
             "total": r"total[:\s]+[\$\s]*(\d+[.,]\d{2})",
@@ -341,7 +341,7 @@ class LocalAIProvider(AIProvider):
             "date": r"\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4}",
             "invoice_number": r"(invoice|factura)[:\s]*([A-Z0-9-]+)",
         }
-        
+
         text_lower = text.lower()
         for field in expected_fields:
             pattern = patterns.get(field)
@@ -349,9 +349,9 @@ class LocalAIProvider(AIProvider):
                 match = re.search(pattern, text_lower)
                 if match:
                     extracted[field] = match.group(1) if match.groups() else match.group(0)
-        
+
         return extracted
-    
+
     def get_telemetry(self) -> Dict[str, Any]:
         """Telemetría de uso."""
         return {
@@ -372,7 +372,7 @@ from typing import Literal
 
 class Settings(BaseSettings):
     # ... existing settings ...
-    
+
     # IA Configuration (Fase D)
     IMPORT_AI_PROVIDER: Literal["local", "openai", "azure"] = Field(
         default="local",
@@ -406,7 +406,7 @@ class Settings(BaseSettings):
         default=86400,  # 24 hours
         description="Cache TTL in seconds"
     )
-    
+
     model_config = SettingsConfigDict(
         # ... existing config ...
     )
@@ -424,26 +424,26 @@ from typing import Dict, Any, List
 
 class OpenAIProvider(AIProvider):
     """Proveedor IA usando OpenAI API."""
-    
+
     def __init__(self, api_key: str, model: str = "gpt-3.5-turbo"):
         self.api_key = api_key
         self.model = model
         openai.api_key = api_key
         self.request_count = 0
-    
+
     async def classify_document(
         self,
         text: str,
         available_parsers: List[str],
     ) -> Dict[str, Any]:
         """Clasificar usando GPT."""
-        
+
         prompt = f"""Classify this document text to one of these parsers:
         {', '.join(available_parsers)}
-        
+
         Document text:
         {text[:2000]}  # Limitar a 2000 caracteres
-        
+
         Respond in JSON format:
         {{
             "suggested_parser": "...",
@@ -451,26 +451,26 @@ class OpenAIProvider(AIProvider):
             "reasoning": "..."
         }}
         """
-        
+
         response = await openai.ChatCompletion.acreate(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
         )
-        
+
         self.request_count += 1
-        
+
         import json
         result = json.loads(response["choices"][0]["message"]["content"])
         result["provider"] = "openai"
-        
+
         return result
-    
+
     async def extract_fields(self, text: str, doc_type: str, expected_fields: List[str]):
         """Extraer campos usando GPT."""
         # Similar a classify_document
         pass
-    
+
     def get_telemetry(self) -> Dict[str, Any]:
         return {
             "provider": "openai",
@@ -496,12 +496,12 @@ from .azure_provider import AzureOpenAIProvider
 
 async def get_ai_provider() -> AIProvider:
     """Factory para obtener proveedor IA según configuración."""
-    
+
     provider_type = settings.IMPORT_AI_PROVIDER.lower()
-    
+
     if provider_type == "local":
         return LocalAIProvider()
-    
+
     elif provider_type == "openai":
         if not settings.OPENAI_API_KEY:
             raise ValueError("OPENAI_API_KEY no configurada")
@@ -509,7 +509,7 @@ async def get_ai_provider() -> AIProvider:
             api_key=settings.OPENAI_API_KEY,
             model=settings.OPENAI_MODEL,
         )
-    
+
     elif provider_type == "azure":
         if not settings.AZURE_OPENAI_KEY:
             raise ValueError("AZURE_OPENAI_KEY no configurada")
@@ -517,7 +517,7 @@ async def get_ai_provider() -> AIProvider:
             api_key=settings.AZURE_OPENAI_KEY,
             endpoint=settings.AZURE_OPENAI_ENDPOINT,
         )
-    
+
     else:
         raise ValueError(f"Proveedor IA desconocido: {provider_type}")
 
@@ -544,7 +544,7 @@ from app.core.config import settings
 
 class FileClassifier:
     """Clasificador mejorado con IA configurable."""
-    
+
     async def classify_file_with_ai(
         self,
         file_path: str,
@@ -552,31 +552,31 @@ class FileClassifier:
         use_ai: bool = True,  # Control explícito
     ) -> Dict[str, Any]:
         """Clasificar archivo con mejora IA opcional."""
-        
+
         # 1. Clasificación base (heurísticas)
         base_result = self.classify_file(file_path, filename)
-        
+
         # 2. Si confidence < threshold y use_ai, usar IA
         if use_ai and base_result["confidence"] < settings.IMPORT_AI_CONFIDENCE_THRESHOLD:
             # Leer contenido para IA
             text = self._extract_text(file_path, filename)
-            
+
             # Obtener proveedor IA
             ai_provider = await get_ai_provider_singleton()
-            
+
             # Mejorar clasificación
             ai_result = await ai_provider.classify_document(
                 text,
                 list(self.parsers_info.keys())
             )
-            
+
             # Combinar: usar IA si es más confiante
             if ai_result["confidence"] > base_result["confidence"]:
                 base_result.update(ai_result)
                 base_result["enhanced_by_ai"] = True
-        
+
         return base_result
-    
+
     def _extract_text(self, file_path: str, filename: str) -> str:
         """Extraer texto de archivo para IA."""
         # Implementar para cada tipo
@@ -604,10 +604,10 @@ async def classify_file_with_ai(
 ):
     """
     Clasificar archivo con mejora IA.
-    
+
     Query params:
     - use_ai: Usar IA para mejorar clasificación (default: true)
-    
+
     Response:
     {
         "suggested_parser": str,
@@ -632,7 +632,7 @@ async def classify_file_with_ai(
 async def get_ai_status(tenant_id: str):
     """Obtener estado del proveedor IA."""
     provider = await get_ai_provider_singleton()
-    
+
     return {
         "provider": settings.IMPORT_AI_PROVIDER,
         "status": "active",
@@ -648,8 +648,8 @@ async def get_ai_status(tenant_id: str):
 // Mostrar en UI
 const status = await fetch('/imports/ai/status').then(r => r.json())
 
-const badge = status.provider === 'local' 
-  ? '🟢 IA Local (Gratuito)' 
+const badge = status.provider === 'local'
+  ? '🟢 IA Local (Gratuito)'
   : status.provider === 'openai'
     ? '🔵 IA OpenAI (Pago)'
     : '🟣 IA Azure (Pago)'
@@ -680,34 +680,34 @@ class ClassificationMetric:
 
 class AITelemetry:
     """Tracking de precisión y costos de IA."""
-    
+
     def __init__(self):
         self.metrics = []
         self.logger = logging.getLogger("imports.ai")
-    
+
     def record(self, metric: ClassificationMetric):
         """Registrar métrica de clasificación."""
         self.metrics.append(metric)
-        
+
         self.logger.info(
             f"Classification: {metric.document_type} "
             f"({metric.confidence:.1%}) via {metric.provider} "
             f"({metric.execution_time_ms:.0f}ms) "
             f"${metric.cost:.6f}"
         )
-    
+
     def get_accuracy(self, provider: str = None) -> float:
         """Calcular precision (de métricas validadas)."""
         filtered = [m for m in self.metrics if m.correct is not None]
         if not filtered:
             return 0.0
-        
+
         if provider:
             filtered = [m for m in filtered if m.provider == provider]
-        
+
         correct = sum(1 for m in filtered if m.correct)
         return correct / len(filtered) if filtered else 0.0
-    
+
     def get_total_cost(self) -> float:
         """Costo total acumulado."""
         return sum(m.cost for m in self.metrics)
@@ -759,30 +759,30 @@ from app.modules.imports.ai.local_provider import LocalAIProvider
 
 class TestLocalAIProvider:
     """Tests para IA local."""
-    
+
     @pytest.fixture
     def provider(self):
         return LocalAIProvider()
-    
+
     @pytest.mark.asyncio
     async def test_classify_invoice(self, provider):
         """Clasificar documento tipo factura."""
         text = "Invoice #001 Total: $100.00 Customer: ABC Corp Tax: $12.00"
         result = await provider.classify_document(text, ["csv_invoices", "products_excel"])
-        
+
         assert result["suggested_parser"] == "csv_invoices"
         assert result["confidence"] > 0.7
         assert "probabilities" in result
-    
+
     @pytest.mark.asyncio
     async def test_classify_product(self, provider):
         """Clasificar documento tipo producto."""
         text = "Product: Laptop Dell Price: $1200 Quantity: 5 Stock: 10"
         result = await provider.classify_document(text, ["products_excel", "csv_invoices"])
-        
+
         assert result["suggested_parser"] == "products_excel"
         assert result["confidence"] > 0.7
-    
+
     @pytest.mark.asyncio
     async def test_extract_fields(self, provider):
         """Extraer campos del documento."""
@@ -792,7 +792,7 @@ class TestLocalAIProvider:
             "invoice",
             ["total", "tax", "date", "invoice_number"]
         )
-        
+
         assert "total" in fields
         assert "tax" in fields
         assert "date" in fields
@@ -889,7 +889,7 @@ class TestLocalAIProvider:
 
 ---
 
-*Documento: FASE_D_IA_CONFIGURABLE.md*  
-*Estado: ✅ COMPLETE*  
-*Fecha: 11 Nov 2025*  
+*Documento: FASE_D_IA_CONFIGURABLE.md*
+*Estado: ✅ COMPLETE*
+*Fecha: 11 Nov 2025*
 *Próximo: Integración con FileClassifier + Tests Unitarios*

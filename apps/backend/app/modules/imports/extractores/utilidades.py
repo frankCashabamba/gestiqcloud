@@ -1,9 +1,8 @@
-import re
-from typing import Optional, List
-import unicodedata
-from typing import Literal
 import hashlib
 import json
+import re
+import unicodedata
+from typing import Literal
 
 # Patrones globales
 FECHA_PATRONES = [
@@ -46,7 +45,7 @@ NUMEROS_DECIMALES = r"-?\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})"
 
 
 # Utilidades
-def buscar(patron: str, texto: str, group: int = 0) -> Optional[str]:
+def buscar(patron: str, texto: str, group: int = 0) -> str | None:
     match = re.search(patron, texto, re.IGNORECASE)
     if not match:
         return None
@@ -56,7 +55,7 @@ def buscar(patron: str, texto: str, group: int = 0) -> Optional[str]:
         return match.group(0).strip()
 
 
-def buscar_multiple(patrones: List[str], texto: str, group: int = 1) -> Optional[str]:
+def buscar_multiple(patrones: list[str], texto: str, group: int = 1) -> str | None:
     for patron in patrones:
         match = re.search(patron, texto, re.IGNORECASE)
         if match:
@@ -177,7 +176,7 @@ def detectar_tipo_documento(texto: str) -> DocumentoTipo:
 
 
 # Extractores
-def buscar_fecha(texto: str) -> Optional[str]:
+def buscar_fecha(texto: str) -> str | None:
     for patron in FECHA_PATRONES:
         matches = re.findall(patron, texto, flags=re.IGNORECASE)
         for match in matches:
@@ -187,11 +186,11 @@ def buscar_fecha(texto: str) -> Optional[str]:
     return None
 
 
-def buscar_numero_factura(texto: str) -> Optional[str]:
+def buscar_numero_factura(texto: str) -> str | None:
     return buscar_multiple(NUMERO_FACTURA_PATRONES, texto)
 
 
-def buscar_importe(texto: str) -> Optional[str]:
+def buscar_importe(texto: str) -> str | None:
     for patron in IMPORTE_PATRONES:
         match = re.search(patron, texto, re.IGNORECASE)
         if match:
@@ -201,7 +200,7 @@ def buscar_importe(texto: str) -> Optional[str]:
     return None
 
 
-def buscar_subtotal(texto: str) -> Optional[str]:
+def buscar_subtotal(texto: str) -> str | None:
     try:
         return buscar_multiple(SUBTOTAL_PATRONES, texto, group=1)
     except Exception as e:
@@ -209,17 +208,13 @@ def buscar_subtotal(texto: str) -> Optional[str]:
         return None
 
 
-def buscar_numero_mayor(texto: str) -> Optional[str]:
+def buscar_numero_mayor(texto: str) -> str | None:
     numeros = re.findall(NUMEROS_DECIMALES, texto)
-    valores = [
-        float(num.replace(",", "."))
-        for num in numeros
-        if float(num.replace(",", ".")) > 0
-    ]
+    valores = [float(num.replace(",", ".")) for num in numeros if float(num.replace(",", ".")) > 0]
     return f"{max(valores):.2f}" if valores else None
 
 
-def buscar_cif(texto: str) -> Optional[str]:
+def buscar_cif(texto: str) -> str | None:
     numero_factura = buscar_numero_factura(texto)
     matches = re.findall(r"\b[A-Z]\d{7}[A-Z]?\b", texto)
     for match in matches:
@@ -228,12 +223,12 @@ def buscar_cif(texto: str) -> Optional[str]:
     return buscar_multiple(CIF_PATRONES, texto, group=-1)
 
 
-def buscar_concepto(texto: str) -> Optional[str]:
+def buscar_concepto(texto: str) -> str | None:
     match = re.search(r"(?i)concepto[:\-]?\s*(.+?)(?=\s+[A-Z][a-z]+\s*:|$)", texto)
     return match.group(1).strip() if match else None
 
 
-def buscar_descripcion(texto: str) -> Optional[str]:
+def buscar_descripcion(texto: str) -> str | None:
     match = re.search(r"(?i)description[:\-]?\s*(.+?)(?=\s+[A-Z][a-z]+\s*:|$)", texto)
     if match:
         return match.group(1).strip()
@@ -245,7 +240,7 @@ def buscar_descripcion(texto: str) -> Optional[str]:
     return posibles[0] if posibles else None
 
 
-def extraer_bloque(lineas: List[str], indice: int) -> str:
+def extraer_bloque(lineas: list[str], indice: int) -> str:
     bloque = [lineas[indice].split(":", 1)[-1].strip()]
     for j in range(indice + 1, min(indice + 4, len(lineas))):
         if not re.match(r"^\s*\w+\s*[:\-]", lineas[j]):
@@ -255,7 +250,7 @@ def extraer_bloque(lineas: List[str], indice: int) -> str:
     return " ".join(bloque)
 
 
-def buscar_emisor(texto: str) -> Optional[str]:
+def buscar_emisor(texto: str) -> str | None:
     lineas = texto.splitlines()
     for i, linea in enumerate(lineas):
         if re.search(
@@ -267,12 +262,10 @@ def buscar_emisor(texto: str) -> Optional[str]:
     return None
 
 
-def buscar_cliente(texto: str) -> Optional[str]:
+def buscar_cliente(texto: str) -> str | None:
     lineas = texto.splitlines()
     for i, linea in enumerate(lineas):
-        if re.search(
-            r"^\s*(To|Bill to|Para|Destinatario|Cliente)\b[:\-]?", linea, re.IGNORECASE
-        ):
+        if re.search(r"^\s*(To|Bill to|Para|Destinatario|Cliente)\b[:\-]?", linea, re.IGNORECASE):
             return extraer_bloque(lineas, i)
     return None
 
@@ -328,7 +321,7 @@ def es_concepto_valido(texto: str) -> bool:
     return True
 
 
-def dividir_bloques_transferencias(texto: str) -> List[str]:
+def dividir_bloques_transferencias(texto: str) -> list[str]:
     """
     Divide el texto en bloques basados en encabezados de transferencia o fechas con errores comunes del OCR.
     """

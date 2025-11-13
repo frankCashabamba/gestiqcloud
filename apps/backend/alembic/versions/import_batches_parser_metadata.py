@@ -5,8 +5,8 @@ Revises: uuid_roles_002
 Create Date: 2025-11-11 20:00:00.000000
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "import_batches_parser_metadata"
 down_revision = "uuid_roles_002"

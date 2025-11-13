@@ -72,7 +72,7 @@ export class HttpClient {
     this.apiUrl = config.apiUrl
     this.csrfExemptSuffixes = config.csrfExemptSuffixes || ['/auth/login', '/auth/refresh', '/auth/logout']
     this.noAuthHeaderSuffixes = config.noAuthHeaderSuffixes || ['/auth/login', '/auth/refresh', '/auth/logout']
-    
+
     if (config.authHandlers) {
       if (config.authHandlers.getToken) this.getTokenHandler = config.authHandlers.getToken
       if (config.authHandlers.setToken) this.setTokenHandler = config.authHandlers.setToken

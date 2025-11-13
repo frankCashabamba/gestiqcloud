@@ -1,7 +1,7 @@
 # PLAN DE MIGRACIÓN A ARQUITECTURA MODULAR DDD
 
-**Fecha:** 2025-11-06  
-**Estado:** ✅ La mayoría de módulos YA ESTÁN MIGRADOS  
+**Fecha:** 2025-11-06
+**Estado:** ✅ La mayoría de módulos YA ESTÁN MIGRADOS
 **Acción requerida:** Limpiar duplicaciones en `main.py`
 
 ---
@@ -171,7 +171,7 @@ Editar `apps/backend/app/main.py`:
 # from app.routers.hr import router as hr_router
 # app.include_router(hr_router, prefix="/api/v1")
 
-# ❌ ELIMINADO - Ya existe en modules/rrhh/interface/http/tenant.py  
+# ❌ ELIMINADO - Ya existe en modules/rrhh/interface/http/tenant.py
 # from app.routers.hr_complete import router as hr_complete_router
 # app.include_router(hr_complete_router, prefix="")
 
@@ -458,6 +458,6 @@ grep -A 2 "@router" apps/backend/app/routers/hr_complete.py
 
 ---
 
-**Estado:** 🟢 Plan actualizado con hallazgos reales  
-**Última actualización:** 2025-11-06  
+**Estado:** 🟢 Plan actualizado con hallazgos reales
+**Última actualización:** 2025-11-06
 **Próxima acción:** Comparar RRHH, Finanzas y Contabilidad

@@ -8,7 +8,7 @@ export default function CompraDetail() {
   const { id } = useParams()
   const nav = useNavigate()
   const { success, error } = useToast()
-  
+
   const [compra, setCompra] = useState<Compra | null>(null)
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
@@ -24,7 +24,7 @@ export default function CompraDetail() {
   const handleRecibir = async () => {
     if (!id || !compra) return
     if (!confirm('¿Marcar esta compra como recibida?')) return
-    
+
     try {
       setProcessing(true)
       const updated = await recibirCompra(id)
@@ -55,7 +55,7 @@ export default function CompraDetail() {
             Creada: {new Date(compra.created_at || compra.fecha).toLocaleString()}
           </p>
         </div>
-        
+
         <div className="flex gap-2">
           {compra.estado === 'enviada' && (
             <button
@@ -97,7 +97,7 @@ export default function CompraDetail() {
             {compra.proveedor_nombre || compra.proveedor_id || '-'}
           </div>
         </div>
-        
+
         {compra.notas && (
           <div className="mt-3 pt-3 border-t">
             <strong className="text-sm">Notas:</strong>

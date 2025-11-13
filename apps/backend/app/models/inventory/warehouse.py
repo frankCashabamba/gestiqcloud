@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from typing import Optional
-
-from sqlalchemy import String, Boolean, JSON, text as sa_text
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column
 from uuid import uuid4
 
 from app.config.database import Base
+from sqlalchemy import JSON, Boolean, String
+from sqlalchemy import text as sa_text
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.orm import Mapped, mapped_column
 
 
 def _uuid_col():
@@ -33,10 +32,6 @@ class Warehouse(Base):
     code: Mapped[str] = mapped_column(String, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
     # DB column is 'active' but our model uses 'is_active' in code
-    is_active: Mapped[bool] = mapped_column(
-        "active", Boolean, default=True, nullable=False
-    )
+    is_active: Mapped[bool] = mapped_column("active", Boolean, default=True, nullable=False)
     # Avoid reserved attribute name 'metadata'
-    extra_metadata: Mapped[Optional[dict]] = mapped_column(
-        "metadata", JSON, nullable=True
-    )
+    extra_metadata: Mapped[dict | None] = mapped_column("metadata", JSON, nullable=True)

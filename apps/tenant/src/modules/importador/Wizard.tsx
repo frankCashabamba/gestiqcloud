@@ -65,7 +65,7 @@ export default function ImportadorWizard() {
     // Modo automático
     const [autoMode, setAutoMode] = useState(true)
     const [targetWarehouse, setTargetWarehouse] = useState('ALM-1')
-    
+
     // Sprint 2: Override manual del parser
     const [selectedParser, setSelectedParser] = useState<string | null>(null)
 
@@ -256,7 +256,7 @@ export default function ImportadorWizard() {
             {step === 'mapping' && (
                 <div className="space-y-4">
                     <div className="bg-neutral-50 border px-4 py-3 rounded text-neutral-700 text-sm">Mapea columnas si es necesario (automapeo aplicado).</div>
-                    
+
                     {/* Sprint 2: Parser override selector */}
                     {classificationResult && parserRegistry && (
                         <div className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50">
@@ -282,7 +282,7 @@ export default function ImportadorWizard() {
                                     </span>
                                 )}
                             </div>
-                            
+
                             {/* Info adicional */}
                             {selectedParser && parserRegistry.parsers[selectedParser] && (
                                 <div className="bg-white border border-blue-200 rounded p-3 mb-2 text-xs">
@@ -293,14 +293,14 @@ export default function ImportadorWizard() {
                                     )}
                                 </div>
                             )}
-                            
+
                             <div className="text-xs text-gray-600 bg-white rounded p-2 border border-gray-200">
-                                <strong>Sugerencia:</strong> {Math.round(classificationResult.confidence * 100)}% confianza • 
+                                <strong>Sugerencia:</strong> {Math.round(classificationResult.confidence * 100)}% confianza •
                                 Proveedor: {classificationResult.enhanced_by_ai ? classificationResult.ai_provider || 'IA' : 'Heurística'}
                             </div>
                         </div>
                     )}
-                    
+
                     <div className="flex gap-2">
                         <button className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded" onClick={volver}>← Volver</button>
                         <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded" onClick={continuar}>Validar</button>
@@ -329,9 +329,9 @@ export default function ImportadorWizard() {
 
             {step === 'summary' && (
                 <div className="space-y-4">
-                    <ResumenImportacion 
-                        total={rows.length} 
-                        onBack={volver} 
+                    <ResumenImportacion
+                        total={rows.length}
+                        onBack={volver}
                         onImport={() => { }}
                         classificationResult={classificationResult}
                         selectedParser={selectedParser}
@@ -367,13 +367,13 @@ export default function ImportadorWizard() {
             {step === 'importing' && (
                 <div className="space-y-4">
                     {/* Sprint 3: WebSocket progress indicator */}
-                    <ImportProgressIndicator 
+                    <ImportProgressIndicator
                         progress={progress}
                         progressPercent={progressPercent}
                         isConnected={isConnected}
                         error={wsError || saveError}
                     />
-                    
+
                     {saveError && (
                         <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded">
                             <strong>Error:</strong> {saveError}
@@ -384,4 +384,3 @@ export default function ImportadorWizard() {
         </div>
     )
 }
-

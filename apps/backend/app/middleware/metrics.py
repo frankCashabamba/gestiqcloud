@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import time
+
+from app.metrics.store import record as record_metric
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
-
-from app.metrics.store import record as record_metric
 
 
 class MetricsMiddleware(BaseHTTPMiddleware):

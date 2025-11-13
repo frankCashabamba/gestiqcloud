@@ -1,8 +1,8 @@
 # 🔍 ¿QUÉ PASÓ? - Análisis del Error de Auditoría
 
-**Fecha del error:** Nov 11, 2025 (mañana)  
-**Fecha de corrección:** Nov 11, 2025 (tarde)  
-**Severidad:** CRÍTICA - Impactó roadmap y decisiones  
+**Fecha del error:** Nov 11, 2025 (mañana)
+**Fecha de corrección:** Nov 11, 2025 (tarde)
+**Severidad:** CRÍTICA - Impactó roadmap y decisiones
 **Estado:** ✅ Corregido
 
 ---
@@ -64,12 +64,12 @@ filePattern: "**/*.tsx"
 searchPath: [/apps/backend/alembic, /apps/backend/app, ...]
              ↓
              Solo busca EN esos directorios
-             
+
 // Archivos buscados estaban en:
 /apps/tenant/src/modules/importador/
       ↑
       Directorio diferente, FUERA del scope de búsqueda
-      
+
 // Resultado:
 ❌ "No encontrado"  ← Falso negativo por config
 ```
@@ -340,10 +340,10 @@ Nov 11, 15:30  → Este documento de "qué pasó"
 🟢 POSITIVO: Descubrimiento importante
    └─ Frontend existe y funciona completamente
    └─ Sistema más avanzado de lo que se creía
-   
+
 🟡 NEGATIVO: Tiempo perdido en análisis erróneo
    └─ Pero se identificó y corrigió rápidamente
-   
+
 📊 NETO: Beneficio > Costo
    └─ Conocimiento real del estado del proyecto
    └─ Documentación mejorada
@@ -372,7 +372,7 @@ Nov 11, 15:30  → Este documento de "qué pasó"
 
 ---
 
-**Documento preparado:** Nov 11, 2025  
-**Propósito:** Transparencia y lecciones aprendidas  
-**Lección principal:** Verificar suposiciones antes de documentarlas  
+**Documento preparado:** Nov 11, 2025
+**Propósito:** Transparencia y lecciones aprendidas
+**Lección principal:** Verificar suposiciones antes de documentarlas
 **Estado:** ✅ Completado

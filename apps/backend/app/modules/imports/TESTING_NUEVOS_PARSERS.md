@@ -290,19 +290,19 @@ def validate_parser_output(parser_id, file_path):
     """Validar que un parser devuelve estructura correcta."""
     parser = registry.get_parser(parser_id)
     result = parser["handler"](file_path)
-    
+
     # Validar estructura base
     required_keys = ["rows_processed", "rows_parsed", "errors", "source_type", "parser"]
     for key in required_keys:
         assert key in result, f"Missing key: {key}"
-    
+
     # Validar items
     item_key = list(result.keys())[0] if result else None
     if item_key and isinstance(result[item_key], list):
         for item in result[item_key]:
             assert "doc_type" in item, f"Item missing doc_type: {item}"
             assert "_metadata" in item, f"Item missing _metadata: {item}"
-    
+
     return True
 
 # Test all parsers

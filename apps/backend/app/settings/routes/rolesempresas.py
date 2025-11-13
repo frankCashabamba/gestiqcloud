@@ -1,28 +1,21 @@
-﻿"""Module: rolesempresas.py
+"""Module: rolesempresas.py
 
 Auto-generated module docstring."""
 
 # routers/roles.py
-from typing import List
-
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.models import RolEmpresa
 from app.routers.protected import get_current_user
 from app.schemas.configuracion import AuthenticatedUser
-from app.settings.schemas.roles.roleempresas import (
-    RolCreate,
-    RolEmpresaOut,
-    RolResponse,
-    RolUpdate,
-)
+from app.settings.schemas.roles.roleempresas import RolCreate, RolEmpresaOut, RolResponse, RolUpdate
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/roles", tags=["Roles"])
 
 
-@router.get("", response_model=List[RolEmpresaOut])
+@router.get("", response_model=list[RolEmpresaOut])
 def listar_roles(
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -39,9 +32,7 @@ def crear_rol(
 ):
     tenant_id = current_user.tenant_id
 
-    existe = (
-        db.query(RolEmpresa).filter_by(tenant_id=tenant_id, nombre=data.name).first()
-    )
+    existe = db.query(RolEmpresa).filter_by(tenant_id=tenant_id, nombre=data.name).first()
     if existe:
         raise HTTPException(status_code=400, detail="Ya existe un rol con ese nombre")
 

@@ -173,11 +173,11 @@ async def import_documents():
         promote=True,
     )
     report = await importer.run()
-    
+
     print(f"✓ Successful: {report.successful}")
     print(f"✗ Failed: {report.failed}")
     print(f"Items: {report.total_items}")
-    
+
     return report
 
 report = asyncio.run(import_documents())

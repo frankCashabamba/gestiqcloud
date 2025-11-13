@@ -40,7 +40,7 @@ export default function BancoList() {
     if (conciliado === 'false' && m.conciliado) return false
     if (q) {
       const search = q.toLowerCase()
-      const matches = 
+      const matches =
         m.concepto.toLowerCase().includes(search) ||
         (m.banco || '').toLowerCase().includes(search) ||
         (m.numero_cuenta || '').toLowerCase().includes(search)
@@ -178,8 +178,8 @@ export default function BancoList() {
                 <td className="py-2 px-3">{m.concepto}</td>
                 <td className="py-2 px-3">
                   <span className={`px-2 py-1 rounded text-xs ${
-                    m.tipo === 'ingreso' 
-                      ? 'bg-green-100 text-green-800' 
+                    m.tipo === 'ingreso'
+                      ? 'bg-green-100 text-green-800'
                       : 'bg-red-100 text-red-800'
                   }`}>
                     {m.tipo}

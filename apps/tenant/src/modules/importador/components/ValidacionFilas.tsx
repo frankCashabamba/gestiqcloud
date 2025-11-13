@@ -14,4 +14,3 @@ export default function ValidacionFilas({ errores }: { errores: string[] }) {
     </div>
   )
 }
-

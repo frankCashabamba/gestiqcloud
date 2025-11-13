@@ -13,7 +13,7 @@ interface Empresa {
 export const EditarSectorEmpresa: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  
+
   const [empresa, setEmpresa] = useState<Empresa | null>(null)
   const [selectedSector, setSelectedSector] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -58,7 +58,7 @@ export const EditarSectorEmpresa: React.FC = () => {
       })
 
       setSuccess('¡Plantilla aplicada exitosamente! La configuración de la empresa ha sido actualizada.')
-      
+
       setTimeout(() => {
         navigate('/admin/empresas')
       }, 2000)

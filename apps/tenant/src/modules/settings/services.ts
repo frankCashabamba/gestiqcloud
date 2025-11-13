@@ -41,4 +41,3 @@ export async function getLimites(): Promise<SettingsLimites> {
 export async function saveLimites(payload: SettingsLimites) {
   await tenantApi.put(TENANT_SETTINGS.limites, payload)
 }
-

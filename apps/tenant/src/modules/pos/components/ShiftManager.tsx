@@ -87,7 +87,7 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
 
   const handleCloseShift = async () => {
     if (!currentShift) return
-    
+
     if (summary && summary.pending_receipts > 0) {
       alert(`No se puede cerrar el turno. Hay ${summary.pending_receipts} recibo(s) sin cobrar/terminar.`)
       return
@@ -104,7 +104,7 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
         shift_id: currentShift.id,
         closing_cash: parseFloat(closingCash),
       }
-      
+
       if (lossAmount && parseFloat(lossAmount) > 0) {
         payload.loss_amount = parseFloat(lossAmount)
       }
@@ -176,7 +176,7 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
         <div>
           <h3 className="font-semibold text-green-800">Turno Abierto</h3>
           <p className="text-sm text-green-700">
-            Apertura: {new Date(currentShift.opened_at).toLocaleString()} | 
+            Apertura: {new Date(currentShift.opened_at).toLocaleString()} |
             Fondo: €{(Number(currentShift.opening_float) || 0).toFixed(2)}
           </p>
         </div>

@@ -1,130 +1,134 @@
 from __future__ import annotations
 
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-
 from app.config.database import get_db
-
-# Use modern use cases (all legacy CRUD migrated)
-from app.modules.admin_config.schemas import (
-    HorarioAtencionCreate,
-    HorarioAtencionUpdate,
-    HorarioAtencionRead,
-    MonedaCreate,
-    MonedaUpdate,
-    MonedaRead,
-    PaisCreate,
-    PaisUpdate,
-    PaisRead,
-    IdiomaCreate,
-    IdiomaUpdate,
-    IdiomaRead,
-    # Reusar MonedaRead para listas simples (name/code) no aplica; endpoints devolverán objetos completos
-    DiaSemanaCreate,
-    DiaSemanaUpdate,
-    DiaSemanaRead,
-    SectorPlantillaCreate,
-    SectorPlantillaUpdate,
-    SectorPlantillaRead,
-    TipoEmpresaRead,
-    TipoEmpresaCreate,
-    TipoEmpresaUpdate,
-    TipoNegocioRead,
-    TipoNegocioCreate,
-    TipoNegocioUpdate,
+from app.modules.admin_config.application.dias_semana.dto import DiaSemanaIn
+from app.modules.admin_config.application.dias_semana.use_cases import (
+    ActualizarDiaSemana,
+    CrearDiaSemana,
+    EliminarDiaSemana,
+    ListarDiasSemana,
+    ObtenerDiaSemana,
+)
+from app.modules.admin_config.application.horarios_atencion.dto import HorarioAtencionIn
+from app.modules.admin_config.application.horarios_atencion.use_cases import (
+    ActualizarHorarioAtencion,
+    CrearHorarioAtencion,
+    EliminarHorarioAtencion,
+    ListarHorariosAtencion,
+    ObtenerHorarioAtencion,
+)
+from app.modules.admin_config.application.idiomas.dto import IdiomaIn
+from app.modules.admin_config.application.idiomas.use_cases import (
+    ActualizarIdioma,
+    CrearIdioma,
+    EliminarIdioma,
+    ListarIdiomas,
+    ObtenerIdioma,
+)
+from app.modules.admin_config.application.locales.dto import LocaleIn
+from app.modules.admin_config.application.locales.use_cases import (
+    ActualizarLocale,
+    CrearLocale,
+    EliminarLocale,
+    ListarLocales,
+    ObtenerLocale,
 )
 from app.modules.admin_config.application.monedas.dto import MonedaIn
 from app.modules.admin_config.application.monedas.use_cases import (
+    ActualizarMoneda,
+    CrearMoneda,
+    EliminarMoneda,
     ListarMonedas,
     ObtenerMoneda,
-    CrearMoneda,
-    ActualizarMoneda,
-    EliminarMoneda,
 )
-from app.modules.admin_config.infrastructure.monedas.repository import SqlAlchemyMonedaRepo
-from app.modules.admin_config.application.idiomas.dto import IdiomaIn
-from app.modules.admin_config.application.idiomas.use_cases import (
-    ListarIdiomas,
-    ObtenerIdioma,
-    CrearIdioma,
-    ActualizarIdioma,
-    EliminarIdioma,
-)
-from app.modules.admin_config.infrastructure.idiomas.repository import SqlAlchemyIdiomaRepo
 from app.modules.admin_config.application.paises.dto import PaisIn
 from app.modules.admin_config.application.paises.use_cases import (
+    ActualizarPais,
+    CrearPais,
+    EliminarPais,
     ListarPaises,
     ObtenerPais,
-    CrearPais,
-    ActualizarPais,
-    EliminarPais,
 )
-from app.modules.admin_config.infrastructure.paises.repository import SqlAlchemyPaisRepo
-from app.modules.admin_config.application.dias_semana.dto import DiaSemanaIn
-from app.modules.admin_config.application.dias_semana.use_cases import (
-    ListarDiasSemana,
-    ObtenerDiaSemana,
-    CrearDiaSemana,
-    ActualizarDiaSemana,
-    EliminarDiaSemana,
-)
-from app.modules.admin_config.infrastructure.dias_semana.repository import SqlAlchemyDiaSemanaRepo
-from app.modules.admin_config.application.horarios_atencion.dto import HorarioAtencionIn
-from app.modules.admin_config.application.horarios_atencion.use_cases import (
-    ListarHorariosAtencion,
-    ObtenerHorarioAtencion,
-    CrearHorarioAtencion,
-    ActualizarHorarioAtencion,
-    EliminarHorarioAtencion,
-)
-from app.modules.admin_config.infrastructure.horarios_atencion.repository import SqlAlchemyHorarioAtencionRepo
 from app.modules.admin_config.application.sectores_plantilla.dto import SectorPlantillaIn
 from app.modules.admin_config.application.sectores_plantilla.use_cases import (
+    ActualizarSectorPlantilla,
+    CrearSectorPlantilla,
+    EliminarSectorPlantilla,
     ListarSectoresPlantilla,
     ObtenerSectorPlantilla,
-    CrearSectorPlantilla,
-    ActualizarSectorPlantilla,
-    EliminarSectorPlantilla,
 )
-from app.modules.admin_config.infrastructure.sectores_plantilla.repository import SqlAlchemySectorPlantillaRepo
-from app.modules.admin_config.application.tipos_empresa.dto import TipoEmpresaIn
-from app.modules.admin_config.application.tipos_empresa.use_cases import (
-    ListarTiposEmpresa,
-    ObtenerTipoEmpresa,
-    CrearTipoEmpresa,
-    ActualizarTipoEmpresa,
-    EliminarTipoEmpresa,
-)
-from app.modules.admin_config.infrastructure.tipos_empresa.repository import SqlAlchemyTipoEmpresaRepo
-from app.modules.admin_config.application.tipos_negocio.dto import TipoNegocioIn
-from app.modules.admin_config.application.tipos_negocio.use_cases import (
-    ListarTiposNegocio,
-    ObtenerTipoNegocio,
-    CrearTipoNegocio,
-    ActualizarTipoNegocio,
-    EliminarTipoNegocio,
-)
-from app.modules.admin_config.infrastructure.tipos_negocio.repository import SqlAlchemyTipoNegocioRepo
 from app.modules.admin_config.application.timezones.dto import TimezoneIn
 from app.modules.admin_config.application.timezones.use_cases import (
+    ActualizarTimezone,
+    CrearTimezone,
+    EliminarTimezone,
     ListarTimezones,
     ObtenerTimezone,
-    CrearTimezone,
-    ActualizarTimezone,
-    EliminarTimezone,
+)
+from app.modules.admin_config.application.tipos_empresa.dto import TipoEmpresaIn
+from app.modules.admin_config.application.tipos_empresa.use_cases import (
+    ActualizarTipoEmpresa,
+    CrearTipoEmpresa,
+    EliminarTipoEmpresa,
+    ListarTiposEmpresa,
+    ObtenerTipoEmpresa,
+)
+from app.modules.admin_config.application.tipos_negocio.dto import TipoNegocioIn
+from app.modules.admin_config.application.tipos_negocio.use_cases import (
+    ActualizarTipoNegocio,
+    CrearTipoNegocio,
+    EliminarTipoNegocio,
+    ListarTiposNegocio,
+    ObtenerTipoNegocio,
+)
+from app.modules.admin_config.infrastructure.dias_semana.repository import SqlAlchemyDiaSemanaRepo
+from app.modules.admin_config.infrastructure.horarios_atencion.repository import (
+    SqlAlchemyHorarioAtencionRepo,
+)
+from app.modules.admin_config.infrastructure.idiomas.repository import SqlAlchemyIdiomaRepo
+from app.modules.admin_config.infrastructure.locales.repository import SqlAlchemyLocaleRepo
+from app.modules.admin_config.infrastructure.monedas.repository import SqlAlchemyMonedaRepo
+from app.modules.admin_config.infrastructure.paises.repository import SqlAlchemyPaisRepo
+from app.modules.admin_config.infrastructure.sectores_plantilla.repository import (
+    SqlAlchemySectorPlantillaRepo,
 )
 from app.modules.admin_config.infrastructure.timezones.repository import SqlAlchemyTimezoneRepo
-from app.modules.admin_config.application.locales.dto import LocaleIn
-from app.modules.admin_config.application.locales.use_cases import (
-    ListarLocales,
-    ObtenerLocale,
-    CrearLocale,
-    ActualizarLocale,
-    EliminarLocale,
+from app.modules.admin_config.infrastructure.tipos_empresa.repository import (
+    SqlAlchemyTipoEmpresaRepo,
 )
-from app.modules.admin_config.infrastructure.locales.repository import SqlAlchemyLocaleRepo
+from app.modules.admin_config.infrastructure.tipos_negocio.repository import (
+    SqlAlchemyTipoNegocioRepo,
+)
 
+# Use modern use cases (all legacy CRUD migrated)
+from app.modules.admin_config.schemas import (  # Reusar MonedaRead para listas simples (name/code) no aplica; endpoints devolverán objetos completos
+    DiaSemanaCreate,
+    DiaSemanaRead,
+    DiaSemanaUpdate,
+    HorarioAtencionCreate,
+    HorarioAtencionRead,
+    HorarioAtencionUpdate,
+    IdiomaCreate,
+    IdiomaRead,
+    IdiomaUpdate,
+    MonedaCreate,
+    MonedaRead,
+    MonedaUpdate,
+    PaisCreate,
+    PaisRead,
+    PaisUpdate,
+    SectorPlantillaCreate,
+    SectorPlantillaRead,
+    SectorPlantillaUpdate,
+    TipoEmpresaCreate,
+    TipoEmpresaRead,
+    TipoEmpresaUpdate,
+    TipoNegocioCreate,
+    TipoNegocioRead,
+    TipoNegocioUpdate,
+)
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/config", tags=["admin:config"])
 
@@ -350,7 +354,7 @@ def _locales_in_from_update(data: dict, current) -> LocaleIn:
 
 
 # Idiomas
-@router.get("/idioma", response_model=List[IdiomaRead])
+@router.get("/idioma", response_model=list[IdiomaRead])
 def list_idiomas(db: Session = Depends(get_db)):
     use = ListarIdiomas(_idioma_repo(db))
     items = use.execute()
@@ -387,7 +391,7 @@ def delete_idioma(id: int, db: Session = Depends(get_db)):
 
 
 # Monedas
-@router.get("/moneda", response_model=List[MonedaRead])
+@router.get("/moneda", response_model=list[MonedaRead])
 def list_monedas(db: Session = Depends(get_db)):
     use = ListarMonedas(_moneda_repo(db))
     items = use.execute()
@@ -424,7 +428,7 @@ def delete_moneda(id: int, db: Session = Depends(get_db)):
 
 
 # Países
-@router.get("/pais", response_model=List[PaisRead])
+@router.get("/pais", response_model=list[PaisRead])
 def list_paises(db: Session = Depends(get_db)):
     use = ListarPaises(_pais_repo(db))
     items = use.execute()
@@ -535,7 +539,7 @@ def delete_locale(code: str, db: Session = Depends(get_db)):
 
 
 # Días de semana (ruta moderna `/dias`)
-@router.get("/dias", response_model=List[DiaSemanaRead])
+@router.get("/dias", response_model=list[DiaSemanaRead])
 def list_dias(db: Session = Depends(get_db)):
     use = ListarDiasSemana(_dias_repo(db))
     items = use.execute()
@@ -572,7 +576,7 @@ def delete_dia(id: int, db: Session = Depends(get_db)):
 
 
 # Horario de atención (ruta moderna `/horario_atencion`)
-@router.get("/horario_atencion", response_model=List[HorarioAtencionRead])
+@router.get("/horario_atencion", response_model=list[HorarioAtencionRead])
 def list_horarios(db: Session = Depends(get_db)):
     use = ListarHorariosAtencion(_horarios_repo(db))
     items = use.execute()
@@ -609,7 +613,7 @@ def delete_horario(id: int, db: Session = Depends(get_db)):
 
 
 # Sectores (plantillas)
-@router.get("/sectores", response_model=List[SectorPlantillaRead])
+@router.get("/sectores", response_model=list[SectorPlantillaRead])
 def list_sectores(db: Session = Depends(get_db)):
     use = ListarSectoresPlantilla(_sectores_repo(db))
     items = use.execute()
@@ -656,7 +660,7 @@ def delete_sector(id: int, db: Session = Depends(get_db)):
 
 
 # Tipo empresa
-@router.get("/tipo-empresa", response_model=List[TipoEmpresaRead])
+@router.get("/tipo-empresa", response_model=list[TipoEmpresaRead])
 def list_tipo_empresa(db: Session = Depends(get_db)):
     use = ListarTiposEmpresa(_tipos_empresa_repo(db))
     items = use.execute()
@@ -671,9 +675,7 @@ def create_tipo_empresa(data: TipoEmpresaCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/tipo-empresa/{id}", response_model=TipoEmpresaRead)
-def update_tipo_empresa(
-    id: int, data: TipoEmpresaUpdate, db: Session = Depends(get_db)
-):
+def update_tipo_empresa(id: int, data: TipoEmpresaUpdate, db: Session = Depends(get_db)):
     repo = _tipos_empresa_repo(db)
     try:
         current = ObtenerTipoEmpresa(repo).execute(id)
@@ -695,7 +697,7 @@ def delete_tipo_empresa(id: int, db: Session = Depends(get_db)):
 
 
 # Tipo negocio
-@router.get("/tipo-negocio", response_model=List[TipoNegocioRead])
+@router.get("/tipo-negocio", response_model=list[TipoNegocioRead])
 def list_tipo_negocio(db: Session = Depends(get_db)):
     use = ListarTiposNegocio(_tipos_negocio_repo(db))
     items = use.execute()
@@ -710,9 +712,7 @@ def create_tipo_negocio(data: TipoNegocioCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/tipo-negocio/{id}", response_model=TipoNegocioRead)
-def update_tipo_negocio(
-    id: int, data: TipoNegocioUpdate, db: Session = Depends(get_db)
-):
+def update_tipo_negocio(id: int, data: TipoNegocioUpdate, db: Session = Depends(get_db)):
     repo = _tipos_negocio_repo(db)
     try:
         current = ObtenerTipoNegocio(repo).execute(id)

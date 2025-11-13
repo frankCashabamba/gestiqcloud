@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
-import hashlib
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Any
 
 from celery import states
 
@@ -13,16 +13,17 @@ try:
 except Exception:  # pragma: no cover
     celery_app = None  # type: ignore
 
+from datetime import date, time
+from decimal import Decimal
+
 from app.config.database import session_scope
 from app.db.rls import set_tenant_guc
 from app.models.core.modelsimport import ImportBatch, ImportItem
-from app.modules.imports.parsers import registry as parsers_registry
 from app.modules.imports.domain.canonical_schema import validate_canonical
-from decimal import Decimal
-from datetime import datetime, date, time
+from app.modules.imports.parsers import registry as parsers_registry
 
 
-def _dedupe_hash(obj: Dict[str, Any]) -> str:
+def _dedupe_hash(obj: dict[str, Any]) -> str:
     s = json.dumps(obj, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(s).hexdigest()
 
@@ -76,14 +77,18 @@ def _to_number(val) -> float | None:
         return None
 
 
-def _extract_items_from_parsed_result(parsed_result: Dict[str, Any], doc_type: str) -> List[Dict[str, Any]]:
+def _extract_items_from_parsed_result(
+    parsed_result: dict[str, Any], doc_type: str
+) -> list[dict[str, Any]]:
     """Extract items list from parser result based on doc_type."""
     if doc_type == "products":
         return parsed_result.get("products", parsed_result.get("rows", [parsed_result]))
     elif doc_type == "invoices":
         return parsed_result.get("invoices", [parsed_result])
     elif doc_type == "bank_transactions":
-        return parsed_result.get("bank_transactions", parsed_result.get("transactions", [parsed_result]))
+        return parsed_result.get(
+            "bank_transactions", parsed_result.get("transactions", [parsed_result])
+        )
     elif "rows" in parsed_result:
         return parsed_result["rows"]
     else:
@@ -91,52 +96,63 @@ def _extract_items_from_parsed_result(parsed_result: Dict[str, Any], doc_type: s
 
 
 def _build_canonical_from_item(
-    raw: Dict[str, Any],
-    normalized: Dict[str, Any],
+    raw: dict[str, Any],
+    normalized: dict[str, Any],
     doc_type: str,
     parser_id: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Construir CanonicalDocument a partir de un item parseado.
-    
+
     Mapea según doc_type (products, invoices, bank_transactions) al esquema SPEC-1.
     """
     if doc_type == "invoices":
         # El parser ya devuelve estructura canónica para invoices
-        return raw if raw.get("doc_type") == "invoice" else {
-            "doc_type": "invoice",
-            "invoice_number": raw.get("invoice_number"),
-            "issue_date": raw.get("issue_date"),
-            "due_date": raw.get("due_date"),
-            "vendor": raw.get("vendor"),
-            "buyer": raw.get("buyer"),
-            "totals": raw.get("totals"),
-            "lines": raw.get("lines"),
-            "currency": raw.get("currency", "USD"),
-            "payment": raw.get("payment"),
-            "source": raw.get("source", "parser"),
-            "confidence": raw.get("confidence", 0.7),
-        }
-    
+        return (
+            raw
+            if raw.get("doc_type") == "invoice"
+            else {
+                "doc_type": "invoice",
+                "invoice_number": raw.get("invoice_number"),
+                "issue_date": raw.get("issue_date"),
+                "due_date": raw.get("due_date"),
+                "vendor": raw.get("vendor"),
+                "buyer": raw.get("buyer"),
+                "totals": raw.get("totals"),
+                "lines": raw.get("lines"),
+                "currency": raw.get("currency", "USD"),
+                "payment": raw.get("payment"),
+                "source": raw.get("source", "parser"),
+                "confidence": raw.get("confidence", 0.7),
+            }
+        )
+
     elif doc_type == "bank_transactions":
         # El parser ya devuelve estructura canónica para bank_tx
-        return raw if raw.get("doc_type") == "bank_tx" else {
-            "doc_type": "bank_tx",
-            "issue_date": raw.get("issue_date") or raw.get("transaction_date"),
-            "currency": raw.get("currency", "USD"),
-            "bank_tx": raw.get("bank_tx", {
-                "amount": raw.get("amount"),
-                "direction": raw.get("direction", "credit"),
-                "value_date": raw.get("value_date") or raw.get("issue_date"),
-                "narrative": raw.get("narrative") or raw.get("concepto"),
-                "counterparty": raw.get("counterparty"),
-                "external_ref": raw.get("external_ref"),
-            }),
-            "payment": {"iban": raw.get("iban")} if raw.get("iban") else {},
-            "source": raw.get("source", "parser"),
-            "confidence": raw.get("confidence", 0.7),
-        }
-    
+        return (
+            raw
+            if raw.get("doc_type") == "bank_tx"
+            else {
+                "doc_type": "bank_tx",
+                "issue_date": raw.get("issue_date") or raw.get("transaction_date"),
+                "currency": raw.get("currency", "USD"),
+                "bank_tx": raw.get(
+                    "bank_tx",
+                    {
+                        "amount": raw.get("amount"),
+                        "direction": raw.get("direction", "credit"),
+                        "value_date": raw.get("value_date") or raw.get("issue_date"),
+                        "narrative": raw.get("narrative") or raw.get("concepto"),
+                        "counterparty": raw.get("counterparty"),
+                        "external_ref": raw.get("external_ref"),
+                    },
+                ),
+                "payment": {"iban": raw.get("iban")} if raw.get("iban") else {},
+                "source": raw.get("source", "parser"),
+                "confidence": raw.get("confidence", 0.7),
+            }
+        )
+
     else:  # products, generic, or other
         return {
             "doc_type": "other",
@@ -200,15 +216,13 @@ def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id
             parsed_result = parser_func(file_path)
 
             # Create ImportItems from parsed data
-            idx_base = (
-                db.query(ImportItem).filter(ImportItem.batch_id == batch_id).count() or 0
-            )
+            idx_base = db.query(ImportItem).filter(ImportItem.batch_id == batch_id).count() or 0
             idx = idx_base
-            buffer: List[ImportItem] = []
+            buffer: list[ImportItem] = []
 
             # Extract items from parsed result based on parser type
             items_data = _extract_items_from_parsed_result(parsed_result, doc_type)
-            
+
             items_validated = 0
             items_failed = 0
 
@@ -237,7 +251,7 @@ def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id
 
                 # Validar documento canónico
                 is_valid, errors = validate_canonical(canonical_doc)
-                
+
                 idem = _idempotency_key(str(tenant_id), file_key, idx)
                 dedupe = _dedupe_hash({"normalized": normalized, "doc_type": doc_type})
 
@@ -253,7 +267,7 @@ def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id
                     errors=errors if not is_valid else [],
                 )
                 buffer.append(import_item)
-                
+
                 if is_valid:
                     items_validated += 1
                 else:
@@ -268,7 +282,12 @@ def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id
                     try:
                         self.update_state(
                             state=states.STARTED,
-                            meta={"processed": processed, "created": created, "validated": items_validated, "failed": items_failed},
+                            meta={
+                                "processed": processed,
+                                "created": created,
+                                "validated": items_validated,
+                                "failed": items_failed,
+                            },
                         )
                     except Exception:
                         pass

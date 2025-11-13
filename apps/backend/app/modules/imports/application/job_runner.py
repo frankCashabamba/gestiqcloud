@@ -3,21 +3,20 @@ from __future__ import annotations
 import logging
 import threading
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID, uuid4
-
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import TimeoutError as SATimeoutError
 
 from app.config.database import session_scope
 from app.db.rls import set_tenant_guc
 from app.models.core.modelsimport import ImportOCRJob
+from sqlalchemy.exc import TimeoutError as SATimeoutError
+from sqlalchemy.orm import Session
 
 _LOGGER = logging.getLogger("imports.ocr_jobs")
 
 
-def _serialize_documentos(documentos: List[Any]) -> List[Dict[str, Any]]:
-    serializable: List[Dict[str, Any]] = []
+def _serialize_documentos(documentos: list[Any]) -> list[dict[str, Any]]:
+    serializable: list[dict[str, Any]] = []
     for doc in documentos:
         if hasattr(doc, "model_dump"):
             serializable.append(doc.model_dump())  # type: ignore[attr-defined]
@@ -37,16 +36,14 @@ class OCRJobRunner:
     def __init__(self, *, poll_interval: float = 1.0) -> None:
         self._poll_interval = poll_interval
         self._stop_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
             return
         self._stop_event.clear()
         self._reset_running_jobs()
-        self._thread = threading.Thread(
-            target=self._run, name="imports-ocr-runner", daemon=True
-        )
+        self._thread = threading.Thread(target=self._run, name="imports-ocr-runner", daemon=True)
         self._thread.start()
         _LOGGER.info("OCR job runner started")
 
@@ -74,7 +71,7 @@ class OCRJobRunner:
             if updated:
                 _LOGGER.info("Reset %s stuck OCR jobs to pending", updated)
 
-    def _claim_next_job(self, db: Session) -> Optional[ImportOCRJob]:
+    def _claim_next_job(self, db: Session) -> ImportOCRJob | None:
         query = (
             db.query(ImportOCRJob)
             .filter(ImportOCRJob.status == "pending")
@@ -100,9 +97,9 @@ class OCRJobRunner:
 
     def _run(self) -> None:  # pragma: no cover - background thread
         while not self._stop_event.is_set():
-            job_id: Optional[UUID] = None
-            filename: Optional[str] = None
-            payload: Optional[bytes] = None
+            job_id: UUID | None = None
+            filename: str | None = None
+            payload: bytes | None = None
             try:
                 with session_scope() as db:
                     claimed = self._claim_next_job(db)
@@ -146,8 +143,8 @@ class OCRJobRunner:
         job_id: UUID,
         *,
         status: str,
-        result: Optional[Dict[str, Any]],
-        error: Optional[str],
+        result: dict[str, Any] | None,
+        error: str | None,
     ) -> None:
         with session_scope() as db:
             job = db.query(ImportOCRJob).filter(ImportOCRJob.id == job_id).first()
@@ -160,9 +157,7 @@ class OCRJobRunner:
             db.add(job)
 
 
-def enqueue_job(
-    *, tenant_id: int, filename: str, content_type: Optional[str], payload: bytes
-) -> UUID:
+def enqueue_job(*, tenant_id: int, filename: str, content_type: str | None, payload: bytes) -> UUID:
     """Inserta un trabajo OCR y devuelve su id."""
     with session_scope() as db:
         # Fija GUC tenant_id en esta sesión nueva usando el UUID del tenant

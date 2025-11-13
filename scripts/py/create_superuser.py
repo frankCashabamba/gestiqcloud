@@ -45,10 +45,11 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     # Import backend modules
     try:
+        from sqlalchemy import text
+
         from app.config.database import session_scope
         from app.models.auth.useradmis import SuperUser
         from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
-        from sqlalchemy import text
     except Exception as e:
         print(
             "ERROR: could not import backend modules (app.*). Make sure the repo layout is intact and dependencies are installed."

@@ -1,7 +1,7 @@
 # ✅ MIGRACIÓN RRHH COMPLETADA
 
-**Fecha:** 2025-11-06  
-**Módulo:** RRHH (Human Resources)  
+**Fecha:** 2025-11-06
+**Módulo:** RRHH (Human Resources)
 **Estado:** ✅ Migración completa
 
 ---
@@ -133,13 +133,13 @@ include_router_safe(r, ("app.modules.rrhh.interface.http.tenant", "router"))
 ## 🔐 SEGURIDAD APLICADA
 
 ### RBAC (Role-Based Access Control)
-✅ Todos los endpoints requieren JWT válido  
-✅ Todos los endpoints requieren scope `"tenant"`  
+✅ Todos los endpoints requieren JWT válido
+✅ Todos los endpoints requieren scope `"tenant"`
 ✅ Claims extraídos: `tenant_id`, `user_id`
 
 ### RLS (Row Level Security)
-✅ `ensure_rls` dependency aplicado  
-✅ Filtrado automático por `tenant_id`  
+✅ `ensure_rls` dependency aplicado
+✅ Filtrado automático por `tenant_id`
 ✅ Aislamiento completo entre tenants
 
 ### Ejemplo de Uso en Endpoint
@@ -420,6 +420,6 @@ GET /api/v1/hr/nominas      # ✅ MISMA RUTA
 
 ---
 
-**Migración realizada por:** IA Assistant  
-**Fecha:** 2025-11-06  
+**Migración realizada por:** IA Assistant
+**Fecha:** 2025-11-06
 **Estado:** ✅ COMPLETADA - Lista para testing

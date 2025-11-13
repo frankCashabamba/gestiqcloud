@@ -11,4 +11,3 @@ Up
 
 Down
 - ALTER TABLE warehouses DROP COLUMN IF EXISTS metadata;
-

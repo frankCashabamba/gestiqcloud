@@ -4,4 +4,3 @@ DROP TABLE IF EXISTS ref_locale;
 DROP TABLE IF EXISTS ref_timezone;
 
 COMMIT;
-

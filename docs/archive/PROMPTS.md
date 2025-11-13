@@ -26,10 +26,10 @@ Usa estos prompts como base para continuar tareas frecuentes. Copia/pega y ajust
 - Revisar servicios: `scripts/init.ps1 status` y `scripts/init.ps1 logs admin|tenant|backend`.
 
 ## Ejemplos de Prompt
-- "Migra la pantalla de Monedas a Admin creando rutas y componentes en `apps/admin/src/features/configuracion/monedas`, conectando servicios a `@shared/endpoints` y mostrando lista/creación/edición." 
-- "Crea servicios de contabilidad en Tenant para listar asientos y generar libro mayor usando `tenantApi` y endpoints actuales; renderiza tabla paginada." 
-- "Soluciona errores TS en `apps/packages/ui` relacionados con JSX/React types y ajusta exports si faltan." 
-- "Verifica CORS/CSRF en backend y ajusta `VITE_API_URL`/`CORS_ORIGINS` para los puertos 8081/8082." 
+- "Migra la pantalla de Monedas a Admin creando rutas y componentes en `apps/admin/src/features/configuracion/monedas`, conectando servicios a `@shared/endpoints` y mostrando lista/creación/edición."
+- "Crea servicios de contabilidad en Tenant para listar asientos y generar libro mayor usando `tenantApi` y endpoints actuales; renderiza tabla paginada."
+- "Soluciona errores TS en `apps/packages/ui` relacionados con JSX/React types y ajusta exports si faltan."
+- "Verifica CORS/CSRF en backend y ajusta `VITE_API_URL`/`CORS_ORIGINS` para los puertos 8081/8082."
 
 ---
 Mantén cambios pequeños y verificables: prueba rutas, typecheck, y revisa logs tras cada paso.

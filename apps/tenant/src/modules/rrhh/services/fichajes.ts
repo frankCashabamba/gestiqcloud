@@ -9,4 +9,3 @@ export async function getFichajes(): Promise<Fichaje[]> {
 export async function registrarFichaje(_tipo: 'entrada' | 'salida'): Promise<void> {
   return
 }
-

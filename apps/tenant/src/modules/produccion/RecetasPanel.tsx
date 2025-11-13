@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Box, Typography, Button, IconButton, Tabs, Tab,
   Card, CardContent, CardActions, Grid, Chip, Alert
 } from '@mui/material';
@@ -32,15 +32,15 @@ export default function RecetasPanel() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Tabs
   const [currentTab, setCurrentTab] = useState(0);
-  
+
   // Modales
   const [formOpen, setFormOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
-  
+
   // Selección
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
@@ -76,7 +76,7 @@ export default function RecetasPanel() {
 
   const handleDelete = async (recipeId: string) => {
     if (!confirm('¿Eliminar esta receta?')) return;
-    
+
     try {
       await deleteRecipe(recipeId);
       loadRecipes();
@@ -144,7 +144,7 @@ export default function RecetasPanel() {
                     <Typography variant="h6" gutterBottom>
                       {recipe.name}
                     </Typography>
-                    
+
                     <Typography variant="body2" color="text.secondary" gutterBottom>
                       Producto: {recipe.producto_nombre || 'N/A'}
                     </Typography>

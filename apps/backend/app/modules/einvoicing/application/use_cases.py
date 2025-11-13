@@ -1,19 +1,15 @@
-from uuid import UUID
-from typing import Optional
 import inspect
-
-from sqlalchemy.future import select
-from fastapi import HTTPException, status
+from uuid import UUID
 
 from app.config.database import get_db_session
+from fastapi import HTTPException, status
+from sqlalchemy.future import select
 
 # Tasks may require Celery in environments where it's not installed during unit tests.
 # Provide resilient imports so tests can patch these symbols without importing Celery.
 try:
-    from app.workers.einvoicing_tasks import (
-        sign_and_send_sri_task,  # type: ignore
-        sign_and_send_facturae_task,  # type: ignore
-    )
+    from app.workers.einvoicing_tasks import sign_and_send_facturae_task  # type: ignore
+    from app.workers.einvoicing_tasks import sign_and_send_sri_task  # type: ignore
 except Exception:  # pragma: no cover - test environment without Celery
 
     class _DummyTask:
@@ -25,7 +21,7 @@ except Exception:  # pragma: no cover - test environment without Celery
 
     sign_and_send_sri_task = _DummyTask()  # type: ignore
     sign_and_send_facturae_task = _DummyTask()  # type: ignore
-from app.models.core.einvoicing import SRISubmission, SIIBatchItem
+from app.models.core.einvoicing import SIIBatchItem, SRISubmission
 from app.schemas.einvoicing import EinvoicingStatusResponse
 
 
@@ -54,7 +50,7 @@ async def send_einvoice_use_case(
 
 async def get_einvoice_status_use_case(
     tenant_id: UUID, invoice_id: UUID
-) -> Optional[EinvoicingStatusResponse]:
+) -> EinvoicingStatusResponse | None:
     """
     Retrieves the status of an e-invoice submission from the database.
     Handles both SRI (EC) and SII (ES) submissions.
@@ -64,7 +60,7 @@ async def get_einvoice_status_use_case(
         ctx = await ctx
     async with ctx as db:
         # First try SRI submissions (Ecuador)
-        exec_fn = getattr(db, "execute")
+        exec_fn = db.execute
         if hasattr(exec_fn, "return_value"):
             # Test fixture (Mock/AsyncMock): use configured return_value chain
             sri_result = exec_fn.return_value
@@ -83,8 +79,7 @@ async def get_einvoice_status_use_case(
 
         if sri_submission:
             submitted_at = (
-                getattr(sri_submission, "submitted_at", None)
-                or sri_submission.created_at
+                getattr(sri_submission, "submitted_at", None) or sri_submission.created_at
             )
             return EinvoicingStatusResponse(
                 invoice_id=invoice_id,
@@ -96,7 +91,7 @@ async def get_einvoice_status_use_case(
             )
 
         # If not found in SRI, try SII batch items (Spain)
-        exec_fn = getattr(db, "execute")
+        exec_fn = db.execute
         if hasattr(exec_fn, "return_value"):
             sii_result = exec_fn.return_value
         else:

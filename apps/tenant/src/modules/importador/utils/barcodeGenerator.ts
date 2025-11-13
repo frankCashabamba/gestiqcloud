@@ -1,13 +1,13 @@
 /**
  * Generador automático de códigos de barras para productos
- * 
+ *
  * Casos de uso:
  * - Productos de cliente real sin código de barras
  * - Generación masiva desde Excel
  * - Productos internos de tienda
  */
 
-export type BarcodeFormat = 
+export type BarcodeFormat =
   | 'EAN13'    // Estándar europeo (13 dígitos)
   | 'EAN8'     // Versión corta (8 dígitos)
   | 'CODE128'  // Alfanumérico (uso interno)
@@ -63,12 +63,12 @@ export function calculateEAN8Checksum(code: string): string {
 
 /**
  * Genera un código EAN-13 válido
- * 
+ *
  * Estructura EAN-13:
  * - 2-3 dígitos: Prefijo del país/tienda (ej: "200-299" = uso interno)
  * - 9-10 dígitos: Código del producto
  * - 1 dígito: Checksum
- * 
+ *
  * @example
  * generateEAN13({ prefix: '200', sequence: 1 })
  * // => '2000000000018' (200 + 000000001 + checksum=8)
@@ -118,7 +118,7 @@ export function generateEAN8(config: { prefix: string; sequence: number }): stri
 /**
  * Genera un código CODE-128 (alfanumérico, uso interno)
  * Más flexible, soporta letras y números
- * 
+ *
  * @example
  * generateCODE128({ prefix: 'INT', sequence: 1 })
  * // => 'INT-000001'
@@ -142,7 +142,7 @@ export function generateCODE39(config: { prefix: string; sequence: number }): st
 /**
  * Generador de códigos de barras con contador interno
  * Útil para importaciones masivas
- * 
+ *
  * IMPORTANTE: Por defecto genera códigos VIRTUALES/INTERNOS (prefijo 200-299)
  * Estos códigos NO son EAN del fabricante, solo para uso interno con pistola lectora.
  */

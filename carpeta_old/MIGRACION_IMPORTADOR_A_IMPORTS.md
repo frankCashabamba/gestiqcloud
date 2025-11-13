@@ -33,8 +33,8 @@ import ProcessingIndicator from './modules/imports/components/ProcessingIndicato
 ### 4. Actualizar slug del módulo en base de datos
 ```sql
 -- Actualizar slug del módulo
-UPDATE modules 
-SET slug = 'imports' 
+UPDATE modules
+SET slug = 'imports'
 WHERE slug = 'importador';
 
 -- Verificar

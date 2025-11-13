@@ -2,4 +2,3 @@
 import api from '../../shared/api/client'
 export const apiClient = api
 export default api
-

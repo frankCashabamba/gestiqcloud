@@ -32,14 +32,16 @@ def check_columns_exist(conn, table_name: str, columns: list) -> bool:
     """Check if specified columns exist in table."""
     for col in columns:
         result = conn.execute(
-            text(f"""
+            text(
+                f"""
             SELECT EXISTS (
-                SELECT FROM information_schema.columns 
-                WHERE table_schema = 'public' 
+                SELECT FROM information_schema.columns
+                WHERE table_schema = 'public'
                 AND table_name = '{table_name}'
                 AND column_name = '{col}'
             )
-        """)
+        """
+            )
         )
         if not result.scalar():
             print(f"   ❌ Column {table_name}.{col} does not exist")
@@ -50,9 +52,11 @@ def check_columns_exist(conn, table_name: str, columns: list) -> bool:
 def check_no_nulls(conn, table_name: str, column_name: str) -> tuple[bool, int]:
     """Check if column has any NULL values."""
     result = conn.execute(
-        text(f"""
+        text(
+            f"""
         SELECT COUNT(*) FROM {table_name} WHERE {column_name} IS NULL
-    """)
+    """
+        )
     )
     null_count = result.scalar()
     return null_count == 0, null_count
@@ -61,15 +65,17 @@ def check_no_nulls(conn, table_name: str, column_name: str) -> tuple[bool, int]:
 def check_foreign_key(conn, table_name: str, fk_name: str) -> bool:
     """Check if foreign key constraint exists."""
     result = conn.execute(
-        text("""
+        text(
+            """
         SELECT EXISTS (
-            SELECT FROM information_schema.table_constraints 
-            WHERE constraint_schema = 'public' 
+            SELECT FROM information_schema.table_constraints
+            WHERE constraint_schema = 'public'
             AND table_name = :table
             AND constraint_name = :fk
             AND constraint_type = 'FOREIGN KEY'
         )
-    """),
+    """
+        ),
         {"table": table_name, "fk": fk_name},
     )
     return result.scalar()
@@ -78,13 +84,15 @@ def check_foreign_key(conn, table_name: str, fk_name: str) -> bool:
 def check_index_exists(conn, index_name: str) -> bool:
     """Check if index exists."""
     result = conn.execute(
-        text("""
+        text(
+            """
         SELECT EXISTS (
-            SELECT FROM pg_indexes 
-            WHERE schemaname = 'public' 
+            SELECT FROM pg_indexes
+            WHERE schemaname = 'public'
             AND indexname = :idx
         )
-    """),
+    """
+        ),
         {"idx": index_name},
     )
     return result.scalar()
@@ -93,13 +101,15 @@ def check_index_exists(conn, index_name: str) -> bool:
 def check_jsonb_type(conn, table_name: str, column_name: str) -> bool:
     """Check if column is JSONB type."""
     result = conn.execute(
-        text("""
-        SELECT data_type 
-        FROM information_schema.columns 
-        WHERE table_schema = 'public' 
+        text(
+            """
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
         AND table_name = :table
         AND column_name = :col
-    """),
+    """
+        ),
         {"table": table_name, "col": column_name},
     )
     row = result.first()
@@ -223,14 +233,16 @@ def verify_migration(database_url: str) -> bool:
         print("\n[7] Checking unique constraints...")
 
         result = conn.execute(
-            text("""
+            text(
+                """
             SELECT EXISTS (
-                SELECT FROM pg_indexes 
-                WHERE schemaname = 'public' 
+                SELECT FROM pg_indexes
+                WHERE schemaname = 'public'
                 AND tablename = 'import_items'
                 AND indexname = 'uq_import_items_tenant_idem'
             )
-        """)
+        """
+            )
         )
 
         if result.scalar():
@@ -243,12 +255,14 @@ def verify_migration(database_url: str) -> bool:
 
         # Check tenant_id consistency
         result = conn.execute(
-            text("""
-            SELECT COUNT(*) 
+            text(
+                """
+            SELECT COUNT(*)
             FROM import_items i
             JOIN import_batches b ON b.id = i.batch_id
             WHERE i.tenant_id != b.tenant_id
-        """)
+        """
+            )
         )
 
         mismatch_count = result.scalar()
@@ -260,12 +274,14 @@ def verify_migration(database_url: str) -> bool:
 
         # Check attachments tenant_id consistency
         result = conn.execute(
-            text("""
-            SELECT COUNT(*) 
+            text(
+                """
+            SELECT COUNT(*)
             FROM import_attachments a
             JOIN import_items i ON i.id = a.item_id
             WHERE a.tenant_id != i.tenant_id
-        """)
+        """
+            )
         )
 
         mismatch_count = result.scalar()

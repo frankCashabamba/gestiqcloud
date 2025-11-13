@@ -1,24 +1,22 @@
-from typing import List, Dict, Any
-from app.modules.imports.domain.canonical_schema import (
-    CanonicalDocument,
-    build_routing_proposal,
-)
+from typing import Any
+
+from app.modules.imports.domain.canonical_schema import CanonicalDocument, build_routing_proposal
 from app.modules.imports.extractores.utilidades import (
-    buscar_fecha,
-    buscar_numero_factura,
     buscar_cif,
-    buscar_importe,
-    buscar_numero_mayor,
-    buscar_subtotal,
+    buscar_cliente,
     buscar_concepto,
     buscar_descripcion,
     buscar_emisor,
-    buscar_cliente,
+    buscar_fecha,
+    buscar_importe,
+    buscar_numero_factura,
+    buscar_numero_mayor,
+    buscar_subtotal,
     es_concepto_valido,
 )
 
 
-def extraer_factura(texto: str, country: str = "EC") -> List[Dict[str, Any]]:
+def extraer_factura(texto: str, country: str = "EC") -> list[dict[str, Any]]:
     """
     Extrae datos de factura y retorna schema canónico.
 
@@ -78,16 +76,18 @@ def extraer_factura(texto: str, country: str = "EC") -> List[Dict[str, Any]]:
                 "subtotal": subtotal,
                 "tax": tax,
                 "total": total,
-                "tax_breakdown": [
-                    {
-                        "rate": 12.0 if country == "EC" else 21.0,
-                        "amount": tax,
-                        "code": f"IVA{12 if country == 'EC' else 21}-{country}",
-                        "base": subtotal,
-                    }
-                ]
-                if tax > 0
-                else [],
+                "tax_breakdown": (
+                    [
+                        {
+                            "rate": 12.0 if country == "EC" else 21.0,
+                            "amount": tax,
+                            "code": f"IVA{12 if country == 'EC' else 21}-{country}",
+                            "base": subtotal,
+                        }
+                    ]
+                    if tax > 0
+                    else []
+                ),
             },
             "lines": [
                 {

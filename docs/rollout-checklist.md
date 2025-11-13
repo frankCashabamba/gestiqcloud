@@ -13,4 +13,3 @@
 11. Seguridad: rate-limit activo (Redis), HSTS en prod, ALLOWED_HOSTS/COOKIE_*/CORS correctos.
 12. Backups: script `ops/scripts/db_backup.sh` ejecutado y restauración verificada en entorno aparte.
 13. CI: pipeline de backend verde en main.
-

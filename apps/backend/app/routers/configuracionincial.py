@@ -4,9 +4,6 @@ Auto-generated module docstring."""
 
 # routers/configuracioninicial.py
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-
 from app.config.database import get_db
 from app.models import ConfiguracionEmpresa
 from app.routers.protected import get_current_user
@@ -15,6 +12,8 @@ from app.schemas.configuracionempresasinicial import (
     ConfiguracionEmpresaCreate,
     EmpresaConfiguracionOut,
 )
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 router = APIRouter()
 
@@ -29,9 +28,7 @@ def guardar_configuracion_inicial(
 
     existente = db.query(ConfiguracionEmpresa).filter_by(tenant_id=tenant_id).first()
     if existente:
-        raise HTTPException(
-            status_code=400, detail="Configuración ya existe para esta empresa"
-        )
+        raise HTTPException(status_code=400, detail="Configuración ya existe para esta empresa")
 
     nueva = ConfiguracionEmpresa(
         tenant_id=tenant_id,
@@ -48,17 +45,13 @@ def guardar_configuracion_inicial(
     return {"message": "Configuración guardada", "id": nueva.id}
 
 
-@router.get(
-    "/configuracion/empresa/{tenant_id}", response_model=EmpresaConfiguracionOut
-)
+@router.get("/configuracion/empresa/{tenant_id}", response_model=EmpresaConfiguracionOut)
 def get_configuracion_empresa(
     tenant_id: int,  # ✅ usa tenant_id, no slug
     db: Session = Depends(get_db),
 ):
     config = (
-        db.query(ConfiguracionEmpresa)
-        .filter(ConfiguracionEmpresa.tenant_id == tenant_id)
-        .first()
+        db.query(ConfiguracionEmpresa).filter(ConfiguracionEmpresa.tenant_id == tenant_id).first()
     )
 
     if not config:

@@ -10,4 +10,3 @@ export const MovimientoTipoBadge: React.FC<{ tipo: TipoMovimiento }> = ({ tipo }
     </span>
   )
 }
-

@@ -99,13 +99,13 @@ El sistema:
 1. **Edita `config/entityTypes.ts`**:
 
 ```typescript
-export type EntityType = 
+export type EntityType =
   | 'productos'
   | 'mi_nuevo_tipo' // ⭐ Agregar aquí
 
 export const ENTITY_TYPES: Record<EntityType, EntityTypeConfig> = {
   // ... existentes
-  
+
   mi_nuevo_tipo: {
     type: 'mi_nuevo_tipo',
     label: 'Mi Tipo',
@@ -192,6 +192,6 @@ pytest apps/backend/app/tests/test_imports.py
 
 ---
 
-**Autor**: GestiQCloud Team  
-**Versión**: 1.0.0  
+**Autor**: GestiQCloud Team
+**Versión**: 1.0.0
 **Última actualización**: Enero 2025

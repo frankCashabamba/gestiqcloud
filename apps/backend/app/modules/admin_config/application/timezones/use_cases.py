@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from app.modules.admin_config.application.timezones.dto import TimezoneIn, TimezoneOut
 from app.modules.admin_config.application.timezones.ports import TimezoneRepo

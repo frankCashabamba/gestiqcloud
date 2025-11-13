@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import Protocol, Optional, Sequence
+from collections.abc import Sequence
+from typing import Protocol
 
 from app.modules.clients.domain.entities import Cliente
 
 
 class ClienteRepo(Protocol):
-    def get(self, id: int) -> Optional[Cliente]: ...
+    def get(self, id: int) -> Cliente | None: ...
 
     def list(self, *, tenant_id: int) -> Sequence[Cliente]: ...
 

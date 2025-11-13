@@ -1,20 +1,17 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-from typing import Optional, List
 from uuid import UUID
-
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
-from sqlalchemy import select
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.models.core.products import Product
-from app.models.core.product_category import ProductCategory
 from app.middleware.tenant import ensure_tenant
-
+from app.models.core.product_category import ProductCategory
+from app.models.core.products import Product
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/products",
@@ -37,13 +34,11 @@ def _empresa_id_from_request(request: Request) -> str | None:
             # DEV MODE fallback
             dev_mode = os.getenv("ENVIRONMENT", "production") != "production"
             if dev_mode:
-                from sqlalchemy import text
                 from app.config.database import SessionLocal
+                from sqlalchemy import text
 
                 with SessionLocal() as db_temp:
-                    result = db_temp.execute(
-                        text("SELECT id FROM tenants LIMIT 1")
-                    ).fetchone()
+                    result = db_temp.execute(text("SELECT id FROM tenants LIMIT 1")).fetchone()
                     if result:
                         return str(result[0])
             return None
@@ -57,10 +52,10 @@ class ProductIn(BaseModel):
     price: float = Field(ge=0)
     stock: float = Field(ge=0)
     unit: str = Field(min_length=1, default="unit")
-    category: Optional[str] = None
-    sku: Optional[str] = None
-    activo: Optional[bool] = True
-    product_metadata: Optional[dict] = None
+    category: str | None = None
+    sku: str | None = None
+    activo: bool | None = True
+    product_metadata: dict | None = None
 
 
 class ProductOut(BaseModel):
@@ -69,13 +64,13 @@ class ProductOut(BaseModel):
     price: float
     stock: float
     unit: str
-    sku: Optional[str] = None
-    categoria: Optional[str] = None
-    descripcion: Optional[str] = None
-    iva_tasa: Optional[float] = None
+    sku: str | None = None
+    categoria: str | None = None
+    descripcion: str | None = None
+    iva_tasa: float | None = None
     activo: bool = True
-    precio_compra: Optional[float] = None
-    product_metadata: Optional[dict] = None
+    precio_compra: float | None = None
+    product_metadata: dict | None = None
 
     class Config:
         from_attributes = True
@@ -88,21 +83,21 @@ class ProductOut(BaseModel):
 
 class CategoryIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
-    description: Optional[str] = None
-    parent_id: Optional[str] = None
+    description: str | None = None
+    parent_id: str | None = None
 
 
 class CategoryOut(BaseModel):
     id: str
     name: str
-    description: Optional[str] = None
-    parent_id: Optional[str] = None
+    description: str | None = None
+    parent_id: str | None = None
 
     class Config:
         from_attributes = True
 
 
-def get_categories_for_request(request: Request, db: Session) -> List[CategoryOut]:
+def get_categories_for_request(request: Request, db: Session) -> list[CategoryOut]:
     tenant_id = _empresa_id_from_request(request)
     print(f"[DEBUG] list_categories - tenant_id: {tenant_id}, type: {type(tenant_id)}")
     if tenant_id is None:
@@ -130,9 +125,7 @@ def get_categories_for_request(request: Request, db: Session) -> List[CategoryOu
     ]
 
 
-@router.get(
-    "/product-categories", response_model=List[CategoryOut], dependencies=protected
-)
+@router.get("/product-categories", response_model=list[CategoryOut], dependencies=protected)
 def list_categories(request: Request, db: Session = Depends(get_db)):
     return get_categories_for_request(request, db)
 
@@ -143,9 +136,7 @@ def list_categories(request: Request, db: Session = Depends(get_db)):
     status_code=201,
     dependencies=protected,
 )
-def create_category(
-    payload: CategoryIn, request: Request, db: Session = Depends(get_db)
-):
+def create_category(payload: CategoryIn, request: Request, db: Session = Depends(get_db)):
     tenant_id = _empresa_id_from_request(request)
     print(f"[DEBUG] create_category - tenant_id: {tenant_id}, type: {type(tenant_id)}")
     if tenant_id is None:
@@ -169,16 +160,12 @@ def create_category(
     )
 
 
-@router.delete(
-    "/product-categories/{category_id}", status_code=204, dependencies=protected
-)
+@router.delete("/product-categories/{category_id}", status_code=204, dependencies=protected)
 def delete_category(category_id: str, request: Request, db: Session = Depends(get_db)):
     tenant_id = _empresa_id_from_request(request)
 
     try:
-        obj = (
-            db.query(ProductCategory).filter(ProductCategory.id == category_id).first()
-        )
+        obj = db.query(ProductCategory).filter(ProductCategory.id == category_id).first()
     except Exception:
         return
 
@@ -197,15 +184,15 @@ def delete_category(category_id: str, request: Request, db: Session = Depends(ge
 # ============================================================================
 
 
-@router.get("", response_model=List[ProductOut])
-@router.get("/", response_model=List[ProductOut])
-@router.get("/search", response_model=List[ProductOut])  # Alias para búsqueda
+@router.get("", response_model=list[ProductOut])
+@router.get("/", response_model=list[ProductOut])
+@router.get("/search", response_model=list[ProductOut])  # Alias para búsqueda
 def list_products(
     request: Request,
     db: Session = Depends(get_db),
-    q: Optional[str] = Query(default=None, description="text search on name"),
-    categoria: Optional[str] = Query(default=None, description="filter by category"),
-    activo: Optional[bool] = Query(default=None, description="filter by active status"),
+    q: str | None = Query(default=None, description="text search on name"),
+    categoria: str | None = Query(default=None, description="filter by category"),
+    activo: bool | None = Query(default=None, description="filter by active status"),
     limit: int = Query(default=500, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     _tid: str = Depends(ensure_tenant),
@@ -236,9 +223,7 @@ def list_products(
 
 
 @router.get("/{product_id}", response_model=ProductOut)
-def get_product(
-    product_id: str, db: Session = Depends(get_db), _tid: str = Depends(ensure_tenant)
-):
+def get_product(product_id: str, db: Session = Depends(get_db), _tid: str = Depends(ensure_tenant)):
     obj = db.query(Product).filter(Product.id == product_id).first()
     if not obj:
         raise HTTPException(status_code=404, detail="product_not_found")
@@ -385,12 +370,8 @@ def purge_products(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="missing_tenant")
 
     # Orden: movimientos -> stock -> productos -> categorías (evitar referencias)
-    db.execute(
-        text("DELETE FROM stock_moves WHERE tenant_id = :tid"), {"tid": tenant_id}
-    )
-    db.execute(
-        text("DELETE FROM stock_items WHERE tenant_id = :tid"), {"tid": tenant_id}
-    )
+    db.execute(text("DELETE FROM stock_moves WHERE tenant_id = :tid"), {"tid": tenant_id})
+    db.execute(text("DELETE FROM stock_items WHERE tenant_id = :tid"), {"tid": tenant_id})
     # Productos primero, categorías después (por si FK opcional)
     db.execute(text("DELETE FROM products WHERE tenant_id = :tid"), {"tid": tenant_id})
     try:
@@ -436,10 +417,7 @@ def _is_owner_or_manager(request: Request) -> bool:
         claims = getattr(request.state, "access_claims", None) or {}
         # Super-admin flags win (empresa-level or general)
         if str(
-            claims.get("es_admin_empresa")
-            or claims.get("es_admin")
-            or claims.get("is_admin")
-            or ""
+            claims.get("es_admin_empresa") or claims.get("es_admin") or claims.get("is_admin") or ""
         ).lower() in ("1", "true", "yes"):
             return True
 
@@ -449,17 +427,13 @@ def _is_owner_or_manager(request: Request) -> bool:
             return True
         # list of roles
         roles = claims.get("roles") or claims.get("perfiles") or []
-        roles = [
-            str(r).lower()
-            for r in (roles if isinstance(roles, (list, tuple)) else [roles])
-        ]
+        roles = [str(r).lower() for r in (roles if isinstance(roles, (list, tuple)) else [roles])]
         if any(r in {"owner", "manager", "admin"} for r in roles):
             return True
         # permissions/scopes
         scopes = claims.get("scopes") or claims.get("permissions") or []
         scopes = [
-            str(s).lower()
-            for s in (scopes if isinstance(scopes, (list, tuple)) else [scopes])
+            str(s).lower() for s in (scopes if isinstance(scopes, (list, tuple)) else [scopes])
         ]
         if any(s in {"admin", "products:purge"} for s in scopes):
             return True
@@ -473,9 +447,7 @@ def _is_owner_or_manager(request: Request) -> bool:
 
 
 @router.post("/purge", response_model=PurgeResponse, dependencies=protected)
-def purge_products_pro(
-    request: Request, payload: PurgeRequest, db: Session = Depends(get_db)
-):
+def purge_products_pro(request: Request, payload: PurgeRequest, db: Session = Depends(get_db)):
     from sqlalchemy import text
 
     tenant_id = _empresa_id_from_request(request)
@@ -493,12 +465,8 @@ def purge_products_pro(
             return 0
 
     counts = {
-        "stock_moves": _count(
-            "SELECT COUNT(*) FROM stock_moves WHERE tenant_id = :tid"
-        ),
-        "stock_items": _count(
-            "SELECT COUNT(*) FROM stock_items WHERE tenant_id = :tid"
-        ),
+        "stock_moves": _count("SELECT COUNT(*) FROM stock_moves WHERE tenant_id = :tid"),
+        "stock_items": _count("SELECT COUNT(*) FROM stock_items WHERE tenant_id = :tid"),
         "products": _count("SELECT COUNT(*) FROM products WHERE tenant_id = :tid"),
         "product_categories": _count(
             "SELECT COUNT(*) FROM product_categories WHERE tenant_id = :tid"
@@ -506,9 +474,7 @@ def purge_products_pro(
     }
 
     if payload.dry_run:
-        return PurgeResponse(
-            dry_run=True, counts=counts, deleted={k: 0 for k in counts}
-        )
+        return PurgeResponse(dry_run=True, counts=counts, deleted={k: 0 for k in counts})
 
     if (payload.confirm or "").strip().upper() != "PURGE":
         raise HTTPException(status_code=400, detail="confirmation_required")
@@ -541,9 +507,7 @@ def purge_products_pro(
         try:
             deleted["product_categories"] = (
                 db.execute(
-                    text(
-                        "DELETE FROM product_categories WHERE tenant_id = :tid RETURNING 1"
-                    ),
+                    text("DELETE FROM product_categories WHERE tenant_id = :tid RETURNING 1"),
                     {"tid": tenant_id},
                 ).rowcount
                 or 0
@@ -576,14 +540,12 @@ def purge_products_pro(
 
 
 class BulkActiveIn(BaseModel):
-    ids: List[UUID] = Field(default_factory=list)
+    ids: list[UUID] = Field(default_factory=list)
     active: bool
 
 
 @router.post("/bulk/active", dependencies=protected)
-def bulk_set_active(
-    payload: BulkActiveIn, request: Request, db: Session = Depends(get_db)
-):
+def bulk_set_active(payload: BulkActiveIn, request: Request, db: Session = Depends(get_db)):
     """Activa o desactiva masivamente productos por id dentro del tenant actual.
 
     UI puede pasar los ids visibles (filtrados) para aplicar en bloque.
@@ -597,11 +559,7 @@ def bulk_set_active(
         return {"updated": 0}
 
     # Cargar y actualizar de forma segura bajo tenant
-    q = (
-        select(Product)
-        .where(Product.tenant_id == tenant_id)
-        .where(Product.id.in_(payload.ids))
-    )
+    q = select(Product).where(Product.tenant_id == tenant_id).where(Product.id.in_(payload.ids))
     rows = db.execute(q).scalars().all()
     for obj in rows:
         obj.active = bool(payload.active)
@@ -614,14 +572,12 @@ def bulk_set_active(
 
 
 class BulkCategoryIn(BaseModel):
-    ids: List[UUID] = Field(default_factory=list, description="IDs de productos")
+    ids: list[UUID] = Field(default_factory=list, description="IDs de productos")
     category_name: str = Field(min_length=1, description="Nombre de categoría")
 
 
 @router.post("/bulk/category", dependencies=protected)
-def bulk_assign_category(
-    payload: BulkCategoryIn, request: Request, db: Session = Depends(get_db)
-):
+def bulk_assign_category(payload: BulkCategoryIn, request: Request, db: Session = Depends(get_db)):
     """Asigna masivamente una categoría a múltiples productos.
 
     - Si la categoría no existe, se crea automáticamente
@@ -653,11 +609,7 @@ def bulk_assign_category(
         category_created = True
 
     # Actualizar productos
-    q = (
-        select(Product)
-        .where(Product.tenant_id == tenant_id)
-        .where(Product.id.in_(payload.ids))
-    )
+    q = select(Product).where(Product.tenant_id == tenant_id).where(Product.id.in_(payload.ids))
     rows = db.execute(q).scalars().all()
     for obj in rows:
         obj.categoria = payload.category_name

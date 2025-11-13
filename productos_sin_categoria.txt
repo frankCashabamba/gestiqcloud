@@ -1,4 +1,4 @@
-              name               
+              name
 ---------------------------------
  aceite grande 900ml
  aceite peque funda
@@ -210,4 +210,3 @@
  yogurt liquido valde 1 LT
  yougurt conflex 165g
 (209 rows)
-

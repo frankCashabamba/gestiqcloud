@@ -8,11 +8,11 @@ import { useToast, getErrorMessage } from '../../shared/toast'
 export default function MovimientoForm() {
   const nav = useNavigate()
   const { success, error } = useToast()
-  
+
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(false)
-  
+
   const [form, setForm] = useState({
     product_id: '',
     warehouse_id: '',
@@ -183,7 +183,3 @@ export default function MovimientoForm() {
     </div>
   )
 }
-
-
-
-

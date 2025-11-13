@@ -50,7 +50,7 @@ Uso: registry.get_parser("csv_products")
 Salida: doc_type='product'
 ```
 
-### 2. XML Products  
+### 2. XML Products
 ```python
 Flexibilidad: Auto-detecta elementos (product, producto, item, etc.)
 Características: Remoción de namespaces, fallback a atributos
@@ -128,7 +128,7 @@ task_import_file(parser_id="csv_products", file_key="...", ...)
 ## Checklist de Fase B
 
 - [x] CSV Products parser
-- [x] XML Products parser  
+- [x] XML Products parser
 - [x] XLSX Expenses parser
 - [x] PDF QR parser
 - [x] Registrar en ParserRegistry

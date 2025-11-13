@@ -1,6 +1,6 @@
 ﻿/**
  * Hook para auto-generar códigos de barras faltantes durante importación
- * 
+ *
  * Casos de uso:
  * - Excel de cliente real sin códigos de barras
  * - Productos nuevos que necesitan códigos
@@ -207,7 +207,7 @@ export function MissingBarcodesBanner({
             {missingCount} producto(s) sin código de barras
           </h3>
           <p className="mt-1 text-sm text-amber-700">
-            Estos productos no tienen código de barras. Se generarán <strong>códigos virtuales internos</strong> 
+            Estos productos no tienen código de barras. Se generarán <strong>códigos virtuales internos</strong>
             (prefijo 200-299) para usar con tu pistola lectora.
           </p>
           <p className="mt-1 text-xs text-amber-600">

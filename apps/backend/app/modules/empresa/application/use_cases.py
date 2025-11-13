@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import uuid
-from typing import Sequence
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from collections.abc import Sequence
 
-from app.modules.empresa.application.ports import EmpresaRepo, EmpresaDTO
-from app.modules.shared.application.base import BaseUseCase
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
+from app.modules.empresa.application.ports import EmpresaDTO, EmpresaRepo
 from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
+from app.modules.shared.application.base import BaseUseCase
+from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 
 class ListarEmpresasAdmin(BaseUseCase[EmpresaRepo]):

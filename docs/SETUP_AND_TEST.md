@@ -272,10 +272,10 @@ curl -X POST "http://localhost:8000/api/v1/pos/shifts/$SHIFT_ID/close" \
 
 ```sql
 docker exec db psql -U postgres -d gestiqclouddb_dev -c "
-  SELECT 
-    number, 
-    status, 
-    gross_total, 
+  SELECT
+    number,
+    status,
+    gross_total,
     currency,
     created_at::date
   FROM pos_receipts
@@ -288,7 +288,7 @@ docker exec db psql -U postgres -d gestiqclouddb_dev -c "
 
 ```sql
 docker exec db psql -U postgres -d gestiqclouddb_dev -c "
-  SELECT 
+  SELECT
     numero,
     estado,
     total,
@@ -304,7 +304,7 @@ docker exec db psql -U postgres -d gestiqclouddb_dev -c "
 
 ```sql
 docker exec db psql -U postgres -d gestiqclouddb_dev -c "
-  SELECT 
+  SELECT
     code,
     amount_remaining,
     currency,
@@ -320,7 +320,7 @@ docker exec db psql -U postgres -d gestiqclouddb_dev -c "
 
 ```sql
 docker exec db psql -U postgres -d gestiqclouddb_dev -c "
-  SELECT 
+  SELECT
     kind,
     (SELECT nombre FROM products WHERE id = stock_moves.product_id) as product,
     qty,
@@ -336,7 +336,7 @@ docker exec db psql -U postgres -d gestiqclouddb_dev -c "
 
 ```sql
 docker exec db psql -U postgres -d gestiqclouddb_dev -c "
-  SELECT 
+  SELECT
     name,
     doc_type,
     current_no,
@@ -481,7 +481,7 @@ POST   /api/v1/payments/refund/{payment_id}  # Reembolsar
 | Tests | 🧪 20% | Básicos funcionales |
 | Docs | ✅ 90% | AGENTS.md, MIGRATION_PLAN.md completos |
 
-**Backend Total**: 95% completo ✅  
+**Backend Total**: 95% completo ✅
 **Sistema General**: 70% completo 📊
 
 ---
@@ -504,5 +504,5 @@ POST   /api/v1/payments/refund/{payment_id}  # Reembolsar
 
 ---
 
-**Última actualización**: Enero 2025  
+**Última actualización**: Enero 2025
 **Versión**: 1.0.0

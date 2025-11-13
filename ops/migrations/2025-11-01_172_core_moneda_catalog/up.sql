@@ -15,4 +15,3 @@ INSERT INTO core_moneda (codigo, nombre, simbolo) VALUES ('USD','US Dollar','$')
 ON CONFLICT (codigo) DO NOTHING;
 
 COMMIT;
-

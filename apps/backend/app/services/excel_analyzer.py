@@ -2,7 +2,8 @@
 Excel Column Analyzer - Detecta automáticamente columnas y sugiere mapeos
 """
 
-from typing import List, Dict, Any
+from typing import Any
+
 import openpyxl
 from openpyxl.worksheet.worksheet import Worksheet
 
@@ -14,14 +15,29 @@ def detect_header_row(ws: Worksheet, max_rows: int = 10) -> int:
     """
     # Palabras que indican que NO es un header (instrucciones, notas, etc)
     exclude_keywords = [
-        "formato", "instrucciones", "como", "apuntar", "rellenar", "llenar",
-        "ejemplo", "nota", "aviso", "observaciones", "completar", "guia",
-        "compras", "ventas", "manera", "forma", "modo", "instruccion"
+        "formato",
+        "instrucciones",
+        "como",
+        "apuntar",
+        "rellenar",
+        "llenar",
+        "ejemplo",
+        "nota",
+        "aviso",
+        "observaciones",
+        "completar",
+        "guia",
+        "compras",
+        "ventas",
+        "manera",
+        "forma",
+        "modo",
+        "instruccion",
     ]
-    
+
     for row_idx in range(1, min(max_rows + 1, ws.max_row + 1)):
         row_values = [cell.value for cell in ws[row_idx]]
-        
+
         # Filtrar None y vacíos
         non_empty = [v for v in row_values if v]
         if len(non_empty) == 0:
@@ -46,7 +62,7 @@ def detect_header_row(ws: Worksheet, max_rows: int = 10) -> int:
     return 1  # Default a primera fila
 
 
-def extract_headers(ws: Worksheet, header_row: int) -> List[str]:
+def extract_headers(ws: Worksheet, header_row: int) -> list[str]:
     """Extrae headers limpiando valores None"""
     headers = []
     for idx, cell in enumerate(ws[header_row]):
@@ -57,7 +73,7 @@ def extract_headers(ws: Worksheet, header_row: int) -> List[str]:
             # Si hay datos en columnas posteriores, usar placeholder
             # Sino, terminar extracción
             has_data_below = any(
-                ws.cell(r, idx + 1).value 
+                ws.cell(r, idx + 1).value
                 for r in range(header_row + 1, min(header_row + 6, ws.max_row + 1))
             )
             if has_data_below:
@@ -68,8 +84,8 @@ def extract_headers(ws: Worksheet, header_row: int) -> List[str]:
 
 
 def get_sample_rows(
-    ws: Worksheet, header_row: int, headers: List[str], limit: int = 5
-) -> List[Dict[str, Any]]:
+    ws: Worksheet, header_row: int, headers: list[str], limit: int = 5
+) -> list[dict[str, Any]]:
     """
     Extrae filas de muestra con sus valores
     """
@@ -90,7 +106,7 @@ def get_sample_rows(
     return sample
 
 
-def suggest_column_mapping(headers: List[str]) -> Dict[str, str]:
+def suggest_column_mapping(headers: list[str]) -> dict[str, str]:
     """
     Sugerencia básica de mapeo por palabras clave
     Retorna: {"columna_excel": "campo_destino"}
@@ -179,11 +195,11 @@ def suggest_column_mapping(headers: List[str]) -> Dict[str, str]:
                 "comentario",
                 "nota",
                 "aviso",
-                "sobrante",      # Dato operacional
-                "venta",         # Dato operacional (no confundir con precio venta)
-                "total",         # Cálculo derivado
-                "diario",        # Datos temporales/operacionales
-                "unnamed",       # Columnas sin nombre
+                "sobrante",  # Dato operacional
+                "venta",  # Dato operacional (no confundir con precio venta)
+                "total",  # Cálculo derivado
+                "diario",  # Datos temporales/operacionales
+                "unnamed",  # Columnas sin nombre
             ]
             if any(kw in header_lower for kw in irrelevant_keywords):
                 mapping[header] = "ignore"
@@ -191,7 +207,7 @@ def suggest_column_mapping(headers: List[str]) -> Dict[str, str]:
     return mapping
 
 
-def analyze_excel_file(file_path: str) -> Dict[str, Any]:
+def analyze_excel_file(file_path: str) -> dict[str, Any]:
     """
     Análisis completo de archivo Excel
 
@@ -238,14 +254,12 @@ def analyze_excel_file(file_path: str) -> Dict[str, Any]:
             "columns_with_suggestions": len(
                 [m for m in suggested_mapping.values() if m != "ignore"]
             ),
-            "ignored_columns": len(
-                [m for m in suggested_mapping.values() if m == "ignore"]
-            ),
+            "ignored_columns": len([m for m in suggested_mapping.values() if m == "ignore"]),
         },
     }
 
 
-def analyze_excel_stream(file_stream) -> Dict[str, Any]:
+def analyze_excel_stream(file_stream) -> dict[str, Any]:
     """
     Analiza un archivo Excel desde un stream (UploadFile)
     """

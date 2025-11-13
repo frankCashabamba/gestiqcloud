@@ -24,9 +24,9 @@ interface KPIData {
 
 const RetailDashboard: React.FC = () => {
   const { modules } = useMisModulos()
-  
+
   // Solo cargar KPIs si hay módulos de ventas activos
-  const shouldLoadKPIs = modules.some(m => 
+  const shouldLoadKPIs = modules.some(m =>
     ['ventas', 'pos', 'facturacion'].includes((m.slug || '').toLowerCase())
   )
   const { data: kpisData, loading: kpisLoading } = useDashboardKPIs({ periodo: 'today', enabled: shouldLoadKPIs })
@@ -37,7 +37,7 @@ const RetailDashboard: React.FC = () => {
   const comparativa = kpis.comparativa_semana || {}
 
   const isModuleEnabled = (moduleName: string) => {
-    return modules.some(m => 
+    return modules.some(m =>
       (m.slug || '').toLowerCase() === moduleName.toLowerCase() ||
       (m.name || '').toLowerCase().includes(moduleName.toLowerCase())
     )
@@ -50,8 +50,8 @@ const RetailDashboard: React.FC = () => {
   ].filter(Boolean) as Array<{ label: string; href: string; icon: string }>
 
   return (
-    <DashboardPro 
-      sectorName="RetailERP" 
+    <DashboardPro
+      sectorName="RetailERP"
       sectorIcon="🏪"
       customLinks={customLinks}
     >

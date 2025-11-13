@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
 class TipoEmpresaIn:
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     active: bool = True
 
 
@@ -15,5 +14,5 @@ class TipoEmpresaIn:
 class TipoEmpresaOut:
     id: int
     name: str
-    description: Optional[str]
+    description: str | None
     active: bool

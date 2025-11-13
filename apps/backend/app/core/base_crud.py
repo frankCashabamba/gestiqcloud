@@ -4,21 +4,20 @@ Auto-generated module docstring.
 """
 
 # app/core/base_crud.py
-from typing import Generic, List, Optional, Type, TypeVar, Union
-from dataclasses import is_dataclass, asdict
-
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError
+from dataclasses import asdict, is_dataclass
+from typing import Generic, TypeVar
 
 from app.core.types import HasID, IDType
+from pydantic import BaseModel
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 ModelType = TypeVar("ModelType", bound=HasID)
 CreateSchemaType = TypeVar("CreateSchemaType", bound=BaseModel)
 UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
 
 
-def _to_dict(data: Union[BaseModel, dict, object], **dump_kwargs) -> dict:
+def _to_dict(data: BaseModel | dict | object, **dump_kwargs) -> dict:
     """
     Convierte un BaseModel (Pydantic v2) o un dict a dict.
     dump_kwargs se pasa a model_dump (p. ej. exclude_unset=True, by_alias=True, etc.).
@@ -43,18 +42,16 @@ def _to_dict(data: Union[BaseModel, dict, object], **dump_kwargs) -> dict:
 class BaseCRUD(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     """Class BaseCRUD - auto-generated docstring."""
 
-    def __init__(self, model: Type[ModelType]):
+    def __init__(self, model: type[ModelType]):
         """Function __init__ - auto-generated docstring."""
         self.model = model
 
-    def get(self, db: Session, id: IDType) -> Optional[ModelType]:
+    def get(self, db: Session, id: IDType) -> ModelType | None:
         """Function get - auto-generated docstring."""
-        model_id = getattr(self.model, "id")  # ayuda a MyPy
+        model_id = self.model.id  # ayuda a MyPy
         return db.query(self.model).filter(model_id == id).first()
 
-    def get_multi(
-        self, db: Session, skip: int = 0, limit: int = 100
-    ) -> List[ModelType]:
+    def get_multi(self, db: Session, skip: int = 0, limit: int = 100) -> list[ModelType]:
         """Function get_multi - auto-generated docstring."""
         return db.query(self.model).offset(skip).limit(limit).all()
 
@@ -79,9 +76,7 @@ class BaseCRUD(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             db.rollback()
             raise
 
-    def update(
-        self, db: Session, db_obj: ModelType, obj_in: UpdateSchemaType
-    ) -> ModelType:
+    def update(self, db: Session, db_obj: ModelType, obj_in: UpdateSchemaType) -> ModelType:
         """Update instance with safe transaction handling."""
         # exclude_unset=True para solo aplicar campos proporcionados en el schema de actualización
         # Si quieres omitir None explícitos: añade exclude_none=True
@@ -97,7 +92,7 @@ class BaseCRUD(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             db.rollback()
             raise
 
-    def remove(self, db: Session, id: IDType) -> Optional[ModelType]:
+    def remove(self, db: Session, id: IDType) -> ModelType | None:
         """Delete instance by id with safe transaction handling."""
         obj = db.get(self.model, id)
         if not obj:

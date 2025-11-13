@@ -1,8 +1,4 @@
-from app.modules.imports.validators import (
-    validate_invoices,
-    validate_bank,
-    validate_expenses,
-)
+from app.modules.imports.validators import validate_bank, validate_expenses, validate_invoices
 
 
 def test_validate_invoices_ok_and_error():

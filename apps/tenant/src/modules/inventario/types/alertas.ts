@@ -18,12 +18,12 @@ export type NotificationChannelConfig = {
   config: {
     // Email
     email?: string
-    
+
     // WhatsApp
     phone?: string
     provider?: 'twilio' | 'infobip'
     api_key?: string
-    
+
     // Telegram
     chat_id?: string
     bot_token?: string

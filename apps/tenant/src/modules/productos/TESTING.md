@@ -437,6 +437,6 @@ Ninguno detectado en testing inicial.
 
 ---
 
-**Última actualización:** Octubre 2025  
-**Tester:** Equipo GestiQCloud  
+**Última actualización:** Octubre 2025
+**Tester:** Equipo GestiQCloud
 **Estado:** ✅ 17/17 tests pasados

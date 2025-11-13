@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import smtplib
-from fastapi import APIRouter, HTTPException, BackgroundTasks
-from pydantic import BaseModel, EmailStr
+
 from app.api.email.email_utils import send_email_mailtrap
 from app.config.settings import settings
+from fastapi import APIRouter, BackgroundTasks, HTTPException
+from pydantic import BaseModel, EmailStr
 
 router = APIRouter(prefix="/email", tags=["email"])
 

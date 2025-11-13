@@ -1,6 +1,6 @@
 # 🧹 Limpieza del Sistema - Resumen
 
-**Fecha**: 28 de Octubre 2025  
+**Fecha**: 28 de Octubre 2025
 **Ejecutado por**: Amp AI
 
 ---
@@ -230,7 +230,7 @@ psql: SELECT COUNT(*) FROM products WHERE tenant_id = '...'
 
 ---
 
-**Creado**: 28 de Octubre 2025  
-**Ejecutado por**: Amp AI  
-**Estado**: ✅ COMPLETADO Y VERIFICADO  
+**Creado**: 28 de Octubre 2025
+**Ejecutado por**: Amp AI
+**Estado**: ✅ COMPLETADO Y VERIFICADO
 **Auto-eliminar**: Después de hacer commit (o conservar como referencia histórica)

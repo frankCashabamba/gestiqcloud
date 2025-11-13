@@ -1,7 +1,6 @@
-from typing import List, Optional
-from sqlalchemy.orm import Session
-from app.models.hr import Vacacion
 from app.core.crud_base import CRUDBase
+from app.models.hr import Vacacion
+from sqlalchemy.orm import Session
 
 
 class VacacionCRUD(CRUDBase[Vacacion, "VacacionCreateDTO", "VacacionUpdateDTO"]):
@@ -13,8 +12,8 @@ class VacacionRepo:
         self.db = db
         self.crud = VacacionCRUD(Vacacion)
 
-    def list(self) -> List[Vacacion]:
+    def list(self) -> list[Vacacion]:
         return list(self.crud.list(self.db))
 
-    def get(self, vid: int) -> Optional[Vacacion]:
+    def get(self, vid: int) -> Vacacion | None:
         return self.crud.get(self.db, vid)

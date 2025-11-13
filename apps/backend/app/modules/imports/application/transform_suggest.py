@@ -4,7 +4,7 @@ import json
 import os
 import re
 import unicodedata
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 _SYN_PATH = os.path.join(
     os.path.dirname(__file__),
@@ -12,14 +12,22 @@ _SYN_PATH = os.path.join(
 )
 
 
-def _load_synonyms() -> Dict[str, List[str]]:
+def _load_synonyms() -> dict[str, list[str]]:
     try:
-        with open(_SYN_PATH, "r", encoding="utf-8") as f:
+        with open(_SYN_PATH, encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         # Fallback minimal set
         return {
-            "name": ["nombre", "producto", "name", "descripcion", "description", "articulo", "artículo"],
+            "name": [
+                "nombre",
+                "producto",
+                "name",
+                "descripcion",
+                "description",
+                "articulo",
+                "artículo",
+            ],
             "sku": ["sku", "codigo", "código", "code", "referencia", "ref"],
             "price": ["precio", "price", "venta", "pvp", "unitario"],
             "stock": ["stock", "cantidad", "qty", "existencia"],
@@ -27,7 +35,13 @@ def _load_synonyms() -> Dict[str, List[str]]:
             "category": ["categoria", "categoría", "category", "clase", "familia"],
             "image_url": ["foto", "imagen", "image", "url imagen", "url"],
             "packs": ["bultos", "packs", "cajas"],
-            "units_per_pack": ["cantidad por bulto", "unidades por bulto", "u x bulto", "u x pack", "cantidad x bulto"],
+            "units_per_pack": [
+                "cantidad por bulto",
+                "unidades por bulto",
+                "u x bulto",
+                "u x pack",
+                "cantidad x bulto",
+            ],
             "pack_price": ["precio por bulto", "precio bulto", "precio caja"],
         }
 
@@ -43,7 +57,7 @@ def _norm(s: str) -> str:
     return s
 
 
-def _score(header: str, target: str, syns: List[str]) -> int:
+def _score(header: str, target: str, syns: list[str]) -> int:
     h = _norm(header)
     best = 0
     for w in syns:
@@ -54,9 +68,11 @@ def _score(header: str, target: str, syns: List[str]) -> int:
     return best
 
 
-def suggest_mapping(headers: List[str]) -> Tuple[Dict[str, str], Dict[str, Any], Dict[str, Any], Dict[str, float]]:
-    mapping: Dict[str, str] = {}
-    confidence: Dict[str, float] = {}
+def suggest_mapping(
+    headers: list[str],
+) -> tuple[dict[str, str], dict[str, Any], dict[str, Any], dict[str, float]]:
+    mapping: dict[str, str] = {}
+    confidence: dict[str, float] = {}
 
     # Assign each header to the best canonical field based on synonyms
     for h in headers:
@@ -74,7 +90,7 @@ def suggest_mapping(headers: List[str]) -> Tuple[Dict[str, str], Dict[str, Any],
 
     # Transforms suggestion (price/unit and stock from packs)
     rev = {v: k for k, v in mapping.items()}
-    transforms: Dict[str, Any] = {}
+    transforms: dict[str, Any] = {}
     if "pack_price" in rev and "units_per_pack" in rev:
         transforms["price"] = {
             "expr": "coalesce(price, pack_price / nullif(units_per_pack,0))",
@@ -90,4 +106,3 @@ def suggest_mapping(headers: List[str]) -> Tuple[Dict[str, str], Dict[str, Any],
 
     defaults = {"category": "SIN_CATEGORIA"}
     return mapping, transforms, defaults, confidence
-

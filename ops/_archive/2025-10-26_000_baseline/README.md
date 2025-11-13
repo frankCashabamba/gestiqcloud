@@ -1,6 +1,6 @@
 # Migración Baseline Consolidada - GestiQCloud
 
-**Fecha**: 2025-10-26  
+**Fecha**: 2025-10-26
 **Versión**: 1.0.0
 
 ## Descripción

@@ -228,6 +228,6 @@ POST   /api/v1/settings/modules/:module/disable
 
 ---
 
-**Versión**: 1.0.0  
-**Fecha**: Enero 2025  
+**Versión**: 1.0.0
+**Fecha**: Enero 2025
 **Mantenedor**: GestiQCloud Team

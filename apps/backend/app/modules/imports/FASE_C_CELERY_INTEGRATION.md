@@ -33,11 +33,11 @@ def task_import_file(batch_id, parser_id, file_key):
     # 1. Obtener batch y archivo
     batch = ImportBatch.get(batch_id)
     file_path = s3.download(file_key)
-    
+
     # 2. Parsear
     parser = registry.get_parser(parser_id)
     result = parser['handler'](file_path)
-    
+
     # 3. Guardar items
     for raw_item in result['items']:
         item = ImportItem(
@@ -55,16 +55,16 @@ def task_import_file(batch_id, parser_id, file_key):
     # 1. Obtener batch y archivo
     batch = ImportBatch.get(batch_id)
     file_path = s3.download(file_key)
-    
+
     # 2. Parsear
     parser = registry.get_parser(parser_id)
     result = parser['handler'](file_path)
-    
+
     # 3. Validar y Promocionar (NUEVO - Fase C)
     for raw_item in result['items']:
         # Validar contra schema canónico
         is_valid, errors = validate_canonical(raw_item)
-        
+
         promoted_id = None
         if is_valid:
             # Despachar a handler según doc_type
@@ -74,14 +74,14 @@ def task_import_file(batch_id, parser_id, file_key):
                 raw_item
             )
             promoted_id = handler_result.domain_id
-            
+
             if not handler_result.skipped:
                 item_status = 'OK'
             else:
                 item_status = 'PROMOTED_PREVIOUSLY'
         else:
             item_status = 'ERROR_VALIDATION'
-        
+
         # 4. Guardar resultado
         item = ImportItem(
             batch_id=batch_id,
@@ -96,7 +96,7 @@ def task_import_file(batch_id, parser_id, file_key):
             promoted_id=promoted_id,  # NUEVO
         )
         db.add(item)
-    
+
     db.commit()
 ```
 
@@ -133,13 +133,13 @@ def task_import_file(
 ):
     """
     Importa archivo, valida y promociona a tablas destino.
-    
+
     Flujo:
     1. Parsea documento (Fase B)
     2. Valida contra schema canónico (Fase C)
     3. Despacha a handler según doc_type (Fase C)
     4. Guarda resultados con lineage
-    
+
     Args:
         import_batch_id: UUID del batch
         parser_id: ID del parser ('csv_products', 'xlsx_expenses', etc)
@@ -154,16 +154,16 @@ def task_import_file(
 def task_import_file(self, import_batch_id, parser_id, file_key, tenant_id):
     db = SessionLocal()
     s3_client = boto3.client('s3')
-    
+
     try:
         # 1. Obtener batch
         batch = db.query(ImportBatch).filter(
             ImportBatch.id == import_batch_id
         ).first()
-        
+
         if not batch:
             raise ValueError(f"Batch no encontrado: {import_batch_id}")
-        
+
         # 2. Descargar archivo
         local_path = f"/tmp/{file_key.split('/')[-1]}"
         s3_client.download_file(
@@ -171,12 +171,12 @@ def task_import_file(self, import_batch_id, parser_id, file_key, tenant_id):
             Key=file_key,
             Filename=local_path
         )
-        
+
         # 3. Obtener parser
         parser = registry.get_parser(parser_id)
         if not parser:
             raise ValueError(f"Parser no encontrado: {parser_id}")
-        
+
         # 4. Parsear archivo
         try:
             parse_result = parser['handler'](local_path)
@@ -186,21 +186,21 @@ def task_import_file(self, import_batch_id, parser_id, file_key, tenant_id):
             db.add(batch)
             db.commit()
             raise
-        
+
         # 5. NUEVO - Validar, Promocionar y Guardar
         created = 0
         skipped = 0
         failed = 0
-        
+
         for idx, raw_item in enumerate(items):
             try:
                 # 5a. Validar contra schema canónico
                 is_valid, validation_errors = validate_canonical(raw_item)
-                
+
                 promoted_id = None
                 promoted_to = None
                 doc_type = raw_item.get('doc_type', 'other')
-                
+
                 if is_valid:
                     # 5b. Despachar a handler
                     try:
@@ -209,7 +209,7 @@ def task_import_file(self, import_batch_id, parser_id, file_key, tenant_id):
                             tenant_id=tenant_id,
                             canonical_doc=raw_item,
                         )
-                        
+
                         if promote_result and not promote_result.skipped:
                             promoted_id = promote_result.domain_id
                             promoted_to = HandlersRouter.get_target_for_type(doc_type)
@@ -223,7 +223,7 @@ def task_import_file(self, import_batch_id, parser_id, file_key, tenant_id):
                         else:
                             item_status = 'ERROR_PROMOTION'
                             failed += 1
-                    
+
                     except Exception as e:
                         logger.error(
                             f"Error promoting item {idx}: {str(e)}",
@@ -236,7 +236,7 @@ def task_import_file(self, import_batch_id, parser_id, file_key, tenant_id):
                     # 5c. Validación falló
                     item_status = 'ERROR_VALIDATION'
                     failed += 1
-                
+
                 # 5d. Guardar ImportItem
                 import_item = ImportItem(
                     id=uuid4(),
@@ -257,7 +257,7 @@ def task_import_file(self, import_batch_id, parser_id, file_key, tenant_id):
                     promoted_at=datetime.utcnow() if promoted_id else None,
                 )
                 db.add(import_item)
-                
+
                 # 5e. Guardar lineage si se promocionó
                 if promoted_id and promoted_to:
                     lineage = ImportLineage(
@@ -269,7 +269,7 @@ def task_import_file(self, import_batch_id, parser_id, file_key, tenant_id):
                         created_at=datetime.utcnow(),
                     )
                     db.add(lineage)
-            
+
             except Exception as e:
                 logger.error(
                     f"Error processing item {idx}: {str(e)}",
@@ -286,22 +286,22 @@ def task_import_file(self, import_batch_id, parser_id, file_key, tenant_id):
                 )
                 db.add(import_item)
                 failed += 1
-        
+
         # 6. Actualizar batch
         batch.status = 'COMPLETED'
         batch.processed_count = len(items)
         batch.success_count = created
         batch.error_count = failed
         db.add(batch)
-        
+
         # 7. Commit
         db.commit()
-        
+
         logger.info(
             f"Import batch {import_batch_id}: "
             f"created={created}, skipped={skipped}, failed={failed}"
         )
-        
+
         return {
             'batch_id': import_batch_id,
             'created': created,
@@ -309,10 +309,10 @@ def task_import_file(self, import_batch_id, parser_id, file_key, tenant_id):
             'failed': failed,
             'total': len(items),
         }
-    
+
     except Exception as e:
         logger.error(f"Fatal error in task_import_file: {str(e)}", exc_info=True)
-        
+
         # Actualizar batch como fallido
         batch = db.query(ImportBatch).filter(
             ImportBatch.id == import_batch_id
@@ -321,13 +321,13 @@ def task_import_file(self, import_batch_id, parser_id, file_key, tenant_id):
             batch.status = 'ERROR'
             db.add(batch)
             db.commit()
-        
+
         # Reintentar si no han agotado intentos
         if self.request.retries < self.max_retries:
             raise self.retry(exc=e)
         else:
             raise
-    
+
     finally:
         db.close()
         # Limpiar archivo temporal
@@ -344,12 +344,12 @@ def task_import_file(self, import_batch_id, parser_id, file_key, tenant_id):
 ```python
 class ImportItem(Base):
     # ... campos existentes ...
-    
+
     # Fase C - Validación Canónica
     canonical_doc = Column(JSON)  # NUEVO: Doc validado
     doc_type = Column(String(50))  # NUEVO: invoice|expense|product|etc
     normalized = Column(JSON)  # Ya existe, pero ahora = canonical_doc
-    
+
     # Fase C - Status mejorado
     status = Column(
         String(50),
@@ -357,12 +357,12 @@ class ImportItem(Base):
         # Valores: PENDING|OK|OK_SKIPPED|ERROR_VALIDATION|ERROR_PROMOTION|ERROR_PROCESSING
     )
     errors = Column(JSON, default=[])  # NUEVO: [{"field": "x", "msg": "y"}]
-    
+
     # Fase C - Enrutamiento
     promoted_to = Column(String(50))  # NUEVO: invoices|expenses|products|etc
     promoted_id = Column(String(36))  # NUEVO: UUID del registro promovido
     promoted_at = Column(DateTime)  # NUEVO: Timestamp
-    
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -373,14 +373,14 @@ class ImportItem(Base):
 ```python
 class ImportLineage(Base):
     __tablename__ = "import_lineage"
-    
+
     id = Column(UUID, primary_key=True, default=uuid4)
     import_item_id = Column(UUID, ForeignKey("import_items.id"))
     promoted_to = Column(String(50))  # Tabla destino
     promoted_ref = Column(String(36))  # ID en tabla destino
     doc_type = Column(String(50))  # Tipo de documento
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     import_item = relationship("ImportItem", backref="lineage")
 ```
 
@@ -405,25 +405,25 @@ def test_task_import_file_product_csv():
     parser_id = "csv_products"
     file_key = "uploads/test_products.csv"
     tenant_id = "tenant-123"
-    
+
     # Mock
     # ... crear archivo de prueba ...
-    
+
     # Execute
     result = task_import_file.apply_async(
         args=(batch_id, parser_id, file_key, tenant_id),
         task_id="test-task-1"
     )
-    
+
     # Assert
     assert result.status == 'SUCCESS'
     assert result.result['created'] > 0
-    
+
     # Verificar en DB
     batch = ImportBatch.get(batch_id)
     assert batch.status == 'COMPLETED'
     assert len(batch.items) > 0
-    
+
     item = batch.items[0]
     assert item.doc_type == 'product'
     assert item.status in ['OK', 'OK_SKIPPED']

@@ -1,6 +1,6 @@
 import re
 from abc import ABC, abstractmethod
-from typing import List
+
 from .error_catalog import ERROR_CATALOG, ValidationError
 
 
@@ -8,17 +8,17 @@ class CountryValidator(ABC):
     """Clase base para validadores fiscales por país."""
 
     @abstractmethod
-    def validate_tax_id(self, tax_id: str) -> List[ValidationError]:
+    def validate_tax_id(self, tax_id: str) -> list[ValidationError]:
         """Valida formato e integridad de identificación fiscal."""
         pass
 
     @abstractmethod
-    def validate_tax_rates(self, rates: List[float]) -> List[ValidationError]:
+    def validate_tax_rates(self, rates: list[float]) -> list[ValidationError]:
         """Valida que las tasas de impuesto sean legales en el país."""
         pass
 
     @abstractmethod
-    def validate_invoice_number(self, number: str) -> List[ValidationError]:
+    def validate_invoice_number(self, number: str) -> list[ValidationError]:
         """Valida formato de numeración de factura."""
         pass
 
@@ -52,7 +52,7 @@ class ECValidator(CountryValidator):
         300.0,
     ]
 
-    def validate_tax_id(self, tax_id: str) -> List[ValidationError]:
+    def validate_tax_id(self, tax_id: str) -> list[ValidationError]:
         """Valida RUC ecuatoriano (13 dígitos, módulo 11)."""
         errors = []
 
@@ -125,7 +125,7 @@ class ECValidator(CountryValidator):
 
         return False
 
-    def validate_tax_rates(self, rates: List[float]) -> List[ValidationError]:
+    def validate_tax_rates(self, rates: list[float]) -> list[ValidationError]:
         """Valida tasas de IVA e ICE para Ecuador."""
         errors = []
         valid_all = self.VALID_IVA_RATES + self.VALID_ICE_RATES
@@ -146,7 +146,7 @@ class ECValidator(CountryValidator):
 
         return errors
 
-    def validate_invoice_number(self, number: str) -> List[ValidationError]:
+    def validate_invoice_number(self, number: str) -> list[ValidationError]:
         """Valida formato XXX-XXX-XXXXXXXXX de factura ecuatoriana."""
         errors = []
 
@@ -175,7 +175,7 @@ class ECValidator(CountryValidator):
 
         return errors
 
-    def validate_clave_acceso(self, clave: str) -> List[ValidationError]:
+    def validate_clave_acceso(self, clave: str) -> list[ValidationError]:
         """Valida clave de acceso SRI (49 dígitos, módulo 11)."""
         errors = []
 
@@ -230,7 +230,7 @@ class ESValidator(CountryValidator):
 
     VALID_IVA_RATES = [0.0, 4.0, 10.0, 21.0]
 
-    def validate_tax_id(self, tax_id: str) -> List[ValidationError]:
+    def validate_tax_id(self, tax_id: str) -> list[ValidationError]:
         """Valida NIF/CIF/NIE español con letra de control."""
         errors = []
 
@@ -313,7 +313,7 @@ class ESValidator(CountryValidator):
 
         return cif[8] == str(control) or cif[8] == letra_control
 
-    def validate_tax_rates(self, rates: List[float]) -> List[ValidationError]:
+    def validate_tax_rates(self, rates: list[float]) -> list[ValidationError]:
         """Valida tasas de IVA para España."""
         errors = []
 
@@ -326,16 +326,14 @@ class ESValidator(CountryValidator):
                         {
                             "rate": rate,
                             "country": "España",
-                            "valid_rates": ", ".join(
-                                f"{r}%" for r in self.VALID_IVA_RATES
-                            ),
+                            "valid_rates": ", ".join(f"{r}%" for r in self.VALID_IVA_RATES),
                         },
                     )
                 )
 
         return errors
 
-    def validate_invoice_number(self, number: str) -> List[ValidationError]:
+    def validate_invoice_number(self, number: str) -> list[ValidationError]:
         """Valida formato alfanumérico libre de factura española."""
         errors = []
 

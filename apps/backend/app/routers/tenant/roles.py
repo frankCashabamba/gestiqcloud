@@ -1,24 +1,20 @@
-﻿"""Router para gestión de roles de empresa (tenant)."""
-
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from sqlalchemy import select
+"""Router para gestión de roles de empresa (tenant)."""
 
 from app.config.database import get_db
+from app.core.deps import require_tenant as require_current_user
 from app.db.rls import ensure_rls
-from app.schemas.rol_empresa import RolEmpresaCreate, RolEmpresaUpdate, RolEmpresaOut
 from app.models.empresa.rolempresas import RolEmpresa
 from app.models.empresa.tenant import Empresa
-from app.core.deps import require_tenant as require_current_user
+from app.schemas.rol_empresa import RolEmpresaCreate, RolEmpresaOut, RolEmpresaUpdate
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/tenant/roles", tags=["tenant-roles"])
 
 
-@router.get("", response_model=List[RolEmpresaOut])
-async def list_roles(
-    db: Session = Depends(get_db), current_user=Depends(require_current_user)
-):
+@router.get("", response_model=list[RolEmpresaOut])
+async def list_roles(db: Session = Depends(get_db), current_user=Depends(require_current_user)):
     """Listar todos los roles del tenant actual."""
     ensure_rls(db, current_user.get("tenant_id"))
 
@@ -28,15 +24,11 @@ async def list_roles(
     ).scalar_one_or_none()
 
     if not empresa:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Empresa no encontrada"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa no encontrada")
 
     roles = (
         db.execute(
-            select(RolEmpresa)
-            .where(RolEmpresa.tenant_id == empresa.id)
-            .order_by(RolEmpresa.name)
+            select(RolEmpresa).where(RolEmpresa.tenant_id == empresa.id).order_by(RolEmpresa.name)
         )
         .scalars()
         .all()
@@ -56,9 +48,7 @@ async def get_rol(
 
     rol = db.get(RolEmpresa, rol_id)
     if not rol:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Rol no encontrado"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rol no encontrado")
 
     return rol
 
@@ -89,9 +79,7 @@ async def create_rol(
 
     # Verificar que no exista un rol con el mismo nombre
     existing = db.execute(
-        select(RolEmpresa).where(
-            RolEmpresa.tenant_id == tenant_id, RolEmpresa.name == payload.name
-        )
+        select(RolEmpresa).where(RolEmpresa.tenant_id == tenant_id, RolEmpresa.name == payload.name)
     ).scalar_one_or_none()
 
     if existing:
@@ -135,9 +123,7 @@ async def update_rol(
 
     rol = db.get(RolEmpresa, rol_id)
     if not rol:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Rol no encontrado"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rol no encontrado")
 
     # Actualizar campos
     update_data = payload.model_dump(exclude_unset=True)
@@ -185,9 +171,7 @@ async def delete_rol(
 
     rol = db.get(RolEmpresa, rol_id)
     if not rol:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Rol no encontrado"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rol no encontrado")
 
     # Verificar que el rol no esté en uso
     from app.models.usuarios.usuario_rol_empresa import UsuarioRolEmpresa

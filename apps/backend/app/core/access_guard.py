@@ -1,17 +1,16 @@
 # app/core/access_guard.py
-from fastapi import HTTPException, Request
-from sqlalchemy import text
+from typing import Any
+
 from app.config.database import SessionLocal
-from typing import Any, Dict
-from jwt import ExpiredSignatureError, InvalidTokenError
-
 from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
-
+from fastapi import HTTPException, Request
+from jwt import ExpiredSignatureError, InvalidTokenError
+from sqlalchemy import text
 
 token_service = PyJWTTokenService()
 
 
-def with_access_claims(request: Request) -> Dict[str, Any]:
+def with_access_claims(request: Request) -> dict[str, Any]:
     # 1) extrae Authorization
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
@@ -45,9 +44,7 @@ def with_access_claims(request: Request) -> Dict[str, Any]:
                                 text("SELECT slug FROM tenants WHERE tenant_id=:id"),
                                 {"id": int(tid)},
                             ).first()
-                            ok = bool(
-                                row and row[0] and str(row[0]).strip() == tenant_slug
-                            )
+                            ok = bool(row and row[0] and str(row[0]).strip() == tenant_slug)
                     except Exception:
                         ok = False
                 # Si no ok y hay tabla tenants, valida contra tenants.slug
@@ -57,21 +54,15 @@ def with_access_claims(request: Request) -> Dict[str, Any]:
                             # tid puede ser UUID; compara por id::text o por tenant_id si es dÃ­gito
                             if tid.isdigit():
                                 row = db.execute(
-                                    text(
-                                        "SELECT slug FROM tenants WHERE tenant_id =:id"
-                                    ),
+                                    text("SELECT slug FROM tenants WHERE tenant_id =:id"),
                                     {"id": int(tid)},
                                 ).first()
                             else:
                                 row = db.execute(
-                                    text(
-                                        "SELECT slug FROM tenants WHERE tenant_id =:id"
-                                    ),
+                                    text("SELECT slug FROM tenants WHERE tenant_id =:id"),
                                     {"id": tid},
                                 ).first()
-                            ok = bool(
-                                row and row[0] and str(row[0]).strip() == tenant_slug
-                            )
+                            ok = bool(row and row[0] and str(row[0]).strip() == tenant_slug)
                     except Exception:
                         ok = False
                 if not ok:

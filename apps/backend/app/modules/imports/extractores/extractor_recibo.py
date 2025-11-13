@@ -1,16 +1,11 @@
-from typing import List, Dict, Any
-from app.modules.imports.domain.canonical_schema import (
-    CanonicalDocument,
-    build_routing_proposal,
-)
-from app.modules.imports.extractores.utilidades import (
-    buscar_multiple,
-    es_concepto_valido,
-)
 import re
+from typing import Any
+
+from app.modules.imports.domain.canonical_schema import CanonicalDocument, build_routing_proposal
+from app.modules.imports.extractores.utilidades import buscar_multiple, es_concepto_valido
 
 
-def extraer_recibo(texto: str, country: str = "EC") -> List[Dict[str, Any]]:
+def extraer_recibo(texto: str, country: str = "EC") -> list[dict[str, Any]]:
     """
     Extrae datos de recibo/ticket y retorna schema canónico.
 
@@ -81,9 +76,7 @@ def extraer_recibo(texto: str, country: str = "EC") -> List[Dict[str, Any]]:
     )
 
     concepto_raw = concepto or ""
-    concepto_final = (
-        concepto_raw if es_concepto_valido(concepto_raw) else "Documento sin concepto"
-    )
+    concepto_final = concepto_raw if es_concepto_valido(concepto_raw) else "Documento sin concepto"
 
     # Construir schema canónico
     subtotal = importe / 1.12  # Asume IVA 12% incluido

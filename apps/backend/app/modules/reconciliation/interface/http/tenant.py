@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-from typing import Optional, List
-
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-
+from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.config.database import get_db
 from app.db.rls import ensure_rls
-
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/reconciliation",
@@ -61,9 +57,7 @@ def link_payment(payload: LinkIn, db: Session = Depends(get_db)):
 
     # Update invoice status based on sum payments
     s = db.execute(
-        text(
-            "SELECT COALESCE(sum(importe_aplicado),0) FROM payments WHERE factura_id=:inv"
-        ),
+        text("SELECT COALESCE(sum(importe_aplicado),0) FROM payments WHERE factura_id=:inv"),
         {"inv": payload.invoice_id},
     ).scalar()
     tot = float(inv[1] or 0)
@@ -89,11 +83,11 @@ class SuggestOut(BaseModel):
     days_diff: int
 
 
-@router.get("/suggestions", response_model=List[SuggestOut])
+@router.get("/suggestions", response_model=list[SuggestOut])
 def suggestions(
     db: Session = Depends(get_db),
-    since: Optional[str] = Query(default=None),
-    until: Optional[str] = Query(default=None),
+    since: str | None = Query(default=None),
+    until: str | None = Query(default=None),
     tolerance: float = Query(default=0.01),
 ):
     # Simple matching by amount with small tolerance and date proximity (+/- 7 days)
@@ -114,9 +108,7 @@ def suggestions(
          ORDER BY score DESC
          LIMIT 50
         """
-    rows = db.execute(
-        text(sql), {"tol": tolerance, "since": since, "until": until}
-    ).fetchall()
+    rows = db.execute(text(sql), {"tol": tolerance, "since": since, "until": until}).fetchall()
     return [
         SuggestOut(
             bank_transaction_id=int(r[0]),

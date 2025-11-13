@@ -7,9 +7,7 @@ def _tenant_token(client: TestClient, usuario_empresa_factory):
     suffix = uuid.uuid4().hex[:6]
     username = f"ph_{suffix}"
     email = f"ph_{suffix}@x.com"
-    usuario, tenant = usuario_empresa_factory(
-        email=email, username=username, password="secret"
-    )
+    usuario, tenant = usuario_empresa_factory(email=email, username=username, password="secret")
     r = client.post(
         "/api/v1/tenant/auth/login",
         json={"identificador": username, "password": "secret"},
@@ -134,9 +132,7 @@ def test_photo_errors_csv_reflects_validation(
     assert r2.status_code == 200, r2.text
 
     # Export errors.csv and verify it contains header and a field name
-    rcsv = client.get(
-        f"/api/v1/imports/batches/{batch['id']}/errors.csv", headers=headers
-    )
+    rcsv = client.get(f"/api/v1/imports/batches/{batch['id']}/errors.csv", headers=headers)
     assert rcsv.status_code == 200
     assert rcsv.headers.get("content-type", "").startswith("text/csv")
     csv_text = rcsv.text

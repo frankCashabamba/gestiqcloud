@@ -73,6 +73,6 @@ backend/scripts/
 67 Y 68 CATALOGO.xlsx
 importacion/
 apps/backend/uploads/
-*.xlsx 
+*.xlsx
 uploads/
 **/uploads/

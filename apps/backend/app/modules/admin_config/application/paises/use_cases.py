@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from app.modules.admin_config.application.paises.dto import PaisIn, PaisOut
 from app.modules.admin_config.application.paises.ports import PaisRepo

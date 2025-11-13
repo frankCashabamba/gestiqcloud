@@ -4,8 +4,8 @@ Script: Crear series de numeración por defecto
 Uso: python scripts/create_default_series.py
 """
 
-import sys
 import os
+import sys
 
 # Añadir paths
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -14,6 +14,7 @@ sys.path.insert(
 )
 
 from sqlalchemy import text
+
 from app.db.session import SessionLocal
 from app.services.numbering import create_default_series
 
@@ -53,11 +54,13 @@ def main():
                 print(f"   ⚠️  Error backoffice: {e}")
 
             # Verificar si hay registros POS
-            check_registers = text("""
+            check_registers = text(
+                """
                 SELECT id, name FROM pos_registers
                 WHERE tenant_id = :tenant_id
                 ORDER BY created_at
-            """)
+            """
+            )
 
             registers = db.execute(
                 check_registers, {"tenant_id": str(tenant_id)}
@@ -81,8 +84,9 @@ def main():
         print("\n✅ Proceso completado")
 
         # Mostrar resumen
-        count_query = text("""
-            SELECT 
+        count_query = text(
+            """
+            SELECT
                 doc_type,
                 COUNT(*) as total,
                 COUNT(CASE WHEN register_id IS NULL THEN 1 END) as backoffice,
@@ -91,7 +95,8 @@ def main():
             WHERE active = true
             GROUP BY doc_type
             ORDER BY doc_type
-        """)
+        """
+        )
 
         summary = db.execute(count_query).fetchall()
 

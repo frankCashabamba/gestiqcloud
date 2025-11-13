@@ -15,6 +15,7 @@ Uso:
 import os
 import sys
 from pathlib import Path
+
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
@@ -67,7 +68,7 @@ def get_db_connection_string() -> str:
 
 def parse_connection_string(db_url: str) -> dict:
     """Parsea connection string a componentes."""
-    from urllib.parse import urlparse, parse_qs
+    from urllib.parse import parse_qs, urlparse
 
     parsed = urlparse(db_url)
 
@@ -87,24 +88,28 @@ def drop_all_tables(conn):
 
     with conn.cursor() as cur:
         # Deshabilitar RLS temporalmente
-        cur.execute("""
-            DO $$ 
+        cur.execute(
+            """
+            DO $$
             DECLARE r RECORD;
             BEGIN
-                FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') 
+                FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public')
                 LOOP
                     EXECUTE 'ALTER TABLE IF EXISTS ' || quote_ident(r.tablename) || ' DISABLE ROW LEVEL SECURITY';
                 END LOOP;
             END $$;
-        """)
+        """
+        )
 
         # Drop todas las tablas
-        cur.execute("""
+        cur.execute(
+            """
             DROP SCHEMA IF EXISTS public CASCADE;
             CREATE SCHEMA public;
             GRANT ALL ON SCHEMA public TO postgres;
             GRANT ALL ON SCHEMA public TO public;
-        """)
+        """
+        )
 
         conn.commit()
         print_step("   ✓ Todas las tablas eliminadas", "success")
@@ -137,10 +142,12 @@ def verify_schema(conn):
 
     with conn.cursor() as cur:
         # Contar tablas
-        cur.execute("""
-            SELECT COUNT(*) FROM information_schema.tables 
+        cur.execute(
+            """
+            SELECT COUNT(*) FROM information_schema.tables
             WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-        """)
+        """
+        )
         table_count = cur.fetchone()[0]
         print_step(f"   ✓ Tablas creadas: {table_count}", "success")
 
@@ -154,8 +161,8 @@ def verify_schema(conn):
         ]
         cur.execute(
             """
-            SELECT table_name FROM information_schema.tables 
-            WHERE table_schema = 'public' 
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public'
             AND table_name = ANY(%s)
         """,
             (critical_tables,),
@@ -180,10 +187,12 @@ def verify_schema(conn):
         print_step(f"   ✓ Roles base: {roles_count}", "success")
 
         # Verificar extensiones
-        cur.execute("""
-            SELECT extname FROM pg_extension 
+        cur.execute(
+            """
+            SELECT extname FROM pg_extension
             WHERE extname IN ('uuid-ossp', 'pg_trgm')
-        """)
+        """
+        )
         extensions = [row[0] for row in cur.fetchall()]
         print_step(f"   ✓ Extensiones: {', '.join(extensions)}", "success")
 
@@ -193,7 +202,8 @@ def create_demo_tenant(conn):
     print_step("\n[DEMO] Creando tenant demo...", "info")
 
     with conn.cursor() as cur:
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO tenants (
                 nombre, slug, ruc, country_code, base_currency,
                 telefono, ciudad, pais, activo
@@ -203,7 +213,8 @@ def create_demo_tenant(conn):
             )
             ON CONFLICT (slug) DO NOTHING
             RETURNING id, nombre
-        """)
+        """
+        )
 
         result = cur.fetchone()
         if result:
@@ -225,7 +236,7 @@ def create_demo_tenant(conn):
             cur.execute(
                 """
                 INSERT INTO products (tenant_id, category_id, name, sku, price, stock, unit)
-                VALUES 
+                VALUES
                     (%s, %s, 'Producto Demo 1', 'DEMO-001', 10.50, 100, 'unidad'),
                     (%s, %s, 'Producto Demo 2', 'DEMO-002', 25.00, 50, 'unidad'),
                     (%s, %s, 'Producto Demo 3', 'DEMO-003', 5.99, 200, 'kg')

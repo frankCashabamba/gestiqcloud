@@ -1,6 +1,6 @@
 # Módulo de Importación Documental — GestiqCloud
 
-**Versión**: 1.0  
+**Versión**: 1.0
 **Última actualización**: 2025-01-17
 
 ## Resumen
@@ -197,8 +197,8 @@ lineage = response.json()["items"]
 
 ### 1. Facturas (invoices)
 
-**Formatos**: PDF, XML (Facturae, SRI), imágenes JPG/PNG  
-**Destino**: `expenses` (facturas de compra)  
+**Formatos**: PDF, XML (Facturae, SRI), imágenes JPG/PNG
+**Destino**: `expenses` (facturas de compra)
 **Validadores**: Ecuador (RUC, clave de acceso), España (NIF, CIF)
 
 **Campos extraídos**:
@@ -210,8 +210,8 @@ lineage = response.json()["items"]
 
 ### 2. Recibos (expenses)
 
-**Formatos**: JPG, PNG, PDF  
-**Destino**: `expenses`  
+**Formatos**: JPG, PNG, PDF
+**Destino**: `expenses`
 **OCR**: Tesseract con mejora de imagen
 
 **Campos extraídos**:
@@ -222,8 +222,8 @@ lineage = response.json()["items"]
 
 ### 3. Movimientos bancarios (bank)
 
-**Formatos**: CSV, Excel, CAMT.053, MT940  
-**Destino**: `bank_movements`  
+**Formatos**: CSV, Excel, CAMT.053, MT940
+**Destino**: `bank_movements`
 **Validadores**: IBAN, saldos
 
 **Campos extraídos**:

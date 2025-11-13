@@ -1,3 +1,3 @@
-from .interface.http.tenant import router, public_router
+from .interface.http.tenant import public_router, router
 
 __all__ = ["router", "public_router"]

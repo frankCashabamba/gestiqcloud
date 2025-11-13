@@ -12,7 +12,7 @@ export function useImportPreview() {
   const analyzeFile = async (file: File) => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const result = await analyzeExcelForPreview(file);
       setPreview(result);

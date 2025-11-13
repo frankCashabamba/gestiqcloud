@@ -1,14 +1,11 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-from typing import Iterable, List
+from collections.abc import Iterable
 
+from app.models.suppliers import Proveedor
+from app.models.suppliers import ProveedorContacto as ProveedorContact
+from app.models.suppliers import ProveedorDireccion as ProveedorAddress
 from sqlalchemy.orm import Session
-
-from app.models.suppliers import (
-    Proveedor,
-    ProveedorContacto as ProveedorContact,
-    ProveedorDireccion as ProveedorAddress,
-)
 
 
 class ProveedorRepo:
@@ -18,7 +15,7 @@ class ProveedorRepo:
         self.db = db
 
     # Proveedor -----------------------------------------------------------------
-    def list(self, tenant_id: int) -> List[Proveedor]:
+    def list(self, tenant_id: int) -> list[Proveedor]:
         return (
             self.db.query(Proveedor)
             .filter(Proveedor.tenant_id == tenant_id)
@@ -78,9 +75,7 @@ class ProveedorRepo:
         for data in contactos:
             proveedor.contactos.append(ProveedorContact(**data))
 
-    def _apply_direcciones(
-        self, proveedor: Proveedor, direcciones: Iterable[dict]
-    ) -> None:
+    def _apply_direcciones(self, proveedor: Proveedor, direcciones: Iterable[dict]) -> None:
         proveedor.direcciones.clear()
         for data in direcciones:
             proveedor.direcciones.append(ProveedorAddress(**data))

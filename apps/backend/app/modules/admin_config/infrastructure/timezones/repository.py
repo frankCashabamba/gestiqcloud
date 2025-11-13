@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import Sequence
-
-from sqlalchemy.orm import Session
+from collections.abc import Sequence
 
 from app.models.empresa.empresa import RefTimezone as TimezoneORM
 from app.modules.admin_config.application.timezones.dto import TimezoneIn, TimezoneOut
 from app.modules.admin_config.application.timezones.ports import TimezoneRepo
+from sqlalchemy.orm import Session
 
 
 class SqlAlchemyTimezoneRepo(TimezoneRepo):
@@ -22,11 +21,7 @@ class SqlAlchemyTimezoneRepo(TimezoneRepo):
         )
 
     def list(self) -> Sequence[TimezoneOut]:
-        rows = (
-            self.db.query(TimezoneORM)
-            .order_by(TimezoneORM.name.asc())
-            .all()
-        )
+        rows = self.db.query(TimezoneORM).order_by(TimezoneORM.name.asc()).all()
         return [self._to_dto(r) for r in rows]
 
     def create(self, data: TimezoneIn) -> TimezoneOut:

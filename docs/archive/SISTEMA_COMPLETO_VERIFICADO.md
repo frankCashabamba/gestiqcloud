@@ -91,7 +91,7 @@ export async function listAllProducts() {
 - **Edición inline:** Click "✏️ Editar"
 - **Campos editables:**
   - Nombre
-  - Código/SKU  
+  - Código/SKU
   - Precio de venta
   - Stock actual
   - Categoría (Panadería, Pastelería, etc.)
@@ -389,28 +389,28 @@ Inventario:  http://localhost:8082/kusi-panaderia/mod/inventario
 ### Para activar/desactivar módulos:
 ```sql
 -- Desactivar un módulo para Kusi
-UPDATE modulos_empresamodulo 
-SET activo = false 
-WHERE tenant_id = '5c7bea07-05ca-457f-b321-722b1628b170' 
+UPDATE modulos_empresamodulo
+SET activo = false
+WHERE tenant_id = '5c7bea07-05ca-457f-b321-722b1628b170'
   AND modulo_id = (SELECT id FROM modulos_modulo WHERE url = 'rrhh');
 
 -- Activar un módulo
-UPDATE modulos_empresamodulo 
-SET activo = true 
-WHERE tenant_id = '5c7bea07-05ca-457f-b321-722b1628b170' 
+UPDATE modulos_empresamodulo
+SET activo = true
+WHERE tenant_id = '5c7bea07-05ca-457f-b321-722b1628b170'
   AND modulo_id = (SELECT id FROM modulos_modulo WHERE url = 'clientes');
 ```
 
 ### Para cambiar configuración:
 ```sql
 -- Cambiar moneda
-UPDATE tenant_settings 
-SET currency = 'EUR', 
+UPDATE tenant_settings
+SET currency = 'EUR',
     locale = 'es-ES'
 WHERE tenant_id = '5c7bea07-05ca-457f-b321-722b1628b170';
 
 -- Cambiar IVA
-UPDATE tenant_settings 
+UPDATE tenant_settings
 SET settings = jsonb_set(settings, '{iva_tasa_defecto}', '21')
 WHERE tenant_id = '5c7bea07-05ca-457f-b321-722b1628b170';
 ```

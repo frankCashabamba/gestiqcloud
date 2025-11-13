@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+from app.config.database import SessionLocal
 from celery import shared_task
 from sqlalchemy import text
-
-from app.config.database import SessionLocal
 
 
 @shared_task(name="apps.backend.app.modules.einvoicing.tasks.sign_and_send")

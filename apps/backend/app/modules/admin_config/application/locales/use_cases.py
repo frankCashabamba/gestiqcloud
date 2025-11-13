@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from app.modules.admin_config.application.locales.dto import LocaleIn, LocaleOut
 from app.modules.admin_config.application.locales.ports import LocaleRepo

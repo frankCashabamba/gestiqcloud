@@ -4,18 +4,19 @@ Script directo para importar Excel a la base de datos.
 Uso: python scripts/import_excel_direct.py <ruta_excel> <tenant_id>
 """
 
-import sys
 import os
-from pathlib import Path
+import sys
 import traceback
-import pandas as pd
-from sqlalchemy.orm import Session
-from app.config.database import SessionLocal
-from app.modules.imports.application.handlers import promote_items_to_productos
-from app.models.core.modelsimport import ImportBatch, ImportItem
 from datetime import datetime
+from pathlib import Path
 from uuid import uuid4
 
+import pandas as pd
+from sqlalchemy.orm import Session
+
+from app.config.database import SessionLocal
+from app.models.core.modelsimport import ImportBatch, ImportItem
+from app.modules.imports.application.handlers import promote_items_to_productos
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -26,7 +27,6 @@ os.environ.setdefault(
     "DB_DSN", "postgresql://postgres:root@localhost:5432/gestiqclouddb_dev"
 )
 os.environ.setdefault("IMPORTS_ENABLED", "1")
-
 
 
 def import_excel(file_path: str, tenant_id: str):

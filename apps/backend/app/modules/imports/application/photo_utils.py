@@ -11,11 +11,11 @@ import time
 import uuid
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from .ocr_config import get_ocr_config
 from .security_config import get_security_config
-from .security_guards import validate_file_security, SecurityViolationError
+from .security_guards import SecurityViolationError, validate_file_security
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +63,9 @@ except Exception:
 
 
 # Cache for OCR results (in-memory)
-_OCR_CACHE: Dict[str, str] = {}
-_QR_CACHE: Dict[str, List[str]] = {}
-_EASYOCR_READERS: Dict[str, Any] = {}
+_OCR_CACHE: dict[str, str] = {}
+_QR_CACHE: dict[str, list[str]] = {}
+_EASYOCR_READERS: dict[str, Any] = {}
 
 
 def exif_auto_orienta(content: bytes) -> bytes:
@@ -91,7 +91,7 @@ def exif_auto_orienta(content: bytes) -> bytes:
 
 def guardar_adjunto_bytes(
     tenant_id: str | int, content: bytes, *, filename: str
-) -> Tuple[str, str]:
+) -> tuple[str, str]:
     """Persist attachment to local uploads folder and return (file_key, sha256)."""
     base_dir = os.path.join("uploads", "imports", str(tenant_id))
     os.makedirs(base_dir, exist_ok=True)
@@ -136,9 +136,7 @@ def detect_native_text_in_pdf(pdf_path: str, min_chars: int = 30) -> str | None:
             )
             return full_text
 
-        logger.info(
-            f"PDF native text insufficient ({len(full_text)} chars), will use OCR"
-        )
+        logger.info(f"PDF native text insufficient ({len(full_text)} chars), will use OCR")
         return None
     except Exception as e:
         logger.warning(f"PDF native text extraction failed: {e}")
@@ -187,9 +185,7 @@ def preprocess_image(img) -> Any:
                 )
 
         # Denoise
-        gray = cv2.fastNlMeansDenoising(
-            gray, None, h=10, templateWindowSize=7, searchWindowSize=21
-        )
+        gray = cv2.fastNlMeansDenoising(gray, None, h=10, templateWindowSize=7, searchWindowSize=21)
 
         # Adaptive threshold
         processed = cv2.adaptiveThreshold(
@@ -205,7 +201,7 @@ def preprocess_image(img) -> Any:
         return img
 
 
-def extract_qr_codes(img) -> List[str]:
+def extract_qr_codes(img) -> list[str]:
     """
     Extract QR codes from image using pyzbar.
     Returns list of decoded strings (e.g., SRI clave de acceso).
@@ -316,9 +312,9 @@ def extract_text_from_image(content: bytes, file_sha: str | None = None) -> str:
     return text
 
 
-def _get_easyocr_reader(easyocr_langs: List[str]) -> Any:
+def _get_easyocr_reader(easyocr_langs: list[str]) -> Any:
     """Get cached EasyOCR reader for given languages."""
-    key = ','.join(sorted(easyocr_langs))
+    key = ",".join(sorted(easyocr_langs))
     if key not in _EASYOCR_READERS:
         logger.info(f"Initializing EasyOCR reader for languages: {easyocr_langs}")
         _EASYOCR_READERS[key] = easyocr.Reader(easyocr_langs, gpu=False)
@@ -352,7 +348,7 @@ def _easyocr_fallback(content: bytes) -> str:
         return ""
 
 
-def process_pdf_page(page_data: Tuple[bytes, int, str]) -> str:
+def process_pdf_page(page_data: tuple[bytes, int, str]) -> str:
     """Process single PDF page for multiprocessing."""
     pdf_bytes, page_num, file_sha = page_data
     os.environ["OMP_THREAD_LIMIT"] = "1"  # Limit OpenMP threads in worker
@@ -510,7 +506,7 @@ def _find_amount(text: str) -> float | None:
         return None
 
 
-def parse_texto_factura(text: str) -> Dict[str, Any]:
+def parse_texto_factura(text: str) -> dict[str, Any]:
     """Parse invoice text to normalized dict."""
     inv = None
     m = re.search(
@@ -527,7 +523,7 @@ def parse_texto_factura(text: str) -> Dict[str, Any]:
     }
 
 
-def parse_texto_banco(text: str) -> Dict[str, Any]:
+def parse_texto_banco(text: str) -> dict[str, Any]:
     """Parse bank transaction text to normalized dict."""
     return {
         "transaction_date": _find_date(text),
@@ -536,7 +532,7 @@ def parse_texto_banco(text: str) -> Dict[str, Any]:
     }
 
 
-def parse_texto_recibo(text: str) -> Dict[str, Any]:
+def parse_texto_recibo(text: str) -> dict[str, Any]:
     """Parse receipt text to normalized dict."""
     return {
         "expense_date": _find_date(text),

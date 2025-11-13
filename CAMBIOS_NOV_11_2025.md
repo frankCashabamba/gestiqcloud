@@ -2,8 +2,8 @@
 
 ## 🎯 Hito Completado: Sprint 1 Frontend - Clasificación + Metadatos
 
-**Fecha**: Nov 11, 2025  
-**Duración**: 2-3 horas  
+**Fecha**: Nov 11, 2025
+**Duración**: 2-3 horas
 **Estado**: ✅ COMPLETADO
 
 ---
@@ -16,7 +16,7 @@
    - Documentación de tareas completadas y pendientes
 
 ### Frontend - NEW
-2. **classifyApi.ts** 
+2. **classifyApi.ts**
    - Ruta: `apps/tenant/src/modules/importador/services/classifyApi.ts`
    - Líneas: 60 LOC
    - Interfaz `ClassifyResponse` con campos IA
@@ -67,7 +67,7 @@
      - `classification_confidence?: number | null`
      - `ai_enhanced?: boolean`
      - `ai_provider?: string | null`
-   
+
    - Extendida interfaz `CreateBatchPayload` con mismos campos
 
 3. **Wizard.tsx**
@@ -271,6 +271,6 @@ El proyecto está **80% completado** con un camino claro hacia 100%.
 
 ---
 
-**Generado por**: Sprint 1 Frontend  
-**Fecha**: Nov 11, 2025  
+**Generado por**: Sprint 1 Frontend
+**Fecha**: Nov 11, 2025
 **Versión**: 1.0

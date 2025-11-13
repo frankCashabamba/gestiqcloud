@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import Sequence
-
-from sqlalchemy.orm import Session
+from collections.abc import Sequence
 
 from app.models.empresa.empresa import RefLocale as LocaleORM
 from app.modules.admin_config.application.locales.dto import LocaleIn, LocaleOut
 from app.modules.admin_config.application.locales.ports import LocaleRepo
+from sqlalchemy.orm import Session
 
 
 class SqlAlchemyLocaleRepo(LocaleRepo):
@@ -21,11 +20,7 @@ class SqlAlchemyLocaleRepo(LocaleRepo):
         )
 
     def list(self) -> Sequence[LocaleOut]:
-        rows = (
-            self.db.query(LocaleORM)
-            .order_by(LocaleORM.code.asc())
-            .all()
-        )
+        rows = self.db.query(LocaleORM).order_by(LocaleORM.code.asc()).all()
         return [self._to_dto(r) for r in rows]
 
     def create(self, data: LocaleIn) -> LocaleOut:

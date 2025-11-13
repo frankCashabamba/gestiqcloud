@@ -1,8 +1,8 @@
 # Migración: Sistema de Nóminas RRHH
 
-**ID**: 2025-11-03_201_hr_nominas  
-**Fecha**: 2025-11-03  
-**Autor**: GestiQCloud Team  
+**ID**: 2025-11-03_201_hr_nominas
+**Fecha**: 2025-11-03
+**Autor**: GestiQCloud Team
 
 ## Descripción
 
@@ -38,12 +38,12 @@ Sistema completo de gestión de nóminas con devengos, deducciones y conceptos s
 
 ### Características
 
-✅ **RLS (Row Level Security)**: Aislamiento multi-tenant completo  
-✅ **Constraints**: Validaciones de integridad (checks, FKs, unique)  
-✅ **Índices**: Optimización para consultas por período, empleado, status  
-✅ **Triggers**: Auto-actualización de updated_at  
-✅ **Funciones**: Validación opcional de totales  
-✅ **Auditoría**: Campos approved_by, approved_at, created_by  
+✅ **RLS (Row Level Security)**: Aislamiento multi-tenant completo
+✅ **Constraints**: Validaciones de integridad (checks, FKs, unique)
+✅ **Índices**: Optimización para consultas por período, empleado, status
+✅ **Triggers**: Auto-actualización de updated_at
+✅ **Funciones**: Validación opcional de totales
+✅ **Auditoría**: Campos approved_by, approved_at, created_by
 
 ### Integridad
 
@@ -86,17 +86,17 @@ psql -U postgres -d gestiqclouddb_dev -f ops/migrations/2025-11-03_201_hr_nomina
 
 ```sql
 -- Verificar tablas
-SELECT tablename FROM pg_tables 
-WHERE schemaname = 'public' 
+SELECT tablename FROM pg_tables
+WHERE schemaname = 'public'
 AND tablename LIKE 'nomina%';
 
 -- Verificar RLS
-SELECT tablename, rowsecurity 
-FROM pg_tables 
+SELECT tablename, rowsecurity
+FROM pg_tables
 WHERE tablename LIKE 'nomina%';
 
 -- Verificar tipos
-SELECT typname FROM pg_type 
+SELECT typname FROM pg_type
 WHERE typname LIKE 'nomina%';
 ```
 
@@ -128,7 +128,7 @@ INSERT INTO nominas (
 ### Consultar Nóminas de un Empleado
 
 ```sql
-SELECT 
+SELECT
     numero, periodo_mes, periodo_ano, tipo,
     total_devengado, total_deducido, liquido_total,
     status

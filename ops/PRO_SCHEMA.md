@@ -47,4 +47,3 @@ Notas
 - El export requiere que la migración `2025-11-01_231_stock_alerts_modernize_schema` esté aplicada (añadida en este repo).
 - Si añades/eliminas tablas, vuelve a exportar para mantener `pro_schema.sql` actualizado.
 - El dump no incluye datos (solo esquema). Seeds/series iniciales deben aplicarse aparte.
-

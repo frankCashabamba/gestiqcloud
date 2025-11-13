@@ -19,4 +19,3 @@ catch {
   Write-Error "Failed to export schema: $_"
   exit 1
 }
-

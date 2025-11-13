@@ -1,12 +1,12 @@
-﻿"""
+"""
 Schemas Pydantic para notificaciones
 """
 
-from pydantic import BaseModel, Field, validator
-from typing import Optional, Dict, Any, List
-from datetime import datetime
 import uuid
+from datetime import datetime
+from typing import Any
 
+from pydantic import BaseModel, Field, validator
 
 # ============================================================================
 # NOTIFICATION CHANNELS
@@ -16,10 +16,8 @@ import uuid
 class NotificationChannelBase(BaseModel):
     tipo: str = Field(..., description="Tipo: email, whatsapp, telegram")
     name: str = Field(..., max_length=100)
-    description: Optional[str] = None
-    config: Dict[str, Any] = Field(
-        ..., description="Configuración específica del canal"
-    )
+    description: str | None = None
+    config: dict[str, Any] = Field(..., description="Configuración específica del canal")
     active: bool = True
     use_for_alerts: bool = True
     use_for_invoices: bool = False
@@ -31,20 +29,20 @@ class NotificationChannelCreate(NotificationChannelBase):
 
 
 class NotificationChannelUpdate(BaseModel):
-    name: Optional[str] = Field(None, max_length=100)
-    description: Optional[str] = None
-    config: Optional[Dict[str, Any]] = None
-    active: Optional[bool] = None
-    use_for_alerts: Optional[bool] = None
-    use_for_invoices: Optional[bool] = None
-    use_for_marketing: Optional[bool] = None
+    name: str | None = Field(None, max_length=100)
+    description: str | None = None
+    config: dict[str, Any] | None = None
+    active: bool | None = None
+    use_for_alerts: bool | None = None
+    use_for_invoices: bool | None = None
+    use_for_marketing: bool | None = None
 
 
 class NotificationChannelResponse(NotificationChannelBase):
     id: uuid.UUID
     tenant_id: uuid.UUID
     created_at: datetime
-    updated_at: Optional[datetime]
+    updated_at: datetime | None
 
     class Config:
         from_attributes = True
@@ -59,16 +57,16 @@ class NotificationLogResponse(BaseModel):
     id: uuid.UUID
     tenant_id: uuid.UUID
     tipo: str
-    canal: Optional[str]
+    canal: str | None
     destinatario: str
-    asunto: Optional[str]
+    asunto: str | None
     mensaje: str
     estado: str
-    extra_data: Optional[Dict[str, Any]]
-    error_message: Optional[str]
-    ref_type: Optional[str]
-    ref_id: Optional[uuid.UUID]
-    sent_at: Optional[datetime]
+    extra_data: dict[str, Any] | None
+    error_message: str | None
+    ref_type: str | None
+    ref_id: uuid.UUID | None
+    sent_at: datetime | None
     created_at: datetime
 
     class Config:
@@ -84,15 +82,15 @@ class StockAlertResponse(BaseModel):
     id: uuid.UUID
     tenant_id: uuid.UUID
     product_id: uuid.UUID
-    warehouse_id: Optional[uuid.UUID]
+    warehouse_id: uuid.UUID | None
     nivel_actual: int
     nivel_minimo: int
     diferencia: int
     estado: str
-    notified_at: Optional[datetime]
-    notified_via: Optional[List[str]]
-    resolved_at: Optional[datetime]
-    resolved_by: Optional[uuid.UUID]
+    notified_at: datetime | None
+    notified_via: list[str] | None
+    resolved_at: datetime | None
+    resolved_by: uuid.UUID | None
     created_at: datetime
 
     class Config:
@@ -115,11 +113,11 @@ class NotificationSendRequest(BaseModel):
     asunto: str = Field(..., max_length=500)
     mensaje: str = Field(..., description="Cuerpo del mensaje (HTML para email)")
 
-    channel_id: Optional[uuid.UUID] = None
-    config_override: Optional[Dict[str, Any]] = None
+    channel_id: uuid.UUID | None = None
+    config_override: dict[str, Any] | None = None
 
-    ref_type: Optional[str] = None
-    ref_id: Optional[uuid.UUID] = None
+    ref_type: str | None = None
+    ref_id: uuid.UUID | None = None
 
     @validator("tipo")
     def validate_tipo(cls, v):
@@ -137,9 +135,9 @@ class NotificationTemplateBase(BaseModel):
     codigo: str = Field(..., max_length=50)
     name: str = Field(..., max_length=100)
     tipo: str
-    asunto_template: Optional[str] = Field(None, max_length=500)
+    asunto_template: str | None = Field(None, max_length=500)
     mensaje_template: str
-    variables: Dict[str, str] = Field(default={}, description="Variables disponibles")
+    variables: dict[str, str] = Field(default={}, description="Variables disponibles")
     active: bool = True
 
 
@@ -151,7 +149,7 @@ class NotificationTemplateResponse(NotificationTemplateBase):
     id: uuid.UUID
     tenant_id: uuid.UUID
     created_at: datetime
-    updated_at: Optional[datetime]
+    updated_at: datetime | None
 
     class Config:
         from_attributes = True

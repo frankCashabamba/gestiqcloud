@@ -31,8 +31,8 @@ Agrega columnas calculadas (GENERATED) para cálculos automáticos de costos:
 
 ```sql
 -- Verificar cálculo automático
-SELECT id, name, costo_total, rendimiento, costo_por_unidad 
-FROM recipes 
+SELECT id, name, costo_total, rendimiento, costo_por_unidad
+FROM recipes
 LIMIT 5;
 
 -- Verificar ingredientes

@@ -1,16 +1,15 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from uuid import UUID
-from sqlalchemy.orm import Session
 
-from app.config.database import get_db
 from app.api.email.email_utils import reenviar_correo_reset
-from app.models.empresa.usuarioempresa import UsuarioEmpresa
-from app.models.tenant import Tenant as Empresa
+from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-
+from app.models.empresa.usuarioempresa import UsuarioEmpresa
+from app.models.tenant import Tenant as Empresa
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="",
@@ -30,7 +29,9 @@ def listar_usuarios(db: Session = Depends(get_db)):
     )
 
     def to_item(u: UsuarioEmpresa):
-        nombre = f"{getattr(u, 'nombre_encargado', '')} {getattr(u, 'apellido_encargado', '')}".strip()
+        nombre = (
+            f"{getattr(u, 'nombre_encargado', '')} {getattr(u, 'apellido_encargado', '')}".strip()
+        )
         return {
             # Forzar string para evitar clientes que tiparon number
             "id": str(u.id) if hasattr(u, "id") else None,

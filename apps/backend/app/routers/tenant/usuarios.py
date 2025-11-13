@@ -1,9 +1,8 @@
 from fastapi import APIRouter
-from typing import List
 
 router = APIRouter()
 
-USUARIOS: List[dict] = []
+USUARIOS: list[dict] = []
 
 
 @router.get("")

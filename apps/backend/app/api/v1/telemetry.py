@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
-
 
 logger = logging.getLogger("app.telemetry")
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
@@ -13,8 +12,8 @@ router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
 class TelemetryEvent(BaseModel):
     event: str
-    data: Optional[Dict[str, Any]] = None
-    ts: Optional[float] = None
+    data: dict[str, Any] | None = None
+    ts: float | None = None
 
 
 @router.post("/event", status_code=202)

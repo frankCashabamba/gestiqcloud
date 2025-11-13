@@ -1,7 +1,7 @@
 # Migration: Production Orders
 
-**Fecha:** 2025-11-03  
-**Versión:** 200  
+**Fecha:** 2025-11-03
+**Versión:** 200
 **Autor:** GestiQCloud Team
 
 ## Descripción
@@ -57,25 +57,25 @@ CANCELLED ←─────────────┘
 
 ## RLS (Row Level Security)
 
-✅ Ambas tablas protegidas por tenant_id  
-✅ Políticas de lectura/escritura por tenant  
+✅ Ambas tablas protegidas por tenant_id
+✅ Políticas de lectura/escritura por tenant
 ✅ Líneas heredan seguridad de orden padre
 
 ## Testing
 
 ```sql
 -- Verificar tablas creadas
-SELECT table_name FROM information_schema.tables 
-WHERE table_schema = 'public' 
+SELECT table_name FROM information_schema.tables
+WHERE table_schema = 'public'
 AND table_name LIKE 'production_%';
 
 -- Verificar tipo ENUM
-SELECT enumlabel FROM pg_enum 
+SELECT enumlabel FROM pg_enum
 WHERE enumtypid = 'production_order_status'::regtype;
 
 -- Verificar RLS
-SELECT tablename, rowsecurity FROM pg_tables 
-WHERE schemaname = 'public' 
+SELECT tablename, rowsecurity FROM pg_tables
+WHERE schemaname = 'public'
 AND tablename LIKE 'production_%';
 ```
 

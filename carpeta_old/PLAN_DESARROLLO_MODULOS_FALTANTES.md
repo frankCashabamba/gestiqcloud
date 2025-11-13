@@ -1,6 +1,6 @@
 # 🚀 PLAN DE DESARROLLO - MÓDULOS FALTANTES FRONTEND
 
-**Fecha**: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")  
+**Fecha**: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 **Estado**: 📋 PLANIFICADO
 
 ---
@@ -18,7 +18,7 @@
 ### 🔴 PRIORIDAD ALTA (Hacer YA)
 
 #### 1. CRM - Customer Relationship Management
-**Esfuerzo**: 2-3 días  
+**Esfuerzo**: 2-3 días
 **Valor**: ⭐⭐⭐⭐⭐
 
 **Archivos a crear**:
@@ -75,7 +75,7 @@ GET    /api/v1/tenant/crm/dashboard
 ---
 
 #### 2. Reconciliation - Conciliación Bancaria
-**Esfuerzo**: 2-3 días  
+**Esfuerzo**: 2-3 días
 **Valor**: ⭐⭐⭐⭐⭐
 
 **Archivos a crear**:
@@ -123,7 +123,7 @@ GET    /api/v1/tenant/reconciliation/history
 ---
 
 #### 3. E-Invoicing Dashboard (Mejorar existente)
-**Esfuerzo**: 1 día  
+**Esfuerzo**: 1 día
 **Valor**: ⭐⭐⭐⭐
 
 **Archivos a mejorar**:
@@ -154,7 +154,7 @@ apps/tenant/src/modules/facturacion/
 ### 🟡 PRIORIDAD MEDIA (Hacer después)
 
 #### 4. Export - Exportaciones
-**Esfuerzo**: 1-2 días  
+**Esfuerzo**: 1-2 días
 **Valor**: ⭐⭐⭐
 
 **Archivos a crear**:
@@ -193,7 +193,7 @@ GET    /api/v1/tenant/export/download/{job_id}
 ---
 
 #### 5. Webhooks - Integraciones
-**Esfuerzo**: 1-2 días  
+**Esfuerzo**: 1-2 días
 **Valor**: ⭐⭐⭐
 
 **Archivos a crear**:
@@ -237,19 +237,19 @@ POST   /api/v1/tenant/webhooks/test
 ### 🟢 PRIORIDAD BAJA (Opcional)
 
 #### 6. AI Agent / Copilot
-**Esfuerzo**: 3-5 días  
+**Esfuerzo**: 3-5 días
 **Valor**: ⭐⭐
 
 **Nota**: Implementar cuando backend esté listo
 
 #### 7. Templates
-**Esfuerzo**: 1-2 días  
+**Esfuerzo**: 1-2 días
 **Valor**: ⭐⭐
 
 **Funcionalidad**: Editor de plantillas (PDF, Email, etc.)
 
 #### 8. Empresa (Settings)
-**Esfuerzo**: 1 día  
+**Esfuerzo**: 1 día
 **Valor**: ⭐⭐
 
 **Nota**: Probablemente ya está en settings
@@ -450,7 +450,7 @@ modules/
    ```typescript
    // ❌ MAL
    const response = await fetch('http://localhost:8000/api/v1/tenant/crm/leads')
-   
+
    // ✅ BIEN
    const leads = await crmApi.leads.list()
    ```
@@ -460,7 +460,7 @@ modules/
    // ❌ MAL
    const id = String(lead.id)
    const value = Number(opportunity.value)
-   
+
    // ✅ BIEN - usar types correctos desde backend
    const id: string = lead.id
    const value: number = opportunity.value
@@ -470,7 +470,7 @@ modules/
    ```typescript
    // ❌ MAL - validación duplicada en cada formulario
    const schema = z.object({ name: z.string().min(1) })
-   
+
    // ✅ BIEN - usar schema compartido
    import { leadSchema } from '@packages/validations'
    ```
@@ -478,7 +478,7 @@ modules/
 4. **Duplicar componentes**
    ```typescript
    // ❌ MAL - copiar componentes entre módulos
-   
+
    // ✅ BIEN - mover a @packages/ui
    import { LeadCard } from '@packages/ui/modules/crm'
    ```
@@ -487,7 +487,7 @@ modules/
    ```typescript
    // ❌ MAL
    const leads: any[] = await crmApi.leads.list()
-   
+
    // ✅ BIEN
    const leads: Lead[] = await crmApi.leads.list()
    ```
@@ -500,12 +500,12 @@ modules/
 
 1. ✅ **Ya hecho**: Auditoría completa
 2. 🔄 **En progreso**: Estructura CRM manifest
-3. 📋 **Siguiente**: 
+3. 📋 **Siguiente**:
    - Crear @packages/api-types
    - Crear @packages/api-client
    - Implementar módulo CRM completo
 
 ---
 
-**Estado**: 📋 PLAN COMPLETADO - LISTO PARA EJECUTAR  
+**Estado**: 📋 PLAN COMPLETADO - LISTO PARA EJECUTAR
 **Próximo paso**: Crear packages compartidos (@packages/api-types, @packages/api-client)

@@ -1,6 +1,6 @@
 /**
  * ExpiryWarnings
- * 
+ *
  * Componente que muestra alertas de productos próximos a caducar
  * Solo visible si features.inventory_expiry_tracking === true
  */
@@ -27,7 +27,7 @@ interface ExpiryWarningsProps {
   onProductClick?: (productId: string) => void
 }
 
-export function ExpiryWarnings({ 
+export function ExpiryWarnings({
   warningDays = 3,
   maxItems = 5,
   onProductClick
@@ -57,7 +57,7 @@ export function ExpiryWarnings({
       const response = await apiFetch(
         `/api/v1/inventory/expiring-soon?days=${warningDays}&limit=${maxItems}`
       ) as { items?: any[] }
-      
+
       setProducts(response.items || [])
     } catch (err: any) {
       console.error('Error loading expiring products:', err)
@@ -93,7 +93,7 @@ export function ExpiryWarnings({
       <div className="expiry-warnings error" role="alert">
         <span className="icon">⚠️</span>
         <span>{error}</span>
-        <button 
+        <button
           onClick={loadExpiringProducts}
           className="retry-btn"
           aria-label="Reintentar carga"
@@ -123,7 +123,7 @@ export function ExpiryWarnings({
             </span>
           </h3>
         </div>
-        <button 
+        <button
           className="collapse-btn"
           aria-label={collapsed ? 'Expandir' : 'Contraer'}
           aria-expanded={!collapsed}
@@ -140,7 +140,7 @@ export function ExpiryWarnings({
             const urgencyLabel = getUrgencyLabel(product.days_until_expiry)
 
             return (
-              <div 
+              <div
                 key={product.id}
                 className={`warning-item urgency-${urgency}`}
                 onClick={() => onProductClick?.(product.id)}
@@ -183,7 +183,7 @@ export function ExpiryWarnings({
 
           {/* Botón ver todos */}
           {products.length === maxItems && (
-            <button 
+            <button
               className="view-all-btn"
               onClick={() => window.location.href = '/inventory/expiring'}
               aria-label="Ver todos los productos próximos a caducar"

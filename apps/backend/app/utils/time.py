@@ -1,5 +1,5 @@
 # app/utils/time.py
-from datetime import datetime, UTC  # Python 3.11+
+from datetime import UTC, datetime  # Python 3.11+
 
 
 def utcnow() -> datetime:

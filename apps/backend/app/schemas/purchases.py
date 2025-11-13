@@ -1,10 +1,9 @@
 """Schemas Pydantic para Compras"""
 
 from datetime import date, datetime
-from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # Base schema - Compra
@@ -12,15 +11,13 @@ class CompraBase(BaseModel):
     """Campos comunes de Compra"""
 
     numero: str = Field(..., max_length=50, description="Número de compra")
-    proveedor_id: Optional[UUID] = Field(None, description="ID del proveedor")
+    proveedor_id: UUID | None = Field(None, description="ID del proveedor")
     fecha: date = Field(default_factory=date.today)
     subtotal: float = Field(default=0, ge=0)
     impuestos: float = Field(default=0, ge=0)
     total: float = Field(default=0, ge=0)
-    estado: str = Field(
-        default="draft", pattern="^(draft|confirmed|received|cancelled)$"
-    )
-    notas: Optional[str] = None
+    estado: str = Field(default="draft", pattern="^(draft|confirmed|received|cancelled)$")
+    notas: str | None = None
 
 
 # Create schema
@@ -34,16 +31,14 @@ class CompraCreate(CompraBase):
 class CompraUpdate(BaseModel):
     """Schema para actualizar compra (todos campos opcionales)"""
 
-    numero: Optional[str] = Field(None, max_length=50)
-    proveedor_id: Optional[UUID] = None
-    fecha: Optional[date] = None
-    subtotal: Optional[float] = Field(None, ge=0)
-    impuestos: Optional[float] = Field(None, ge=0)
-    total: Optional[float] = Field(None, ge=0)
-    estado: Optional[str] = Field(
-        None, pattern="^(draft|confirmed|received|cancelled)$"
-    )
-    notas: Optional[str] = None
+    numero: str | None = Field(None, max_length=50)
+    proveedor_id: UUID | None = None
+    fecha: date | None = None
+    subtotal: float | None = Field(None, ge=0)
+    impuestos: float | None = Field(None, ge=0)
+    total: float | None = Field(None, ge=0)
+    estado: str | None = Field(None, pattern="^(draft|confirmed|received|cancelled)$")
+    notas: str | None = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -78,9 +73,7 @@ class CompraLineaBase(BaseModel):
     producto_id: UUID = Field(..., description="ID del producto")
     cantidad: float = Field(..., gt=0, description="Cantidad")
     precio_unitario: float = Field(..., ge=0, description="Precio unitario")
-    impuesto_tasa: float = Field(
-        default=0, ge=0, le=1, description="Tasa de impuesto (0-1)"
-    )
+    impuesto_tasa: float = Field(default=0, ge=0, le=1, description="Tasa de impuesto (0-1)")
     descuento: float = Field(default=0, ge=0, le=100, description="Descuento en %")
     total: float = Field(default=0, ge=0, description="Total de línea")
 

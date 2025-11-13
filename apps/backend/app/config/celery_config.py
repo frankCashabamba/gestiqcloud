@@ -2,9 +2,10 @@
 Configuración de Celery para tareas asíncronas
 """
 
+import os
+
 from celery import Celery
 from celery.schedules import crontab
-import os
 
 # Configuración Redis
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")

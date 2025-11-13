@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict
+from typing import Any
 
 
-def _json_size_bytes(d: Dict[str, Any]) -> int:
+def _json_size_bytes(d: dict[str, Any]) -> int:
     try:
         return len(json.dumps(d, ensure_ascii=False).encode("utf-8"))
     except Exception:
@@ -19,7 +19,7 @@ def _depth(d: Any) -> int:
     return 1 + max((_depth(v) for v in d.values()), default=0)
 
 
-def validate_overlay(config: Dict[str, Any], limits: Dict[str, Any]) -> None:
+def validate_overlay(config: dict[str, Any], limits: dict[str, Any]) -> None:
     max_fields = int(limits.get("max_fields", 15))
     max_bytes = int(limits.get("max_bytes", 8192))
     max_depth = int(limits.get("max_depth", 2))
@@ -47,7 +47,7 @@ def validate_overlay(config: Dict[str, Any], limits: Dict[str, Any]) -> None:
         raise ValueError("overlay_depth_exceeded")
 
 
-def deep_merge(base: Dict[str, Any], over: Dict[str, Any]) -> Dict[str, Any]:
+def deep_merge(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
     out = dict(base)
     for k, v in over.items():
         if k in out and isinstance(out[k], dict) and isinstance(v, dict):

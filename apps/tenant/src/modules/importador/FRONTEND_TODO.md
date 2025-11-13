@@ -40,7 +40,7 @@ return (
   <>
     <input type="file" onChange={(e) => handleUpload(e.target.files[0])} />
     {classifyResult && (
-      <ClassificationSuggestion 
+      <ClassificationSuggestion
         result={classifyResult}
         loading={classifyLoading}
         error={null}
@@ -246,7 +246,7 @@ interface ParserMetadata {
 const { progress, error, connected } = useImportProgress(batchId)
 
 return (
-  <ProgressIndicator 
+  <ProgressIndicator
     current={progress.current}
     total={progress.total}
     estimatedSecondsRemaining={progress.estimated_time_remaining}
@@ -319,6 +319,6 @@ return (
 
 ---
 
-**Última actualización**: 11 Nov 2025  
-**Autor**: AI Code Review  
+**Última actualización**: 11 Nov 2025
+**Autor**: AI Code Review
 **Estado**: En planificación

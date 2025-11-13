@@ -12,7 +12,7 @@ export default function StockList() {
   const [errMsg, setErrMsg] = useState<string | null>(null)
   const nav = useNavigate()
   const { error: toastError } = useToast()
-  
+
   const [q, setQ] = useState('')
   const [filterWarehouse, setFilterWarehouse] = useState<string | 'all'>('all')
   const [filterAlerta, setFilterAlerta] = useState<'all' | 'bajo' | 'sobre'>('all')
@@ -84,24 +84,24 @@ export default function StockList() {
       const matchesSearch =
         (item.product?.name || '').toLowerCase().includes(q.toLowerCase()) ||
         (item.product?.sku || '').toLowerCase().includes(q.toLowerCase())
-      
+
       if (!matchesSearch) return false
-      
+
       if (filterWarehouse !== 'all' && String(item.warehouse_id) !== String(filterWarehouse)) return false
-      
+
       if (filterAlerta === 'bajo') {
         const min = item.product?.product_metadata?.reorder_point
         if (!min || item.qty >= min) return false
       }
-      
+
       if (filterAlerta === 'sobre') {
         const max = item.product?.product_metadata?.max_stock
         if (!max || item.qty <= max) return false
       }
-      
+
       return true
     })
-    
+
     return result
   }, [items, q, filterWarehouse, filterAlerta])
 
@@ -139,7 +139,7 @@ export default function StockList() {
       item.lot || '',
       item.expires_at || '',
     ])
-    
+
     const csv = [headers, ...rows].map((row) => row.join(';')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
@@ -151,7 +151,7 @@ export default function StockList() {
   const getAlertaInfo = (item: StockItem) => {
     const min = item.product?.product_metadata?.reorder_point
     const max = item.product?.product_metadata?.max_stock
-    
+
     if (min && item.qty < min) {
       return { tipo: 'bajo', texto: 'Stock bajo', color: 'bg-red-100 text-red-800' }
     }
@@ -246,7 +246,7 @@ export default function StockList() {
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             aria-label="Buscar productos"
           />
-          
+
           <select
             value={filterWarehouse}
             onChange={(e) => setFilterWarehouse(e.target.value === 'all' ? 'all' : String(e.target.value))}
@@ -259,7 +259,7 @@ export default function StockList() {
               </option>
             ))}
           </select>
-          
+
           <select
             value={filterAlerta}
             onChange={(e) => setFilterAlerta(e.target.value as any)}
@@ -428,5 +428,3 @@ export default function StockList() {
     </div>
   )
 }
-
-

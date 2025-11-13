@@ -1,7 +1,6 @@
-from typing import List, Optional
-from sqlalchemy.orm import Session
-from app.models.finance import CajaMovimiento, BancoMovimiento
 from app.core.crud_base import CRUDBase
+from app.models.finance import BancoMovimiento, CajaMovimiento
+from sqlalchemy.orm import Session
 
 
 class CajaCRUD(CRUDBase[CajaMovimiento, "CajaCreateDTO", "CajaUpdateDTO"]):
@@ -17,10 +16,10 @@ class CajaRepo:
         self.db = db
         self.crud = CajaCRUD(CajaMovimiento)
 
-    def list(self) -> List[CajaMovimiento]:
+    def list(self) -> list[CajaMovimiento]:
         return list(self.crud.list(self.db))
 
-    def get(self, mid: int) -> Optional[CajaMovimiento]:
+    def get(self, mid: int) -> CajaMovimiento | None:
         return self.crud.get(self.db, mid)
 
 
@@ -29,8 +28,8 @@ class BancoRepo:
         self.db = db
         self.crud = BancoCRUD(BancoMovimiento)
 
-    def list(self) -> List[BancoMovimiento]:
+    def list(self) -> list[BancoMovimiento]:
         return list(self.crud.list(self.db))
 
-    def get(self, mid: int) -> Optional[BancoMovimiento]:
+    def get(self, mid: int) -> BancoMovimiento | None:
         return self.crud.get(self.db, mid)

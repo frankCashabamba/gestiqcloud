@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+import os
+from datetime import UTC, datetime
 from email.utils import format_datetime
 from importlib import import_module
-from typing import Optional, Tuple
 
 from fastapi import APIRouter, Depends, Response
-import os
 
 logger = logging.getLogger("app.router")
 
@@ -20,9 +19,9 @@ logger = logging.getLogger("app.router")
 def _httpdate(dt: datetime) -> str:
     """Formatea a HTTP-date (IMF-fixdate) en UTC."""
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     else:
-        dt = dt.astimezone(timezone.utc)
+        dt = dt.astimezone(UTC)
     return format_datetime(dt, usegmt=True)
 
 
@@ -69,10 +68,10 @@ def _import_attr(module_path: str, attr: str = "router"):
 
 def include_router_safe(
     r: APIRouter,
-    primary: Tuple[str, str],  # (module_path, attr)
+    primary: tuple[str, str],  # (module_path, attr)
     *,
     prefix: str = "",
-    fallback: Optional[Tuple[str, str]] = None,
+    fallback: tuple[str, str] | None = None,
     mark_deprecated: bool = False,
 ) -> bool:
     """
@@ -192,9 +191,7 @@ def build_api_router() -> APIRouter:
     )
 
     # Products (EN-only) - mount under /tenant like clientes
-    include_router_safe(
-        r, ("app.modules.productos.interface.http.public", "router")
-    )
+    include_router_safe(r, ("app.modules.productos.interface.http.public", "router"))
     include_router_safe(
         r, ("app.modules.productos.interface.http.tenant", "router"), prefix="/tenant"
     )
@@ -221,17 +218,11 @@ def build_api_router() -> APIRouter:
 
     # Usuarios de empresa (tenant) y admin
     include_router_safe(r, ("app.modules.usuarios.interface.http.tenant", "router"))
-    include_router_safe(
-        r, ("app.modules.usuarios.interface.http.tenant", "public_router")
-    )
-    include_router_safe(
-        r, ("app.modules.usuarios.interface.http.admin", "router"), prefix="/admin"
-    )
+    include_router_safe(r, ("app.modules.usuarios.interface.http.tenant", "public_router"))
+    include_router_safe(r, ("app.modules.usuarios.interface.http.admin", "router"), prefix="/admin")
 
     # Module registry (catalog)
-    include_router_safe(
-        r, ("app.modules.registry.interface.http.admin", "router"), prefix="/admin"
-    )
+    include_router_safe(r, ("app.modules.registry.interface.http.admin", "router"), prefix="/admin")
     include_router_safe(r, ("app.modules.registry.interface.http.tenant", "router"))
 
     # Admin config (modern)
@@ -247,7 +238,8 @@ def build_api_router() -> APIRouter:
         r, ("app.modules.facturacion.interface.http.tenant", "router"), prefix="/tenant"
     )
     include_router_safe(
-        r, ("app.modules.facturacion.interface.http.send_email", "router"),
+        r,
+        ("app.modules.facturacion.interface.http.send_email", "router"),
         prefix="/tenant",
     )
     # Inventario
@@ -255,9 +247,7 @@ def build_api_router() -> APIRouter:
         r, ("app.modules.inventario.interface.http.tenant", "router"), prefix="/tenant"
     )
     # Ventas
-    include_router_safe(
-        r, ("app.modules.ventas.interface.http.tenant", "router"), prefix="/tenant"
-    )
+    include_router_safe(r, ("app.modules.ventas.interface.http.tenant", "router"), prefix="/tenant")
     include_router_safe(
         r,
         ("app.modules.ventas.interface.http.tenant", "deliveries_router"),
@@ -270,9 +260,7 @@ def build_api_router() -> APIRouter:
     )
 
     # Gastos
-    include_router_safe(
-        r, ("app.modules.gastos.interface.http.tenant", "router"), prefix="/tenant"
-    )
+    include_router_safe(r, ("app.modules.gastos.interface.http.tenant", "router"), prefix="/tenant")
 
     # (deduplicated) Inventario router is already mounted above
 
@@ -290,7 +278,7 @@ def build_api_router() -> APIRouter:
     include_router_safe(
         r, ("app.modules.imports.interface.http.preview", "router"), prefix="/imports"
     )
-    
+
     # Import Files endpoints (classification, etc.)
     include_router_safe(
         r, ("app.modules.imports.interface.http.preview", "files_router"), prefix="/imports"
@@ -319,20 +307,17 @@ def build_api_router() -> APIRouter:
             include_router_safe(
                 r, ("app.modules.imports.interface.http.preview", "router"), prefix="/imports"
             )
-            include_router_safe(
-                r, ("app.modules.imports.interface.http.tenant", "public_router")
-            )
+            include_router_safe(r, ("app.modules.imports.interface.http.tenant", "public_router"))
 
     # Contabilidad
     include_router_safe(
-        r, ("app.modules.contabilidad.interface.http.tenant", "router"),
+        r,
+        ("app.modules.contabilidad.interface.http.tenant", "router"),
         prefix="/tenant",
     )
 
     # RRHH (Human Resources)
-    include_router_safe(
-        r, ("app.modules.rrhh.interface.http.tenant", "router"), prefix="/tenant"
-    )
+    include_router_safe(r, ("app.modules.rrhh.interface.http.tenant", "router"), prefix="/tenant")
 
     # Finanzas
     include_router_safe(
@@ -348,21 +333,17 @@ def build_api_router() -> APIRouter:
     include_router_safe(
         r, ("app.modules.imports.interface.http.tenant", "router"), prefix="/tenant"
     )
-    
+
     # Conversiones de documentos
     include_router_safe(
-        r, ("app.modules.ventas.interface.http.conversions", "router"),
-        prefix="/tenant"
+        r, ("app.modules.ventas.interface.http.conversions", "router"), prefix="/tenant"
     )
     include_router_safe(
-        r, ("app.modules.pos.interface.http.conversions", "router"),
-        prefix="/tenant"
+        r, ("app.modules.pos.interface.http.conversions", "router"), prefix="/tenant"
     )
-    
+
     # CRM
-    include_router_safe(
-        r, ("app.modules.crm.presentation.tenant", "router"), prefix="/tenant"
-    )
+    include_router_safe(r, ("app.modules.crm.presentation.tenant", "router"), prefix="/tenant")
 
     # Settings (tenant)
     include_router_safe(
@@ -371,9 +352,7 @@ def build_api_router() -> APIRouter:
         prefix="/tenant/settings",
     )
     # Settings admin: field-config + ui-plantillas
-    include_router_safe(
-        r, ("app.modules.settings.interface.http.tenant", "admin_router")
-    )
+    include_router_safe(r, ("app.modules.settings.interface.http.tenant", "admin_router"))
 
     # Dashboard KPIs
     include_router_safe(r, ("app.routers.dashboard_stats", "router"))
@@ -387,9 +366,7 @@ def build_api_router() -> APIRouter:
     # (removed) Tenant onboarding/configuración inicial router (legacy)
 
     # Admin usuarios (router histórico): mantener mientras exista el panel actual
-    include_router_safe(
-        r, ("app.routers.admin.usuarios", "router"), prefix="/admin/usuarios"
-    )
+    include_router_safe(r, ("app.routers.admin.usuarios", "router"), prefix="/admin/usuarios")
 
     # Roles base (histórico para admin actual): CRUD de roles
     include_router_safe(r, ("app.routers.roles", "router"))
@@ -417,20 +394,17 @@ def build_api_router() -> APIRouter:
     )
 
     # POS / Caja
-    include_router_safe(
-        r, ("app.modules.pos.interface.http.tenant", "router"), prefix="/tenant"
-    )
+    include_router_safe(r, ("app.modules.pos.interface.http.tenant", "router"), prefix="/tenant")
 
     # Reconciliation (Payments AR/AP)
     include_router_safe(
-        r, ("app.modules.reconciliation.interface.http.tenant", "router"),
+        r,
+        ("app.modules.reconciliation.interface.http.tenant", "router"),
         prefix="/tenant",
     )
 
     # Export CSV
-    include_router_safe(
-        r, ("app.modules.export.interface.http.tenant", "router"), prefix="/tenant"
-    )
+    include_router_safe(r, ("app.modules.export.interface.http.tenant", "router"), prefix="/tenant")
 
     # Webhooks per tenant
     include_router_safe(

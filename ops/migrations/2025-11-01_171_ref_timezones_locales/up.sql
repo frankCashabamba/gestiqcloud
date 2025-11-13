@@ -27,4 +27,3 @@ INSERT INTO ref_locale(code, name) VALUES
 ON CONFLICT (code) DO NOTHING;
 
 COMMIT;
-

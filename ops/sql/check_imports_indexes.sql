@@ -37,4 +37,3 @@ LIMIT 20;
 SELECT indexname, indexdef
 FROM pg_indexes
 WHERE indexname = 'ux_import_items_batch_id_idem';
-

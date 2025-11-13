@@ -2,17 +2,15 @@
 
 Auto-generated module docstring."""
 
-from typing import Optional
 from datetime import datetime
 from uuid import UUID, uuid4
 
+from app.config.database import Base
+from app.models.empresa.usuarioempresa import UsuarioEmpresa
 from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.models.empresa.usuarioempresa import UsuarioEmpresa
-from app.config.database import Base
 from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 class TipoEmpresa(Base):
@@ -23,7 +21,7 @@ class TipoEmpresa(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
@@ -35,7 +33,7 @@ class TipoNegocio(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
@@ -44,11 +42,9 @@ class RolBase(Base):
 
     __tablename__ = "core_rolbase"
 
-    id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     nombre: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    descripcion: Mapped[Optional[str]] = mapped_column(Text)
+    descripcion: Mapped[str | None] = mapped_column(Text)
     permisos: Mapped[dict] = mapped_column(
         MutableDict.as_mutable(JSON),
         nullable=False,
@@ -81,7 +77,9 @@ class PerfilUsuario(Base):
     __tablename__ = "core_perfilusuario"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    usuario_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("usuarios_usuarioempresa.id"))
+    usuario_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("usuarios_usuarioempresa.id")
+    )
     idioma: Mapped[str] = mapped_column(String(10), default="es")
     zona_horaria: Mapped[str] = mapped_column(String(50), default="UTC")
     tenant_id = mapped_column(ForeignKey("tenants.id"))
@@ -177,8 +175,12 @@ class SectorPlantilla(Base):
     __tablename__ = "core_sectorplantilla"
     id: Mapped[int] = mapped_column(primary_key=True)
     sector_name: Mapped[str] = mapped_column(String(100), unique=True, name="sector_name")
-    business_type_id: Mapped[Optional[int]] = mapped_column(ForeignKey("core_tipoempresa.id"), name="business_type_id")
-    business_category_id: Mapped[Optional[int]] = mapped_column(ForeignKey("core_tiponegocio.id"), name="business_category_id")
+    business_type_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_tipoempresa.id"), name="business_type_id"
+    )
+    business_category_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core_tiponegocio.id"), name="business_category_id"
+    )
     template_config: Mapped[dict] = mapped_column(JSON, default=dict, name="template_config")
     active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(default=func.now())

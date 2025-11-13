@@ -78,7 +78,7 @@ const response = await classify(file)
 
 ```typescript
 // Props:
-<ClassificationSuggestion 
+<ClassificationSuggestion
   result={classificationResult}  // ClassifyResponse | null
   loading={classifying}          // boolean
   error={classificationError}    // string | null
@@ -88,7 +88,7 @@ const response = await classify(file)
 **Visualización:**
 - **Loading:** Spinner animado + "Analizando documento..."
 - **Error:** Alerta amarilla con mensaje
-- **Success:** 
+- **Success:**
   - Badge de confianza (verde/amarillo/rojo)
   - Parser sugerido en código
   - Badges "Potenciado con IA" si aplica
@@ -97,7 +97,7 @@ const response = await classify(file)
 
 **Colores de Confianza:**
 - 🟢 **Verde** ≥ 80% confianza
-- 🟡 **Amarillo** 60-80% confianza  
+- 🟡 **Amarillo** 60-80% confianza
 - 🔴 **Rojo** < 60% confianza
 
 ---
@@ -122,8 +122,8 @@ try {
 }
 
 // 4. En el paso Preview, agregar componente:
-<ClassificationSuggestion 
-  result={classificationResult} 
+<ClassificationSuggestion
+  result={classificationResult}
   loading={classifying}
   error={classificationError}
 />

@@ -27,7 +27,7 @@ http://localhost:8082/importador
 <Link to="/importador">📤 Importar productos</Link>
 ```
 
-**Pantalla**: 
+**Pantalla**:
 - 🔘 Seleccionar tipo: **"Productos"**
 - 📁 Subir archivo: `67 Y 68 CATALOGO.xlsx`
 - ⚙️ Auto-mapeo de columnas
@@ -47,7 +47,7 @@ El sistema mapea automáticamente:
 **Banner de advertencia**:
 ```
 ⚠️ 67 productos sin código de barras
-Algunos productos no tienen código de barras. 
+Algunos productos no tienen código de barras.
 Puedes generarlos automáticamente para usar con pistola lectora.
 
 [🏷️ Generar códigos automáticamente]
@@ -218,7 +218,7 @@ Los códigos generados son **100% compatibles** con pistolas lectoras USB/Blueto
 | España (EAN real) | `84` | `8400000000125` | Solo si tienes licencia GS1 España |
 | Ecuador (EAN real) | `786` | `7860000000014` | Solo si tienes licencia GS1 Ecuador |
 
-**⚠️ Importante**: 
+**⚠️ Importante**:
 - Códigos con prefijo `200-299` son **VIRTUALES/INTERNOS**
 - NO son códigos EAN oficiales del fabricante
 - Solo válidos para uso interno con tu pistola lectora
@@ -337,7 +337,7 @@ async def get_next_barcode_sequence(
     """
     # Buscar el último código del tenant con el prefijo
     prefix = {'ES': '84', 'EC': '786', 'INTERNAL': '200'}[country]
-    
+
     last_barcode = await db.execute(
         select(Producto.codigo_barras)
         .where(
@@ -347,19 +347,19 @@ async def get_next_barcode_sequence(
         .order_by(Producto.codigo_barras.desc())
         .limit(1)
     )
-    
+
     last = last_barcode.scalar_one_or_none()
-    
+
     if not last:
         return {"next_sequence": 1, "prefix": prefix}
-    
+
     # Extraer secuencia del último código
     try:
         sequence_part = last[len(prefix):-1]  # Quitar prefix y checksum
         next_seq = int(sequence_part) + 1
     except:
         next_seq = 1
-    
+
     return {"next_sequence": next_seq, "prefix": prefix}
 ```
 
@@ -373,7 +373,7 @@ import { usePrintBarcodeLabels } from './components/PrintBarcodeLabels'
 
 function ImportadorExcel() {
   const [products, setProducts] = useState<ProductRow[]>([])
-  
+
   const {
     productsWithBarcodes,
     generatedCount,
@@ -388,14 +388,14 @@ function ImportadorExcel() {
   const handleGenerateBarcodes = async () => {
     const tenant = await getTenantInfo()
     const country = tenant.country === 'ES' ? 'ES' : tenant.country === 'EC' ? 'EC' : 'INTERNAL'
-    
-    const updated = fillMissingBarcodes({ 
-      country, 
-      overwriteInvalid: true 
+
+    const updated = fillMissingBarcodes({
+      country,
+      overwriteInvalid: true
     })
-    
+
     setProducts(updated)
-    
+
     toast.success(`✅ ${generatedCount} códigos de barras generados`)
   }
 
@@ -563,7 +563,7 @@ Cada tenant puede configurar su preferencia:
 
 class Producto(Base):
     __tablename__ = 'productos'
-    
+
     id = Column(UUID, primary_key=True, default=uuid4)
     tenant_id = Column(UUID, ForeignKey('tenants.id'), nullable=False)
     sku = Column(String(100), nullable=False, unique=True)
@@ -572,7 +572,7 @@ class Producto(Base):
     barcode_generated = Column(Boolean, default=False)  # ⭐ Flag: generado automáticamente
     precio_venta = Column(Numeric(12, 2), nullable=False)
     # ... más campos
-    
+
     __table_args__ = (
         Index('idx_productos_barcode', 'tenant_id', 'codigo_barras'),
         UniqueConstraint('tenant_id', 'sku', name='uq_productos_tenant_sku'),
@@ -618,6 +618,6 @@ const getTenantCountry = async (): Promise<'ES' | 'EC' | 'INTERNAL'> => {
 
 ---
 
-**Versión**: 1.0.0  
-**Última actualización**: Enero 2025  
+**Versión**: 1.0.0
+**Última actualización**: Enero 2025
 **Caso de uso**: Cliente real TODO a 100 con catálogo 67-68 productos

@@ -20,9 +20,9 @@
 ╚════════════════════════════════════════════════════════════════╝
 ```
 
-**Última revisión**: Nov 11, 2025 - ✅ Auditoría exhaustiva completada  
-**Archivos verificados**: 50+ archivos TS/TSX/PY  
-**Endpoints probados**: 20+ endpoints operativos  
+**Última revisión**: Nov 11, 2025 - ✅ Auditoría exhaustiva completada
+**Archivos verificados**: 50+ archivos TS/TSX/PY
+**Endpoints probados**: 20+ endpoints operativos
 
 ---
 
@@ -197,16 +197,16 @@ La búsqueda inicial no incluía el directorio `/apps/tenant/src/` en sus worksp
 // Wizard.tsx:79-104
 const onFile = async (e) => {
   const f = e.target.files[0]
-  
+
   // Parse CSV
   const { headers, rows } = parseCSV(text)
-  
+
   // Auto-mapear
   const sugeridos = autoMapeoColumnas(hs)
-  
+
   // Clasificar con IA ✅ INTEGRADO
   await classify(f)  // → classifyApi.classifyFileWithFallback()
-  
+
   setStep('preview')
 }
 ```
@@ -266,24 +266,24 @@ runValidation = () => {
 async function onImportAll() {
   // 1. Normalizar
   const docs = normalizarDocumento(rows, mapa)
-  
+
   // 2. Crear batch con clasificación
   const batch = await createBatch({
     suggested_parser: selectedParser || classificationResult.suggested_parser,
     ai_enhanced: classificationResult.enhanced_by_ai,
     ai_provider: classificationResult.ai_provider
   })
-  
+
   // 3. Ingestar filas
   await ingestBatch(batch.id, { rows: docs })
-  
+
   // 4. Promover con flags
   await fetch(`/api/v1/imports/batches/${batch.id}/promote`, {
     searchParams: { auto: '1', create_warehouse: '1', activate: '1' }
   })
-  
+
   // 5. Mostrar progreso WebSocket
-  <ImportProgressIndicator 
+  <ImportProgressIndicator
     progress={progress}
     isConnected={isConnected}
   />
@@ -377,7 +377,7 @@ async function onImportAll() {
 ```
 3. [ ] API Swagger/OpenAPI docs
    └─ Duración: 1-2h
-   
+
 4. [ ] Tests unitarios frontend
    └─ Duración: 2-3h
 ```
@@ -469,7 +469,7 @@ async function onImportAll() {
 
 ---
 
-**Última actualización**: 11/11/2025  
-**Auditoría**: Completa y verificada  
-**Status**: ✅ Completamente preciso  
+**Última actualización**: 11/11/2025
+**Auditoría**: Completa y verificada
+**Status**: ✅ Completamente preciso
 **Próxima revisión**: Después de tests E2E

@@ -1,8 +1,9 @@
-from typing import List, Optional, Union
+from typing import Union
 from uuid import UUID
-from sqlalchemy.orm import Session
-from app.models.sales import Venta
+
 from app.core.crud_base import CRUDBase
+from app.models.sales import Venta
+from sqlalchemy.orm import Session
 
 
 class VentaCRUD(CRUDBase[Venta, "VentaCreateDTO", "VentaUpdateDTO"]):
@@ -12,7 +13,7 @@ class VentaCRUD(CRUDBase[Venta, "VentaCreateDTO", "VentaUpdateDTO"]):
 UUIDLike = Union[str, UUID]
 
 
-def _uuid_str(value: UUIDLike | None) -> Optional[str]:
+def _uuid_str(value: UUIDLike | None) -> str | None:
     if value is None:
         return None
     return str(value)
@@ -23,10 +24,10 @@ class VentaRepo:
         self.db = db
         self.crud = VentaCRUD(Venta)
 
-    def list(self) -> List[Venta]:
+    def list(self) -> list[Venta]:
         return list(self.crud.list(self.db))
 
-    def get(self, vid: UUIDLike) -> Optional[Venta]:
+    def get(self, vid: UUIDLike) -> Venta | None:
         return self.crud.get(self.db, str(vid))
 
     def create(
@@ -75,9 +76,7 @@ class VentaRepo:
                     "total": self.total,
                     "estado": self.estado,
                 }
-                return {
-                    k: v for k, v in d.items() if not exclude_unset or v is not None
-                }
+                return {k: v for k, v in d.items() if not exclude_unset or v is not None}
 
         dto = VentaUpdateDTO(
             fecha=fecha, cliente_id=_uuid_str(cliente_id), total=total, estado=estado

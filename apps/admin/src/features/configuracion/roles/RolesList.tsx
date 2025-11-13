@@ -11,7 +11,7 @@ interface RoleListProps {
 
 const RoleList: React.FC<RoleListProps> = ({ roles, onDelete }) => {
   return (
-   
+
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-2xl font-bold text-indigo-700 mb-4">🎛 Lista de Roles</h1>
       <Link to="nuevo" className="btn btn-primary mb-4 inline-block">➕ Nuevo Rol</Link>
@@ -31,7 +31,7 @@ const RoleList: React.FC<RoleListProps> = ({ roles, onDelete }) => {
         ))}
       </ul>
     </div>
- 
+
   );
 };
 

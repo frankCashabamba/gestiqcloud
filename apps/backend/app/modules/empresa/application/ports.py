@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Protocol, Sequence, Optional
+from collections.abc import Sequence
+from typing import Protocol
 
 
 class EmpresaDTO(dict):
@@ -16,8 +17,8 @@ class EmpresaRepo(Protocol):
 
     def list_by_tenant(self, *, tenant_id: int) -> Sequence[EmpresaDTO]: ...
 
-    def get(self, *, id: int) -> Optional[EmpresaDTO]: ...
+    def get(self, *, id: int) -> EmpresaDTO | None: ...
 
 
 class UsuarioEmpresaRepo(Protocol):
-    def get_by_id(self, *, id: int) -> Optional[UsuarioEmpresaDTO]: ...
+    def get_by_id(self, *, id: int) -> UsuarioEmpresaDTO | None: ...

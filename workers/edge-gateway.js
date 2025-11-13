@@ -288,4 +288,3 @@ function rewriteCookiesRobust(srcHeaders, dstHeaders, cookieDomain) {
     dstHeaders.append('Set-Cookie', v);
   }
 }
-

@@ -21,7 +21,7 @@ export default function ProductosList() {
   const [showCategoriesModal, setShowCategoriesModal] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [categorias, setCategorias] = useState<Array<{ id: string; name: string }>>([])
-  
+
   // Cargar categorías para el filtro
   useEffect(() => {
     ;(async () => {
@@ -138,7 +138,7 @@ export default function ProductosList() {
                     >
                       🗑️ Eliminar todo
                     </button>)}
-          
+
                     <button
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
             onClick={() => nav('nuevo')}
@@ -166,7 +166,7 @@ export default function ProductosList() {
               onClick={async () => {
                 const categoryName = prompt('Nombre de la categoría para asignar:')
                 if (!categoryName || !categoryName.trim()) return
-                
+
                 try {
                   const result = await bulkAssignCategory(selectedIds, categoryName.trim())
                   await (async () => {

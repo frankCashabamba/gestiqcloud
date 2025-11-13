@@ -53,7 +53,7 @@ POST /api/v1/imports/files/classify-with-ai  (con IA)
 ### ✅ Completado
 
 #### 3. Integrar classify en frontend paso 1
-**Ubicación:** 
+**Ubicación:**
 - ✅ `apps/tenant/src/modules/importador/services/classifyApi.ts` - API functions
 - ✅ `apps/tenant/src/modules/importador/hooks/useClassifyFile.ts` - React hook
 - ✅ `apps/tenant/src/modules/importador/components/ClassificationSuggestion.tsx` - UI component
@@ -225,6 +225,6 @@ curl -X POST "http://localhost:8000/api/v1/imports/files/classify-with-ai" \
 
 ---
 
-**Última actualización:** 11/11/2025  
-**Responsable:** Sistema Amp  
+**Última actualización:** 11/11/2025
+**Responsable:** Sistema Amp
 **Estado:** Prioridad 1 - En Progreso ⏳ (Backend: 100%, Frontend: 100% base, Falta: Tests y Docs)

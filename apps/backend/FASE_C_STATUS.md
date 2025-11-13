@@ -1,7 +1,7 @@
 # Fase C - Estado Actual y Tareas Pendientes
 
-**Última revisión**: 11 Nov 2025  
-**Completitud**: 65% 
+**Última revisión**: 11 Nov 2025
+**Completitud**: 65%
 
 ---
 
@@ -10,7 +10,7 @@
 ### 1. Schema Canónico Extendido
 - **Archivo**: `app/modules/imports/domain/canonical_schema.py`
 - **Nuevos tipos**: `product` y `expense` (además de invoice, expense_receipt, bank_tx)
-- **Funcionalidad**: 
+- **Funcionalidad**:
   - Tipado TypedDict para ProductInfo y ExpenseInfo
   - Función `validate_canonical()` que valida estructura y restricciones
   - `build_routing_proposal()` para enrutamiento automático
@@ -59,7 +59,7 @@
 ## 📋 Pendiente en Fase C
 
 ### 1. **Integración Celery** (Crítico)
-**Estado**: NO INICIADO  
+**Estado**: NO INICIADO
 **Ubicación**: `app/modules/imports/application/tasks/task_import_file.py`
 
 **Qué hacer**:
@@ -73,7 +73,7 @@
 for item_data in parser_result['items']:
     # Validar contra schema canónico
     is_valid, errors = validate_canonical(item_data)
-    
+
     if is_valid:
         # Despacho dinámico al handler correcto
         promote_result = HandlersRouter.promote_canonical(
@@ -86,7 +86,7 @@ for item_data in parser_result['items']:
 ```
 
 ### 2. **Validadores por País** (Ampliación)
-**Estado**: Parcialmente implementado  
+**Estado**: Parcialmente implementado
 **Ubicación**: `app/modules/imports/validators/country_validators.py`
 
 **Qué falta**:
@@ -152,7 +152,7 @@ ALTER TABLE import_lineage ADD COLUMN IF NOT EXISTS (
 
 ### **Opción A - Crítico** (Recomendado)
 Completar **Integración Celery** para que el flujo completo funcione:
-1. Actualizar `task_import_file.py` 
+1. Actualizar `task_import_file.py`
 2. Integrar `validate_canonical()` en el flow
 3. Integrar `HandlersRouter.promote_canonical()`
 4. Tests E2E
@@ -225,5 +225,5 @@ tests/modules/imports/
 
 ---
 
-**Creado por**: Revisión Fase C  
+**Creado por**: Revisión Fase C
 **Próxima actualización**: Después de completar Integración Celery

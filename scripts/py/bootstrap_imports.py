@@ -23,18 +23,19 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Dict, List, Tuple, Optional
-import time
+from typing import Dict, Iterable, List, Optional, Tuple
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.engine.url import make_url
-from sqlalchemy import inspect as sa_inspect
-
 
 # ---------------------------- Logging helpers -----------------------------
+
 
 def _env_bool(name: str, default: bool = False) -> bool:
     val = os.environ.get(name)
@@ -208,14 +209,14 @@ def _is_idempotent_error(exc: Exception, stmt: Optional[str] = None) -> bool:
     """Return True if the error can be ignored when re-applying migrations."""
     # psycopg 3
     try:
-        from psycopg.errors import (
-            DuplicateTable,
+        from psycopg.errors import (  # type: ignore
+            DuplicateColumn,
+            DuplicateDatabase,
             DuplicateObject,
             DuplicateSchema,
-            DuplicateColumn,
+            DuplicateTable,
             UniqueViolation,
-            DuplicateDatabase,
-        )  # type: ignore
+        )
 
         if isinstance(
             exc,
@@ -234,14 +235,12 @@ def _is_idempotent_error(exc: Exception, stmt: Optional[str] = None) -> bool:
 
     # psycopg2
     try:
-        from psycopg2.errors import (  # type: ignore
-            DuplicateTable as D2T,
-            DuplicateObject as D2O,
-            DuplicateSchema as D2S,
-            DuplicateColumn as D2C,
-            UniqueViolation as D2U,
-            DuplicateDatabase as D2DB,
-        )
+        from psycopg2.errors import DuplicateColumn as D2C
+        from psycopg2.errors import DuplicateDatabase as D2DB
+        from psycopg2.errors import DuplicateObject as D2O
+        from psycopg2.errors import DuplicateSchema as D2S
+        from psycopg2.errors import DuplicateTable as D2T  # type: ignore
+        from psycopg2.errors import UniqueViolation as D2U
 
         if isinstance(exc, (D2T, D2O, D2S, D2C, D2DB, D2U)):
             return True
@@ -301,6 +300,7 @@ def _auto_migrate(dsn: str, root_dir: Path, *, dry_run: bool = False) -> None:
             pass
 
         with conn.cursor() as cur:
+
             def _table_exists(table_name: str) -> bool:
                 try:
                     cur.execute(
@@ -406,7 +406,10 @@ def _auto_migrate(dsn: str, root_dir: Path, *, dry_run: bool = False) -> None:
                     continue
 
                 if skip_failed and (version in applied_failed) and not force_reapply:
-                    log_warn("migration skipped (previously failed and OPS_MIG_SKIP_FAILED=1)", version=version)
+                    log_warn(
+                        "migration skipped (previously failed and OPS_MIG_SKIP_FAILED=1)",
+                        version=version,
+                    )
                     continue
 
                 raw_sql = (mig / "up.sql").read_text(encoding="utf-8")
@@ -486,11 +489,18 @@ def _auto_migrate(dsn: str, root_dir: Path, *, dry_run: bool = False) -> None:
                         continue
 
                     if dry_run:
-                        log_debug("dry-run: statement planned", version=version, idx=idx)
+                        log_debug(
+                            "dry-run: statement planned", version=version, idx=idx
+                        )
                         continue
 
                     try:
-                        log_info("executing sql", version=version, idx=idx, statement=stripped)
+                        log_info(
+                            "executing sql",
+                            version=version,
+                            idx=idx,
+                            statement=stripped,
+                        )
                         cur.execute(stripped)
                     except Exception as e:
                         if _is_idempotent_error(e, stmt):
@@ -528,10 +538,16 @@ def _auto_migrate(dsn: str, root_dir: Path, *, dry_run: bool = False) -> None:
                             (version, friendly, elapsed_ms),
                         )
                     except Exception as e:
-                        log_warn("failed to update schema_migrations row", version=version, error=str(e))
+                        log_warn(
+                            "failed to update schema_migrations row",
+                            version=version,
+                            error=str(e),
+                        )
                 else:
                     idx, e = hard_error
-                    log_error("migration failed", version=version, stmt_idx=idx, error=str(e))
+                    log_error(
+                        "migration failed", version=version, stmt_idx=idx, error=str(e)
+                    )
                     try:
                         cur.execute(
                             """
@@ -655,9 +671,13 @@ def main() -> int:
     p.add_argument("--dsn", default=os.environ.get("DB_DSN", ""))
     p.add_argument("--dir", default=os.environ.get("MIGRATIONS_DIR", "ops/migrations"))
     p.add_argument("--check-only", action="store_true")
-    p.add_argument("--dry-run", action="store_true", help="Plan migrations without executing them")
+    p.add_argument(
+        "--dry-run", action="store_true", help="Plan migrations without executing them"
+    )
     p.add_argument("--verbose", action="store_true", help="Verbose/debug logging")
-    p.add_argument("--quiet", action="store_true", help="Minimal output (overrides verbose)")
+    p.add_argument(
+        "--quiet", action="store_true", help="Minimal output (overrides verbose)"
+    )
     args = p.parse_args()
 
     # Reflect flags into env-backed toggles (so helpers can read them)

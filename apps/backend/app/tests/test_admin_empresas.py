@@ -1,6 +1,7 @@
 from uuid import uuid4
-from fastapi.testclient import TestClient
+
 from app.models.tenant import Tenant
+from fastapi.testclient import TestClient
 
 
 def _admin_token(client: TestClient, superuser_factory) -> str:

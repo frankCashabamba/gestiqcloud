@@ -433,12 +433,3 @@ export default function BatchDetail() {
     </ImportadorLayout>
   )
 }
-
-
-
-
-
-
-
-
-

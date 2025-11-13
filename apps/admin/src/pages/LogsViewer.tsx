@@ -384,4 +384,3 @@ export default function LogsViewer() {
     </div>
   )
 }
-

@@ -8,4 +8,3 @@ export default function RecetaCreatePage() {
     <RecetaForm open={true} recipe={null} onClose={() => nav('..', { replace: true })} />
   )
 }
-

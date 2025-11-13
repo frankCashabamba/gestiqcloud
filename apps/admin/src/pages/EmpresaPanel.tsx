@@ -98,6 +98,6 @@ export const EmpresaPanel: React.FC = () => {
           <p className="text-gray-500 text-sm mt-4">No hay empresas registradas aún.</p>
         )}
       </Container>
-    
+
   );
 };

@@ -28,18 +28,18 @@
    ```python
    # use_cases.py
    + from fastapi import UploadFile
-   
+
    # imports/interface/http/tenant.py
    + from app.models.core.facturacion import BankAccount, BankTransaction, MovimientoTipo, Invoice
    + from app.models.core.clients import Cliente
-   
+
    # webhooks/interface/http/tenant.py
    + from fastapi import Request
    + from app.core.authz import tenant_id_from_request
-   
+
    # routers/tenant/roles.py
    + from app.models.empresa.tenant import Empresa
-   
+
    # routers/sales.py
    - user_id (undefined) → current_user.get("user_id")
    ```
@@ -51,7 +51,7 @@
    # Antes
    except:
        pass
-   
+
    # Después
    except Exception:
        pass
@@ -66,7 +66,7 @@
    ```python
    # Antes
    .filter(Modulo.activo == True)
-   
+
    # Después
    .filter(Modulo.activo)
    ```
@@ -84,7 +84,7 @@
    _tenant_uuid = UUID(...)          # tenant.py:1357
    _phone = config.get("phone")      # notifier.py:158
    _original_available = ...         # test_photo_utils.py:123
-   
+
    # Scripts
    _whatsapp_channel_id = ...        # test_notifications.py:274
    _telegram_channel_id = ...        # test_notifications.py:275
@@ -204,12 +204,12 @@ from app.core.authz import *  # Re-export para compatibilidad
 
 ## Conclusión
 
-✅ **85 errores críticos corregidos** de 179 totales (47%)  
-✅ **2 scripts de automatización creados** para correcciones futuras  
-✅ **Código funcionalmente correcto** - solo quedan 94 warnings de estilo  
-✅ **100% de errores F821 undefined resueltos** (excepto lazy/forward refs válidos)  
-✅ **100% de errores de sintaxis crítica eliminados**  
-✅ **100% de bare except y comparaciones True corregidos**  
+✅ **85 errores críticos corregidos** de 179 totales (47%)
+✅ **2 scripts de automatización creados** para correcciones futuras
+✅ **Código funcionalmente correcto** - solo quedan 94 warnings de estilo
+✅ **100% de errores F821 undefined resueltos** (excepto lazy/forward refs válidos)
+✅ **100% de errores de sintaxis crítica eliminados**
+✅ **100% de bare except y comparaciones True corregidos**
 ✅ **100% de variables no usadas prefijadas**
 
 **Impacto**: El código ahora pasa validación sintáctica completa y sigue mejores prácticas de Python. Los 94 errores restantes son principalmente:

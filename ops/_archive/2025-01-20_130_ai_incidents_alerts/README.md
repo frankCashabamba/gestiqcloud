@@ -80,15 +80,15 @@ Esta migración debe aplicarse **después de**:
 
 ```sql
 -- Verificar tablas creadas
-SELECT tablename FROM pg_tables 
-WHERE schemaname = 'public' 
+SELECT tablename FROM pg_tables
+WHERE schemaname = 'public'
 AND tablename IN ('incidents', 'stock_alerts', 'notification_channels', 'notification_log')
 ORDER BY tablename;
 
 -- Verificar RLS habilitado
-SELECT tablename, rowsecurity 
-FROM pg_tables 
-WHERE schemaname = 'public' 
+SELECT tablename, rowsecurity
+FROM pg_tables
+WHERE schemaname = 'public'
 AND tablename IN ('incidents', 'stock_alerts', 'notification_channels', 'notification_log');
 ```
 

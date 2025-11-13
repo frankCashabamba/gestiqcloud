@@ -1,7 +1,7 @@
 # Migración 200: Limpieza Legacy - UUID Puro
 
-**Fecha**: 2025-10-28  
-**Prioridad**: Alta  
+**Fecha**: 2025-10-28
+**Prioridad**: Alta
 **Estado**: Limpieza arquitectural
 
 ## Objetivo
@@ -85,14 +85,14 @@ docker exec db psql -U postgres -d gestiqclouddb_dev -c "\d+ tenants"
 
 # 4. Verificar FKs
 docker exec db psql -U postgres -d gestiqclouddb_dev -c "
-SELECT conname, conrelid::regclass 
-FROM pg_constraint 
+SELECT conname, conrelid::regclass
+FROM pg_constraint
 WHERE confrelid = 'tenants'::regclass AND contype = 'f';"
 ```
 
 ## Rollback
 
-⚠️ **NO RECOMENDADO** - El rollback restaura la columna vacía.  
+⚠️ **NO RECOMENDADO** - El rollback restaura la columna vacía.
 Si necesitas rollback, usa backup de BD.
 
 ```bash

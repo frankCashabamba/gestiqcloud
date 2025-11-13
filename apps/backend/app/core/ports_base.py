@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import Generic, Optional, Protocol, Sequence, TypeVar
+from collections.abc import Sequence
+from typing import Generic, Protocol, TypeVar
 
 T = TypeVar("T")
 
 
 class ReadPort(Protocol[T]):
-    def get(self, id: int) -> Optional[T]: ...
+    def get(self, id: int) -> T | None: ...
 
     def list(self, *args, **kwargs) -> Sequence[T]: ...
 

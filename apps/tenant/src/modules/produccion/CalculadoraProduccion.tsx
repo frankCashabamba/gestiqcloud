@@ -32,7 +32,7 @@ export default function CalculadoraProduccion({ open, recipe, onClose }: Calcula
     try {
       setLoading(true);
       setError(null);
-      
+
       const data = await calculateProduction(recipe.id, qtyToProduce, workers);
       setResult(data);
     } catch (err: any) {
@@ -179,7 +179,7 @@ export default function CalculadoraProduccion({ open, recipe, onClose }: Calcula
                       </TableCell>
                     </TableRow>
                   ))}
-                  
+
                   {/* Total */}
                   <TableRow>
                     <TableCell colSpan={4} align="right">

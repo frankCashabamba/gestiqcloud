@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Generate test JWT token for kusi panaderia tenant"""
 
-import jwt
 import datetime
 import os
+
+import jwt
 
 SECRET = os.getenv("JWT_SECRET", "dev-secret-key-change-in-production")
 

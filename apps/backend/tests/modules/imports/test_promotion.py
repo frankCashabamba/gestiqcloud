@@ -9,16 +9,9 @@ Cubre:
 """
 
 import pytest
-from uuid import uuid4
-from datetime import datetime
-from decimal import Decimal
 
-from app.modules.imports.domain.canonical_schema import (
-    CanonicalDocument,
-    validate_canonical,
-)
+from app.modules.imports.domain.canonical_schema import CanonicalDocument, validate_canonical
 from app.modules.imports.domain.handlers_router import HandlersRouter
-from app.modules.imports.domain.handlers import PromoteResult
 
 
 class TestPromotionValidation:

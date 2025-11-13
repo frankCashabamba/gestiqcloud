@@ -2,13 +2,11 @@
 
 import uuid
 from datetime import datetime
-from typing import Optional
-
-from sqlalchemy import String, Integer, Boolean, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
+from sqlalchemy import Boolean, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 class DocSeries(Base):
@@ -26,7 +24,7 @@ class DocSeries(Base):
         nullable=False,
         index=True,
     )
-    register_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    register_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("pos_registers.id", ondelete="CASCADE"),
         nullable=True,
@@ -47,9 +45,7 @@ class DocSeries(Base):
         # yearly, never
     )
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow
-    )
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
 
     # Relationships
     tenant = relationship("Tenant", foreign_keys=[tenant_id])

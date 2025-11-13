@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List
 
 
 @dataclass
@@ -15,6 +14,6 @@ class UsuarioEmpresaAggregate:
     username: str | None = None
     es_admin_empresa: bool = False
     activo: bool = True
-    modulos: List[int] = field(default_factory=list)
-    roles: List[int] = field(default_factory=list)
+    modulos: list[int] = field(default_factory=list)
+    roles: list[int] = field(default_factory=list)
     ultimo_login_at: datetime | None = None

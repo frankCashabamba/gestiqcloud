@@ -20,8 +20,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, List, Tuple, Dict
-
+from typing import Dict, Iterable, List, Tuple
 
 # Reglas de reemplazo (ordenadas). ¡OJO!: usar \b (una sola barra) para límites de palabra.
 REPLACEMENTS: List[Tuple[re.Pattern, str]] = [

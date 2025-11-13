@@ -3,15 +3,13 @@
 Auto-generated module docstring."""
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
-
-from sqlalchemy import Boolean, DateTime, ForeignKey, text
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
 from app.models.empresa.rolempresas import RolEmpresa
+from sqlalchemy import Boolean, DateTime, ForeignKey, text
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 class UsuarioRolempresa(Base):
@@ -30,14 +28,12 @@ class UsuarioRolempresa(Base):
         DateTime, server_default=text("CURRENT_TIMESTAMP")
     )
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
-    asignado_por_id: Mapped[Optional[int]] = mapped_column(
+    asignado_por_id: Mapped[int | None] = mapped_column(
         ForeignKey("usuarios_usuarioempresa.id"), nullable=True
     )
 
     # Relaciones opcionales (puedes activarlas si las necesitas)
-    usuario = relationship(
-        "UsuarioEmpresa", foreign_keys=[usuario_id], backref="roles_asignados"
-    )
+    usuario = relationship("UsuarioEmpresa", foreign_keys=[usuario_id], backref="roles_asignados")
     asignado_por = relationship("UsuarioEmpresa", foreign_keys=[asignado_por_id])
     rol: Mapped["RolEmpresa"] = relationship()
     tenant = relationship("Tenant", foreign_keys=[tenant_id])

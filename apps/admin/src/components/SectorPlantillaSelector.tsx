@@ -20,9 +20,9 @@ interface SectorPlantillaSelectorProps {
   onTemplateSelected?: (template: SectorTemplate | null) => void
 }
 
-export const SectorPlantillaSelector: React.FC<SectorPlantillaSelectorProps> = ({ 
-  value, 
-  onChange, 
+export const SectorPlantillaSelector: React.FC<SectorPlantillaSelectorProps> = ({
+  value,
+  onChange,
   disabled = false,
   onTemplateSelected,
 }) => {
@@ -96,7 +96,7 @@ export const SectorPlantillaSelector: React.FC<SectorPlantillaSelectorProps> = (
       <div className="templates-grid">
         {templates.map((template) => {
           const isSelected = value === template.id
-          
+
           return (
             <div
               key={template.id}
@@ -109,9 +109,9 @@ export const SectorPlantillaSelector: React.FC<SectorPlantillaSelectorProps> = (
                 opacity: disabled ? 0.6 : 1
               }}
             >
-              <div 
+              <div
                 className="template-icon"
-                style={{ 
+                style={{
                   background: `linear-gradient(135deg, ${template.branding.color_primario}, ${template.branding.color_primario}dd)`,
                   color: '#fff'
                 }}
@@ -121,7 +121,7 @@ export const SectorPlantillaSelector: React.FC<SectorPlantillaSelectorProps> = (
 
               <div className="template-content">
                 <h4>{template.name}</h4>
-                
+
                 <div className="template-stats">
                   <span className="stat">
                     <strong>{template.categories.length}</strong> categorías por defecto
@@ -135,7 +135,7 @@ export const SectorPlantillaSelector: React.FC<SectorPlantillaSelectorProps> = (
                   )}
                 </div>
 
-                <div 
+                <div
                   className="template-color-badge"
                   style={{ backgroundColor: template.branding.color_primario }}
                 >

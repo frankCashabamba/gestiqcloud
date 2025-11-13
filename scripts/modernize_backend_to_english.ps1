@@ -12,7 +12,7 @@ $count = 0
 foreach ($f in $allPyFiles) {
     $content = Get-Content $f.FullName -Raw -Encoding UTF8
     $original = $content
-    
+
     $content = $content -replace '\.nombre\b', '.name'
     $content = $content -replace '\.descripcion\b', '.description'
     $content = $content -replace '\.precio\b', '.price'
@@ -22,7 +22,7 @@ foreach ($f in $allPyFiles) {
     $content = $content -replace '\.direccion\b', '.address'
     $content = $content -replace '\.ciudad\b', '.city'
     $content = $content -replace '\.provincia\b', '.state'
-    
+
     if ($content -ne $original) {
         [System.IO.File]::WriteAllText($f.FullName, $content, [System.Text.Encoding]::UTF8)
         $count++
@@ -40,7 +40,7 @@ $countSchemas = 0
 foreach ($f in $schemaFiles) {
     $content = Get-Content $f.FullName -Raw -Encoding UTF8
     $original = $content
-    
+
     # Reemplazar nombres de campo (palabra completa)
     $content = $content -replace '\bnombre:', 'name:'
     $content = $content -replace '\bdescripcion:', 'description:'
@@ -51,7 +51,7 @@ foreach ($f in $schemaFiles) {
     $content = $content -replace '\bdireccion:', 'address:'
     $content = $content -replace '\bciudad:', 'city:'
     $content = $content -replace '\bprovincia:', 'state:'
-    
+
     if ($content -ne $original) {
         [System.IO.File]::WriteAllText($f.FullName, $content, [System.Text.Encoding]::UTF8)
         $countSchemas++
@@ -61,18 +61,18 @@ Write-Host "  → $countSchemas schemas actualizados" -ForegroundColor Green
 
 # 3) codigo → sku SOLO en productos
 Write-Host "`n3. Actualizando codigo → sku en productos..." -ForegroundColor Yellow
-$productFiles = Get-ChildItem $baseDir -Recurse -Filter *.py | Where-Object { 
-    $_.FullName -match 'products|productos' 
+$productFiles = Get-ChildItem $baseDir -Recurse -Filter *.py | Where-Object {
+    $_.FullName -match 'products|productos'
 }
 
 $countProducts = 0
 foreach ($f in $productFiles) {
     $content = Get-Content $f.FullName -Raw -Encoding UTF8
     $original = $content
-    
+
     $content = $content -replace '\.codigo\b', '.sku'
     $content = $content -replace '\bcodigo:', 'sku:'
-    
+
     if ($content -ne $original) {
         [System.IO.File]::WriteAllText($f.FullName, $content, [System.Text.Encoding]::UTF8)
         $countProducts++

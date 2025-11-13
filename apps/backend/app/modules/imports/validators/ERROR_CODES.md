@@ -21,12 +21,12 @@
 
 #### RUC (Registro Único de Contribuyentes)
 - **Formato**: 13 dígitos numéricos
-- **Estructura**: 
+- **Estructura**:
   - Posiciones 1-2: Provincia (01-24)
   - Posición 3: Tipo (0-5: natural, 6: pública, 9: jurídica)
   - Posiciones 4-12: Número secuencial
   - Posición 13: Dígito verificador (módulo 11)
-- **Ejemplos válidos**: 
+- **Ejemplos válidos**:
   - `1713175071001` (persona natural)
   - `1792146739001` (jurídica)
   - `1760001550001` (pública)
@@ -83,7 +83,7 @@
 - **Ejemplos válidos**: `FAC-2025-001`, `2025/123`, `A1234567890`, `INV-001-2025`
 
 #### Tasas de IVA
-- **Vigentes**: 
+- **Vigentes**:
   - 0% (exento)
   - 4% (superreducido)
   - 10% (reducido)

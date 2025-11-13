@@ -6,4 +6,3 @@ Field-config modes per tenant+module
   - tenant: use only tenant overrides; fallback to sector then base if empty.
   - sector: use only sector defaults; fallback to base if empty.
   - basic: use base hardcoded fields for the module.
-

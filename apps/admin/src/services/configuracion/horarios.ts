@@ -38,4 +38,3 @@ export async function listDiasSemana(): Promise<DiaSemana[]> {
   const { data } = await api.get<DiaSemana[]>(ADMIN_CONFIG.diasSemana.base)
   return data || []
 }
-

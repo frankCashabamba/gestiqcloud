@@ -1,6 +1,6 @@
 /**
  * ConditionalInventoryFields
- * 
+ *
  * Campos de movimiento de inventario que aparecen según configuración del sector
  * Similar a ConditionalProductFields pero para stock movements
  */
@@ -13,8 +13,8 @@ interface ConditionalInventoryFieldsProps {
   moveType?: 'in' | 'out' | 'adjustment' | 'transfer'
 }
 
-export function ConditionalInventoryFields({ 
-  formData, 
+export function ConditionalInventoryFields({
+  formData,
   onChange,
   moveType = 'in'
 }: ConditionalInventoryFieldsProps) {
@@ -28,7 +28,7 @@ export function ConditionalInventoryFields({
       {/* ============================================ */}
       {/* FECHA DE CADUCIDAD (Panadería, Alimentos) */}
       {/* ============================================ */}
-      
+
       {features.inventory_expiry_tracking && isIncoming && (
         <div className="inventory-field">
           <label htmlFor="expires_at" className="field-label">
@@ -59,12 +59,12 @@ export function ConditionalInventoryFields({
       {/* ============================================ */}
       {/* LOTE / HORNADA */}
       {/* ============================================ */}
-      
+
       {features.inventory_lot_tracking && isIncoming && (
         <div className="inventory-field">
           <label htmlFor="lot" className="field-label">
-            {sector.is_panaderia ? '🥐 Lote/Hornada' : 
-             sector.is_taller ? '🔧 Lote de Fabricación' : 
+            {sector.is_panaderia ? '🥐 Lote/Hornada' :
+             sector.is_taller ? '🔧 Lote de Fabricación' :
              '📦 Número de Lote'}
           </label>
           <input
@@ -97,7 +97,7 @@ export function ConditionalInventoryFields({
       {/* ============================================ */}
       {/* NÚMERO DE SERIE (Taller, Retail Electrónicos) */}
       {/* ============================================ */}
-      
+
       {features.inventory_serial_tracking && (
         <div className="inventory-field">
           <label htmlFor="serial_number" className="field-label">
@@ -111,15 +111,15 @@ export function ConditionalInventoryFields({
             value={formData.serial_number || ''}
             onChange={onChange}
             placeholder={
-              sector.is_taller 
-                ? 'Ej: SN-ALT-123456789' 
+              sector.is_taller
+                ? 'Ej: SN-ALT-123456789'
                 : 'Ej: SN-123456789'
             }
             className="field-input"
             aria-label="Número de serie para tracking individual"
           />
           <small className="field-help">
-            {sector.is_taller 
+            {sector.is_taller
               ? 'Permite tracking individual de repuestos garantizados'
               : 'Para seguimiento individual del producto'}
           </small>
@@ -129,7 +129,7 @@ export function ConditionalInventoryFields({
       {/* ============================================ */}
       {/* UBICACIÓN EN ALMACÉN */}
       {/* ============================================ */}
-      
+
       <div className="inventory-field">
         <label htmlFor="location" className="field-label">
           Ubicación en Almacén
@@ -157,7 +157,7 @@ export function ConditionalInventoryFields({
       {/* ============================================ */}
       {/* NOTAS / OBSERVACIONES */}
       {/* ============================================ */}
-      
+
       <div className="inventory-field">
         <label htmlFor="notes" className="field-label">
           Notas / Observaciones
@@ -168,7 +168,7 @@ export function ConditionalInventoryFields({
           value={formData.notes || ''}
           onChange={onChange}
           placeholder={
-            moveType === 'adjustment' 
+            moveType === 'adjustment'
               ? 'Razón del ajuste: merma, rotura, corrección...'
               : 'Observaciones adicionales sobre este movimiento'
           }
@@ -186,7 +186,7 @@ export function ConditionalInventoryFields({
       {/* ============================================ */}
       {/* CAMPOS ESPECÍFICOS POR TIPO DE MOVIMIENTO */}
       {/* ============================================ */}
-      
+
       {moveType === 'transfer' && (
         <div className="inventory-field">
           <label htmlFor="destination_warehouse" className="field-label">
@@ -213,7 +213,7 @@ export function ConditionalInventoryFields({
       {/* ============================================ */}
       {/* CAMPOS ESPECÍFICOS PANADERÍA */}
       {/* ============================================ */}
-      
+
       {sector.is_panaderia && moveType === 'in' && (
         <>
           <div className="inventory-field">
@@ -261,7 +261,7 @@ export function ConditionalInventoryFields({
       {/* ============================================ */}
       {/* CAMPOS ESPECÍFICOS TALLER */}
       {/* ============================================ */}
-      
+
       {sector.is_taller && (
         <div className="inventory-field">
           <label htmlFor="supplier_reference" className="field-label">

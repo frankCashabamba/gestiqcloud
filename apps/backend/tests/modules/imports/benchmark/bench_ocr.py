@@ -3,17 +3,16 @@ Benchmark OCR: medir latencia de Tesseract con diferentes configuraciones.
 Target: P95 < 5s con 2 CPU cores.
 """
 
-import time
 import json
-from pathlib import Path
-from typing import List, Dict, Any
 import statistics
-
+import time
+from pathlib import Path
+from typing import Any
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "documents"
 
 
-def benchmark_tesseract_single_page(iterations: int = 10) -> Dict[str, Any]:
+def benchmark_tesseract_single_page(iterations: int = 10) -> dict[str, Any]:
     """
     Benchmark Tesseract en PDF single-page.
     """
@@ -24,7 +23,7 @@ def benchmark_tesseract_single_page(iterations: int = 10) -> Dict[str, Any]:
     if not pdf_path.exists():
         return {"error": "Fixture no encontrado"}
 
-    latencies: List[float] = []
+    latencies: list[float] = []
 
     for i in range(iterations):
         start = time.perf_counter()
@@ -35,9 +34,7 @@ def benchmark_tesseract_single_page(iterations: int = 10) -> Dict[str, Any]:
         elapsed = time.perf_counter() - start
         latencies.append(elapsed)
 
-        print(
-            f"  Iter {i + 1}/{iterations}: {elapsed:.3f}s (length: {len(text)} chars)"
-        )
+        print(f"  Iter {i + 1}/{iterations}: {elapsed:.3f}s (length: {len(text)} chars)")
 
     return {
         "test": "tesseract_single_page",
@@ -52,18 +49,19 @@ def benchmark_tesseract_single_page(iterations: int = 10) -> Dict[str, Any]:
     }
 
 
-def benchmark_image_preprocessing(iterations: int = 20) -> Dict[str, Any]:
+def benchmark_image_preprocessing(iterations: int = 20) -> dict[str, Any]:
     """
     Benchmark mejora de imagen (deskew + denoise).
     Target: < 500ms por imagen.
     """
     from PIL import Image
-    from app.modules.imports.application.photo_utils import deskew_image, denoise_image
+
+    from app.modules.imports.application.photo_utils import denoise_image, deskew_image
 
     # Crear imagen sintética 1200x900 (típico de foto móvil)
     img = Image.new("RGB", (1200, 900), color=(255, 255, 255))
 
-    latencies: List[float] = []
+    latencies: list[float] = []
 
     for i in range(iterations):
         start = time.perf_counter()
@@ -85,7 +83,7 @@ def benchmark_image_preprocessing(iterations: int = 20) -> Dict[str, Any]:
     }
 
 
-def benchmark_ocr_caching(iterations: int = 5) -> Dict[str, Any]:
+def benchmark_ocr_caching(iterations: int = 5) -> dict[str, Any]:
     """
     Verifica que caché de OCR funcione (segunda llamada debe ser instantánea).
     """
@@ -121,7 +119,7 @@ def benchmark_ocr_caching(iterations: int = 5) -> Dict[str, Any]:
     }
 
 
-def run_all_benchmarks() -> Dict[str, Any]:
+def run_all_benchmarks() -> dict[str, Any]:
     """Ejecuta todos los benchmarks y genera reporte."""
     import datetime
 

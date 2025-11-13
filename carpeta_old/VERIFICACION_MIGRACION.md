@@ -1,6 +1,6 @@
 # ✅ VERIFICACIÓN DE MIGRACIÓN COMPLETADA
 
-**Fecha:** 2025-11-06  
+**Fecha:** 2025-11-06
 **Estado:** ✅ SEGURO - Todos los módulos tienen contenido
 
 ---
@@ -203,7 +203,7 @@ Si NO están, agregar:
 # Compras
 include_router_safe(r, ("app.modules.compras.interface.http.tenant", "router"))
 
-# Gastos  
+# Gastos
 include_router_safe(r, ("app.modules.gastos.interface.http.tenant", "router"))
 ```
 
@@ -244,6 +244,6 @@ open http://localhost:8082/docs
 
 ---
 
-**Estado:** 🟢 MIGRACIÓN SEGURA  
-**Pérdida de funcionalidad:** ❌ NINGUNA  
+**Estado:** 🟢 MIGRACIÓN SEGURA
+**Pérdida de funcionalidad:** ❌ NINGUNA
 **Riesgo:** 🟡 Bajo (solo falta RBAC/RLS en 2 módulos pequeños)

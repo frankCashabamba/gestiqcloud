@@ -212,7 +212,7 @@ docker restart backend
 # Importar Stock-02-11-2025.xlsx
 # Resultado esperado:
 # - PRODUCTO → name ✅
-# - PRECIO UNITARIO VENTA → price ✅  
+# - PRECIO UNITARIO VENTA → price ✅
 # - CANTIDAD → stock_initial ✅
 # - SOBRANTE DIARIO → (ignorado) ✅
 # - VENTA DIARIA → (ignorado) ✅
@@ -223,17 +223,17 @@ docker restart backend
 
 ## 📝 Recomendación Final
 
-**El Excel del cliente es perfecto para SU negocio** (control diario).  
+**El Excel del cliente es perfecto para SU negocio** (control diario).
 **Nuestro sistema debe**:
 1. ✅ Importar SOLO datos de catálogo (nombre, precio, categoría)
 2. ❌ IGNORAR datos operacionales (sobrante, ventas, totales)
 3. ✅ Generar datos operacionales desde nuestro POS/sistema
 
-**No forzar al cliente a cambiar su Excel** ✅  
+**No forzar al cliente a cambiar su Excel** ✅
 **Extraer solo lo relevante para productos master** ✅
 
 ---
 
-**Estado**: ✅ Correcciones aplicadas  
-**Testing**: Probar con Excel real  
+**Estado**: ✅ Correcciones aplicadas
+**Testing**: Probar con Excel real
 **Filosofía**: Datos Master ≠ Datos Operacionales

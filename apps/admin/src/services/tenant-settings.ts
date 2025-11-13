@@ -84,7 +84,7 @@ export async function uploadCertificate(
   const formData = new FormData();
   formData.append('certificate', file);
   formData.append('password', password);
-  
+
   const response = await api.post(
     `/v1/admin/empresas/${tenantId}/einvoicing/${type}/certificate`,
     formData,

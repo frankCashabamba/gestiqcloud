@@ -404,6 +404,6 @@ await createWarehouse({
 
 ---
 
-**Versión:** 1.0.0  
-**Estado:** ✅ Production Ready  
+**Versión:** 1.0.0
+**Estado:** ✅ Production Ready
 **Última actualización:** Octubre 2025

@@ -6,4 +6,3 @@ export function track(event: string, props?: Record<string, any>) {
     console.debug('[telemetry]', { app, event, props, build })
   }
 }
-

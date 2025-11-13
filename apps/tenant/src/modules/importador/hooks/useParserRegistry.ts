@@ -1,7 +1,7 @@
 /**
  * useParserRegistry.ts
  * Hook para obtener el registry de parsers disponibles desde el backend
- * 
+ *
  * Usado en Sprint 2 para mostrar opciones de override en el Wizard
  */
 

@@ -1,6 +1,6 @@
 # Cambios Aplicados - Tarea 3: Integración Classify Frontend
 
-**Fecha:** 11/11/2025  
+**Fecha:** 11/11/2025
 **Estado:** ✅ COMPLETADO
 
 ---
@@ -74,7 +74,7 @@ export function useClassifyFile(): {
 **Ruta:** `apps/tenant/src/modules/importador/components/ClassificationSuggestion.tsx`
 
 ```typescript
-<ClassificationSuggestion 
+<ClassificationSuggestion
   result={classificationResult}     // ClassifyResponse | null
   loading={classifying}             // boolean
   error={classificationError}       // string | null
@@ -100,7 +100,7 @@ export function useClassifyFile(): {
    ✨ Clasificación automática [92% confianza] [Potenciado con IA]
    Parser sugerido: products_excel
    Based on AI analysis
-   
+
    📊 Probabilidades por tipo:
    ├─ products_excel ⭐ ████████████████ 92%
    ├─ generic_excel  ██░░░░░░░░░░░░░░  5%
@@ -146,25 +146,25 @@ const onFile: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
     if (!f) return
     setFileName(f.name)
     setCurrentFile(f)
-    
+
     // Parse CSV
     const text = await f.text()
     const { headers: hs, rows: rs } = parseCSV(text)
     setHeaders(hs)
     setRows(rs)
-    
+
     // Auto-mapeo inicial y tipo
     const sugeridos = autoMapeoColumnas(hs, getAliasSugeridos())
     setMapa(sugeridos as any)
     setDocType(detectarTipoDocumento(hs) as DocType || 'productos')
-    
+
     // Clasificar archivo con IA ← NUEVO
     try {
       await classify(f)
     } catch (err) {
       console.warn('IA classification failed, using heuristic:', err)
     }
-    
+
     setStep('preview')
 }
 ```
@@ -176,14 +176,14 @@ const onFile: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
         <div className="bg-blue-50 border border-blue-200 px-4 py-3 rounded">
             Archivo: <strong>{fileName}</strong> • {rows.length.toLocaleString()} filas • {headers.length} columnas
         </div>
-        
+
         {/* AI Classification Suggestion ← NUEVO */}
-        <ClassificationSuggestion 
-            result={classificationResult} 
+        <ClassificationSuggestion
+            result={classificationResult}
             loading={classifying}
             error={classificationError}
         />
-        
+
         <VistaPreviaTabla headers={previewHeaders} rows={previewRows} />
         {/* ... botones ... */}
     </div>
@@ -372,6 +372,6 @@ const onFile: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
 
 ---
 
-**Implementado por:** Sistema Amp  
-**Verificado en:** 11/11/2025  
+**Implementado por:** Sistema Amp
+**Verificado en:** 11/11/2025
 **Status:** ✅ LISTO PARA PRODUCCIÓN

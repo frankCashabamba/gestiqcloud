@@ -11,7 +11,7 @@ export default function ComprasList() {
   const [errMsg, setErrMsg] = useState<string | null>(null)
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
-  
+
   const [estado, setEstado] = useState('')
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
@@ -41,7 +41,7 @@ export default function ComprasList() {
     if (hasta && v.fecha > hasta) return false
     if (q) {
       const search = q.toLowerCase()
-      const matches = 
+      const matches =
         String(v.id).includes(search) ||
         (v.numero || '').toLowerCase().includes(search) ||
         (v.proveedor_nombre || '').toLowerCase().includes(search) ||

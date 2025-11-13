@@ -63,13 +63,13 @@ Todos los handlers implementados con **inserción real en base de datos PostgreS
    ↓
    /importador → ImportadorExcel.tsx
    ↓
-   
+
 2. DETECCIÓN AUTOMÁTICA DE TIPO
    ↓
    detectarTipoDocumento(headers)
    → 'productos' | 'invoices' | 'bank' | 'receipts'
    ↓
-   
+
 3. PROCESAMIENTO
    ↓
    CSV/Excel → parseExcelFile()
@@ -78,7 +78,7 @@ Todos los handlers implementados con **inserción real en base de datos PostgreS
    createBatch({ source_type })
    ingestBatch(batchId, { rows })
    ↓
-   
+
 4. VISTA PREVIA Y VALIDACIÓN
    ↓
    PreviewPage.tsx
@@ -87,7 +87,7 @@ Todos los handlers implementados con **inserción real en base de datos PostgreS
    - Asignar categorías
    - Expandir errores
    ↓
-   
+
 5. PROMOCIÓN A TABLA FINAL
    ↓
    POST /batches/{id}/promote
@@ -100,14 +100,14 @@ Todos los handlers implementados con **inserción real en base de datos PostgreS
    ├─ bank → BankHandler.promote(db, tenant_id, data)
    └─ receipts → ExpenseHandler.promote(db, tenant_id, data)
    ↓
-   
+
 6. INSERCIÓN EN BASE DE DATOS
    ✅ Registro en tabla destino
    ✅ Entidades relacionadas creadas
    ✅ Lineage registrado
    ✅ Item marcado como PROMOTED
    ↓
-   
+
 7. NAVEGACIÓN AL MÓDULO
    ↓
    navigate('/productos') o dashboard según tipo
@@ -348,6 +348,6 @@ Medido en servidor con 2 CPU:
 
 ---
 
-**Fecha**: 2025-11-05  
-**Versión**: 1.0.0  
+**Fecha**: 2025-11-05
+**Versión**: 1.0.0
 **Estado**: ✅ PRODUCCIÓN READY

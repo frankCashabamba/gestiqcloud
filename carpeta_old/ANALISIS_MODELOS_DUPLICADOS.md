@@ -1,6 +1,6 @@
 # 🔍 ANÁLISIS DE MODELOS DUPLICADOS ENTRE MÓDULOS Y CARPETA CENTRALIZADA
 
-**Fecha:** 2025-11-06  
+**Fecha:** 2025-11-06
 **Objetivo:** Verificar si existen modelos SQLAlchemy duplicados entre `app/modules/` y `app/models/`
 
 ---

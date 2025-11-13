@@ -4,19 +4,17 @@ Auto-generated module docstring."""
 
 # app/modulos/facturacion/crud.py
 from datetime import datetime
-from typing import Optional, Any
+from typing import Any
 from uuid import UUID
-
-from fastapi import HTTPException
-from sqlalchemy import text
-from sqlalchemy import or_
-from sqlalchemy.orm import Session, joinedload
 
 from app.core.empresa_crud import EmpresaCRUD
 from app.models.core.clients import Cliente
 from app.models.core.facturacion import Invoice, InvoiceTemp
 from app.models.core.invoiceLine import LineaPanaderia, LineaTaller
 from app.modules.facturacion import schemas
+from fastapi import HTTPException
+from sqlalchemy import or_, text
+from sqlalchemy.orm import Session, joinedload
 
 # asegúrate de tener esta función creada
 
@@ -85,9 +83,7 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
     def delete_factura(self, db: Session, tenant_id: str, factura_id) -> dict:
         """Function delete_factura - auto-generated docstring."""
         factura_uuid = _ensure_uuid(factura_id)
-        db_factura = (
-            db.query(self.model).filter_by(id=factura_uuid, tenant_id=tenant_id).first()
-        )
+        db_factura = db.query(self.model).filter_by(id=factura_uuid, tenant_id=tenant_id).first()
         if not db_factura:
             raise HTTPException(status_code=404, detail="Factura no encontrada")
         db.delete(db_factura)
@@ -98,10 +94,10 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
         self,
         db: Session,
         tenant_id: Any,
-        estado: Optional[str] = None,
-        q: Optional[str] = None,
-        desde: Optional[str] = None,
-        hasta: Optional[str] = None,
+        estado: str | None = None,
+        q: str | None = None,
+        desde: str | None = None,
+        hasta: str | None = None,
     ):
         tenant_uuid = _tenant_uuid(tenant_id)
         # Carga relaciones necesarias
@@ -195,11 +191,7 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
 
         factura_uuid = _ensure_uuid(factura_id)
         tenant_uuid = _tenant_uuid(tenant_id)
-        factura = (
-            db.query(self.model)
-            .filter_by(id=factura_uuid, tenant_id=tenant_uuid)
-            .first()
-        )
+        factura = db.query(self.model).filter_by(id=factura_uuid, tenant_id=tenant_uuid).first()
 
         if not factura:
             raise HTTPException(status_code=404, detail="Factura no encontrada")

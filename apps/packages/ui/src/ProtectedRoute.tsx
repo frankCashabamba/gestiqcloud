@@ -8,4 +8,3 @@ export default function ProtectedRoute({ useAuth }: { useAuth: UseAuthHook }) {
   if (loading) return <div className="center">Cargando…</div>
   return token ? <Outlet /> : <Navigate to="/login" replace />
 }
-

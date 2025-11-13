@@ -1,8 +1,8 @@
 # 📘 Plan de Desarrollo de Módulos por Sector - GestiQCloud
 
-**Versión:** 1.0  
-**Fecha:** Octubre 2025  
-**Cliente:** GestiQCloud Multi-Tenant  
+**Versión:** 1.0
+**Fecha:** Octubre 2025
+**Cliente:** GestiQCloud Multi-Tenant
 **Sectores Activos:** Panadería, Retail/Bazar, Taller Mecánico
 ***TOdos los ficheros que se cree deben ser UTF-8
 
@@ -108,7 +108,7 @@ SECTOR_DEFAULTS['restaurante'] = {
 }
 ```
 
-**Líneas de código nuevas:** ~30 (solo config)  
+**Líneas de código nuevas:** ~30 (solo config)
 **Código reutilizado:** 1,424 líneas (100%)
 
 #### 4. **📦 INVENTARIO** - Configurable por Sector
@@ -153,7 +153,7 @@ SECTOR_DEFAULTS['restaurante'] = {
 }
 ```
 
-**Líneas de código nuevas:** 0 (solo config JSON)  
+**Líneas de código nuevas:** 0 (solo config JSON)
 **Código reutilizado:** 1,260 líneas (100%)
 
 #### 5. **📦 POS/TPV** - Configurable por Sector
@@ -198,7 +198,7 @@ SECTOR_DEFAULTS['restaurante'] = {
 }
 ```
 
-**Líneas de código nuevas:** ~150 (solo para mesas en Restaurante)  
+**Líneas de código nuevas:** ~150 (solo para mesas en Restaurante)
 **Código reutilizado:** 1,160 líneas (88%)
 
 ### 🏭 **Módulo Sector-Específico (Portable con Renombrado)**
@@ -253,7 +253,7 @@ SECTOR_DEFAULTS['restaurante'] = {
 }
 ```
 
-**Líneas de código nuevas:** ~50 (labels + categorías)  
+**Líneas de código nuevas:** ~50 (labels + categorías)
 **Código reutilizado:** ~800 líneas (94%)
 
 ---
@@ -607,7 +607,7 @@ import { createProducto, getProducto, updateProducto, type Producto } from './se
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { apiFetch } from '../../lib/http'
 
-type FieldCfg = { 
+type FieldCfg = {
   field: string
   visible?: boolean
   required?: boolean
@@ -686,7 +686,7 @@ export default function ProductoForm() {
 
       if (id) await updateProducto(id, form)
       else await createProducto(form)
-      
+
       success('Producto guardado')
       nav('..')
     } catch (e: any) {
@@ -712,7 +712,7 @@ export default function ProductoForm() {
             placeholder={f.help || ''}
           />
         )
-      
+
       case 'boolean':
         return (
           <input
@@ -722,7 +722,7 @@ export default function ProductoForm() {
             className="border px-2 py-1 rounded"
           />
         )
-      
+
       case 'textarea':
         return (
           <textarea
@@ -734,7 +734,7 @@ export default function ProductoForm() {
             placeholder={f.help || ''}
           />
         )
-      
+
       case 'select':
         return (
           <select
@@ -749,7 +749,7 @@ export default function ProductoForm() {
             ))}
           </select>
         )
-      
+
       default: // text
         return (
           <input
@@ -829,9 +829,9 @@ export default function ProductosList() {
   const [sortKey, setSortKey] = useState<'nombre' | 'codigo' | 'precio'>('nombre')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [per, setPer] = useState(10)
-  
+
   const filtered = useMemo(
-    () => items.filter(p => 
+    () => items.filter(p =>
       (p.nombre || '').toLowerCase().includes(q.toLowerCase()) ||
       (p.codigo || '').toLowerCase().includes(q.toLowerCase()) ||
       (p.codigo_barras || '').toLowerCase().includes(q.toLowerCase())
@@ -1431,6 +1431,6 @@ Cada módulo debe cumplir:
 
 ---
 
-**Última actualización:** Octubre 2025  
-**Versión del documento:** 1.0  
+**Última actualización:** Octubre 2025
+**Versión del documento:** 1.0
 **Autor:** Equipo GestiQCloud

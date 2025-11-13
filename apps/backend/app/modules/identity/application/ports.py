@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol, Tuple, Optional
+from typing import Protocol
 
 from app.core.login_rate_limit import RLStatus  # reuse existing type
 
@@ -8,9 +8,7 @@ from app.core.login_rate_limit import RLStatus  # reuse existing type
 class TokenService(Protocol):
     def issue_access(self, payload: dict) -> str: ...
 
-    def issue_refresh(
-        self, payload: dict, *, jti: str, prev_jti: Optional[str]
-    ) -> str: ...
+    def issue_refresh(self, payload: dict, *, jti: str, prev_jti: str | None) -> str: ...
 
     def decode_and_validate(self, token: str, *, expected_type: str) -> dict: ...
 
@@ -18,7 +16,7 @@ class TokenService(Protocol):
 class PasswordHasher(Protocol):
     def hash(self, plain: str) -> str: ...
 
-    def verify(self, plain: str, hashed: str) -> Tuple[bool, Optional[str]]: ...
+    def verify(self, plain: str, hashed: str) -> tuple[bool, str | None]: ...
 
 
 class RateLimiter(Protocol):

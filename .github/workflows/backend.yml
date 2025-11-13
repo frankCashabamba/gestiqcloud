@@ -217,4 +217,4 @@ jobs:
             npm install --no-audit --no-fund
           fi
       - name: Build tenant
-        run: npm run build --if-present 
+        run: npm run build --if-present

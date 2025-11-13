@@ -83,4 +83,3 @@ Operación
 Notas
 - Evitar base `/api` en FE: siempre `https://api.gestiqcloud.com` + `/v1/...`.
 - El Worker bloquea `/api/*` público a propósito para minimizar superficie.
-

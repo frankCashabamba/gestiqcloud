@@ -197,4 +197,3 @@ Tiempo estimado para 100%:
 **Recomendar**: Priorizar tests y QA backend primero. Frontend después según presupuesto.
 
 ---
-

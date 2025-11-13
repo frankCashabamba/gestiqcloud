@@ -3,9 +3,10 @@
 Script de testing para sistema de notificaciones
 """
 
-import requests
 import sys
 from uuid import uuid4
+
+import requests
 
 BASE_URL = "http://localhost:8000/api/v1/notifications"
 

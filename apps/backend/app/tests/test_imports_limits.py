@@ -7,9 +7,7 @@ def _tenant_token(client: TestClient, usuario_empresa_factory):
     suffix = uuid.uuid4().hex[:6]
     username = f"lim_{suffix}"
     email = f"lim_{suffix}@x.com"
-    usuario, tenant = usuario_empresa_factory(
-        email=email, username=username, password="secret"
-    )
+    usuario, tenant = usuario_empresa_factory(email=email, username=username, password="secret")
     r = client.post(
         "/api/v1/tenant/auth/login",
         json={"identificador": username, "password": "secret"},
@@ -98,9 +96,7 @@ def test_photo_limits_and_mimetype(
     assert r3.status_code == 422
 
 
-def test_ingest_throttling_429(
-    client: TestClient, db, usuario_empresa_factory, monkeypatch
-):
+def test_ingest_throttling_429(client: TestClient, db, usuario_empresa_factory, monkeypatch):
     tok = _tenant_token(client, usuario_empresa_factory)
     headers = {"Authorization": f"Bearer {tok}"}
 

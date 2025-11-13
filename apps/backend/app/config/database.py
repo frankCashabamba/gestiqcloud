@@ -1,14 +1,13 @@
 # app/config/database.py
 from __future__ import annotations
 
-from contextlib import contextmanager, asynccontextmanager
-from typing import Iterator
-from fastapi import Request
-
-from sqlalchemy import create_engine, text, event
-from sqlalchemy.orm import sessionmaker, declarative_base, Session
+from collections.abc import Iterator
+from contextlib import asynccontextmanager, contextmanager
 
 from app.config.settings import settings
+from fastapi import Request
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 Base = declarative_base()
 
@@ -42,6 +41,7 @@ IS_SQLITE = _db_url.startswith("sqlite")
 PG_SCHEMA_NAME = "public"
 SCHEMA_PREFIX = f"{PG_SCHEMA_NAME}." if not IS_SQLITE else ""
 
+
 def schema_table_args(**extras):
     args = {"extend_existing": True}
     if not IS_SQLITE:
@@ -49,12 +49,15 @@ def schema_table_args(**extras):
     args.update(extras)
     return args
 
+
 def schema_table_name(table_name: str) -> str:
     return f"{SCHEMA_PREFIX}{table_name}" if table_name else table_name
+
 
 def schema_column(table_name: str, column: str = "id") -> str:
     base = schema_table_name(table_name)
     return f"{base}.{column}" if column else base
+
 
 if IS_SQLITE:
     engine = create_engine(
@@ -203,7 +206,7 @@ def _auto_fill_multitenant_fields(session: Session, flush_context, instances):
                 None,
                 "",
             ):
-                setattr(obj, "tenant_id", tid)
+                obj.tenant_id = tid
         except Exception:
             # do not block flush
             pass
@@ -217,9 +220,7 @@ def set_search_path(db: Session, tenant_schema: str) -> None:
     Fija el search_path por sesiÃ³n. Incluye siempre 'public' como fallback.
     Llamar tras abrir la sesiÃ³n (en una dependencia que resuelva el tenant).
     """
-    db.execute(
-        text("SET search_path TO :schema, public").bindparams(schema=tenant_schema)
-    )
+    db.execute(text("SET search_path TO :schema, public").bindparams(schema=tenant_schema))
 
 
 def get_tenant_db(tenant_schema: str) -> Iterator[Session]:

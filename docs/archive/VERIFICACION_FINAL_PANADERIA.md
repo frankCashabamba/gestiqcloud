@@ -142,7 +142,7 @@ curl http://localhost:8000/api/v1/products/?limit=3
 ```bash
 curl http://localhost:8000/api/v1/settings/tenant
 ```
-**Esperado:** 
+**Esperado:**
 ```json
 {
   "currency": "USD",

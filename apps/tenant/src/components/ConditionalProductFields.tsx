@@ -1,6 +1,6 @@
 /**
  * ConditionalProductFields
- * 
+ *
  * Campos de producto que aparecen/desaparecen según la configuración del sector
  */
 import React from 'react'
@@ -12,10 +12,10 @@ interface ConditionalProductFieldsProps {
   onCheckboxChange?: (name: string, checked: boolean) => void
 }
 
-export function ConditionalProductFields({ 
-  formData, 
+export function ConditionalProductFields({
+  formData,
   onChange,
-  onCheckboxChange 
+  onCheckboxChange
 }: ConditionalProductFieldsProps) {
   const features = useTenantFeatures()
   const sector = useTenantSector()
@@ -25,7 +25,7 @@ export function ConditionalProductFields({
       {/* ============================================ */}
       {/* CAMPOS DE INVENTARIO CONDICIONALES */}
       {/* ============================================ */}
-      
+
       {/* Fecha de Caducidad (solo panadería, alimentos) */}
       {features.inventory_expiry_tracking && (
         <div className="form-field">
@@ -54,8 +54,8 @@ export function ConditionalProductFields({
       {features.inventory_lot_tracking && (
         <div className="form-field">
           <label htmlFor="lot" className="form-label">
-            {sector.is_panaderia ? 'Lote/Hornada' : 
-             sector.is_taller ? 'Lote de Fabricación' : 
+            {sector.is_panaderia ? 'Lote/Hornada' :
+             sector.is_taller ? 'Lote de Fabricación' :
              'Número de Lote'}
           </label>
           <input
@@ -103,7 +103,7 @@ export function ConditionalProductFields({
       {/* ============================================ */}
       {/* CAMPOS DE POS CONDICIONALES */}
       {/* ============================================ */}
-      
+
       {/* Venta por Peso (panadería) */}
       {features.pos_enable_weights && (
         <>
@@ -144,7 +144,7 @@ export function ConditionalProductFields({
       {/* ============================================ */}
       {/* CAMPOS ESPECÍFICOS POR SECTOR */}
       {/* ============================================ */}
-      
+
       {/* PANADERÍA */}
       {sector.is_panaderia && (
         <>

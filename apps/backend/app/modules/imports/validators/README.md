@@ -124,14 +124,14 @@ errors = validator.validate_tax_id(tax_id)
 ```python
 class MXValidator(CountryValidator):
     VALID_IVA_RATES = [0.0, 8.0, 16.0]
-    
+
     def validate_tax_id(self, tax_id: str) -> List[ValidationError]:
         # Validar RFC
         ...
-    
+
     def validate_tax_rates(self, rates: List[float]) -> List[ValidationError]:
         ...
-    
+
     def validate_invoice_number(self, number: str) -> List[ValidationError]:
         # Validar UUID CFDI
         ...

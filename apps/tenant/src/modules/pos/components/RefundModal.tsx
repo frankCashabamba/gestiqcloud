@@ -13,11 +13,11 @@ interface RefundModalProps {
   onSuccess: () => void
 }
 
-export default function RefundModal({ 
-  receipt, 
-  isOpen, 
-  onClose, 
-  onSuccess 
+export default function RefundModal({
+  receipt,
+  isOpen,
+  onClose,
+  onSuccess
 }: RefundModalProps) {
   const [refundMethod, setRefundMethod] = useState<'original' | 'cash' | 'store_credit'>('original')
   const [reason, setReason] = useState('')
@@ -70,14 +70,14 @@ export default function RefundModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <h2 className="text-2xl font-bold mb-4">Devolución - Ticket #{receipt.number}</h2>
-        
+
         {/* Líneas del ticket */}
         <div className="mb-4">
           <h3 className="font-semibold mb-2">Productos a devolver:</h3>
           <div className="border rounded">
             {receipt.lines.map((line, idx) => (
-              <label 
-                key={line.id || idx} 
+              <label
+                key={line.id || idx}
                 className="flex items-center gap-2 p-2 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
               >
                 <input
@@ -106,8 +106,8 @@ export default function RefundModal({
               type="button"
               onClick={() => setRefundMethod('original')}
               className={`px-4 py-3 rounded border-2 transition ${
-                refundMethod === 'original' 
-                  ? 'border-blue-600 bg-blue-50 text-blue-700' 
+                refundMethod === 'original'
+                  ? 'border-blue-600 bg-blue-50 text-blue-700'
                   : 'border-gray-300 hover:border-gray-400'
               }`}
             >
@@ -117,8 +117,8 @@ export default function RefundModal({
               type="button"
               onClick={() => setRefundMethod('cash')}
               className={`px-4 py-3 rounded border-2 transition ${
-                refundMethod === 'cash' 
-                  ? 'border-green-600 bg-green-50 text-green-700' 
+                refundMethod === 'cash'
+                  ? 'border-green-600 bg-green-50 text-green-700'
                   : 'border-gray-300 hover:border-gray-400'
               }`}
             >
@@ -128,8 +128,8 @@ export default function RefundModal({
               type="button"
               onClick={() => setRefundMethod('store_credit')}
               className={`px-4 py-3 rounded border-2 transition ${
-                refundMethod === 'store_credit' 
-                  ? 'border-purple-600 bg-purple-50 text-purple-700' 
+                refundMethod === 'store_credit'
+                  ? 'border-purple-600 bg-purple-50 text-purple-700'
                   : 'border-gray-300 hover:border-gray-400'
               }`}
             >

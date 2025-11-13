@@ -2,7 +2,7 @@
 Tests for ElectricSQL conflict resolution
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import Mock
 
 from app.modules.electric_conflicts import ConflictResolver
@@ -20,12 +20,12 @@ class TestConflictResolver:
         local = {
             "id": "stock-1",
             "qty_on_hand": 50,
-            "updated_at": datetime(2025, 1, 20, 10, 0, 0, tzinfo=timezone.utc),
+            "updated_at": datetime(2025, 1, 20, 10, 0, 0, tzinfo=UTC),
         }
         remote = {
             "id": "stock-1",
             "qty_on_hand": 45,
-            "updated_at": datetime(2025, 1, 20, 9, 0, 0, tzinfo=timezone.utc),
+            "updated_at": datetime(2025, 1, 20, 9, 0, 0, tzinfo=UTC),
         }
 
         result = self.resolver.resolve_stock_conflict(local, remote)  # noqa: F841
@@ -39,12 +39,12 @@ class TestConflictResolver:
         local = {
             "id": "stock-1",
             "qty_on_hand": 50,
-            "updated_at": datetime(2025, 1, 20, 9, 0, 0, tzinfo=timezone.utc),
+            "updated_at": datetime(2025, 1, 20, 9, 0, 0, tzinfo=UTC),
         }
         remote = {
             "id": "stock-1",
             "qty_on_hand": 45,
-            "updated_at": datetime(2025, 1, 20, 10, 0, 0, tzinfo=timezone.utc),
+            "updated_at": datetime(2025, 1, 20, 10, 0, 0, tzinfo=UTC),
         }
 
         result = self.resolver.resolve_stock_conflict(local, remote)  # noqa: F841
@@ -72,13 +72,13 @@ class TestConflictResolver:
             "id": "prod-1",
             "name": "Test Product",
             "price": 15.99,
-            "updated_at": datetime(2025, 1, 20, 10, 0, 0, tzinfo=timezone.utc),
+            "updated_at": datetime(2025, 1, 20, 10, 0, 0, tzinfo=UTC),
         }
         remote = {
             "id": "prod-1",
             "name": "Test Product",
             "price": 16.99,
-            "updated_at": datetime(2025, 1, 20, 9, 0, 0, tzinfo=timezone.utc),
+            "updated_at": datetime(2025, 1, 20, 9, 0, 0, tzinfo=UTC),
         }
 
         result = self.resolver.resolve_product_conflict(local, remote)  # noqa: F841
@@ -95,14 +95,14 @@ class TestConflictResolver:
             "name": "Test Product",
             "price": 15.99,
             "stock": 100,
-            "updated_at": datetime(2025, 1, 20, 10, 0, 0, tzinfo=timezone.utc),
+            "updated_at": datetime(2025, 1, 20, 10, 0, 0, tzinfo=UTC),
         }
         remote = {
             "id": "prod-1",
             "name": "Test Product",
             "price": 15.99,
             "stock": 95,
-            "updated_at": datetime(2025, 1, 20, 9, 0, 0, tzinfo=timezone.utc),
+            "updated_at": datetime(2025, 1, 20, 9, 0, 0, tzinfo=UTC),
         }
 
         result = self.resolver.resolve_product_conflict(local, remote)  # noqa: F841

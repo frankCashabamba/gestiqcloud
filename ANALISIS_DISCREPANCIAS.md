@@ -1,6 +1,6 @@
 # Análisis de Discrepancias: Documentación vs Realidad
 
-**Fecha**: Nov 11, 2025  
+**Fecha**: Nov 11, 2025
 **Análisis**: Comparación entre el documento anterior (`PROYECTO_IMPORTADOR_ESTADO_GLOBAL.md`) y el código real
 
 ---
@@ -52,7 +52,7 @@
 ### 2. Líneas de Código Frontend Infladas
 **Documento:**
 ```
-| Componentes   | Frontend | 
+| Componentes   | Frontend |
 |  UI Components   | - | 1,200 |
 | Services        | - | 400 |
 | Hooks           | - | 250 |
@@ -212,14 +212,14 @@ Los siguientes items SÍ están correctos:
 
 ### 3. Establecer Prioridades
 ```
-Alto: 
+Alto:
   - Tests backend (cobertura endpoints)
   - Migraciones Alembic
-  
+
 Medio:
   - Documentación usuario
   - Swagger/OpenAPI
-  
+
 Bajo (si aplica):
   - Frontend (si se requiere)
 ```
@@ -290,6 +290,6 @@ Usar **PROYECTO_IMPORTADOR_ESTADO_GLOBAL_VERIFICADO.md** como fuente única:
 
 ---
 
-**Preparado por**: Sistema de verificación  
-**Fecha**: Nov 11, 2025  
+**Preparado por**: Sistema de verificación
+**Fecha**: Nov 11, 2025
 **Versión**: 1.0

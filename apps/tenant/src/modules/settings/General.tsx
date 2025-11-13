@@ -8,10 +8,10 @@ export default function GeneralSettings() {
   const [form, setForm] = useState<SettingsGeneral>({ razon_social: '', tax_id: '', address: '' })
   const [modulesCount, setModulesCount] = useState({ active: 0, total: 16 })
   const { success, error } = useToast()
-  
-  useEffect(() => { 
-    getGeneral().then(setForm).catch(()=>{}) 
-    
+
+  useEffect(() => {
+    getGeneral().then(setForm).catch(()=>{})
+
     // Cargar count de módulos activos
     const config = localStorage.getItem('tenant_modules_config')
     if (config) {
@@ -26,7 +26,7 @@ export default function GeneralSettings() {
   return (
     <div className="p-4" style={{ maxWidth: 640 }}>
       <h2 className="font-semibold text-lg mb-3">Configuración General</h2>
-      
+
       {/* Sección Módulos Activos */}
       <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <div className="flex items-center justify-between">
@@ -36,7 +36,7 @@ export default function GeneralSettings() {
               {modulesCount.active} de {modulesCount.total} módulos activos
             </p>
           </div>
-          <Link 
+          <Link
             to="/settings/modulos"
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
           >

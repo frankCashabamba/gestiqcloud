@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from app.modules.admin_config.application.idiomas.dto import IdiomaIn, IdiomaOut
 from app.modules.admin_config.application.idiomas.ports import IdiomaRepo

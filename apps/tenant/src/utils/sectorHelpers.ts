@@ -1,13 +1,13 @@
 /**
  * sectorHelpers
- * 
+ *
  * Funciones helper para manejo de sectores/plantillas
  * Íconos, colores, formateo, etc.
  */
 
 /**
  * Retorna el emoji/icono correspondiente al sector
- * 
+ *
  * @param plantilla - Nombre de la plantilla/sector
  * @returns Emoji representativo
  */
@@ -74,7 +74,7 @@ export function getSectorIcon(plantilla: string): string {
 
 /**
  * Retorna el color hexadecimal correspondiente al sector
- * 
+ *
  * @param plantilla - Nombre de la plantilla/sector
  * @returns Color hex (ej: '#f59e0b')
  */
@@ -141,7 +141,7 @@ export function getSectorColor(plantilla: string): string {
 
 /**
  * Formatea un valor según las convenciones del sector
- * 
+ *
  * @param value - Valor a formatear
  * @param type - Tipo de dato ('currency', 'quantity', 'date', 'weight')
  * @param plantilla - Plantilla/sector activo
@@ -175,7 +175,7 @@ export function formatBySector(
       if (normalized.includes('panaderia') || normalized.includes('bakery')) {
         return `${Math.floor(parseFloat(value))} uds`
       }
-      
+
       // Taller puede tener decimales (repuestos fraccionables)
       if (normalized.includes('taller') || normalized.includes('workshop')) {
         return `${parseFloat(value).toFixed(2)} uds`
@@ -193,12 +193,12 @@ export function formatBySector(
         }
         return `${weight.toFixed(2)}kg`
       }
-      
+
       return `${weight.toFixed(3)}kg`
 
     case 'date':
       const date = new Date(value)
-      
+
       // Panadería: formato corto (día/mes)
       if (normalized.includes('panaderia') || normalized.includes('bakery')) {
         return date.toLocaleDateString('es-ES', {
@@ -224,7 +224,7 @@ export function formatBySector(
 
 /**
  * Retorna el nombre displayable del sector
- * 
+ *
  * @param plantilla - Nombre técnico de la plantilla
  * @returns Nombre formateado para mostrar
  */
@@ -274,7 +274,7 @@ export function getSectorDisplayName(plantilla: string): string {
 
 /**
  * Retorna las unidades de medida típicas del sector
- * 
+ *
  * @param plantilla - Plantilla/sector
  * @returns Array de unidades [código, label]
  */
@@ -313,7 +313,7 @@ export function getSectorUnits(plantilla: string): Array<[string, string]> {
 
 /**
  * Retorna configuración de impresión por sector
- * 
+ *
  * @param plantilla - Plantilla/sector
  * @returns Config de impresión
  */

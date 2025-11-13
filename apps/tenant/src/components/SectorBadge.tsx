@@ -1,6 +1,6 @@
 ﻿/**
  * SectorBadge
- * 
+ *
  * Badge visual que muestra el sector/plantilla activa del tenant
  * Incluye icono dinámico y color según tipo de negocio
  */
@@ -17,10 +17,10 @@ interface SectorBadgeProps {
   className?: string
 }
 
-export function SectorBadge({ 
-  size = 'md', 
+export function SectorBadge({
+  size = 'md',
   showLabel = true,
-  className = '' 
+  className = ''
 }: SectorBadgeProps) {
   const sector = useTenantSector()
   const { config } = useTenantConfig()
@@ -41,9 +41,9 @@ export function SectorBadge({
     .join(' ')
 
   return (
-    <div 
+    <div
       className={`sector-badge sector-badge--${size} ${className}`}
-      style={{ 
+      style={{
         backgroundColor: `${color}15`,
         borderColor: color,
         color: color

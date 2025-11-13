@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Protocol, Sequence, Optional
+from collections.abc import Sequence
+from typing import Protocol
 
 from app.modules.admin_config.application.tipos_empresa.dto import TipoEmpresaIn, TipoEmpresaOut
 
@@ -10,7 +11,7 @@ class TipoEmpresaRepo(Protocol):
 
     def create(self, data: TipoEmpresaIn) -> TipoEmpresaOut: ...
 
-    def get(self, id: int) -> Optional[TipoEmpresaOut]: ...
+    def get(self, id: int) -> TipoEmpresaOut | None: ...
 
     def update(self, id: int, data: TipoEmpresaIn) -> TipoEmpresaOut: ...
 

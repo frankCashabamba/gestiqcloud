@@ -6,7 +6,6 @@ import hashlib
 import logging
 import os
 from pathlib import Path
-from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +38,7 @@ except ImportError:
 class SecurityViolationError(Exception):
     """Raised when file fails security validation."""
 
-    def __init__(self, code: str, detail: str, file_path: Optional[str] = None):
+    def __init__(self, code: str, detail: str, file_path: str | None = None):
         self.code = code
         self.detail = detail
         self.file_path = file_path
@@ -86,7 +85,7 @@ def check_file_size(file_path: str, max_mb: int = 16) -> None:
         )
 
 
-def check_file_mime(file_path: str, allowed_mimes: List[str]) -> str:
+def check_file_mime(file_path: str, allowed_mimes: list[str]) -> str:
     """
     Validate file MIME type using libmagic.
 
@@ -138,9 +137,7 @@ def scan_virus(file_path: str) -> None:
         SecurityViolationError: If virus detected or scan fails critically
     """
     if not CLAMD_AVAILABLE:
-        logger.warning(
-            "ClamAV not available, skipping antivirus scan (acceptable in dev)"
-        )
+        logger.warning("ClamAV not available, skipping antivirus scan (acceptable in dev)")
         return
 
     try:
@@ -295,7 +292,7 @@ def check_pdf_security(pdf_path: str) -> dict:
 
 def validate_file_security(
     file_path: str,
-    allowed_mimes: Optional[List[str]] = None,
+    allowed_mimes: list[str] | None = None,
     max_mb: int = 16,
     max_pdf_pages: int = 20,
     enable_av_scan: bool = True,
@@ -352,9 +349,7 @@ def validate_file_security(
             results["checks_passed"].append("antivirus")
 
         # Check 4: PDF-specific checks
-        is_pdf = detected_mime == "application/pdf" or file_path.lower().endswith(
-            ".pdf"
-        )
+        is_pdf = detected_mime == "application/pdf" or file_path.lower().endswith(".pdf")
         if is_pdf and PYMUPDF_AVAILABLE:
             # Page count
             page_count = count_pdf_pages(file_path, max_pages=max_pdf_pages)

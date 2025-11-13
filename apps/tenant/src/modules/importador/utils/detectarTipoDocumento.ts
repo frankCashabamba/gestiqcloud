@@ -38,4 +38,3 @@ export function detectarTipoDocumento(headers: string[]): 'generico' | 'factura'
   if (hasAny(['banco', 'iban', 'transferencia'])) return 'transferencia'
   return 'generico'
 }
-

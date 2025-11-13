@@ -1,7 +1,7 @@
 # 📋 PLAN DE ACCIÓN INMEDIATO - GESTIQCLOUD
 
-**Fecha:** Noviembre 2025  
-**Versión:** 2.0.0  
+**Fecha:** Noviembre 2025
+**Versión:** 2.0.0
 **Objetivo:** Completar MVP en 2-3 semanas
 
 ---
@@ -45,10 +45,10 @@ async def send_einvoice(
         Invoice.id == invoice_id,
         Invoice.tenant_id == tenant_id
     ).first()
-    
+
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
-    
+
     if country == "EC":
         # Trigger Celery task
         from app.workers.einvoicing_tasks import sign_and_send_sri_task
@@ -56,7 +56,7 @@ async def send_einvoice(
     elif country == "ES":
         from app.workers.einvoicing_tasks import sign_and_send_facturae_task
         sign_and_send_facturae_task.delay(str(invoice_id))
-    
+
     return {"status": "processing", "invoice_id": invoice_id}
 
 @router.get("/status/{invoice_id}")
@@ -72,10 +72,10 @@ async def get_einvoice_status(
         SriSubmission.invoice_id == invoice_id,
         SriSubmission.tenant_id == tenant_id
     ).first()
-    
+
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found")
-    
+
     return {
         "invoice_id": invoice_id,
         "status": submission.status,
@@ -154,7 +154,7 @@ export const FacturacionView: React.FC = () => {
                     country: 'EC'  // o 'ES'
                 })
             });
-            
+
             if (response.ok) {
                 alert('Factura enviada a SRI');
                 loadFacturas();
@@ -167,7 +167,7 @@ export const FacturacionView: React.FC = () => {
     return (
         <div className="facturacion-container">
             <h1>Facturación</h1>
-            
+
             <div className="controls">
                 <button onClick={() => setShowForm(true)}>
                     + Nueva Factura
@@ -268,7 +268,7 @@ async def create_payment_link(
 ):
     """Crear enlace de pago"""
     invoice = db.query(Invoice).get(invoice_id)
-    
+
     if provider == "stripe":
         from app.services.payments.stripe_provider import StripeProvider
         provider_instance = StripeProvider()
@@ -278,12 +278,12 @@ async def create_payment_link(
     elif provider == "payphone":
         from app.services.payments.payphone_provider import PayPhoneProvider
         provider_instance = PayPhoneProvider()
-    
+
     link = provider_instance.create_link(
         amount=invoice.total,
         currency="EUR" if tenant.country == "ES" else "USD"
     )
-    
+
     return {"payment_link": link, "provider": provider}
 
 @router.post("/api/v1/payments/webhook/{provider}")
@@ -297,7 +297,7 @@ async def payment_webhook(
         from app.services.payments.stripe_provider import StripeProvider
         provider_instance = StripeProvider()
     # ... similar para otros providers
-    
+
     if provider_instance.verify_webhook(payload):
         # Actualizar invoice status
         invoice = db.query(Invoice).filter(
@@ -306,7 +306,7 @@ async def payment_webhook(
         invoice.estado = "paid"
         db.commit()
         return {"status": "ok"}
-    
+
     return {"status": "error"}
 ```
 
@@ -352,7 +352,7 @@ export const PaymentLinkModal: React.FC<{
                     provider: provider
                 })
             });
-            
+
             const data = await response.json();
             setPaymentLink(data.payment_link);
         } finally {
@@ -363,7 +363,7 @@ export const PaymentLinkModal: React.FC<{
     return (
         <Modal onClose={onClose}>
             <h2>Pagar Online</h2>
-            
+
             <div>
                 <label>Proveedor:</label>
                 <select value={provider} onChange={(e) => setProvider(e.target.value)}>
@@ -666,7 +666,7 @@ AEAT_CERTIFICATE_PASSWORD=...
 
 ---
 
-**Plan de acción creado:** Noviembre 2025  
-**Versión:** 2.0.0  
-**Objetivo:** MVP completo en 2-3 semanas  
+**Plan de acción creado:** Noviembre 2025
+**Versión:** 2.0.0
+**Objetivo:** MVP completo en 2-3 semanas
 **Estado:** 🟢 Listo para implementar

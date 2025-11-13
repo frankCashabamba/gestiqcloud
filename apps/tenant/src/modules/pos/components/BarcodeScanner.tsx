@@ -110,7 +110,7 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
               playsInline
               muted
             />
-            
+
             {/* Overlay de escaneo */}
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="border-4 border-green-500 w-64 h-32 rounded-lg animate-pulse"></div>

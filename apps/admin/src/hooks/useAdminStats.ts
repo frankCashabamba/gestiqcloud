@@ -25,10 +25,10 @@ export function useAdminStats() {
     loadStats()
   }, [])
 
-  return { 
-    stats, 
-    loading, 
+  return {
+    stats,
+    loading,
     error,
-    refresh: loadStats 
+    refresh: loadStats
   }
 }

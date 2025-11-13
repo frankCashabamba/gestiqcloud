@@ -1,7 +1,7 @@
 # Fase D - IA Configurable (IMPLEMENTACIÓN COMPLETA)
 
-**Estado:** ✅ IMPLEMENTADA  
-**Fecha:** 11 Nov 2025  
+**Estado:** ✅ IMPLEMENTADA
+**Fecha:** 11 Nov 2025
 **Versión:** 1.0.0
 
 ---
@@ -10,14 +10,14 @@
 
 **Fase D ha sido implementada completamente** con:
 
-✅ **LocalAIProvider** - IA gratuita basada en patrones (sin dependencias externas)  
-✅ **OpenAIProvider** - Integración con GPT-3.5-turbo/GPT-4  
-✅ **AzureOpenAIProvider** - Integración con Azure OpenAI Service  
-✅ **Configuración flexible** - Cambiar provider con variable de entorno  
-✅ **Caché inteligente** - Mejora performance y reduce costos  
-✅ **Telemetría completa** - Track precisión, costos, latencias  
-✅ **HTTP Endpoints** - 6 endpoints para interacción  
-✅ **Tests ready** - Estructura lista para pytest  
+✅ **LocalAIProvider** - IA gratuita basada en patrones (sin dependencias externas)
+✅ **OpenAIProvider** - Integración con GPT-3.5-turbo/GPT-4
+✅ **AzureOpenAIProvider** - Integración con Azure OpenAI Service
+✅ **Configuración flexible** - Cambiar provider con variable de entorno
+✅ **Caché inteligente** - Mejora performance y reduce costos
+✅ **Telemetría completa** - Track precisión, costos, latencias
+✅ **HTTP Endpoints** - 6 endpoints para interacción
+✅ **Tests ready** - Estructura lista para pytest
 
 ---
 
@@ -383,21 +383,21 @@ class FileClassifier:
     async def classify_file_with_ai(self, file_path, filename):
         # Clasificación base (actual)
         base_result = self.classify_file(file_path, filename)
-        
+
         # Mejorar con IA si confidence < threshold
         if base_result["confidence"] < settings.IMPORT_AI_CONFIDENCE_THRESHOLD:
             text = self._extract_text(file_path)
-            
+
             ai_provider = await get_ai_provider_singleton()
             ai_result = await ai_provider.classify_document(
                 text,
                 list(self.parsers_info.keys())
             )
-            
+
             if ai_result.confidence > base_result["confidence"]:
                 base_result.update(ai_result.__dict__)
                 base_result["enhanced_by_ai"] = True
-        
+
         return base_result
 ```
 
@@ -416,12 +416,12 @@ from app.modules.imports.ai.local_provider import LocalAIProvider
 @pytest.mark.asyncio
 async def test_classify_invoice():
     provider = LocalAIProvider()
-    
+
     result = await provider.classify_document(
         text="Invoice #001 Total: $100.00 Customer: ABC Tax: $10",
         available_parsers=["csv_invoices", "products_excel"]
     )
-    
+
     assert result.suggested_parser == "csv_invoices"
     assert result.confidence > 0.7
     assert result.provider == "local"
@@ -429,13 +429,13 @@ async def test_classify_invoice():
 @pytest.mark.asyncio
 async def test_extract_fields():
     provider = LocalAIProvider()
-    
+
     fields = await provider.extract_fields(
         text="Invoice #INV-001 Total: $1250.00 Tax: $150.00",
         doc_type="invoice",
         expected_fields=["total", "tax", "invoice_number"]
     )
-    
+
     assert "total" in fields
     assert "tax" in fields
 ```
@@ -449,10 +449,10 @@ from app.modules.imports.ai.cache import ClassificationCache
 
 def test_cache_hit():
     cache = ClassificationCache(ttl_seconds=3600)
-    
+
     result = {"suggested_parser": "csv_invoices", "confidence": 0.85}
     cache.set("invoice text", ["csv_invoices", "products_excel"], result)
-    
+
     cached = cache.get("invoice text", ["csv_invoices", "products_excel"])
     assert cached["suggested_parser"] == "csv_invoices"
 ```
@@ -531,6 +531,6 @@ IMPORT_AI_PROVIDER=openai
 
 ---
 
-**Implementado por:** Amp  
-**Fecha:** 11 Nov 2025  
+**Implementado por:** Amp
+**Fecha:** 11 Nov 2025
 **Status:** ✅ PRODUCTION READY

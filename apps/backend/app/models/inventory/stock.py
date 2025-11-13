@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from sqlalchemy import String, Numeric, text as sa_text
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column
 from uuid import uuid4
 
 from app.config.database import Base
+from sqlalchemy import Numeric, String
+from sqlalchemy import text as sa_text
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.orm import Mapped, mapped_column
 
 
 def _uuid_col():
@@ -17,6 +18,7 @@ def _uuid_col():
 
 class StockItem(Base):
     """Stock Item model - MODERN schema (English names)"""
+
     __tablename__ = "stock_items"
     __table_args__ = {"extend_existing": True}
 

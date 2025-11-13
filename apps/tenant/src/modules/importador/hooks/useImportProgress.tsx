@@ -56,4 +56,3 @@ export function useImportProgress(batchId: string | null) {
 
     return { progress, error }
 }
-

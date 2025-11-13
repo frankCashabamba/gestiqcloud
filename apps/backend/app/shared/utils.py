@@ -1,14 +1,15 @@
 from __future__ import annotations
+
 import datetime as dt
-import unicodedata
 import time
-from typing import List, Dict
-from sqlalchemy.orm import Session
+import unicodedata
+
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 
 def utcnow_iso() -> str:
-    return dt.datetime.utcnow().replace(tzinfo=dt.timezone.utc).isoformat()
+    return dt.datetime.utcnow().replace(tzinfo=dt.UTC).isoformat()
 
 
 def slugify(text: str) -> str:
@@ -28,7 +29,7 @@ def ping_ok() -> dict:
     return {"ok": True}
 
 
-def find_missing_id_defaults(db: Session) -> List[Dict[str, object]]:
+def find_missing_id_defaults(db: Session) -> list[dict[str, object]]:
     """Return tables in public schema where PK column 'id' (integer/bigint)
     has neither IDENTITY nor a DEFAULT nextval.
 
@@ -58,13 +59,11 @@ def find_missing_id_defaults(db: Session) -> List[Dict[str, object]]:
         """
     )
     rows = db.execute(sql).fetchall()
-    out: List[Dict[str, object]] = []
+    out: list[dict[str, object]] = []
     for r in rows:
         tbl, dtype, is_ident, ident_gen, coldef = r
         # missing if not identity and no nextval in default
-        missing = (str(is_ident or "").upper() != "YES") and (
-            "nextval" not in str(coldef or "")
-        )
+        missing = (str(is_ident or "").upper() != "YES") and ("nextval" not in str(coldef or ""))
         if missing:
             out.append(
                 {

@@ -8,4 +8,3 @@ ALTER TABLE IF EXISTS product_categories
 CREATE INDEX IF NOT EXISTS idx_product_categories_name ON product_categories(name);
 
 COMMIT;
-

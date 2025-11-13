@@ -1,12 +1,13 @@
 """Servicio de auditoría genérico para todo el sistema."""
 
-from typing import Optional, Dict, Any
-from datetime import datetime, date
-from sqlalchemy.orm import Session
-from sqlalchemy import text
 import json
-from uuid import UUID
+from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
+from uuid import UUID
+
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 
 class AuditJSONEncoder(json.JSONEncoder):
@@ -32,24 +33,24 @@ class AuditService:
         db: Session,
         action_type: str,  # CREATE, UPDATE, DELETE, etc.
         entity_type: str,  # 'empresa', 'usuario', 'producto', etc.
-        entity_id: Optional[str] = None,
-        old_data: Optional[Dict[str, Any]] = None,
-        new_data: Optional[Dict[str, Any]] = None,
-        user_id: Optional[str] = None,
-        user_email: Optional[str] = None,
-        user_role: Optional[str] = None,
-        tenant_id: Optional[UUID] = None,  # UUID del tenant
-        tenant_legacy_id: Optional[int] = None,  # ID empresa (legacy)
-        description: Optional[str] = None,
-        notes: Optional[str] = None,
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None,  # reservado, se guarda en props
-        request_id: Optional[str] = None,
+        entity_id: str | None = None,
+        old_data: dict[str, Any] | None = None,
+        new_data: dict[str, Any] | None = None,
+        user_id: str | None = None,
+        user_email: str | None = None,
+        user_role: str | None = None,
+        tenant_id: UUID | None = None,  # UUID del tenant
+        tenant_legacy_id: int | None = None,  # ID empresa (legacy)
+        description: str | None = None,
+        notes: str | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,  # reservado, se guarda en props
+        request_id: str | None = None,
     ) -> None:
         """Registra una acción en audit_log (schema real)."""
 
         # Armar props JSONB
-        props: Dict[str, Any] = {
+        props: dict[str, Any] = {
             "action_type": action_type.upper(),
             "entity_type": entity_type,
             "entity_id": entity_id,
@@ -94,10 +95,10 @@ class AuditService:
 
     @staticmethod
     def _calculate_changes(
-        old_data: Dict[str, Any], new_data: Dict[str, Any]
-    ) -> Dict[str, Dict[str, Any]]:
+        old_data: dict[str, Any], new_data: dict[str, Any]
+    ) -> dict[str, dict[str, Any]]:
         """Calcula los campos que cambiaron entre old_data y new_data."""
-        changes: Dict[str, Dict[str, Any]] = {}
+        changes: dict[str, dict[str, Any]] = {}
 
         # Buscar campos modificados
         all_keys = set(old_data.keys()) | set(new_data.keys())
@@ -111,14 +112,14 @@ class AuditService:
     @staticmethod
     def log_delete_empresa(
         db: Session,
-        empresa_data: Dict[str, Any],
-        related_data: Dict[str, Any],  # {'usuarios': [...], 'productos': [...], etc.}
-        user_id: Optional[int] = None,
-        user_email: Optional[str] = None,
+        empresa_data: dict[str, Any],
+        related_data: dict[str, Any],  # {'usuarios': [...], 'productos': [...], etc.}
+        user_id: int | None = None,
+        user_email: str | None = None,
         user_role: str = "admin",
-        ip_address: Optional[str] = None,
-        tenant_uuid: Optional[UUID] = None,
-        tenant_legacy_id: Optional[int] = None,
+        ip_address: str | None = None,
+        tenant_uuid: UUID | None = None,
+        tenant_legacy_id: int | None = None,
     ) -> None:
         """Ayudante para registrar borrado de empresa + cascadas."""
 
@@ -163,12 +164,12 @@ class AuditService:
             )
 
 
-def serialize_model(obj: Any) -> Dict[str, Any]:
+def serialize_model(obj: Any) -> dict[str, Any]:
     """Serializa un modelo SQLAlchemy a dict JSON-compatible."""
     if obj is None:
         return {}
 
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
 
     if hasattr(obj, "__table__"):
         for column in obj.__table__.columns:

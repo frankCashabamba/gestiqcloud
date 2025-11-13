@@ -1,6 +1,6 @@
 # Sprint 1 Frontend - Resumen de Cambios
 
-**Fecha**: Nov 11, 2025  
+**Fecha**: Nov 11, 2025
 **Estado**: ✅ COMPLETADO (Tareas críticas)
 
 ## Objetivos Alcanzados
@@ -232,7 +232,7 @@ El hook maneja todos los estados necesarios:
 
 ## Conclusión
 
-**Sprint 1 completado exitosamente**: 
+**Sprint 1 completado exitosamente**:
 - ✅ Servicio de clasificación implementado
 - ✅ Hook reutilizable para toda la app
 - ✅ Integración en Wizard paso 6 (crear batch)

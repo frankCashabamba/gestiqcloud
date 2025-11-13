@@ -23,4 +23,3 @@ export function createEmpresaService(api: AxiosInstance, opts: ServiceOpts) {
     },
   }
 }
-

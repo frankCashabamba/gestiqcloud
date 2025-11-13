@@ -71,7 +71,7 @@ const RolesRouter: React.FC = () => {
   return (
     <>
       <Routes>
-        
+
         <Route index element={<RoleList roles={roles} onDelete={handleDelete} />} />
         <Route path="nuevo" element={<RoleForm mode="create" onSubmit={handleSave} />} />
         <Route

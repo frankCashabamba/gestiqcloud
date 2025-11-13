@@ -4,20 +4,18 @@ Auto-generated module docstring."""
 
 # schemas/configuracion_inventario.py
 
-from typing import Dict, List, Optional
-
 from pydantic import BaseModel, ConfigDict
 
 
 class ConfiguracionInventarioBase(BaseModel):
     """Class ConfiguracionInventarioBase - auto-generated docstring."""
 
-    control_stock_activo: Optional[bool] = True
-    notificar_bajo_stock: Optional[bool] = True
-    stock_minimo_global: Optional[int] = None
-    um_predeterminadas: Optional[Dict[str, List[str]]] = None
-    categorias_personalizadas: Optional[bool] = False
-    campos_extra_producto: Optional[List[str]] = None
+    control_stock_activo: bool | None = True
+    notificar_bajo_stock: bool | None = True
+    stock_minimo_global: int | None = None
+    um_predeterminadas: dict[str, list[str]] | None = None
+    categorias_personalizadas: bool | None = False
+    campos_extra_producto: list[str] | None = None
 
 
 class ConfiguracionInventarioCreate(ConfiguracionInventarioBase):

@@ -61,7 +61,7 @@ Cada item contiene:
 ### Documentos Nuevos
 ```
 ✅ FASE_B_NUEVOS_PARSERS.md      - Documentación técnica
-✅ FASE_B_SUMMARY.md              - Resumen ejecutivo  
+✅ FASE_B_SUMMARY.md              - Resumen ejecutivo
 ✅ TESTING_NUEVOS_PARSERS.md     - Guía de testing
 ✅ CHECKLIST_FASE_B.md            - Estado detallado
 ✅ FASE_B_INDEX.md                - Índice de navegación

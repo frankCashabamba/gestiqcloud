@@ -1,5 +1,5 @@
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 
 @pytest.mark.xfail(reason="CSRF enforced in tests without HTTPS; CRUD blocked (403)")

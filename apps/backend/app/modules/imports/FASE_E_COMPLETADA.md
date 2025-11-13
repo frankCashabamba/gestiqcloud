@@ -182,13 +182,13 @@ async def main():
         promote=True,
         skip_errors=True,
     )
-    
+
     report = await importer.run()
-    
+
     print(f"✓ {report.successful} successful")
     print(f"✗ {report.failed} failed")
     print(f"Items: {report.total_items}")
-    
+
     for result in report.results:
         if result.status != "success":
             print(f"  - {result.filename}: {result.errors}")

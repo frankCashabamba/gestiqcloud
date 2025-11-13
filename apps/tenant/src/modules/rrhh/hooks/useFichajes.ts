@@ -12,4 +12,3 @@ export function useFichajes() {
 
   return { fichajes, loading }
 }
-

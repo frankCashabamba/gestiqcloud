@@ -1,6 +1,6 @@
 # ✅ Limpieza de Migraciones Completada
 
-**Fecha**: 2025-11-01  
+**Fecha**: 2025-11-01
 **Objetivo**: Consolidar migraciones en baseline única
 
 ---

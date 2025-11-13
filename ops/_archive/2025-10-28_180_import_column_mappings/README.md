@@ -1,6 +1,6 @@
 # Migración: Import Column Mappings
 
-**Fecha**: 2025-10-28  
+**Fecha**: 2025-10-28
 **Propósito**: Sistema de mapeo inteligente de columnas para importación
 
 ## Descripción

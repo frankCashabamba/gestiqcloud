@@ -1,6 +1,6 @@
 # Plan de Modernización Definitiva - TODO EN INGLÉS
 
-**Fecha**: 2025-11-01  
+**Fecha**: 2025-11-01
 **Objetivo**: Estandarizar TODO el sistema a inglés moderno - SIN ALIAS, SIN LEGACY
 
 ## Filosofía
@@ -19,7 +19,7 @@
 ```sql
 -- MODERNO (inglés)
 name VARCHAR(255)           -- NO "nombre"
-sku VARCHAR(100)            -- NO "codigo"  
+sku VARCHAR(100)            -- NO "codigo"
 price NUMERIC(12,2)         -- NO "precio"
 cost_price NUMERIC(12,2)    -- "precio_compra" → "cost_price"
 description TEXT            -- NO "descripcion"
@@ -74,17 +74,17 @@ ALTER TABLE products RENAME COLUMN descripcion TO description;
 -- Si aún existe "nombre", "codigo", "precio" → eliminarlos
 DO $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.columns 
+    IF EXISTS (SELECT 1 FROM information_schema.columns
                WHERE table_name='products' AND column_name='nombre') THEN
         ALTER TABLE products DROP COLUMN nombre;
     END IF;
-    
-    IF EXISTS (SELECT 1 FROM information_schema.columns 
+
+    IF EXISTS (SELECT 1 FROM information_schema.columns
                WHERE table_name='products' AND column_name='codigo') THEN
         ALTER TABLE products DROP COLUMN codigo;
     END IF;
-    
-    IF EXISTS (SELECT 1 FROM information_schema.columns 
+
+    IF EXISTS (SELECT 1 FROM information_schema.columns
                WHERE table_name='products' AND column_name='precio') THEN
         ALTER TABLE products DROP COLUMN precio;
     END IF;
@@ -96,7 +96,7 @@ ALTER TABLE products RENAME COLUMN precio_compra TO cost_price;
 -- Renombrar activo → active (si no existe)
 DO $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.columns 
+    IF EXISTS (SELECT 1 FROM information_schema.columns
                WHERE table_name='products' AND column_name='activo') THEN
         ALTER TABLE products RENAME COLUMN activo TO active;
     END IF;
@@ -171,7 +171,7 @@ ALTER TABLE stock_items RENAME COLUMN qty_on_hand TO qty;
 -- Renombrar ubicacion → location (si existe)
 DO $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.columns 
+    IF EXISTS (SELECT 1 FROM information_schema.columns
                WHERE table_name='stock_items' AND column_name='ubicacion') THEN
         ALTER TABLE stock_items RENAME COLUMN ubicacion TO location;
     END IF;
@@ -190,10 +190,10 @@ COMMIT;
 ```python
 class Product(Base):
     __tablename__ = "products"
-    
+
     id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), nullable=False)
-    
+
     # Campos en INGLÉS
     sku: Mapped[str | None] = mapped_column(String(100), index=True)
     name: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
@@ -206,7 +206,7 @@ class Product(Base):
     stock: Mapped[float] = mapped_column(Float, default=0)
     unit: Mapped[str] = mapped_column(Text, default="unit")  # "unidad" → "unit"
     product_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    
+
     # ELIMINAR: nombre, codigo, precio, precio_compra, descripcion, activo
 ```
 
@@ -216,9 +216,9 @@ class Product(Base):
 ```python
 class Tenant(Base):
     __tablename__ = "tenants"
-    
+
     id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
-    
+
     # Campos en INGLÉS
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     slug: Mapped[str | None] = mapped_column(String(100), unique=True)
@@ -236,7 +236,7 @@ class Tenant(Base):
     primary_color: Mapped[str] = mapped_column(String(7), default='#4f46e5')
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     deactivation_reason: Mapped[str | None] = mapped_column(String(255))
-    
+
     # ELIMINAR: nombre, ruc, telefono, direccion, ciudad, provincia, cp, pais, etc.
 ```
 
@@ -246,18 +246,18 @@ class Tenant(Base):
 ```python
 class StockItem(Base):
     __tablename__ = "stock_items"
-    
+
     id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"))
     warehouse_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("warehouses.id"))
     product_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("products.id"))
-    
+
     # Campo en INGLÉS
     qty: Mapped[float] = mapped_column(Numeric(14, 3), default=0)
     location: Mapped[str | None] = mapped_column(String(50))
     lot: Mapped[str | None] = mapped_column(String(100))
     expires_at: Mapped[date | None] = mapped_column(Date)
-    
+
     # ELIMINAR: qty_on_hand, ubicacion
 ```
 

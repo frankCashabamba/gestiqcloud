@@ -13,33 +13,48 @@ Notas:
   - Intenta recalcular costos llamando a la función Postgres calculate_recipe_cost si existe.
 """
 
+import argparse
 import os
 import sys
-import argparse
-from typing import Optional, Tuple
+from typing import Optional
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
 
 def get_engine() -> Engine:
-    dsn = os.getenv("DB_DSN") or os.getenv("DATABASE_URL") or "postgresql://postgres:root@localhost:5432/gestiqclouddb_dev"
-    return create_engine(dsn, future=True, isolation_level="AUTOCOMMIT", pool_pre_ping=True)
+    dsn = (
+        os.getenv("DB_DSN")
+        or os.getenv("DATABASE_URL")
+        or "postgresql://postgres:root@localhost:5432/gestiqclouddb_dev"
+    )
+    return create_engine(
+        dsn, future=True, isolation_level="AUTOCOMMIT", pool_pre_ping=True
+    )
 
 
-def resolve_tenant_id(engine: Engine, tenant_id: Optional[str], tenant_slug: Optional[str]) -> str:
+def resolve_tenant_id(
+    engine: Engine, tenant_id: Optional[str], tenant_slug: Optional[str]
+) -> str:
     if tenant_id:
         return str(tenant_id)
     if not tenant_slug:
         raise SystemExit("Debe especificar --tenant-id o --tenant-slug")
     with engine.begin() as conn:
-        row = conn.execute(text("SELECT id::text FROM tenants WHERE slug = :slug OR name = :slug LIMIT 1"), {"slug": tenant_slug}).first()
+        row = conn.execute(
+            text(
+                "SELECT id::text FROM tenants WHERE slug = :slug OR name = :slug LIMIT 1"
+            ),
+            {"slug": tenant_slug},
+        ).first()
         if not row:
             raise SystemExit(f"Tenant no encontrado por slug/name: {tenant_slug}")
         return str(row[0])
 
 
-def upsert_product(engine: Engine, tenant_id: str, name: str, unit: str, category: Optional[str] = None) -> str:
+def upsert_product(
+    engine: Engine, tenant_id: str, name: str, unit: str, category: Optional[str] = None
+) -> str:
     """Devuelve id del producto (crea si no existe por nombre y tenant).
 
     Compatible con esquemas que usan "cost_price" o "precio_compra", y con/ sin "tax_rate".
@@ -49,7 +64,9 @@ def upsert_product(engine: Engine, tenant_id: str, name: str, unit: str, categor
         conn.execute(text("SET app.tenant_id = :tid"), {"tid": tenant_id})
         conn.execute(text("SET row_security = off"))
         row = conn.execute(
-            text("SELECT id::text FROM products WHERE tenant_id = :tid AND lower(name) = lower(:name) LIMIT 1"),
+            text(
+                "SELECT id::text FROM products WHERE tenant_id = :tid AND lower(name) = lower(:name) LIMIT 1"
+            ),
             {"tid": tenant_id, "name": name},
         ).first()
         if row:
@@ -137,12 +154,16 @@ def upsert_product(engine: Engine, tenant_id: str, name: str, unit: str, categor
         return str(rid)
 
 
-def ensure_recipe(engine: Engine, tenant_id: str, product_id: str, nombre: str, rendimiento: int) -> str:
+def ensure_recipe(
+    engine: Engine, tenant_id: str, product_id: str, nombre: str, rendimiento: int
+) -> str:
     with engine.begin() as conn:
         # Establecer tenant_id para RLS
         conn.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": tenant_id})
         row = conn.execute(
-            text("SELECT id::text FROM recipes WHERE tenant_id = :tid AND product_id = :pid LIMIT 1"),
+            text(
+                "SELECT id::text FROM recipes WHERE tenant_id = :tid AND product_id = :pid LIMIT 1"
+            ),
             {"tid": tenant_id, "pid": product_id},
         ).first()
         if row:
@@ -155,7 +176,12 @@ def ensure_recipe(engine: Engine, tenant_id: str, product_id: str, nombre: str, 
                 RETURNING id::text
                 """
             ),
-            {"tid": tenant_id, "pid": product_id, "nombre": nombre, "rend": rendimiento},
+            {
+                "tid": tenant_id,
+                "pid": product_id,
+                "nombre": nombre,
+                "rend": rendimiento,
+            },
         ).scalar()
         return str(rid)
 
@@ -208,7 +234,9 @@ def insert_ingredient(
 def try_recalculate_cost(engine: Engine, recipe_id: str):
     try:
         with engine.begin() as conn:
-            conn.execute(text("SELECT 1 FROM calculate_recipe_cost(:rid)"), {"rid": recipe_id})
+            conn.execute(
+                text("SELECT 1 FROM calculate_recipe_cost(:rid)"), {"rid": recipe_id}
+            )
     except Exception as e:
         # Silencioso si la función no existe
         sys.stderr.write(f"[WARN] No se pudo recalcular costo: {e}\n")
@@ -224,8 +252,12 @@ def main():
     tenant_id = resolve_tenant_id(engine, args.tenant_id, args.tenant_slug)
 
     # Producto final
-    prod_final_id = upsert_product(engine, tenant_id, "Pan Tapado", unit="unit", category="Panadería")
-    recipe_id = ensure_recipe(engine, tenant_id, prod_final_id, nombre="Pan Tapado", rendimiento=144)
+    prod_final_id = upsert_product(
+        engine, tenant_id, "Pan Tapado", unit="unit", category="Panadería"
+    )
+    recipe_id = ensure_recipe(
+        engine, tenant_id, prod_final_id, nombre="Pan Tapado", rendimiento=144
+    )
 
     # Ingredientes (producto, qty, unidad, presentacion, qty_present, unidad_present)
     # Cantidades de receta (qty y unidad) + defaults de presentaciones

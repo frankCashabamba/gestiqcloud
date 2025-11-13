@@ -1,12 +1,12 @@
-﻿import os
 import json
+import os
 import time
-from typing import Dict, Any
-from uuid import UUID
 from datetime import datetime
-from sqlalchemy.orm import Session
+from typing import Any
+from uuid import UUID
 
 from app.models.ai.incident import Incident
+from sqlalchemy.orm import Session
 
 
 async def analyze_incident_with_ia(
@@ -14,7 +14,7 @@ async def analyze_incident_with_ia(
     use_gpt4: bool = False,
     include_code_suggestions: bool = True,
     db: Session = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Analiza una incidencia con IA (GPT-4/Claude) y retorna análisis + sugerencias
 
@@ -71,7 +71,7 @@ async def analyze_incident_with_ia(
     }
 
 
-async def suggest_fix(incident_id: UUID, db: Session) -> Dict[str, Any]:
+async def suggest_fix(incident_id: UUID, db: Session) -> dict[str, Any]:
     """
     Sugiere código de fix para una incidencia
 
@@ -109,7 +109,7 @@ Retorna JSON con:
         }
 
 
-async def auto_resolve_incident(incident_id: UUID, db: Session) -> Dict[str, Any]:
+async def auto_resolve_incident(incident_id: UUID, db: Session) -> dict[str, Any]:
     """
     Intenta auto-resolver incidencia (sandbox)
 
@@ -214,9 +214,7 @@ async def _call_openai_api(prompt: str, model: str, api_key: str) -> str:
                 return data["choices"][0]["message"]["content"]
 
     except ImportError:
-        raise ImportError(
-            "Se requiere 'aiohttp' para usar OpenAI API: pip install aiohttp"
-        )
+        raise ImportError("Se requiere 'aiohttp' para usar OpenAI API: pip install aiohttp")
     except Exception as e:
         raise Exception(f"Error llamando OpenAI API: {str(e)}")
 
@@ -239,7 +237,7 @@ def _mock_analysis_response(incident: Incident) -> str:
     return json.dumps(analysis, indent=2)
 
 
-def _parse_ia_response(response: str) -> Dict[str, Any]:
+def _parse_ia_response(response: str) -> dict[str, Any]:
     """Parsea respuesta de IA a formato estructurado"""
     try:
         # Intentar parsear como JSON

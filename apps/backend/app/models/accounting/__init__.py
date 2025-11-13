@@ -4,6 +4,10 @@
 # - `modulos_modulo`: catálogo de módulos disponibles.
 # - `modulos_empresamodulo`: módulos que un tenant ha contratado.
 # - `modulos_moduloasignado`: qué usuarios de ese tenant pueden usar cada módulo.
-from app.models.accounting.plan_cuentas import PlanCuentas, AsientoContable, AsientoLinea  # noqa: E402
+from app.models.accounting.plan_cuentas import (  # noqa: E402
+    AsientoContable,
+    AsientoLinea,
+    PlanCuentas,
+)
 
 __all__ = ["PlanCuentas", "AsientoContable", "AsientoLinea"]

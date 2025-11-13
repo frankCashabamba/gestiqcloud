@@ -195,12 +195,12 @@ curl -X POST "http://localhost:8000/api/v1/imports/items/promote" \
 
 ```sql
 -- Ver mapeos guardados
-SELECT id, name, mapping, use_count, last_used_at 
-FROM import_column_mappings 
+SELECT id, name, mapping, use_count, last_used_at
+FROM import_column_mappings
 WHERE tenant_id = '5c7bea07-05ca-457f-b321-722b1628b170';
 
 -- Ver estadísticas de uso
-SELECT 
+SELECT
     name,
     use_count,
     last_used_at,
@@ -226,7 +226,7 @@ interface ColumnMappingStepProps {
 function ColumnMappingStep({ ... }: ColumnMappingStepProps) {
   const [mapping, setMapping] = useState(suggestedMapping);
   const [saveName, setSaveName] = useState('');
-  
+
   const targetFields = [
     { value: 'name', label: '📦 Nombre Producto *', required: true },
     { value: 'precio', label: '💰 Precio Venta' },
@@ -236,20 +236,20 @@ function ColumnMappingStep({ ... }: ColumnMappingStepProps) {
     { value: 'costo', label: '💸 Costo Compra' },
     { value: 'ignore', label: '❌ Ignorar' }
   ];
-  
+
   return (
     <div className="p-6">
       <h3 className="text-lg font-bold mb-4">
         Mapeo de Columnas
       </h3>
-      
+
       {/* Selector de mapeo guardado */}
       {savedMappings.length > 0 && (
         <div className="mb-6">
           <label className="block text-sm font-medium mb-2">
             Cargar mapeo guardado:
           </label>
-          <select 
+          <select
             onChange={(e) => {
               const saved = savedMappings.find(m => m.id === e.target.value);
               if (saved) setMapping(saved.mapping);
@@ -265,7 +265,7 @@ function ColumnMappingStep({ ... }: ColumnMappingStepProps) {
           </select>
         </div>
       )}
-      
+
       {/* Grid de mapeo */}
       <div className="space-y-3">
         {detectedColumns.map((excelCol, idx) => (
@@ -276,9 +276,9 @@ function ColumnMappingStep({ ... }: ColumnMappingStepProps) {
                 Ej: {sampleData[0]?.[excelCol]}
               </div>
             </div>
-            
+
             <div className="text-2xl">→</div>
-            
+
             <select
               value={mapping[excelCol] || ''}
               onChange={(e) => setMapping({...mapping, [excelCol]: e.target.value})}
@@ -294,7 +294,7 @@ function ColumnMappingStep({ ... }: ColumnMappingStepProps) {
           </div>
         ))}
       </div>
-      
+
       {/* Vista previa */}
       <div className="mt-6 p-4 bg-gray-50 rounded">
         <h4 className="font-medium mb-2">Vista Previa (3 filas)</h4>
@@ -325,18 +325,18 @@ function ColumnMappingStep({ ... }: ColumnMappingStepProps) {
           </tbody>
         </table>
       </div>
-      
+
       {/* Guardar configuración */}
       <div className="mt-6 flex items-center gap-4">
         <label className="flex items-center gap-2">
-          <input 
-            type="checkbox" 
+          <input
+            type="checkbox"
             checked={!!saveName}
             onChange={(e) => setSaveName(e.target.checked ? 'Mi mapeo' : '')}
           />
           <span className="text-sm">Guardar esta configuración</span>
         </label>
-        
+
         {saveName && (
           <input
             type="text"
@@ -347,7 +347,7 @@ function ColumnMappingStep({ ... }: ColumnMappingStepProps) {
           />
         )}
       </div>
-      
+
       {/* Botón confirmar */}
       <button
         onClick={() => onConfirm(mapping, saveName || undefined)}
@@ -355,7 +355,7 @@ function ColumnMappingStep({ ... }: ColumnMappingStepProps) {
         className="mt-6 w-full bg-blue-600 text-white py-3 rounded font-medium
                    disabled:bg-gray-300 disabled:cursor-not-allowed"
       >
-        {Object.values(mapping).includes('name') 
+        {Object.values(mapping).includes('name')
           ? 'Continuar con Importación'
           : 'Debes mapear al menos el campo "Nombre Producto"'}
       </button>

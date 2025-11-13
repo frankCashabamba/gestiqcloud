@@ -168,8 +168,8 @@ export default function IncidentDetailModal({
               </h4>
               <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                 <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans">
-                  {typeof incident.ia_analysis === 'string' 
-                    ? incident.ia_analysis 
+                  {typeof incident.ia_analysis === 'string'
+                    ? incident.ia_analysis
                     : JSON.stringify(incident.ia_analysis, null, 2)
                   }
                 </pre>

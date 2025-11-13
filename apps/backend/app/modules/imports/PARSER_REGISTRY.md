@@ -30,7 +30,7 @@ El registry de parsers centraliza la lista de parsers disponibles para el módul
 - **Tipo**: Facturas
 - **Extensiones**: .csv
 - **Descripción**: Parser CSV para facturas/recibos
-- **Campos esperados**: 
+- **Campos esperados**:
   - invoice_number, issue_date, due_date
   - vendor, vendor_tax_id, vendor_country
   - buyer, buyer_tax_id

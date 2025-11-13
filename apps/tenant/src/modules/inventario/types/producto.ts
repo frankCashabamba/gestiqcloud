@@ -21,4 +21,3 @@ export type KardexEntry = {
   saldo: number
   referencia?: string
 }
-

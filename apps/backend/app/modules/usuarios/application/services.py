@@ -1,20 +1,17 @@
-﻿from typing import List
-
-from fastapi import HTTPException
-from sqlalchemy.orm import Session
-
 from app.core.security import get_password_hash
 from app.models import UsuarioEmpresa
 from app.modules.usuarios.application import validators as val
 from app.modules.usuarios.domain.models import UsuarioEmpresaAggregate
 from app.modules.usuarios.infrastructure import repositories as repo
 from app.modules.usuarios.infrastructure.schemas import (
+    ModuloOption,
+    RolEmpresaOption,
     UsuarioEmpresaCreate,
     UsuarioEmpresaOut,
     UsuarioEmpresaUpdate,
-    ModuloOption,
-    RolEmpresaOption,
 )
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
 
 
 def _aggregate(
@@ -53,7 +50,7 @@ def _to_schema(agg: UsuarioEmpresaAggregate) -> UsuarioEmpresaOut:
 
 def listar_usuarios_empresa(
     db: Session, tenant_id: int, include_inactivos: bool = True
-) -> List[UsuarioEmpresaOut]:
+) -> list[UsuarioEmpresaOut]:
     detalles = repo.load_detalle_usuarios(db, tenant_id)
     result: list[UsuarioEmpresaOut] = []
     for usuario, modulos, roles in detalles:
@@ -178,11 +175,11 @@ def check_username_availability(db: Session, username: str) -> bool:
     return repo.get_usuario_by_username(db, username) is None
 
 
-def listar_modulos_empresa(db: Session, tenant_id: int) -> List[ModuloOption]:
+def listar_modulos_empresa(db: Session, tenant_id: int) -> list[ModuloOption]:
     rows = repo.get_modulos_contratados(db, tenant_id)
     return [ModuloOption(**row) for row in rows]
 
 
-def listar_roles_empresa(db: Session, tenant_id: int) -> List[RolEmpresaOption]:
+def listar_roles_empresa(db: Session, tenant_id: int) -> list[RolEmpresaOption]:
     rows = repo.get_roles_empresa(db, tenant_id)
     return [RolEmpresaOption(**row) for row in rows]

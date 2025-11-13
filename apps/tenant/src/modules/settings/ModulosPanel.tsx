@@ -21,25 +21,25 @@ const AVAILABLE_MODULES: Module[] = [
   { id: 'invoicing', name: 'Facturación', icon: '📄', description: 'Gestión de facturas, presupuestos y albaranes', category: 'Ventas', enabled: true },
   { id: 'einvoicing', name: 'Factura Electrónica', icon: '⚡', description: 'Envío automático a SRI/AEAT', category: 'Ventas', enabled: false, dependencies: ['invoicing'] },
   { id: 'crm', name: 'CRM', icon: '👥', description: 'Gestión de clientes y oportunidades', category: 'Ventas', enabled: true },
-  
+
   // COMPRAS
   { id: 'purchases', name: 'Compras', icon: '📦', description: 'Órdenes de compra y proveedores', category: 'Compras', enabled: true },
   { id: 'expenses', name: 'Gastos', icon: '💳', description: 'Control de gastos y justificantes', category: 'Compras', enabled: true },
-  
+
   // OPERACIONES
   { id: 'inventory', name: 'Inventario', icon: '📊', description: 'Control de stock, lotes y almacenes', category: 'Operaciones', enabled: true },
   { id: 'imports', name: 'Importaciones', icon: '📥', description: 'Carga masiva de productos y catálogos', category: 'Operaciones', enabled: true },
   { id: 'warehouse', name: 'Almacenes', icon: '🏭', description: 'Gestión multi-almacén', category: 'Operaciones', enabled: false, dependencies: ['inventory'] },
-  
+
   // FINANZAS
   { id: 'accounting', name: 'Contabilidad', icon: '💰', description: 'Libro mayor y balance', category: 'Finanzas', enabled: false },
   { id: 'payments', name: 'Pagos Online', icon: '💳', description: 'Stripe, Kushki, PayPhone', category: 'Finanzas', enabled: true },
   { id: 'banking', name: 'Conciliación Bancaria', icon: '🏦', description: 'Sincronización con bancos', category: 'Finanzas', enabled: false },
-  
+
   // RRHH
   { id: 'hr', name: 'Recursos Humanos', icon: '👔', description: 'Empleados, nóminas, vacaciones', category: 'RRHH', enabled: false },
   { id: 'attendance', name: 'Control Horario', icon: '⏰', description: 'Fichajes y turnos', category: 'RRHH', enabled: false },
-  
+
   // MARKETING
   { id: 'campaigns', name: 'Campañas', icon: '📧', description: 'Email marketing y promociones', category: 'Marketing', enabled: false },
   { id: 'loyalty', name: 'Fidelización', icon: '🎁', description: 'Programas de puntos y descuentos', category: 'Marketing', enabled: false },
@@ -55,8 +55,8 @@ export default function ModulosPanel() {
   const categories = ['Todos', ...Array.from(new Set(modules.map(m => m.category)))]
 
   // Filtrar módulos por categoría
-  const filteredModules = activeTab === 'Todos' 
-    ? modules 
+  const filteredModules = activeTab === 'Todos'
+    ? modules
     : modules.filter(m => m.category === activeTab)
 
   // Cargar estado de módulos desde localStorage
@@ -92,7 +92,7 @@ export default function ModulosPanel() {
 
     // Verificar dependencias si se está desactivando
     if (!enabled && module.enabled) {
-      const dependents = modules.filter(m => 
+      const dependents = modules.filter(m =>
         m.enabled && m.dependencies?.includes(moduleId)
       )
       if (dependents.length > 0) {
@@ -121,7 +121,7 @@ export default function ModulosPanel() {
       }
     }
 
-    const updated = modules.map(m => 
+    const updated = modules.map(m =>
       m.id === moduleId ? { ...m, enabled } : m
     )
     setModules(updated)
@@ -139,7 +139,7 @@ export default function ModulosPanel() {
 
   // Guardar configuración de módulo
   const handleSaveConfig = async (moduleId: string, config: any) => {
-    const updated = modules.map(m => 
+    const updated = modules.map(m =>
       m.id === moduleId ? { ...m, config } : m
     )
     setModules(updated)

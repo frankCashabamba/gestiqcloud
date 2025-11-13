@@ -9,4 +9,3 @@ Summary
 
 Notes
 - Legacy columns (descripcion, precio_compra, iva_tasa, categoria, activo) are kept for now to avoid breaking unknown code paths. They can be dropped in a follow-up once confirmed unused.
-

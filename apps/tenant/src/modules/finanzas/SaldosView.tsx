@@ -101,13 +101,13 @@ export default function SaldosView() {
 
       <div className="bg-white border rounded-lg p-6">
         <h3 className="font-semibold text-lg mb-4">Distribución de Saldos</h3>
-        
+
         <div className="space-y-3">
           <div>
             <div className="flex justify-between text-sm mb-1">
               <span>Caja</span>
               <span className="font-medium">
-                {saldos.total_disponible > 0 
+                {saldos.total_disponible > 0
                   ? ((saldos.caja_total / saldos.total_disponible) * 100).toFixed(1)
                   : 0}%
               </span>
@@ -115,7 +115,7 @@ export default function SaldosView() {
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
                 className="bg-blue-600 h-2 rounded-full"
-                style={{ 
+                style={{
                   width: saldos.total_disponible > 0
                     ? `${(saldos.caja_total / saldos.total_disponible) * 100}%`
                     : '0%'
@@ -128,7 +128,7 @@ export default function SaldosView() {
             <div className="flex justify-between text-sm mb-1">
               <span>Bancos</span>
               <span className="font-medium">
-                {saldos.total_disponible > 0 
+                {saldos.total_disponible > 0
                   ? ((saldos.bancos_total / saldos.total_disponible) * 100).toFixed(1)
                   : 0}%
               </span>
@@ -136,7 +136,7 @@ export default function SaldosView() {
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
                 className="bg-green-600 h-2 rounded-full"
-                style={{ 
+                style={{
                   width: saldos.total_disponible > 0
                     ? `${(saldos.bancos_total / saldos.total_disponible) * 100}%`
                     : '0%'

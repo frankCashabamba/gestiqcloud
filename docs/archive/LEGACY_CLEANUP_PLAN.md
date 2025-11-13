@@ -1,6 +1,6 @@
 # Plan de Limpieza Legacy → Moderno
 
-**Fecha**: 2025-11-01  
+**Fecha**: 2025-11-01
 **Objetivo**: Eliminar duplicación de código legacy/moderno y estandarizar a esquema moderno
 
 ## Estado Actual
@@ -32,10 +32,10 @@ codigo = synonym("sku")
 precio = synonym("price")
 
 @property
-def stock_minimo(self): 
+def stock_minimo(self):
     return self.product_metadata.get("reorder_point") if self.product_metadata else None
 
-@property  
+@property
 def stock_maximo(self):
     return self.product_metadata.get("max_stock") if self.product_metadata else None
 ```
@@ -50,15 +50,15 @@ from sqlalchemy.orm import synonym
 class Tenant(Base):
     # Columnas reales: nombre, country_code
     #... existing fields ...
-    
+
     # Alias de compatibilidad
     name = synonym("nombre")
-    
+
     @property
     def country(self):
         return self.country_code
-    
-    @country.setter  
+
+    @country.setter
     def country(self, value):
         self.country_code = value
 ```
@@ -77,12 +77,12 @@ class Tenant(Base):
 ```python
 class StockItem(Base):
     qty: Mapped[float] = mapped_column("qty", Numeric(14,3), default=0)
-    
+
     # Alias legacy
     @property
     def qty_on_hand(self):
         return self.qty
-    
+
     @qty_on_hand.setter
     def qty_on_hand(self, value):
         self.qty = value

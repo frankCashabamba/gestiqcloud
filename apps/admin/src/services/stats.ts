@@ -22,4 +22,3 @@ export async function getAdminStats(): Promise<AdminStats> {
   const response = await api.get('/v1/admin/stats')
   return response.data
 }
-

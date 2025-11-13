@@ -1,6 +1,6 @@
 # Frontend Classify - Implementación Completada
 
-**Fecha:** 11/11/2025  
+**Fecha:** 11/11/2025
 **Estado:** ✅ Completado
 
 ## Archivos Creados
@@ -160,5 +160,5 @@ await classify(file) // Hook useClassifyFile
 ---
 
 ## Contacto
-Creado por: Sistema Amp  
+Creado por: Sistema Amp
 Fecha: 11/11/2025

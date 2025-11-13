@@ -26,5 +26,3 @@ jobs:
         run: python ops/ci/checks.py
       - name: Smoke
         run: python ops/ci/migrate.py
-
-

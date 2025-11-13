@@ -54,24 +54,24 @@ Crear las tablas necesarias para los módulos core del sistema ERP/CRM que ya ti
 
 ```sql
 -- Verificar que todas las tablas se crearon
-SELECT tablename FROM pg_tables 
-WHERE schemaname = 'public' 
+SELECT tablename FROM pg_tables
+WHERE schemaname = 'public'
 AND tablename IN (
   'ventas', 'proveedores', 'proveedor_contactos', 'proveedor_direcciones',
-  'compras', 'compra_lineas', 'gastos', 'caja_movimientos', 
+  'compras', 'compra_lineas', 'gastos', 'caja_movimientos',
   'banco_movimientos', 'empleados', 'vacaciones', 'tenant_settings'
 )
 ORDER BY tablename;
 
 -- Verificar RLS
-SELECT tablename, rowsecurity 
-FROM pg_tables 
-WHERE schemaname = 'public' 
+SELECT tablename, rowsecurity
+FROM pg_tables
+WHERE schemaname = 'public'
 AND tablename IN ('ventas', 'compras', 'gastos', 'empleados');
 
 -- Verificar triggers
-SELECT tgname, tgrelid::regclass 
-FROM pg_trigger 
+SELECT tgname, tgrelid::regclass
+FROM pg_trigger
 WHERE tgname LIKE 'update_%_updated_at';
 ```
 

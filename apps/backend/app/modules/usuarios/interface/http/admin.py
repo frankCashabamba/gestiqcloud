@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
 from uuid import UUID
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.core.security import get_password_hash
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
-
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/usuarios",  # se monta bajo /api/v1/admin desde build_api_router

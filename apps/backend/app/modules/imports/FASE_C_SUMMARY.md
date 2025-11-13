@@ -72,14 +72,14 @@ Agregados **16 nuevos tests**:
 ```
 1. Parser (Fase B)
    ↓ produce CanonicalDocument con doc_type
-   
+
 2. Validación Canónica (Fase C)
    ↓ validate_canonical(doc)
    ├─ Campos obligatorios según tipo
    ├─ Formatos (fechas, números, tax_id)
    ├─ Restricciones de valores (negativo, rango)
    └─ Totales y tax_breakdown
-   
+
 3. Despacho de Handler (Fase C)
    ↓ HandlersRouter.get_handler_for_type(doc_type)
    ├─ invoice → InvoiceHandler
@@ -87,7 +87,7 @@ Agregados **16 nuevos tests**:
    ├─ bank_tx → BankHandler
    ├─ product → ProductHandler ← NUEVO
    └─ expense → ExpenseHandler ← NUEVO
-   
+
 4. Promoción a Tabla Destino (Fase C)
    ↓ handler.promote(db, tenant_id, normalized_doc)
    ├─ Validaciones pre-inserción
@@ -95,7 +95,7 @@ Agregados **16 nuevos tests**:
    ├─ Generación automática de datos (SKU, números)
    ├─ Inicialización de stock (para productos)
    └─ Inserción atómica
-   
+
 5. Resultado
    ↓ PromoteResult(domain_id, skipped)
    └─ Registro en ImportItem + ImportLineage
@@ -169,11 +169,11 @@ Actualizar `task_import_file()` en `services.py`:
 ```python
 def task_import_file(import_batch_id, parser_id, file_key):
     # ... código existente ...
-    
+
     for item_data in parser_result['items']:
         # ✅ NUEVO: Validación canónica
         is_valid, errors = validate_canonical(item_data)
-        
+
         if is_valid:
             # ✅ NUEVO: Despacho dinámico
             promote_result = HandlersRouter.promote_canonical(
@@ -213,7 +213,7 @@ def test_product_import_flow():
        # ...
        "mynewtype",  # ← AGREGAR
    ]
-   
+
    class MyNewTypeInfo(TypedDict, total=False):
        field1: str
        field2: float

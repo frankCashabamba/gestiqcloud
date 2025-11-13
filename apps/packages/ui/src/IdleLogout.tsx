@@ -24,4 +24,3 @@ export default function IdleLogout({ timeoutMs = 15 * 60_000, onLogout, events =
 
   return null
 }
-

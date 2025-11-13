@@ -3,4 +3,3 @@ BEGIN;
 DROP TABLE IF EXISTS core_pais;
 
 COMMIT;
-

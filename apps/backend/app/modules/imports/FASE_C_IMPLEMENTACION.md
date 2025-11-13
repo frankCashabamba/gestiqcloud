@@ -232,11 +232,11 @@ def task_import_file(import_batch_id, parser_id, file_key):
     # 1. Parse (Fase B)
     parser = registry.get_parser(parser_id)
     result = parser['handler'](file_path)  # Retorna items con doc_type
-    
+
     # 2. Validate (Fase C)
     for item in result['items']:
         is_valid, errors = validate_canonical(item)
-        
+
         # 3. Promote (Fase C)
         if is_valid:
             handler = HandlersRouter.get_handler_for_type(item['doc_type'])

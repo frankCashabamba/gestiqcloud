@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
+
 from celery import Celery
-from app.telemetry.otel import init_celery
 from celery.schedules import crontab
+
+from app.telemetry.otel import init_celery
 
 
 def _redis_url() -> str:
@@ -26,12 +28,8 @@ celery_app.conf.update(
     },
     task_routes={
         "apps.backend.app.modules.einvoicing.tasks.sign_and_send": {"queue": "sri"},
-        "apps.backend.app.modules.einvoicing.tasks.build_and_send_sii": {
-            "queue": "sii"
-        },
-        "apps.backend.app.modules.einvoicing.tasks.scheduled_build_sii": {
-            "queue": "sii"
-        },
+        "apps.backend.app.modules.einvoicing.tasks.build_and_send_sii": {"queue": "sii"},
+        "apps.backend.app.modules.einvoicing.tasks.scheduled_build_sii": {"queue": "sii"},
         "apps.backend.app.modules.einvoicing.tasks.scheduled_retry": {"queue": "sii"},
         "apps.backend.app.modules.webhooks.tasks.deliver": {"queue": "default"},
     },

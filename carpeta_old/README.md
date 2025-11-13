@@ -41,5 +41,5 @@ Esta carpeta contiene documentación histórica del proyecto GestiQCloud.
 
 ---
 
-**Última actualización:** 06 Noviembre 2025  
+**Última actualización:** 06 Noviembre 2025
 **Estado:** Archivo histórico - Solo lectura

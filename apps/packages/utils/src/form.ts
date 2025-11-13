@@ -6,4 +6,3 @@ export function formToFormData(obj: Record<string, any>) {
   })
   return fd
 }
-

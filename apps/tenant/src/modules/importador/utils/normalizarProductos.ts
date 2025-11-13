@@ -60,4 +60,3 @@ export function normalizarProductos(rows: Row[]): Record<string, unknown>[] {
     }
   })
 }
-

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import pytest
-from uuid import uuid4
 from unittest.mock import MagicMock, patch
-from app.modules.imports.application.tasks.task_preprocess import preprocess_item
+from uuid import uuid4
+
+import pytest
 from app.modules.imports.application.tasks.task_classify import _classify_document
+from app.modules.imports.application.tasks.task_preprocess import preprocess_item
 
 
 def test_preprocess_validates_file_size():
@@ -47,9 +48,7 @@ def test_classify_document_returns_desconocido():
 
 
 def test_classify_document_banco():
-    ocr_result = {
-        "documentos": [{"texto": "EXTRACTO BANCARIO IBAN ES12 3456 SALDO 1000"}]
-    }
+    ocr_result = {"documentos": [{"texto": "EXTRACTO BANCARIO IBAN ES12 3456 SALDO 1000"}]}
 
     result = _classify_document(ocr_result)  # noqa: F841
     assert result == "banco"

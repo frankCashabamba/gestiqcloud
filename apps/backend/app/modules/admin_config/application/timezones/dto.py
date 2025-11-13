@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
 class TimezoneIn:
     name: str
     display_name: str
-    offset_minutes: Optional[int] = None
+    offset_minutes: int | None = None
     active: bool = True
 
 
@@ -16,5 +15,5 @@ class TimezoneIn:
 class TimezoneOut:
     name: str
     display_name: str
-    offset_minutes: Optional[int]
+    offset_minutes: int | None
     active: bool

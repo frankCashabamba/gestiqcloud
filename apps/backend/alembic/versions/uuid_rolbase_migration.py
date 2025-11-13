@@ -5,8 +5,8 @@ Revises: uuid_migration_001
 Create Date: 2025-11-12 10:00:00.000000
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
@@ -45,11 +45,11 @@ def upgrade() -> None:
         """
     )
 
-    op.execute("ALTER TABLE core_rolempresa DROP CONSTRAINT IF EXISTS core_rolempresa_rol_base_id_fkey")
-    op.drop_column("core_rolempresa", "rol_base_id")
-    op.alter_column(
-        "core_rolempresa", "rol_base_id_uuid", new_column_name="rol_base_id"
+    op.execute(
+        "ALTER TABLE core_rolempresa DROP CONSTRAINT IF EXISTS core_rolempresa_rol_base_id_fkey"
     )
+    op.drop_column("core_rolempresa", "rol_base_id")
+    op.alter_column("core_rolempresa", "rol_base_id_uuid", new_column_name="rol_base_id")
 
     op.execute("ALTER TABLE core_rolbase DROP CONSTRAINT IF EXISTS core_rolbase_pkey")
     op.drop_column("core_rolbase", "id")

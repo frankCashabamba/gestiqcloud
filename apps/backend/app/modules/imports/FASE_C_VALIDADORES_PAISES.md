@@ -46,17 +46,17 @@ from .error_catalog import ERROR_CATALOG, ValidationError
 
 class CountryValidator(ABC):
     """Clase base para validadores fiscales por país."""
-    
+
     @abstractmethod
     def validate_tax_id(self, tax_id: str) -> List[ValidationError]:
         """Valida formato e integridad de identificación fiscal."""
         pass
-    
+
     @abstractmethod
     def validate_tax_rates(self, rates: List[float]) -> List[ValidationError]:
         """Valida que las tasas de impuesto sean legales."""
         pass
-    
+
     @abstractmethod
     def validate_invoice_number(self, number: str) -> List[ValidationError]:
         """Valida formato de numeración de factura."""
@@ -134,14 +134,14 @@ errors = validator.validate_tax_rates([21.0])  # IVA estándar España
 ```python
 class ARValidator(CountryValidator):
     """Validador para Argentina (AFIP)."""
-    
+
     # Definir tasas válidas
     VALID_IVA_RATES = [0.0, 10.5, 21.0, 27.0]
-    
+
     def validate_tax_id(self, tax_id: str) -> List[ValidationError]:
         """CUIT: 11 dígitos con validación de dígito verificador."""
         errors = []
-        
+
         # Validar formato
         if not re.match(r'^\d{11}$', tax_id):
             errors.append(
@@ -152,7 +152,7 @@ class ARValidator(CountryValidator):
                 )
             )
             return errors
-        
+
         # Validar dígito verificador (algoritmo AFIP)
         if not self._validate_cuit_dv(tax_id):
             errors.append(
@@ -162,9 +162,9 @@ class ARValidator(CountryValidator):
                     {"tax_id": tax_id, "country": "AR"}
                 )
             )
-        
+
         return errors
-    
+
     def validate_tax_rates(self, rates: List[float]) -> List[ValidationError]:
         """Validar tasas IVA."""
         errors = []
@@ -178,12 +178,12 @@ class ARValidator(CountryValidator):
                     )
                 )
         return errors
-    
+
     def validate_invoice_number(self, number: str) -> List[ValidationError]:
         """Validar número de comprobante."""
         # Implementar según normas AFIP
         return []
-    
+
     def _validate_cuit_dv(self, cuit: str) -> bool:
         """Validar dígito verificador del CUIT."""
         # Implementar algoritmo AFIP
@@ -228,19 +228,19 @@ from app.modules.imports.validators.country_validators import ARValidator
 
 class TestARValidator:
     """Tests para validador de Argentina."""
-    
+
     def test_validate_valid_cuit(self):
         """CUIT válido."""
         validator = ARValidator()
         errors = validator.validate_tax_id("20123456781")
         assert len(errors) == 0
-    
+
     def test_validate_invalid_cuit_format(self):
         """CUIT con formato incorrecto."""
         validator = ARValidator()
         errors = validator.validate_tax_id("12345678")
         assert len(errors) > 0
-    
+
     def test_validate_invalid_cuit_dv(self):
         """CUIT con dígito verificador incorrecto."""
         validator = ARValidator()
@@ -258,7 +258,7 @@ Mapea tipos de documento a handlers:
 
 ```python
 class HandlersRouter:
-    
+
     HANDLER_MAP = {
         "invoice": InvoiceHandler,
         "expense_receipt": ExpenseHandler,
@@ -269,23 +269,23 @@ class HandlersRouter:
         "recibo": ExpenseHandler,
         "transferencia": BankHandler,
     }
-    
+
     ROUTING_TARGET_MAP = {
         "invoice": "invoices",
         "expense_receipt": "expenses",
         "bank_tx": "bank_movements",
         "product": "inventory",
     }
-    
+
     @classmethod
     def promote_canonical(cls, db, tenant_id, canonical_doc, **kwargs):
         """Promocionar documento a tabla destino."""
         doc_type = canonical_doc.get("doc_type", "other")
         handler_class = cls.get_handler_for_type(doc_type)
-        
+
         if not handler_class:
             return {"domain_id": None, "target": "unknown", "skipped": False}
-        
+
         # Instanciar y ejecutar handler
         handler = handler_class()
         return handler.handle(db, tenant_id, canonical_doc, **kwargs)
@@ -300,16 +300,16 @@ class HandlersRouter:
 ```python
 class ShipmentHandler:
     """Handler para envíos/logística."""
-    
+
     def handle(self, db: Session, tenant_id: UUID, canonical_doc: Dict) -> PromoteResult:
         """
         Procesar documento de envío.
-        
+
         Inserta en tabla de shipments con validaciones.
         """
         try:
             shipment_data = self._extract_shipment_data(canonical_doc)
-            
+
             # Crear registro
             shipment = Shipment(
                 tenant_id=tenant_id,
@@ -317,7 +317,7 @@ class ShipmentHandler:
             )
             db.add(shipment)
             db.flush()
-            
+
             return PromoteResult(
                 domain_id=str(shipment.id),
                 target="shipments",
@@ -330,7 +330,7 @@ class ShipmentHandler:
                 skipped=False,
                 error=str(e),
             )
-    
+
     def _extract_shipment_data(self, canonical_doc: Dict) -> Dict:
         """Extraer datos relevantes del documento canónico."""
         return {
@@ -350,7 +350,7 @@ class HandlersRouter:
         # ... existentes ...
         "shipment": ShipmentHandler,
     }
-    
+
     ROUTING_TARGET_MAP = {
         # ... existentes ...
         "shipment": "shipments",
@@ -362,23 +362,23 @@ class HandlersRouter:
 ```python
 def validate_canonical(data: dict) -> Tuple[bool, List[str]]:
     # ... validaciones existentes ...
-    
+
     if doc_type == "shipment":
         errors.extend(_validate_shipment(data))
-    
+
     # ...
 
 def _validate_shipment(data: dict) -> List[str]:
     """Validar bloque shipment."""
     errors = []
     shipment = data.get("shipment", {})
-    
+
     if not shipment.get("tracking_number"):
         errors.append("shipment: tracking_number es obligatorio")
-    
+
     if not shipment.get("carrier"):
         errors.append("shipment: carrier es obligatorio")
-    
+
     return errors
 ```
 
@@ -432,12 +432,12 @@ def import_document(
     country: str,
 ) -> dict:
     """Importar y promocionar documento."""
-    
+
     # 1. Validación canónica
     is_valid, errors = validate_canonical(canonical_doc)
     if not is_valid:
         return {"success": False, "errors": errors}
-    
+
     # 2. Validación por país (si aplica)
     country_validator = get_validator_for_country(country)
     if country_validator:
@@ -446,22 +446,22 @@ def import_document(
             errors = country_validator.validate_tax_id(vendor["tax_id"])
             if errors:
                 return {"success": False, "errors": [e.message for e in errors]}
-        
+
         if canonical_doc.get("totals", {}).get("tax_breakdown"):
             rates = [t["rate"] for t in canonical_doc["totals"]["tax_breakdown"]]
             errors = country_validator.validate_tax_rates(rates)
             if errors:
                 return {"success": False, "errors": [e.message for e in errors]}
-    
+
     # 3. Enrutamiento y promoción
     result = HandlersRouter.promote_canonical(
         db=db,
         tenant_id=tenant_id,
         canonical_doc=canonical_doc,
     )
-    
+
     db.commit()
-    
+
     return {
         "success": True,
         "domain_id": result["domain_id"],

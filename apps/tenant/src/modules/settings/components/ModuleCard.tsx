@@ -25,8 +25,8 @@ export default function ModuleCard({ module, onToggle, onClick }: ModuleCardProp
       className={`
         relative p-5 rounded-lg border-2 transition-all cursor-pointer
         hover:shadow-lg hover:-translate-y-1
-        ${module.enabled 
-          ? 'border-green-500 bg-green-50' 
+        ${module.enabled
+          ? 'border-green-500 bg-green-50'
           : 'border-gray-300 bg-gray-50 opacity-75'
         }
       `}
@@ -36,8 +36,8 @@ export default function ModuleCard({ module, onToggle, onClick }: ModuleCardProp
         <span
           className={`
             px-2 py-1 text-xs font-semibold rounded-full
-            ${module.enabled 
-              ? 'bg-green-600 text-white' 
+            ${module.enabled
+              ? 'bg-green-600 text-white'
               : 'bg-gray-400 text-white'
             }
           `}
@@ -78,8 +78,8 @@ export default function ModuleCard({ module, onToggle, onClick }: ModuleCardProp
           className={`
             relative inline-flex h-6 w-11 items-center rounded-full
             transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2
-            ${module.enabled 
-              ? 'bg-green-600 focus:ring-green-500' 
+            ${module.enabled
+              ? 'bg-green-600 focus:ring-green-500'
               : 'bg-gray-300 focus:ring-gray-400'
             }
           `}

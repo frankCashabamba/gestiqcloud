@@ -1,10 +1,10 @@
-﻿"""Module: schemas.py
+"""Module: schemas.py
 
 Auto-generated module docstring."""
 
-from typing import Annotated, Any, List, Literal, Optional, Union
+from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # Esquema para lineas
@@ -15,7 +15,7 @@ class LineaBase(BaseModel):
     description: str
     cantidad: float
     precio_unitario: float
-    iva: Optional[float] = 0
+    iva: float | None = 0
 
 
 # 🥖 Línea panadería
@@ -51,9 +51,7 @@ class LineaTallerOut(LineaTaller):
 
 # 🎯 Unión de tipos posibles
 LineaFacturaIn = Union[LineaPanaderia, LineaTaller]
-LineaFacturaOut = Annotated[
-    Union[LineaPanaderiaOut, LineaTallerOut], Field(discriminator="sector")
-]
+LineaFacturaOut = Annotated[LineaPanaderiaOut | LineaTallerOut, Field(discriminator="sector")]
 
 
 # facturas
@@ -71,14 +69,14 @@ class InvoiceCreate(BaseModel):
     """Class InvoiceCreate - auto-generated docstring."""
 
     numero: str
-    proveedor: Optional[str] = None
+    proveedor: str | None = None
     fecha_emision: str
     estado: str
     subtotal: float
     iva: float
     total: float
     cliente_id: str
-    lineas: List[LineaFacturaIn]
+    lineas: list[LineaFacturaIn]
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -93,7 +91,7 @@ class InvoiceOut(BaseModel):
     iva: float
     total: float
     cliente: ClienteSchema
-    lineas: List[LineaFacturaOut]  # polimórficas
+    lineas: list[LineaFacturaOut]  # polimórficas
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -101,10 +99,10 @@ class InvoiceOut(BaseModel):
 class InvoiceUpdate(BaseModel):
     """Class InvoiceUpdate - auto-generated docstring."""
 
-    estado: Optional[str]
-    proveedor: Optional[str]
-    fecha_emision: Optional[str]
-    lineas: Optional[List[LineaFacturaIn]]
+    estado: str | None
+    proveedor: str | None
+    fecha_emision: str | None
+    lineas: list[LineaFacturaIn] | None
 
 
 # fiiin

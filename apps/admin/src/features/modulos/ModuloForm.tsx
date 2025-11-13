@@ -97,4 +97,3 @@ export default function ModuloForm({ mode }: { mode: 'create' | 'edit' }) {
     </div>
   )
 }
-

@@ -182,7 +182,7 @@ Flujo mejorado a 6 pasos:
 ```python
 class ImportTemplate(Base):
     __tablename__ = 'import_templates'
-    
+
     id = Column(UUID, primary_key=True, default=uuid4)
     tenant_id = Column(UUID, ForeignKey('tenants.id'), nullable=False)
     name = Column(String(255), nullable=False)
@@ -214,19 +214,19 @@ import asyncio
 @router.websocket("/ws/imports/progress/{batch_id}")
 async def import_progress_ws(websocket: WebSocket, batch_id: str):
     await websocket.accept()
-    
+
     try:
         while True:
             # Obtener estado del batch desde Redis o DB
             progress = await get_batch_progress(batch_id)
-            
+
             await websocket.send_json(progress)
-            
+
             if progress['status'] in ['completed', 'error']:
                 break
-                
+
             await asyncio.sleep(1)  # Actualizar cada segundo
-            
+
     except Exception as e:
         await websocket.close(code=1011, reason=str(e))
 ```
@@ -275,7 +275,7 @@ http://localhost:5173/importador
 
 ### 4. Probar plantillas del sistema:
 - 🍞 Panadería - Productos
-- 🛍️ Bazar - Productos  
+- 🛍️ Bazar - Productos
 - 📄 Factura Genérica
 
 ---
@@ -393,7 +393,7 @@ VITE_WS_URL=ws://localhost:8000
 - [ ] Tests unitarios
 - [ ] Documentación de usuario
 
-**Estado**: Frontend 100% completo ✅  
+**Estado**: Frontend 100% completo ✅
 **Bloqueadores**: Backend endpoints (501)
 
 ---
@@ -402,11 +402,11 @@ VITE_WS_URL=ws://localhost:8000
 
 El **Importador Visual Mejorado** está completamente implementado en frontend con todas las funcionalidades solicitadas:
 
-✅ Auto-detección inteligente (Levenshtein)  
-✅ Preview en vivo  
-✅ Drag & Drop  
-✅ Gestión de plantillas  
-✅ Progreso en tiempo real  
-✅ UX/UI profesional  
+✅ Auto-detección inteligente (Levenshtein)
+✅ Preview en vivo
+✅ Drag & Drop
+✅ Gestión de plantillas
+✅ Progreso en tiempo real
+✅ UX/UI profesional
 
 **Próximo paso**: Implementar endpoints backend para desbloquear funcionalidad completa.

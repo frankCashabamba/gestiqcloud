@@ -4,19 +4,15 @@ Verifica todo el pipeline con RLS activo.
 """
 
 import uuid
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 
 import pytest
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
 from app.models.core.modelsimport import ImportItem, ImportLineage
-from app.modules.imports.application.use_cases import (
-    create_batch,
-    ingest_file,
-    promote_batch,
-)
+from app.modules.imports.application.use_cases import create_batch, ingest_file, promote_batch
 
 
 @pytest.fixture(scope="function")
@@ -48,12 +44,7 @@ def test_tenant_ec(db_session: Session) -> dict:
 @pytest.fixture
 def factura_ec_sample() -> Path:
     """Path a factura Ecuador de muestra."""
-    return (
-        Path(__file__).parent.parent
-        / "fixtures"
-        / "documents"
-        / "factura_ec_sample.pdf"
-    )
+    return Path(__file__).parent.parent / "fixtures" / "documents" / "factura_ec_sample.pdf"
 
 
 def test_full_pipeline_invoice_ec(
@@ -103,10 +94,7 @@ def test_full_pipeline_invoice_ec(
     # 3. Simular tasks de Celery (sin cola en test)
     # En producción: tasks.extract_item.apply_async(item.id)
     # Aquí llamamos directamente a la lógica
-    from app.modules.imports.application.use_cases import (
-        extract_item_sync,
-        validate_item_sync,
-    )
+    from app.modules.imports.application.use_cases import extract_item_sync, validate_item_sync
 
     # Extract
     extract_item_sync(db_session, tenant_id, str(item.id))
@@ -165,9 +153,7 @@ def test_pipeline_duplicate_detection(
     sha256 = "deterministic_hash_12345"
 
     # Primera ingesta
-    item1 = ingest_file(
-        db_session, tenant_id, batch.id, file_key, "factura.pdf", 1024, sha256
-    )
+    item1 = ingest_file(db_session, tenant_id, batch.id, file_key, "factura.pdf", 1024, sha256)
     assert item1.status == "preprocessing"
 
     # Segunda ingesta (mismo hash)

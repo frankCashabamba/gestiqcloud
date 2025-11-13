@@ -29,4 +29,3 @@ export const PerdidasGanancias: React.FC = () => {
     </div>
   )
 }
-

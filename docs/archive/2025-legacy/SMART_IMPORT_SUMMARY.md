@@ -198,15 +198,15 @@ curl -X POST "http://localhost:8000/api/v1/imports/column-mappings" \
 
 ## ✨ Estado Actual
 
-**Backend:** ✅ 100% Operativo  
-**Frontend:** 📝 30% (código de referencia completo en docs)  
-**Testing:** ✅ Manual completo  
+**Backend:** ✅ 100% Operativo
+**Frontend:** 📝 30% (código de referencia completo en docs)
+**Testing:** ✅ Manual completo
 **Producción:** ⚠️ Pendiente UI + tests automatizados
 
 **Estimación para MVP completo:** 1-2 días (solo frontend)
 
 ---
 
-**Fecha:** 28 Octubre 2025  
-**Versión:** 1.0.0  
+**Fecha:** 28 Octubre 2025
+**Versión:** 1.0.0
 **Estado:** Beta - Backend Production-Ready

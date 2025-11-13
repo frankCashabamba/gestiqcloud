@@ -3,7 +3,8 @@ Factory para crear tenants de prueba con RLS configurado.
 """
 
 import uuid
-from typing import Dict, Any
+from typing import Any
+
 from sqlalchemy.orm import Session
 
 
@@ -14,7 +15,7 @@ def create_test_tenant(
     fiscal_id: str = None,
     legal_name: str = None,
     slug: str = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Crea un tenant de prueba y configura RLS.
 
@@ -60,7 +61,7 @@ def create_test_tenant(
     }
 
 
-def create_tenant_ec(db: Session) -> Dict[str, Any]:
+def create_tenant_ec(db: Session) -> dict[str, Any]:
     """Atajo para tenant Ecuador."""
     return create_test_tenant(
         db,
@@ -70,7 +71,7 @@ def create_tenant_ec(db: Session) -> Dict[str, Any]:
     )
 
 
-def create_tenant_es(db: Session) -> Dict[str, Any]:
+def create_tenant_es(db: Session) -> dict[str, Any]:
     """Atajo para tenant España."""
     return create_test_tenant(
         db,
@@ -89,9 +90,7 @@ def cleanup_tenant(db: Session, tenant_id: uuid.UUID):
 
     # Borrar en orden inverso por FK
     db.execute("DELETE FROM import_lineage WHERE tenant_id = :tid", {"tid": tenant_id})
-    db.execute(
-        "DELETE FROM import_item_corrections WHERE tenant_id = :tid", {"tid": tenant_id}
-    )
+    db.execute("DELETE FROM import_item_corrections WHERE tenant_id = :tid", {"tid": tenant_id})
     db.execute("DELETE FROM import_items WHERE tenant_id = :tid", {"tid": tenant_id})
     db.execute("DELETE FROM import_batches WHERE tenant_id = :tid", {"tid": tenant_id})
     db.execute("DELETE FROM tenants WHERE id = :tid", {"tid": tenant_id})

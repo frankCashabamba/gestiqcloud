@@ -49,7 +49,7 @@ export const DeleteEmpresaModal: React.FC<Props> = ({ empresa, onClose, onConfir
   if (result) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
-        <div 
+        <div
           className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl"
           onClick={e => e.stopPropagation()}
         >
@@ -59,11 +59,11 @@ export const DeleteEmpresaModal: React.FC<Props> = ({ empresa, onClose, onConfir
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            
+
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
               ✅ Empresa Eliminada
             </h2>
-            
+
             <p className="text-gray-600 mb-4">
               <strong>{result.name}</strong> ha sido eliminada completamente del sistema.
             </p>
@@ -98,7 +98,7 @@ export const DeleteEmpresaModal: React.FC<Props> = ({ empresa, onClose, onConfir
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
-      <div 
+      <div
         className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
@@ -110,7 +110,7 @@ export const DeleteEmpresaModal: React.FC<Props> = ({ empresa, onClose, onConfir
               </svg>
             </div>
           </div>
-          
+
           <div className="flex-1">
             <h2 className="text-xl font-bold text-gray-900 mb-1">
               ⚠️ Eliminar Empresa

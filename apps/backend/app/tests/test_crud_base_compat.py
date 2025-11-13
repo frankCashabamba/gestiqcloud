@@ -1,11 +1,7 @@
-from typing import Optional
-
+from app.core.crud_base import CRUDBase
 from pydantic import BaseModel
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import Session, declarative_base
-
-from app.core.crud_base import CRUDBase
-
 
 Base = declarative_base()
 
@@ -21,7 +17,7 @@ class ItemCreate(BaseModel):
 
 
 class ItemUpdate(BaseModel):
-    name: Optional[str] = None
+    name: str | None = None
 
 
 def test_crud_base_compatibility(db: Session):

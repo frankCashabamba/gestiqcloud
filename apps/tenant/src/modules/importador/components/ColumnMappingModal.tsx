@@ -59,11 +59,11 @@ export default function ColumnMappingModal({
   useEffect(() => {
     console.log('🔍 ColumnMappingModal - suggestedMapping:', suggestedMapping)
     console.log('🔍 ColumnMappingModal - detectedColumns:', detectedColumns)
-    
+
     // 🎯 Si el mapping tiene "name" y al menos 2 campos más, es bueno
     const mappedFields = Object.values(suggestedMapping).filter(v => v !== 'ignore')
     const hasName = mappedFields.includes('name')
-    
+
     if (hasName && mappedFields.length >= 2) {
       console.log('✅ Mapeo completo detectado, auto-confirmando...')
       setAutoConfirming(true)
@@ -72,7 +72,7 @@ export default function ColumnMappingModal({
         onConfirm(suggestedMapping)
       }, 1500)
     }
-    
+
     setMapping(suggestedMapping)
   }, [suggestedMapping, detectedColumns])
 
@@ -150,7 +150,7 @@ export default function ColumnMappingModal({
               </div>
             </div>
           )}
-          
+
           {/* Selector de mapeo guardado */}
           {savedMappings.length > 0 && (
             <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
@@ -177,7 +177,7 @@ export default function ColumnMappingModal({
             <h3 className="text-sm font-medium text-gray-700 mb-3">
               Relaciona las columnas de tu Excel con los campos del sistema:
             </h3>
-            
+
             {detectedColumns.map((excelCol, idx) => (
               <div
                 key={idx}
@@ -202,8 +202,8 @@ export default function ColumnMappingModal({
                     value={mapping[excelCol] || ''}
                     onChange={(e) => setMapping({ ...mapping, [excelCol]: e.target.value })}
                     className={`w-full border rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      mapping[excelCol] === 'name' 
-                        ? 'border-green-500 bg-green-50' 
+                      mapping[excelCol] === 'name'
+                        ? 'border-green-500 bg-green-50'
                         : mapping[excelCol] === 'ignore'
                         ? 'border-gray-300 bg-gray-50'
                         : mapping[excelCol]
@@ -213,8 +213,8 @@ export default function ColumnMappingModal({
                   >
                     <option value="">Seleccionar campo...</option>
                     {TARGET_FIELDS.map(f => (
-                      <option 
-                        key={f.value} 
+                      <option
+                        key={f.value}
                         value={f.value}
                         disabled={f.value !== 'ignore' && isFieldMapped(f.value) && mapping[excelCol] !== f.value}
                       >
@@ -311,7 +311,7 @@ export default function ColumnMappingModal({
               </span>
             )}
           </div>
-          
+
           <div className="flex gap-3">
             <button
               onClick={onClose}

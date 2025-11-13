@@ -6,4 +6,3 @@ export default function PlantillaToEmpresaRedirect() {
   if (!slug) return <Navigate to="/" replace />
   return <Navigate to={`/${slug}`} replace />
 }
-
