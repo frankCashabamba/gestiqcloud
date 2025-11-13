@@ -14,7 +14,6 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  Grid,
   Divider,
   Alert,
   CircularProgress,
@@ -27,6 +26,7 @@ import {
   DialogContent,
   DialogActions,
 } from '@mui/material';
+import Grid from '@mui/material/Grid';
 import {
   Save as SaveIcon,
   RestartAlt as RestartIcon,
