@@ -24,13 +24,14 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session):
     )
     from app.models.inventory.stock import StockMove, StockItem
 
-    tid = str(_uuid.uuid4())
+    tid = _uuid.uuid4()
+    tid_str = str(tid)
 
     # Ensure tenant exists and set session GUC for RLS-aware SQL
     try:
         db.execute(
             text(
-                "INSERT INTO tenants(id, tenant_id, slug) VALUES (CAST(:id AS uuid), 1, 'acme-pos') ON CONFLICT (tenant_id) DO NOTHING"
+                "INSERT INTO tenants(id, tenant_id, slug) VALUES (:id, 1, 'acme-pos') ON CONFLICT (tenant_id) DO NOTHING"
             ),
             {"id": tid},
         )
@@ -43,10 +44,10 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session):
     if eng.dialect.name != "postgresql":
         pytest.skip("Postgres-specific smoke test (RLS + SET LOCAL)")
 
-    db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": tid})
+    db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": tid_str})
 
     class _State:
-        access_claims = {"tenant_id": tid, "user_id": "tester"}
+        access_claims = {"tenant_id": tid_str, "user_id": "tester"}
 
     class _Req:
         state = _State()
@@ -81,7 +82,7 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session):
     mv = (
         db.query(StockMove)
         .filter(
-            StockMove.tenant_id == tid,
+            StockMove.tenant_id == tid_str,
             StockMove.ref_type == "pos_receipt",
             StockMove.ref_id == str(rid),
         )

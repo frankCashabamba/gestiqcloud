@@ -19,12 +19,13 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session):
 
     # Arrange: ensure tenants table has a row mapping tenant_id 1 to a UUID
     tid = _uuid.uuid4()
+    tid_str = str(tid)
     try:
         db.execute(
             text(
-                "INSERT INTO tenants(id, tenant_id, slug) VALUES (CAST(:id AS uuid), 1, 'acme') ON CONFLICT (tenant_id) DO NOTHING"
+                "INSERT INTO tenants(id, tenant_id, slug) VALUES (:id, 1, 'acme') ON CONFLICT (tenant_id) DO NOTHING"
             ),
-            {"id": str(tid)},
+            {"id": tid},
         )
         db.commit()
     except Exception:
@@ -43,7 +44,7 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session):
 
     # Build a minimal request with access_claims
     class _State:
-        access_claims = {"tenant_id": str(tid), "user_id": "tester"}
+        access_claims = {"tenant_id": tid_str, "user_id": "tester"}
 
     class _Req:
         state = _State()
@@ -56,7 +57,7 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session):
     mv = (
         db.query(StockMove)
         .filter(
-            StockMove.tenant_id == str(tid),
+            StockMove.tenant_id == tid_str,
             StockMove.ref_type == "sales_order",
             StockMove.ref_id == str(so.id),
         )
