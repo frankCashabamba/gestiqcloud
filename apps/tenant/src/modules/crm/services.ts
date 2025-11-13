@@ -16,6 +16,22 @@ import type {
   CRMDashboard,
 } from './types'
 
+export type {
+  Lead,
+  Opportunity,
+  Activity,
+  CreateLeadRequest,
+  UpdateLeadRequest,
+  ConvertLeadRequest,
+  CreateOpportunityRequest,
+  UpdateOpportunityRequest,
+  CreateActivityRequest,
+  LeadListParams,
+  OpportunityListParams,
+  ActivityListParams,
+  CRMDashboard,
+} from './types'
+
 function buildQueryParams(params?: Record<string, any>): string {
   if (!params) return ''
   const filtered = Object.entries(params).filter(([_, v]) => v !== undefined && v !== null)
