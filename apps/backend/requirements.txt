@@ -37,7 +37,7 @@ Pygments==2.19.2
 PyMySQL==1.1.1
 pytest==8.4.1
 pytest-asyncio==1.0.0
-python-dotenv==1.1.1
+python-dotenv==1.2.1
 python-multipart==0.0.20
 python-slugify==8.0.4
 PyYAML>=6.0.2,<7.0
