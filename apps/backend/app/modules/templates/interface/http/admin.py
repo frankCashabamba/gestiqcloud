@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -22,7 +22,11 @@ router = APIRouter(
 
 @router.get("/packages", response_model=list[dict])
 def list_packages(db: Session = Depends(get_db)):
-    rows = db.execute(text("SELECT template_key, version FROM template_packages ORDER BY template_key, version"))
+    rows = db.execute(
+        text(
+            "SELECT template_key, version FROM template_packages ORDER BY template_key, version"
+        )
+    )
     return [{"template_key": r[0], "version": r[1]} for r in rows]
 
 
@@ -60,9 +64,7 @@ class OverlayIn(BaseModel):
 def create_overlay(payload: OverlayIn, db: Session = Depends(get_db)):
     # Load or default limits
     lim = db.execute(
-        text(
-            "SELECT limits FROM template_policies WHERE tenant_id=CAST(:tid AS uuid)"
-        ),
+        text("SELECT limits FROM template_policies WHERE tenant_id=CAST(:tid AS uuid)"),
         {"tid": payload.tenant_id},
     ).scalar() or {"max_fields": 15, "max_bytes": 8192, "max_depth": 2}
     try:
@@ -78,7 +80,12 @@ def create_overlay(payload: OverlayIn, db: Session = Depends(get_db)):
             RETURNING id
             """
         ),
-        {"tid": payload.tenant_id, "name": payload.name, "cfg": payload.config, "active": bool(payload.activate)},
+        {
+            "tid": payload.tenant_id,
+            "name": payload.name,
+            "cfg": payload.config,
+            "active": bool(payload.activate),
+        },
     ).first()
     db.commit()
     return {"id": str(row[0])}
@@ -86,6 +93,9 @@ def create_overlay(payload: OverlayIn, db: Session = Depends(get_db)):
 
 @router.post("/overlays/{overlay_id}/activate", response_model=dict)
 def activate_overlay(overlay_id: str, db: Session = Depends(get_db)):
-    db.execute(text("UPDATE template_overlays SET active=true WHERE id=CAST(:id AS uuid)"), {"id": overlay_id})
+    db.execute(
+        text("UPDATE template_overlays SET active=true WHERE id=CAST(:id AS uuid)"),
+        {"id": overlay_id},
+    )
     db.commit()
     return {"ok": True}

@@ -1,16 +1,26 @@
-import tenantApi from '../../shared/api/client'
-import { TENANT_USUARIOS } from '@shared/endpoints'
+﻿import tenantApi from '../../shared/api/client'
+import { TENANT_USUARIOS, TENANT_ROLES } from '@shared/endpoints'
 import type {
   Usuario,
   UsuarioCreatePayload,
   UsuarioUpdatePayload,
   ModuloOption,
   RolOption,
+  Rol,
 } from './types'
+
+// Payloads para roles
+export type RolCreatePayload = {
+  name: string
+  descripcion?: string
+  permisos: Record<string, boolean>
+}
+
+export type RolUpdatePayload = Partial<RolCreatePayload>
 
 export async function listUsuarios(): Promise<Usuario[]> {
   const { data } = await tenantApi.get<Usuario[]>(TENANT_USUARIOS.base)
-  return data ?? []
+  return Array.isArray(data) ? data : []
 }
 
 export async function getUsuario(id: number | string): Promise<Usuario> {
@@ -49,4 +59,29 @@ export async function checkUsernameAvailability(username: string): Promise<boole
 
 export async function setUsuarioPassword(id: number | string, password: string): Promise<void> {
   await tenantApi.post(TENANT_USUARIOS.setPassword(id), { password })
+}
+
+// Gestión de Roles
+export async function listRoles(): Promise<Rol[]> {
+  const { data } = await tenantApi.get<Rol[]>(TENANT_ROLES.base)
+  return Array.isArray(data) ? data : []
+}
+
+export async function getRol(id: number | string): Promise<Rol> {
+  const { data } = await tenantApi.get<Rol>(TENANT_ROLES.byId(id))
+  return data
+}
+
+export async function createRol(payload: RolCreatePayload): Promise<Rol> {
+  const { data } = await tenantApi.post<Rol>(TENANT_ROLES.base, payload)
+  return data
+}
+
+export async function updateRol(id: number | string, payload: RolUpdatePayload): Promise<Rol> {
+  const { data } = await tenantApi.patch<Rol>(TENANT_ROLES.byId(id), payload)
+  return data
+}
+
+export async function deleteRol(id: number | string): Promise<void> {
+  await tenantApi.delete(TENANT_ROLES.byId(id))
 }

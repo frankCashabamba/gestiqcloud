@@ -1,5 +1,4 @@
-
-from fastapi import Depends, HTTPException
+﻿from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.routers.protected import get_current_user
@@ -9,16 +8,20 @@ from app.models.empresa.usuario_rolempresa import UsuarioRolempresa
 from app.models.empresa.rolempresas import RolEmpresa
 
 
-def require_empresa_admin(current_user: AuthenticatedUser = Depends(get_current_user)) -> AuthenticatedUser:
+def require_empresa_admin(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> AuthenticatedUser:
     if current_user.is_superadmin or getattr(current_user, "es_admin_empresa", False):
         return current_user
-    raise HTTPException(status_code=403, detail="Se requieren privilegios de administrador de empresa.")
+    raise HTTPException(
+        status_code=403, detail="Se requieren privilegios de administrador de empresa."
+    )
 
 
-def ensure_empresa_scope(user: AuthenticatedUser, empresa_id: int) -> None:
+def ensure_empresa_scope(user: AuthenticatedUser, tenant_id: int) -> None:
     if user.is_superadmin:
         return
-    if user.empresa_id != empresa_id:
+    if user.tenant_id != tenant_id:
         raise HTTPException(status_code=403, detail="No tiene acceso a esta empresa.")
 
 
@@ -26,6 +29,7 @@ def ensure_empresa_scope(user: AuthenticatedUser, empresa_id: int) -> None:
 # Por ahora, delegamos en require_empresa_admin para mantener el comportamiento
 # estricto. Si en el futuro se agregan permisos por rol, cambia aquí la lógica
 # para validar permisos específicos (p. ej. "usuarios:create").
+
 
 def _flatten_perms(perms: dict) -> set[str]:
     out: set[str] = set()
@@ -42,19 +46,22 @@ def _flatten_perms(perms: dict) -> set[str]:
 
 def _has_perm(db: Session, user: AuthenticatedUser, perm_key: str) -> bool:
     # Superadmin o admin de empresa: acceso total
-    if getattr(user, "is_superadmin", False) or getattr(user, "es_admin_empresa", False):
+    if getattr(user, "is_superadmin", False) or getattr(
+        user, "es_admin_empresa", False
+    ):
         return True
-    empresa_id = getattr(user, "empresa_id", None)
+    tenant_id = getattr(user, "tenant_id", None)
     user_id = getattr(user, "user_id", None)
-    if not empresa_id or not user_id:
+    if not tenant_id or not user_id:
         return False
     role_ids = [
-        rid for (rid,) in (
+        rid
+        for (rid,) in (
             db.query(UsuarioRolempresa.rol_id)
             .filter(
-                UsuarioRolempresa.empresa_id == empresa_id,
+                UsuarioRolempresa.tenant_id == tenant_id,
                 UsuarioRolempresa.usuario_id == int(user_id),
-                UsuarioRolempresa.activo.is_(True),
+                UsuarioRolempresa.active.is_(True),
             )
             .all()
         )
@@ -63,7 +70,7 @@ def _has_perm(db: Session, user: AuthenticatedUser, perm_key: str) -> bool:
         return False
     rows = (
         db.query(RolEmpresa.permisos)
-        .filter(RolEmpresa.id.in_(role_ids), RolEmpresa.empresa_id == empresa_id)
+        .filter(RolEmpresa.id.in_(role_ids), RolEmpresa.tenant_id == tenant_id)
         .all()
     )
     acc: set[str] = set()
@@ -73,31 +80,37 @@ def _has_perm(db: Session, user: AuthenticatedUser, perm_key: str) -> bool:
     return perm_key in acc
 
 
-def _require_perm(perm_key: str, db: Session, current_user: AuthenticatedUser) -> AuthenticatedUser:
+def _require_perm(
+    perm_key: str, db: Session, current_user: AuthenticatedUser
+) -> AuthenticatedUser:
     if _has_perm(db, current_user, perm_key):
         return current_user
     raise HTTPException(status_code=403, detail="forbidden")
 
 
 def require_perm_create_tenant_user(
-    db: Session = Depends(get_db), current_user: AuthenticatedUser = Depends(get_current_user)
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> AuthenticatedUser:
     return _require_perm("usuarios:create", db, current_user)
 
 
 def require_perm_update_tenant_user(
-    db: Session = Depends(get_db), current_user: AuthenticatedUser = Depends(get_current_user)
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> AuthenticatedUser:
     return _require_perm("usuarios:update", db, current_user)
 
 
 def require_perm_delete_tenant_user(
-    db: Session = Depends(get_db), current_user: AuthenticatedUser = Depends(get_current_user)
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> AuthenticatedUser:
     return _require_perm("usuarios:delete", db, current_user)
 
 
 def require_perm_set_password_tenant_user(
-    db: Session = Depends(get_db), current_user: AuthenticatedUser = Depends(get_current_user)
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> AuthenticatedUser:
     return _require_perm("usuarios:set_password", db, current_user)

@@ -21,15 +21,27 @@ export const ADMIN_EMPRESAS = {
 }
 
 export const ADMIN_MODULOS_EMPRESA = {
-  base: (empresaId: number | string) => `/v1/admin/modulos/empresa/${empresaId}`,
-  upsert: (empresaId: number | string) => `/v1/admin/modulos/empresa/${empresaId}/upsert`,
-  remove: (empresaId: number | string, moduloId: number | string) => `/v1/admin/modulos/empresa/${empresaId}/modulo/${moduloId}`,
+  base: (tenantId: number | string) => `/v1/admin/modulos/empresa/${tenantId}`,
+  upsert: (tenantId: number | string) => `/v1/admin/modulos/empresa/${tenantId}/upsert`,
+  remove: (tenantId: number | string, moduloId: number | string) => `/v1/admin/modulos/empresa/${tenantId}/modulo/${moduloId}`,
 }
 
 export const ADMIN_CONFIG = {
   monedas: {
     base: '/v1/admin/config/moneda',
     byId: (id: number | string) => `/v1/admin/config/moneda/${id}`,
+  },
+  paises: {
+    base: '/v1/admin/config/pais',
+    byId: (id: number | string) => `/v1/admin/config/pais/${id}`,
+  },
+  timezones: {
+    base: '/v1/admin/config/timezone',
+    byId: (name: string) => `/v1/admin/config/timezone/${encodeURIComponent(name)}`,
+  },
+  locales: {
+    base: '/v1/admin/config/locale',
+    byId: (code: string) => `/v1/admin/config/locale/${encodeURIComponent(code)}`,
   },
   idiomas: {
     base: '/v1/admin/config/idioma',
@@ -58,11 +70,11 @@ export const ADMIN_CONFIG = {
 
 export const ADMIN_USUARIOS = {
   base: '/v1/admin/usuarios',
-  byId: (id: number | string) => `/v1/admin/usuarios/${id}`,
-  reenviarReset: (id: number | string) => `/v1/admin/usuarios/${id}/reenviar-reset`,
-  activar: (id: number | string) => `/v1/admin/usuarios/${id}/activar`,
-  desactivar: (id: number | string) => `/v1/admin/usuarios/${id}/desactivar`,
-  desactivarEmpresa: (id: number | string) => `/v1/admin/usuarios/${id}/desactivar-empresa`,
-  asignarNuevoAdmin: (id: number | string) => `/v1/admin/usuarios/${id}/asignar-nuevo-admin`,
-  setPassword: (id: number | string) => `/v1/admin/usuarios/${id}/set-password`,
+  byId: (id: string) => `/v1/admin/usuarios/${id}`,
+  reenviarReset: (id: string) => `/v1/admin/usuarios/${id}/reenviar-reset`,
+  activar: (id: string) => `/v1/admin/usuarios/${id}/activar`,
+  desactivar: (id: string) => `/v1/admin/usuarios/${id}/desactivar`,
+  desactivarEmpresa: (id: string) => `/v1/admin/usuarios/${id}/desactivar-empresa`,
+  asignarNuevoAdmin: (id: string) => `/v1/admin/usuarios/${id}/asignar-nuevo-admin`,
+  setPassword: (id: string) => `/v1/admin/usuarios/${id}/set-password`,
 }

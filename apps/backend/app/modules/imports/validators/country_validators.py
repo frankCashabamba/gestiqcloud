@@ -22,9 +22,7 @@ class CountryValidator(ABC):
         """Valida formato de numeración de factura."""
         pass
 
-    def _create_error(
-        self, code: str, field: str, params: dict
-    ) -> ValidationError:
+    def _create_error(self, code: str, field: str, params: dict) -> ValidationError:
         """Helper para crear errores formateados desde el catálogo."""
         catalog_entry = ERROR_CATALOG[code]
         return ValidationError(
@@ -40,12 +38,24 @@ class ECValidator(CountryValidator):
     """Validador para Ecuador (SRI)."""
 
     VALID_IVA_RATES = [0.0, 12.0, 15.0]
-    VALID_ICE_RATES = [5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 75.0, 100.0, 150.0, 300.0]
+    VALID_ICE_RATES = [
+        5.0,
+        10.0,
+        15.0,
+        20.0,
+        25.0,
+        30.0,
+        35.0,
+        75.0,
+        100.0,
+        150.0,
+        300.0,
+    ]
 
     def validate_tax_id(self, tax_id: str) -> List[ValidationError]:
         """Valida RUC ecuatoriano (13 dígitos, módulo 11)."""
         errors = []
-        
+
         if not tax_id or not tax_id.strip():
             return [
                 self._create_error(
@@ -56,7 +66,7 @@ class ECValidator(CountryValidator):
             ]
 
         tax_id = tax_id.strip()
-        
+
         if not re.match(r"^\d{13}$", tax_id):
             errors.append(
                 self._create_error(
@@ -87,7 +97,7 @@ class ECValidator(CountryValidator):
             return False
 
         tipo = int(ruc[2])
-        
+
         if tipo < 6:
             coef = [2, 1, 2, 1, 2, 1, 2, 1, 2]
             digito_verificador = int(ruc[9])
@@ -112,14 +122,14 @@ class ECValidator(CountryValidator):
             residuo = suma % 11
             esperado = 0 if residuo == 0 else 11 - residuo
             return digito_verificador == esperado
-        
+
         return False
 
     def validate_tax_rates(self, rates: List[float]) -> List[ValidationError]:
         """Valida tasas de IVA e ICE para Ecuador."""
         errors = []
         valid_all = self.VALID_IVA_RATES + self.VALID_ICE_RATES
-        
+
         for rate in rates:
             if rate not in valid_all:
                 errors.append(
@@ -133,13 +143,13 @@ class ECValidator(CountryValidator):
                         },
                     )
                 )
-        
+
         return errors
 
     def validate_invoice_number(self, number: str) -> List[ValidationError]:
         """Valida formato XXX-XXX-XXXXXXXXX de factura ecuatoriana."""
         errors = []
-        
+
         if not number or not number.strip():
             return [
                 self._create_error(
@@ -150,7 +160,7 @@ class ECValidator(CountryValidator):
             ]
 
         number = number.strip()
-        
+
         if not re.match(r"^\d{3}-\d{3}-\d{9}$", number):
             errors.append(
                 self._create_error(
@@ -162,13 +172,13 @@ class ECValidator(CountryValidator):
                     },
                 )
             )
-        
+
         return errors
 
     def validate_clave_acceso(self, clave: str) -> List[ValidationError]:
         """Valida clave de acceso SRI (49 dígitos, módulo 11)."""
         errors = []
-        
+
         if not clave or not clave.strip():
             return [
                 self._create_error(
@@ -179,7 +189,7 @@ class ECValidator(CountryValidator):
             ]
 
         clave = clave.strip()
-        
+
         if not re.match(r"^\d{49}$", clave):
             errors.append(
                 self._create_error(
@@ -198,20 +208,20 @@ class ECValidator(CountryValidator):
                     {"value": clave},
                 )
             )
-        
+
         return errors
 
     def _validate_clave_checksum(self, clave: str) -> bool:
         """Valida dígito verificador de clave de acceso (módulo 11)."""
         if len(clave) != 49:
             return False
-        
+
         coef = [2, 3, 4, 5, 6, 7] * 8
         digito_verificador = int(clave[48])
         suma = sum(int(clave[i]) * coef[i] for i in range(48))
         residuo = suma % 11
         esperado = 0 if residuo == 0 else 11 - residuo
-        
+
         return digito_verificador == esperado
 
 
@@ -223,7 +233,7 @@ class ESValidator(CountryValidator):
     def validate_tax_id(self, tax_id: str) -> List[ValidationError]:
         """Valida NIF/CIF/NIE español con letra de control."""
         errors = []
-        
+
         if not tax_id or not tax_id.strip():
             return [
                 self._create_error(
@@ -234,7 +244,7 @@ class ESValidator(CountryValidator):
             ]
 
         tax_id = tax_id.strip().upper()
-        
+
         if re.match(r"^[0-9]{8}[A-Z]$", tax_id):
             if not self._validate_nif(tax_id):
                 errors.append(
@@ -273,7 +283,7 @@ class ESValidator(CountryValidator):
                     },
                 )
             )
-        
+
         return errors
 
     def _validate_nif(self, nif: str) -> bool:
@@ -294,21 +304,19 @@ class ESValidator(CountryValidator):
     def _validate_cif(self, cif: str) -> bool:
         """Valida CIF español."""
         pares = sum(int(cif[i]) for i in range(2, 8, 2))
-        impares = sum(
-            sum(divmod(int(cif[i]) * 2, 10)) for i in range(1, 8, 2)
-        )
+        impares = sum(sum(divmod(int(cif[i]) * 2, 10)) for i in range(1, 8, 2))
         suma = pares + impares
         unidad = suma % 10
         control = (10 - unidad) % 10
-        
+
         letra_control = "JABCDEFGHI"[control]
-        
+
         return cif[8] == str(control) or cif[8] == letra_control
 
     def validate_tax_rates(self, rates: List[float]) -> List[ValidationError]:
         """Valida tasas de IVA para España."""
         errors = []
-        
+
         for rate in rates:
             if rate not in self.VALID_IVA_RATES:
                 errors.append(
@@ -318,17 +326,19 @@ class ESValidator(CountryValidator):
                         {
                             "rate": rate,
                             "country": "España",
-                            "valid_rates": ", ".join(f"{r}%" for r in self.VALID_IVA_RATES),
+                            "valid_rates": ", ".join(
+                                f"{r}%" for r in self.VALID_IVA_RATES
+                            ),
                         },
                     )
                 )
-        
+
         return errors
 
     def validate_invoice_number(self, number: str) -> List[ValidationError]:
         """Valida formato alfanumérico libre de factura española."""
         errors = []
-        
+
         if not number or not number.strip():
             return [
                 self._create_error(
@@ -339,7 +349,7 @@ class ESValidator(CountryValidator):
             ]
 
         number = number.strip()
-        
+
         if not re.match(r"^[A-Z0-9\-/]{1,30}$", number, re.IGNORECASE):
             errors.append(
                 self._create_error(
@@ -351,7 +361,7 @@ class ESValidator(CountryValidator):
                     },
                 )
             )
-        
+
         return errors
 
 
@@ -361,12 +371,12 @@ def get_validator_for_country(country_code: str) -> CountryValidator:
         "EC": ECValidator,
         "ES": ESValidator,
     }
-    
+
     validator_class = validators.get(country_code.upper())
     if not validator_class:
         raise ValueError(
             f"No hay validador disponible para el país: {country_code}. "
             f"Países soportados: {', '.join(validators.keys())}"
         )
-    
+
     return validator_class()

@@ -1,194 +1,190 @@
-import React, { useEffect, useMemo, useState } from 'react'
+ï»¿import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { listProveedores, removeProveedor, type Proveedor } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 
-const sortKeys = [
-  { key: 'nombre', label: 'Nombre legal' },
-  { key: 'nombre_comercial', label: 'Nombre comercial' },
-  { key: 'nif', label: 'NIF/CIF' },
-] as const
-
-const SORT_KEY_DEFAULT = 'nombre'
-
-type SortKey = 'nombre' | 'nombre_comercial' | 'nif'
-
-const ARROW_ASC = '?'
-const ARROW_DESC = '?'
-
-function formatPais(value?: string | null) {
-  if (!value) return '-'
-  return value.toUpperCase()
-}
-
-function formatMetodoPago(value?: string | null) {
-  if (!value) return '-'
-  return value.replace(/_/g, ' ')
-}
-
 export default function ProveedoresList() {
   const [items, setItems] = useState<Proveedor[]>([])
   const [loading, setLoading] = useState(false)
   const [errMsg, setErrMsg] = useState<string | null>(null)
+  const [q, setQ] = useState('')
+  const [filterActivo, setFilterActivo] = useState<'all' | 'active' | 'inactive'>('active')
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
-  const [q, setQ] = useState('')
 
   useEffect(() => {
-    (async () => {
+    let cancelled = false
+    ;(async () => {
       try {
         setLoading(true)
         const data = await listProveedores()
+        if (cancelled) return
         setItems(data)
       } catch (e: any) {
+        if (cancelled) return
         const m = getErrorMessage(e)
         setErrMsg(m)
         toastError(m)
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     })()
-  }, [toastError])
-
-  const [sortKey, setSortKey] = useState<SortKey>(SORT_KEY_DEFAULT)
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
-  const [per, setPer] = useState(10)
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const filtered = useMemo(() => {
-    const query = q.trim().toLowerCase()
-    if (!query) return items
-    return items.filter((p) => {
-      const campos = [
-        p.nombre,
-        p.nombre_comercial || '',
-        p.nif || '',
-        p.email || '',
-        p.telefono || '',
-      ]
-      return campos.some((value) => value.toLowerCase().includes(query))
-    })
-  }, [items, q])
+    let result = items
 
-  const sorted = useMemo(() => {
-    const dir = sortDir === 'asc' ? 1 : -1
-    return [...filtered].sort((a, b) => {
-      const av = ((a as any)[sortKey] || '').toString().toLowerCase()
-      const bv = ((b as any)[sortKey] || '').toString().toLowerCase()
-      if (av < bv) return -1 * dir
-      if (av > bv) return 1 * dir
-      return 0
-    })
-  }, [filtered, sortKey, sortDir])
+    // Filtro activo/inactivo
+    if (filterActivo === 'active') {
+      result = result.filter((p) => p.active !== false)
+    } else if (filterActivo === 'inactive') {
+      result = result.filter((p) => p.active === false)
+    }
 
-  const { page, setPage, totalPages, view, setPerPage } = usePagination(sorted, per)
-  useEffect(() => setPerPage(per), [per, setPerPage])
+    // BÃºsqueda por texto
+    const term = q.toLowerCase()
+    if (term) {
+      result = result.filter((p) => {
+        const nombre = (p.name || '').toLowerCase()
+        const nombreComercial = (p.nombre_comercial || '').toLowerCase()
+        const nif = (p.nif || '').toLowerCase()
+        const email = (p.email || '').toLowerCase()
+        return (
+          nombre.includes(term) ||
+          nombreComercial.includes(term) ||
+          nif.includes(term) ||
+          email.includes(term)
+        )
+      })
+    }
 
-  const toggleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'))
-    } else {
-      setSortKey(key)
-      setSortDir('asc')
+    return result
+  }, [items, q, filterActivo])
+
+  const { page, setPage, totalPages, view } = usePagination(filtered, 15)
+
+  const handleRemove = async (id: number | string) => {
+    if (!confirm('Â¿Desactivar este proveedor?')) return
+    try {
+      await removeProveedor(id)
+      setItems((prev) => prev.filter((p) => p.id !== id))
+      success('Proveedor desactivado')
+    } catch (e: any) {
+      toastError(getErrorMessage(e))
     }
   }
 
   return (
-    <div className="p-4">
-      <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
-        <h2 className="font-semibold text-lg text-slate-800">Proveedores</h2>
-        <button
-          className="gc-button gc-button--primary"
-          onClick={() => nav('nuevo')}
-        >
-          Nuevo proveedor
+    <div className="p-4 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Proveedores</h2>
+          <p className="text-sm text-slate-500">
+            Gestiona tu red de proveedores, contactos y direcciones de envÃ­o.
+          </p>
+        </div>
+        <button className="gc-button gc-button--primary" onClick={() => nav('nuevo')}>
+          + Nuevo Proveedor
         </button>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-3">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar por nombre, NIF, email o teléfono"
-          className="w-full sm:max-w-sm px-3 py-2 border border-slate-200 rounded-lg text-sm"
+          placeholder="Buscar por nombre, NIF, email..."
+          className="w-full max-w-md rounded-xl border border-slate-200 px-4 py-2 text-sm"
         />
-        <label className="text-sm text-slate-600 flex items-center gap-2">
-          Por página
-          <select
-            value={per}
-            onChange={(e) => setPer(Number(e.target.value))}
-            className="border border-slate-200 rounded px-2 py-1"
-          >
-            <option value={10}>10</option>
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-          </select>
-        </label>
+        <select
+          value={filterActivo}
+          onChange={(e) => setFilterActivo(e.target.value as any)}
+          className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+        >
+          <option value="all">Todos</option>
+          <option value="active">Activos</option>
+          <option value="inactive">Inactivos</option>
+        </select>
       </div>
 
-      {loading && <div className="text-sm text-slate-500">Cargando proveedores…</div>}
+      {loading && <div className="text-sm text-slate-500">Cargando proveedoresâ€¦</div>}
       {errMsg && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 mb-4">
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">
           {errMsg}
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
         <table className="min-w-full text-sm">
-          <thead>
-            <tr className="text-left border-b border-slate-200 bg-slate-50">
-              {sortKeys.map(({ key, label }) => (
-                <th key={key} className="px-3 py-2">
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 font-medium text-slate-600 hover:text-slate-900"
-                    onClick={() => toggleSort(key as SortKey)}
-                  >
-                    {label}
-                    {sortKey === key ? <span>{sortDir === 'asc' ? ARROW_ASC : ARROW_DESC}</span> : null}
-                  </button>
-                </th>
-              ))}
-              <th className="px-3 py-2">País</th>
-              <th className="px-3 py-2">Email</th>
-              <th className="px-3 py-2">Método pago</th>
-              <th className="px-3 py-2">Acciones</th>
+          <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-4 py-3">CÃ³digo</th>
+              <th className="px-4 py-3">Nombre / RazÃ³n Social</th>
+              <th className="px-4 py-3">NIF / Tax ID</th>
+              <th className="px-4 py-3">Email</th>
+              <th className="px-4 py-3">TelÃ©fono</th>
+              <th className="px-4 py-3">PaÃ­s</th>
+              <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
             {view.map((p) => (
-              <tr key={p.id} className="border-b border-slate-100">
-                <td className="px-3 py-2">{p.nombre}</td>
-                <td className="px-3 py-2 text-slate-600">{p.nombre_comercial || '—'}</td>
-                <td className="px-3 py-2">{p.nif || '—'}</td>
-                <td className="px-3 py-2">{formatPais(p.pais)}</td>
-                <td className="px-3 py-2">{p.email || '—'}</td>
-                <td className="px-3 py-2">{formatMetodoPago(p.metodo_pago)}</td>
-                <td className="px-3 py-2 flex gap-2">
-                  <Link to={`${p.id}/editar`} className="text-blue-600 hover:underline">Editar</Link>
-                  <button
-                    type="button"
-                    className="text-red-600 hover:underline"
-                    onClick={async () => {
-                      if (!confirm('¿Eliminar proveedor?')) return
-                      try {
-                        await removeProveedor(p.id)
-                        setItems((prev) => prev.filter((x) => x.id !== p.id))
-                        success('Proveedor eliminado')
-                      } catch (e: any) {
-                        toastError(getErrorMessage(e))
-                      }
-                    }}
+              <tr key={p.id} className="border-t border-slate-100 hover:bg-slate-50">
+                <td className="px-4 py-3 font-mono text-xs text-slate-600">
+                  PRV-{String(p.id).padStart(5, '0')}
+                </td>
+                <td className="px-4 py-3">
+                  <Link
+                    to={`${p.id}`}
+                    className="font-medium text-blue-600 hover:text-blue-500 hover:underline"
                   >
-                    Eliminar
-                  </button>
+                    {p.name}
+                  </Link>
+                  {p.nombre_comercial && (
+                    <div className="text-xs text-slate-500">{p.nombre_comercial}</div>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-slate-600">{p.nif || 'â€”'}</td>
+                <td className="px-4 py-3 text-slate-600">{p.email || 'â€”'}</td>
+                <td className="px-4 py-3 text-slate-600">{p.phone || 'â€”'}</td>
+                <td className="px-4 py-3 text-slate-600">{p.pais || 'â€”'}</td>
+                <td className="px-4 py-3">
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                      p.active !== false
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : 'bg-slate-100 text-slate-500'
+                    }`}
+                  >
+                    {p.active !== false ? 'Activo' : 'Inactivo'}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <div className="flex flex-wrap items-center justify-end gap-3">
+                    <Link
+                      to={`${p.id}/editar`}
+                      className="text-sm font-medium text-blue-600 hover:text-blue-500"
+                    >
+                      Editar
+                    </Link>
+                    <button
+                      className="text-sm font-medium text-rose-600 hover:text-rose-500"
+                      onClick={() => handleRemove(p.id)}
+                    >
+                      Desactivar
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
-            {!loading && !view.length && (
+            {!loading && view.length === 0 && (
               <tr>
-                <td className="px-3 py-6 text-center text-slate-500" colSpan={7}>
-                  No se encontraron proveedores.
+                <td className="px-4 py-6 text-center text-sm text-slate-500" colSpan={8}>
+                  No se encontraron proveedores con ese filtro.
                 </td>
               </tr>
             )}

@@ -3,7 +3,6 @@ from __future__ import annotations
 import uuid as _uuid
 
 from sqlalchemy.orm import Session
-import uuid as _uuid
 import pytest
 
 
@@ -18,12 +17,12 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session):
     if eng.dialect.name != "postgresql":
         pytest.skip("Postgres-specific smoke test")
 
-    # Arrange: ensure tenants table has a row mapping empresa_id 1 to a UUID
+    # Arrange: ensure tenants table has a row mapping tenant_id 1 to a UUID
     tid = _uuid.uuid4()
     try:
         db.execute(
             text(
-                "INSERT INTO tenants(id, empresa_id, slug) VALUES (:id::uuid, 1, 'acme') ON CONFLICT (empresa_id) DO NOTHING"
+                "INSERT INTO tenants(id, tenant_id, slug) VALUES (:id::uuid, 1, 'acme') ON CONFLICT (tenant_id) DO NOTHING"
             ),
             {"id": str(tid)},
         )
@@ -35,7 +34,11 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session):
     so = SalesOrder(tenant_id=tid, customer_id=None, status="draft")
     db.add(so)
     db.flush()
-    db.add(SalesOrderItem(tenant_id=tid, order_id=so.id, product_id=1, qty=2, unit_price=10))
+    db.add(
+        SalesOrderItem(
+            tenant_id=tid, order_id=so.id, product_id=1, qty=2, unit_price=10
+        )
+    )
     db.commit()
 
     # Build a minimal request with access_claims
@@ -52,7 +55,11 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session):
     # Assert: there is at least one tentative reserve move for this tenant/order
     mv = (
         db.query(StockMove)
-        .filter(StockMove.tenant_id == str(tid), StockMove.ref_type == "sales_order", StockMove.ref_id == str(so.id))
+        .filter(
+            StockMove.tenant_id == str(tid),
+            StockMove.ref_type == "sales_order",
+            StockMove.ref_id == str(so.id),
+        )
         .first()
     )
     assert mv is not None

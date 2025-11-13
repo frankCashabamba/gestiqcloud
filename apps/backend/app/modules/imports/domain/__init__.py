@@ -3,6 +3,7 @@ Dominio del módulo de importación documental.
 
 Incluye schema canónico SPEC-1, validadores y handlers.
 """
+
 from __future__ import annotations
 
 from .canonical_schema import (
@@ -18,8 +19,6 @@ from .canonical_schema import (
     validate_canonical,
     validate_totals,
     validate_tax_breakdown,
-    convert_legacy_to_canonical,
-    detect_and_convert,
     build_routing_proposal,
     VALID_DOC_TYPES,
     VALID_COUNTRIES,
@@ -39,8 +38,6 @@ __all__ = [
     "validate_canonical",
     "validate_totals",
     "validate_tax_breakdown",
-    "convert_legacy_to_canonical",
-    "detect_and_convert",
     "build_routing_proposal",
     "VALID_DOC_TYPES",
     "VALID_COUNTRIES",

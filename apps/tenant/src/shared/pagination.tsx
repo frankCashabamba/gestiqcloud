@@ -10,17 +10,17 @@ export function usePagination<T>(items: T[], perPageDefault = 10) {
   return { page, setPage, perPage, setPerPage, totalPages, view }
 }
 
-type Props = { page: number; setPage: (p: number)=>void; totalPages: number }
-export function Pagination({ page, setPage, totalPages }: Props) {
+type Props = { page: number; totalPages: number; onPageChange?: (p: number)=>void; setPage?: (p: number)=>void; className?: string }
+export function Pagination({ page, setPage, onPageChange, totalPages, className }: Props) {
   if (totalPages <= 1) return null
-  const prev = () => setPage(Math.max(1, page - 1))
-  const next = () => setPage(Math.min(totalPages, page + 1))
+  const set = onPageChange || setPage || (()=>{})
+  const prev = () => set(Math.max(1, page - 1))
+  const next = () => set(Math.min(totalPages, page + 1))
   return (
-    <div className="flex items-center gap-2 text-sm mt-3">
+    <div className={`flex items-center gap-2 text-sm mt-3 ${className || ''}`}>
       <button className="px-2 py-1 border rounded" onClick={prev} disabled={page===1}>Prev</button>
       <span>Página {page} de {totalPages}</span>
       <button className="px-2 py-1 border rounded" onClick={next} disabled={page===totalPages}>Next</button>
     </div>
   )
 }
-

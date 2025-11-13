@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
+from app.db.rls import tenant_id_from_request
 from app.config.database import get_db
 from app.db.rls import ensure_rls
 
@@ -21,7 +22,11 @@ except Exception:
 router = APIRouter(
     prefix="/webhooks",
     tags=["Webhooks"],
-    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant")), Depends(ensure_rls)],
+    dependencies=[
+        Depends(with_access_claims),
+        Depends(require_scope("tenant")),
+        Depends(ensure_rls),
+    ],
 )
 
 
@@ -45,7 +50,11 @@ def create_subscription(payload: SubCreate, db: Session = Depends(get_db)):
 
 @router.get("/subscriptions", response_model=list[dict])
 def list_subscriptions(db: Session = Depends(get_db)):
-    rows = db.execute(text("SELECT id::text AS id, event, url, active, created_at FROM webhook_subscriptions"))
+    rows = db.execute(
+        text(
+            "SELECT id::text AS id, event, url, active, created_at FROM webhook_subscriptions"
+        )
+    )
     return [dict(r) for r in rows.mappings().all()]
 
 
@@ -55,11 +64,12 @@ class DeliverIn(BaseModel):
 
 
 @router.post("/deliveries", response_model=dict)
-def enqueue_delivery(payload: DeliverIn, db: Session = Depends(get_db)):
-    # Enqueue one delivery per active subscription
-    tid = tenant_id_from_request(request)
+def enqueue_delivery(payload: DeliverIn, request: Request, db: Session = Depends(get_db)):
+    # Enqueue one delivery per active subscription  
+    _tid = tenant_id_from_request(request)
     subs = db.execute(
-        text("SELECT id, url FROM webhook_subscriptions WHERE event=:e AND active"), {"e": payload.event}
+        text("SELECT id, url FROM webhook_subscriptions WHERE event=:e AND active"),
+        {"e": payload.event},
     ).fetchall()
     if not subs:
         return {"enqueued": 0}
@@ -73,6 +83,8 @@ def enqueue_delivery(payload: DeliverIn, db: Session = Depends(get_db)):
         ).first()
         count += 1
         if celery_app:
-            celery_app.send_task("apps.backend.app.modules.webhooks.tasks.deliver", args=[str(row[0])])
+            celery_app.send_task(
+                "apps.backend.app.modules.webhooks.tasks.deliver", args=[str(row[0])]
+            )
     db.commit()
     return {"enqueued": count}

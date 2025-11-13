@@ -1,11 +1,13 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.api.email.email_utils import reenviar_correo_reset
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
+from app.models.tenant import Tenant as Empresa
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 
@@ -26,26 +28,31 @@ def listar_usuarios(db: Session = Depends(get_db)):
         .limit(500)
         .all()
     )
+
     def to_item(u: UsuarioEmpresa):
         nombre = f"{getattr(u, 'nombre_encargado', '')} {getattr(u, 'apellido_encargado', '')}".strip()
         return {
-            "id": u.id,
+            # Forzar string para evitar clientes que tiparon number
+            "id": str(u.id) if hasattr(u, "id") else None,
             "nombre": nombre,
             "email": getattr(u, "email", None),
             "es_admin": False,
             "es_admin_empresa": True,
             "activo": bool(getattr(u, "activo", False)),
         }
+
     return [to_item(u) for u in rows]
 
 
 @router.post("/{usuario_id}/reenviar-reset")
-def reenviar_reset(usuario_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def reenviar_reset(
+    usuario_id: UUID, background_tasks: BackgroundTasks, db: Session = Depends(get_db)
+):
     """Reenvía el correo de restablecimiento de contraseña.
 
     En desarrollo, si EMAIL_DEV_LOG_ONLY=true (o falta SMTP), se imprime en logs el enlace de reset.
     """
-    usuario = db.query(UsuarioEmpresa).get(usuario_id)
+    usuario = db.query(UsuarioEmpresa).filter(UsuarioEmpresa.id == usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
@@ -57,41 +64,40 @@ def reenviar_reset(usuario_id: int, background_tasks: BackgroundTasks, db: Sessi
 
 
 @router.post("/{usuario_id}/activar")
-def activar_usuario(usuario_id: int, db: Session = Depends(get_db)):
-    u = db.query(UsuarioEmpresa).get(usuario_id)
+def activar_usuario(usuario_id: UUID, db: Session = Depends(get_db)):
+    u = db.query(UsuarioEmpresa).filter(UsuarioEmpresa.id == usuario_id).first()
     if not u:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     if not bool(getattr(u, "es_admin_empresa", False)):
         raise HTTPException(status_code=403, detail="not_tenant_admin")
-    u.activo = True
+    u.active = True
     db.add(u)
     db.commit()
     return {"ok": True}
 
 
 @router.post("/{usuario_id}/desactivar")
-def desactivar_usuario(usuario_id: int, db: Session = Depends(get_db)):
-    u = db.query(UsuarioEmpresa).get(usuario_id)
+def desactivar_usuario(usuario_id: UUID, db: Session = Depends(get_db)):
+    u = db.query(UsuarioEmpresa).filter(UsuarioEmpresa.id == usuario_id).first()
     if not u:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     if not bool(getattr(u, "es_admin_empresa", False)):
         raise HTTPException(status_code=403, detail="not_tenant_admin")
-    u.activo = False
+    u.active = False
     db.add(u)
     db.commit()
     return {"ok": True}
 
 
 @router.post("/{usuario_id}/desactivar-empresa")
-def desactivar_empresa(usuario_id: int, db: Session = Depends(get_db)):
-    from app.models.empresa.empresa import Empresa
-    u = db.query(UsuarioEmpresa).get(usuario_id)
+def desactivar_empresa(usuario_id: UUID, db: Session = Depends(get_db)):
+    u = db.query(UsuarioEmpresa).filter(UsuarioEmpresa.id == usuario_id).first()
     if not u:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    e = db.query(Empresa).get(u.empresa_id)
+    e = db.query(Empresa).filter(Empresa.id == u.tenant_id).first()
     if not e:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
-    e.activo = False
+    e.active = False
     db.add(e)
     db.commit()
     return {"ok": True}

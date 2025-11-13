@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from sqlalchemy import String, Integer, Numeric, text as sa_text
+from sqlalchemy import String, Numeric, text as sa_text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
+from uuid import uuid4
 
 from app.config.database import Base
 
@@ -15,13 +16,23 @@ def _uuid_col():
 
 
 class StockItem(Base):
+    """Stock Item model - MODERN schema (English names)"""
     __tablename__ = "stock_items"
+    __table_args__ = {"extend_existing": True}
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[str] = mapped_column(
+        _uuid_col(),
+        primary_key=True,
+        default=lambda: uuid4(),
+        server_default=sa_text("gen_random_uuid()"),
+    )
     tenant_id: Mapped[str] = mapped_column(_uuid_col(), index=True)
-    warehouse_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    product_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    qty: Mapped[float] = mapped_column(Numeric, default=0)
+    warehouse_id: Mapped[str] = mapped_column(_uuid_col(), nullable=False)
+    product_id: Mapped[str] = mapped_column(_uuid_col(), nullable=False)
+    # DB column is now 'qty' (modernized)
+    qty: Mapped[float] = mapped_column("qty", Numeric, default=0)
+    location: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    lot: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
 
 class StockMove(Base):
@@ -36,8 +47,8 @@ class StockMove(Base):
         server_default=sa_text("gen_random_uuid()"),
     )
     tenant_id: Mapped[str] = mapped_column(_uuid_col(), index=True)
-    product_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    warehouse_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    product_id: Mapped[str] = mapped_column(_uuid_col(), nullable=False)
+    warehouse_id: Mapped[str] = mapped_column(_uuid_col(), nullable=False)
     qty: Mapped[float] = mapped_column(Numeric, nullable=False)
     kind: Mapped[str] = mapped_column(String, nullable=False)
     tentative: Mapped[bool] = mapped_column(default=False)

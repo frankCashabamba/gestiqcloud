@@ -34,6 +34,7 @@ def _strip_sql_comments(sql: str) -> str:
     It is not a full SQL parser.
     """
     import re
+
     # Remove block comments
     sql = re.sub(r"/\*.*?\*/", " ", sql, flags=re.DOTALL)
     # Remove line comments
@@ -60,7 +61,9 @@ def _connect(dsn: str):
             conn = psycopg2.connect(dsn)
             return conn
         except ImportError as e:
-            raise SystemExit("Install psycopg (v3) or psycopg2-binary to use this script.") from e
+            raise SystemExit(
+                "Install psycopg (v3) or psycopg2-binary to use this script."
+            ) from e
 
 
 def _sha256(data: str) -> str:
@@ -106,7 +109,11 @@ def _record_applied(cur, dir_name: str, checksum: str) -> None:
 
 def main() -> int:
     p = argparse.ArgumentParser()
-    p.add_argument("--dsn", required=True, help="Postgres DSN, e.g., postgresql://user:pass@host/db")
+    p.add_argument(
+        "--dsn",
+        required=True,
+        help="Postgres DSN, e.g., postgresql://user:pass@host/db",
+    )
     p.add_argument("--dir", dest="dir", required=True, help="Migration folder path")
     p.add_argument("--action", choices=["up", "down"], default="up")
     args = p.parse_args()
@@ -131,7 +138,12 @@ def main() -> int:
                 if exists and same and args.action == "up":
                     print(f"Skip already applied: {dir_name}")
                     return 0
-                if exists and not same and os.getenv("OPS_MIG_FORCE_REAPPLY", "0").lower() not in ("1", "true", "yes"):
+                if (
+                    exists
+                    and not same
+                    and os.getenv("OPS_MIG_FORCE_REAPPLY", "0").lower()
+                    not in ("1", "true", "yes")
+                ):
                     print(f"Skip changed migration without force: {dir_name}")
                     return 0
 

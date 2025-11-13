@@ -3,10 +3,13 @@ from fastapi.testclient import TestClient
 
 def _tenant_token(client: TestClient, usuario_empresa_factory):
     import uuid
+
     suffix = uuid.uuid4().hex[:6]
     username = f"imp2_{suffix}"
     email = f"imp2_{suffix}@x.com"
-    usuario, empresa = usuario_empresa_factory(email=email, username=username, password="secret")
+    usuario, tenant = usuario_empresa_factory(
+        email=email, username=username, password="secret"
+    )
     r = client.post(
         "/api/v1/tenant/auth/login",
         json={"identificador": username, "password": "secret"},
@@ -30,8 +33,20 @@ def test_errors_csv_endpoint(client: TestClient, db, usuario_empresa_factory):
     batch = r.json()
 
     rows = [
-        {"invoice_number": "X-1", "invoice_date": "2024-02-01", "net_amount": 100, "tax_amount": 21, "total_amount": 121},
-        {"invoice_number": "X-2", "invoice_date": "01/02/2024", "net_amount": 10, "tax_amount": 2, "total_amount": 20},  # invalid
+        {
+            "invoice_number": "X-1",
+            "invoice_date": "2024-02-01",
+            "net_amount": 100,
+            "tax_amount": 21,
+            "total_amount": 121,
+        },
+        {
+            "invoice_number": "X-2",
+            "invoice_date": "01/02/2024",
+            "net_amount": 10,
+            "tax_amount": 2,
+            "total_amount": 20,
+        },  # invalid
     ]
     r2 = client.post(
         f"/api/v1/imports/batches/{batch['id']}/ingest",
@@ -41,7 +56,9 @@ def test_errors_csv_endpoint(client: TestClient, db, usuario_empresa_factory):
     assert r2.status_code == 200
 
     # Download errors.csv
-    r3 = client.get(f"/api/v1/imports/batches/{batch['id']}/errors.csv", headers=headers)
+    r3 = client.get(
+        f"/api/v1/imports/batches/{batch['id']}/errors.csv", headers=headers
+    )
     assert r3.status_code == 200
     assert r3.headers.get("content-type", "").startswith("text/csv")
     csv_text = r3.text
@@ -62,7 +79,12 @@ def test_import_mapping_crud(client: TestClient, db, usuario_empresa_factory):
         "mappings": {"invoice_number": "num", "invoice_date": "fecha"},
         "transforms": {"invoice_date": "date"},
         "defaults": {"currency": "EUR"},
-        "dedupe_keys": ["issuer_tax_id", "invoice_number", "invoice_date", "total_amount"],
+        "dedupe_keys": [
+            "issuer_tax_id",
+            "invoice_number",
+            "invoice_date",
+            "total_amount",
+        ],
     }
     # Create
     r = client.post("/api/v1/imports/mappings", json=payload, headers=headers)

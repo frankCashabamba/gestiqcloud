@@ -4,6 +4,7 @@ from starlette.responses import Response
 def test_cookie_helpers_set_secure_attributes(monkeypatch):
     # Arrange production-like cookie settings
     from app.config.settings import settings
+
     monkeypatch.setattr(settings, "ENV", "production")
     monkeypatch.setattr(settings, "COOKIE_SECURE", True)
     monkeypatch.setattr(settings, "COOKIE_SAMESITE", "none")
@@ -34,4 +35,3 @@ def test_cookie_helpers_set_secure_attributes(monkeypatch):
         if c.startswith("access_token="):
             # Lax for access token
             assert "; SameSite=Lax" in c
-

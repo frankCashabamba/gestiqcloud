@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+﻿import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { listClientes, removeCliente, type Cliente } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
@@ -23,7 +23,7 @@ export default function ClientesList() {
   const [sortKey, setSortKey] = useState<'nombre'|'email'>('nombre')
   const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc')
   const [per, setPer] = useState(10)
-  const filtered = useMemo(() => items.filter(c => (c.nombre||'').toLowerCase().includes(q.toLowerCase()) || (c.email||'').toLowerCase().includes(q.toLowerCase())), [items,q])
+  const filtered = useMemo(() => items.filter(c => (c.name||'').toLowerCase().includes(q.toLowerCase()) || (c.email||'').toLowerCase().includes(q.toLowerCase())), [items,q])
   const sorted = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1
     return [...filtered].sort((a,b) => {
@@ -64,9 +64,9 @@ export default function ClientesList() {
         <tbody>
           {view.map((c) => (
             <tr key={c.id} className="border-b">
-              <td>{c.nombre}</td>
+              <td>{c.name}</td>
               <td>{c.email || '-'}</td>
-              <td>{c.telefono || '-'}</td>
+              <td>{c.phone || '-'}</td>
               <td>
                 <Link to={`${c.id}/editar`} className="text-blue-600 hover:underline mr-3">Editar</Link>
                 <button className="text-red-700" onClick={async () => { if (!confirm('¿Eliminar cliente?')) return; try { await removeCliente(c.id); setItems((p)=>p.filter(x=>x.id!==c.id)); success('Cliente eliminado') } catch(e:any){ toastError(getErrorMessage(e)) } }}>Eliminar</button>

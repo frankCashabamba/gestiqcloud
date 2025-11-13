@@ -49,4 +49,3 @@ def test_crud_base_compatibility(db: Session):
     # delete (alias to remove)
     ok = crud.delete(db, created.id)
     assert ok is True
-

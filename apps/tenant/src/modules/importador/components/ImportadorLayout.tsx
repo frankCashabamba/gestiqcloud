@@ -4,8 +4,10 @@ import { NavLink, useLocation } from 'react-router-dom'
 
 const navItems = [
   { to: '.', label: 'Importar' },
+  { to: 'preview', label: 'Vista previa' },
   { to: 'batches', label: 'Lotes' },
   { to: 'pendientes', label: 'Pendientes' },
+  { to: 'productos', label: 'Productos' },
 ]
 
 type ImportadorLayoutProps = {
@@ -16,7 +18,8 @@ type ImportadorLayoutProps = {
 }
 
 function buildBasePath(pathname: string) {
-  const match = pathname.match(/^(.*?\/mod\/importador)/)
+  // Buscar /importador o /imports en la ruta (puede ser /:empresa/importador o /mod/imports)
+  const match = pathname.match(/^(.*?\/(?:importador|imports))/)
   if (match && match[1]) return match[1]
   return pathname.replace(/\/$/, '')
 }
@@ -43,7 +46,7 @@ export default function ImportadorLayout({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
             <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-              Operaciones ? Importador
+              Operaciones del Importador
             </span>
             <div>
               <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>

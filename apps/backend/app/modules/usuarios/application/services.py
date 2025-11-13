@@ -1,5 +1,4 @@
-
-from typing import List
+﻿from typing import List
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -18,16 +17,18 @@ from app.modules.usuarios.infrastructure.schemas import (
 )
 
 
-def _aggregate(usuario: UsuarioEmpresa, modulos: list[int], roles: list[int]) -> UsuarioEmpresaAggregate:
+def _aggregate(
+    usuario: UsuarioEmpresa, modulos: list[int], roles: list[int]
+) -> UsuarioEmpresaAggregate:
     return UsuarioEmpresaAggregate(
         id=usuario.id,
-        empresa_id=usuario.empresa_id,
+        tenant_id=usuario.tenant_id,
         email=usuario.email,
         nombre_encargado=usuario.nombre_encargado,
         apellido_encargado=usuario.apellido_encargado,
         username=usuario.username,
         es_admin_empresa=usuario.es_admin_empresa,
-        activo=usuario.activo,
+        activo=usuario.active,
         modulos=modulos,
         roles=roles,
         ultimo_login_at=usuario.last_login_at,
@@ -37,24 +38,26 @@ def _aggregate(usuario: UsuarioEmpresa, modulos: list[int], roles: list[int]) ->
 def _to_schema(agg: UsuarioEmpresaAggregate) -> UsuarioEmpresaOut:
     return UsuarioEmpresaOut(
         id=agg.id,
-        empresa_id=agg.empresa_id,
+        tenant_id=agg.tenant_id,
         email=agg.email,
         nombre_encargado=agg.nombre_encargado,
         apellido_encargado=agg.apellido_encargado,
         username=agg.username,
         es_admin_empresa=agg.es_admin_empresa,
-        activo=agg.activo,
+        activo=agg.active,
         modulos=agg.modulos,
         roles=agg.roles,
         ultimo_login_at=agg.ultimo_login_at,
     )
 
 
-def listar_usuarios_empresa(db: Session, empresa_id: int, include_inactivos: bool = True) -> List[UsuarioEmpresaOut]:
-    detalles = repo.load_detalle_usuarios(db, empresa_id)
+def listar_usuarios_empresa(
+    db: Session, tenant_id: int, include_inactivos: bool = True
+) -> List[UsuarioEmpresaOut]:
+    detalles = repo.load_detalle_usuarios(db, tenant_id)
     result: list[UsuarioEmpresaOut] = []
     for usuario, modulos, roles in detalles:
-        if not include_inactivos and not usuario.activo:
+        if not include_inactivos and not usuario.active:
             continue
         agg = _aggregate(usuario, modulos, roles)
         result.append(_to_schema(agg))
@@ -63,7 +66,7 @@ def listar_usuarios_empresa(db: Session, empresa_id: int, include_inactivos: boo
 
 def crear_usuario_empresa(
     db: Session,
-    empresa_id: int,
+    tenant_id: int,
     data: UsuarioEmpresaCreate,
     *,
     asignado_por_id: int | None = None,
@@ -74,44 +77,44 @@ def crear_usuario_empresa(
     modulos = list(data.modulos)
     roles = list(data.roles)
     if data.es_admin_empresa:
-        modulos = repo.get_modulos_contratados_ids(db, empresa_id)
+        modulos = repo.get_modulos_contratados_ids(db, tenant_id)
         if not roles:
-            super_role_id = repo.find_super_admin_role_id(db, empresa_id)
+            super_role_id = repo.find_super_admin_role_id(db, tenant_id)
             if super_role_id:
                 roles = [super_role_id]
     else:
-        val.validate_modulos_contratados(db, empresa_id, modulos)
+        val.validate_modulos_contratados(db, tenant_id, modulos)
 
     hashed_password = get_password_hash(data.password)
 
     usuario = repo.insert_usuario_empresa(
         db,
-        empresa_id=empresa_id,
+        tenant_id=tenant_id,
         data=data,
         hashed_password=hashed_password,
     )
 
-    repo.set_modulos_usuario(db, usuario.id, empresa_id, modulos)
-    repo.set_roles_usuario(db, usuario.id, empresa_id, roles)
+    repo.set_modulos_usuario(db, usuario.id, tenant_id, modulos)
+    repo.set_roles_usuario(db, usuario.id, tenant_id, roles)
 
     db.commit()
     db.refresh(usuario)
 
     agg = _aggregate(
         usuario,
-        repo.get_modulos_usuario_ids(db, usuario.id, empresa_id),
-        repo.get_roles_usuario_ids(db, usuario.id, empresa_id),
+        repo.get_modulos_usuario_ids(db, usuario.id, tenant_id),
+        repo.get_roles_usuario_ids(db, usuario.id, tenant_id),
     )
     return _to_schema(agg)
 
 
 def actualizar_usuario_empresa(
     db: Session,
-    empresa_id: int,
+    tenant_id: int,
     usuario_id: int,
     data: UsuarioEmpresaUpdate,
 ) -> UsuarioEmpresaOut:
-    usuario = repo.get_usuario_by_id(db, usuario_id, empresa_id)
+    usuario = repo.get_usuario_by_id(db, usuario_id, tenant_id)
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
@@ -131,53 +134,55 @@ def actualizar_usuario_empresa(
     if data.password:
         usuario.password_hash = get_password_hash(data.password)
 
-    if data.activo is not None and data.activo is False:
-        val.ensure_not_last_admin(db, empresa_id, usuario_id=usuario.id)
-        usuario.activo = False
-    elif data.activo is not None:
-        usuario.activo = data.activo
+    if data.active is not None and data.active is False:
+        val.ensure_not_last_admin(db, tenant_id, usuario_id=usuario.id)
+        usuario.active = False
+    elif data.active is not None:
+        usuario.active = data.active
 
     if data.es_admin_empresa is not None:
         if not data.es_admin_empresa and usuario.es_admin_empresa:
-            val.ensure_not_last_admin(db, empresa_id, usuario_id=usuario.id)
+            val.ensure_not_last_admin(db, tenant_id, usuario_id=usuario.id)
         usuario.es_admin_empresa = data.es_admin_empresa
 
     if usuario.es_admin_empresa:
         # Los administradores siempre tienen todos los módulos contratados
-        modulos = repo.get_modulos_contratados_ids(db, empresa_id)
-        repo.set_modulos_usuario(db, usuario.id, empresa_id, modulos)
+        modulos = repo.get_modulos_contratados_ids(db, tenant_id)
+        repo.set_modulos_usuario(db, usuario.id, tenant_id, modulos)
     elif data.modulos is not None:
-        val.validate_modulos_contratados(db, empresa_id, data.modulos)
-        repo.set_modulos_usuario(db, usuario.id, empresa_id, data.modulos)
+        val.validate_modulos_contratados(db, tenant_id, data.modulos)
+        repo.set_modulos_usuario(db, usuario.id, tenant_id, data.modulos)
 
     if data.roles is not None:
-        repo.set_roles_usuario(db, usuario.id, empresa_id, data.roles)
+        repo.set_roles_usuario(db, usuario.id, tenant_id, data.roles)
 
     db.commit()
     db.refresh(usuario)
 
     agg = _aggregate(
         usuario,
-        repo.get_modulos_usuario_ids(db, usuario.id, empresa_id),
-        repo.get_roles_usuario_ids(db, usuario.id, empresa_id),
+        repo.get_modulos_usuario_ids(db, usuario.id, tenant_id),
+        repo.get_roles_usuario_ids(db, usuario.id, tenant_id),
     )
     return _to_schema(agg)
 
 
-def toggle_usuario_activo(db: Session, empresa_id: int, usuario_id: int, activo: bool) -> UsuarioEmpresaOut:
+def toggle_usuario_activo(
+    db: Session, tenant_id: int, usuario_id: int, activo: bool
+) -> UsuarioEmpresaOut:
     payload = UsuarioEmpresaUpdate(activo=activo)
-    return actualizar_usuario_empresa(db, empresa_id, usuario_id, payload)
+    return actualizar_usuario_empresa(db, tenant_id, usuario_id, payload)
 
 
 def check_username_availability(db: Session, username: str) -> bool:
     return repo.get_usuario_by_username(db, username) is None
 
 
-def listar_modulos_empresa(db: Session, empresa_id: int) -> List[ModuloOption]:
-    rows = repo.get_modulos_contratados(db, empresa_id)
+def listar_modulos_empresa(db: Session, tenant_id: int) -> List[ModuloOption]:
+    rows = repo.get_modulos_contratados(db, tenant_id)
     return [ModuloOption(**row) for row in rows]
 
 
-def listar_roles_empresa(db: Session, empresa_id: int) -> List[RolEmpresaOption]:
-    rows = repo.get_roles_empresa(db, empresa_id)
+def listar_roles_empresa(db: Session, tenant_id: int) -> List[RolEmpresaOption]:
+    rows = repo.get_roles_empresa(db, tenant_id)
     return [RolEmpresaOption(**row) for row in rows]

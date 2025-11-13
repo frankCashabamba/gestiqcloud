@@ -13,10 +13,9 @@ Contiene:
 - **TypedDict** completo para `CanonicalDocument` y subtipos
 - Función `validate_canonical()` con validaciones por doc_type y país
 - Funciones `validate_totals()` y `validate_tax_breakdown()`
-- `convert_legacy_to_canonical()` para compatibilidad hacia atrás
-- `detect_and_convert()` para detección automática de formato
 - `build_routing_proposal()` para sugerir enrutamiento
 - Constantes: `VALID_DOC_TYPES`, `VALID_COUNTRIES`, `VALID_CURRENCIES`
+- Requiere entradas en formato canónico; las fuentes deben convertir datos heredados antes de invocar el módulo
 
 **Validaciones implementadas:**
 - doc_type obligatorio y válido
@@ -79,7 +78,6 @@ Cobertura:
 - Introducción al schema
 - Ejemplos por tipo de documento (invoice, receipt, bank_tx)
 - Validación paso a paso
-- Conversión legacy
 - Propuestas de enrutamiento
 - Casos de uso completos
 - Mejores prácticas
@@ -95,10 +93,8 @@ Cobertura:
 - Campo `metadata` para datos adicionales sin contaminar schema
 - `attachments` para vincular archivos relacionados
 
-### Compatibilidad hacia atrás
-- `convert_legacy_to_canonical()` para formato antiguo
-- `detect_and_convert()` detecta automáticamente
-- Validadores legacy siguen funcionando
+### Compatibilidad
+- El pipeline acepta únicamente documentos que ya cumplan el schema canónico SPEC-1. Los productores deben encargarse de convertir cualquier formato heredado antes de publicar datos.
 
 ### Multi-país
 - Validación de tax_id según país (RUC Ecuador, NIF/CIF España)
@@ -178,15 +174,13 @@ pytest apps/backend/tests/modules/imports/test_canonical_schema.py -v
 
 Tests incluidos:
 - 15+ test cases de validación
-- Conversión legacy completa
 - Ejemplos de documentos válidos (factura EC, bank tx)
 - Validaciones de totales y tax_breakdown
 
 ## Compatibilidad
 
 ✅ Compatible con extractores existentes (extractor_desconocido, extractor_transferencia)
-✅ Compatible con validadores legacy (validate_invoices, validate_bank, validate_expenses)
-✅ Compatible con `DocumentoProcesado` (conversión automática)
+✅ Compatible con validadores (validate_invoices, validate_bank, validate_expenses)
 ✅ Preparado para RLS multi-tenant (tenant_id en tablas destino)
 
 ## Resumen de constantes

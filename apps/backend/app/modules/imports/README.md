@@ -1,6 +1,19 @@
 Imports module — batch staging, validation and promotion
 
-Endpoints (prefix: /api/v1/imports)
+## Parsers (Fase B - Completado)
+
+Soporte para múltiples formatos de archivo mediante parsers registrados:
+
+### Disponibles
+- **Excel**: generic, products_excel
+- **CSV**: csv_invoices, csv_bank, csv_products (NUEVO)
+- **XML**: xml_invoice, xml_camt053_bank, xml_products (NUEVO)
+- **Excel Gastos**: xlsx_expenses (NUEVO)
+- **PDF QR**: pdf_qr (NUEVO)
+
+Ver `PARSER_REGISTRY.md` y `FASE_B_NUEVOS_PARSERS.md` para detalles.
+
+## Endpoints (prefix: /api/v1/imports)
 - POST `/batches` → create batch { source_type, origin, file_key?, mapping_id? }
 - GET `/batches` → list batches (status= optional)
 - GET `/batches/{id}` → get batch
@@ -36,11 +49,11 @@ Lineage & corrections
 
 Migrations (Alembic)
 Create migrations for the following tables/columns if not present:
-- Table `import_batches`: id (UUID), empresa_id, source_type, origin, file_key, mapping_id (UUID, nullable), status, created_by (String), created_at (timestamp)
+- Table `import_batches`: id (UUID), tenant_id, source_type, origin, file_key, mapping_id (UUID, nullable), status, created_by (String), created_at (timestamp)
 - Table `import_items`: id (UUID), batch_id (FK), idx, raw (JSON), normalized (JSON), status, errors (JSON), dedupe_hash, idempotency_key (unique), promoted_to, promoted_id (UUID, nullable), promoted_at
-- Table `import_mappings`: id (UUID), empresa_id, name, source_type, version, mappings (JSON), transforms (JSON), defaults (JSON), dedupe_keys (JSON), created_at
-- Table `import_item_corrections`: id (UUID), empresa_id, item_id (FK), user_id (UUID), field, old_value (JSON), new_value (JSON), created_at
-- Table `import_lineage`: id (UUID), empresa_id, item_id (FK), promoted_to, promoted_ref, created_at
+- Table `import_mappings`: id (UUID), tenant_id, name, source_type, version, mappings (JSON), transforms (JSON), defaults (JSON), dedupe_keys (JSON), created_at
+- Table `import_item_corrections`: id (UUID), tenant_id, item_id (FK), user_id (UUID), field, old_value (JSON), new_value (JSON), created_at
+- Table `import_lineage`: id (UUID), tenant_id, item_id (FK), promoted_to, promoted_ref, created_at
 - Columns in `auditoria_importacion`: batch_id (UUID, nullable), item_id (UUID, nullable)
 
 Notes for tests

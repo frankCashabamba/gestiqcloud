@@ -7,7 +7,9 @@ def _tenant_token(client: TestClient, usuario_empresa_factory):
     suffix = uuid.uuid4().hex[:6]
     username = f"imp_{suffix}"
     email = f"imp_{suffix}@x.com"
-    usuario, empresa = usuario_empresa_factory(email=email, username=username, password="secret")
+    usuario, tenant = usuario_empresa_factory(
+        email=email, username=username, password="secret"
+    )
     r = client.post(
         "/api/v1/tenant/auth/login",
         json={"identificador": username, "password": "secret"},
@@ -31,8 +33,20 @@ def test_ingest_idempotency(client: TestClient, db, usuario_empresa_factory):
     batch = r.json()
 
     rows = [
-        {"invoice_number": "X-1", "invoice_date": "2024-02-01", "net_amount": 100, "tax_amount": 21, "total_amount": 121},
-        {"invoice_number": "X-2", "invoice_date": "2024-02-01", "net_amount": 10, "tax_amount": 2, "total_amount": 12},
+        {
+            "invoice_number": "X-1",
+            "invoice_date": "2024-02-01",
+            "net_amount": 100,
+            "tax_amount": 21,
+            "total_amount": 121,
+        },
+        {
+            "invoice_number": "X-2",
+            "invoice_date": "2024-02-01",
+            "net_amount": 10,
+            "tax_amount": 2,
+            "total_amount": 12,
+        },
     ]
     r2 = client.post(
         f"/api/v1/imports/batches/{batch['id']}/ingest",
@@ -64,7 +78,11 @@ def test_dedupe_keys_skip_on_promotion(client: TestClient, db, usuario_empresa_f
         "name": "Factura dedupe",
         "source_type": "invoices",
         "version": 1,
-        "mappings": {"invoice_number": "num", "invoice_date": "fecha", "total_amount": "total"},
+        "mappings": {
+            "invoice_number": "num",
+            "invoice_date": "fecha",
+            "total_amount": "total",
+        },
         "transforms": {"invoice_date": "date"},
         "defaults": {},
         "dedupe_keys": ["invoice_number", "invoice_date", "total_amount"],
@@ -83,8 +101,20 @@ def test_dedupe_keys_skip_on_promotion(client: TestClient, db, usuario_empresa_f
     batch = rb.json()
 
     rows = [
-        {"num": "DUP-1", "fecha": "2024-02-01", "total": 100, "net_amount": 82.64, "tax_amount": 17.36},
-        {"num": "DUP-1", "fecha": "01/02/2024", "total": 100, "net_amount": 80, "tax_amount": 20},  # same dedupe
+        {
+            "num": "DUP-1",
+            "fecha": "2024-02-01",
+            "total": 100,
+            "net_amount": 82.64,
+            "tax_amount": 17.36,
+        },
+        {
+            "num": "DUP-1",
+            "fecha": "01/02/2024",
+            "total": 100,
+            "net_amount": 80,
+            "tax_amount": 20,
+        },  # same dedupe
     ]
     ri = client.post(
         f"/api/v1/imports/batches/{batch['id']}/ingest",
@@ -118,7 +148,15 @@ def test_patch_and_revalidate(client: TestClient, db, usuario_empresa_factory):
     batch = rb.json()
 
     # Ingest one invalid invoice (total mismatch)
-    rows = [{"invoice_number": "X-9", "invoice_date": "2024-02-01", "net_amount": 10, "tax_amount": 2, "total_amount": 20}]
+    rows = [
+        {
+            "invoice_number": "X-9",
+            "invoice_date": "2024-02-01",
+            "net_amount": 10,
+            "tax_amount": 2,
+            "total_amount": 20,
+        }
+    ]
     ri = client.post(
         f"/api/v1/imports/batches/{batch['id']}/ingest",
         json={"rows": rows},
@@ -149,7 +187,9 @@ def test_patch_and_revalidate(client: TestClient, db, usuario_empresa_factory):
     assert found.get("last_correction", {}).get("field") == "total_amount"
 
 
-def test_tenant_scoping_forbids_cross_access(client: TestClient, db, usuario_empresa_factory):
+def test_tenant_scoping_forbids_cross_access(
+    client: TestClient, db, usuario_empresa_factory
+):
     # Create tenant A and batch
     tok_a = _tenant_token(client, usuario_empresa_factory)
     headers_a = {"Authorization": f"Bearer {tok_a}"}
@@ -166,4 +206,3 @@ def test_tenant_scoping_forbids_cross_access(client: TestClient, db, usuario_emp
     headers_b = {"Authorization": f"Bearer {tok_b}"}
     rget = client.get(f"/api/v1/imports/batches/{batch['id']}", headers=headers_b)
     assert rget.status_code in (403, 404)
-

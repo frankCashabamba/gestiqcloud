@@ -1,0 +1,23 @@
+       tablename        
+------------------------
+ auth_refresh_family
+ auth_refresh_token
+ auth_user
+ modulos_empresamodulo
+ modulos_modulo
+ modulos_moduloasignado
+ pos_payments
+ pos_receipt_lines
+ pos_receipts
+ pos_registers
+ pos_shifts
+ product_categories
+ products
+ schema_migrations
+ stock_alerts
+ stock_items
+ stock_moves
+ tenants
+ warehouses
+(19 rows)
+

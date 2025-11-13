@@ -30,7 +30,7 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session):
     try:
         db.execute(
             text(
-                "INSERT INTO tenants(id, empresa_id, slug) VALUES (:id::uuid, 1, 'acme-pos') ON CONFLICT (empresa_id) DO NOTHING"
+                "INSERT INTO tenants(id, tenant_id, slug) VALUES (:id::uuid, 1, 'acme-pos') ON CONFLICT (tenant_id) DO NOTHING"
             ),
             {"id": tid},
         )
@@ -52,7 +52,9 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session):
         state = _State()
 
     # Create register
-    reg = create_register(RegisterIn(code="R1", name="Caja 1", default_warehouse_id=1), _Req(), db)
+    reg = create_register(
+        RegisterIn(code="R1", name="Caja 1", default_warehouse_id=1), _Req(), db
+    )
     assert reg["id"]
 
     # Open shift
@@ -78,7 +80,11 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session):
     # Verify stock move issue posted
     mv = (
         db.query(StockMove)
-        .filter(StockMove.tenant_id == tid, StockMove.ref_type == "pos_receipt", StockMove.ref_id == str(rid))
+        .filter(
+            StockMove.tenant_id == tid,
+            StockMove.ref_type == "pos_receipt",
+            StockMove.ref_id == str(rid),
+        )
         .first()
     )
     assert mv is not None and mv.kind == "issue" and mv.posted is True

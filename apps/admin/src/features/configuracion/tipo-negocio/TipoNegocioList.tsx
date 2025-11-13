@@ -31,7 +31,7 @@ export default function TipoNegocioList() {
         <tbody>
           {items.map((it) => (
             <tr key={it.id} className="border-t">
-              <td className="py-2 px-3">{it.nombre}</td>
+              <td className="py-2 px-3">{it.name}</td>
               <td className="py-2 px-3">
                 <Link to={`${it.id}/editar`} className="text-blue-600 hover:underline mr-3">Editar</Link>
                 <button className="text-red-700" onClick={async () => { if (!confirm('¿Eliminar?')) return; try { await removeTipoNegocio(it.id); setItems((p)=>p.filter(x=>x.id!==it.id)); success('Tipo de negocio eliminado') } catch(e:any){ toastError(getErrorMessage(e)) } }}>Eliminar</button>

@@ -1,30 +1,29 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Optional
 from pydantic import BaseModel, Field
 
 
 class ClienteInSchema(BaseModel):
-    nombre: str = Field(min_length=1)
+    name: str = Field(min_length=1)
     identificacion: Optional[str] = None
     email: Optional[str] = None
-    telefono: Optional[str] = None
-    direccion: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
     localidad: Optional[str] = None
-    provincia: Optional[str] = None
+    state: Optional[str] = None
     pais: Optional[str] = None
     codigo_postal: Optional[str] = None
 
 
 class ClienteOutSchema(BaseModel):
-    id: int
-    nombre: str
+    id: str
+    name: str
     identificacion: Optional[str] = None
     email: Optional[str] = None
-    telefono: Optional[str] = None
-    direccion: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
     localidad: Optional[str] = None
-    provincia: Optional[str] = None
+    state: Optional[str] = None
     pais: Optional[str] = None
     codigo_postal: Optional[str] = None
-

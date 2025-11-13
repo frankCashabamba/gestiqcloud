@@ -1,22 +1,31 @@
 from typing import List, Dict, Any
 from app.modules.imports.domain.canonical_schema import (
-    CanonicalDocument, build_routing_proposal
+    CanonicalDocument,
+    build_routing_proposal,
 )
 from app.modules.imports.extractores.utilidades import (
-    buscar_fecha, buscar_numero_factura, buscar_cif, buscar_importe, buscar_numero_mayor,
-    buscar_subtotal, buscar_concepto, buscar_descripcion, buscar_emisor, buscar_cliente,
-    es_concepto_valido
+    buscar_fecha,
+    buscar_numero_factura,
+    buscar_cif,
+    buscar_importe,
+    buscar_numero_mayor,
+    buscar_subtotal,
+    buscar_concepto,
+    buscar_descripcion,
+    buscar_emisor,
+    buscar_cliente,
+    es_concepto_valido,
 )
 
 
 def extraer_factura(texto: str, country: str = "EC") -> List[Dict[str, Any]]:
     """
     Extrae datos de factura y retorna schema canónico.
-    
+
     Args:
         texto: Texto OCR del documento
         country: País del documento (EC, ES, etc.)
-        
+
     Returns:
         Lista con un CanonicalDocument tipo "invoice"
     """
@@ -24,7 +33,7 @@ def extraer_factura(texto: str, country: str = "EC") -> List[Dict[str, Any]]:
         fecha = buscar_fecha(texto)
         numero = buscar_numero_factura(texto)
         cif = buscar_cif(texto)
-        
+
         total_raw = buscar_importe(texto) or buscar_numero_mayor(texto) or "0.00"
         try:
             total = float(total_raw.replace(",", "."))
@@ -50,7 +59,7 @@ def extraer_factura(texto: str, country: str = "EC") -> List[Dict[str, Any]]:
 
         # Construir schema canónico
         tax = total - subtotal if subtotal > 0 else 0.0
-        
+
         canonical: CanonicalDocument = {
             "doc_type": "invoice",
             "country": country,
@@ -76,7 +85,9 @@ def extraer_factura(texto: str, country: str = "EC") -> List[Dict[str, Any]]:
                         "code": f"IVA{12 if country == 'EC' else 21}-{country}",
                         "base": subtotal,
                     }
-                ] if tax > 0 else [],
+                ]
+                if tax > 0
+                else [],
             },
             "lines": [
                 {
@@ -91,13 +102,13 @@ def extraer_factura(texto: str, country: str = "EC") -> List[Dict[str, Any]]:
             "source": "ocr",
             "confidence": 0.7,  # Confianza media para OCR
         }
-        
+
         # Añadir propuesta de enrutamiento
         canonical["routing_proposal"] = build_routing_proposal(
             canonical,
             category_code="OTROS",
             account="6290",  # Cuenta de gastos generales
-            confidence=0.65
+            confidence=0.65,
         )
 
         return [canonical]

@@ -25,4 +25,3 @@ def list_enabled_modules_for_tenant():
         )
         for m in items
     ]
-

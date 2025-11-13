@@ -1,0 +1,1 @@
+# TiposNegocio application layer

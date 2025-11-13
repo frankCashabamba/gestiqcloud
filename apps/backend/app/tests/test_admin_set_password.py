@@ -1,18 +1,25 @@
 from __future__ import annotations
 
+from uuid import uuid4
 from app.modules.usuarios.interface.http.admin import set_password, SetPasswordIn
 from app.models.auth.useradmis import SuperUser
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
+from app.models.tenant import Tenant
 
 
 def test_admin_set_password_updates_usuarioempresa_only(db):
     # Arrange: create a SuperUser and a UsuarioEmpresa
-    su = SuperUser(username="owner", email="owner@example.com", password_hash="x")
+    su = SuperUser(username="owner", email="owner@example.com", password_hash="x")  # noqa: F841
     db.add(su)
     db.flush()
 
+    # Create tenant (Tenant is now the primary entity, no tenant_id needed)
+    tenant = Tenant(id=uuid4(), nombre="Test Co", slug="testco-t")
+    db.add(tenant)
+    db.flush()
+
     ue = UsuarioEmpresa(
-        empresa_id=1,
+        tenant_id=tenant.id,
         nombre_encargado="Admin",
         apellido_encargado="Test",
         email="admin@example.com",
@@ -47,4 +54,3 @@ def test_admin_set_password_not_found(db):
         assert False, "expected HTTPException for missing user"
     except HTTPException as e:
         assert e.status_code == 404
-

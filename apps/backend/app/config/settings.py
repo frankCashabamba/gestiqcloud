@@ -1,12 +1,158 @@
 # File: app/config/settings.py
 from __future__ import annotations
+
+import os
 from functools import lru_cache
-from typing import List, Optional, Union, Literal
+from pathlib import Path
+from typing import List, Literal, Optional, Union
 
-from uuid import UUID
-
-from pydantic import Field, field_validator, SecretStr,ValidationError
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+# Carga el .env correcto de forma explícita (sin depender del CWD)
+def _load_env():
+    base_dir = Path(__file__).resolve().parents[2]  # apps/backend
+    env_name = os.getenv("ENV", "development").lower()
+    override = os.getenv("ENV_FILE")
+    env_path = (
+        Path(override)
+        if override
+        else base_dir / (".env.production" if env_name == "production" else ".env")
+    )
+    try:
+        if env_path.exists():
+            for raw in env_path.read_text(encoding="utf-8").splitlines():
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip().strip("'").strip('"')
+                if key and key not in os.environ:
+                    os.environ[key] = value
+    except Exception:
+        # No bloquear arranque si falla lectura; Pydantic intentará con su env_file
+        pass
+
+
+def _load_env_all():
+    env_name = os.getenv("ENV", "development").lower()
+    override = os.getenv("ENV_FILE")
+
+    filenames = (
+        [".env.production", ".env"] if env_name == "production" else [".env", ".env.production"]
+    )
+
+    here = Path(__file__).resolve().parent
+    app_dir = here.parent
+    repo_dir = app_dir.parent
+    cwd_dir = Path.cwd()
+
+    dirs = []
+    if override:
+        p = Path(override)
+        if p.is_file():
+            try:
+                for raw in p.read_text(encoding="utf-8").splitlines():
+                    line = raw.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if line.startswith("export "):
+                        line = line[len("export ") :].strip()
+                    if "=" not in line:
+                        continue
+                    key, value = line.split("=", 1)
+                    key = key.strip()
+                    value = value.strip().strip("'").strip('"')
+                    if key and key not in os.environ:
+                        os.environ[key] = value
+                os.environ.setdefault("ENV_FILE_USED", str(p))
+                return
+            except Exception:
+                pass
+        if p.is_dir():
+            dirs.append(p)
+
+    dirs.extend([here, app_dir, repo_dir, cwd_dir])
+
+    for d in dirs:
+        for fname in filenames:
+            candidate = (d / fname).resolve()
+            if candidate.is_file():
+                try:
+                    for raw in candidate.read_text(encoding="utf-8").splitlines():
+                        line = raw.strip()
+                        if not line or line.startswith("#"):
+                            continue
+                        if line.startswith("export "):
+                            line = line[len("export ") :].strip()
+                        if "=" not in line:
+                            continue
+                        key, value = line.split("=", 1)
+                        key = key.strip()
+                        value = value.strip().strip("'").strip('"')
+                        if key and key not in os.environ:
+                            os.environ[key] = value
+                    os.environ.setdefault("ENV_FILE_USED", str(candidate))
+                    return
+                except Exception:
+                    pass
+
+
+_load_env_all()
+
+
+def _log_env_info():
+    try:
+        env = os.getenv("ENV", "development")
+        used = os.getenv("ENV_FILE_USED")
+        has_secret = bool(os.getenv("SECRET_KEY"))
+        # Reconstruye rutas de búsqueda para diagnosticar
+        here = Path(__file__).resolve().parent
+        app_dir = here.parent
+        repo_dir = app_dir.parent
+        cwd_dir = Path.cwd()
+        search_dirs = [str(here), str(app_dir), str(repo_dir), str(cwd_dir)]
+        print(
+            "[settings] ENV=",
+            env,
+            "ENV_FILE_USED=",
+            (used or "<none>"),
+            "SECRET_KEY_PRESENT=",
+            has_secret,
+            "SEARCH_DIRS=",
+            search_dirs,
+        )
+    except Exception:
+        pass
+
+
+_log_env_info()
+_ENV_FILE_PATH = Path(os.getenv("ENV_FILE_USED")).resolve() if os.getenv("ENV_FILE_USED") else None
+
+
+def _ensure_dev_secret():
+    try:
+        env = os.getenv("ENV", "development").lower()
+        if env != "production" and not os.getenv("SECRET_KEY"):
+            import secrets
+
+            os.environ["SECRET_KEY"] = secrets.token_urlsafe(48)
+            os.environ.setdefault("SECRET_KEY_AUTO", "true")
+            used = os.getenv("ENV_FILE_USED") or "<none>"
+            print(
+                "[settings][WARNING] Generated temporary SECRET_KEY for development;",
+                "ENV_FILE_USED=",
+                used,
+            )
+    except Exception:
+        pass
+
+
+_ensure_dev_secret()
 
 
 class Settings(BaseSettings):
@@ -14,15 +160,15 @@ class Settings(BaseSettings):
     Configuración central del backend (Pydantic v2).
     Nota: preferimos validaciones estrictas y defaults seguros.
     """
+
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(str(_ENV_FILE_PATH) if _ENV_FILE_PATH else ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
-        case_sensitive=False,             # evita sorpresas con mayúsculas/minúsculas en env
+        case_sensitive=False,  # evita sorpresas con mayúsculas/minúsculas en env
         env_nested_delimiter="__",
     )
 
-   
     # General
     app_name: str = "GestiqCloud"
     debug: bool = False
@@ -32,17 +178,30 @@ class Settings(BaseSettings):
 
     # JWT / Security
     JWT_ALGORITHM: str = "HS256"
-    JWT_SECRET_KEY: SecretStr | None = None            # HS*
-    JWT_PRIVATE_KEY: SecretStr | None = None           # RS*/ES*
+    JWT_SECRET_KEY: SecretStr | None = None  # HS*
+    JWT_PRIVATE_KEY: SecretStr | None = None  # RS*/ES*
     JWT_PUBLIC_KEY: SecretStr | None = None
-    JWT_ADDITIONAL_PUBLIC_KEYS: List[SecretStr] = []   # rotación opcional
+    JWT_ADDITIONAL_PUBLIC_KEYS: List[SecretStr] = []  # rotación opcional
     JWT_ISSUER: str = "gestiqcloud"
     JWT_AUDIENCE: Optional[str] = None
     JWT_LEEWAY_SECONDS: int = 30
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
-    SECRET_KEY: SecretStr = SecretStr("change-me")
+    SECRET_KEY: SecretStr = Field(..., env="SECRET_KEY")
+
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def validate_secret_key(cls, v: SecretStr) -> SecretStr:
+        """Valida que SECRET_KEY sea seguro en todos los entornos"""
+        val = v.get_secret_value()
+        if val == "change-me":
+            raise ValueError(
+                "SECRET_KEY no puede ser 'change-me'. Genera una clave segura de ≥32 caracteres."
+            )
+        if len(val) < 32:
+            raise ValueError(f"SECRET_KEY debe tener al menos 32 caracteres (actual: {len(val)})")
+        return v
 
     # Frontend
     FRONTEND_URL: str
@@ -57,8 +216,8 @@ class Settings(BaseSettings):
 
     # CORS
     CORS_ORIGINS: Union[str, List[str]] = Field(
-        default=["http://localhost:5173", "http://localhost:5174"],
-        description="Orígenes permitidos (lista o string con comas)."
+        default=["http://localhost:5173", "http://localhost:5174", "http://localhost:8081"],
+        description="Orígenes permitidos (lista o string con comas).",
     )
     CORS_ALLOW_ORIGIN_REGEX: Optional[str] = None
     CORS_ALLOW_CREDENTIALS: bool = True
@@ -67,6 +226,7 @@ class Settings(BaseSettings):
         "Authorization",
         "Content-Type",
         "X-CSRF-Token",
+        "X-CSRFToken",
         "X-CSRF",
         "X-Client-Version",
         "X-Client-Revision",
@@ -76,9 +236,9 @@ class Settings(BaseSettings):
 
     # Base de datos
     DATABASE_URL: SecretStr
-    POOL_SIZE: int = 10
-    MAX_OVERFLOW: int = 20
-    POOL_TIMEOUT: int = 30           # segundos
+    POOL_SIZE: int = 5
+    MAX_OVERFLOW: int = 10
+    POOL_TIMEOUT: int = 10  # segundos
     DB_STATEMENT_TIMEOUT_MS: int = 15000  # 15s
 
     # Redis (opcional)
@@ -94,10 +254,11 @@ class Settings(BaseSettings):
     COEP_ENABLED: bool = False
     CORP_POLICY: str = "same-site"
 
-    TENANT_NAMESPACE_UUID: str = Field(..., description="Namespace para generar tenant UUIDs determinísticos")
+    TENANT_NAMESPACE_UUID: str = Field(
+        ..., description="Namespace para generar tenant UUIDs determinísticos"
+    )
     ADMIN_SYSTEM_TENANT_ID: str = Field(
-        "00000000-0000-0000-0000-000000000000",
-        description="Tenant fijo para admins"
+        "00000000-0000-0000-0000-000000000000", description="Tenant fijo para admins"
     )
 
     # Refresh hardening
@@ -125,6 +286,35 @@ class Settings(BaseSettings):
     MAX_REQUEST_BYTES: int = 5 * 1024 * 1024
     GZIP_ENABLED: bool = True
 
+    # Fase D - IA Configurable
+    IMPORT_AI_PROVIDER: Literal["local", "openai", "azure"] = Field(
+        default="local",
+        description="AI provider for document classification (local | openai | azure)"
+    )
+    IMPORT_AI_CONFIDENCE_THRESHOLD: float = Field(
+        default=0.7,
+        description="Confidence threshold to trigger AI enhancement (use AI if < threshold)"
+    )
+    OPENAI_API_KEY: Optional[str] = None
+    OPENAI_MODEL: str = Field(
+        default="gpt-3.5-turbo",
+        description="OpenAI model to use for classification"
+    )
+    AZURE_OPENAI_KEY: Optional[str] = None
+    AZURE_OPENAI_ENDPOINT: Optional[str] = None
+    IMPORT_AI_CACHE_ENABLED: bool = Field(
+        default=True,
+        description="Enable caching of AI classifications"
+    )
+    IMPORT_AI_CACHE_TTL: int = Field(
+        default=86400,  # 24 hours
+        description="Cache TTL in seconds"
+    )
+    IMPORT_AI_LOG_TELEMETRY: bool = Field(
+        default=True,
+        description="Log AI classification telemetry for accuracy tracking"
+    )
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def split_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
@@ -146,7 +336,13 @@ class Settings(BaseSettings):
             raise ValueError("FRONTEND_URL debe incluir http(s)://")
         return v
 
-    @field_validator("EMAIL_HOST", "EMAIL_HOST_USER", "EMAIL_HOST_PASSWORD", "DEFAULT_FROM_EMAIL", mode="before")
+    @field_validator(
+        "EMAIL_HOST",
+        "EMAIL_HOST_USER",
+        "EMAIL_HOST_PASSWORD",
+        "DEFAULT_FROM_EMAIL",
+        mode="before",
+    )
     @classmethod
     def strip_quotes(cls, v: str | None):
         if isinstance(v, str):
@@ -165,7 +361,17 @@ class Settings(BaseSettings):
     @field_validator("JWT_ALGORITHM")
     @classmethod
     def validate_jwt_alg(cls, alg: str) -> str:
-        allowed = ("HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256", "ES384", "ES512")
+        allowed = (
+            "HS256",
+            "HS384",
+            "HS512",
+            "RS256",
+            "RS384",
+            "RS512",
+            "ES256",
+            "ES384",
+            "ES512",
+        )
         if alg not in allowed:
             raise ValueError(f"JWT_ALGORITHM inválido: {alg}")
         return alg
@@ -173,7 +379,9 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         url = self.DATABASE_URL.get_secret_value()
-        return url.replace("postgres://", "postgresql://", 1) if url.startswith("postgres://") else url
+        return (
+            url.replace("postgres://", "postgresql://", 1) if url.startswith("postgres://") else url
+        )
 
     @property
     def is_prod(self) -> bool:
@@ -190,7 +398,7 @@ class Settings(BaseSettings):
             "FRONTEND_URL",
             "DATABASE_URL",
             "SESSION_COOKIE_NAME",
-            "CSRF_COOKIE_NAME"
+            "CSRF_COOKIE_NAME",
         ]
 
         required_email = [

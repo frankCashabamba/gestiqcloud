@@ -1,4 +1,4 @@
-﻿# app/config/database.py
+# app/config/database.py
 from __future__ import annotations
 
 from contextlib import contextmanager, asynccontextmanager
@@ -12,6 +12,7 @@ from app.config.settings import settings
 
 Base = declarative_base()
 
+
 def make_db_url() -> str:
     """
     Usa la URL normalizada de settings.database_url.
@@ -24,6 +25,7 @@ def make_db_url() -> str:
         url = f"{url}{sep}sslmode=require"
     return url
 
+
 # ---------------------------------------------------------------------------
 # Engine con pooling, pre_ping y statement_timeout (vÃ­a psycopg/pg options)
 # ---------------------------------------------------------------------------
@@ -35,7 +37,26 @@ CONNECT_ARGS = {
 }
 
 _db_url = make_db_url()
-if _db_url.startswith("sqlite"):
+
+IS_SQLITE = _db_url.startswith("sqlite")
+PG_SCHEMA_NAME = "public"
+SCHEMA_PREFIX = f"{PG_SCHEMA_NAME}." if not IS_SQLITE else ""
+
+def schema_table_args(**extras):
+    args = {"extend_existing": True}
+    if not IS_SQLITE:
+        args["schema"] = PG_SCHEMA_NAME
+    args.update(extras)
+    return args
+
+def schema_table_name(table_name: str) -> str:
+    return f"{SCHEMA_PREFIX}{table_name}" if table_name else table_name
+
+def schema_column(table_name: str, column: str = "id") -> str:
+    base = schema_table_name(table_name)
+    return f"{base}.{column}" if column else base
+
+if IS_SQLITE:
     engine = create_engine(
         _db_url,
         echo=(settings.LOG_LEVEL == "DEBUG"),
@@ -48,7 +69,7 @@ else:
         pool_size=settings.POOL_SIZE,
         max_overflow=settings.MAX_OVERFLOW,
         pool_timeout=settings.POOL_TIMEOUT,  # segundos
-        pool_pre_ping=True,                  # detecta conexiones rotas
+        pool_pre_ping=True,  # detecta conexiones rotas
         echo=(settings.LOG_LEVEL == "DEBUG"),
         future=True,
         connect_args=CONNECT_ARGS,
@@ -60,6 +81,7 @@ SessionLocal: sessionmaker[Session] = sessionmaker(
     autocommit=False,
     future=True,
 )
+
 
 # ---------------------------------------------------------------------------
 # Async session shim for tests (patch target)
@@ -77,6 +99,7 @@ async def get_db_session():  # pragma: no cover - used as patch target in tests
     raise NotImplementedError(
         "get_db_session is a test-time placeholder; patch it or provide an async provider"
     )
+
 
 # ---------------------------------------------------------------------------
 # Dependencia FastAPI: sesiÃ³n por request
@@ -117,10 +140,13 @@ def get_db(request: Request) -> Iterator[Session]:
             if tenant_id is not None and user_id is not None:
                 tid = str(tenant_id)
                 uid = str(user_id)
-                # translate legacy empresa_id (digits) -> tenant UUID
+                # translate legacy tenant_id (digits) -> tenant UUID
                 if tid.isdigit():
                     try:
-                        res = db.execute(text("SELECT id FROM tenants WHERE empresa_id = :eid"), {"eid": int(tid)})
+                        res = db.execute(
+                            text("SELECT id FROM tenants WHERE tenant_id = :eid"),
+                            {"eid": int(tid)},
+                        )
                         row = res.first()
                         if row and row[0]:
                             tid = row[0]
@@ -159,6 +185,7 @@ def get_db(request: Request) -> Iterator[Session]:
     finally:
         db.close()
 
+
 # ---------------------------------------------------------------------------
 # ORM hook: auto-fill tenant_id and UUID PKs when missing (best-effort)
 # ---------------------------------------------------------------------------
@@ -172,11 +199,15 @@ def _auto_fill_multitenant_fields(session: Session, flush_context, instances):
         return
     for obj in list(session.new):
         try:
-            if hasattr(obj, "tenant_id") and getattr(obj, "tenant_id", None) in (None, ""):
+            if hasattr(obj, "tenant_id") and getattr(obj, "tenant_id", None) in (
+                None,
+                "",
+            ):
                 setattr(obj, "tenant_id", tid)
         except Exception:
             # do not block flush
             pass
+
 
 # ---------------------------------------------------------------------------
 # (Opcional) Multitenancy por schema (search_path)
@@ -186,7 +217,10 @@ def set_search_path(db: Session, tenant_schema: str) -> None:
     Fija el search_path por sesiÃ³n. Incluye siempre 'public' como fallback.
     Llamar tras abrir la sesiÃ³n (en una dependencia que resuelva el tenant).
     """
-    db.execute(text("SET search_path TO :schema, public").bindparams(schema=tenant_schema))
+    db.execute(
+        text("SET search_path TO :schema, public").bindparams(schema=tenant_schema)
+    )
+
 
 def get_tenant_db(tenant_schema: str) -> Iterator[Session]:
     """
@@ -200,6 +234,7 @@ def get_tenant_db(tenant_schema: str) -> Iterator[Session]:
         yield db
     finally:
         db.close()
+
 
 # ---------------------------------------------------------------------------
 # Utilidades: health y scope transaccional
@@ -217,6 +252,7 @@ def ping() -> bool:
             pass
     return True
 
+
 @contextmanager
 def session_scope() -> Iterator[Session]:
     """
@@ -233,4 +269,3 @@ def session_scope() -> Iterator[Session]:
         raise
     finally:
         db.close()
-

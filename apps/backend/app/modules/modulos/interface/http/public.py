@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.models.empresa.empresa import Empresa
 from app.modules import crud as mod_crud
 from app.modules.modulos.interface.http.schemas import ModuloOutSchema
+from app.models.tenant import Tenant as Empresa
 
 
 router = APIRouter(
@@ -17,7 +17,9 @@ router = APIRouter(
 )
 
 
-@router.get("/empresa/{empresa_slug}/seleccionables", response_model=List[ModuloOutSchema])
+@router.get(
+    "/empresa/{empresa_slug}/seleccionables", response_model=List[ModuloOutSchema]
+)
 def listar_modulos_activos_por_slug(
     empresa_slug: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -33,11 +35,13 @@ def listar_modulos_activos_por_slug(
             continue
         dto = {
             "id": m.id,
-            "nombre": m.nombre,
+            "name": m.name,
+            "nombre": m.name,  # Legacy compatibility
             "url": m.url,
             "icono": m.icono,
             "categoria": m.categoria,
-            "activo": m.activo,
+            "active": m.active,
+            "activo": m.active,  # Legacy compatibility
         }
         items.append(ModuloOutSchema.model_construct(**dto))
     return items

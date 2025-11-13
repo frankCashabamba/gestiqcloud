@@ -1,0 +1,144 @@
+import React, { useEffect, useMemo, useState } from 'react'
+import api from '../../services/api'
+import { useSearchParams } from 'react-router-dom'
+
+type FieldItem = { field: string; visible: boolean; required: boolean; ord?: number | null; label?: string | null; help?: string | null }
+
+export default function FieldConfigManager() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [sector, setSector] = useState(searchParams.get('sector') || 'retail')
+  const [moduleKey, setModuleKey] = useState(searchParams.get('module') || 'clientes')
+  const [empresa, setEmpresa] = useState(searchParams.get('empresa') || '')
+  const [formMode, setFormMode] = useState<'mixed'|'tenant'|'sector'|'basic'>((searchParams.get('mode') as any) || 'mixed')
+  const [items, setItems] = useState<FieldItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  async function load() {
+    setMsg(null)
+    setLoading(true)
+    try {
+      // Prefer tenant config when empresa slug is present; otherwise sector defaults
+      if (empresa) {
+        const { data } = await api.get(`/v1/tenant/settings/fields`, { params: { module: moduleKey, empresa } })
+        setItems(data.items || [])
+      } else {
+        const { data } = await api.get(`/v1/admin/field-config/sector`, { params: { module: moduleKey, sector } })
+        setItems(data.items || [])
+      }
+    } catch (e: any) {
+      setMsg(e?.message || 'Error cargando configuración')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function save() {
+    setMsg(null)
+    setLoading(true)
+    try {
+      if (empresa) {
+        await api.put(`/v1/admin/field-config/tenant`, { empresa, module: moduleKey, items })
+        await api.put(`/v1/admin/field-config/tenant/mode`, { empresa, module: moduleKey, form_mode: formMode })
+      } else {
+        await api.put(`/v1/admin/field-config/sector`, { sector, module: moduleKey, items })
+      }
+      setMsg('Configuración guardada')
+    } catch (e: any) {
+      setMsg(e?.message || 'Error guardando configuración')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Auto-apply query param changes
+  useEffect(() => {
+    const sp = new URLSearchParams()
+    if (sector) sp.set('sector', sector)
+    if (moduleKey) sp.set('module', moduleKey)
+    if (empresa) sp.set('empresa', empresa)
+    if (formMode) sp.set('mode', formMode)
+    setSearchParams(sp, { replace: true })
+  }, [sector, moduleKey, empresa, formMode])
+
+  // Auto-load when selection changes
+  useEffect(() => { load() }, [sector, moduleKey, empresa])
+
+  return (
+    <div style={{ padding: 16 }}>
+      <h2 style={{ marginTop: 0 }}>Configuración de Campos</h2>
+      <p className="text-sm text-slate-500">Gestiona visibilidad y obligatoriedad por sector o por tenant.</p>
+
+      <div style={{ display: 'flex', gap: 12, alignItems: 'end', marginBottom: 12 }}>
+        <div>
+          <label htmlFor="sector-select">Sector</label>
+          <select id="sector-select" name="sector" value={sector} onChange={(e) => setSector(e.target.value)} className="input">
+            <option value="retail">Retail/Bazar</option>
+            <option value="panaderia">Panadería</option>
+            <option value="taller">Taller</option>
+          </select>
+        </div>
+        <div>
+          <label>Módulo</label>
+          <select id="module-select" name="module" aria-label="Módulo" value={moduleKey} onChange={(e) => setModuleKey(e.target.value)} className="input">
+            <option value="clientes">Clientes</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="empresa-input">Empresa (slug) opcional</label>
+          <input id="empresa-input" name="empresa" aria-label="Empresa (slug) opcional" value={empresa} onChange={(e)=> setEmpresa(e.target.value)} placeholder="bazar-omar" className="input" />
+        </div>
+        <div>
+          <label>Modo</label>
+          <select aria-label="Modo" value={formMode} onChange={(e)=> setFormMode(e.target.value as any)} className="input">
+            <option value="mixed">Mixto (sector + tenant)</option>
+            <option value="tenant">Solo tenant (100% personalizado)</option>
+            <option value="sector">Solo sector</option>
+            <option value="basic">Básico</option>
+          </select>
+        </div>
+        <button className="gc-button gc-button--primary" onClick={save} disabled={loading}>Guardar</button>
+      </div>
+
+      {msg && <div className="notice">{msg}</div>}
+
+      {loading ? (
+        <div>Cargando…</div>
+      ) : (
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr>
+              <th>Campo</th>
+              <th>Visible</th>
+              <th>Obligatorio</th>
+              <th>Orden</th>
+              <th>Etiqueta</th>
+              <th>Ayuda</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((it, i) => (
+              <tr key={i}>
+                <td><input aria-label={`Campo fila ${i+1}`} name={`field-${i}`} value={it.field} onChange={(e)=> {
+                  const v = e.target.value; setItems(prev => prev.map((x,idx)=> idx===i? {...x, field: v}: x))
+                }} className="input" /></td>
+                <td><input aria-label={`Visible fila ${i+1}`} name={`visible-${i}`} type="checkbox" checked={!!it.visible} onChange={(e)=> setItems(prev => prev.map((x,idx)=> idx===i? {...x, visible: e.target.checked}: x))} /></td>
+                <td><input aria-label={`Obligatorio fila ${i+1}`} name={`required-${i}`} type="checkbox" checked={!!it.required} onChange={(e)=> setItems(prev => prev.map((x,idx)=> idx===i? {...x, required: e.target.checked}: x))} /></td>
+                <td><input aria-label={`Orden fila ${i+1}`} name={`ord-${i}`} type="number" value={it.ord ?? ''} onChange={(e)=> {
+                  const num = e.target.value === '' ? null : Number(e.target.value);
+                  setItems(prev => prev.map((x,idx)=> idx===i? {...x, ord: (num as any)}: x))
+                }} className="input" style={{ width: 80 }} /></td>
+                <td><input aria-label={`Etiqueta fila ${i+1}`} name={`label-${i}`} value={it.label || ''} onChange={(e)=> setItems(prev => prev.map((x,idx)=> idx===i? {...x, label: e.target.value}: x))} className="input" /></td>
+                <td><input aria-label={`Ayuda fila ${i+1}`} name={`help-${i}`} value={it.help || ''} onChange={(e)=> setItems(prev => prev.map((x,idx)=> idx===i? {...x, help: e.target.value}: x))} className="input" /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <div style={{ marginTop: 12 }}>
+        <button className="gc-button" onClick={()=> setItems(prev => [...prev, { field: '', visible: true, required: false }])}>Añadir campo</button>
+      </div>
+    </div>
+  )
+}

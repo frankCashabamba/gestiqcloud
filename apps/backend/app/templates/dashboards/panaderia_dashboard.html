@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ tenant_name }} — Dashboard Panadería</title>
+  <meta name="color-scheme" content="light dark" />
+  <style>
+    :root{
+      --font: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      --bg:#0f1115; --surface:#151922; --surface2:#1e2430; --text:#e6e8ee; --muted:#a7afc0; --border:#2a2f3a;
+      --primary:#8B4513; --on-primary:#fff; --focus:#A0522D;
+      --ok:#26d07c; --warn:#fbbf24; --err:#ff6b6b; --info:#38bdf8;
+      --pad:12px; --gap:16px; --r:12px; --ctl:40px;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);line-height:1.45}
+    .app{min-height:100dvh;display:grid;grid-template-columns:260px 1fr;grid-template-rows:56px 1fr;grid-template-areas:"topbar topbar" "sidebar main"}
+
+    /* Topbar */
+    .top{grid-area:topbar;position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:12px;padding:0 var(--pad);background:var(--surface);border-bottom:1px solid var(--border)}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:600}
+    .brand__logo{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--primary),#A0522D)}
+    .search{flex:1;display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;height:var(--ctl);padding:0 10px}
+    .search input{border:0;background:transparent;color:var(--text);width:100%}
+    .btn{height:var(--ctl);padding:0 12px;border-radius:10px;background:var(--surface);border:1px solid var(--border);color:var(--text);cursor:pointer}
+    .btn--primary{background:var(--primary);color:var(--on-primary);border-color:transparent}
+
+    /* Sidebar */
+    .side{grid-area:sidebar;background:var(--surface);border-right:1px solid var(--border);padding:12px;position:sticky;top:56px;height:calc(100dvh - 56px)}
+    .nav ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+    .nav a{display:block;padding:10px 12px;border-radius:10px;color:inherit;text-decoration:none}
+    .nav a[aria-current="page"], .nav a:hover{background:var(--surface2)}
+
+    /* Main */
+    .main{grid-area:main;padding:16px}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:var(--gap)}
+    .col-12{grid-column:span 12}.col-8{grid-column:span 8}.col-6{grid-column:span 6}.col-4{grid-column:span 4}.col-3{grid-column:span 3}
+    @media (max-width:1100px){.grid{grid-template-columns:repeat(6,1fr)} .col-8{grid-column:span 6}.col-6{grid-column:span 6}.col-4{grid-column:span 3}}
+    @media (max-width:800px){.grid{grid-template-columns:1fr} .side{display:none}}
+
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:var(--pad);min-height:120px;display:flex;flex-direction:column;gap:8px;box-shadow:var(--shadow)}
+    .card h3{margin:0 0 4px 0;font-size:16px}
+    .kpis{display:flex;gap:12px;flex-wrap:wrap}
+    .pill{padding:6px 10px;border-radius:999px;border:1px solid var(--border);font-size:12px;color:var(--muted)}
+    .badge{padding:4px 8px;border-radius:999px;border:1px solid var(--border);font-size:12px;color:var(--muted)}
+    .ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok)40%,var(--border))}
+    .warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn)40%,var(--border))}
+    .err{color:var(--err);border-color:color-mix(in srgb,var(--err)40%,var(--border))}
+    .link{font-size:12px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;color:var(--primary);text-decoration:none;background:var(--surface)}
+    .list{display:grid;gap:8px}
+    .list__item{display:flex;align-items:center;justify-content:space-between;border:1px dashed var(--border);border-radius:10px;padding:8px}
+    .bar{height:8px;border-radius:6px;background:var(--surface2);overflow:hidden}
+    .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--primary),#A0522D)}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="top" role="banner">
+      <div class="brand"><div class="brand__logo" aria-hidden="true"></div><span>{{ tenant_name }}</span></div>
+      <div class="search" role="search"><input placeholder="Buscar productos, tickets..." /></div>
+      <button class="btn btn--primary" onclick="location.href='/pos'">🧾 TPV</button>
+    </header>
+
+    <aside class="side" role="navigation">
+      <nav class="nav">
+        <ul>
+          <li><a href="/dashboard" aria-current="page">🏠 Inicio</a></li>
+          <li><a href="/pos">🧾 TPV</a></li>
+          <li><a href="/ventas">📊 Ventas</a></li>
+          <li><a href="/inventario">📦 Inventario</a></li>
+          <li><a href="/productos">🥐 Productos</a></li>
+          <li><a href="/clientes">👥 Clientes</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <h1 style="margin:0 0 12px 0;font-size:20px">📊 Dashboard de Panadería</h1>
+      <div class="grid">
+
+        <!-- Ventas del día -->
+        <section class="card col-6">
+          <h3>Ventas del día</h3>
+          <div class="kpis">
+            <span class="pill">Tickets: {{ total_tickets }}</span>
+            <span class="pill">Total: {{ total_sales }}</span>
+            <span class="badge ok">+{{ vs_yesterday }}% vs ayer</span>
+          </div>
+        </section>
+
+        <!-- Productos más vendidos -->
+        <section class="card col-6">
+          <h3>🥐 Top Productos</h3>
+          <div class="list">
+            {% for product in top_products %}
+            <div class="list__item">
+              <span>{{ product.name }}</span>
+              <strong>{{ product.qty }} uds</strong>
+            </div>
+            {% endfor %}
+          </div>
+        </section>
+
+        <!-- Caducidades próximas -->
+        <section class="card col-6">
+          <h3>⚠️ Caducidades próximas (3 días)</h3>
+          <div class="list">
+            {% for item in expiring_soon %}
+            <div class="list__item">
+              <span>{{ item.product_name }} (Lote {{ item.lot }})</span>
+              <span class="badge warn">{{ item.expires_at }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          <a class="link" href="/inventario?filter=expiring">Ver todos</a>
+        </section>
+
+        <!-- Mermas del día -->
+        <section class="card col-6">
+          <h3>📉 Mermas registradas</h3>
+          <div class="kpis">
+            <span class="pill">Total: {{ total_waste_units }} uds</span>
+            <span class="pill">Valor: {{ total_waste_value }}</span>
+            <span class="badge {% if waste_percentage > 5 %}warn{% else %}ok{% endif %}">{{ waste_percentage }}%</span>
+          </div>
+          <a class="link" href="/inventario/mermas">Ver detalle</a>
+        </section>
+
+        <!-- Producción vs Venta -->
+        <section class="card col-12">
+          <h3>🔥 Horno: Producción vs Venta</h3>
+          <div class="list">
+            {% for batch in production_batches %}
+            <div class="list__item">
+              <div style="flex:1">
+                <strong>{{ batch.product_name }}</strong>
+                <small style="color:var(--muted)">Producido: {{ batch.produced }} | Vendido: {{ batch.sold }}</small>
+                <div class="bar"><i style="width:{{ (batch.sold / batch.produced * 100) if batch.produced > 0 else 0 }}%"></i></div>
+              </div>
+              <span class="badge {% if batch.remaining > 10 %}warn{% else %}ok{% endif %}">Quedan: {{ batch.remaining }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+</body>
+</html>

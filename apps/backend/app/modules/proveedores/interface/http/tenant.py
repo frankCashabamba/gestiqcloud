@@ -13,15 +13,19 @@ from ...infrastructure.repositories import ProveedorRepo
 from .schemas import ProveedorCreate, ProveedorOut, ProveedorUpdate
 
 router = APIRouter(
-    prefix="/tenant/proveedores",
+    prefix="/proveedores",
     tags=["Proveedores"],
-    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant")), Depends(ensure_rls)],
+    dependencies=[
+        Depends(with_access_claims),
+        Depends(require_scope("tenant")),
+        Depends(ensure_rls),
+    ],
 )
 
 
 def _empresa_id(request: Request) -> int:
     claims = getattr(request.state, "access_claims", {})
-    empresa = claims.get("tenant_id") or claims.get("empresa_id")
+    empresa = claims.get("tenant_id") or claims.get("tenant_id")
     if empresa is None:
         raise HTTPException(status_code=400, detail="Empresa no encontrada en el token")
     try:
@@ -51,43 +55,47 @@ def _prepare_payload(
 
     if iban:
         if confirm is None or iban.strip() != confirm.strip():
-            raise HTTPException(status_code=400, detail="La confirmacion de IBAN no coincide")
+            raise HTTPException(
+                status_code=400, detail="La confirmacion de IBAN no coincide"
+            )
         if iban.strip() != (current_iban or "").strip():
             data["iban_actualizado_por"] = _user_id(request)
             data["iban_actualizado_at"] = _now()
     elif confirm:
-        raise HTTPException(status_code=400, detail="Debes indicar el IBAN si aportas confirmacion")
+        raise HTTPException(
+            status_code=400, detail="Debes indicar el IBAN si aportas confirmacion"
+        )
     return data
 
 
-@router.get("/", response_model=list[ProveedorOut])
+@router.get("", response_model=list[ProveedorOut])
 def list_proveedores(request: Request, db: Session = Depends(get_db)):
-    empresa_id = _empresa_id(request)
-    return ProveedorRepo(db).list(empresa_id)
+    tenant_id = _empresa_id(request)
+    return ProveedorRepo(db).list(tenant_id)
 
 
 @router.get("/{pid}", response_model=ProveedorOut)
 def get_proveedor(pid: int, request: Request, db: Session = Depends(get_db)):
-    empresa_id = _empresa_id(request)
-    obj = ProveedorRepo(db).get(empresa_id, pid)
+    tenant_id = _empresa_id(request)
+    obj = ProveedorRepo(db).get(tenant_id, pid)
     if not obj:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
     return obj
 
 
-@router.post("/", response_model=ProveedorOut, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ProveedorOut, status_code=status.HTTP_201_CREATED)
 def create_proveedor(
     payload: ProveedorCreate,
     request: Request,
     db: Session = Depends(get_db),
 ):
-    empresa_id = _empresa_id(request)
+    tenant_id = _empresa_id(request)
     repo = ProveedorRepo(db)
     data = _prepare_payload(payload, request=request)
     if data.get("iban"):
         data.setdefault("iban_actualizado_por", _user_id(request))
         data.setdefault("iban_actualizado_at", _now())
-    proveedor = repo.create(empresa_id, **data)
+    proveedor = repo.create(tenant_id, **data)
     return proveedor
 
 
@@ -98,21 +106,21 @@ def update_proveedor(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    empresa_id = _empresa_id(request)
+    tenant_id = _empresa_id(request)
     repo = ProveedorRepo(db)
-    existing = repo.get(empresa_id, pid)
+    existing = repo.get(tenant_id, pid)
     if not existing:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
     data = _prepare_payload(payload, request=request, current_iban=existing.iban)
-    proveedor = repo.update(empresa_id, pid, **data)
+    proveedor = repo.update(tenant_id, pid, **data)
     return proveedor
 
 
 @router.delete("/{pid}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_proveedor(pid: int, request: Request, db: Session = Depends(get_db)):
-    empresa_id = _empresa_id(request)
+    tenant_id = _empresa_id(request)
     try:
-        ProveedorRepo(db).delete(empresa_id, pid)
+        ProveedorRepo(db).delete(tenant_id, pid)
     except ValueError:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
     return Response(status_code=status.HTTP_204_NO_CONTENT)

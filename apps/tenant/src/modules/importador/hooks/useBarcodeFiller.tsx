@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Hook para auto-generar códigos de barras faltantes durante importación
  * 
  * Casos de uso:
@@ -13,7 +13,7 @@ import { BarcodeGenerator, getBarcodeGeneratorForCountry, validateBarcode, detec
 type ProductRow = {
   id?: string
   sku: string
-  nombre: string
+  name: string
   codigo_barras?: string
   [key: string]: any
 }

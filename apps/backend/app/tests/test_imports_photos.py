@@ -7,7 +7,9 @@ def _tenant_token(client: TestClient, usuario_empresa_factory):
     suffix = uuid.uuid4().hex[:6]
     username = f"ph_{suffix}"
     email = f"ph_{suffix}@x.com"
-    usuario, empresa = usuario_empresa_factory(email=email, username=username, password="secret")
+    usuario, tenant = usuario_empresa_factory(
+        email=email, username=username, password="secret"
+    )
     r = client.post(
         "/api/v1/tenant/auth/login",
         json={"identificador": username, "password": "secret"},
@@ -17,7 +19,9 @@ def _tenant_token(client: TestClient, usuario_empresa_factory):
     return data.get("access_token") or data.get("token")
 
 
-def test_upload_photo_creates_item_with_attachment(client: TestClient, db, usuario_empresa_factory, tmp_path, monkeypatch):
+def test_upload_photo_creates_item_with_attachment(
+    client: TestClient, db, usuario_empresa_factory, tmp_path, monkeypatch
+):
     tok = _tenant_token(client, usuario_empresa_factory)
     headers = {"Authorization": f"Bearer {tok}"}
 
@@ -35,7 +39,7 @@ def test_upload_photo_creates_item_with_attachment(client: TestClient, db, usuar
 
     # Create tiny JPEG-like bytes
     p = tmp_path / "img.jpg"
-    p.write_bytes(b"\xFF\xD8\xFF\xDB" + b"0" * 1024)
+    p.write_bytes(b"\xff\xd8\xff\xdb" + b"0" * 1024)
 
     with open(p, "rb") as f:
         r2 = client.post(
@@ -55,7 +59,9 @@ def test_upload_photo_creates_item_with_attachment(client: TestClient, db, usuar
     assert len(items) == 1
 
 
-def test_attach_photo_to_item_revalidates(client: TestClient, db, usuario_empresa_factory, tmp_path, monkeypatch):
+def test_attach_photo_to_item_revalidates(
+    client: TestClient, db, usuario_empresa_factory, tmp_path, monkeypatch
+):
     tok = _tenant_token(client, usuario_empresa_factory)
     headers = {"Authorization": f"Bearer {tok}"}
 
@@ -72,7 +78,7 @@ def test_attach_photo_to_item_revalidates(client: TestClient, db, usuario_empres
 
     # First photo
     p1 = tmp_path / "p1.jpg"
-    p1.write_bytes(b"\xFF\xD8\xFF\xDB" + b"a" * 512)
+    p1.write_bytes(b"\xff\xd8\xff\xdb" + b"a" * 512)
     with open(p1, "rb") as f1:
         r2 = client.post(
             f"/api/v1/imports/batches/{batch['id']}/photos",
@@ -85,7 +91,7 @@ def test_attach_photo_to_item_revalidates(client: TestClient, db, usuario_empres
 
     # Attach second photo to same item
     p2 = tmp_path / "p2.jpg"
-    p2.write_bytes(b"\xFF\xD8\xFF\xDB" + b"b" * 512)
+    p2.write_bytes(b"\xff\xd8\xff\xdb" + b"b" * 512)
     with open(p2, "rb") as f2:
         r3 = client.post(
             f"/api/v1/imports/batches/{batch['id']}/items/{item_id}/photos",
@@ -98,7 +104,9 @@ def test_attach_photo_to_item_revalidates(client: TestClient, db, usuario_empres
     assert updated["status"] in ("OK", "ERROR_VALIDATION")
 
 
-def test_photo_errors_csv_reflects_validation(client: TestClient, db, usuario_empresa_factory, tmp_path, monkeypatch):
+def test_photo_errors_csv_reflects_validation(
+    client: TestClient, db, usuario_empresa_factory, tmp_path, monkeypatch
+):
     tok = _tenant_token(client, usuario_empresa_factory)
     headers = {"Authorization": f"Bearer {tok}"}
 
@@ -116,7 +124,7 @@ def test_photo_errors_csv_reflects_validation(client: TestClient, db, usuario_em
 
     # Create bytes that will produce empty OCR (stub returns "")
     p = tmp_path / "empty.jpg"
-    p.write_bytes(b"\xFF\xD8\xFF\xDB" + b"z" * 256)
+    p.write_bytes(b"\xff\xd8\xff\xdb" + b"z" * 256)
     with open(p, "rb") as f:
         r2 = client.post(
             f"/api/v1/imports/batches/{batch['id']}/photos",
@@ -126,7 +134,9 @@ def test_photo_errors_csv_reflects_validation(client: TestClient, db, usuario_em
     assert r2.status_code == 200, r2.text
 
     # Export errors.csv and verify it contains header and a field name
-    rcsv = client.get(f"/api/v1/imports/batches/{batch['id']}/errors.csv", headers=headers)
+    rcsv = client.get(
+        f"/api/v1/imports/batches/{batch['id']}/errors.csv", headers=headers
+    )
     assert rcsv.status_code == 200
     assert rcsv.headers.get("content-type", "").startswith("text/csv")
     csv_text = rcsv.text

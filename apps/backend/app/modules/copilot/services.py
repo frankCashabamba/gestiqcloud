@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import os
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from app.db.rls import tenant_id_sql_expr
 
 
 def _mask_email(val: str | None) -> str | None:
@@ -48,7 +46,9 @@ def _fetch_all(db: Session, sql: str, params: Dict[str, Any]) -> List[Dict[str, 
     return rows
 
 
-def query_readonly(db: Session, topic: str, params: Dict[str, Any] | None = None) -> Dict[str, Any]:
+def query_readonly(
+    db: Session, topic: str, params: Dict[str, Any] | None = None
+) -> Dict[str, Any]:
     p = params or {}
     # Only allow curated read-only queries (RLS enforced by DB)
     if topic == "ventas_mes":
@@ -91,7 +91,13 @@ def query_readonly(db: Session, topic: str, params: Dict[str, Any] | None = None
         sql_sii = "SELECT count(*) AS pendientes FROM sii_batches WHERE status NOT IN ('ACCEPTED')"
         sri = _fetch_all(db, sql_sri, {})
         sii = _fetch_all(db, sql_sii, {})
-        return {"cards": [{"title": "SRI pendientes", "data": sri}, {"title": "SII pendientes", "data": sii}], "sql": sql_sri + ";" + sql_sii}
+        return {
+            "cards": [
+                {"title": "SRI pendientes", "data": sri},
+                {"title": "SII pendientes", "data": sii},
+            ],
+            "sql": sql_sri + ";" + sql_sii,
+        }
 
     if topic == "cobros_pagos":
         sql = (
@@ -105,7 +111,9 @@ def query_readonly(db: Session, topic: str, params: Dict[str, Any] | None = None
     return {"cards": [], "sql": None, "note": "topic_unsupported"}
 
 
-def create_invoice_draft(db: Session, tenant_empresa_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
+def create_invoice_draft(
+    db: Session, tenant_empresa_id: int, payload: Dict[str, Any]
+) -> Dict[str, Any]:
     # Create a minimal draft invoice; never post
     proveedor = str(payload.get("proveedor") or "N/A")
     cliente_id = payload.get("cliente_id")
@@ -115,17 +123,26 @@ def create_invoice_draft(db: Session, tenant_empresa_id: int, payload: Dict[str,
     row = db.execute(
         text(
             """
-            INSERT INTO facturas (numero, proveedor, fecha_emision, monto, estado, empresa_id, cliente_id, subtotal, iva, total)
+            INSERT INTO facturas (numero, proveedor, fecha_emision, monto, estado, tenant_id, cliente_id, subtotal, iva, total)
             VALUES ('DRAFT', :prov, now()::date, :total, 'borrador', :emp, :cli, :sub, :iva, :tot)
             RETURNING id
             """
         ),
-        {"prov": proveedor, "emp": int(tenant_empresa_id), "cli": cliente_id, "sub": subtotal, "iva": iva, "tot": total},
+        {
+            "prov": proveedor,
+            "emp": int(tenant_empresa_id),
+            "cli": cliente_id,
+            "sub": subtotal,
+            "iva": iva,
+            "tot": total,
+        },
     ).first()
     return {"id": int(row[0]), "status": "draft"}
 
 
-def create_order_draft(db: Session, payload: Dict[str, Any], tenant_id: str | None = None) -> Dict[str, Any]:
+def create_order_draft(
+    db: Session, payload: Dict[str, Any], tenant_id: str | None = None
+) -> Dict[str, Any]:
     cur = db.execute(
         text(
             "INSERT INTO sales_orders(customer_id, status, created_at) VALUES (:cid, 'draft', now()) RETURNING id"
@@ -139,12 +156,19 @@ def create_order_draft(db: Session, payload: Dict[str, Any], tenant_id: str | No
             text(
                 "INSERT INTO sales_order_items(order_id, product_id, qty, unit_price) VALUES (:oid, :pid, :qty, :price)"
             ),
-            {"oid": oid, "pid": it.get("product_id"), "qty": float(it.get("qty") or 0), "price": float(it.get("unit_price") or 0)},
+            {
+                "oid": oid,
+                "pid": it.get("product_id"),
+                "qty": float(it.get("qty") or 0),
+                "price": float(it.get("unit_price") or 0),
+            },
         )
     return {"id": int(oid), "status": "draft"}
 
 
-def create_transfer_draft(db: Session, payload: Dict[str, Any], tenant_id: str | None = None) -> Dict[str, Any]:
+def create_transfer_draft(
+    db: Session, payload: Dict[str, Any], tenant_id: str | None = None
+) -> Dict[str, Any]:
     # Draft transfer: two stock_move tentative rows (no stock_items update)
     src = int(payload.get("from_warehouse_id"))
     dst = int(payload.get("to_warehouse_id"))

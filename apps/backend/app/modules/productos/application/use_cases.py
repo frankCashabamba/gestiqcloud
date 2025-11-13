@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Sequence
 
@@ -9,16 +9,28 @@ from app.modules.productos.domain.entities import Producto
 
 
 class CrearProducto(BaseUseCase[ProductoRepo]):
-
-    def execute(self, *, empresa_id: int, data: ProductoIn) -> ProductoOut:
-        p = Producto(id=None, nombre=data.nombre, precio=data.precio, activo=data.activo, empresa_id=empresa_id)
+    def execute(self, *, tenant_id: int, data: ProductoIn) -> ProductoOut:
+        p = Producto(
+            id=None,
+            nombre=data.name,
+            precio=data.price,
+            activo=data.active,
+            tenant_id=tenant_id,
+        )
         p.validate()
         created = self.repo.create(p)
-        return ProductoOut(id=created.id or 0, nombre=created.nombre, precio=created.precio, activo=created.activo)
+        return ProductoOut(
+            id=created.id or 0,
+            nombre=created.name,
+            precio=created.price,
+            activo=created.active,
+        )
 
 
 class ListarProductos(BaseUseCase[ProductoRepo]):
-
-    def execute(self, *, empresa_id: int) -> Sequence[ProductoOut]:
-        items = self.repo.list(empresa_id=empresa_id)
-        return [ProductoOut(id=i.id or 0, nombre=i.nombre, precio=i.precio, activo=i.activo) for i in items]
+    def execute(self, *, tenant_id: int) -> Sequence[ProductoOut]:
+        items = self.repo.list(tenant_id=tenant_id)
+        return [
+            ProductoOut(id=i.id or 0, nombre=i.name, precio=i.price, activo=i.active)
+            for i in items
+        ]

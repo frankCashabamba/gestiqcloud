@@ -16,7 +16,13 @@ def normalize_function(fn: ast.FunctionDef) -> str:
     new = ast.FunctionDef(
         name="f",
         args=ast.arguments(
-            posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[], vararg=None, kwarg=None
+            posonlyargs=[],
+            args=[],
+            kwonlyargs=[],
+            kw_defaults=[],
+            defaults=[],
+            vararg=None,
+            kwarg=None,
         ),
         body=fn.body,
         decorator_list=[],

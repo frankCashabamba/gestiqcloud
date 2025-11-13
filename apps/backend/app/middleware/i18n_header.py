@@ -2,6 +2,7 @@
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.core.i18n import detect_lang
 
+
 class ContentLanguageMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         resp = await call_next(request)

@@ -1,21 +1,22 @@
 """Unit tests for photo_utils OCR optimizations."""
+
 from __future__ import annotations
 
 import hashlib
-from pathlib import Path
-from typing import Any
 
 import pytest
 
 try:
-    import cv2
+    import cv2  # noqa: F401
     import numpy as np
+
     OPENCV_AVAILABLE = True
 except ImportError:
     OPENCV_AVAILABLE = False
 
 try:
     import fitz
+
     PYMUPDF_AVAILABLE = True
 except ImportError:
     PYMUPDF_AVAILABLE = False
@@ -35,9 +36,9 @@ def test_preprocess_image_grayscale():
     # Create RGB test image
     img = np.zeros((100, 100, 3), dtype=np.uint8)
     img[:, :] = [128, 128, 128]  # Gray color
-    
+
     processed = preprocess_image(img)
-    
+
     # Should be 2D (grayscale)
     assert len(processed.shape) == 2
     assert processed.shape == (100, 100)
@@ -48,9 +49,9 @@ def test_preprocess_image_denoise():
     """Test image denoising."""
     # Create noisy image
     img = np.random.randint(0, 256, (100, 100), dtype=np.uint8)
-    
+
     processed = preprocess_image(img)
-    
+
     # Should be same size
     assert processed.shape == img.shape
 
@@ -62,12 +63,14 @@ def test_detect_native_text_in_pdf_with_text(tmp_path):
     pdf_path = tmp_path / "test.pdf"
     doc = fitz.open()
     page = doc.new_page()
-    page.insert_text((50, 50), "This is a test document with enough text to pass the threshold")
+    page.insert_text(
+        (50, 50), "This is a test document with enough text to pass the threshold"
+    )
     doc.save(str(pdf_path))
     doc.close()
-    
+
     text = detect_native_text_in_pdf(str(pdf_path), min_chars=10)
-    
+
     assert text is not None
     assert "test document" in text.lower()
 
@@ -81,9 +84,9 @@ def test_detect_native_text_in_pdf_without_text(tmp_path):
     doc.new_page()
     doc.save(str(pdf_path))
     doc.close()
-    
+
     text = detect_native_text_in_pdf(str(pdf_path), min_chars=100)
-    
+
     # Should return None since not enough text
     assert text is None
 
@@ -93,13 +96,13 @@ def test_extract_text_from_image_caching():
     # Create simple test image bytes
     content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
     file_sha = hashlib.sha256(content).hexdigest()
-    
+
     # First call (may fail without real image, but tests caching logic)
     result1 = extract_text_from_image(content, file_sha)
-    
+
     # Second call should use cache
     result2 = extract_text_from_image(content, file_sha)
-    
+
     # Should return same result (even if empty due to invalid image)
     assert result1 == result2
 
@@ -108,17 +111,17 @@ def test_extract_text_from_image_caching():
 def test_extract_qr_codes_no_qr():
     """Test QR extraction with image without QR codes."""
     img = np.zeros((100, 100, 3), dtype=np.uint8)
-    
+
     qr_codes = extract_qr_codes(img)
-    
+
     assert qr_codes == []
 
 
 def test_preprocess_image_fallback_without_opencv():
     """Test preprocessing fallback when OpenCV not available."""
     # Mock absence of OpenCV
-    original_available = OPENCV_AVAILABLE
-    
+    _original_available = OPENCV_AVAILABLE
+
     # If OpenCV not available, should return image unchanged
     if not OPENCV_AVAILABLE:
         img = "mock_image"
@@ -128,18 +131,17 @@ def test_preprocess_image_fallback_without_opencv():
 
 @pytest.mark.integration
 @pytest.mark.skipif(
-    not (OPENCV_AVAILABLE and PYMUPDF_AVAILABLE),
-    reason="OpenCV and PyMuPDF required"
+    not (OPENCV_AVAILABLE and PYMUPDF_AVAILABLE), reason="OpenCV and PyMuPDF required"
 )
 def test_full_ocr_pipeline_timing(tmp_path, benchmark_threshold_ms=5000):
     """Integration test for full OCR pipeline with timing."""
     import time
-    
+
     # Create test PDF with text
     pdf_path = tmp_path / "invoice.pdf"
     doc = fitz.open()
     page = doc.new_page()
-    
+
     # Add substantial text
     invoice_text = """
     FACTURA
@@ -159,12 +161,12 @@ def test_full_ocr_pipeline_timing(tmp_path, benchmark_threshold_ms=5000):
     page.insert_text((50, 50), invoice_text)
     doc.save(str(pdf_path))
     doc.close()
-    
+
     # Measure timing
     start = time.time()
     text = detect_native_text_in_pdf(str(pdf_path))
     elapsed_ms = (time.time() - start) * 1000
-    
+
     # Assertions
     assert text is not None
     assert "FACTURA" in text

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Conflict Resolver UI Component
  *
  * Shows sync conflicts that require manual user intervention.
@@ -57,7 +57,7 @@ export const ConflictResolver: React.FC<ConflictResolverProps> = ({ onResolve })
             {conflict.table === 'products' && conflict.conflict_details && (
               <div className="mb-3 p-3 bg-yellow-50 rounded">
                 <p className="text-sm text-yellow-800">
-                  <strong>Conflicto de precio:</strong><br />
+                  <strong>Conflicto de price:</strong><br />
                   Precio local: ${conflict.conflict_details.local_price}<br />
                   Precio remoto: ${conflict.conflict_details.remote_price}
                 </p>

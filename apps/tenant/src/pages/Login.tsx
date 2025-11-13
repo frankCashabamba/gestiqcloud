@@ -20,9 +20,9 @@ export default function Login() {
   async function loginAdminFallback() {
     try {
       try {
-        await apiFetch('/v1/admin/auth/csrf', { retryOn401: false } as any)
+        await apiFetch('/api/v1/admin/auth/csrf', { retryOn401: false } as any)
       } catch {}
-      const data = await apiFetch<{ access_token?: string }>('/v1/admin/auth/login', {
+      const data = await apiFetch<{ access_token?: string }>('/api/v1/admin/auth/login', {
         method: 'POST',
         body: JSON.stringify({ identificador: identificador.trim(), password }),
         retryOn401: false,

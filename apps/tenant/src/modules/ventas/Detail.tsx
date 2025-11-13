@@ -1,34 +1,174 @@
 import React, { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { getVenta, type Venta } from './services'
+import { useParams, useNavigate, Link } from 'react-router-dom'
+import { getVenta, removeVenta, type Venta } from './services'
+import { useToast, getErrorMessage } from '../../shared/toast'
+import StatusBadge from './components/StatusBadge'
 
 export default function VentaDetail() {
-  const { id } = useParams()
-  const nav = useNavigate()
-  const [venta, setVenta] = useState<Venta | null>(null)
-  const [loading, setLoading] = useState(true)
+    const { id } = useParams()
+    const nav = useNavigate()
+    const [venta, setVenta] = useState<Venta | null>(null)
+    const [loading, setLoading] = useState(true)
+    const { success, error } = useToast()
 
-  useEffect(() => {
-    if (!id) return
-    getVenta(id).then((v)=> setVenta(v)).finally(()=> setLoading(false))
-  }, [id])
+    useEffect(() => {
+        if (!id) return
+        getVenta(id).then((v) => setVenta(v)).catch((e) => error(getErrorMessage(e))).finally(() => setLoading(false))
+    }, [id])
 
-  if (loading) return <div style={{ padding: 16 }}>Cargando…</div>
-  if (!venta) return <div style={{ padding: 16 }}>No encontrada</div>
+    const handleDelete = async () => {
+        if (!id || !confirm('¿Eliminar esta venta permanentemente?')) return
+        try {
+            await removeVenta(id)
+            success('Venta eliminada')
+            nav('..')
+        } catch (e: any) {
+            error(getErrorMessage(e))
+        }
+    }
 
-  return (
-    <div className="p-4" style={{ maxWidth: 640 }}>
-      <button className="mb-3 underline" onClick={()=> nav('..')}>← Volver</button>
-      <h2 className="text-xl font-semibold mb-2">Detalle de venta</h2>
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <div><strong>ID:</strong> {venta.id}</div>
-        <div><strong>Fecha:</strong> {venta.fecha}</div>
-        <div><strong>Cliente:</strong> {venta.cliente_id ?? '-'}</div>
-        <div><strong>Total:</strong> $ {venta.total.toFixed(2)}</div>
-        <div><strong>Estado:</strong> {venta.estado ?? '-'}</div>
-      </div>
-      <div className="mt-4 text-sm text-gray-600">Más detalles de líneas e impuestos pueden integrarse aquí si están disponibles en el backend.</div>
-    </div>
-  )
+    const handleConvertToInvoice = () => {
+        // Navegar a facturación con pre-fill de datos
+        nav(`/facturacion/nueva?from_venta=${id}`)
+    }
+
+    if (loading) return <div className="p-4">Cargando…</div>
+    if (!venta) return <div className="p-4">No encontrada</div>
+
+    return (
+        <div className="p-4" style={{ maxWidth: 840 }}>
+            <button className="mb-3 underline text-sm" onClick={() => nav('..')}>← Volver a ventas</button>
+
+            <div className="flex justify-between items-start mb-4">
+                <div>
+                    <h2 className="text-2xl font-semibold">Venta #{venta.numero || venta.id}</h2>
+                    <p className="text-sm text-gray-600">ID: {venta.id}</p>
+                </div>
+                <StatusBadge estado={venta.estado} />
+            </div>
+
+            <div className="bg-white border rounded-lg p-4 mb-4">
+                <h3 className="font-semibold mb-3 text-lg">Información general</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <label className="text-gray-600">Número:</label>
+                        <p className="font-medium">{venta.numero || '-'}</p>
+                    </div>
+                    <div>
+                        <label className="text-gray-600">Fecha:</label>
+                        <p className="font-medium">{venta.fecha}</p>
+                    </div>
+                    <div>
+                        <label className="text-gray-600">Cliente:</label>
+                        <p className="font-medium">{venta.cliente_nombre || `ID: ${venta.cliente_id}` || 'Sin cliente'}</p>
+                    </div>
+                    <div>
+                        <label className="text-gray-600">Estado:</label>
+                        <p className="font-medium">{venta.estado || '-'}</p>
+                    </div>
+                    {venta.notas && (
+                        <div className="col-span-2">
+                            <label className="text-gray-600">Notas:</label>
+                            <p className="font-medium">{venta.notas}</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {venta.lineas && venta.lineas.length > 0 && (
+                <div className="bg-white border rounded-lg p-4 mb-4">
+                    <h3 className="font-semibold mb-3 text-lg">Líneas de venta</h3>
+                    <table className="min-w-full text-sm">
+                        <thead>
+                            <tr className="border-b">
+                                <th className="text-left py-2">Producto</th>
+                                <th className="text-right py-2">Cant.</th>
+                                <th className="text-right py-2">P. Unit.</th>
+                                <th className="text-right py-2">Desc. %</th>
+                                <th className="text-right py-2">IVA %</th>
+                                <th className="text-right py-2">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {venta.lineas.map((linea, idx) => {
+                                const base = linea.cantidad * linea.precio_unitario * (1 - (linea.descuento || 0) / 100)
+                                const impuesto = base * (linea.impuesto_tasa || 0) / 100
+                                const total = base + impuesto
+                                return (
+                                    <tr key={idx} className="border-b">
+                                        <td className="py-2">{linea.producto_nombre || `ID: ${linea.producto_id}`}</td>
+                                        <td className="text-right py-2">{linea.cantidad}</td>
+                                        <td className="text-right py-2">${linea.precio_unitario.toFixed(2)}</td>
+                                        <td className="text-right py-2">{linea.descuento || 0}%</td>
+                                        <td className="text-right py-2">{linea.impuesto_tasa || 0}%</td>
+                                        <td className="text-right py-2 font-semibold">${total.toFixed(2)}</td>
+                                    </tr>
+                                )
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            <div className="bg-gray-100 border rounded-lg p-4 mb-4">
+                <h3 className="font-semibold mb-3 text-lg">Totales</h3>
+                <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                        <span>Subtotal:</span>
+                        <span className="font-semibold">${(venta.subtotal || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span>Impuestos:</span>
+                        <span className="font-semibold">${(venta.impuesto || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-lg font-bold border-t pt-2">
+                        <span>TOTAL:</span>
+                        <span className="text-blue-700">${venta.total.toFixed(2)}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-white border rounded-lg p-4">
+                <h3 className="font-semibold mb-3 text-lg">Acciones</h3>
+                <div className="flex gap-3 flex-wrap">
+                    <Link
+                        to={`../${venta.id}/editar`}
+                        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                    >
+                        Editar
+                    </Link>
+
+                    {venta.estado === 'borrador' && (
+                        <button
+                            onClick={handleConvertToInvoice}
+                            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                        >
+                            Convertir a Factura
+                        </button>
+                    )}
+
+                    <button
+                        onClick={handleDelete}
+                        className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                    >
+                        Eliminar
+                    </button>
+
+                    <button
+                        onClick={() => window.print()}
+                        className="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300"
+                    >
+                        Imprimir
+                    </button>
+                </div>
+            </div>
+
+            {venta.created_at && (
+                <div className="mt-4 text-xs text-gray-500">
+                    Creada: {new Date(venta.created_at).toLocaleString()}
+                    {venta.updated_at && ` • Actualizada: ${new Date(venta.updated_at).toLocaleString()}`}
+                </div>
+            )}
+        </div>
+    )
 }
-

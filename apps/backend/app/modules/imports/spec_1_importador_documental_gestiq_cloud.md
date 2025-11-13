@@ -166,7 +166,7 @@ PROMOTED --> [*]
 Al promover (`POST /batches/{id}/promote`) se mapea el canónico a las tablas finales. Propuesta mínima:
 
 **Tabla `expenses`**  
-`(id uuid, empresa_id uuid, vendor_id uuid null, issue_date date, currency text, subtotal numeric, tax_total numeric, total numeric, category_code text null, account text null, source_item_id uuid unique, created_at timestamptz)`
+`(id uuid, tenant_id uuid, vendor_id uuid null, issue_date date, currency text, subtotal numeric, tax_total numeric, total numeric, category_code text null, account text null, source_item_id uuid unique, created_at timestamptz)`
 
 **Tabla `expense_lines`**  
 `(id uuid, expense_id uuid fk, description text, qty numeric, unit_price numeric, tax_code text, tax_amount numeric, total numeric)`
@@ -174,13 +174,13 @@ Al promover (`POST /batches/{id}/promote`) se mapea el canónico a las tablas fi
 **Tabla `incomes`** *(análoga a expenses)* y `income_lines`.
 
 **Tabla `bank_movements`**  
-`(id uuid, empresa_id uuid, value_date date, amount numeric, currency text, direction text, narrative text, external_ref text null, source_item_id uuid unique, created_at timestamptz)`
+`(id uuid, tenant_id uuid, value_date date, amount numeric, currency text, direction text, narrative text, external_ref text null, source_item_id uuid unique, created_at timestamptz)`
 
 **Tabla `attachments`**  
 `(id uuid, owner_type text, owner_id uuid, file_key text, mime text, pages int, created_at timestamptz)`
 
 **Tabla `vendors`** *(catálogo opcional)*  
-`(id uuid, empresa_id uuid, name text, tax_id text, country text)` con índice único por `(empresa_id, tax_id)` cuando aplique.
+`(id uuid, tenant_id uuid, name text, tax_id text, country text)` con índice único por `(tenant_id, tax_id)` cuando aplique.
 
 **Idempotencia**: `source_item_id` único en tablas destino + `dedupe_hash` en `import_items`.
 
@@ -193,7 +193,7 @@ Al promover (`POST /batches/{id}/promote`) se mapea el canónico a las tablas fi
 ### Validación y deduplicación
 
 - **Validador por país/tipo** (plug‑in): verifica fechas, monedas, totales, `tax_id` (formato RUC/NIF), tasas de IVA/ICE, etc. Reporta un **catálogo de errores** estable.
-- **Deduplicación**: `dedupe_hash = SHA256(empresa_id|doc_type|issue_date|currency|vendor_tax_id|total)` para facturas/recibos; para banca usar `value_date|amount|currency|narrative_norm`.
+- **Deduplicación**: `dedupe_hash = SHA256(tenant_id|doc_type|issue_date|currency|vendor_tax_id|total)` para facturas/recibos; para banca usar `value_date|amount|currency|narrative_norm`.
 
 ### Notas de implementación
 
@@ -342,7 +342,7 @@ sudo systemctl status gestiq-api.service
 
 ### A. Multi‑tenant canónico con `tenant_id` (sin tocar PK de `core_empresa`)
 
-**Objetivo:** Mantener `core_empresa.id` (**INT**) durante 1–2 releases y migrar todo el *staging de importación* a **`tenant_id` (UUID)**, alineado con `public.tenants(id)` y **RLS fuerte**. `empresa_id` queda en paralelo (compatibilidad) hasta retirarlo.
+**Objetivo:** Mantener `core_empresa.id` (**INT**) durante 1–2 releases y migrar todo el *staging de importación* a **`tenant_id` (UUID)**, alineado con `public.tenants(id)` y **RLS fuerte**. `tenant_id` queda en paralelo (compatibilidad) hasta retirarlo.
 
 #### A.1 Alembic – añadir `tenant_id` y backfill
 
@@ -370,14 +370,14 @@ def upgrade():
       UPDATE import_batches b
       SET tenant_id = e.tenant_id
       FROM core_empresa e
-      WHERE b.empresa_id = e.id;
+      WHERE b.tenant_id = e.id;
       UPDATE import_items i SET tenant_id = b.tenant_id FROM import_batches b WHERE i.batch_id=b.id;
-      UPDATE import_mappings m SET tenant_id = e.tenant_id FROM core_empresa e WHERE m.empresa_id=e.id;
-      UPDATE import_item_corrections c SET tenant_id = e.tenant_id FROM core_empresa e WHERE c.empresa_id=e.id;
-      UPDATE import_lineage l SET tenant_id = e.tenant_id FROM core_empresa e WHERE l.empresa_id=e.id;
+      UPDATE import_mappings m SET tenant_id = e.tenant_id FROM core_empresa e WHERE m.tenant_id=e.id;
+      UPDATE import_item_corrections c SET tenant_id = e.tenant_id FROM core_empresa e WHERE c.tenant_id=e.id;
+      UPDATE import_lineage l SET tenant_id = e.tenant_id FROM core_empresa e WHERE l.tenant_id=e.id;
       UPDATE import_attachments a SET tenant_id = i.tenant_id FROM import_items i WHERE a.item_id=i.id;
-      UPDATE import_ocr_jobs j SET tenant_id = e.tenant_id FROM core_empresa e WHERE j.empresa_id=e.id;
-      UPDATE auditoria_importacion a SET tenant_id = e.tenant_id FROM core_empresa e WHERE a.empresa_id=e.id;
+      UPDATE import_ocr_jobs j SET tenant_id = e.tenant_id FROM core_empresa e WHERE j.tenant_id=e.id;
+      UPDATE auditoria_importacion a SET tenant_id = e.tenant_id FROM core_empresa e WHERE a.tenant_id=e.id;
     ''')
     # NOT NULL + FK
     for t in TABLES:
@@ -390,7 +390,7 @@ def upgrade():
     op.create_index('ix_items_tenant_norm_gin','import_items',['normalized'], postgresql_using='gin')
     op.create_index('ix_items_tenant_doc_type','import_items',[sa.text("(normalized->>'doc_type')")], postgresql_where=sa.text("normalized ? 'doc_type'"))
 
-    # Opcional: marcar empresa_id como deprecated (no null aún)
+    # Opcional: marcar tenant_id como deprecated (no null aún)
 
 
 def downgrade():
@@ -404,7 +404,7 @@ UUID = PGUUID(as_uuid=True)
 
 class ImportBatch(Base):
     tenant_id = mapped_column(UUID, ForeignKey('public.tenants.id'), index=True, nullable=False)
-    empresa_id = mapped_column(ForeignKey('core_empresa.id'), index=True, nullable=False)  # deprecado futuro
+    tenant_id = mapped_column(ForeignKey('core_empresa.id'), index=True, nullable=False)  # deprecado futuro
 
 class ImportItem(Base):
     tenant_id = mapped_column(UUID, ForeignKey('public.tenants.id'), index=True, nullable=False)
@@ -487,7 +487,7 @@ def set_tenant(session, tenant_id: str):
 - Upsert a `expenses/incomes/bank_movements` con `tenant_id` + `source_item_id`; lineage.
 
 **T6 – Deprecación limpia**  
-- Retirar `empresa_id` de tablas `import_*` y `auditoria_importacion` tras 1–2 releases; mantener VIEW si se requiere compatibilidad temporal.
+- Retirar `tenant_id` de tablas `import_*` y `auditoria_importacion` tras 1–2 releases; mantener VIEW si se requiere compatibilidad temporal.
 
 **T7 – Observabilidad & Seguridad**  
 - Métricas Prometheus/OTel, eventos SSE; DLP básico, retención, WORM lógico.

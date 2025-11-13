@@ -1,6 +1,6 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from .models import CajaMovimiento, BancoMovimiento
+from app.models.finance import CajaMovimiento, BancoMovimiento
 from app.core.crud_base import CRUDBase
 
 

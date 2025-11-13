@@ -1,5 +1,4 @@
-
-from datetime import datetime
+﻿from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr, Field
@@ -14,7 +13,7 @@ class UsuarioEmpresaBase(BaseModel):
 
 class UsuarioEmpresaCreate(UsuarioEmpresaBase):
     password: str = Field(min_length=8)
-    activo: bool = True
+    active: bool = True
     es_admin_empresa: bool = False
     modulos: List[int] = Field(default_factory=list)
     roles: List[int] = Field(default_factory=list)
@@ -27,16 +26,16 @@ class UsuarioEmpresaUpdate(BaseModel):
     username: Optional[str] = None
     password: Optional[str] = Field(default=None, min_length=8)
     es_admin_empresa: Optional[bool] = None
-    activo: Optional[bool] = None
+    active: Optional[bool] = None
     modulos: Optional[List[int]] = None
     roles: Optional[List[int]] = None
 
 
 class UsuarioEmpresaOut(UsuarioEmpresaBase):
     id: int
-    empresa_id: int
+    tenant_id: int
     es_admin_empresa: bool
-    activo: bool
+    active: bool
     modulos: List[int] = Field(default_factory=list)
     roles: List[int] = Field(default_factory=list)
     ultimo_login_at: datetime | None = None
@@ -47,13 +46,12 @@ class UsuarioEmpresaOut(UsuarioEmpresaBase):
 
 class ModuloOption(BaseModel):
     id: int
-    nombre: str | None = None
+    name: str | None = None
     categoria: str | None = None
     icono: str | None = None
 
 
 class RolEmpresaOption(BaseModel):
     id: int
-    nombre: str
-    descripcion: str | None = None
-
+    name: str
+    description: str | None = None

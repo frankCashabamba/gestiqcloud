@@ -1,555 +1,525 @@
-import React, { useEffect, useMemo, useState } from 'react'
+Ôªøimport React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   createProveedor,
   getProveedor,
   updateProveedor,
-  type Proveedor,
+  type ProveedorPayload,
   type ProveedorContacto,
   type ProveedorDireccion,
-  type ProveedorPayload,
 } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 
-const contactoTipos: ProveedorContacto['tipo'][] = ['facturacion', 'entrega', 'administracion', 'comercial', 'soporte']
-const direccionTipos: ProveedorDireccion['tipo'][] = ['facturacion', 'entrega', 'administracion', 'otros']
-
-const emptyContact: ProveedorContacto = { tipo: 'facturacion', nombre: '', email: '', telefono: '' }
-const emptyAddress: ProveedorDireccion = { tipo: 'facturacion', linea1: '', linea2: '', ciudad: '', region: '', codigo_postal: '', pais: '' }
-
-function toPayload(form: FormState): ProveedorPayload {
-  const parseNumber = (value: string | null | undefined) => {
-    if (value === undefined || value === null || value === '') return undefined
-    const num = Number(value)
-    return Number.isFinite(num) ? num : undefined
-  }
-
-  return {
-    nombre: form.nombre,
-    nombre_comercial: form.nombre_comercial || undefined,
-    nif: form.nif || undefined,
-    pais: form.pais || undefined,
-    idioma: form.idioma || undefined,
-    email: form.email || undefined,
-    telefono: form.telefono || undefined,
-    tipo_impuesto: form.tipo_impuesto || undefined,
-    retencion_irpf: parseNumber(form.retencion_irpf),
-    exento_impuestos: form.exento_impuestos,
-    regimen_especial: form.regimen_especial || undefined,
-    condiciones_pago: form.condiciones_pago || undefined,
-    plazo_pago_dias: parseNumber(form.plazo_pago_dias),
-    descuento_pronto_pago: parseNumber(form.descuento_pronto_pago),
-    divisa: form.divisa || undefined,
-    metodo_pago: form.metodo_pago || undefined,
-    iban: form.iban || undefined,
-    iban_confirmacion: form.iban_confirmacion || undefined,
-    contactos: form.contactos.map(({ id, ...rest }) => ({ ...rest, id })),
-    direcciones: form.direcciones.map(({ id, ...rest }) => ({ ...rest, id })),
-  }
-}
-
-type FormState = {
-  nombre: string
-  nombre_comercial?: string | null
-  nif?: string | null
-  pais?: string | null
-  idioma?: string | null
-  email?: string | null
-  telefono?: string | null
-  tipo_impuesto?: string | null
-  retencion_irpf?: string | null
-  exento_impuestos: boolean
-  regimen_especial?: string | null
-  condiciones_pago?: string | null
-  plazo_pago_dias?: string | null
-  descuento_pronto_pago?: string | null
-  divisa?: string | null
-  metodo_pago?: string | null
-  iban?: string | null
-  iban_confirmacion?: string | null
-  contactos: ProveedorContacto[]
-  direcciones: ProveedorDireccion[]
-}
-
-const emptyForm: FormState = {
-  nombre: '',
-  nombre_comercial: '',
-  nif: '',
-  pais: '',
-  idioma: '',
-  email: '',
-  telefono: '',
-  tipo_impuesto: '',
-  retencion_irpf: '',
+const emptyForm: ProveedorPayload = {
+  name: '',
+  nombre_comercial: null,
+  nif: null,
+  pais: 'ES',
+  idioma: 'es',
+  email: null,
+  phone: null,
+  tipo_impuesto: 'IVA',
+  retencion_irpf: null,
   exento_impuestos: false,
-  regimen_especial: '',
-  condiciones_pago: '',
-  plazo_pago_dias: '',
-  descuento_pronto_pago: '',
-  divisa: '',
-  metodo_pago: '',
-  iban: '',
-  iban_confirmacion: '',
+  regimen_especial: null,
+  condiciones_pago: null,
+  plazo_pago_dias: 30,
+  descuento_pronto_pago: null,
+  divisa: 'EUR',
+  metodo_pago: null,
+  iban: null,
+  iban_confirmacion: null,
   contactos: [],
   direcciones: [],
+}
+
+const emptyContacto: ProveedorContacto = {
+  tipo: 'comercial',
+  name: null,
+  email: null,
+  phone: null,
+  notas: null,
+}
+
+const emptyDireccion: ProveedorDireccion = {
+  tipo: 'facturacion',
+  linea1: '',
+  linea2: null,
+  city: null,
+  region: null,
+  codigo_postal: null,
+  pais: 'ES',
+  notas: null,
 }
 
 export default function ProveedorForm() {
   const { id } = useParams()
   const nav = useNavigate()
-  const [form, setForm] = useState<FormState>(emptyForm)
-  const [loading, setLoading] = useState(false)
-  const { success, error } = useToast()
+  const [form, setForm] = useState<ProveedorPayload>(emptyForm)
+  const [editMode, setEditMode] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const { success, error: toastError } = useToast()
 
   useEffect(() => {
-    if (!id) {
-      setForm((prev) => ({ ...prev, contactos: [], direcciones: [] }))
-      return
-    }
-    setLoading(true)
-    getProveedor(id)
-      .then((proveedor) => {
+    if (!id) return
+    setBusy(true)
+    let cancelled = false
+    ;(async () => {
+      try {
+        const proveedor = await getProveedor(id)
+        if (cancelled) return
         setForm({
-          nombre: proveedor.nombre,
-          nombre_comercial: proveedor.nombre_comercial || '',
-          nif: proveedor.nif || '',
-          pais: proveedor.pais || '',
-          idioma: proveedor.idioma || '',
-          email: proveedor.email || '',
-          telefono: proveedor.telefono || '',
-          tipo_impuesto: proveedor.tipo_impuesto || '',
-          retencion_irpf: proveedor.retencion_irpf != null ? String(proveedor.retencion_irpf) : '',
-          exento_impuestos: Boolean(proveedor.exento_impuestos),
-          regimen_especial: proveedor.regimen_especial || '',
-          condiciones_pago: proveedor.condiciones_pago || '',
-          plazo_pago_dias: proveedor.plazo_pago_dias != null ? String(proveedor.plazo_pago_dias) : '',
-          descuento_pronto_pago: proveedor.descuento_pronto_pago != null ? String(proveedor.descuento_pronto_pago) : '',
-          divisa: proveedor.divisa || '',
-          metodo_pago: proveedor.metodo_pago || '',
-          iban: proveedor.iban || '',
-          iban_confirmacion: proveedor.iban || '',
-          contactos: proveedor.contactos.length ? proveedor.contactos : [],
-          direcciones: proveedor.direcciones.length ? proveedor.direcciones : [],
+          name: proveedor.name,
+          nombre_comercial: proveedor.nombre_comercial,
+          nif: proveedor.nif,
+          pais: proveedor.pais,
+          idioma: proveedor.idioma,
+          email: proveedor.email,
+          phone: proveedor.phone,
+          tipo_impuesto: proveedor.tipo_impuesto,
+          retencion_irpf: proveedor.retencion_irpf,
+          exento_impuestos: proveedor.exento_impuestos,
+          regimen_especial: proveedor.regimen_especial,
+          condiciones_pago: proveedor.condiciones_pago,
+          plazo_pago_dias: proveedor.plazo_pago_dias,
+          descuento_pronto_pago: proveedor.descuento_pronto_pago,
+          divisa: proveedor.divisa,
+          metodo_pago: proveedor.metodo_pago,
+          iban: proveedor.iban,
+          iban_confirmacion: proveedor.iban,
+          contactos: proveedor.contactos || [],
+          direcciones: proveedor.direcciones || [],
         })
-      })
-      .catch((e) => error(getErrorMessage(e)))
-      .finally(() => setLoading(false))
-  }, [id, error])
-
-  const heading = id ? 'Editar proveedor' : 'Nuevo proveedor'
+        setEditMode(true)
+      } catch (e: any) {
+        if (!cancelled) {
+          toastError(getErrorMessage(e))
+        }
+      } finally {
+        if (!cancelled) {
+          setBusy(false)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [id])
 
   const onSubmit: React.FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault()
     try {
-      if (!form.nombre.trim()) {
-        throw new Error('Nombre legal es obligatorio')
-      }
-      if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-        throw new Error('Email inv·lido')
+      if (!form.name?.trim()) {
+        throw new Error('Nombre es requerido')
       }
       if (form.iban && form.iban !== form.iban_confirmacion) {
-        throw new Error('El IBAN y su confirmaciÛn deben coincidir')
+        throw new Error('Los IBAN no coinciden')
       }
 
-      const payload = toPayload(form)
-      if (id) await updateProveedor(id, payload)
-      else await createProveedor(payload)
+      const payload = { ...form }
+      delete payload.iban_confirmacion
 
-      success('Proveedor guardado')
+      if (editMode && id) {
+        await updateProveedor(id, payload)
+        success('Proveedor actualizado')
+      } else {
+        await createProveedor(payload)
+        success('Proveedor creado')
+      }
       nav('..')
     } catch (e: any) {
-      error(getErrorMessage(e))
+      toastError(getErrorMessage(e))
     }
   }
 
-  const addContacto = () => setForm((prev) => ({ ...prev, contactos: [...prev.contactos, { ...emptyContact, id: undefined }] }))
-  const removeContacto = (index: number) => setForm((prev) => ({ ...prev, contactos: prev.contactos.filter((_, i) => i !== index) }))
-  const updateContacto = (index: number, patch: Partial<ProveedorContacto>) =>
-    setForm((prev) => {
-      const copy = [...prev.contactos]
-      copy[index] = { ...copy[index], ...patch }
-      return { ...prev, contactos: copy }
-    })
+  const addContacto = () => {
+    setForm({ ...form, contactos: [...form.contactos, { ...emptyContacto }] })
+  }
 
-  const addDireccion = () => setForm((prev) => ({ ...prev, direcciones: [...prev.direcciones, { ...emptyAddress, id: undefined }] }))
-  const removeDireccion = (index: number) => setForm((prev) => ({ ...prev, direcciones: prev.direcciones.filter((_, i) => i !== index) }))
-  const updateDireccion = (index: number, patch: Partial<ProveedorDireccion>) =>
-    setForm((prev) => {
-      const copy = [...prev.direcciones]
-      copy[index] = { ...copy[index], ...patch }
-      return { ...prev, direcciones: copy }
-    })
+  const removeContacto = (index: number) => {
+    setForm({ ...form, contactos: form.contactos.filter((_, i) => i !== index) })
+  }
 
-  const hasContactos = useMemo(() => form.contactos.length > 0, [form.contactos])
-  const hasDirecciones = useMemo(() => form.direcciones.length > 0, [form.direcciones])
+  const updateContacto = (index: number, field: keyof ProveedorContacto, value: any) => {
+    const updated = [...form.contactos]
+    updated[index] = { ...updated[index], [field]: value }
+    setForm({ ...form, contactos: updated })
+  }
+
+  const addDireccion = () => {
+    setForm({ ...form, direcciones: [...form.direcciones, { ...emptyDireccion }] })
+  }
+
+  const removeDireccion = (index: number) => {
+    setForm({ ...form, direcciones: form.direcciones.filter((_, i) => i !== index) })
+  }
+
+  const updateDireccion = (index: number, field: keyof ProveedorDireccion, value: any) => {
+    const updated = [...form.direcciones]
+    updated[index] = { ...updated[index], [field]: value }
+    setForm({ ...form, direcciones: updated })
+  }
 
   return (
-    <div className="p-4">
-      <h3 className="text-xl font-semibold text-slate-800 mb-4">{heading}</h3>
-      <form onSubmit={onSubmit} className="space-y-8 max-w-4xl">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h4 className="text-lg font-semibold text-slate-800 mb-3">IdentificaciÛn</h4>
+    <div className="p-4 max-w-5xl">
+      <h3 className="text-xl font-semibold text-slate-900 mb-4">
+        {editMode ? 'Editar proveedor' : 'Nuevo proveedor'}
+      </h3>
+      <form onSubmit={onSubmit} className="space-y-6">
+        {/* Datos Generales */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <h4 className="text-base font-semibold text-slate-700 mb-4">Datos Generales</h4>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="space-y-1 text-sm">
-              <span className="font-medium text-slate-600">Nombre legal *</span>
+              <span className="font-medium text-slate-600">
+                Nombre / Raz√≥n Social <span className="text-rose-500">*</span>
+              </span>
               <input
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                value={form.nombre}
-                onChange={(e) => setForm((prev) => ({ ...prev, nombre: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
               />
             </label>
             <label className="space-y-1 text-sm">
-              <span className="font-medium text-slate-600">Nombre comercial</span>
+              <span className="font-medium text-slate-600">Nombre Comercial</span>
               <input
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                value={form.nombre_comercial ?? ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, nombre_comercial: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={form.nombre_comercial || ''}
+                onChange={(e) => setForm({ ...form, nombre_comercial: e.target.value || null })}
               />
             </label>
             <label className="space-y-1 text-sm">
-              <span className="font-medium text-slate-600">NIF / CIF</span>
+              <span className="font-medium text-slate-600">NIF / Tax ID</span>
               <input
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                value={form.nif ?? ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, nif: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={form.nif || ''}
+                onChange={(e) => setForm({ ...form, nif: e.target.value || null })}
               />
             </label>
             <label className="space-y-1 text-sm">
-              <span className="font-medium text-slate-600">PaÌs</span>
-              <input
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                placeholder="ES, PT, FRÖ"
-                value={form.pais ?? ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, pais: e.target.value.toUpperCase() }))}
-                maxLength={3}
-              />
+              <span className="font-medium text-slate-600">Pa√≠s</span>
+              <select
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={form.pais || 'ES'}
+                onChange={(e) => setForm({ ...form, pais: e.target.value || null })}
+              >
+                <option value="ES">Espa√±a</option>
+                <option value="EC">Ecuador</option>
+                <option value="FR">Francia</option>
+                <option value="DE">Alemania</option>
+                <option value="IT">Italia</option>
+                <option value="PT">Portugal</option>
+              </select>
             </label>
             <label className="space-y-1 text-sm">
-              <span className="font-medium text-slate-600">Idioma</span>
-              <input
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                placeholder="es-ES"
-                value={form.idioma ?? ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, idioma: e.target.value }))}
-                maxLength={8}
-              />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium text-slate-600">Email principal</span>
+              <span className="font-medium text-slate-600">Email</span>
               <input
                 type="email"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                value={form.email ?? ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={form.email || ''}
+                onChange={(e) => setForm({ ...form, email: e.target.value || null })}
               />
             </label>
             <label className="space-y-1 text-sm">
-              <span className="font-medium text-slate-600">TelÈfono principal</span>
+              <span className="font-medium text-slate-600">Tel√©fono</span>
               <input
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                value={form.telefono ?? ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, telefono: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={form.phone || ''}
+                onChange={(e) => setForm({ ...form, phone: e.target.value || null })}
+              />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="font-medium text-slate-600">Web</span>
+              <input
+                type="url"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                placeholder="https://"
+                value={form.web || ''}
+                onChange={(e) => setForm({ ...form, web: e.target.value || null })}
               />
             </label>
           </div>
-        </section>
+        </div>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h4 className="text-lg font-semibold text-slate-800 mb-3">Fiscalidad</h4>
-          <div className="grid gap-4 sm:grid-cols-2">
+        {/* Configuraci√≥n Fiscal */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <h4 className="text-base font-semibold text-slate-700 mb-4">Configuraci√≥n Fiscal y Pagos</h4>
+          <div className="grid gap-4 sm:grid-cols-3">
             <label className="space-y-1 text-sm">
-              <span className="font-medium text-slate-600">Tipo de IVA / IGIC</span>
-              <input
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                value={form.tipo_impuesto ?? ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, tipo_impuesto: e.target.value }))}
-              />
+              <span className="font-medium text-slate-600">Tipo Impuesto</span>
+              <select
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={form.tipo_impuesto || 'IVA'}
+                onChange={(e) => setForm({ ...form, tipo_impuesto: e.target.value || null })}
+              >
+                <option value="IVA">IVA</option>
+                <option value="IGIC">IGIC</option>
+                <option value="IPSI">IPSI</option>
+              </select>
             </label>
             <label className="space-y-1 text-sm">
-              <span className="font-medium text-slate-600">RetenciÛn IRPF (%)</span>
+              <span className="font-medium text-slate-600">Retenci√≥n IRPF (%)</span>
               <input
                 type="number"
-                min="0"
-                max="100"
                 step="0.01"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                value={form.retencion_irpf ?? ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, retencion_irpf: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={form.retencion_irpf || ''}
+                onChange={(e) => setForm({ ...form, retencion_irpf: e.target.value ? parseFloat(e.target.value) : null })}
               />
             </label>
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-600 pt-6">
               <input
                 type="checkbox"
-                checked={form.exento_impuestos}
-                onChange={(e) => setForm((prev) => ({ ...prev, exento_impuestos: e.target.checked }))}
+                checked={form.exento_impuestos || false}
+                onChange={(e) => setForm({ ...form, exento_impuestos: e.target.checked })}
               />
               Exento de impuestos
             </label>
             <label className="space-y-1 text-sm">
-              <span className="font-medium text-slate-600">RÈgimen especial</span>
-              <input
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                value={form.regimen_especial ?? ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, regimen_especial: e.target.value }))}
-              />
-            </label>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h4 className="text-lg font-semibold text-slate-800 mb-3">Pagos</h4>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="space-y-1 text-sm">
-              <span className="font-medium text-slate-600">Condiciones (ej. Net 30)</span>
-              <input
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                value={form.condiciones_pago ?? ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, condiciones_pago: e.target.value }))}
-              />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium text-slate-600">Plazo pago (dÌas)</span>
+              <span className="font-medium text-slate-600">Plazo Pago (d√≠as)</span>
               <input
                 type="number"
-                min="0"
-                max="365"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                value={form.plazo_pago_dias ?? ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, plazo_pago_dias: e.target.value }))}
-              />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-medium text-slate-600">Descuento pronto pago (%)</span>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="0.01"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                value={form.descuento_pronto_pago ?? ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, descuento_pronto_pago: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={form.plazo_pago_dias || ''}
+                onChange={(e) => setForm({ ...form, plazo_pago_dias: e.target.value ? parseInt(e.target.value) : null })}
               />
             </label>
             <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-600">Divisa</span>
-              <input
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                placeholder="EUR"
-                value={form.divisa ?? ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, divisa: e.target.value.toUpperCase() }))}
-                maxLength={3}
-              />
+              <select
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={form.divisa || 'EUR'}
+                onChange={(e) => setForm({ ...form, divisa: e.target.value || null })}
+              >
+                <option value="EUR">EUR</option>
+                <option value="USD">USD</option>
+              </select>
             </label>
             <label className="space-y-1 text-sm">
-              <span className="font-medium text-slate-600">MÈtodo de pago</span>
-              <input
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                placeholder="transferencia, sepa, efectivoÖ"
-                value={form.metodo_pago ?? ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, metodo_pago: e.target.value }))}
-              />
+              <span className="font-medium text-slate-600">M√©todo de Pago</span>
+              <select
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={form.metodo_pago || ''}
+                onChange={(e) => setForm({ ...form, metodo_pago: e.target.value || null })}
+              >
+                <option value="">Seleccionar...</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="efectivo">Efectivo</option>
+                <option value="tarjeta">Tarjeta</option>
+                <option value="pagare">Pagar√©</option>
+              </select>
             </label>
           </div>
+
           <div className="grid gap-4 sm:grid-cols-2 mt-4">
             <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-600">IBAN</span>
               <input
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
-                value={form.iban ?? ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, iban: e.target.value.toUpperCase() }))}
-                maxLength={34}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono"
+                value={form.iban || ''}
+                onChange={(e) => setForm({ ...form, iban: e.target.value || null })}
+                placeholder="ES00 0000 0000 0000 0000 0000"
               />
             </label>
             <label className="space-y-1 text-sm">
               <span className="font-medium text-slate-600">Confirmar IBAN</span>
               <input
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
-                value={form.iban_confirmacion ?? ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, iban_confirmacion: e.target.value.toUpperCase() }))}
-                maxLength={34}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono"
+                value={form.iban_confirmacion || ''}
+                onChange={(e) => setForm({ ...form, iban_confirmacion: e.target.value || null })}
+                placeholder="ES00 0000 0000 0000 0000 0000"
               />
             </label>
           </div>
-        </section>
+        </div>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <h4 className="text-lg font-semibold text-slate-800">Contactos</h4>
-            <button type="button" className="gc-button gc-button--ghost" onClick={addContacto}>
-              AÒadir contacto
+        {/* Contactos */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-base font-semibold text-slate-700">Contactos</h4>
+            <button
+              type="button"
+              className="text-sm font-medium text-blue-600 hover:text-blue-500"
+              onClick={addContacto}
+            >
+              + A√±adir Contacto
             </button>
           </div>
-          {!hasContactos && <p className="text-sm text-slate-500">Puedes definir contactos por ·rea (facturaciÛn, entrega, soporteÖ).</p>}
+          {form.contactos.length === 0 && (
+            <p className="text-sm text-slate-500">No hay contactos agregados.</p>
+          )}
           <div className="space-y-4">
-            {form.contactos.map((c, idx) => (
-              <div key={idx} className="rounded-xl border border-slate-200 p-4">
-                <div className="flex justify-between items-center mb-3">
-                  <strong className="text-slate-700">Contacto #{idx + 1}</strong>
-                  <button type="button" className="text-sm text-red-600" onClick={() => removeContacto(idx)}>
-                    Quitar
-                  </button>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+            {form.contactos.map((contacto, index) => (
+              <div key={index} className="border border-slate-200 rounded-xl p-4 relative">
+                <button
+                  type="button"
+                  className="absolute top-2 right-2 text-rose-600 hover:text-rose-500 text-sm"
+                  onClick={() => removeContacto(index)}
+                >
+                  ‚úï
+                </button>
+                <div className="grid gap-3 sm:grid-cols-3">
                   <label className="space-y-1 text-sm">
                     <span className="font-medium text-slate-600">Tipo</span>
                     <select
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                      value={c.tipo}
-                      onChange={(e) => updateContacto(idx, { tipo: e.target.value as ProveedorContacto['tipo'] })}
+                      className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                      value={contacto.tipo}
+                      onChange={(e) => updateContacto(index, 'tipo', e.target.value)}
                     >
-                      {contactoTipos.map((tipo) => (
-                        <option key={tipo} value={tipo}>{tipo}</option>
-                      ))}
+                      <option value="facturacion">Facturaci√≥n</option>
+                      <option value="entrega">Entrega</option>
+                      <option value="administracion">Administraci√≥n</option>
+                      <option value="comercial">Comercial</option>
+                      <option value="soporte">Soporte</option>
                     </select>
                   </label>
                   <label className="space-y-1 text-sm">
                     <span className="font-medium text-slate-600">Nombre</span>
                     <input
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                      value={c.nombre ?? ''}
-                      onChange={(e) => updateContacto(idx, { nombre: e.target.value })}
+                      className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                      value={contacto.name || ''}
+                      onChange={(e) => updateContacto(index, 'nombre', e.target.value || null)}
                     />
                   </label>
                   <label className="space-y-1 text-sm">
                     <span className="font-medium text-slate-600">Email</span>
                     <input
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                      value={c.email ?? ''}
-                      onChange={(e) => updateContacto(idx, { email: e.target.value })}
+                      type="email"
+                      className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                      value={contacto.email || ''}
+                      onChange={(e) => updateContacto(index, 'email', e.target.value || null)}
                     />
                   </label>
                   <label className="space-y-1 text-sm">
-                    <span className="font-medium text-slate-600">TelÈfono</span>
+                    <span className="font-medium text-slate-600">Tel√©fono</span>
                     <input
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                      value={c.telefono ?? ''}
-                      onChange={(e) => updateContacto(idx, { telefono: e.target.value })}
+                      className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                      value={contacto.phone || ''}
+                      onChange={(e) => updateContacto(index, 'telefono', e.target.value || null)}
                     />
                   </label>
-                  <label className="sm:col-span-2 space-y-1 text-sm">
+                  <label className="space-y-1 text-sm sm:col-span-2">
                     <span className="font-medium text-slate-600">Notas</span>
-                    <textarea
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                      rows={2}
-                      value={c.notas ?? ''}
-                      onChange={(e) => updateContacto(idx, { notas: e.target.value })}
+                    <input
+                      className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                      value={contacto.notas || ''}
+                      onChange={(e) => updateContacto(index, 'notas', e.target.value || null)}
                     />
                   </label>
                 </div>
               </div>
             ))}
           </div>
-        </section>
+        </div>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <h4 className="text-lg font-semibold text-slate-800">Direcciones</h4>
-            <button type="button" className="gc-button gc-button--ghost" onClick={addDireccion}>
-              AÒadir direcciÛn
+        {/* Direcciones */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-base font-semibold text-slate-700">Direcciones</h4>
+            <button
+              type="button"
+              className="text-sm font-medium text-blue-600 hover:text-blue-500"
+              onClick={addDireccion}
+            >
+              + A√±adir Direcci√≥n
             </button>
           </div>
-          {!hasDirecciones && <p className="text-sm text-slate-500">Registra direcciones de facturaciÛn, entrega u otras ubicaciones clave.</p>}
+          {form.direcciones.length === 0 && (
+            <p className="text-sm text-slate-500">No hay direcciones agregadas.</p>
+          )}
           <div className="space-y-4">
-            {form.direcciones.map((d, idx) => (
-              <div key={idx} className="rounded-xl border border-slate-200 p-4">
-                <div className="flex justify-between items-center mb-3">
-                  <strong className="text-slate-700">DirecciÛn #{idx + 1}</strong>
-                  <button type="button" className="text-sm text-red-600" onClick={() => removeDireccion(idx)}>
-                    Quitar
-                  </button>
-                </div>
+            {form.direcciones.map((direccion, index) => (
+              <div key={index} className="border border-slate-200 rounded-xl p-4 relative">
+                <button
+                  type="button"
+                  className="absolute top-2 right-2 text-rose-600 hover:text-rose-500 text-sm"
+                  onClick={() => removeDireccion(index)}
+                >
+                  ‚úï
+                </button>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="space-y-1 text-sm">
                     <span className="font-medium text-slate-600">Tipo</span>
                     <select
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                      value={d.tipo}
-                      onChange={(e) => updateDireccion(idx, { tipo: e.target.value as ProveedorDireccion['tipo'] })}
+                      className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                      value={direccion.tipo}
+                      onChange={(e) => updateDireccion(index, 'tipo', e.target.value)}
                     >
-                      {direccionTipos.map((tipo) => (
-                        <option key={tipo} value={tipo}>{tipo}</option>
-                      ))}
+                      <option value="facturacion">Facturaci√≥n</option>
+                      <option value="entrega">Entrega</option>
+                      <option value="administracion">Administraci√≥n</option>
+                      <option value="otros">Otros</option>
                     </select>
                   </label>
                   <label className="space-y-1 text-sm">
-                    <span className="font-medium text-slate-600">LÌnea 1</span>
+                    <span className="font-medium text-slate-600">
+                      Direcci√≥n L√≠nea 1 <span className="text-rose-500">*</span>
+                    </span>
                     <input
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                      value={d.linea1}
-                      onChange={(e) => updateDireccion(idx, { linea1: e.target.value })}
+                      className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                      value={direccion.linea1}
+                      onChange={(e) => updateDireccion(index, 'linea1', e.target.value)}
                       required
                     />
                   </label>
-                  <label className="space-y-1 text-sm">
-                    <span className="font-medium text-slate-600">LÌnea 2</span>
+                  <label className="space-y-1 text-sm sm:col-span-2">
+                    <span className="font-medium text-slate-600">Direcci√≥n L√≠nea 2</span>
                     <input
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                      value={d.linea2 ?? ''}
-                      onChange={(e) => updateDireccion(idx, { linea2: e.target.value })}
+                      className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                      value={direccion.linea2 || ''}
+                      onChange={(e) => updateDireccion(index, 'linea2', e.target.value || null)}
                     />
                   </label>
                   <label className="space-y-1 text-sm">
                     <span className="font-medium text-slate-600">Ciudad</span>
                     <input
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                      value={d.ciudad ?? ''}
-                      onChange={(e) => updateDireccion(idx, { ciudad: e.target.value })}
+                      className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                      value={direccion.city || ''}
+                      onChange={(e) => updateDireccion(index, 'ciudad', e.target.value || null)}
                     />
                   </label>
                   <label className="space-y-1 text-sm">
-                    <span className="font-medium text-slate-600">RegiÛn / Provincia</span>
+                    <span className="font-medium text-slate-600">Provincia / Regi√≥n</span>
                     <input
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                      value={d.region ?? ''}
-                      onChange={(e) => updateDireccion(idx, { region: e.target.value })}
+                      className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                      value={direccion.region || ''}
+                      onChange={(e) => updateDireccion(index, 'region', e.target.value || null)}
                     />
                   </label>
                   <label className="space-y-1 text-sm">
-                    <span className="font-medium text-slate-600">CÛdigo postal</span>
+                    <span className="font-medium text-slate-600">C√≥digo Postal</span>
                     <input
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                      value={d.codigo_postal ?? ''}
-                      onChange={(e) => updateDireccion(idx, { codigo_postal: e.target.value })}
+                      className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                      value={direccion.codigo_postal || ''}
+                      onChange={(e) => updateDireccion(index, 'codigo_postal', e.target.value || null)}
                     />
                   </label>
                   <label className="space-y-1 text-sm">
-                    <span className="font-medium text-slate-600">PaÌs</span>
-                    <input
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                      value={d.pais ?? ''}
-                      onChange={(e) => updateDireccion(idx, { pais: e.target.value.toUpperCase() })}
-                      maxLength={3}
-                    />
-                  </label>
-                  <label className="sm:col-span-2 space-y-1 text-sm">
-                    <span className="font-medium text-slate-600">Notas</span>
-                    <textarea
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                      rows={2}
-                      value={d.notas ?? ''}
-                      onChange={(e) => updateDireccion(idx, { notas: e.target.value })}
-                    />
+                    <span className="font-medium text-slate-600">Pa√≠s</span>
+                    <select
+                      className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                      value={direccion.pais || 'ES'}
+                      onChange={(e) => updateDireccion(index, 'pais', e.target.value || null)}
+                    >
+                      <option value="ES">Espa√±a</option>
+                      <option value="EC">Ecuador</option>
+                      <option value="FR">Francia</option>
+                      <option value="DE">Alemania</option>
+                    </select>
                   </label>
                 </div>
               </div>
             ))}
           </div>
-        </section>
+        </div>
 
+        {/* Botones */}
         <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            className="gc-button gc-button--primary"
-            disabled={loading}
-          >
-            Guardar
+          <button type="submit" className="gc-button gc-button--primary" disabled={busy}>
+            {editMode ? 'Guardar cambios' : 'Crear proveedor'}
           </button>
-          <button
-            type="button"
-            className="gc-button gc-button--ghost"
-            onClick={() => nav('..')}
-          >
+          <button type="button" className="gc-button gc-button--ghost" onClick={() => nav('..')}>
             Cancelar
           </button>
         </div>

@@ -12,7 +12,9 @@ CreateDTO = TypeVar("CreateDTO", bound=BaseModel)
 UpdateDTO = TypeVar("UpdateDTO", bound=BaseModel)
 
 
-class CRUDBase(_BaseCRUD[ModelT, CreateDTO, UpdateDTO], Generic[ModelT, CreateDTO, UpdateDTO]):
+class CRUDBase(
+    _BaseCRUD[ModelT, CreateDTO, UpdateDTO], Generic[ModelT, CreateDTO, UpdateDTO]
+):
     """
     Compatibility layer that preserves the legacy CRUDBase API while
     reusing the centralized BaseCRUD implementation underneath.
@@ -27,7 +29,9 @@ class CRUDBase(_BaseCRUD[ModelT, CreateDTO, UpdateDTO], Generic[ModelT, CreateDT
         super().__init__(model)
 
     # Legacy alias preserving return type Sequence
-    def list(self, db: Session, *, offset: int = 0, limit: int = 50) -> Sequence[ModelT]:
+    def list(
+        self, db: Session, *, offset: int = 0, limit: int = 50
+    ) -> Sequence[ModelT]:
         return self.get_multi(db, skip=offset, limit=limit)
 
     # Legacy variant: update by id

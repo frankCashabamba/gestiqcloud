@@ -1,4 +1,3 @@
-import pytest
 from app.modules.imports.validators import validate_invoices
 
 
@@ -16,8 +15,8 @@ class TestValidatorsIntegration:
             "tax_rate": 12.0,
             "currency": "USD",
         }
-        
-        errors = validate_invoices(invoice, country="EC")
+
+        errors = validate_invoices(invoice, country="EC")  # noqa: F841
         assert len(errors) == 0
 
     def test_validate_invoices_with_country_es(self):
@@ -31,8 +30,8 @@ class TestValidatorsIntegration:
             "tax_rate": 21.0,
             "currency": "EUR",
         }
-        
-        errors = validate_invoices(invoice, country="ES")
+
+        errors = validate_invoices(invoice, country="ES")  # noqa: F841
         assert len(errors) == 0
 
     def test_validate_invoices_invalid_ruc_ec(self):
@@ -44,8 +43,8 @@ class TestValidatorsIntegration:
             "tax_amount": 12.0,
             "total_amount": 112.0,
         }
-        
-        errors = validate_invoices(invoice, country="EC")
+
+        errors = validate_invoices(invoice, country="EC")  # noqa: F841
         assert any("dígito verificador" in e["msg"].lower() for e in errors)
 
     def test_validate_invoices_invalid_tax_rate_es(self):
@@ -58,8 +57,8 @@ class TestValidatorsIntegration:
             "total_amount": 112.0,
             "tax_rate": 12.0,
         }
-        
-        errors = validate_invoices(invoice, country="ES")
+
+        errors = validate_invoices(invoice, country="ES")  # noqa: F841
         assert any("tasa de impuesto" in e["msg"].lower() for e in errors)
 
     def test_validate_invoices_without_country(self):
@@ -72,6 +71,6 @@ class TestValidatorsIntegration:
             "tax_amount": 12.0,
             "total_amount": 112.0,
         }
-        
-        errors = validate_invoices(invoice)
+
+        errors = validate_invoices(invoice)  # noqa: F841
         assert len(errors) == 0

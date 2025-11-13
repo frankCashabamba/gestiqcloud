@@ -13,9 +13,9 @@ from alembic import context
 # Bootstrap de paths (monorepo) para que Alembic encuentre `app`
 # Estructura asumida: <root>/apps/backend/alembic/env.py
 # ------------------------------------------------------------
-BACKEND_DIR = Path(__file__).resolve().parents[1]   # apps/backend
-APPS_DIR = BACKEND_DIR.parent                       # apps
-ROOT = APPS_DIR.parent                              # repo root
+BACKEND_DIR = Path(__file__).resolve().parents[1]  # apps/backend
+APPS_DIR = BACKEND_DIR.parent  # apps
+ROOT = APPS_DIR.parent  # repo root
 
 for p in (ROOT, APPS_DIR, BACKEND_DIR):
     sp = str(p)
@@ -45,6 +45,7 @@ try:
 except ModuleNotFoundError:
     # Fallback explícito por si el import absoluto falla
     import importlib
+
     target_metadata = importlib.import_module(
         "apps.backend.app.db.base"
     ).target_metadata  # type: ignore

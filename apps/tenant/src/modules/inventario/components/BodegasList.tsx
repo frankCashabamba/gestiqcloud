@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
 import { fetchBodegas } from '../services/inventario'
 import { ensureArray } from '../../../shared/utils/array'
 import type { Bodega } from '../types/producto'
 
-export function BodegasList() {
+export default function BodegasList() {
   const [items, setItems] = useState<Bodega[]>([])
   const [loading, setLoading] = useState(true)
   useEffect(() => {
@@ -18,7 +18,7 @@ export function BodegasList() {
     <div className="p-4">
       <h2 className="font-semibold text-lg mb-4">Bodegas</h2>
       <ul className="list-disc pl-6">
-        {(Array.isArray(items) ? items : []).map(b => <li key={b.id}><strong>{b.nombre}</strong> {b.ubicacion ? `( ${b.ubicacion} )` : ''}</li>)}
+        {(Array.isArray(items) ? items : []).map(b => <li key={b.id}><strong>{b.name}</strong> {b.ubicacion ? `( ${b.ubicacion} )` : ''}</li>)}
       </ul>
     </div>
   )

@@ -15,4 +15,3 @@ try:
     from app.middleware.tenant_middleware import tenant_context_middleware  # noqa: F401
 except Exception:  # pragma: no cover
     pass
-

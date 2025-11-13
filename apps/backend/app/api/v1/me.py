@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
-from app.models.empresa.empresa import Empresa
 from app.core.deps import require_tenant
 from app.core.refresh import decode_and_validate
 from app.config.settings import settings
@@ -12,15 +11,17 @@ from app.db.rls import ensure_rls
 
 router = APIRouter(prefix="/me", tags=["Me"], dependencies=[Depends(ensure_rls)])
 
+
 # --- Endpoint original para usuarios de empresa (resuelve tenant en servidor) ---
 @router.get("/")
-def me(s = Depends(require_tenant)):
+def me(s: dict = Depends(require_tenant)) -> dict:
     # Devuelve perfil + permisos (resueltos en servidor)
     return {
         "user_id": s.get("tenant_user_id"),
         "tenant_id": s.get("tenant_id"),
         "permisos": [],
     }
+
 
 # --- Helper: extraer Bearer del header Authorization ---
 def _get_bearer(request: Request) -> Optional[str]:
@@ -31,6 +32,7 @@ def _get_bearer(request: Request) -> Optional[str]:
     if len(parts) == 2 and parts[0].lower() == "bearer":
         return parts[1]
     return None
+
 
 # --- Compatibilidad FE: lee Access Token y devuelve tenant/user/scope ---
 @router.get("/tenant")
@@ -50,7 +52,11 @@ def me_tenant(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="invalid_access_token")
 
     kind = (payload.get("kind") or "tenant") if isinstance(payload, dict) else "tenant"
-    user_id = str(payload.get("user_id")) if isinstance(payload.get("user_id"), (str, int)) else None
+    user_id = (
+        str(payload.get("user_id"))
+        if isinstance(payload.get("user_id"), (str, int))
+        else None
+    )
 
     if kind == "admin":
         # Admin: devolvemos el tenant del sistema
@@ -81,7 +87,15 @@ def me_tenant(request: Request, db: Session = Depends(get_db)):
         if u is not None:
             username = getattr(u, "username", None)
             try:
-                empresa_slug = getattr(getattr(u, "empresa", None), "slug", None)
+                # Get slug from tenant (Empresa no longer exists)
+                from app.models.tenant import Tenant
+
+                tenant = (
+                    db.query(Tenant).filter(Tenant.id == u.tenant_id).first()
+                    if hasattr(u, "tenant_id") and u.tenant_id
+                    else None
+                )
+                empresa_slug = tenant.slug if tenant else None
             except Exception:
                 empresa_slug = None
             try:
@@ -97,6 +111,7 @@ def me_tenant(request: Request, db: Session = Depends(get_db)):
         "es_admin_empresa": es_admin_empresa,
         "scope": "tenant",
     }
+
 
 # --- Nuevo: endpoint para admin esperado por el FE (/me/admin) ---
 @router.get("/admin")
@@ -118,7 +133,11 @@ def me_admin(request: Request):
     if kind != "admin":
         raise HTTPException(status_code=403, detail="not_admin")
 
-    user_id = str(payload.get("user_id")) if isinstance(payload.get("user_id"), (str, int)) else None
+    user_id = (
+        str(payload.get("user_id"))
+        if isinstance(payload.get("user_id"), (str, int))
+        else None
+    )
     is_super = bool(payload.get("is_superadmin") or False)
 
     return {

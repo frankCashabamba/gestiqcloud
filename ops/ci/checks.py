@@ -4,8 +4,6 @@ Currently acts as a placeholder to keep the pipeline green while
 we migrate real checks.
 """
 
-import sys
-
 
 def main() -> int:
     # TODO: add duplicate detection and folder sanity checks

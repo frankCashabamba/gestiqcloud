@@ -1,14 +1,15 @@
-export type Producto = {
+﻿export type Producto = {
   id: number | string
   sku: string
-  nombre: string
+  name: string
   stock: number
-  precio: number
+  price: number
+  categoria?: string
 }
 
 export type Bodega = {
   id: number | string
-  nombre: string
+  name: string
   ubicacion?: string
 }
 

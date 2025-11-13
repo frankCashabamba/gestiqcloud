@@ -1,12 +1,8 @@
 """Module: crud.py
 
-Auto-generated module docstring."""
+Auto-generated module docstring.
 
+DEPRECATED: This module is deprecated. Use ImportBatch/ImportItem models instead.
+"""
 
-
-from app.models.core.modelsimport import DatosImportados
-
-from app.core.empresa_crud import EmpresaCRUD
-
-
-datos_importados_crud: EmpresaCRUD = EmpresaCRUD(DatosImportados)
+# Legacy imports removed - migrate to ImportBatch/ImportItem

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Optional, Sequence
 
@@ -14,30 +14,29 @@ class ClienteCRUD(CRUDBase[ClienteORM, "ClienteCreateDTO", "ClienteUpdateDTO"]):
 
 
 class SqlAlchemyClienteRepo(SqlAlchemyRepo, ClienteRepo):
-
     def _to_entity(self, m: ClienteORM) -> Cliente:
         return Cliente(
             id=m.id,
-            nombre=m.nombre,
-            identificacion=m.identificacion,
+            nombre=m.name,
+            identificacion=getattr(m, "identificacion", None) or m.tax_id,
             email=m.email,
-            telefono=m.telefono,
-            direccion=m.direccion,
-            localidad=m.localidad,
-            provincia=m.provincia,
-            pais=m.pais,
-            codigo_postal=m.codigo_postal,
-            empresa_id=m.empresa_id,
+            telefono=getattr(m, "telefono", None) or m.phone,
+            direccion=getattr(m, "direccion", None) or m.address,
+            localidad=getattr(m, "localidad", None) or m.city,
+            provincia=m.state,
+            pais=getattr(m, "pais", None) or m.country,
+            codigo_postal=getattr(m, "codigo_postal", None) or m.postal_code,
+            tenant_id=m.tenant_id,
         )
 
     def get(self, id: int) -> Optional[Cliente]:
         m = self.db.query(ClienteORM).filter(ClienteORM.id == id).first()
         return self._to_entity(m) if m else None
 
-    def list(self, *, empresa_id: int) -> Sequence[Cliente]:
+    def list(self, *, tenant_id: int) -> Sequence[Cliente]:
         ms = (
             self.db.query(ClienteORM)
-            .filter(ClienteORM.empresa_id == empresa_id)
+            .filter(ClienteORM.tenant_id == tenant_id)
             .order_by(ClienteORM.id.desc())
             .all()
         )
@@ -46,32 +45,32 @@ class SqlAlchemyClienteRepo(SqlAlchemyRepo, ClienteRepo):
     def create(self, c: Cliente) -> Cliente:
         class ClienteCreateDTO:
             def __init__(self, **kw):
-                self.nombre = kw.get("nombre")
+                self.name = kw.get("nombre")
                 self.identificacion = kw.get("identificacion")
                 self.email = kw.get("email")
-                self.telefono = kw.get("telefono")
-                self.direccion = kw.get("direccion")
+                self.phone = kw.get("telefono")
+                self.address = kw.get("direccion")
                 self.localidad = kw.get("localidad")
-                self.provincia = kw.get("provincia")
+                self.state = kw.get("provincia")
                 self.pais = kw.get("pais")
                 self.codigo_postal = kw.get("codigo_postal")
-                self.empresa_id = kw.get("empresa_id")
+                self.tenant_id = kw.get("tenant_id")
 
             def model_dump(self):
                 return {
-                    "nombre": self.nombre,
-                    "identificacion": self.identificacion,
+                    "name": self.name,
+                    "tax_id": self.identificacion,
                     "email": self.email,
-                    "telefono": self.telefono,
-                    "direccion": self.direccion,
-                    "localidad": self.localidad,
-                    "provincia": self.provincia,
-                    "pais": self.pais,
-                    "codigo_postal": self.codigo_postal,
-                    "empresa_id": self.empresa_id,
+                    "phone": self.phone,
+                    "address": self.address,
+                    "city": self.localidad,
+                    "state": self.state,
+                    "country": self.pais,
+                    "postal_code": self.codigo_postal,
+                    "tenant_id": self.tenant_id,
                 }
 
-        dto = ClienteCreateDTO(**c.__dict__)
+        dto = ClienteCreateDTO(**c.__dict__).model_dump()
         m = ClienteCRUD(ClienteORM).create(self.db, dto)
         return self._to_entity(m)
 
@@ -81,31 +80,33 @@ class SqlAlchemyClienteRepo(SqlAlchemyRepo, ClienteRepo):
 
         class ClienteUpdateDTO:
             def __init__(self, **kw):
-                self.nombre = kw.get("nombre")
+                self.name = kw.get("nombre")
                 self.identificacion = kw.get("identificacion")
                 self.email = kw.get("email")
-                self.telefono = kw.get("telefono")
-                self.direccion = kw.get("direccion")
+                self.phone = kw.get("telefono")
+                self.address = kw.get("direccion")
                 self.localidad = kw.get("localidad")
-                self.provincia = kw.get("provincia")
+                self.state = kw.get("provincia")
                 self.pais = kw.get("pais")
                 self.codigo_postal = kw.get("codigo_postal")
 
             def model_dump(self, exclude_unset: bool = False):
                 d = {
-                    "nombre": self.nombre,
-                    "identificacion": self.identificacion,
+                    "name": self.name,
+                    "tax_id": self.identificacion,
                     "email": self.email,
-                    "telefono": self.telefono,
-                    "direccion": self.direccion,
-                    "localidad": self.localidad,
-                    "provincia": self.provincia,
-                    "pais": self.pais,
-                    "codigo_postal": self.codigo_postal,
+                    "phone": self.phone,
+                    "address": self.address,
+                    "city": self.localidad,
+                    "state": self.state,
+                    "country": self.pais,
+                    "postal_code": self.codigo_postal,
                 }
-                return {k: v for k, v in d.items() if not exclude_unset or v is not None}
+                return {
+                    k: v for k, v in d.items() if not exclude_unset or v is not None
+                }
 
-        dto = ClienteUpdateDTO(**c.__dict__)
+        dto = ClienteUpdateDTO(**c.__dict__).model_dump(exclude_unset=True)
         m = ClienteCRUD(ClienteORM).update(self.db, c.id, dto)
         if not m:
             raise ValueError("cliente no existe")

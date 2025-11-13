@@ -1,4 +1,4 @@
-import os
+﻿import os
 import uuid
 import importlib
 import pytest
@@ -11,6 +11,9 @@ def _ensure_test_env():
     os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
     os.environ.setdefault("TENANT_NAMESPACE_UUID", str(uuid.uuid4()))
     os.environ.setdefault("IMPORTS_ENABLED", "1")
+    # Disable Redis for tests (use in-memory fallback)
+    os.environ.setdefault("REDIS_URL", "")
+    os.environ.setdefault("DISABLE_REDIS", "1")
 
 
 def _recreate_sqlite_db_if_needed():
@@ -18,7 +21,7 @@ def _recreate_sqlite_db_if_needed():
     if db_url.startswith("sqlite") and ":memory:" not in db_url:
         prefix = "sqlite:///"
         if db_url.startswith(prefix):
-            path = db_url[len(prefix):]
+            path = db_url[len(prefix) :]
             db_path = os.path.abspath(path)
             if os.path.exists(db_path):
                 try:
@@ -31,6 +34,7 @@ def _load_all_models():
     # Import only models needed by tests to avoid PG-only types on SQLite
     modules = [
         "app.models.auth.useradmis",
+        "app.models.auth.refresh_family",
         "app.models.empresa.empresa",
         "app.models.empresa.usuarioempresa",
         "app.models.empresa.usuario_rolempresa",
@@ -40,6 +44,7 @@ def _load_all_models():
         "app.models.tenant",
         # Imports pipeline models (UUID/JSON fields are SQLite-friendly in tests)
         "app.models.core.modelsimport",
+        "app.models.inventory.warehouse",
     ]
     for m in modules:
         importlib.import_module(m)
@@ -50,13 +55,15 @@ def _prune_pg_only_tables(metadata):
     pg_only = {
         "modulos_modulo",
         "modulos_empresamodulo",
-        "modulos_moduloasignado",
+        "modulos_moduloasignado",  # Uses tenant_id UUID
         "facturas_temp",
         "facturas",
         "bank_accounts",
         "bank_transactions",
         "core_auditoria_importacion",
         "auditoria_importacion",
+        "product_categories",  # Uses JSONB
+        "core_rolempresa",  # Uses tenant_id UUID
     }
     # Copy keys to list to avoid runtime dict-change issues
     for name in list(metadata.tables.keys()):
@@ -80,15 +87,22 @@ def client() -> TestClient:
 
     # Import the app only after DB is prepared to avoid importing PG-only models
     from app.main import app
+
     # Ensure imports router is mounted in test env (fallbacks)
     try:
-        has_imports = any(getattr(r, "path", "").startswith("/api/v1/imports") for r in app.router.routes)
+        has_imports = any(
+            getattr(r, "path", "").startswith("/api/v1/imports")
+            for r in app.router.routes
+        )
     except Exception:
         has_imports = False
     if not has_imports:
         # Try canonical path
         try:
-            from app.modules.imports.interface.http.tenant import router as _imports_router
+            from app.modules.imports.interface.http.tenant import (
+                router as _imports_router,
+            )
+
             app.include_router(_imports_router, prefix="/api/v1")
             has_imports = True
         except Exception as e:
@@ -96,7 +110,10 @@ def client() -> TestClient:
         # Try relative apps.backend path (how tests import this package)
         if not has_imports:
             try:
-                from app.modules.imports.interface.http.tenant import router as _imports_router_rel
+                from app.modules.imports.interface.http.tenant import (
+                    router as _imports_router_rel,
+                )
+
                 app.include_router(_imports_router_rel, prefix="/api/v1")
                 has_imports = True
             except Exception as e2:
@@ -107,17 +124,19 @@ def client() -> TestClient:
 @pytest.fixture
 def db():
     from app.config.database import SessionLocal, Base, engine
+
     _load_all_models()
     _prune_pg_only_tables(Base.metadata)
     Base.metadata.create_all(bind=engine)
     _ensure_sqlite_stub_tables(engine)
     # Sanity: ensure critical tables are present
-    required = {"auth_user", "usuarios_usuariorolempresa"}
+    required = {"auth_user", "usuarios_usuariorolempresa", "auth_refresh_family", "auth_refresh_token"}
     missing = required.difference(Base.metadata.tables.keys())
     if missing:
         # Try direct imports of critical modules, then create_all again
         importlib.import_module("app.models.auth.useradmis")
         importlib.import_module("app.models.empresa.usuario_rolempresa")
+        importlib.import_module("app.models.auth.refresh_family")
         Base.metadata.create_all(bind=engine)
         missing = required.difference(Base.metadata.tables.keys())
         assert not missing, f"Missing tables after create_all: {missing}"
@@ -130,7 +149,11 @@ def db():
 
 @pytest.fixture
 def superuser_factory(db):
-    def _create(username: str | None = None, email: str | None = None, password: str = "admin123"):
+    def _create(
+        username: str | None = None,
+        email: str | None = None,
+        password: str = "admin123",
+    ):
         from app.models.auth.useradmis import SuperUser
         from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
 
@@ -148,7 +171,7 @@ def superuser_factory(db):
         )
         if existing:
             return existing
-        su = SuperUser(
+        su = SuperUser(  # noqa: F841
             username=username,
             email=email,
             password_hash=hasher.hash(password),
@@ -177,55 +200,59 @@ def usuario_empresa_factory(db):
         from sqlalchemy import or_
 
         from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
-        from app.models.empresa.empresa import Empresa
         from app.models.empresa.usuarioempresa import UsuarioEmpresa
+        from app.models.tenant import Tenant
+        import uuid as _uuid
 
         hasher = PasslibPasswordHasher()
 
         existing = (
             db.query(UsuarioEmpresa)
-            .filter(or_(UsuarioEmpresa.email == email, UsuarioEmpresa.username == username))
+            .filter(
+                or_(UsuarioEmpresa.email == email, UsuarioEmpresa.username == username)
+            )
             .first()
         )
         if existing:
-            empresa = existing.empresa or db.get(Empresa, existing.empresa_id)
+            # Get tenant from existing usuario
+            tenant_obj = (
+                db.get(Tenant, existing.tenant_id) if existing.tenant_id else None
+            )
 
-            if empresa:
-                if empresa_nombre and empresa.nombre != empresa_nombre:
-                    empresa.nombre = empresa_nombre
-                if empresa_slug and empresa.slug != empresa_slug:
-                    empresa.slug = empresa_slug
-            elif empresa_slug:
-                empresa = Empresa(nombre=empresa_nombre, slug=empresa_slug)
-                db.add(empresa)
+            if tenant_obj:
+                if empresa_nombre and tenant_obj.name != empresa_nombre:
+                    tenant_obj.name = empresa_nombre
+                if empresa_slug and tenant_obj.slug != empresa_slug:
+                    tenant_obj.slug = empresa_slug
+            else:
+                # Create tenant if missing
+                tenant_obj = Tenant(
+                    id=_uuid.uuid4(),
+                    nombre=empresa_nombre,
+                    slug=empresa_slug or f"t-{_uuid.uuid4().hex[:8]}",
+                )
+                db.add(tenant_obj)
                 db.flush()
-                existing.empresa_id = empresa.id
+                existing.tenant_id = tenant_obj.id
 
             if password:
                 existing.password_hash = hasher.hash(password)
             existing.es_admin_empresa = es_admin_empresa
-            existing.activo = True
-            # Ensure tenant_id present for SQLite (no server DEFAULT/GUC)
-            try:
-                import uuid as _uuid
-                if getattr(existing, "tenant_id", None) in (None, ""):
-                    existing.tenant_id = _uuid.uuid4()
-            except Exception:
-                pass
+            existing.active = True
 
             db.commit()
             db.refresh(existing)
-            if empresa:
-                db.refresh(empresa)
-            return existing, empresa
+            db.refresh(tenant_obj)
+            return existing, tenant_obj
 
-        slug = empresa_slug or f"acme-{uuid.uuid4().hex[:8]}"
-        empresa = Empresa(nombre=empresa_nombre, slug=slug)
-        db.add(empresa)
+        # Create new tenant (Empresa table no longer exists)
+        slug = empresa_slug or f"acme-{_uuid.uuid4().hex[:8]}"
+        tenant = Tenant(id=_uuid.uuid4(), nombre=empresa_nombre, slug=slug)
+        db.add(tenant)
         db.flush()
 
         usuario = UsuarioEmpresa(
-            empresa_id=empresa.id,
+            tenant_id=tenant.id,
             nombre_encargado="Test",
             apellido_encargado="User",
             email=email,
@@ -234,18 +261,11 @@ def usuario_empresa_factory(db):
             password_hash=hasher.hash(password),
             activo=True,
         )
-        # Ensure tenant_id for SQLite tests
-        try:
-            import uuid as _uuid
-            if getattr(usuario, "tenant_id", None) in (None, ""):
-                usuario.tenant_id = _uuid.uuid4()
-        except Exception:
-            pass
         db.add(usuario)
         db.commit()
         db.refresh(usuario)
-        db.refresh(empresa)
-        return usuario, empresa
+        db.refresh(tenant)
+        return usuario, tenant
 
     return _create
 
@@ -254,23 +274,24 @@ def usuario_empresa_factory(db):
 def admin_login(client: TestClient):
     def _do():
         return "test-admin-token"
+
     return _do
 
 
 def _ensure_sqlite_stub_tables(engine):
     # Some tests touch modulos_moduloasignado; create a minimal stub in SQLite
     from sqlalchemy import text
+
     if str(engine.url).startswith("sqlite"):
         with engine.connect() as conn:
-            # Stub for core.modulo.Modulo
             conn.execute(
                 text(
                     """
                     CREATE TABLE IF NOT EXISTS modulos_modulo (
                         id INTEGER PRIMARY KEY,
-                        nombre TEXT,
-                        descripcion TEXT,
-                        activo BOOLEAN,
+                        name TEXT,
+                        description TEXT,
+                        active BOOLEAN,
                         icono TEXT,
                         url TEXT,
                         plantilla_inicial TEXT,
@@ -282,15 +303,13 @@ def _ensure_sqlite_stub_tables(engine):
                     """
                 )
             )
-            # Stub for core.modulo.EmpresaModulo
             conn.execute(
                 text(
                     """
                     CREATE TABLE IF NOT EXISTS modulos_empresamodulo (
                         id INTEGER PRIMARY KEY,
-                        empresa_id INTEGER,
-                        modulo_id INTEGER,
                         tenant_id TEXT,
+                        modulo_id INTEGER,
                         activo BOOLEAN,
                         fecha_activacion TEXT,
                         fecha_expiracion TEXT,
@@ -304,14 +323,28 @@ def _ensure_sqlite_stub_tables(engine):
                     """
                     CREATE TABLE IF NOT EXISTS modulos_moduloasignado (
                         id INTEGER PRIMARY KEY,
-                        empresa_id INTEGER,
-                        usuario_id INTEGER,
-                        modulo_id INTEGER,
+                        tenant_id TEXT,
+                        usuario_id TEXT,
+                        modulo_id TEXT,
                         fecha_asignacion TEXT,
                         ver_modulo_auto BOOLEAN
                     )
                     """
                 )
             )
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS core_rolempresa (
+                        id INTEGER PRIMARY KEY,
+                        tenant_id TEXT,
+                        nombre TEXT,
+                        descripcion TEXT,
+                        permisos TEXT,
+                        rol_base_id TEXT,
+                        creado_por_empresa BOOLEAN
+                    )
+                    """
+                )
+            )
             conn.commit()
-

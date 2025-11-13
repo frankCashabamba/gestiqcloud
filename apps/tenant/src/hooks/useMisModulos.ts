@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { listMisModulos, listModulosSeleccionablesPorEmpresa, type Modulo } from '../services/modulos'
 import { useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
@@ -12,7 +12,7 @@ function toSlug(m: Modulo): string {
     return seg.toLowerCase()
   }
   // fallback: normaliza nombre
-  return (m.nombre || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '')
+  return (m.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '')
 }
 
 export function useMisModulos() {
@@ -68,7 +68,7 @@ export function useMisModulos() {
 
   const allowedSlugs = useMemo(() => {
     const list = Array.isArray(modules) ? modules : []
-    return new Set(list.filter((m) => m.activo !== false).map(toSlug))
+    return new Set(list.filter((m) => m.active !== false).map(toSlug))
   }, [modules])
 
   return { modules, allowedSlugs, loading, error }

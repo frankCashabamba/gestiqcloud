@@ -11,7 +11,7 @@ EXPLAIN
 SELECT 1
 FROM import_items ii
 JOIN import_batches ib ON ii.batch_id = ib.id
-WHERE ib.empresa_id = 0
+WHERE ib.tenant_id = 0
   AND ii.dedupe_hash = '0000000000000000000000000000000000000000000000000000000000000000'
   AND ii.status = 'PROMOTED'
 LIMIT 1;
@@ -21,7 +21,7 @@ EXPLAIN
 SELECT ii.id, ii.idx, ii.status
 FROM import_items ii
 JOIN import_batches ib ON ii.batch_id = ib.id
-WHERE ib.empresa_id = 0
+WHERE ib.tenant_id = 0
   AND ib.id = '00000000-0000-0000-0000-000000000000'::uuid
 ORDER BY ii.idx ASC;
 
@@ -29,7 +29,7 @@ ORDER BY ii.idx ASC;
 EXPLAIN
 SELECT id, source_type, origin, status, created_at
 FROM import_batches
-WHERE empresa_id = 0
+WHERE tenant_id = 0
 ORDER BY created_at DESC
 LIMIT 20;
 

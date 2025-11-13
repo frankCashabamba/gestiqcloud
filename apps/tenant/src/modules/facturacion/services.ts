@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Facturación Services - API calls para facturas y e-invoicing
  */
 
@@ -36,7 +36,7 @@ export interface InvoiceLine {
   cantidad: number
   precio_unitario: number
   total: number
-  descripcion: string
+  description: string
   sku?: string
 }
 

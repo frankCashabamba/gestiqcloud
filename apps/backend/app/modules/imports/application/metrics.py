@@ -1,4 +1,5 @@
 """Métricas Prometheus para imports pipeline."""
+
 from __future__ import annotations
 
 from prometheus_client import Counter, Histogram, Gauge

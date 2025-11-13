@@ -1,4 +1,4 @@
-
+﻿
 import React, { useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import SectorLayout from './components/SectorLayout'
@@ -34,10 +34,10 @@ const DefaultPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
   const sideNav = useMemo(
     () =>
       [...modules]
-        .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
         .map((m) => ({
-          label: m.nombre || buildSlug(m.nombre, m.url, m.slug),
-          to: `/mod/${buildSlug(m.nombre, m.url, m.slug)}`,
+          label: m.name || buildSlug(m.name, m.url, m.slug),
+          to: `/${buildSlug(m.name, m.url, m.slug)}`,
         })),
     [modules]
   )

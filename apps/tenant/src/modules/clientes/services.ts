@@ -4,9 +4,49 @@ import { TENANT_CLIENTES } from '@shared/endpoints'
 
 export type Cliente = {
   id: number | string
-  nombre: string
+  name: string
+  // Identidad
+  identificacion?: string
+  identificacion_tipo?: string
+  nombre_comercial?: string
+  razon_social?: string
+  tax_id?: string
+  // Contacto
   email?: string
+  phone?: string
   telefono?: string
+  contacto_nombre?: string
+  contacto_email?: string
+  contacto_telefono?: string
+  whatsapp?: string
+  website?: string
+  // Dirección
+  address?: string
+  direccion?: string
+  direccion2?: string
+  city?: string
+  localidad?: string
+  state?: string
+  provincia?: string
+  ciudad?: string
+  pais?: string
+  codigo_postal?: string
+  // Envío
+  envio_direccion?: string
+  envio_localidad?: string
+  envio_provincia?: string
+  envio_pais?: string
+  envio_codigo_postal?: string
+  // Comerciales
+  payment_terms_days?: number
+  credit_limit?: number
+  descuento_pct?: number
+  moneda?: string
+  idioma?: string
+  // Gestión
+  notas?: string
+  tags?: string[]
+  bloqueado?: boolean
 }
 
 export async function listClientes(): Promise<Cliente[]> {

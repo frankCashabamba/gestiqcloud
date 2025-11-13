@@ -3,10 +3,13 @@ from fastapi.testclient import TestClient
 
 def _tenant_token(client: TestClient, usuario_empresa_factory):
     import uuid
+
     suffix = uuid.uuid4().hex[:6]
     username = f"bulk_{suffix}"
     email = f"bulk_{suffix}@x.com"
-    usuario, empresa = usuario_empresa_factory(email=email, username=username, password="secret")
+    usuario, tenant = usuario_empresa_factory(
+        email=email, username=username, password="secret"
+    )
     r = client.post(
         "/api/v1/tenant/auth/login",
         json={"identificador": username, "password": "secret"},
@@ -30,9 +33,27 @@ def test_bulk_patch_and_reprocess_flow(client: TestClient, db, usuario_empresa_f
     batch = r.json()
 
     rows = [
-        {"invoice_number": "B1", "invoice_date": "2024-02-01", "net_amount": 90, "tax_amount": 10, "total_amount": 100},
-        {"invoice_number": "B2", "invoice_date": "2024-02-01", "net_amount": 50, "tax_amount": 5, "total_amount": 60},  # bad
-        {"invoice_number": "B3", "invoice_date": "01/02/2024", "net_amount": 10, "tax_amount": 2, "total_amount": 13},   # bad
+        {
+            "invoice_number": "B1",
+            "invoice_date": "2024-02-01",
+            "net_amount": 90,
+            "tax_amount": 10,
+            "total_amount": 100,
+        },
+        {
+            "invoice_number": "B2",
+            "invoice_date": "2024-02-01",
+            "net_amount": 50,
+            "tax_amount": 5,
+            "total_amount": 60,
+        },  # bad
+        {
+            "invoice_number": "B3",
+            "invoice_date": "01/02/2024",
+            "net_amount": 10,
+            "tax_amount": 2,
+            "total_amount": 13,
+        },  # bad
     ]
     r2 = client.post(
         f"/api/v1/imports/batches/{batch['id']}/ingest",
@@ -56,13 +77,16 @@ def test_bulk_patch_and_reprocess_flow(client: TestClient, db, usuario_empresa_f
     # Bulk patch to fix totals
     r4 = client.post(
         f"/api/v1/imports/batches/{batch['id']}/items/bulk-patch",
-        json={"ids": ids, "changes": {"total_amount": None}},  # set None to recompute? We'll set correct totals directly next line
+        json={
+            "ids": ids,
+            "changes": {"total_amount": None},
+        },  # set None to recompute? We'll set correct totals directly next line
         headers=headers,
     )
     assert r4.status_code == 200
 
     # Patch precise values
-    fixes = {"B2": 55.0, "B3": 12.0}
+    fixes = {"B2": 55.0, "B3": 12.0}  # noqa: F841
     for it in listed:
         if it["invoice_number"] if False else None:
             pass
@@ -88,4 +112,3 @@ def test_bulk_patch_and_reprocess_flow(client: TestClient, db, usuario_empresa_f
         params={"scope": "all", "promote": True},
     )
     assert r5.status_code == 200
-

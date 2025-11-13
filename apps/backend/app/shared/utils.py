@@ -1,8 +1,10 @@
 from __future__ import annotations
-
 import datetime as dt
 import unicodedata
 import time
+from typing import List, Dict
+from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 
 def utcnow_iso() -> str:
@@ -10,9 +12,7 @@ def utcnow_iso() -> str:
 
 
 def slugify(text: str) -> str:
-    text = (
-        unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
-    )
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
     text = "".join(c if c.isalnum() else "-" for c in text.lower())
     while "--" in text:
         text = text.replace("--", "-")
@@ -23,12 +23,9 @@ def now_ts() -> int:
     """Epoch seconds (UTC)."""
     return int(time.time())
 
+
 def ping_ok() -> dict:
     return {"ok": True}
-
-from typing import List, Dict
-from sqlalchemy.orm import Session
-from sqlalchemy import text
 
 
 def find_missing_id_defaults(db: Session) -> List[Dict[str, object]]:
@@ -65,15 +62,17 @@ def find_missing_id_defaults(db: Session) -> List[Dict[str, object]]:
     for r in rows:
         tbl, dtype, is_ident, ident_gen, coldef = r
         # missing if not identity and no nextval in default
-        missing = (str(is_ident or '').upper() != 'YES') and (('nextval' not in str(coldef or '')))
+        missing = (str(is_ident or "").upper() != "YES") and (
+            "nextval" not in str(coldef or "")
+        )
         if missing:
             out.append(
                 {
-                    'table': tbl,
-                    'data_type': dtype,
-                    'is_identity': is_ident,
-                    'identity_generation': ident_gen,
-                    'column_default': coldef,
+                    "table": tbl,
+                    "data_type": dtype,
+                    "is_identity": is_ident,
+                    "identity_generation": ident_gen,
+                    "column_default": coldef,
                 }
             )
     return out

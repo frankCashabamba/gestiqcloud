@@ -2,7 +2,9 @@ from fastapi.testclient import TestClient
 
 
 def _tenant_token(client: TestClient, usuario_empresa_factory):
-    usuario, empresa = usuario_empresa_factory(email="dup@x.com", username="dup", password="secret")
+    usuario, tenant = usuario_empresa_factory(
+        email="dup@x.com", username="dup", password="secret"
+    )
     r = client.post(
         "/api/v1/tenant/auth/login",
         json={"identificador": "dup", "password": "secret"},
@@ -26,8 +28,20 @@ def test_promote_skips_duplicates(client: TestClient, db, usuario_empresa_factor
     batch = r.json()
 
     rows = [
-        {"invoice_number": "DUP-1", "invoice_date": "2024-01-02", "net_amount": 90.0, "tax_amount": 10.0, "total_amount": 100.0},
-        {"invoice_number": "DUP-1", "invoice_date": "2024-01-02", "net_amount": 90.0, "tax_amount": 10.0, "total_amount": 100.0},
+        {
+            "invoice_number": "DUP-1",
+            "invoice_date": "2024-01-02",
+            "net_amount": 90.0,
+            "tax_amount": 10.0,
+            "total_amount": 100.0,
+        },
+        {
+            "invoice_number": "DUP-1",
+            "invoice_date": "2024-01-02",
+            "net_amount": 90.0,
+            "tax_amount": 10.0,
+            "total_amount": 100.0,
+        },
     ]
     r2 = client.post(
         f"/api/v1/imports/batches/{batch['id']}/ingest",
@@ -53,4 +67,3 @@ def test_promote_skips_duplicates(client: TestClient, db, usuario_empresa_factor
     assert r4.status_code == 200
     second = r4.json()
     assert second["skipped"] >= first["created"]
-

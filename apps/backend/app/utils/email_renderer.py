@@ -5,7 +5,6 @@ Auto-generated module docstring."""
 # app/utils/email_renderer.py
 
 import os
-from datetime import datetime
 
 from jinja2 import Environment, FileSystemLoader
 

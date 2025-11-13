@@ -1,9 +1,13 @@
 import { createSharedClient } from '@shared'
 import { TENANT_AUTH } from '@shared/endpoints'
+import { env } from '../../env'
+
+const normalizedBase = (env.apiUrl || '').replace(/\/+$/g, '')
+const baseWithoutApiSuffix = normalizedBase.replace(/\/api$/i, '')
 
 const api = createSharedClient({
-  // Base vacía: los endpoints ya incluyen '/v1/*' para evitar duplicados
-  baseURL: '',
+  // Usa el host del backend provisto por la app y evita duplicar el prefijo /api
+  baseURL: baseWithoutApiSuffix || undefined,
   tokenKey: 'access_token_tenant',
   refreshPath: TENANT_AUTH.refresh,
   csrfPath: TENANT_AUTH.csrf,

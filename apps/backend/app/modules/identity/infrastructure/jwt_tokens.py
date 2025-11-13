@@ -16,7 +16,9 @@ class PyJWTTokenService(TokenService):
         return self._svc.encode(payload, kind="access")
 
     def issue_refresh(self, payload: dict, *, jti: str, prev_jti: Optional[str]) -> str:
-        return self._svc.encode({**payload, "jti": jti, "prev_jti": prev_jti}, kind="refresh")
+        return self._svc.encode(
+            {**payload, "jti": jti, "prev_jti": prev_jti}, kind="refresh"
+        )
 
     def decode_and_validate(self, token: str, *, expected_type: str) -> dict:
         return dict(self._svc.decode(token, expected_kind=expected_type))

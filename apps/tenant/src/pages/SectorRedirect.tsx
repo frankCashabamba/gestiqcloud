@@ -13,7 +13,7 @@ export default function SectorRedirect() {
     ;(async () => {
       try {
         // Intenta obtener sector desde el tema (puede incluir sector)
-        const t = await apiFetch<ThemeResponse>('/v1/tenant/settings/theme')
+        const t = await apiFetch<ThemeResponse>('/api/v1/tenant/settings/theme')
         const s = (t && t.sector) ? t.sector : 'default'
         if (!cancelled) setSlug(s)
         try { document.documentElement.dataset.sector = s } catch {}
@@ -24,7 +24,7 @@ export default function SectorRedirect() {
     return () => { cancelled = true }
   }, [])
 
-  if (!slug) return <div style={{ padding: 16 }}>Cargando plantilla…€¦</div>
+  if (!slug) return <div style={{ padding: 16 }}>Cargando plantillas</div>
   return <Navigate to={`/plantilla/${slug}`} replace />
 }
 

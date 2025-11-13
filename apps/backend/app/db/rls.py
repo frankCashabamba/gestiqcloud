@@ -57,18 +57,25 @@ def ensure_rls(
         return
 
     try:
-        # Si tenant_id parece entero (legacy empresa_id), tradúcelo a UUID
+        # Si tenant_id parece entero (legacy tenant_id), tradúcelo a UUID
         if isinstance(t_id, str) and t_id.isdigit():
             try:
+                # Translate legacy tenant_id (int) to tenant UUID
                 res = db.execute(
-                    text("SELECT id::text FROM public.tenants WHERE empresa_id = :eid"),
+                    text("SELECT id::text FROM public.tenants WHERE tenant_id = :eid"),
                     {"eid": int(t_id)},
                 )
                 row = res.first()
                 if row and row[0]:
                     t_id = row[0]
-            except Exception:
-                pass
+                else:
+                    import logging
+
+                    logging.warning(f"No tenant found for tenant_id = {t_id}")
+            except Exception as e:
+                import logging
+
+                logging.warning(f"Error converting tenant_id to tenant_id: {e}")
 
         # Usa SET LOCAL para scope de transacción/request
         db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(t_id)})
@@ -79,9 +86,11 @@ def ensure_rls(
             db.info["tenant_id"] = str(t_id)
         except Exception:
             pass
-    except Exception:
-        # No romper la request si falla el SET
-        pass
+    except Exception as e:
+        # No romper la request si falla el SET, pero log el error
+        import logging
+
+        logging.error(f"RLS setup failed: {e}")
 
     return db
 
@@ -96,7 +105,9 @@ def tenant_id_sql_expr():
         db.scalar(select(tenant_id_sql_expr()))
         stmt = select(Model).where(Model.tenant_id == tenant_id_sql_expr())
     """
-    return literal_column("current_setting('app.tenant_id', true)::uuid").label("tenant_id")
+    return literal_column("current_setting('app.tenant_id', true)::uuid").label(
+        "tenant_id"
+    )
 
 
 def tenant_id_sql_expr_text(param_name: str = "tid") -> str:
@@ -151,7 +162,9 @@ def set_tenant_guc(db: Session, tenant_id: str, persist: bool = False) -> None:
         pass
 
 
-def ensure_guc_from_request(request: Request, db: Session, persist: bool = False) -> None:
+def ensure_guc_from_request(
+    request: Request, db: Session, persist: bool = False
+) -> None:
     """Extrae tenant de la request y lo setea como GUC en esta sesión."""
     tid = tenant_id_from_request(request)
     if tid:

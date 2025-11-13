@@ -1,6 +1,6 @@
-export type Apunte = {
+﻿export type Apunte = {
   cuenta: string
-  descripcion: string
+  description: string
   debe: number
   haber: number
 }

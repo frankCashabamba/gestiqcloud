@@ -1,0 +1,387 @@
+/* POS Professional Styles - Basado en tpv_pro.html */
+
+:root {
+  --pos-bg: #0b0e14;
+  --pos-surface: #121722;
+  --pos-surface2: #1a2130;
+  --pos-text: #e6e8ee;
+  --pos-muted: #a7afc0;
+  --pos-border: #2a2f3a;
+  --pos-primary: #5B8CFF;
+  --pos-ok: #26d07c;
+  --pos-warn: #fbbf24;
+  --pos-err: #ff6b6b;
+  --pos-pad: 12px;
+  --pos-radius: 14px;
+  --pos-ctl-height: 48px;
+  --pos-shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+
+.tpv {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr;
+  grid-template-rows: 64px 1fr 64px;
+  grid-template-areas:
+    "top top"
+    "left right"
+    "bottom bottom";
+  height: 100dvh;
+  gap: 0;
+  background: var(--pos-bg);
+  color: var(--pos-text);
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+}
+
+@media (max-width: 1100px) {
+  .tpv {
+    grid-template-columns: 1fr;
+    grid-template-rows: 64px auto auto 64px;
+    grid-template-areas:
+      "top"
+      "left"
+      "right"
+      "bottom";
+  }
+}
+
+/* Top Bar */
+.tpv .top {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--pos-surface);
+  border-bottom: 1px solid var(--pos-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.tpv .brand {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tpv .brand__logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--pos-primary), #9fb6ff);
+}
+
+.tpv .badge {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--pos-border);
+  font-size: 12px;
+  color: var(--pos-muted);
+  white-space: nowrap;
+  background: transparent;
+}
+
+.tpv .badge.ok {
+  color: var(--pos-ok);
+  border-color: color-mix(in srgb, var(--pos-ok) 40%, var(--pos-border));
+}
+
+.tpv .badge.off {
+  color: var(--pos-warn);
+  border-color: color-mix(in srgb, var(--pos-warn) 40%, var(--pos-border));
+}
+
+.tpv .btn {
+  height: var(--pos-ctl-height);
+  border-radius: 12px;
+  border: 1px solid var(--pos-border);
+  background: var(--pos-surface);
+  color: var(--pos-text);
+  padding: 0 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.tpv .btn:hover {
+  background: var(--pos-surface2);
+}
+
+.tpv .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tpv .btn.primary {
+  background: var(--pos-primary);
+  border-color: transparent;
+  color: white;
+}
+
+.tpv .btn.primary:hover {
+  background: #4a7ae6;
+}
+
+.tpv .btn.ghost {
+  background: transparent;
+}
+
+.tpv .btn.sm {
+  height: 40px;
+  border-radius: 10px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+/* Left Column (Catalog) */
+.tpv .left {
+  grid-area: left;
+  display: grid;
+  grid-template-rows: auto auto auto 1fr;
+  gap: 8px;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.tpv .search {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: var(--pos-surface2);
+  border: 1px solid var(--pos-border);
+  border-radius: 12px;
+  padding: 0 10px;
+  height: 48px;
+}
+
+.tpv .search input {
+  border: 0;
+  background: transparent;
+  color: var(--pos-text);
+  width: 100%;
+  font-size: 16px;
+  outline: none;
+}
+
+.tpv .cats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.tpv .cat {
+  padding: 8px 12px;
+  border: 1px solid var(--pos-border);
+  border-radius: 999px;
+  background: var(--pos-surface);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.tpv .cat.active,
+.tpv .cat:hover {
+  background: var(--pos-surface2);
+  border-color: var(--pos-primary);
+  color: var(--pos-primary);
+}
+
+.tpv .catalog {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  overflow: auto;
+  padding: 4px;
+}
+
+@media (max-width: 1200px) {
+  .tpv .catalog {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 800px) {
+  .tpv .catalog {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.tpv .tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--pos-surface);
+  border: 1px solid var(--pos-border);
+  border-radius: 12px;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: var(--pos-shadow);
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.tpv .tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 35px rgba(0,0,0,.45);
+  border-color: var(--pos-primary);
+}
+
+.tpv .tile strong {
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.tpv .tile small {
+  color: var(--pos-muted);
+  font-size: 14px;
+}
+
+.tpv .tile .tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tpv .chip {
+  font-size: 11px;
+  padding: 2px 6px;
+  border: 1px solid var(--pos-border);
+  border-radius: 999px;
+  color: var(--pos-muted);
+}
+
+/* Right Column (Cart & Pay) */
+.tpv .right {
+  grid-area: right;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 8px;
+  border-left: 1px solid var(--pos-border);
+}
+
+.tpv .cart {
+  padding: 8px;
+  overflow: auto;
+}
+
+.tpv .row {
+  display: grid;
+  grid-template-columns: 1fr 110px 86px 40px;
+  gap: 8px;
+  align-items: center;
+  border-bottom: 1px dashed var(--pos-border);
+  padding: 12px 0;
+}
+
+.tpv .qty {
+  display: flex;
+  border: 1px solid var(--pos-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.tpv .qty button {
+  width: 36px;
+  height: 40px;
+  background: var(--pos-surface2);
+  border: 0;
+  color: var(--pos-text);
+  cursor: pointer;
+  font-size: 18px;
+  transition: background 0.2s;
+}
+
+.tpv .qty button:hover {
+  background: var(--pos-border);
+}
+
+.tpv .qty input {
+  width: 38px;
+  text-align: center;
+  border: 0;
+  background: var(--pos-surface);
+  color: var(--pos-text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.tpv .sum {
+  font-weight: 700;
+  text-align: right;
+}
+
+.tpv .del {
+  background: transparent;
+  border: 0;
+  color: var(--pos-err);
+  cursor: pointer;
+  font-size: 18px;
+  width: 40px;
+  height: 40px;
+  transition: transform 0.2s;
+}
+
+.tpv .del:hover {
+  transform: scale(1.2);
+}
+
+.tpv .line-tools {
+  display: flex;
+  gap: 6px;
+}
+
+.tpv .line-tools .btn {
+  height: 28px;
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.tpv .pay {
+  padding: 12px;
+  border-top: 1px solid var(--pos-border);
+  background: var(--pos-surface);
+}
+
+.tpv .totals {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--pos-border);
+}
+
+.tpv .big {
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.tpv .paymodes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+/* Bottom Bar */
+.tpv .bottom {
+  grid-area: bottom;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--pos-surface);
+  border-top: 1px solid var(--pos-border);
+}
+
+.tpv .actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}

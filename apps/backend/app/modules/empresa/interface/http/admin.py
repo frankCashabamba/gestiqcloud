@@ -8,20 +8,26 @@ from sqlalchemy import func, text
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.config.database import get_db
-from app.modules.empresa.application.use_cases import ListarEmpresasAdmin, crear_usuario_admin
-from app.db.rls import set_tenant_guc
+from app.modules.empresa.application.use_cases import (
+    ListarEmpresasAdmin,
+    crear_usuario_admin,
+)
 from app.modules.empresa.infrastructure.repositories import SqlEmpresaRepo
 from app.modules.empresa.interface.http.schemas import EmpresaInSchema, EmpresaOutSchema
-from app.models.empresa.empresa import Empresa
+from app.models.tenant import Tenant as Empresa
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
 from pydantic import BaseModel, EmailStr
 from pathlib import Path
 import os
 import uuid
 from slugify import slugify
-from typing import List
-from app.modules import services as mod_services, schemas as mod_schemas, crud as mod_crud
+from app.modules import (
+    services as mod_services,
+    schemas as mod_schemas,
+    crud as mod_crud,
+)
 from app.api.email.email_utils import enviar_correo_bienvenida
+from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
 
 
 router = APIRouter(
@@ -39,12 +45,26 @@ def listar_empresas_admin(db: Session = Depends(get_db)) -> list[EmpresaOutSchem
     items = use.execute()
     out: list[EmpresaOutSchema] = []
     for i in items:
-        empresa_id = int(i.get("id")) if i.get("id") is not None else None
+        tenant_uuid = i.get("id")
+        empresa_id = None
+        if tenant_uuid is not None:
+            try:
+                row = db.execute(
+                    text( "SELECT slug FROM tenants WHERE tenant_id =:id"),                    
+                    {"id": str(tenant_uuid)},
+                ).first()
+                empresa_id = int(row[0]) if row and row[0] is not None else None
+            except Exception:
+                empresa_id = None
         mod_names: list[str] = []
         if empresa_id is not None:
             try:
                 registros = mod_crud.obtener_modulos_de_empresa(db, empresa_id)
-                mod_names = [getattr(r.modulo, "nombre", None) for r in registros if getattr(r, "modulo", None)]
+                mod_names = [
+                    getattr(r.modulo, "name", None)
+                    for r in registros
+                    if getattr(r, "modulo", None)
+                ]
             except Exception:
                 mod_names = []
         enriched = {**i, "modulos": mod_names}
@@ -52,38 +72,365 @@ def listar_empresas_admin(db: Session = Depends(get_db)) -> list[EmpresaOutSchem
     return out
 
 
-@router.get("/{empresa_id}", response_model=EmpresaOutSchema)
-def obtener_empresa_admin(empresa_id: int, db: Session = Depends(get_db)) -> EmpresaOutSchema:
+@router.get("/{tenant_id}", response_model=EmpresaOutSchema)
+def obtener_empresa_admin(
+    tenant_id: str, db: Session = Depends(get_db)
+) -> EmpresaOutSchema:
     repo = SqlEmpresaRepo(db)
-    item = repo.get(id=empresa_id)
+    item = repo.get(id=tenant_id)
     if not item:
         raise HTTPException(status_code=404, detail="empresa_not_found")
     # Enriquecer con modulos como en el listado
     try:
-        registros = mod_crud.obtener_modulos_de_empresa(db, empresa_id)
-        mod_names = [getattr(r.modulo, "nombre", None) for r in registros if getattr(r, "modulo", None)]
+        registros = mod_crud.obtener_modulos_de_empresa(db, tenant_id)
+        mod_names = [
+            getattr(r.modulo, "name", None)
+            for r in registros
+            if getattr(r, "modulo", None)
+        ]
     except Exception:
         mod_names = []
     enriched = {**item, "modulos": mod_names}
     return EmpresaOutSchema.model_validate(enriched)
 
 
-@router.put("/{empresa_id}", response_model=EmpresaOutSchema)
-def actualizar_empresa(empresa_id: int, payload: EmpresaInSchema, db: Session = Depends(get_db)):
+@router.put("/{tenant_id}", response_model=EmpresaOutSchema)
+def actualizar_empresa(
+    tenant_id: str, payload: EmpresaInSchema, db: Session = Depends(get_db)
+):
     repo = SqlEmpresaRepo(db)
-    updated = repo.update(empresa_id, payload.model_dump())
+    updated = repo.update(tenant_id, payload.model_dump())
     if not updated:
         raise HTTPException(status_code=404, detail="empresa_not_found")
     return EmpresaOutSchema.model_construct(**updated)
 
 
-@router.delete("/{empresa_id}")
-def eliminar_empresa(empresa_id: int, db: Session = Depends(get_db)):
-    repo = SqlEmpresaRepo(db)
-    ok = repo.delete(empresa_id)
-    if not ok:
+@router.get("/{tenant_id}/settings")
+def get_tenant_settings(tenant_id: str, db: Session = Depends(get_db)):
+    """Obtener configuración completa del tenant"""
+    tenant = db.query(Empresa).filter(Empresa.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="tenant_not_found")
+
+    # Get tenant_settings
+    from app.models.core.settings import TenantSettings
+    
+    tenant_settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
+    if not tenant_settings:
+        tenant_settings = TenantSettings(tenant_id=tenant_id)
+        db.add(tenant_settings)
+        db.commit()
+        db.refresh(tenant_settings)
+    
+    return {
+        "locale": tenant_settings.locale,
+        "timezone": tenant_settings.timezone,
+        "currency": tenant_settings.currency,
+        "sector_id": getattr(tenant, "sector_id", None),
+        # Return both modern and legacy key for FE compatibility
+        "sector_template_name": getattr(tenant, "sector_template_name", None),
+        "sector_plantilla_name": getattr(tenant, "sector_template_name", None),
+        "settings": tenant_settings.settings or {},
+    }
+
+
+@router.put("/{tenant_id}/settings")
+def update_tenant_settings(
+    tenant_id: str, settings: dict, db: Session = Depends(get_db)
+):
+    """Actualizar configuración del tenant"""
+    from app.models.core.settings import TenantSettings
+    
+    tenant = db.query(Empresa).filter(Empresa.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="tenant_not_found")
+
+    # Get or create tenant_settings
+    tenant_settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
+    if not tenant_settings:
+        tenant_settings = TenantSettings(tenant_id=tenant_id)
+        db.add(tenant_settings)
+        db.flush()
+
+    # Update TenantSettings fields
+    if "locale" in settings:
+        tenant_settings.locale = settings["locale"]
+    if "timezone" in settings:
+        tenant_settings.timezone = settings["timezone"]
+    if "currency" in settings:
+        tenant_settings.currency = settings["currency"]
+    
+    # Persist sector metadata on tenant when provided
+    if "sector_id" in settings:
+        try:
+            tenant.sector_id = int(settings.get("sector_id")) if settings.get("sector_id") is not None else None
+        except Exception:
+            tenant.sector_id = None
+    # Accept both names for template name
+    if "sector_template_name" in settings or "sector_plantilla_nombre" in settings or "sector_plantilla_name" in settings:
+        tpl_name = settings.get("sector_template_name")
+        if tpl_name is None:
+            tpl_name = settings.get("sector_plantilla_nombre")
+        if tpl_name is None:
+            tpl_name = settings.get("sector_plantilla_name")
+        tenant.sector_template_name = tpl_name
+
+    # Merge other settings into JSONB (exclude keys handled above)
+    other_settings = {
+        k: v
+        for k, v in settings.items()
+        if k
+        not in (
+            "locale",
+            "timezone",
+            "currency",
+            "sector_plantilla_id",
+            "sector_id",
+            "sector_template_name",
+            "sector_plantilla_nombre",
+            "sector_plantilla_name",
+        )
+    }
+    if other_settings:
+        current = tenant_settings.settings or {}
+        current.update(other_settings)
+        tenant_settings.settings = current
+
+    # Apply sector template if provided
+    sector_tpl_id = settings.get("sector_plantilla_id")
+    if sector_tpl_id:
+        try:
+            from app.services.sector_templates import apply_sector_template
+            apply_sector_template(
+                db,
+                tenant_id,
+                int(sector_tpl_id),
+                override_existing=True,
+                design_only=True,
+            )
+        except Exception:
+            pass
+
+    db.commit()
+    db.refresh(tenant_settings)
+
+    return {
+        "ok": True,
+        "locale": tenant_settings.locale,
+        "timezone": tenant_settings.timezone,
+        "currency": tenant_settings.currency,
+        "sector_id": getattr(tenant, "sector_id", None),
+        # Return both keys for FE compatibility
+        "sector_template_name": getattr(tenant, "sector_template_name", None),
+        "sector_plantilla_name": getattr(tenant, "sector_template_name", None),
+        "settings": tenant_settings.settings or {},
+    }
+
+
+@router.post("/{tenant_id}/impersonate")
+def impersonate_tenant(tenant_id: str, db: Session = Depends(get_db)):
+    """Genera un access token de impersonación para abrir la PWA del tenant.
+
+    Devuelve { access_token, tenant_slug }. El FE abrirá `/:slug#access_token=...` en la PWA.
+    """
+    tenant = db.query(Empresa).filter(Empresa.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="tenant_not_found")
+    svc = PyJWTTokenService()
+    claims = {
+        "tenant_id": str(getattr(tenant, "id")),
+        "scope": "impersonate",
+        "kind": "tenant",
+        # user_id opcional; dejamos None para un contexto técnico de administración
+    }
+    token = svc.issue_access(claims)
+    return {"access_token": token, "tenant_slug": getattr(tenant, "slug", None)}
+
+
+@router.delete("/{tenant_id}")
+def eliminar_empresa(
+    tenant_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(with_access_claims),
+):
+    """
+    Elimina una empresa y TODOS sus datos relacionados en cascada.
+    Registra todo en audit_log para trazabilidad completa.
+    """
+    from app.services.audit_service import AuditService, serialize_model
+
+    # Obtener empresa completa antes de borrar
+    empresa = db.query(Empresa).filter(Empresa.id == tenant_id).first()
+    if not empresa:
         raise HTTPException(status_code=404, detail="empresa_not_found")
-    return {"ok": True}
+
+    empresa_data = serialize_model(empresa)
+
+    # Obtener tenant_id
+    tenant = db.execute(
+        text("SELECT id::text, slug FROM tenants WHERE tenant_id = :eid"),
+        {"eid": tenant_id},
+    ).first()
+    tenant_uuid = tenant[0] if tenant else None
+
+    # Recolectar datos relacionados ANTES de borrar
+    related_data = {}
+
+    try:
+        # Usuarios
+        usuarios = (
+            db.execute(
+                text(
+                    "SELECT * FROM usuarios_usuarioempresa WHERE tenant_id::text = :tid"
+                ),
+                {"tid": tenant_uuid} if tenant_uuid else {"tid": None},
+            )
+            .mappings()
+            .all()
+        )
+        related_data["usuarios"] = [dict(row) for row in usuarios]
+
+        # Productos
+        productos = (
+            db.execute(
+                text("SELECT * FROM products WHERE tenant_id::text = :tid"),
+                {"tid": tenant_uuid} if tenant_uuid else {"tid": None},
+            )
+            .mappings()
+            .all()
+        )
+        related_data["productos"] = [dict(row) for row in productos]
+
+        # Facturas (si existe la tabla)
+        try:
+            facturas = (
+                db.execute(
+                    text("SELECT * FROM invoices WHERE tenant_id::text = :tid"),
+                    {"tid": tenant_uuid} if tenant_uuid else {"tid": None},
+                )
+                .mappings()
+                .all()
+            )
+            related_data["facturas"] = [dict(row) for row in facturas]
+        except Exception:
+            related_data["facturas"] = []
+
+        # Clientes
+        clientes = (
+            db.execute(
+                text(
+                    "SELECT * FROM clientes_clienteempresa WHERE tenant_id::text = :tid"
+                ),
+                {"tid": tenant_uuid} if tenant_uuid else {"tid": None},
+            )
+            .mappings()
+            .all()
+        )
+        related_data["clientes"] = [dict(row) for row in clientes]
+
+        # Módulos asignados
+        modulos = (
+            db.execute(
+                text(
+                    "SELECT * FROM modulos_empresamodulo WHERE tenant_id::text = :tid"
+                ),
+                {"tid": tenant_uuid} if tenant_uuid else {"tid": None},
+            )
+            .mappings()
+            .all()
+        )
+        related_data["modulos"] = [dict(row) for row in modulos]
+
+        # Roles
+        roles = (
+            db.execute(
+                text("SELECT * FROM core_rolempresa WHERE tenant_id::text = :tid"),
+                {"tid": tenant_uuid} if tenant_uuid else {"tid": None},
+            )
+            .mappings()
+            .all()
+        )
+        related_data["roles"] = [dict(row) for row in roles]
+
+    except Exception as e:
+        logger.warning(f"Error recopilando datos relacionados: {e}")
+        related_data["error"] = str(e)
+        db.rollback()  # Importante: rollback para que la transacción no quede abortada
+
+    # Registrar en audit_log ANTES de borrar
+    user_email = current_user.get("email") or current_user.get("sub")
+    user_id = current_user.get("user_id")
+
+    # Preparar ids de tenant
+    _legacy_id = None
+    try:
+        _legacy_id = int(tenant_id)
+    except Exception:
+        _legacy_id = None
+
+    AuditService.log_delete_empresa(
+        db=db,
+        empresa_data=empresa_data,
+        related_data=related_data,
+        user_id=user_id,
+        user_email=user_email,
+        user_role="admin",
+        ip_address=None,  # Se puede obtener del request si es necesario
+        tenant_uuid=uuid.UUID(tenant_uuid) if tenant_uuid else None,
+        tenant_legacy_id=_legacy_id,
+    )
+
+    # Ahora sí, borrar en cascada
+    try:
+        # Desactivar temporalmente el trigger que previene borrar el último admin
+        db.execute(text("SET session_replication_role = replica;"))
+
+        # Borrar tenant (cascada automática a muchas tablas por FK)
+        if tenant_uuid:
+            db.execute(
+                text("DELETE FROM tenants WHERE id::text = :tid"), {"tid": tenant_uuid}
+            )
+
+        # Borrar registros restantes manualmente si no tienen FK CASCADE
+        db.execute(
+            text("DELETE FROM modulos_empresamodulo WHERE tenant_id::text = :tid"),
+            {"tid": tenant_uuid},
+        )
+        db.execute(
+            text("DELETE FROM usuarios_usuarioempresa WHERE tenant_id::text = :tid"),
+            {"tid": tenant_uuid},
+        )
+
+        # Finalmente borrar empresa
+        db.execute(text("DELETE FROM core_empresa WHERE id = :eid"), {"eid": tenant_id})
+
+        # Reactivar triggers
+        db.execute(text("SET session_replication_role = DEFAULT;"))
+
+        db.commit()
+
+        logger.info(f"✅ Empresa {tenant_id} eliminada completamente con auditoría")
+
+        return {
+            "ok": True,
+            "tenant_id": tenant_uuid,
+            "nombre": empresa_data.get("nombre"),
+            "registros_eliminados": {
+                key: len(value) for key, value in related_data.items()
+            },
+        }
+
+    except Exception as e:
+        # Reactivar triggers antes de hacer rollback
+        try:
+            db.execute(text("SET session_replication_role = DEFAULT;"))
+        except Exception:
+            pass
+        db.rollback()
+        logger.error(f"Error eliminando empresa {tenant_id}: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error al eliminar empresa: {str(e)}"
+        )
 
 
 class AdminUserIn(BaseModel):
@@ -107,21 +454,21 @@ class LogoPayload(BaseModel):
 
 
 class EmpresaPayload(BaseModel):
-    nombre: str
+    name: str
+    initial_template: str
     slug: str | None = None
-    ruc: str | None = None
-    telefono: str | None = None
-    direccion: str | None = None
-    ciudad: str | None = None
-    provincia: str | None = None
+    tax_id: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    city: str | None = None
+    state: str | None = None
     cp: str | None = None
-    pais: str | None = None
+    country: str | None = None
     logo: str | None = None
-    color_primario: str | None = None
-    activo: bool | None = True
-    motivo_desactivacion: str | None = None
-    plantilla_inicio: str | None = "cliente"
-    sitio_web: str | None = None
+    primary_color: str | None = None
+    active: bool | None = True
+    deactivation_reason: str | None = None
+    website: str | None = None
     config_json: dict | None = None
 
 
@@ -130,10 +477,13 @@ class EmpresaCompletaIn(BaseModel):
     admin: AdminUserIn
     modulos: list[int] = []
     logo: LogoPayload | None = None
+    sector_plantilla_id: int | None = None  # Plantilla de sector a aplicar
 
 
 def _decode_data_url(data: str) -> tuple[bytes, str | None]:
-    import base64, re
+    import base64
+    import re
+
     if data.startswith("data:"):
         m = re.match(r"^data:([^;,]+);base64,(.*)$", data, re.IGNORECASE | re.DOTALL)
         if not m:
@@ -153,8 +503,10 @@ async def crear_empresa_completa_json(
     db: Session = Depends(get_db),
 ):
     # Unicidad básica
-    if payload.empresa.ruc:
-        exists_ruc = db.query(Empresa).filter(Empresa.ruc == payload.empresa.ruc).first()
+    if payload.empresa.tax_id:
+        exists_ruc = (
+            db.query(Empresa).filter(Empresa.tax_id == payload.empresa.tax_id).first()
+        )
         if exists_ruc:
             raise HTTPException(status_code=400, detail="empresa_ruc_exists")
 
@@ -172,7 +524,11 @@ async def crear_empresa_completa_json(
             candidate = base.lower()
             # si existe, agrega sufijos incrementales
             i = 1
-            while db.query(UsuarioEmpresa).filter(func.lower(UsuarioEmpresa.username) == candidate).first():
+            while (
+                db.query(UsuarioEmpresa)
+                .filter(func.lower(UsuarioEmpresa.username) == candidate)
+                .first()
+            ):
                 i += 1
                 candidate = f"{base}{i}".lower()
             username_clean = candidate
@@ -197,7 +553,9 @@ async def crear_empresa_completa_json(
                 .first()
             )
             if exists_user:
-                raise HTTPException(status_code=400, detail="user_email_or_username_taken")
+                raise HTTPException(
+                    status_code=400, detail="user_email_or_username_taken"
+                )
         except Exception as e:
             # Limpia el estado abortado y devuelve un error claro
             try:
@@ -205,18 +563,19 @@ async def crear_empresa_completa_json(
             except Exception:
                 pass
             logger.exception("DB error during uniqueness check")
-            raise HTTPException(status_code=400, detail="db_error_check_user_unique") from e
+            raise HTTPException(
+                status_code=400, detail="db_error_check_user_unique"
+            ) from e
 
-    empresa_id: int | None = None
+    tenant_uuid: uuid.UUID | None = None
     try:
-        # Empresa
+        # Empresa (Tenant)
         repo = SqlEmpresaRepo(db)
         empresa_data = payload.empresa.model_dump()
         if not empresa_data.get("slug"):
-            empresa_data["slug"] = slugify(empresa_data.get("nombre") or "")
-        created = repo.create(empresa_data)
-        # created es EmpresaDTO (dict-like), usar acceso por clave
-        empresa_id = int(created.get("id"))
+            empresa_data["slug"] = slugify(empresa_data.get("name") or "")
+        created_empresa = repo.create(empresa_data)
+        tenant_uuid = created_empresa.get("id")
 
         # Logo opcional
         if payload.logo is not None and payload.logo.data:
@@ -239,107 +598,77 @@ async def crear_empresa_completa_json(
             fname = f"{uuid.uuid4().hex}{ext}"
             dest = base_dir / fname
             dest.write_bytes(raw)
-            repo.update(empresa_id, {"logo": f"/uploads/logos/{fname}"})
+            repo.update(tenant_uuid, {"logo": f"/uploads/logos/{fname}"})
 
-        # Auto-asignación de tenant + plantilla y fijar contexto RLS ANTES de crear usuario
-        # Usa un SAVEPOINT para que un fallo NO aborte la transacción exterior
-        try:
-            with db.begin_nested():
-                # Asegura fila en tenants (empresa_id único)
-                db.execute(
-                    text(
-                        "INSERT INTO tenants(empresa_id, slug) VALUES (:eid, :slug) ON CONFLICT (empresa_id) DO NOTHING"
-                    ),
-                    {"eid": empresa_id, "slug": empresa_data.get("slug")},
-                )
-                # Obtiene tenant_id UUID
-                tid = db.execute(
-                    text("SELECT id::text FROM tenants WHERE empresa_id=:eid"), {"eid": empresa_id}
-                ).scalar()
-                if tid:
-                    # Fija GUC en esta sesión/transacción para que DEFAULTs/Policies apliquen
-                    set_tenant_guc(db, tid, persist=False)
-                # Clave de paquete por env
-                tpl_key = os.getenv("DEFAULT_TENANT_TEMPLATE_KEY", "bazar").strip() or "bazar"
-                ver = db.execute(
-                    text(
-                        "SELECT version FROM template_packages WHERE template_key=:k ORDER BY version DESC LIMIT 1"
-                    ),
-                    {"k": tpl_key},
-                ).scalar()
-                if tid and ver:
-                    db.execute(
-                        text(
-                            """
-                            INSERT INTO tenant_templates(tenant_id, template_key, version, active)
-                            VALUES (CAST(:tid AS uuid), :k, :ver, true)
-                            ON CONFLICT (tenant_id, template_key) DO UPDATE SET version=EXCLUDED.version, active=true
-                            """
-                        ),
-                        {"tid": tid, "k": tpl_key, "ver": int(ver)},
-                    )
-        except Exception:
-            # No interrumpir la creación si falla auto-asignación; el SAVEPOINT ya fue revertido
-            tid = None
-            logger.warning("Auto-asignación tenant/template fallida; continuando", exc_info=True)
-
-        # Usuario admin (contraseña opcional) — requiere tenant GUC activo o asignación explícita
+        # Auto-asignación de plantilla y fijar contexto RLS ANTES de crear usuario
+        tid = str(tenant_uuid) if tenant_uuid else None
+       
         import secrets
+
         tmp_password = payload.admin.password or secrets.token_urlsafe(24)
         user = crear_usuario_admin(
             db,
-            empresa_id=empresa_id,
+            tenant_id=tenant_uuid,
             nombre_encargado=payload.admin.nombre_encargado,
             apellido_encargado=payload.admin.apellido_encargado,
             email=email_clean,
             username=username_clean,
             password=tmp_password,
         )
-        # En caso de que el ORM vaya a enviar tenant_id NULL, fuerza el valor correcto
-        try:
-            if tid and getattr(user, "tenant_id", None) in (None, ""):
-                user.tenant_id = tid
-        except Exception:
-            pass
 
         # Módulos
-        for modulo_id in payload.modulos or []:
-            m_in = mod_schemas.EmpresaModuloCreate(modulo_id=modulo_id)
-            mod_services.asignar_modulo_a_empresa_si_no_existe(db, empresa_id, m_in)
+        if tenant_uuid:
+            for modulo_id in payload.modulos or []:
+                m_in = mod_schemas.EmpresaModuloCreate(modulo_id=modulo_id)
+                mod_services.asignar_modulo_a_empresa_si_no_existe(
+                    db, tenant_uuid, m_in
+                )
+
+        # AUTO-SETUP (con plantilla de sector opcional)
+        if tid:
+            try:
+                from app.services.tenant_onboarding import auto_setup_tenant
+
+                country = empresa_data.get("pais", "EC")
+                setup_result = auto_setup_tenant(
+                    db, tid, country, sector_plantilla_id=payload.sector_plantilla_id
+                )
+                logger.info(f"✅ Tenant auto-setup: {setup_result}")
+            except Exception as e:
+                logger.warning(f"⚠️ Auto-setup parcial: {e}")
 
         db.commit()
     except HTTPException:
         db.rollback()
-        # Best-effort cleanup: si la empresa quedó creada por commits internos, elimínala
-        if empresa_id:
+        if tenant_uuid:
             try:
-                # Borrar dependientes suaves primero
-                db.execute(text("DELETE FROM tenants WHERE empresa_id=:eid"), {"eid": empresa_id})
-                db.execute(text("DELETE FROM modulos_empresamodulo WHERE empresa_id=:eid"), {"eid": empresa_id})
-                db.execute(text("DELETE FROM usuarios_usuarioempresa WHERE empresa_id=:eid"), {"eid": empresa_id})
-                db.execute(text("DELETE FROM core_empresa WHERE id=:eid"), {"eid": empresa_id})
+                db.execute(
+                    text("DELETE FROM tenants WHERE id = :tid"), {"tid": tenant_uuid}
+                )
                 db.commit()
             except Exception:
                 db.rollback()
         raise
     except Exception as e:
         db.rollback()
-        # Best-effort cleanup: si la empresa quedó creada por commits internos, elimínala
-        if empresa_id:
+        if tenant_uuid:
             try:
-                db.execute(text("DELETE FROM tenants WHERE empresa_id=:eid"), {"eid": empresa_id})
-                db.execute(text("DELETE FROM modulos_empresamodulo WHERE empresa_id=:eid"), {"eid": empresa_id})
-                db.execute(text("DELETE FROM usuarios_usuarioempresa WHERE empresa_id=:eid"), {"eid": empresa_id})
-                db.execute(text("DELETE FROM core_empresa WHERE id=:eid"), {"eid": empresa_id})
+                db.execute(
+                    text("DELETE FROM tenants WHERE id = :tid"), {"tid": tenant_uuid}
+                )
                 db.commit()
             except Exception:
                 db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
     try:
-        enviar_correo_bienvenida(user.email, user.username, payload.empresa.nombre, background_tasks)
+        enviar_correo_bienvenida(
+            user.email, user.username, payload.empresa.name, background_tasks
+        )
     except Exception as e:
         # Do not interrupt the flow on SMTP failure, but log for diagnosis
-        logger.warning("Failed to enqueue welcome email for %s: %s", user.email, e, exc_info=True)
+        logger.warning(
+            "Failed to enqueue welcome email for %s: %s", user.email, e, exc_info=True
+        )
 
-    return {"msg": "ok", "id": empresa_id}
+    return {"msg": "ok", "id": tenant_uuid}

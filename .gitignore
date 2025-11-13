@@ -71,3 +71,8 @@ backend/scripts/
 *.db-wal
 
 67 Y 68 CATALOGO.xlsx
+importacion/
+apps/backend/uploads/
+*.xlsx 
+uploads/
+**/uploads/

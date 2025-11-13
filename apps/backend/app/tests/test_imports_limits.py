@@ -1,13 +1,15 @@
-import os
 from fastapi.testclient import TestClient
 
 
 def _tenant_token(client: TestClient, usuario_empresa_factory):
     import uuid
+
     suffix = uuid.uuid4().hex[:6]
     username = f"lim_{suffix}"
     email = f"lim_{suffix}@x.com"
-    usuario, empresa = usuario_empresa_factory(email=email, username=username, password="secret")
+    usuario, tenant = usuario_empresa_factory(
+        email=email, username=username, password="secret"
+    )
     r = client.post(
         "/api/v1/tenant/auth/login",
         json={"identificador": username, "password": "secret"},
@@ -33,8 +35,20 @@ def test_ingest_limit_413(client: TestClient, db, usuario_empresa_factory, monke
     batch = r.json()
 
     rows = [
-        {"invoice_number": "A", "invoice_date": "2024-01-01", "net_amount": 1, "tax_amount": 0, "total_amount": 1},
-        {"invoice_number": "B", "invoice_date": "2024-01-02", "net_amount": 1, "tax_amount": 0, "total_amount": 1},
+        {
+            "invoice_number": "A",
+            "invoice_date": "2024-01-01",
+            "net_amount": 1,
+            "tax_amount": 0,
+            "total_amount": 1,
+        },
+        {
+            "invoice_number": "B",
+            "invoice_date": "2024-01-02",
+            "net_amount": 1,
+            "tax_amount": 0,
+            "total_amount": 1,
+        },
     ]
     r2 = client.post(
         f"/api/v1/imports/batches/{batch['id']}/ingest",
@@ -44,7 +58,9 @@ def test_ingest_limit_413(client: TestClient, db, usuario_empresa_factory, monke
     assert r2.status_code == 413
 
 
-def test_photo_limits_and_mimetype(client: TestClient, db, usuario_empresa_factory, monkeypatch, tmp_path):
+def test_photo_limits_and_mimetype(
+    client: TestClient, db, usuario_empresa_factory, monkeypatch, tmp_path
+):
     tok = _tenant_token(client, usuario_empresa_factory)
     headers = {"Authorization": f"Bearer {tok}"}
 
@@ -82,7 +98,9 @@ def test_photo_limits_and_mimetype(client: TestClient, db, usuario_empresa_facto
     assert r3.status_code == 422
 
 
-def test_ingest_throttling_429(client: TestClient, db, usuario_empresa_factory, monkeypatch):
+def test_ingest_throttling_429(
+    client: TestClient, db, usuario_empresa_factory, monkeypatch
+):
     tok = _tenant_token(client, usuario_empresa_factory)
     headers = {"Authorization": f"Bearer {tok}"}
 
@@ -98,7 +116,15 @@ def test_ingest_throttling_429(client: TestClient, db, usuario_empresa_factory, 
     assert r.status_code == 200
     batch = r.json()
 
-    rows = [{"invoice_number": "T1", "invoice_date": "2024-01-01", "net_amount": 1, "tax_amount": 0, "total_amount": 1}]
+    rows = [
+        {
+            "invoice_number": "T1",
+            "invoice_date": "2024-01-01",
+            "net_amount": 1,
+            "tax_amount": 0,
+            "total_amount": 1,
+        }
+    ]
     r1 = client.post(
         f"/api/v1/imports/batches/{batch['id']}/ingest",
         json={"rows": rows},

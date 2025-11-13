@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 def _to_iso_date(value: Any) -> Optional[str]:
@@ -18,7 +18,12 @@ def _to_iso_date(value: Any) -> Optional[str]:
     # dd/mm/yyyy or dd-mm-yyyy
     for sep in ("/", "-"):
         parts = s.split(sep)
-        if len(parts) == 3 and len(parts[0]) in (1, 2) and len(parts[1]) in (1, 2) and len(parts[2]) == 4:
+        if (
+            len(parts) == 3
+            and len(parts[0]) in (1, 2)
+            and len(parts[1]) in (1, 2)
+            and len(parts[2]) == 4
+        ):
             try:
                 d, m, y = map(int, parts)
                 return datetime(y, m, d).date().isoformat()
@@ -66,4 +71,3 @@ def apply_mapping(
                 normalized[field] = iso
 
     return normalized
-

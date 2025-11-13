@@ -14,6 +14,7 @@ def cookie_domain() -> Optional[str]:
     """Dominio para cookies segun entorno (None en dev)."""
     try:
         from app.config.settings import settings
+
         return settings.COOKIE_DOMAIN if settings.ENV == "production" else None
     except Exception:
         return None
@@ -31,8 +32,13 @@ def refresh_cookie_kwargs(*, path: str) -> dict:
     """Atributos estandar para la cookie de refresh (normaliza SameSite)."""
     try:
         from app.config.settings import settings
-        secure = bool(getattr(settings, "COOKIE_SECURE", (settings.ENV == "production")))
-        raw = getattr(settings, "COOKIE_SAMESITE", "lax") or ("strict" if settings.ENV == "production" else "lax")
+
+        secure = bool(
+            getattr(settings, "COOKIE_SECURE", (settings.ENV == "production"))
+        )
+        raw = getattr(settings, "COOKIE_SAMESITE", "lax") or (
+            "strict" if settings.ENV == "production" else "lax"
+        )
     except Exception:
         secure = False
         raw = "lax"
@@ -59,7 +65,10 @@ def set_access_cookie(response: Response, token_str: str, *, path: str = "/") ->
     """Setea access_token en cookie HttpOnly con SameSite=Lax (solo navegacion propia)."""
     try:
         from app.config.settings import settings
-        secure = bool(getattr(settings, "COOKIE_SECURE", (settings.ENV == "production")))
+
+        secure = bool(
+            getattr(settings, "COOKIE_SECURE", (settings.ENV == "production"))
+        )
     except Exception:
         secure = False
     response.set_cookie(
@@ -83,7 +92,9 @@ def delete_auth_cookies(response: Response, *, path: str) -> None:
 def extract_family_id_from_refresh(token: str) -> Optional[str]:
     """Best-effort para obtener family_id desde el refresh token."""
     try:
-        payload: Mapping[str, object] = PyJWTTokenService().decode_and_validate(token, expected_type="refresh")
+        payload: Mapping[str, object] = PyJWTTokenService().decode_and_validate(
+            token, expected_type="refresh"
+        )
         jti = payload.get("jti")
         fam_payload = payload.get("family_id")
         if isinstance(jti, str) and jti:
@@ -110,4 +121,3 @@ def best_effort_family_revoke(refresh_token: str) -> None:
                 pass
     except Exception:
         pass
-

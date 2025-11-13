@@ -1,8 +1,8 @@
-"""Module: empresa.py
+﻿"""Module: empresa.py
 
 Auto-generated module docstring."""
 
-from typing import List, Optional
+from typing import List
 
 from pydantic import BaseModel, ConfigDict
 
@@ -12,9 +12,10 @@ from app.schemas.schemas import EmpresaCreate  # noqa: F401
 
 
 class EmpresaOut(BaseModel):
-    """ Class EmpresaOut - auto-generated docstring. """
+    """Class EmpresaOut - auto-generated docstring."""
+
     id: int
-    nombre: str
+    name: str
     modulos: List[str] = []
 
     model_config = ConfigDict(from_attributes=True)  # Si us)

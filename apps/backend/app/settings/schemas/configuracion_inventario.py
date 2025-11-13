@@ -10,7 +10,8 @@ from pydantic import BaseModel, ConfigDict
 
 
 class ConfiguracionInventarioBase(BaseModel):
-    """ Class ConfiguracionInventarioBase - auto-generated docstring. """
+    """Class ConfiguracionInventarioBase - auto-generated docstring."""
+
     control_stock_activo: Optional[bool] = True
     notificar_bajo_stock: Optional[bool] = True
     stock_minimo_global: Optional[int] = None
@@ -18,17 +19,23 @@ class ConfiguracionInventarioBase(BaseModel):
     categorias_personalizadas: Optional[bool] = False
     campos_extra_producto: Optional[List[str]] = None
 
+
 class ConfiguracionInventarioCreate(ConfiguracionInventarioBase):
-    """ Class ConfiguracionInventarioCreate - auto-generated docstring. """
-    empresa_id: int
+    """Class ConfiguracionInventarioCreate - auto-generated docstring."""
+
+    tenant_id: int
+
 
 class ConfiguracionInventarioUpdate(ConfiguracionInventarioBase):
-    """ Class ConfiguracionInventarioUpdate - auto-generated docstring. """
+    """Class ConfiguracionInventarioUpdate - auto-generated docstring."""
+
     pass
 
+
 class ConfiguracionInventarioOut(ConfiguracionInventarioBase):
-    """ Class ConfiguracionInventarioOut - auto-generated docstring. """
+    """Class ConfiguracionInventarioOut - auto-generated docstring."""
+
     id: int
-    empresa_id: int
+    tenant_id: int
 
     model_config = ConfigDict(from_attributes=True)

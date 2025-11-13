@@ -23,7 +23,11 @@ from app.modules.copilot.services import (
 router = APIRouter(
     prefix="/ai",
     tags=["Copilot"],
-    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant")), Depends(ensure_rls)],
+    dependencies=[
+        Depends(with_access_claims),
+        Depends(require_scope("tenant")),
+        Depends(ensure_rls),
+    ],
 )
 
 
@@ -32,7 +36,9 @@ def _feature_enabled() -> bool:
 
 
 class AskIn(BaseModel):
-    topic: str = Field(description="ventas_mes|ventas_por_almacen|top_productos|stock_bajo|pendientes_sri_sii|cobros_pagos")
+    topic: str = Field(
+        description="ventas_mes|ventas_por_almacen|top_productos|stock_bajo|pendientes_sri_sii|cobros_pagos"
+    )
     params: Optional[Dict[str, Any]] = None
 
 
@@ -46,13 +52,18 @@ def ai_ask(payload: AskIn, db: Session = Depends(get_db)):
 
 
 class ActIn(BaseModel):
-    action: str = Field(description="create_invoice_draft|create_order_draft|create_transfer_draft|suggest_overlay_fields")
+    action: str = Field(
+        description="create_invoice_draft|create_order_draft|create_transfer_draft|suggest_overlay_fields"
+    )
     payload: Optional[Dict[str, Any]] = None
 
 
 def _allow(action: str) -> bool:
-    allowed = os.getenv("COPILOT_ALLOWED_ACTIONS", "create_invoice_draft,create_order_draft,create_transfer_draft,suggest_overlay_fields")
-    set_allowed = {a.strip() for a in allowed.split(',') if a.strip()}
+    allowed = os.getenv(
+        "COPILOT_ALLOWED_ACTIONS",
+        "create_invoice_draft,create_order_draft,create_transfer_draft,suggest_overlay_fields",
+    )
+    set_allowed = {a.strip() for a in allowed.split(",") if a.strip()}
     return action in set_allowed
 
 
@@ -65,11 +76,13 @@ def ai_act(payload: ActIn, request: Request, db: Session = Depends(get_db)):
 
     if payload.action == "create_invoice_draft":
         claims = request.state.access_claims
-        empresa_id = claims.get("tenant_id")
-        if empresa_id is None or not str(empresa_id).isdigit():
-            # In este backend convivimos con empresa_id mientras dura la transición
-            raise HTTPException(status_code=400, detail="empresa_id_required_for_invoice")
-        return create_invoice_draft(db, int(empresa_id), payload.payload or {})
+        tenant_id = claims.get("tenant_id")
+        if tenant_id is None or not str(tenant_id).isdigit():
+            # In este backend convivimos con tenant_id mientras dura la transición
+            raise HTTPException(
+                status_code=400, detail="empresa_id_required_for_invoice"
+            )
+        return create_invoice_draft(db, int(tenant_id), payload.payload or {})
 
     if payload.action == "create_order_draft":
         tid = tenant_id_from_request(request)

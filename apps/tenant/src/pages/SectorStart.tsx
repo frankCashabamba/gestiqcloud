@@ -17,7 +17,7 @@ export default function SectorStart() {
         // Prefer empresa_slug from authenticated profile
         if (token) {
           try {
-            const me = await apiFetch<MeResp>('/v1/me/tenant', { authToken: token })
+            const me = await apiFetch<MeResp>('/api/v1/me/tenant', { authToken: token })
             if (me?.empresa_slug) {
               if (!cancelled) setTarget(me.empresa_slug)
               return
@@ -25,7 +25,7 @@ export default function SectorStart() {
           } catch {}
         }
         // Fallback to sector (not ideal for vanity, but better than blocking)
-        const t = await apiFetch<ThemeResponse>('/v1/tenant/settings/theme')
+        const t = await apiFetch<ThemeResponse>('/api/v1/tenant/settings/theme')
         const s = (t && t.sector) ? t.sector : 'default'
         if (!cancelled) setTarget(s)
         try { document.documentElement.dataset.sector = s } catch {}

@@ -2,7 +2,9 @@ from fastapi.testclient import TestClient
 
 
 def _tenant_token(client: TestClient, usuario_empresa_factory):
-    usuario, empresa = usuario_empresa_factory(email="imp@x.com", username="imp", password="secret")
+    usuario, tenant = usuario_empresa_factory(
+        email="imp@x.com", username="imp", password="secret"
+    )
     r = client.post(
         "/api/v1/tenant/auth/login",
         json={"identificador": "imp", "password": "secret"},
@@ -27,8 +29,20 @@ def test_imports_batch_flow_minimal(client: TestClient, db, usuario_empresa_fact
 
     # 2) Ingest two rows (one invalid)
     rows = [
-        {"invoice_number": "F-001", "invoice_date": "2024-01-02", "net_amount": 90.0, "tax_amount": 10.0, "total_amount": 100.0},
-        {"invoice_number": "F-002", "invoice_date": "2024-01-02", "net_amount": 50.0, "tax_amount": 5.0, "total_amount": 60.0},  # invalid total
+        {
+            "invoice_number": "F-001",
+            "invoice_date": "2024-01-02",
+            "net_amount": 90.0,
+            "tax_amount": 10.0,
+            "total_amount": 100.0,
+        },
+        {
+            "invoice_number": "F-002",
+            "invoice_date": "2024-01-02",
+            "net_amount": 50.0,
+            "tax_amount": 5.0,
+            "total_amount": 60.0,
+        },  # invalid total
     ]
     r2 = client.post(
         f"/api/v1/imports/batches/{batch['id']}/ingest",

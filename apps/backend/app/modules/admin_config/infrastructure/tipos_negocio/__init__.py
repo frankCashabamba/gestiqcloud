@@ -1,0 +1,1 @@
+# TiposNegocio infrastructure layer

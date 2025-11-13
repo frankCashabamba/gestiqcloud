@@ -1,6 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from typing import Sequence
+from typing import Sequence, Any
 
 from app.modules.clients.application.dto import ClienteIn, ClienteOut
 from app.modules.clients.application.ports import ClienteRepo
@@ -9,9 +9,8 @@ from app.modules.clients.domain.entities import Cliente
 
 
 class CrearCliente(BaseUseCase[ClienteRepo]):
-
-    def execute(self, *, empresa_id: int, data: ClienteIn) -> ClienteOut:
-        c = Cliente(id=None, empresa_id=empresa_id, **data.__dict__)
+    def execute(self, *, tenant_id: Any, data: ClienteIn) -> ClienteOut:
+        c = Cliente(id=None, tenant_id=tenant_id, **data.__dict__)
         c.validate()
         created = self.repo.create(c)
         return ClienteOut(
@@ -29,9 +28,8 @@ class CrearCliente(BaseUseCase[ClienteRepo]):
 
 
 class ActualizarCliente(BaseUseCase[ClienteRepo]):
-
-    def execute(self, *, id: int, empresa_id: int, data: ClienteIn) -> ClienteOut:
-        c = Cliente(id=id, empresa_id=empresa_id, **data.__dict__)
+    def execute(self, *, id: Any, tenant_id: Any, data: ClienteIn) -> ClienteOut:
+        c = Cliente(id=id, tenant_id=tenant_id, **data.__dict__)
         c.validate()
         updated = self.repo.update(c)
         return ClienteOut(
@@ -49,9 +47,8 @@ class ActualizarCliente(BaseUseCase[ClienteRepo]):
 
 
 class ListarClientes(BaseUseCase[ClienteRepo]):
-
-    def execute(self, *, empresa_id: int) -> Sequence[ClienteOut]:
-        items = self.repo.list(empresa_id=empresa_id)
+    def execute(self, *, tenant_id: Any) -> Sequence[ClienteOut]:
+        items = self.repo.list(tenant_id=tenant_id)
         return [
             ClienteOut(
                 id=i.id or 0,
@@ -69,7 +66,25 @@ class ListarClientes(BaseUseCase[ClienteRepo]):
         ]
 
 
-class EliminarCliente(BaseUseCase[ClienteRepo]):
+class ObtenerCliente(BaseUseCase[ClienteRepo]):
+    def execute(self, *, id: Any) -> ClienteOut:
+        item = self.repo.get(id)
+        if not item:
+            raise ValueError("cliente no encontrado")
+        return ClienteOut(
+            id=item.id or 0,
+            nombre=item.nombre,
+            identificacion=item.identificacion,
+            email=item.email,
+            telefono=item.telefono,
+            direccion=item.direccion,
+            localidad=item.localidad,
+            provincia=item.provincia,
+            pais=item.pais,
+            codigo_postal=item.codigo_postal,
+        )
 
-    def execute(self, *, id: int) -> None:
+
+class EliminarCliente(BaseUseCase[ClienteRepo]):
+    def execute(self, *, id: Any) -> None:
         self.repo.delete(id)

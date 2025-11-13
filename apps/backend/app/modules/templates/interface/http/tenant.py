@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -13,7 +13,11 @@ from app.modules.templates.services import deep_merge
 router = APIRouter(
     prefix="/templates",
     tags=["Templates"],
-    dependencies=[Depends(with_access_claims), Depends(require_scope("tenant")), Depends(ensure_rls)],
+    dependencies=[
+        Depends(with_access_claims),
+        Depends(require_scope("tenant")),
+        Depends(ensure_rls),
+    ],
 )
 
 
@@ -27,17 +31,23 @@ def ui_config(request: Request, db: Session = Depends(get_db)):
             SELECT tp.config AS pkg
             FROM tenant_templates tt
             JOIN template_packages tp ON tp.template_key = tt.template_key AND tp.version = tt.version
-            WHERE tt.tenant_id = """ + tenant_id_sql_expr() + """ AND tt.active
+            WHERE tt.tenant_id = """
+            + tenant_id_sql_expr()
+            + """ AND tt.active
             """
-        ), {"tid": tid}
+        ),
+        {"tid": tid},
     ).first()
     base = row[0] if row and row[0] else {}
 
     # Apply active overlays (in insertion order)
     overs = db.execute(
         text(
-            "SELECT config FROM template_overlays WHERE tenant_id = " + tenant_id_sql_expr() + " AND active ORDER BY created_at ASC"
-        ), {"tid": tid}
+            "SELECT config FROM template_overlays WHERE tenant_id = "
+            + tenant_id_sql_expr()
+            + " AND active ORDER BY created_at ASC"
+        ),
+        {"tid": tid},
     ).fetchall()
     composed = dict(base)
     for r in overs:

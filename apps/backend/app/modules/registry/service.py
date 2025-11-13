@@ -49,4 +49,3 @@ def discover_manifests() -> List[ModuleManifest]:
             # no manifest in this module or import error; ignore
             continue
     return manifests
-

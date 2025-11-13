@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.core.types import HasID
+from app.core.types import HasID, IDType
 
 ModelType = TypeVar("ModelType", bound=HasID)
 CreateSchemaType = TypeVar("CreateSchemaType", bound=BaseModel)
@@ -41,19 +41,21 @@ def _to_dict(data: Union[BaseModel, dict, object], **dump_kwargs) -> dict:
 
 
 class BaseCRUD(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
-    """ Class BaseCRUD - auto-generated docstring. """
+    """Class BaseCRUD - auto-generated docstring."""
 
     def __init__(self, model: Type[ModelType]):
-        """ Function __init__ - auto-generated docstring. """
+        """Function __init__ - auto-generated docstring."""
         self.model = model
 
-    def get(self, db: Session, id: int) -> Optional[ModelType]:
-        """ Function get - auto-generated docstring. """
+    def get(self, db: Session, id: IDType) -> Optional[ModelType]:
+        """Function get - auto-generated docstring."""
         model_id = getattr(self.model, "id")  # ayuda a MyPy
         return db.query(self.model).filter(model_id == id).first()
 
-    def get_multi(self, db: Session, skip: int = 0, limit: int = 100) -> List[ModelType]:
-        """ Function get_multi - auto-generated docstring. """
+    def get_multi(
+        self, db: Session, skip: int = 0, limit: int = 100
+    ) -> List[ModelType]:
+        """Function get_multi - auto-generated docstring."""
         return db.query(self.model).offset(skip).limit(limit).all()
 
     def create(
@@ -77,7 +79,9 @@ class BaseCRUD(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             db.rollback()
             raise
 
-    def update(self, db: Session, db_obj: ModelType, obj_in: UpdateSchemaType) -> ModelType:
+    def update(
+        self, db: Session, db_obj: ModelType, obj_in: UpdateSchemaType
+    ) -> ModelType:
         """Update instance with safe transaction handling."""
         # exclude_unset=True para solo aplicar campos proporcionados en el schema de actualización
         # Si quieres omitir None explícitos: añade exclude_none=True
@@ -93,7 +97,7 @@ class BaseCRUD(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             db.rollback()
             raise
 
-    def remove(self, db: Session, id: int) -> Optional[ModelType]:
+    def remove(self, db: Session, id: IDType) -> Optional[ModelType]:
         """Delete instance by id with safe transaction handling."""
         obj = db.get(self.model, id)
         if not obj:

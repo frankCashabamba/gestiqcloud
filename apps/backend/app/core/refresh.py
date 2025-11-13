@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional,Any, Mapping, Sequence
+from typing import Optional, Any, Mapping, Sequence
 from uuid import uuid4
 import hashlib
 from fastapi import HTTPException
 from contextlib import contextmanager
 from sqlalchemy import text
 import jwt
-from jwt  import  (
+from jwt import (
     ExpiredSignatureError,
     ImmatureSignatureError,
     MissingRequiredClaimError,
@@ -17,7 +17,6 @@ from jwt  import  (
     InvalidTokenError,
 )
 
-import time
 import warnings
 from pydantic import SecretStr
 from apps.backend.app.shared.utils import now_ts
@@ -29,6 +28,7 @@ from app.config.database import SessionLocal
 # ---------------------------
 # Helpers
 # ---------------------------
+
 
 def _hash(value: str) -> str:
     """Devuelve un hash SHA256 de un string."""
@@ -57,6 +57,7 @@ def _with_session():
 # ---------------------------
 # Public API (persistencia)
 # ---------------------------
+
 
 def family_create(user_id: str, tenant_id: Optional[str]) -> str:
     """
@@ -131,15 +132,19 @@ def token_is_reused_or_revoked(jti: str) -> bool:
       - o ya fue usado.
     """
     with _with_session() as db:
-        row = db.execute(
-            text("""
+        row = (
+            db.execute(
+                text("""
                 SELECT used_at, revoked_at
                   FROM auth_refresh_token
                  WHERE jti = :jti
                  LIMIT 1
             """),
-            {"jti": jti},
-        ).mappings().first()
+                {"jti": jti},
+            )
+            .mappings()
+            .first()
+        )
 
     if row is None:
         return True
@@ -171,15 +176,19 @@ def family_revoke(family_id: str) -> None:
 def token_get_family(jti: str) -> Optional[str]:
     """Devuelve el family_id al que pertenece un jti, o None si no existe."""
     with _with_session() as db:
-        row = db.execute(
-            text("""
+        row = (
+            db.execute(
+                text("""
                 SELECT family_id
                   FROM auth_refresh_token
                  WHERE jti = :jti
                  LIMIT 1
             """),
-            {"jti": jti},
-        ).mappings().first()
+                {"jti": jti},
+            )
+            .mappings()
+            .first()
+        )
     return str(row["family_id"]) if row else None
 
 
@@ -188,35 +197,45 @@ def token_fingerprint_matches_request(jti: str, user_agent: str, ip: str) -> boo
     want_ua = _hash(user_agent or "")
     want_ip = _hash(ip or "")
     with _with_session() as db:
-        row = db.execute(
-            text(
-                """
+        row = (
+            db.execute(
+                text(
+                    """
                 SELECT ua_hash, ip_hash
                   FROM auth_refresh_token
                  WHERE jti = :jti
                  LIMIT 1
                 """
-            ),
-            {"jti": jti},
-        ).mappings().first()
+                ),
+                {"jti": jti},
+            )
+            .mappings()
+            .first()
+        )
     if row is None:
         return False
     return (row.get("ua_hash") == want_ua) and (row.get("ip_hash") == want_ip)
 
 
 # ---------------------------
-# JWT helpers 
+# JWT helpers
 # ---------------------------
 
 
 def _now_ts() -> int:
-    warnings.warn("Deprecated: use apps.backend.app.shared.utils.now_ts", DeprecationWarning, stacklevel=2)
+    warnings.warn(
+        "Deprecated: use apps.backend.app.shared.utils.now_ts",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return now_ts()
+
 
 def _unwrap_secret(value: SecretStr | str | bytes | None) -> str | bytes | None:
     if isinstance(value, SecretStr):
         return value.get_secret_value()
     return value
+
 
 def _signing_key() -> str | bytes:
     alg = settings.JWT_ALGORITHM.upper()
@@ -228,8 +247,11 @@ def _signing_key() -> str | bytes:
     # Algoritmos asimétricos (RS*/ES*)
     priv = _unwrap_secret(getattr(settings, "JWT_PRIVATE_KEY", None))
     if not isinstance(priv, (str, bytes)) or not priv:
-        raise RuntimeError("JWT_PRIVATE_KEY no está configurada para algoritmo asimétrico")
+        raise RuntimeError(
+            "JWT_PRIVATE_KEY no está configurada para algoritmo asimétrico"
+        )
     return priv
+
 
 def _verification_keys() -> Sequence[str | bytes]:
     alg = settings.JWT_ALGORITHM.upper()
@@ -250,7 +272,10 @@ def _verification_keys() -> Sequence[str | bytes]:
         raise RuntimeError("No hay claves públicas para verificar JWT")
     return keys
 
-def _base_claims(payload: Mapping[str, Any], token_type: str, exp_seconds: int) -> dict[str, Any]:
+
+def _base_claims(
+    payload: Mapping[str, Any], token_type: str, exp_seconds: int
+) -> dict[str, Any]:
     now = now_ts()
     claims = {
         **payload,
@@ -265,17 +290,22 @@ def _base_claims(payload: Mapping[str, Any], token_type: str, exp_seconds: int) 
         claims["aud"] = aud
     return claims
 
+
 def create_access(payload: dict) -> str:
     """Crea un JWT de acceso corto."""
     exp_seconds = int(getattr(settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 15)) * 60
     claims = _base_claims(payload, "access", exp_seconds)
     return jwt.encode(claims, _signing_key(), algorithm=settings.JWT_ALGORITHM)
 
+
 def create_refresh(payload: dict, jti: str, prev_jti: Optional[str]) -> str:
     """Crea un JWT de refresh token."""
     exp_seconds = int(getattr(settings, "REFRESH_TOKEN_EXPIRE_DAYS", 30)) * 24 * 60 * 60
-    claims = _base_claims({**payload, "jti": jti, "prev_jti": prev_jti}, "refresh", exp_seconds)
+    claims = _base_claims(
+        {**payload, "jti": jti, "prev_jti": prev_jti}, "refresh", exp_seconds
+    )
     return jwt.encode(claims, _signing_key(), algorithm=settings.JWT_ALGORITHM)
+
 
 def decode_and_validate(token: str, expected_type: str) -> dict:
     """Decodifica y valida un JWT asegurando que sea del tipo esperado."""
@@ -314,13 +344,17 @@ def decode_and_validate(token: str, expected_type: str) -> dict:
                 status_code=401,
                 detail="token_expired",
                 headers={
-                    'WWW-Authenticate': 'Bearer error="invalid_token", error_description="token expired"'
+                    "WWW-Authenticate": 'Bearer error="invalid_token", error_description="token expired"'
                 },
             ) from e
 
         # Errores de validación "de cliente" -> también 401
-        except (InvalidAudienceError, InvalidIssuerError,
-                ImmatureSignatureError, MissingRequiredClaimError) as e:
+        except (
+            InvalidAudienceError,
+            InvalidIssuerError,
+            ImmatureSignatureError,
+            MissingRequiredClaimError,
+        ) as e:
             raise HTTPException(status_code=401, detail=e.__class__.__name__) from e
 
         # Firma inválida / clave equivocada / etc.: probamos la siguiente clave (rotación)

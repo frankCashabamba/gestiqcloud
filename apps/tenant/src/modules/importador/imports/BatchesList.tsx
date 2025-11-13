@@ -1,7 +1,8 @@
-﻿import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import ImportadorLayout from '../components/ImportadorLayout'
 import { listBatches, type ImportBatch } from '../services/importsApi'
+import { useAuth } from '../../../auth/AuthContext'
 
 const statusOptions = [
   { value: '', label: 'Todos' },
@@ -12,12 +13,17 @@ const statusOptions = [
 ]
 
 export default function BatchesList() {
+  const { token } = useAuth() as { token: string | null }
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<ImportBatch[]>([])
 
   async function load() {
+    if (!token) {
+      setError('No hay sesión activa')
+      return
+    }
     setLoading(true)
     setError(null)
     try {

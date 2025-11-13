@@ -10,6 +10,7 @@ router = APIRouter(
     dependencies=[Depends(with_access_claims), Depends(ensure_rls)],
 )
 
+
 @router.get("/tenant", dependencies=[Depends(require_scope("tenant"))])
 def me_tenant(request: Request):
     c = request.state.access_claims
@@ -23,6 +24,7 @@ def me_tenant(request: Request):
         "permisos": c.get("permisos", {}),
         "plantilla": c.get("plantilla"),
     }
+
 
 @router.get("/admin", dependencies=[Depends(require_scope("admin"))])
 def me_admin(request: Request):

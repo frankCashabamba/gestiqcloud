@@ -58,7 +58,7 @@ export const ENTITY_TYPES: Record<EntityType, EntityTypeConfig> = {
     type: 'productos',
     label: 'Productos',
     icon: '📦',
-    endpoint: '/v1/imports/batches',
+    endpoint: '/api/v1/imports/batches',
     checkDuplicates: true,
     duplicateKeys: ['sku', 'codigo', 'codigo_barras'],
     fields: [
@@ -149,7 +149,7 @@ export const ENTITY_TYPES: Record<EntityType, EntityTypeConfig> = {
     type: 'clientes',
     label: 'Clientes',
     icon: '👥',
-    endpoint: '/v1/imports/batches',
+    endpoint: '/api/v1/imports/batches',
     checkDuplicates: true,
     duplicateKeys: ['email', 'documento', 'telefono'],
     fields: [
@@ -218,7 +218,7 @@ export const ENTITY_TYPES: Record<EntityType, EntityTypeConfig> = {
     type: 'proveedores',
     label: 'Proveedores',
     icon: '🏭',
-    endpoint: '/v1/imports/batches',
+    endpoint: '/api/v1/imports/batches',
     checkDuplicates: true,
     duplicateKeys: ['documento', 'nombre'],
     fields: [
@@ -273,7 +273,7 @@ export const ENTITY_TYPES: Record<EntityType, EntityTypeConfig> = {
     type: 'inventario',
     label: 'Inventario',
     icon: '📊',
-    endpoint: '/v1/imports/batches',
+    endpoint: '/api/v1/imports/batches',
     fields: [
       {
         field: 'sku',
@@ -319,7 +319,7 @@ export const ENTITY_TYPES: Record<EntityType, EntityTypeConfig> = {
     type: 'ventas',
     label: 'Ventas',
     icon: '💰',
-    endpoint: '/v1/imports/batches',
+    endpoint: '/api/v1/imports/batches',
     fields: [
       {
         field: 'fecha',
@@ -358,7 +358,7 @@ export const ENTITY_TYPES: Record<EntityType, EntityTypeConfig> = {
     type: 'compras',
     label: 'Compras',
     icon: '🛒',
-    endpoint: '/v1/imports/batches',
+    endpoint: '/api/v1/imports/batches',
     fields: [
       {
         field: 'fecha',
@@ -390,7 +390,7 @@ export const ENTITY_TYPES: Record<EntityType, EntityTypeConfig> = {
     type: 'facturas',
     label: 'Facturas',
     icon: '🧾',
-    endpoint: '/v1/imports/batches',
+    endpoint: '/api/v1/imports/batches',
     fields: [
       {
         field: 'numero',
@@ -445,7 +445,7 @@ export const ENTITY_TYPES: Record<EntityType, EntityTypeConfig> = {
     type: 'gastos',
     label: 'Gastos',
     icon: '💸',
-    endpoint: '/v1/imports/batches',
+    endpoint: '/api/v1/imports/batches',
     fields: [
       {
         field: 'fecha',
@@ -484,7 +484,7 @@ export const ENTITY_TYPES: Record<EntityType, EntityTypeConfig> = {
     type: 'empleados',
     label: 'Empleados',
     icon: '👔',
-    endpoint: '/v1/imports/batches',
+    endpoint: '/api/v1/imports/batches',
     checkDuplicates: true,
     duplicateKeys: ['documento', 'email'],
     fields: [

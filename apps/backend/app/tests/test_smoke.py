@@ -13,4 +13,3 @@ def test_identity_me_route():
     c = TestClient(app)
     r = c.get("/v1/identity/me")
     assert r.status_code in (200, 404)  # allow placeholder absence
-

@@ -1,5 +1,3 @@
- 
-
 from fastapi import APIRouter, Depends, HTTPException, Response, Request
 import logging
 from pydantic import BaseModel
@@ -13,7 +11,6 @@ from app.config.database import get_db
 from app.core.deps import set_tenant_scope
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
 from app.config.settings import settings
-
 
 from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
 from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
@@ -29,6 +26,7 @@ from app.core.auth_http import (
     refresh_cookie_path_tenant,  # <- IMPORT NECESARIO
 )
 from app.core.auth_shared import ensure_session, issue_csrf_and_cookie, rotate_refresh
+from app.core.csrf import issue_csrf_token
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 log = logging.getLogger("app.auth.tenant")
@@ -53,11 +51,13 @@ def tenant_login(
 ):
     ident = data.identificador.strip().lower()
     try:
-        log.info("tenant.login.attempt origin=%s ua=%s ip=%s ident=%s",
-                 request.headers.get("origin"),
-                 request.headers.get("user-agent", ""),
-                 request.client.host if request.client else "",
-                 ident)
+        log.info(
+            "tenant.login.attempt origin=%s ua=%s ip=%s ident=%s",
+            request.headers.get("origin"),
+            request.headers.get("user-agent", ""),
+            request.client.host if request.client else "",
+            ident,
+        )
     except Exception:
         pass
 
@@ -72,10 +72,10 @@ def tenant_login(
     if rl.retry_after:
         response.headers["Retry-After"] = str(rl.retry_after)
 
-    # 1) Buscar usuario (case-insensitive) + join con empresa
+    # 1) Buscar usuario (case-insensitive) + join con tenant
     user = (
         db.query(UsuarioEmpresa)
-        .options(joinedload(UsuarioEmpresa.empresa))
+        .options(joinedload(UsuarioEmpresa.tenant))
         .filter(
             or_(
                 func.lower(UsuarioEmpresa.email) == ident,
@@ -86,16 +86,30 @@ def tenant_login(
     )
 
     # 2) Validaciones básicas
-    if not user or not user.empresa_id or not user.empresa:
+    if not user or not user.tenant_id or not user.tenant:
         limiter.incr_fail(request, ident)
-        audit_log(db, kind="login_failed", scope="tenant", user_id=None, tenant_id=None, req=request)
+        audit_log(
+            db,
+            kind="login_failed",
+            scope="tenant",
+            user_id=None,
+            tenant_id=None,
+            req=request,
+        )
         log.warning("tenant.login.invalid_credentials ident=%s", ident)
         raise HTTPException(status_code=401, detail=t(request, "invalid_credentials"))
 
     ok, new_hash = hasher.verify(data.password, user.password_hash)
     if not ok:
         limiter.incr_fail(request, ident)
-        audit_log(db, kind="login_failed", scope="tenant", user_id=str(user.id), tenant_id=None, req=request)
+        audit_log(
+            db,
+            kind="login_failed",
+            scope="tenant",
+            user_id=str(user.id),
+            tenant_id=None,
+            req=request,
+        )
         log.warning("tenant.login.invalid_credentials ident=%s", ident)
         raise HTTPException(status_code=401, detail=t(request, "invalid_credentials"))
 
@@ -108,29 +122,9 @@ def tenant_login(
     # OK → resetea contador
     limiter.reset(request, ident)
 
-    tenant_id = str(user.empresa.id)
-    # UUID para familia de refresh: intenta del modelo; si no, resuelve por tenants(empresa_id)
-    try:
-        if getattr(user, "tenant_id", None):
-            tenant_uuid_for_family = str(getattr(user, "tenant_id"))
-        else:
-            from sqlalchemy import text as _text
-            row = db.execute(
-                _text("SELECT id FROM tenants WHERE empresa_id = :eid LIMIT 1"),
-                {"eid": int(user.empresa_id) if str(user.empresa_id).isdigit() else user.empresa_id},
-            ).first()
-            tenant_uuid_for_family = str(row[0]) if row and row[0] is not None else None
-    except Exception as e:
-        # Log root error y limpia la transacción
-        try:
-            log.exception("tenant.login.tenant_uuid_resolve_error empresa_id=%s", str(user.empresa_id))
-        except Exception:
-            pass
-        try:
-            db.rollback()
-        except Exception:
-            pass
-        tenant_uuid_for_family = None
+    # Usar tenant_id directamente (ya es UUID)
+    tenant_uuid_for_family = str(user.tenant_id)
+    tenant_id = tenant_uuid_for_family
 
     # 3) Sesión + scope
     s = ensure_session(request)
@@ -142,7 +136,11 @@ def tenant_login(
     try:
         if tenant_uuid_for_family:
             from sqlalchemy import text as _text
-            db.execute(_text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_uuid_for_family)})
+
+            db.execute(
+                _text("SET LOCAL app.tenant_id = :tid"),
+                {"tid": str(tenant_uuid_for_family)},
+            )
             try:
                 db.info["tenant_id"] = str(tenant_uuid_for_family)
             except Exception:
@@ -158,6 +156,7 @@ def tenant_login(
     # Asegura que la sesión no esté en estado aborted por alguna consulta previa
     try:
         from sqlalchemy import text as _text
+
         db.execute(_text("SELECT 1"))
     except Exception:
         try:
@@ -166,13 +165,13 @@ def tenant_login(
             pass
     try:
         claims = build_tenant_claims(db, user)
-    except Exception as e:
+    except Exception:
         # Log del error real que está abortando la transacción
         try:
             log.exception(
-                "tenant.login.claims_error usuario_id=%s empresa_id=%s",
+                "tenant.login.claims_error usuario_id=%s tenant_id=%s",
                 str(getattr(user, "id", None)),
-                str(getattr(user, "empresa_id", None)),
+                str(getattr(user, "tenant_id", None)),
             )
         except Exception:
             pass
@@ -183,25 +182,35 @@ def tenant_login(
         raise HTTPException(status_code=500, detail="claims_error")
     if not claims:
         limiter.incr_fail(request, ident)
-        audit_log(db, kind="login_failed", scope="tenant", user_id=str(user.id), tenant_id=None, req=request)
+        audit_log(
+            db,
+            kind="login_failed",
+            scope="tenant",
+            user_id=str(user.id),
+            tenant_id=None,
+            req=request,
+        )
         raise HTTPException(status_code=401, detail=t(request, "invalid_credentials"))
 
     # 5) Refresh family + primer token
     repo = SqlRefreshTokenRepo(db)
     try:
-        family_id = repo.create_family(user_id=str(user.id), tenant_id=tenant_uuid_for_family)
+        family_id = repo.create_family(
+            user_id=str(user.id), tenant_id=tenant_uuid_for_family
+        )
         jti = repo.issue_token(
             family_id=family_id,
             prev_jti=None,
             user_agent=request.headers.get("user-agent", ""),
             ip=request.client.host if request.client else "",
         )
-    except Exception as e:
+    except Exception:
         # Log del error raíz al crear familia/emitir token
         try:
             log.exception(
                 "tenant.login.refresh_family_error usuario_id=%s tenant_uuid=%s",
-                str(getattr(user, "id", None)), tenant_uuid_for_family,
+                str(getattr(user, "id", None)),
+                tenant_uuid_for_family,
             )
         except Exception:
             pass
@@ -258,9 +267,11 @@ def tenant_login(
 def tenant_refresh(request: Request, response: Response, db: Session = Depends(get_db)):
     repo = SqlRefreshTokenRepo(db)
     try:
-        log.debug("tenant.refresh.attempt ua=%s ip=%s",
-                  request.headers.get("user-agent", ""),
-                  request.client.host if request.client else "")
+        log.debug(
+            "tenant.refresh.attempt ua=%s ip=%s",
+            request.headers.get("user-agent", ""),
+            request.client.host if request.client else "",
+        )
     except Exception:
         pass
     res = rotate_refresh(
@@ -278,6 +289,23 @@ def tenant_refresh(request: Request, response: Response, db: Session = Depends(g
     return res
 
 
+@router.get("/csrf")
+def tenant_csrf_bootstrap(response: Response, request: Request):
+    """Entrega un token CSRF y lo persiste en cookie legible por el FE."""
+    if not hasattr(request, "state") or not hasattr(request.state, "session"):
+        request.state.session = {}
+    token = issue_csrf_token(request)
+    response.set_cookie(
+        key="csrf_token",
+        value=token,
+        httponly=False,
+        samesite="lax",
+        path="/",
+        secure=not settings.debug,
+    )
+    return {"ok": True, "csrfToken": token}
+
+
 @router.post("/logout")
 def tenant_logout(request: Request, response: Response):
     """Logout y revocación de refresh token para tenant (best-effort)."""
@@ -292,6 +320,8 @@ def tenant_logout(request: Request, response: Response):
         request.state.session_dirty = True
 
     return {"ok": True}
+
+
 token_service = PyJWTTokenService()
 hasher = PasslibPasswordHasher()
 limiter = SimpleRateLimiter()
@@ -315,7 +345,11 @@ def tenant_set_password(payload: SetPasswordIn, db: Session = Depends(get_db)):
     except Exception:
         raise HTTPException(status_code=400, detail="invalid_or_expired_token")
 
-    user = db.query(UsuarioEmpresa).filter(func.lower(UsuarioEmpresa.email) == str(email).lower()).first()
+    user = (
+        db.query(UsuarioEmpresa)
+        .filter(func.lower(UsuarioEmpresa.email) == str(email).lower())
+        .first()
+    )
     if not user:
         raise HTTPException(status_code=404, detail="user_not_found")
 

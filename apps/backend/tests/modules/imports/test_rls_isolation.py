@@ -34,15 +34,13 @@ def setup_test_data(db: Session, tenant_a_id: uuid.UUID, tenant_b_id: uuid.UUID)
     """Create test batches for both tenants."""
     # Tenant A batches
     batch_a1 = ImportBatch(
-        tenant_id=tenant_a_id,
-        empresa_id=1,  # Legacy field
+        tenant_id=tenant_a_id,  # Legacy field
         source="test_a",
         status="PENDING",
         created_at=datetime.now(timezone.utc),
     )
     batch_a2 = ImportBatch(
         tenant_id=tenant_a_id,
-        empresa_id=1,
         source="test_a2",
         status="VALIDATED",
         created_at=datetime.now(timezone.utc),
@@ -51,7 +49,6 @@ def setup_test_data(db: Session, tenant_a_id: uuid.UUID, tenant_b_id: uuid.UUID)
     # Tenant B batches
     batch_b1 = ImportBatch(
         tenant_id=tenant_b_id,
-        empresa_id=2,
         source="test_b",
         status="PENDING",
         created_at=datetime.now(timezone.utc),
@@ -99,7 +96,7 @@ class TestRLSIsolation:
         
         # Verify tenant B batch is not visible
         tenant_b_batch_id = setup_test_data["tenant_b"]["batches"][0]
-        result = repo.get_batch(db, tenant_a_id, tenant_b_batch_id)
+        result = repo.get_batch(db, tenant_a_id, tenant_b_batch_id)  # noqa: F841
         assert result is None, "Tenant A should NOT see tenant B's batch"
     
     def test_tenant_b_cannot_see_tenant_a_data(
@@ -131,7 +128,6 @@ class TestRLSIsolation:
         # Try to insert batch for tenant B while context is tenant A
         bad_batch = ImportBatch(
             tenant_id=tenant_b_id,  # Mismatch!
-            empresa_id=2,
             source="malicious",
             status="PENDING",
             created_at=datetime.now(timezone.utc),

@@ -36,15 +36,54 @@ export default function ModuloSelector({ selected, onChange, showTitle = false }
       modulos.map((m) => ({
         ...m,
         nombreFmt: formatNombre(m.nombre),
-        descripcionFmt: m.descripcion || `Activar acceso al módulo ${formatNombre(m.nombre)}.`,
+        descripcionFmt:
+          m.descripcion ||
+          `Activar acceso al módulo ${formatNombre(m.nombre) || 'seleccionado'}.`,
       })),
     [modulos],
   )
 
+  const hasItems = items.length > 0
+  const allSelected = hasItems && items.every((m) => selected.includes(m.id))
+
+  const handleToggleAll = () => {
+    if (!hasItems) return
+    const ids = items.map((m) => m.id)
+    if (allSelected) {
+      ids.forEach((id) => {
+        if (selected.includes(id)) onChange(id)
+      })
+    } else {
+      ids.forEach((id) => {
+        if (!selected.includes(id)) onChange(id)
+      })
+    }
+  }
+
   return (
     <section>
-      {showTitle && (
-        <h2 className="text-lg font-semibold text-slate-900 mb-4">Módulos a contratar</h2>
+      {(showTitle || hasItems) && (
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          {showTitle && (
+            <h2 className="text-lg font-semibold text-slate-900">Módulos a contratar</h2>
+          )}
+          {hasItems && (
+            <label
+              className={`inline-flex items-center gap-2 text-sm font-medium text-slate-700 ${
+                showTitle ? 'ml-auto' : ''
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-indigo-600"
+                checked={allSelected}
+                onChange={handleToggleAll}
+                aria-label={allSelected ? 'Desactivar todos los módulos' : 'Activar todos los módulos'}
+              />
+              <span>{allSelected ? 'Desactivar todos' : 'Activar todos'}</span>
+            </label>
+          )}
+        </div>
       )}
       {loading && <div className="mb-3 text-sm text-slate-500">Cargando módulos…</div>}
       {error && (

@@ -1,0 +1,365 @@
+"""
+Configuración de campos por defecto para cada sector y módulo.
+
+Este módulo centraliza toda la configuración de campos específicos por sector,
+permitiendo que el sistema sea 100% adaptable sin modificar código.
+
+Estructura:
+    SECTOR_DEFAULTS = {
+        'sector_name': {
+            'module_name': [
+                {
+                    'field': str,
+                    'visible': bool,
+                    'required': bool,
+                    'ord': int,
+                    'label': str,
+                    'help': str,
+                    'type': str,  # text, number, select, textarea, boolean, date
+                    'options': List[str]  # Solo para type='select'
+                }
+            ]
+        }
+    }
+"""
+
+from typing import Dict, List, Any
+
+# ============================================================================
+# SECTOR_DEFAULTS - Configuración de Campos por Sector y Módulo
+# ============================================================================
+
+SECTOR_DEFAULTS: Dict[str, Dict[str, List[Dict[str, Any]]]] = {
+    # ========================================================================
+    # PANADERÍA
+    # ========================================================================
+    "panaderia": {
+        "productos": [
+            {"field": "codigo", "visible": True, "required": True, "ord": 10, "label": "Código PLU", "help": "Código interno o PLU", "type": "text"},
+            {"field": "codigo_barras", "visible": True, "required": False, "ord": 15, "label": "Código de barras", "help": "EAN-13 si existe", "type": "text"},
+            {"field": "nombre", "visible": True, "required": True, "ord": 20, "label": "Nombre del producto", "type": "text"},
+            {"field": "categoria", "visible": True, "required": True, "ord": 25, "label": "Categoría", "help": "Pan, Bollería, Pastelería, etc.", "type": "select"},
+            {"field": "precio", "visible": True, "required": True, "ord": 30, "label": "Precio de venta (€)", "type": "number"},
+            {"field": "peso_unitario", "visible": True, "required": False, "ord": 35, "label": "Peso unitario (kg)", "help": "Para productos a peso", "type": "number"},
+            {"field": "caducidad_dias", "visible": True, "required": False, "ord": 40, "label": "Días de caducidad", "help": "Días desde producción", "type": "number"},
+            {"field": "receta_id", "visible": True, "required": False, "ord": 45, "label": "Receta asociada", "help": "Vínculo a producción", "type": "select"},
+            {"field": "ingredientes", "visible": True, "required": False, "ord": 50, "label": "Ingredientes", "help": "Lista de ingredientes y alérgenos", "type": "textarea"},
+            {"field": "impuesto", "visible": True, "required": True, "ord": 60, "label": "IVA (%)", "type": "select", "options": ["4", "10", "21"]},
+            {"field": "activo", "visible": True, "required": False, "ord": 70, "label": "Activo", "help": "Visible en POS", "type": "boolean"},
+        ],
+        "proveedores": [
+            {"field": "nombre", "visible": True, "required": True, "ord": 10, "label": "Nombre comercial", "type": "text"},
+            {"field": "ruc", "visible": True, "required": True, "ord": 15, "label": "RUC/NIF", "type": "text"},
+            {"field": "email", "visible": True, "required": False, "ord": 20, "label": "Email", "type": "text"},
+            {"field": "telefono", "visible": True, "required": False, "ord": 25, "label": "Teléfono", "type": "text"},
+            {"field": "direccion", "visible": True, "required": False, "ord": 30, "label": "Dirección", "type": "textarea"},
+            {"field": "plazo_pago", "visible": True, "required": False, "ord": 40, "label": "Plazo de pago (días)", "type": "number"},
+            {"field": "certificacion_haccp", "visible": True, "required": False, "ord": 50, "label": "Certificación HACCP", "help": "Seguridad alimentaria", "type": "boolean"},
+            {"field": "trazabilidad", "visible": True, "required": False, "ord": 55, "label": "Sistema de trazabilidad", "type": "boolean"},
+            {"field": "activo", "visible": True, "required": False, "ord": 70, "label": "Activo", "type": "boolean"},
+        ],
+        "compras": [
+            {"field": "numero", "visible": True, "required": True, "ord": 10, "label": "Número de pedido", "type": "text"},
+            {"field": "fecha", "visible": True, "required": True, "ord": 15, "label": "Fecha", "type": "date"},
+            {"field": "proveedor", "visible": True, "required": True, "ord": 20, "label": "Proveedor", "type": "select"},
+            {"field": "subtotal", "visible": True, "required": True, "ord": 30, "label": "Subtotal", "type": "number"},
+            {"field": "impuesto", "visible": True, "required": True, "ord": 35, "label": "IVA", "type": "number"},
+            {"field": "total", "visible": True, "required": True, "ord": 40, "label": "Total", "type": "number"},
+            {"field": "fecha_caducidad_esperada", "visible": True, "required": False, "ord": 45, "label": "Fecha caducidad esperada", "help": "Para materias primas perecederas", "type": "date"},
+            {"field": "lote_proveedor", "visible": True, "required": False, "ord": 50, "label": "Lote del proveedor", "type": "text"},
+            {"field": "control_calidad", "visible": True, "required": False, "ord": 55, "label": "Control de calidad", "type": "select", "options": ["Aprobado", "Rechazado", "Pendiente"]},
+            {"field": "estado", "visible": True, "required": True, "ord": 60, "label": "Estado", "type": "select", "options": ["borrador", "enviado", "recibido", "facturado"]},
+        ],
+        "ventas": [
+            {"field": "numero", "visible": True, "required": True, "ord": 10, "label": "Número de venta", "type": "text"},
+            {"field": "fecha", "visible": True, "required": True, "ord": 15, "label": "Fecha", "type": "date"},
+            {"field": "cliente", "visible": True, "required": False, "ord": 20, "label": "Cliente", "type": "select"},
+            {"field": "subtotal", "visible": True, "required": True, "ord": 30, "label": "Subtotal", "type": "number"},
+            {"field": "descuento", "visible": True, "required": False, "ord": 35, "label": "Descuento", "type": "number"},
+            {"field": "impuesto", "visible": True, "required": True, "ord": 40, "label": "IVA", "type": "number"},
+            {"field": "total", "visible": True, "required": True, "ord": 45, "label": "Total", "type": "number"},
+            {"field": "metodo_pago", "visible": True, "required": True, "ord": 50, "label": "Método de pago", "type": "select", "options": ["efectivo", "tarjeta", "transferencia"]},
+            {"field": "estado", "visible": True, "required": True, "ord": 60, "label": "Estado", "type": "select", "options": ["borrador", "confirmado", "facturado"]},
+        ],
+        "gastos": [
+            {"field": "fecha", "visible": True, "required": True, "ord": 10, "label": "Fecha", "type": "date"},
+            {"field": "categoria", "visible": True, "required": True, "ord": 15, "label": "Categoría", "type": "select"},
+            {"field": "descripcion", "visible": True, "required": True, "ord": 20, "label": "Descripción", "type": "textarea"},
+            {"field": "proveedor", "visible": True, "required": False, "ord": 25, "label": "Proveedor", "type": "text"},
+            {"field": "numero_factura", "visible": True, "required": False, "ord": 30, "label": "Nº Factura", "type": "text"},
+            {"field": "subtotal", "visible": True, "required": True, "ord": 35, "label": "Subtotal", "type": "number"},
+            {"field": "impuesto", "visible": True, "required": True, "ord": 40, "label": "IVA", "type": "number"},
+            {"field": "total", "visible": True, "required": True, "ord": 45, "label": "Total", "type": "number"},
+            {"field": "metodo_pago", "visible": True, "required": False, "ord": 50, "label": "Método de pago", "type": "select", "options": ["efectivo", "tarjeta", "transferencia"]},
+            {"field": "estado", "visible": True, "required": True, "ord": 60, "label": "Estado", "type": "select", "options": ["pendiente", "aprobado", "pagado"]},
+        ],
+    },
+    
+    # ========================================================================
+    # RETAIL / BAZAR
+    # ========================================================================
+    "retail": {
+        "productos": [
+            {"field": "codigo", "visible": True, "required": True, "ord": 10, "label": "SKU", "help": "Código único del producto", "type": "text"},
+            {"field": "codigo_barras", "visible": True, "required": True, "ord": 15, "label": "EAN", "help": "Código de barras EAN-13", "type": "text"},
+            {"field": "nombre", "visible": True, "required": True, "ord": 20, "label": "Nombre", "type": "text"},
+            {"field": "categoria", "visible": True, "required": True, "ord": 25, "label": "Categoría", "help": "Ropa, Electrónica, Hogar, etc.", "type": "select"},
+            {"field": "marca", "visible": True, "required": False, "ord": 27, "label": "Marca", "help": "Fabricante o marca", "type": "text"},
+            {"field": "modelo", "visible": True, "required": False, "ord": 28, "label": "Modelo", "help": "Referencia del modelo", "type": "text"},
+            {"field": "talla", "visible": True, "required": False, "ord": 29, "label": "Talla", "help": "S/M/L/XL o numérico", "type": "text"},
+            {"field": "color", "visible": True, "required": False, "ord": 30, "label": "Color", "type": "text"},
+            {"field": "precio_compra", "visible": True, "required": False, "ord": 35, "label": "Precio de compra", "help": "Para calcular margen", "type": "number"},
+            {"field": "precio_venta", "visible": True, "required": True, "ord": 40, "label": "PVP", "help": "Precio de venta al público", "type": "number"},
+            {"field": "margen", "visible": True, "required": False, "ord": 45, "label": "Margen (%)", "help": "Auto-calculado", "type": "number"},
+            {"field": "stock_minimo", "visible": True, "required": False, "ord": 50, "label": "Stock mínimo", "help": "Alerta de reposición", "type": "number"},
+            {"field": "stock_maximo", "visible": True, "required": False, "ord": 55, "label": "Stock máximo", "help": "Control de sobre-stock", "type": "number"},
+            {"field": "impuesto", "visible": True, "required": True, "ord": 60, "label": "IVA (%)", "type": "select", "options": ["10", "21"]},
+            {"field": "activo", "visible": True, "required": False, "ord": 70, "label": "Activo", "type": "boolean"},
+        ],
+        "proveedores": [
+            {"field": "nombre", "visible": True, "required": True, "ord": 10, "label": "Nombre comercial", "type": "text"},
+            {"field": "ruc", "visible": True, "required": True, "ord": 15, "label": "NIF/CIF", "type": "text"},
+            {"field": "email", "visible": True, "required": False, "ord": 20, "label": "Email", "type": "text"},
+            {"field": "telefono", "visible": True, "required": False, "ord": 25, "label": "Teléfono", "type": "text"},
+            {"field": "direccion", "visible": True, "required": False, "ord": 30, "label": "Dirección", "type": "textarea"},
+            {"field": "plazo_pago", "visible": True, "required": False, "ord": 40, "label": "Plazo de pago (días)", "type": "number"},
+            {"field": "descuento_comercial", "visible": True, "required": False, "ord": 45, "label": "Descuento comercial (%)", "type": "number"},
+            {"field": "activo", "visible": True, "required": False, "ord": 70, "label": "Activo", "type": "boolean"},
+        ],
+        "compras": [
+            {"field": "numero", "visible": True, "required": True, "ord": 10, "label": "Número de pedido", "type": "text"},
+            {"field": "fecha", "visible": True, "required": True, "ord": 15, "label": "Fecha", "type": "date"},
+            {"field": "proveedor", "visible": True, "required": True, "ord": 20, "label": "Proveedor", "type": "select"},
+            {"field": "numero_albaran", "visible": True, "required": False, "ord": 23, "label": "Nº Albarán", "type": "text"},
+            {"field": "subtotal", "visible": True, "required": True, "ord": 30, "label": "Subtotal", "type": "number"},
+            {"field": "impuesto", "visible": True, "required": True, "ord": 35, "label": "IVA", "type": "number"},
+            {"field": "total", "visible": True, "required": True, "ord": 40, "label": "Total", "type": "number"},
+            {"field": "unidades_defectuosas", "visible": True, "required": False, "ord": 45, "label": "Unidades defectuosas", "type": "number"},
+            {"field": "fecha_entrega_estimada", "visible": True, "required": False, "ord": 50, "label": "Fecha entrega estimada", "type": "date"},
+            {"field": "estado", "visible": True, "required": True, "ord": 60, "label": "Estado", "type": "select", "options": ["borrador", "enviado", "recibido", "facturado"]},
+        ],
+        "ventas": [
+            {"field": "numero", "visible": True, "required": True, "ord": 10, "label": "Número de venta", "type": "text"},
+            {"field": "fecha", "visible": True, "required": True, "ord": 15, "label": "Fecha", "type": "date"},
+            {"field": "cliente", "visible": True, "required": False, "ord": 20, "label": "Cliente", "type": "select"},
+            {"field": "numero_albaran", "visible": True, "required": False, "ord": 23, "label": "Nº Albarán", "type": "text"},
+            {"field": "fecha_entrega", "visible": True, "required": False, "ord": 27, "label": "Fecha de entrega", "type": "date"},
+            {"field": "subtotal", "visible": True, "required": True, "ord": 30, "label": "Subtotal", "type": "number"},
+            {"field": "descuento", "visible": True, "required": False, "ord": 35, "label": "Descuento", "type": "number"},
+            {"field": "impuesto", "visible": True, "required": True, "ord": 40, "label": "IVA", "type": "number"},
+            {"field": "total", "visible": True, "required": True, "ord": 45, "label": "Total", "type": "number"},
+            {"field": "metodo_pago", "visible": True, "required": True, "ord": 50, "label": "Método de pago", "type": "select", "options": ["efectivo", "tarjeta", "transferencia", "financiacion"]},
+            {"field": "estado", "visible": True, "required": True, "ord": 60, "label": "Estado", "type": "select", "options": ["borrador", "confirmado", "enviado", "entregado", "facturado"]},
+        ],
+        "gastos": [
+            {"field": "fecha", "visible": True, "required": True, "ord": 10, "label": "Fecha", "type": "date"},
+            {"field": "categoria", "visible": True, "required": True, "ord": 15, "label": "Categoría", "type": "select"},
+            {"field": "descripcion", "visible": True, "required": True, "ord": 20, "label": "Descripción", "type": "textarea"},
+            {"field": "proveedor", "visible": True, "required": False, "ord": 25, "label": "Proveedor", "type": "text"},
+            {"field": "numero_factura", "visible": True, "required": False, "ord": 30, "label": "Nº Factura", "type": "text"},
+            {"field": "subtotal", "visible": True, "required": True, "ord": 35, "label": "Subtotal", "type": "number"},
+            {"field": "impuesto", "visible": True, "required": True, "ord": 40, "label": "IVA", "type": "number"},
+            {"field": "total", "visible": True, "required": True, "ord": 45, "label": "Total", "type": "number"},
+            {"field": "metodo_pago", "visible": True, "required": False, "ord": 50, "label": "Método de pago", "type": "select", "options": ["efectivo", "tarjeta", "transferencia"]},
+            {"field": "estado", "visible": True, "required": True, "ord": 60, "label": "Estado", "type": "select", "options": ["pendiente", "aprobado", "pagado"]},
+        ],
+    },
+    
+    # ========================================================================
+    # RESTAURANTE
+    # ========================================================================
+    "restaurante": {
+        "productos": [
+            {"field": "codigo", "visible": True, "required": True, "ord": 10, "label": "Código", "type": "text"},
+            {"field": "nombre", "visible": True, "required": True, "ord": 20, "label": "Nombre del plato", "type": "text"},
+            {"field": "categoria", "visible": True, "required": True, "ord": 25, "label": "Categoría", "help": "Entrantes, Principales, Postres, Bebidas", "type": "select"},
+            {"field": "precio", "visible": True, "required": True, "ord": 30, "label": "Precio (€)", "type": "number"},
+            {"field": "ingredientes", "visible": True, "required": False, "ord": 40, "label": "Ingredientes", "help": "Lista de ingredientes y alérgenos", "type": "textarea"},
+            {"field": "receta_id", "visible": True, "required": False, "ord": 45, "label": "Receta asociada", "type": "select"},
+            {"field": "tiempo_preparacion", "visible": True, "required": False, "ord": 50, "label": "Tiempo de preparación (min)", "type": "number"},
+            {"field": "raciones", "visible": True, "required": False, "ord": 55, "label": "Raciones por preparación", "type": "number"},
+            {"field": "impuesto", "visible": True, "required": True, "ord": 60, "label": "IVA (%)", "type": "select", "options": ["4", "10", "21"]},
+            {"field": "activo", "visible": True, "required": False, "ord": 70, "label": "Disponible", "type": "boolean"},
+        ],
+        "proveedores": [
+            {"field": "nombre", "visible": True, "required": True, "ord": 10, "label": "Nombre comercial", "type": "text"},
+            {"field": "ruc", "visible": True, "required": True, "ord": 15, "label": "NIF/RUC", "type": "text"},
+            {"field": "email", "visible": True, "required": False, "ord": 20, "label": "Email", "type": "text"},
+            {"field": "telefono", "visible": True, "required": False, "ord": 25, "label": "Teléfono", "type": "text"},
+            {"field": "direccion", "visible": True, "required": False, "ord": 30, "label": "Dirección", "type": "textarea"},
+            {"field": "plazo_pago", "visible": True, "required": False, "ord": 40, "label": "Plazo de pago (días)", "type": "number"},
+            {"field": "certificacion_haccp", "visible": True, "required": False, "ord": 50, "label": "Certificación HACCP", "type": "boolean"},
+            {"field": "activo", "visible": True, "required": False, "ord": 70, "label": "Activo", "type": "boolean"},
+        ],
+        "compras": [
+            {"field": "numero", "visible": True, "required": True, "ord": 10, "label": "Número de pedido", "type": "text"},
+            {"field": "fecha", "visible": True, "required": True, "ord": 15, "label": "Fecha", "type": "date"},
+            {"field": "proveedor", "visible": True, "required": True, "ord": 20, "label": "Proveedor", "type": "select"},
+            {"field": "subtotal", "visible": True, "required": True, "ord": 30, "label": "Subtotal", "type": "number"},
+            {"field": "impuesto", "visible": True, "required": True, "ord": 35, "label": "IVA", "type": "number"},
+            {"field": "total", "visible": True, "required": True, "ord": 40, "label": "Total", "type": "number"},
+            {"field": "fecha_caducidad_esperada", "visible": True, "required": False, "ord": 45, "label": "Fecha caducidad", "type": "date"},
+            {"field": "estado", "visible": True, "required": True, "ord": 60, "label": "Estado", "type": "select", "options": ["borrador", "enviado", "recibido", "facturado"]},
+        ],
+        "ventas": [
+            {"field": "numero", "visible": True, "required": True, "ord": 10, "label": "Número de comanda", "type": "text"},
+            {"field": "fecha", "visible": True, "required": True, "ord": 15, "label": "Fecha", "type": "date"},
+            {"field": "mesa", "visible": True, "required": False, "ord": 18, "label": "Mesa", "type": "text"},
+            {"field": "cliente", "visible": True, "required": False, "ord": 20, "label": "Cliente", "type": "select"},
+            {"field": "subtotal", "visible": True, "required": True, "ord": 30, "label": "Subtotal", "type": "number"},
+            {"field": "descuento", "visible": True, "required": False, "ord": 35, "label": "Descuento", "type": "number"},
+            {"field": "impuesto", "visible": True, "required": True, "ord": 40, "label": "IVA", "type": "number"},
+            {"field": "total", "visible": True, "required": True, "ord": 45, "label": "Total", "type": "number"},
+            {"field": "metodo_pago", "visible": True, "required": True, "ord": 50, "label": "Método de pago", "type": "select", "options": ["efectivo", "tarjeta", "transferencia"]},
+            {"field": "estado", "visible": True, "required": True, "ord": 60, "label": "Estado", "type": "select", "options": ["borrador", "confirmado", "servido", "facturado"]},
+        ],
+        "gastos": [
+            {"field": "fecha", "visible": True, "required": True, "ord": 10, "label": "Fecha", "type": "date"},
+            {"field": "categoria", "visible": True, "required": True, "ord": 15, "label": "Categoría", "type": "select"},
+            {"field": "descripcion", "visible": True, "required": True, "ord": 20, "label": "Descripción", "type": "textarea"},
+            {"field": "proveedor", "visible": True, "required": False, "ord": 25, "label": "Proveedor", "type": "text"},
+            {"field": "numero_factura", "visible": True, "required": False, "ord": 30, "label": "Nº Factura", "type": "text"},
+            {"field": "subtotal", "visible": True, "required": True, "ord": 35, "label": "Subtotal", "type": "number"},
+            {"field": "impuesto", "visible": True, "required": True, "ord": 40, "label": "IVA", "type": "number"},
+            {"field": "total", "visible": True, "required": True, "ord": 45, "label": "Total", "type": "number"},
+            {"field": "metodo_pago", "visible": True, "required": False, "ord": 50, "label": "Método de pago", "type": "select", "options": ["efectivo", "tarjeta", "transferencia"]},
+            {"field": "estado", "visible": True, "required": True, "ord": 60, "label": "Estado", "type": "select", "options": ["pendiente", "aprobado", "pagado"]},
+        ],
+    },
+    
+    # ========================================================================
+    # TALLER MECÁNICO
+    # ========================================================================
+    "taller": {
+        "productos": [
+            {"field": "codigo", "visible": True, "required": True, "ord": 10, "label": "Código OEM", "help": "Código del fabricante", "type": "text"},
+            {"field": "codigo_interno", "visible": True, "required": False, "ord": 12, "label": "Código interno", "type": "text"},
+            {"field": "nombre", "visible": True, "required": True, "ord": 20, "label": "Descripción", "help": "Pieza o servicio", "type": "text"},
+            {"field": "tipo", "visible": True, "required": True, "ord": 25, "label": "Tipo", "type": "select", "options": ["Repuesto", "Mano de obra", "Servicio"]},
+            {"field": "categoria", "visible": True, "required": True, "ord": 30, "label": "Categoría", "help": "Motor, Frenos, Suspensión, etc.", "type": "select"},
+            {"field": "marca_vehiculo", "visible": True, "required": False, "ord": 35, "label": "Marca vehículo", "help": "Compatibilidad", "type": "text"},
+            {"field": "modelo_vehiculo", "visible": True, "required": False, "ord": 40, "label": "Modelo vehículo", "help": "Año inicio-fin", "type": "text"},
+            {"field": "proveedor_ref", "visible": True, "required": False, "ord": 45, "label": "Ref. proveedor", "type": "text"},
+            {"field": "precio_compra", "visible": True, "required": False, "ord": 50, "label": "Precio compra (sin IVA)", "type": "number"},
+            {"field": "precio_venta", "visible": True, "required": True, "ord": 55, "label": "Precio venta (sin IVA)", "type": "number"},
+            {"field": "tiempo_instalacion", "visible": True, "required": False, "ord": 60, "label": "Tiempo instalación (h)", "help": "Para presupuestos", "type": "number"},
+            {"field": "stock_minimo", "visible": True, "required": False, "ord": 65, "label": "Stock mínimo", "help": "Piezas críticas", "type": "number"},
+            {"field": "impuesto", "visible": True, "required": True, "ord": 70, "label": "IVA (%)", "type": "select", "options": ["21"]},
+            {"field": "activo", "visible": True, "required": False, "ord": 80, "label": "Disponible", "type": "boolean"},
+        ],
+        "proveedores": [
+            {"field": "nombre", "visible": True, "required": True, "ord": 10, "label": "Nombre comercial", "type": "text"},
+            {"field": "ruc", "visible": True, "required": True, "ord": 15, "label": "NIF/CIF", "type": "text"},
+            {"field": "email", "visible": True, "required": False, "ord": 20, "label": "Email", "type": "text"},
+            {"field": "telefono", "visible": True, "required": False, "ord": 25, "label": "Teléfono", "type": "text"},
+            {"field": "direccion", "visible": True, "required": False, "ord": 30, "label": "Dirección", "type": "textarea"},
+            {"field": "plazo_pago", "visible": True, "required": False, "ord": 40, "label": "Plazo de pago (días)", "type": "number"},
+            {"field": "certificacion_iso", "visible": True, "required": False, "ord": 50, "label": "Certificación ISO", "type": "boolean"},
+            {"field": "marcas_distribuye", "visible": True, "required": False, "ord": 55, "label": "Marcas que distribuye", "type": "textarea"},
+            {"field": "activo", "visible": True, "required": False, "ord": 70, "label": "Activo", "type": "boolean"},
+        ],
+        "compras": [
+            {"field": "numero", "visible": True, "required": True, "ord": 10, "label": "Número de pedido", "type": "text"},
+            {"field": "fecha", "visible": True, "required": True, "ord": 15, "label": "Fecha", "type": "date"},
+            {"field": "proveedor", "visible": True, "required": True, "ord": 20, "label": "Proveedor", "type": "select"},
+            {"field": "subtotal", "visible": True, "required": True, "ord": 30, "label": "Subtotal", "type": "number"},
+            {"field": "impuesto", "visible": True, "required": True, "ord": 35, "label": "IVA", "type": "number"},
+            {"field": "total", "visible": True, "required": True, "ord": 40, "label": "Total", "type": "number"},
+            {"field": "garantia_hasta", "visible": True, "required": False, "ord": 45, "label": "Garantía hasta", "type": "date"},
+            {"field": "estado", "visible": True, "required": True, "ord": 60, "label": "Estado", "type": "select", "options": ["borrador", "enviado", "recibido", "facturado"]},
+        ],
+        "ventas": [
+            {"field": "numero", "visible": True, "required": True, "ord": 10, "label": "Número de presupuesto/OR", "type": "text"},
+            {"field": "fecha", "visible": True, "required": True, "ord": 15, "label": "Fecha", "type": "date"},
+            {"field": "matricula_vehiculo", "visible": True, "required": False, "ord": 18, "label": "Matrícula", "type": "text"},
+            {"field": "kilometraje", "visible": True, "required": False, "ord": 20, "label": "Kilometraje", "type": "number"},
+            {"field": "cliente", "visible": True, "required": True, "ord": 25, "label": "Cliente", "type": "select"},
+            {"field": "subtotal", "visible": True, "required": True, "ord": 30, "label": "Subtotal", "type": "number"},
+            {"field": "descuento", "visible": True, "required": False, "ord": 35, "label": "Descuento", "type": "number"},
+            {"field": "impuesto", "visible": True, "required": True, "ord": 40, "label": "IVA", "type": "number"},
+            {"field": "total", "visible": True, "required": True, "ord": 45, "label": "Total", "type": "number"},
+            {"field": "garantia_hasta", "visible": True, "required": False, "ord": 48, "label": "Garantía hasta", "type": "date"},
+            {"field": "metodo_pago", "visible": True, "required": True, "ord": 50, "label": "Método de pago", "type": "select", "options": ["efectivo", "tarjeta", "transferencia"]},
+            {"field": "estado", "visible": True, "required": True, "ord": 60, "label": "Estado", "type": "select", "options": ["presupuesto", "aprobado", "en_proceso", "completado", "facturado"]},
+        ],
+        "gastos": [
+            {"field": "fecha", "visible": True, "required": True, "ord": 10, "label": "Fecha", "type": "date"},
+            {"field": "categoria", "visible": True, "required": True, "ord": 15, "label": "Categoría", "type": "select"},
+            {"field": "descripcion", "visible": True, "required": True, "ord": 20, "label": "Descripción", "type": "textarea"},
+            {"field": "proveedor", "visible": True, "required": False, "ord": 25, "label": "Proveedor", "type": "text"},
+            {"field": "numero_factura", "visible": True, "required": False, "ord": 30, "label": "Nº Factura", "type": "text"},
+            {"field": "kilometraje", "visible": True, "required": False, "ord": 33, "label": "Kilometraje", "help": "Para gastos de desplazamiento", "type": "number"},
+            {"field": "subtotal", "visible": True, "required": True, "ord": 35, "label": "Subtotal", "type": "number"},
+            {"field": "impuesto", "visible": True, "required": True, "ord": 40, "label": "IVA", "type": "number"},
+            {"field": "total", "visible": True, "required": True, "ord": 45, "label": "Total", "type": "number"},
+            {"field": "metodo_pago", "visible": True, "required": False, "ord": 50, "label": "Método de pago", "type": "select", "options": ["efectivo", "tarjeta", "transferencia"]},
+            {"field": "estado", "visible": True, "required": True, "ord": 60, "label": "Estado", "type": "select", "options": ["pendiente", "aprobado", "pagado"]},
+        ],
+    },
+}
+
+
+# ============================================================================
+# CATEGORÍAS POR DEFECTO POR SECTOR
+# ============================================================================
+
+SECTOR_CATEGORIES: Dict[str, Dict[str, List[str]]] = {
+    "panaderia": {
+        "productos": ["Pan", "Bollería", "Pastelería", "Bebidas", "Otros"],
+        "gastos": ["Materias Primas", "Suministros", "Servicios", "Personal", "Alquiler", "Energía", "Mantenimiento", "Otros"],
+    },
+    "retail": {
+        "productos": ["Ropa", "Electrónica", "Hogar", "Juguetes", "Deportes", "Otros"],
+        "gastos": ["Mercancía", "Embalaje", "Marketing", "Personal", "Alquiler", "Energía", "Seguros", "Otros"],
+    },
+    "restaurante": {
+        "productos": ["Entrantes", "Principales", "Postres", "Bebidas", "Menús", "Otros"],
+        "gastos": ["Alimentos", "Bebidas", "Suministros Cocina", "Personal", "Alquiler", "Energía", "Dietas Personal", "Otros"],
+    },
+    "taller": {
+        "productos": ["Motor", "Frenos", "Suspensión", "Transmisión", "Electricidad", "Carrocería", "Neumáticos", "Servicios", "Otros"],
+        "gastos": ["Repuestos", "Herramientas", "Consumibles", "Personal", "Alquiler", "Energía", "Kilometraje", "Otros"],
+    },
+}
+
+
+# ============================================================================
+# FUNCIÓN HELPER
+# ============================================================================
+
+def get_sector_defaults(module: str, sector: str = "default") -> List[Dict[str, Any]]:
+    """
+    Obtiene la configuración de campos por defecto para un módulo y sector.
+    
+    Args:
+        module: Nombre del módulo (productos, proveedores, etc.)
+        sector: Nombre del sector (panaderia, retail, restaurante, taller)
+    
+    Returns:
+        Lista de configuraciones de campos
+    """
+    if sector in SECTOR_DEFAULTS and module in SECTOR_DEFAULTS[sector]:
+        return SECTOR_DEFAULTS[sector][module]
+    
+    # Fallback a panaderia si no existe
+    if "panaderia" in SECTOR_DEFAULTS and module in SECTOR_DEFAULTS["panaderia"]:
+        return SECTOR_DEFAULTS["panaderia"][module]
+    
+    return []
+
+
+def get_sector_categories(sector: str, module: str = "productos") -> List[str]:
+    """
+    Obtiene las categorías por defecto para un sector y módulo.
+    
+    Args:
+        sector: Nombre del sector
+        module: Nombre del módulo (default: productos)
+    
+    Returns:
+        Lista de categorías
+    """
+    if sector in SECTOR_CATEGORIES and module in SECTOR_CATEGORIES[sector]:
+        return SECTOR_CATEGORIES[sector][module]
+    
+    return ["General", "Otros"]

@@ -26,6 +26,7 @@ def validate_overlay(config: Dict[str, Any], limits: Dict[str, Any]) -> None:
 
     # Count fields (shallow)
     field_count = 0
+
     def count_fields(obj: Any) -> None:
         nonlocal field_count
         if isinstance(obj, dict):
@@ -35,6 +36,7 @@ def validate_overlay(config: Dict[str, Any], limits: Dict[str, Any]) -> None:
         elif isinstance(obj, list):
             for v in obj:
                 count_fields(v)
+
     count_fields(config)
 
     if field_count > max_fields:
@@ -53,4 +55,3 @@ def deep_merge(base: Dict[str, Any], over: Dict[str, Any]) -> Dict[str, Any]:
         else:
             out[k] = v
     return out
-

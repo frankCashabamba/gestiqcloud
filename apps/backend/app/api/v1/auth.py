@@ -37,11 +37,15 @@ def universal_login(
         return _tenant_login(data=data, request=request, response=response, db=db)
     except HTTPException as e:
         if e.status_code != 401:
-            logger.exception("Tenant login HTTPException: %s", getattr(e, 'detail', e))
+            logger.exception("Tenant login HTTPException: %s", getattr(e, "detail", e))
             # In non-production, surface a hint to aid tests
             if settings.ENV != "production":
                 hint = f"tenant_login_http:{getattr(e, 'detail', str(e))}"
-                raise HTTPException(status_code=e.status_code, detail=e.detail, headers={"X-Debug-Error": hint})
+                raise HTTPException(
+                    status_code=e.status_code,
+                    detail=e.detail,
+                    headers={"X-Debug-Error": hint},
+                )
             raise
     except Exception as e:  # unexpected crash in tenant login
         logger.exception("Tenant login crashed")
@@ -54,10 +58,14 @@ def universal_login(
         return _admin_login(data=data, request=request, response=response, db=db)
     except HTTPException as e:
         if e.status_code != 401:
-            logger.exception("Admin login HTTPException: %s", getattr(e, 'detail', e))
+            logger.exception("Admin login HTTPException: %s", getattr(e, "detail", e))
             if settings.ENV != "production":
                 hint = f"admin_login_http:{getattr(e, 'detail', str(e))}"
-                raise HTTPException(status_code=e.status_code, detail=e.detail, headers={"X-Debug-Error": hint})
+                raise HTTPException(
+                    status_code=e.status_code,
+                    detail=e.detail,
+                    headers={"X-Debug-Error": hint},
+                )
             raise
         # Normalize 401
         raise HTTPException(status_code=401, detail="invalid_credentials")
@@ -65,5 +73,9 @@ def universal_login(
         logger.exception("Admin login crashed")
         if settings.ENV != "production":
             hint = f"admin_login_crash:{e}"
-            raise HTTPException(status_code=500, detail="login_internal_error", headers={"X-Debug-Error": hint})
+            raise HTTPException(
+                status_code=500,
+                detail="login_internal_error",
+                headers={"X-Debug-Error": hint},
+            )
         raise HTTPException(status_code=500, detail="login_internal_error")

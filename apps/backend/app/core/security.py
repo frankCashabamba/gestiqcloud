@@ -90,6 +90,7 @@ async def get_current_active_tenant_user():  # pragma: no cover - mostly mocked 
     during import when tests reference this symbol.
     """
     if User is None:  # fallback to a lightweight object
+
         class _U:
             def __init__(self):
                 self.tenant_id = None

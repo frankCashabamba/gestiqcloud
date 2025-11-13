@@ -1,0 +1,156 @@
+from __future__ import annotations
+
+from typing import List, Dict, Optional, Callable, Any
+from sqlalchemy.orm import Session
+
+# Importar defaults por sector
+from app.services.sector_defaults import get_sector_defaults
+
+
+def _normalize(items: List[Dict]) -> List[Dict]:
+    out: List[Dict] = []
+    for it in items or []:
+        f = (it or {}).get("field")
+        if not f:
+            continue
+        out.append(
+            {
+                "field": f,
+                "visible": bool((it or {}).get("visible", True)),
+                "required": bool((it or {}).get("required", False)),
+                "ord": (it or {}).get("ord"),
+                "label": (it or {}).get("label"),
+                "help": (it or {}).get("help"),
+            }
+        )
+    return out
+
+
+def _merge(base_items: List[Dict], overrides: List[Dict]) -> List[Dict]:
+    base = {str(it["field"]): {**it} for it in _normalize(base_items)}
+    for o in _normalize(overrides):
+        key = str(o["field"])
+        if key in base:
+            merged = {**base[key]}
+            for k, v in o.items():
+                if v is not None:
+                    merged[k] = v
+            if o.get("ord") is None and base[key].get("ord") is not None:
+                merged["ord"] = base[key]["ord"]
+            base[key] = merged
+        else:
+            base[key] = {**o}
+    return sorted(
+        base.values(),
+        key=lambda x: (
+            (x.get("ord") is None),
+            (x.get("ord") or 9999),
+            str(x.get("field")),
+        ),
+    )
+
+
+def resolve_fields(
+    db: Session,
+    *,
+    module: str,
+    tenant_id: Optional[str],
+    sector: Optional[str],
+    defaults_fn: Optional[Callable[[str, str], List[Dict[str, Any]]]] = None,
+) -> List[Dict]:
+    """Resolve effective field list using form_mode.
+
+    - Reads tenant overrides (tenant_field_config)
+    - Reads sector defaults (sector_field_defaults)
+    - Reads per-tenant mode from tenant_module_settings
+    - Applies fallback strategy
+    """
+    from app.models.core.ui_field_config import TenantFieldConfig  # type: ignore
+
+    # Load tenant overrides
+    tenant_items: List[Dict] = []
+    if tenant_id:
+        rows = (
+            db.query(TenantFieldConfig)
+            .filter(
+                TenantFieldConfig.tenant_id == tenant_id,
+                TenantFieldConfig.module == module,
+            )
+            .order_by(TenantFieldConfig.ord.asc().nulls_last())
+            .all()
+        )
+        tenant_items = [
+            {
+                "field": r.field,
+                "visible": bool(getattr(r, "visible", True)),
+                "required": bool(getattr(r, "required", False)),
+                "ord": getattr(r, "ord", None),
+                "label": getattr(r, "label", None),
+                "help": getattr(r, "help", None),
+            }
+            for r in rows
+        ]
+
+    # Load sector defaults
+    sector_items: List[Dict] = []
+    if sector:
+        try:
+            from app.models.core.ui_field_config import SectorFieldDefault  # type: ignore
+
+            srows = (
+                db.query(SectorFieldDefault)
+                .filter(
+                    SectorFieldDefault.sector == sector,
+                    SectorFieldDefault.module == module,
+                )
+                .order_by(SectorFieldDefault.ord.asc().nulls_last())
+                .all()
+            )
+            sector_items = [
+                {
+                    "field": r.field,
+                    "visible": bool(getattr(r, "visible", True)),
+                    "required": bool(getattr(r, "required", False)),
+                    "ord": getattr(r, "ord", None),
+                    "label": getattr(r, "label", None),
+                    "help": getattr(r, "help", None),
+                }
+                for r in srows
+            ]
+        except Exception:
+            sector_items = []
+
+    # Base code defaults
+    # Si defaults_fn es None, usar get_sector_defaults
+    if defaults_fn is None:
+        base_items = _normalize(get_sector_defaults(module, sector or "panaderia"))
+    else:
+        base_items = _normalize(defaults_fn(module, sector or "default"))
+
+    # Read mode
+    mode = "mixed"
+    if tenant_id:
+        try:
+            from sqlalchemy import text
+
+            row = db.execute(
+                text(
+                    "SELECT form_mode FROM tenant_module_settings WHERE tenant_id = :tid AND module = :mod"
+                ),
+                {"tid": tenant_id, "mod": module},
+            ).first()
+            if row and row[0]:
+                mode = str(row[0]).lower()
+        except Exception:
+            mode = "mixed"
+
+    # Decide effective items
+    if mode == "basic":
+        return base_items or sector_items or tenant_items
+    if mode == "sector":
+        return sector_items or base_items
+    if mode == "tenant":
+        return tenant_items or sector_items or base_items
+    # mixed (default): merge sector with tenant overrides
+    source = sector_items or base_items
+    return _merge(source, tenant_items)

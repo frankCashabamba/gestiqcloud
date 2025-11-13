@@ -7,7 +7,7 @@ def test_me_admin_requires_bearer(client: TestClient):
 
 
 def test_me_admin_ok(client: TestClient, db, superuser_factory):
-    su = superuser_factory(email="root@admin.com", username="root", password="secret")
+    su = superuser_factory(email="root@admin.com", username="root", password="secret")  # noqa: F841
     # Login admin
     r = client.post(
         "/api/v1/admin/auth/login",
@@ -25,7 +25,7 @@ def test_me_admin_ok(client: TestClient, db, superuser_factory):
 
 
 def test_me_tenant_ok(client: TestClient, db, usuario_empresa_factory):
-    u = usuario_empresa_factory(email="t@x.com", username="tenant", password="secret")
+    u = usuario_empresa_factory(email="t@x.com", username="tenant", password="secret")  # noqa: F841
 
     # Login tenant
     r = client.post(

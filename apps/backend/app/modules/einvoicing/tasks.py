@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 from celery import shared_task
-from sqlalchemy.orm import Session
 from sqlalchemy import text
-from app.db.rls import tenant_id_sql_expr
 
 from app.config.database import SessionLocal
 
@@ -65,7 +63,8 @@ def build_and_send_sii(period: str, tenant_id: str | None = None) -> dict:
         batch_id = res.scalar()
         # For demo, mark accepted
         db.execute(
-            text("UPDATE sii_batches SET status='ACCEPTED' WHERE id=:id"), {"id": batch_id}
+            text("UPDATE sii_batches SET status='ACCEPTED' WHERE id=:id"),
+            {"id": batch_id},
         )
         db.commit()
     return {"batch_id": str(batch_id), "status": "ACCEPTED"}

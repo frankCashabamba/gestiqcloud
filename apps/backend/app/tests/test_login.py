@@ -1,8 +1,5 @@
-from fastapi.testclient import TestClient
-
-
 def test_admin_login_ok(client, db, superuser_factory):
-    su = superuser_factory(email="root@x.com", username="root", password="secret")
+    su = superuser_factory(email="root@x.com", username="root", password="secret")  # noqa: F841
     r = client.post(
         "/api/v1/auth/login",
         json={"identificador": "ROOT", "password": "secret"},
@@ -13,7 +10,7 @@ def test_admin_login_ok(client, db, superuser_factory):
 
 
 def test_tenant_login_and_refresh(client, db, usuario_empresa_factory):
-    u = usuario_empresa_factory(email="a@x.com", username="a", password="secret")
+    u = usuario_empresa_factory(email="a@x.com", username="a", password="secret")  # noqa: F841
     r = client.post(
         "/api/v1/tenant/auth/login",
         json={"identificador": "A", "password": "secret"},
@@ -32,7 +29,7 @@ def test_tenant_login_and_refresh(client, db, usuario_empresa_factory):
 
 
 def test_logout_revokes_family(client, db, usuario_empresa_factory):
-    u = usuario_empresa_factory(email="b@x.com", username="b", password="s3cr3t")
+    u = usuario_empresa_factory(email="b@x.com", username="b", password="s3cr3t")  # noqa: F841
     r = client.post(
         "/api/v1/tenant/auth/login",
         json={"identificador": "b", "password": "s3cr3t"},
@@ -48,3 +45,13 @@ def test_logout_revokes_family(client, db, usuario_empresa_factory):
     client.cookies.set("refresh_token", rt)
     r2 = client.post("/api/v1/tenant/auth/refresh")
     assert r2.status_code == 401
+
+
+def test_admin_csrf_endpoint(client):
+    response = client.get("/api/v1/admin/auth/csrf")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload.get("ok") is True
+    token = payload.get("csrfToken")
+    assert isinstance(token, str) and token
+    assert client.cookies.get("csrf_token") == token

@@ -1,8 +1,19 @@
+﻿
+import React from 'react'
+import TallerDashboardPro from './taller_pro'
 
+const TallerPlantilla: React.FC<{ slug?: string }> = () => {
+  return <TallerDashboardPro />
+}
+
+export default TallerPlantilla
+
+/* LEGACY VERSION
 import React, { useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import SectorLayout from './components/SectorLayout'
 import { useMisModulos } from '../hooks/useMisModulos'
+import { useTallerKPIs, formatNumber } from '../hooks/useDashboardKPIs'
 
 function buildSlug(name?: string, url?: string, slug?: string): string {
   if (slug) return slug.toLowerCase()
@@ -18,10 +29,16 @@ function buildSlug(name?: string, url?: string, slug?: string): string {
     .replace(/\s+/g, '')
 }
 
-const kpiCard = (key: string, title: string, helper: string) => (
-  <article key={key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+const kpiCard = (key: string, title: string, value: string | number, helper: string, loading?: boolean) => (
+  <article key={key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</p>
-    <p className="mt-3 text-2xl font-semibold text-slate-900">--</p>
+    <p className="mt-3 text-2xl font-semibold text-slate-900">
+      {loading ? (
+        <span className="inline-block w-20 h-8 bg-slate-200 animate-pulse rounded"></span>
+      ) : (
+        value
+      )}
+    </p>
     <p className="mt-2 text-[11px] text-slate-400">{helper}</p>
   </article>
 )
@@ -30,14 +47,15 @@ const TallerPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
   const { modules, allowedSlugs } = useMisModulos()
   const { empresa } = useParams()
   const prefix = empresa ? `/${empresa}` : ''
+  const { data: kpisData, loading: kpisLoading } = useTallerKPIs()
 
   const sideNav = useMemo(
     () =>
       [...modules]
-        .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
         .map((m) => ({
-          label: m.nombre || buildSlug(m.nombre, m.url, m.slug),
-          to: `/mod/${buildSlug(m.nombre, m.url, m.slug)}`,
+          label: m.name || buildSlug(m.name, m.url, m.slug),
+          to: `/${buildSlug(m.name, m.url, m.slug)}`,
         })),
     [modules]
   )
@@ -47,17 +65,43 @@ const TallerPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
   const kpis = useMemo(() => {
     const items: React.ReactNode[] = []
     if (allowedSlugs.has('facturacion')) {
-      items.push(kpiCard('ordenes', '?rdenes abiertas', 'Controla ?rdenes de trabajo planificadas y en curso.'))
-      items.push(kpiCard('facturacion', 'Facturas pendientes', 'Genera facturas apenas cierres las intervenciones.'))
+      items.push(
+        kpiCard(
+          'ordenes',
+          'Órdenes activas',
+          kpisData ? formatNumber(kpisData.ordenes_trabajo_activas) : '--',
+          'Órdenes de trabajo en curso.',
+          kpisLoading
+        )
+      )
+      items.push(
+        kpiCard(
+          'servicios',
+          'Servicios hoy',
+          kpisData ? formatNumber(kpisData.servicios_completados_hoy) : '--',
+          'Servicios completados en el día.',
+          kpisLoading
+        )
+      )
     }
-    if (allowedSlugs.has('rrhh')) {
-      items.push(kpiCard('rrhh', 'Utilizaci?n de t?cnicos', 'Mide la ocupaci?n de tu personal especializado.'))
+    if (allowedSlugs.has('compras')) {
+      items.push(
+        kpiCard(
+          'repuestos',
+          'Repuestos pendientes',
+          kpisData ? formatNumber(kpisData.repuestos_pendientes) : '--',
+          'Órdenes de compra en espera.',
+          kpisLoading
+        )
+      )
     }
     if (!items.length) {
-      items.push(kpiCard('placeholder', 'KPIs por configurar', 'A?ade m?tricas de productividad y facturaci?n.'))
+      items.push(
+        kpiCard('placeholder', 'KPIs por configurar', '--', 'Añade métricas de productividad y facturación.')
+      )
     }
     return items
-  }, [allowedSlugs])
+  }, [allowedSlugs, kpisData, kpisLoading])
 
   return (
     <SectorLayout
@@ -117,4 +161,5 @@ const TallerPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
   )
 }
 
-export default TallerPlantilla
+// export default TallerPlantilla
+*/

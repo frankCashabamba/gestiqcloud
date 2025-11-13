@@ -13,6 +13,18 @@ function Set-DevEnvDefaults {
   if (-not $env:TENANT_NAMESPACE_UUID) { $env:TENANT_NAMESPACE_UUID = [guid]::NewGuid().ToString() }
 }
 
+function Invoke-SyncModelsSchema {
+  param([string]$dsn)
+  $targetDsn = if ($dsn) { $dsn } elseif ($env:DB_DSN) { $env:DB_DSN } elseif ($env:DATABASE_URL) { $env:DATABASE_URL } else { $null }
+  if (-not $targetDsn) {
+    Write-Error 'Set DB_DSN or DATABASE_URL before running sync-models.'
+    exit 1
+  }
+  Write-Host "[sync-models] Ensuring ORM tables exist..."
+  python scripts/py/sync_models_schema.py --dsn $targetDsn
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+
 switch ($cmd) {
   'up' { Set-DevEnvDefaults; docker compose up -d --build }
   'up-dev' { Set-DevEnvDefaults; docker compose up --build }
@@ -52,12 +64,14 @@ switch ($cmd) {
   'auto-migrate' {
     $dsn = $env:DB_DSN
     if (-not $dsn) { Write-Error 'Set DB_DSN env var with your Postgres DSN.'; break }
+    Invoke-SyncModelsSchema -dsn $dsn
     python scripts/py/auto_migrate.py --dsn $dsn
   }
   'migrate-local' {
     # Run hardened bootstrap (statement-by-statement) against ops/migrations
     $dsn = $env:DB_DSN
     if (-not $dsn) { Write-Error 'Set DB_DSN env var with your Postgres DSN.'; break }
+    Invoke-SyncModelsSchema -dsn $dsn
     python scripts/py/auto_migrate.py --dsn $dsn --dir ops/migrations
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   }
@@ -82,6 +96,8 @@ switch ($cmd) {
     if (-not $env:IMPORTS_REQUIRE_CATEGORIES) { $env:IMPORTS_REQUIRE_CATEGORIES = 'true' }
     docker compose up -d db
     # Ensure backend env defaults
+    # Ensure ORM models have backing tables before raw SQL migrations
+    Invoke-SyncModelsSchema -dsn $env:DB_DSN
     # Apply migrations and check schema
     python scripts/py/auto_migrate.py --dsn $env:DB_DSN --dir ops/migrations
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

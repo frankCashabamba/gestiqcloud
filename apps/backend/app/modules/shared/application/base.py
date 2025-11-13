@@ -14,4 +14,3 @@ class BaseUseCase(Generic[R]):
 
     def __init__(self, repo: R):
         self.repo: R = repo
-

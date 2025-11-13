@@ -1,4 +1,4 @@
-import React from 'react'
+﻿import React from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { useMisModulos } from '../hooks/useMisModulos'
@@ -16,7 +16,7 @@ export default function Dashboard() {
     <div>
       {/* Header general con Inicio/Cerrar sesión está en TenantShell */}
       <div style={{ maxWidth: 960, margin: '0 auto 1rem', color: 'var(--color-muted)', fontSize: 14, display: 'flex', gap: 16 }}>
-        <span>Empresa: <strong>{empresaInfo?.nombre || empresa || '—'}</strong></span>
+        <span>Empresa: <strong>{empresaInfo?.name || empresa || '—'}</strong></span>
         <span>Usuario: <strong>{profile?.username || profile?.user_id || '—'}</strong></span>
       </div>
       <div style={{ maxWidth: 960, margin: '1rem auto' }}>
@@ -27,11 +27,11 @@ export default function Dashboard() {
         )}
         {!loading && modules.length > 0 && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
-          {[...modules].sort((a,b) => (a.nombre || '').localeCompare(b.nombre || '')).map((m) => {
-            const to = prefix + (m.url || `/mod/${(m.nombre || '').toLowerCase()}`)
+          {[...modules].sort((a,b) => (a.name || '').localeCompare(b.name || '')).map((m) => {
+            const to = prefix + (m.url || `/${(m.name || '').toLowerCase()}`)
             return (
               <Link key={m.id} to={to} style={{ display: 'block', padding: 16, border: '1px solid var(--color-border)', borderRadius: 12, background: 'var(--color-surface)', textDecoration: 'none', color: 'inherit' }}>
-                <div style={{ fontWeight: 600 }}>{m.nombre}</div>
+                <div style={{ fontWeight: 600 }}>{m.name}</div>
                 <div style={{ color: 'var(--color-muted)', fontSize: 13 }}>{m.categoria || 'Módulo'}</div>
               </Link>
             )
@@ -42,5 +42,6 @@ export default function Dashboard() {
     </div>
   )
 }
+
 
 

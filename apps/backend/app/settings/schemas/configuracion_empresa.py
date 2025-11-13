@@ -10,7 +10,8 @@ from pydantic import BaseModel, ConfigDict
 
 
 class ConfiguracionEmpresaBase(BaseModel):
-    """ Class ConfiguracionEmpresaBase - auto-generated docstring. """
+    """Class ConfiguracionEmpresaBase - auto-generated docstring."""
+
     idioma_predeterminado: Optional[str] = "es"
     zona_horaria: Optional[str] = "UTC"
     moneda: Optional[str] = "USD"
@@ -18,17 +19,23 @@ class ConfiguracionEmpresaBase(BaseModel):
     color_primario: Optional[str] = "#4f46e5"
     color_secundario: Optional[str] = "#6c757d"
 
+
 class ConfiguracionEmpresaCreate(ConfiguracionEmpresaBase):
-    """ Class ConfiguracionEmpresaCreate - auto-generated docstring. """
-    empresa_id: int
+    """Class ConfiguracionEmpresaCreate - auto-generated docstring."""
+
+    tenant_id: int
+
 
 class ConfiguracionEmpresaUpdate(ConfiguracionEmpresaBase):
-    """ Class ConfiguracionEmpresaUpdate - auto-generated docstring. """
+    """Class ConfiguracionEmpresaUpdate - auto-generated docstring."""
+
     pass
 
+
 class ConfiguracionEmpresaOut(ConfiguracionEmpresaBase):
-    """ Class ConfiguracionEmpresaOut - auto-generated docstring. """
+    """Class ConfiguracionEmpresaOut - auto-generated docstring."""
+
     id: int
-    empresa_id: int
+    tenant_id: int
 
     model_config = ConfigDict(from_attributes=True)

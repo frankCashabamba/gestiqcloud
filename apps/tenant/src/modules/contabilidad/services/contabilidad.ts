@@ -1,8 +1,15 @@
 import type { Asiento } from '../types/movimiento'
-import { mockMovimientos } from '../mock/mockMovimientos'
+import api from '../../../shared/api/client'
 
 export async function fetchMovimientos(): Promise<Asiento[]> {
-  // TODO: Reemplazar por llamada real a tenantApi cuando el backend esté disponible
-  return new Promise((resolve) => setTimeout(() => resolve(mockMovimientos), 200))
+  try {
+    const { data } = await api.get<Asiento[] | { items?: Asiento[] }>(
+      `/api/v1/tenant/accounting/movimientos`
+    )
+    if (Array.isArray(data)) return data
+    const items = (data as any)?.items
+    return Array.isArray(items) ? items : []
+  } catch {
+    return []
+  }
 }
-

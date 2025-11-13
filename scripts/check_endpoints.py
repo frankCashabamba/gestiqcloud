@@ -9,6 +9,7 @@ Rules:
 
 Exit non‑zero when mismatches are found.
 """
+
 from __future__ import annotations
 
 import os
@@ -34,7 +35,7 @@ def _collect_fe_paths() -> set[str]:
             norm = re.sub(r"\$\{[^}]+\}", "{id}", raw)
             # drop duplicated slashes
             norm = re.sub(r"/{2,}", "/", norm)
-            base = ("/api" + norm.rstrip("/"))
+            base = "/api" + norm.rstrip("/")
             paths.add(base)
             # Accept tenant-prefixed alt form: '/api/v1/tenant/x' <-> '/api/v1/x'
             if base.startswith("/api/v1/tenant/"):
@@ -48,7 +49,9 @@ def _collect_be_paths() -> set[str]:
     # Minimal env for app import
     os.environ.setdefault("DATABASE_URL", "sqlite://")
     os.environ.setdefault("FRONTEND_URL", "http://localhost:8081")
-    os.environ.setdefault("TENANT_NAMESPACE_UUID", "0280249e-6707-40fb-8d60-1e8f3aea0f8e")
+    os.environ.setdefault(
+        "TENANT_NAMESPACE_UUID", "0280249e-6707-40fb-8d60-1e8f3aea0f8e"
+    )
     os.environ.setdefault("JWT_ALGORITHM", "HS256")
     os.environ.setdefault("JWT_SECRET_KEY", "devsecretdevsecretdevsecret")
     sys.path.insert(0, str((REPO / "backend").resolve()))
@@ -77,7 +80,12 @@ def main() -> int:
     be = _collect_be_paths()
 
     missing_on_be = sorted(p for p in fe if p not in be)
-    extra_on_be = sorted(p for p in be if p.startswith("/api/v1/") and p.replace("/api", "") not in {s.replace("/api", "") for s in fe})
+    extra_on_be = sorted(
+        p
+        for p in be
+        if p.startswith("/api/v1/")
+        and p.replace("/api", "") not in {s.replace("/api", "") for s in fe}
+    )
 
     ok = True
     if missing_on_be:

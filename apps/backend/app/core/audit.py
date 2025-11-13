@@ -3,7 +3,16 @@ from app.models.security.auth_audit import AuthAudit
 from sqlalchemy.orm import Session
 from fastapi import Request
 
-def audit(db: Session, *, kind: str, scope: str, user_id: str|None, tenant_id: str|None, req: Request):
+
+def audit(
+    db: Session,
+    *,
+    kind: str,
+    scope: str,
+    user_id: str | None,
+    tenant_id: str | None,
+    req: Request,
+):
     """Best-effort audit: never break request flow if DB model/tables are missing in tests."""
     try:
         db.add(

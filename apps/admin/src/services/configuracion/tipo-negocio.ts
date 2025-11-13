@@ -1,7 +1,14 @@
 import api from '../../shared/api/client'
 import { ADMIN_CONFIG } from '@shared/endpoints'
 
-export type TipoNegocio = { id: number; nombre: string }
+export type TipoNegocio = {
+  id: number
+  name: string
+  description?: string | null
+  active?: boolean
+}
+
+type TipoNegocioPayload = Omit<TipoNegocio, 'id'>
 
 export async function listTipoNegocio(): Promise<TipoNegocio[]> {
   const { data } = await api.get<TipoNegocio[]>(ADMIN_CONFIG.tipoNegocio.base)
@@ -13,12 +20,12 @@ export async function getTipoNegocio(id: number | string): Promise<TipoNegocio> 
   return data
 }
 
-export async function createTipoNegocio(payload: Omit<TipoNegocio, 'id'>): Promise<TipoNegocio> {
+export async function createTipoNegocio(payload: TipoNegocioPayload): Promise<TipoNegocio> {
   const { data } = await api.post<TipoNegocio>(ADMIN_CONFIG.tipoNegocio.base, payload)
   return data
 }
 
-export async function updateTipoNegocio(id: number | string, payload: Omit<TipoNegocio, 'id'>): Promise<TipoNegocio> {
+export async function updateTipoNegocio(id: number | string, payload: TipoNegocioPayload): Promise<TipoNegocio> {
   const { data } = await api.put<TipoNegocio>(ADMIN_CONFIG.tipoNegocio.byId(id), payload)
   return data
 }

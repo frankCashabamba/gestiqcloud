@@ -72,7 +72,7 @@ def create_batch(
 ):
     batch = use_cases.create_batch(
         db=db,
-        empresa_id=current_user.empresa_id,
+        tenant_id=current_user.tenant_id,
         source_type=request.source_type,
         description=request.description,
     )
@@ -97,9 +97,9 @@ def create_batch(
 
 **Flujo típico**:
 ```python
-def ingest_file(db, empresa_id, batch_id, file_key, filename, file_size, file_sha256):
+def ingest_file(db, tenant_id, batch_id, file_key, filename, file_size, file_sha256):
     # 1. Verificar duplicados
-    if repository.exists_promoted_hash(db, empresa_id, file_sha256):
+    if repository.exists_promoted_hash(db, tenant_id, file_sha256):
         return create_item(status="rejected_duplicate")
     
     # 2. Crear item

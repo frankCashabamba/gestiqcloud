@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Componente de impresión de etiquetas con códigos de barras
  * 
  * Genera etiquetas imprimibles para:
@@ -13,7 +13,7 @@ import JsBarcode from 'jsbarcode'
 export type ProductLabel = {
   id: string
   sku: string
-  nombre: string
+  name: string
   codigo_barras: string
   precio_venta?: number
   categoria?: string
@@ -146,7 +146,7 @@ export default function PrintBarcodeLabels({
       <div className="print:hidden px-6 py-4 bg-gray-50">
         <div className="text-sm text-gray-600 space-y-1">
           <p>✓ Tamaño: <strong>{labelSize}mm</strong></p>
-          <p>✓ Precio: <strong>{showPrice ? 'Sí' : 'No'}</strong></p>
+          <p>✓ price: <strong>{showPrice ? 'Sí' : 'No'}</strong></p>
           <p>✓ Categoría: <strong>{showCategory ? 'Sí' : 'No'}</strong></p>
         </div>
       </div>
@@ -166,7 +166,7 @@ export default function PrintBarcodeLabels({
             >
               {/* Nombre del producto (truncado) */}
               <div className="font-semibold text-center mb-1 overflow-hidden text-ellipsis whitespace-nowrap">
-                {product.nombre.substring(0, labelSize === '40x30' ? 15 : labelSize === '50x40' ? 20 : 30)}
+                {product.name.substring(0, labelSize === '40x30' ? 15 : labelSize === '50x40' ? 20 : 30)}
               </div>
 
               {/* Código de barras */}

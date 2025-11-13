@@ -1,2 +1,1 @@
-from app.core.authz import *  # re-export for compatibility
-
+from app.core.authz import *  # noqa: F403 - re-export for compatibility

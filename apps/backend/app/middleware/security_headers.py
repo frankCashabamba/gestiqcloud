@@ -3,12 +3,17 @@ from starlette.requests import Request
 from starlette.responses import Response
 from backend.app.config.settings import settings
 
+
 def _csp_for_request(request: Request) -> str:
     # Orígenes externos opcionales (deja "" si no aplican)
-    API = getattr(settings, "PUBLIC_API_ORIGIN", "")             # p.ej. "https://api.miapp.com"
-    CDN = getattr(settings, "PUBLIC_ASSETS_CDN", "")             # p.ej. "https://cdn.miapp.com"
-    FONTS_CSS = getattr(settings, "FONTS_STYLES_ORIGIN", "")     # p.ej. "https://fonts.googleapis.com"
-    FONTS_BIN = getattr(settings, "FONTS_BINARY_ORIGIN", "")     # p.ej. "https://fonts.gstatic.com"
+    API = getattr(settings, "PUBLIC_API_ORIGIN", "")  # p.ej. "https://api.miapp.com"
+    CDN = getattr(settings, "PUBLIC_ASSETS_CDN", "")  # p.ej. "https://cdn.miapp.com"
+    FONTS_CSS = getattr(
+        settings, "FONTS_STYLES_ORIGIN", ""
+    )  # p.ej. "https://fonts.googleapis.com"
+    FONTS_BIN = getattr(
+        settings, "FONTS_BINARY_ORIGIN", ""
+    )  # p.ej. "https://fonts.gstatic.com"
     # Si no usas estos orígenes, déjalos en blanco; el join los ignora.
 
     def join_src(*vals: str) -> str:
@@ -16,19 +21,20 @@ def _csp_for_request(request: Request) -> str:
 
     if settings.ENV == "production":
         parts = [
-            "default-src 'self' blob:",                              # permite blob URLs si usas workers o downloads
-            "base-uri 'none'",                                       # más estricto que 'self'
+            "default-src 'self' blob:",  # permite blob URLs si usas workers o downloads
+            "base-uri 'none'",  # más estricto que 'self'
             f"frame-ancestors {'self' if settings.ALLOW_EMBED else 'none'}",
             "object-src 'none'",
             "form-action 'self'",
             "upgrade-insecure-requests",
-
             # Recursos
             join_src("img-src", "'self'", "data:", "blob:", CDN),
             join_src("font-src", "'self'", "data:", FONTS_BIN),
-            join_src("style-src", "'self'", FONTS_CSS),              # sin 'unsafe-inline' en prod (ideal)
-            join_src("script-src", "'self'", CDN),                   # no inline, no eval
-            join_src("connect-src", "'self'", API),                  # API separada si aplica
+            join_src(
+                "style-src", "'self'", FONTS_CSS
+            ),  # sin 'unsafe-inline' en prod (ideal)
+            join_src("script-src", "'self'", CDN),  # no inline, no eval
+            join_src("connect-src", "'self'", API),  # API separada si aplica
             "media-src 'self'",
             "manifest-src 'self'",
             "worker-src 'self' blob:",
@@ -42,21 +48,24 @@ def _csp_for_request(request: Request) -> str:
         # DEV: Vite/HMR
         dev_hosts = "http://localhost:5173 http://localhost:5174"
         dev_ws = "ws://localhost:5173 ws://localhost:5174"
-        return "; ".join([
-            "default-src 'self' blob: data:",
-            "object-src 'none'",
-            "frame-ancestors 'none'",
-            "form-action 'self'",
-            # Permisos para Vite: inline + eval + hosts/WS
-            f"script-src 'self' 'unsafe-inline' 'unsafe-eval' {dev_hosts}",
-            f"style-src 'self' 'unsafe-inline' {dev_hosts}",
-            f"font-src 'self' data: {dev_hosts}",
-            f"img-src 'self' data: blob: {dev_hosts}",
-            f"connect-src 'self' {dev_hosts} {dev_ws}",
-            "media-src 'self'",
-            "manifest-src 'self'",
-            "worker-src 'self' blob:",
-        ])
+        return "; ".join(
+            [
+                "default-src 'self' blob: data:",
+                "object-src 'none'",
+                "frame-ancestors 'none'",
+                "form-action 'self'",
+                # Permisos para Vite: inline + eval + hosts/WS
+                f"script-src 'self' 'unsafe-inline' 'unsafe-eval' {dev_hosts}",
+                f"style-src 'self' 'unsafe-inline' {dev_hosts}",
+                f"font-src 'self' data: {dev_hosts}",
+                f"img-src 'self' data: blob: {dev_hosts}",
+                f"connect-src 'self' {dev_hosts} {dev_ws}",
+                "media-src 'self'",
+                "manifest-src 'self'",
+                "worker-src 'self' blob:",
+            ]
+        )
+
 
 async def security_headers_middleware(request: Request, call_next):
     resp: Response = await call_next(request)
@@ -68,8 +77,14 @@ async def security_headers_middleware(request: Request, call_next):
     resp.headers["Content-Security-Policy"] = _csp_for_request(request)
 
     # HSTS solo prod + https
-    if settings.ENV == "production" and settings.HSTS_ENABLED and request.url.scheme == "https":
-        resp.headers["Strict-Transport-Security"] = "max-age=15552000; includeSubDomains; preload"
+    if (
+        settings.ENV == "production"
+        and settings.HSTS_ENABLED
+        and request.url.scheme == "https"
+    ):
+        resp.headers["Strict-Transport-Security"] = (
+            "max-age=15552000; includeSubDomains; preload"
+        )
 
     # Opcionales según settings
     if settings.COOP_ENABLED:

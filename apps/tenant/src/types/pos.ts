@@ -80,12 +80,17 @@ export interface StoreCredit {
 export interface Product {
   id: string
   code?: string
+  sku?: string
   name: string
   price: number
   tax_rate: number
   stock_qty?: number
+  stock?: number
   image_url?: string
   category?: string
+  // POS extras
+  uom?: string
+  weight_required?: boolean
 }
 
 export interface ShiftOpenRequest {
@@ -95,7 +100,27 @@ export interface ShiftOpenRequest {
 
 export interface ShiftCloseRequest {
   shift_id: string
-  closing_total: number
+  closing_cash: number
+  loss_amount?: number
+  loss_note?: string
+}
+
+export interface ShiftSummary {
+  pending_receipts: number
+  items_sold: Array<{
+    product_id: string | null
+    name: string
+    code: string
+    qty_sold: number
+    subtotal: number
+    stock: Array<{
+      warehouse_id: string
+      warehouse_name: string
+      qty: number
+    }>
+  }>
+  sales_total: number
+  receipts_count: number
 }
 
 export interface ReceiptCreateRequest {
@@ -126,8 +151,14 @@ export interface RefundRequest {
 }
 
 export interface PaymentLinkRequest {
-  invoice_id: string
-  provider: 'stripe' | 'kushki' | 'payphone'
+  // Either invoice_id or receipt_id may be provided depending on flow
+  invoice_id?: string
+  receipt_id?: string
+  provider?: 'stripe' | 'kushki' | 'payphone'
+  amount?: number
+  currency?: string
+  description?: string
+  metadata?: Record<string, any>
   success_url?: string
   cancel_url?: string
 }

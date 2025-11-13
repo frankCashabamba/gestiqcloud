@@ -18,6 +18,7 @@ Usage:
 
 You can pass multiple --schema flags.
 """
+
 from __future__ import annotations
 import os
 import sys
@@ -96,8 +97,10 @@ def apply_rls(conn, schemas: list[str], set_default: bool) -> None:
     with conn, conn.cursor() as cur:
         # Build schema filter
         if schemas:
-            placeholders = sql.SQL(',').join(sql.Placeholder() * len(schemas))
-            schema_filter = sql.SQL("AND c.table_schema IN (" + placeholders.as_string(conn) + ")")
+            placeholders = sql.SQL(",").join(sql.Placeholder() * len(schemas))
+            schema_filter = sql.SQL(
+                "AND c.table_schema IN (" + placeholders.as_string(conn) + ")"
+            )
         else:
             schema_filter = sql.SQL("")
 
@@ -142,12 +145,20 @@ def apply_rls(conn, schemas: list[str], set_default: bool) -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Apply tenant RLS to all tables that contain tenant_id")
-    parser.add_argument('--schema', action='append', default=[], help='Schema to include (repeatable)')
-    parser.add_argument('--set-default', action='store_true', help='Set DEFAULT tenant_id := current_tenant()')
+    parser = argparse.ArgumentParser(
+        description="Apply tenant RLS to all tables that contain tenant_id"
+    )
+    parser.add_argument(
+        "--schema", action="append", default=[], help="Schema to include (repeatable)"
+    )
+    parser.add_argument(
+        "--set-default",
+        action="store_true",
+        help="Set DEFAULT tenant_id := current_tenant()",
+    )
     args = parser.parse_args()
 
-    dsn = os.environ.get('DATABASE_URL') or os.environ.get('POSTGRES_DSN')
+    dsn = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_DSN")
     if not dsn:
         print("ERROR: set DATABASE_URL env var.", file=sys.stderr)
         sys.exit(1)
@@ -156,5 +167,5 @@ def main():
         apply_rls(conn, args.schema, args.set_default)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -1,4 +1,4 @@
-from typing import Generic, List, Optional, Sequence, TypeVar
+from typing import Generic, Optional, Sequence, TypeVar
 from pydantic import BaseModel
 
 T = TypeVar("T")
@@ -23,4 +23,3 @@ class Page(Generic[T], BaseModel):
     total: int
     limit: int
     offset: int
-

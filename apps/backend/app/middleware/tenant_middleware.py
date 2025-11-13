@@ -12,9 +12,10 @@ from app.modules.identity.infrastructure.jwt_service import JwtService
 
 
 class TenantMiddleware:
-    """ Class TenantMiddleware - auto-generated docstring. """
+    """Class TenantMiddleware - auto-generated docstring."""
+
     def __init__(self, app):
-        """ Function __init__ - auto-generated docstring. """
+        """Function __init__ - auto-generated docstring."""
         self.app = app
 
     async def __call__(self, scope, receive, send):
@@ -37,7 +38,11 @@ class TenantMiddleware:
                 scope.setdefault("state", {})
                 scope["state"]["user"] = payload
             except ExpiredSignatureError:
-                response = JSONResponse({"detail": "Token expirado"}, status_code=401, headers={"X-Token-Expired": "true"})
+                response = JSONResponse(
+                    {"detail": "Token expirado"},
+                    status_code=401,
+                    headers={"X-Token-Expired": "true"},
+                )
                 await response(scope, receive, send)
                 return
             except InvalidTokenError:
@@ -46,4 +51,3 @@ class TenantMiddleware:
                 return
 
         await self.app(scope, receive, send)
-

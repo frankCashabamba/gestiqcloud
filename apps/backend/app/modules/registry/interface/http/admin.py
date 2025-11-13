@@ -24,4 +24,3 @@ def list_all_modules():
         )
         for m in items
     ]
-

@@ -1,4 +1,4 @@
-import React from 'react'
+﻿import React from 'react'
 import { useMovimientos } from '../hooks/useMovimientos'
 
 export function LibroDiario() {
@@ -24,7 +24,7 @@ export function LibroDiario() {
               {a.apuntes.map((ap, i) => (
                 <tr key={i} className="border-b">
                   <td>{ap.cuenta}</td>
-                  <td>{ap.descripcion}</td>
+                  <td>{ap.description}</td>
                   <td>{ap.debe.toFixed(2)}</td>
                   <td>{ap.haber.toFixed(2)}</td>
                 </tr>

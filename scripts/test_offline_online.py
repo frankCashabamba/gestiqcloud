@@ -14,7 +14,6 @@ import time
 import requests
 import subprocess
 import sys
-from typing import Dict, Any
 
 
 class OfflineOnlineTester:
@@ -56,8 +55,7 @@ class OfflineOnlineTester:
             # Test with empty conflicts
             payload = {"conflicts": []}
             response = requests.post(
-                f"{self.backend_url}/api/v1/electric/sync-status",
-                json=payload
+                f"{self.backend_url}/api/v1/electric/sync-status", json=payload
             )
             print(f"[OK] Sync status endpoint: {response.status_code}")
 
@@ -78,20 +76,19 @@ class OfflineOnlineTester:
                     "table": "products",
                     "id": "test-prod-1",
                     "local": {"price": 15.99, "updated_at": "2025-01-20T10:00:00Z"},
-                    "remote": {"price": 16.99, "updated_at": "2025-01-20T09:00:00Z"}
+                    "remote": {"price": 16.99, "updated_at": "2025-01-20T09:00:00Z"},
                 },
                 {
                     "table": "stock_items",
                     "id": "test-stock-1",
                     "local": {"qty_on_hand": 50, "updated_at": "2025-01-20T10:00:00Z"},
-                    "remote": {"qty_on_hand": 45, "updated_at": "2025-01-20T09:00:00Z"}
-                }
+                    "remote": {"qty_on_hand": 45, "updated_at": "2025-01-20T09:00:00Z"},
+                },
             ]
 
             payload = {"conflicts": conflicts}
             response = requests.post(
-                f"{self.backend_url}/api/v1/electric/sync-status",
-                json=payload
+                f"{self.backend_url}/api/v1/electric/sync-status", json=payload
             )
             print(f"[OK] Conflict resolution test: {response.status_code}")
 
@@ -100,7 +97,9 @@ class OfflineOnlineTester:
                 resolved = data.get("resolved_conflicts", [])
                 print(f"   Conflicts resolved: {len(resolved)}")
                 for res in resolved:
-                    print(f"   - {res['table']}.{res['id']}: {res['resolved_data']['resolution']}")
+                    print(
+                        f"   - {res['table']}.{res['id']}: {res['resolved_data']['resolution']}"
+                    )
 
             return True
         except Exception as e:
@@ -127,7 +126,7 @@ class OfflineOnlineTester:
                 cwd="apps/tenant",
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=60,
             )
 
             if result.returncode == 0:
@@ -151,10 +150,16 @@ class OfflineOnlineTester:
         try:
             print("[TEST] Running backend ElectricSQL tests...")
             result = subprocess.run(
-                ["python", "-m", "pytest", "apps/backend/app/tests/test_electric_conflicts.py", "-v"],
+                [
+                    "python",
+                    "-m",
+                    "pytest",
+                    "apps/backend/app/tests/test_electric_conflicts.py",
+                    "-v",
+                ],
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=60,
             )
 
             if result.returncode == 0:

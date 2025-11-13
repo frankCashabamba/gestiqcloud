@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ tenant_name }} — Dashboard Taller</title>
+  <meta name="color-scheme" content="light dark" />
+  <style>
+    :root{
+      --font: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      --bg:#0f1115; --surface:#151922; --surface2:#1e2430; --text:#e6e8ee; --muted:#a7afc0; --border:#2a2f3a;
+      --primary:#DC2626; --on-primary:#fff; --focus:#EF4444;
+      --ok:#26d07c; --warn:#fbbf24; --err:#ff6b6b; --info:#38bdf8;
+      --pad:12px; --gap:16px; --r:12px; --ctl:40px;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);line-height:1.45}
+    .app{min-height:100dvh;display:grid;grid-template-columns:260px 1fr;grid-template-rows:56px 1fr;grid-template-areas:"topbar topbar" "sidebar main"}
+    .top{grid-area:topbar;position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:12px;padding:0 var(--pad);background:var(--surface);border-bottom:1px solid var(--border)}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:600}
+    .brand__logo{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--primary),#EF4444)}
+    .search{flex:1;display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;height:var(--ctl);padding:0 10px}
+    .search input{border:0;background:transparent;color:var(--text);width:100%}
+    .btn{height:var(--ctl);padding:0 12px;border-radius:10px;background:var(--surface);border:1px solid var(--border);color:var(--text);cursor:pointer}
+    .btn--primary{background:var(--primary);color:var(--on-primary);border-color:transparent}
+    .side{grid-area:sidebar;background:var(--surface);border-right:1px solid var(--border);padding:12px;position:sticky;top:56px;height:calc(100dvh - 56px)}
+    .nav ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+    .nav a{display:block;padding:10px 12px;border-radius:10px;color:inherit;text-decoration:none}
+    .nav a[aria-current="page"], .nav a:hover{background:var(--surface2)}
+    .main{grid-area:main;padding:16px}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:var(--gap)}
+    .col-12{grid-column:span 12}.col-8{grid-column:span 8}.col-6{grid-column:span 6}.col-4{grid-column:span 4}.col-3{grid-column:span 3}
+    @media (max-width:1100px){.grid{grid-template-columns:repeat(6,1fr)} .col-8{grid-column:span 6}.col-6{grid-column:span 6}.col-4{grid-column:span 3}}
+    @media (max-width:800px){.grid{grid-template-columns:1fr} .side{display:none}}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:var(--pad);min-height:120px;display:flex;flex-direction:column;gap:8px;box-shadow:var(--shadow)}
+    .card h3{margin:0 0 4px 0;font-size:16px}
+    .kpis{display:flex;gap:12px;flex-wrap:wrap}
+    .pill{padding:6px 10px;border-radius:999px;border:1px solid var(--border);font-size:12px;color:var(--muted)}
+    .badge{padding:4px 8px;border-radius:999px;border:1px solid var(--border);font-size:12px;color:var(--muted)}
+    .ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok)40%,var(--border))}
+    .warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn)40%,var(--border))}
+    .err{color:var(--err);border-color:color-mix(in srgb,var(--err)40%,var(--border))}
+    .link{font-size:12px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;color:var(--primary);text-decoration:none;background:var(--surface)}
+    .list{display:grid;gap:8px}
+    .list__item{display:flex;align-items:center;justify-content:space-between;border:1px dashed var(--border);border-radius:10px;padding:8px}
+    .status-badge{display:inline-block;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:600}
+    .status--pending{background:#fef3c7;color:#92400e}
+    .status--progress{background:#dbeafe;color:#1e40af}
+    .status--completed{background:#d1fae5;color:#065f46}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="brand"><div class="brand__logo"></div><span>{{ tenant_name }}</span></div>
+      <div class="search"><input placeholder="Buscar órdenes, vehículos..." /></div>
+      <button class="btn btn--primary" onclick="location.href='/ordenes/nueva'">➕ Nueva Orden</button>
+    </header>
+
+    <aside class="side">
+      <nav class="nav">
+        <ul>
+          <li><a href="/dashboard" aria-current="page">🏠 Dashboard</a></li>
+          <li><a href="/ordenes">🔧 Órdenes</a></li>
+          <li><a href="/ventas">💰 Ventas</a></li>
+          <li><a href="/inventario">📦 Repuestos</a></li>
+          <li><a href="/clientes">👥 Clientes</a></li>
+          <li><a href="/proveedores">🏭 Proveedores</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <h1 style="margin:0 0 12px 0;font-size:20px">🔧 Dashboard del Taller</h1>
+      <div class="grid">
+
+        <!-- Órdenes de trabajo -->
+        <section class="card col-8">
+          <h3>📋 Órdenes de Trabajo</h3>
+          <div class="kpis">
+            <span class="pill">Pendientes: {{ pending_orders }}</span>
+            <span class="pill">En proceso: {{ in_progress_orders }}</span>
+            <span class="pill">Completadas hoy: {{ completed_today }}</span>
+          </div>
+          <div class="list">
+            {% for order in recent_orders %}
+            <div class="list__item">
+              <div>
+                <strong>{{ order.vehicle_plate }} - {{ order.client_name }}</strong>
+                <small style="color:var(--muted);display:block">{{ order.service_description }}</small>
+              </div>
+              <span class="status-badge status--{{ order.status }}">{{ order.status_label }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </section>
+
+        <!-- Facturación del día -->
+        <section class="card col-4">
+          <h3>💵 Facturación Hoy</h3>
+          <div class="kpis">
+            <span class="pill">Servicios: {{ services_total }}</span>
+            <span class="pill">Repuestos: {{ parts_total }}</span>
+            <span class="badge ok">Total: {{ daily_total }}</span>
+          </div>
+        </section>
+
+        <!-- Stock crítico -->
+        <section class="card col-6">
+          <h3>⚠️ Stock Crítico de Repuestos</h3>
+          <div class="list">
+            {% for item in low_stock_items %}
+            <div class="list__item">
+              <span>{{ item.part_name }} ({{ item.part_code }})</span>
+              <span class="badge err">Stock: {{ item.qty }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          <a class="link" href="/compras/crear">Crear orden de compra</a>
+        </section>
+
+        <!-- Vehículos atendidos -->
+        <section class="card col-6">
+          <h3>🚗 Vehículos Atendidos (Mes)</h3>
+          <div class="kpis">
+            <span class="pill">Total: {{ vehicles_month }}</span>
+            <span class="pill">Clientes nuevos: {{ new_clients_month }}</span>
+            <span class="badge ok">Tasa retorno: {{ return_rate }}%</span>
+          </div>
+        </section>
+
+        <!-- Próximas citas -->
+        <section class="card col-12">
+          <h3>📅 Próximas Citas (7 días)</h3>
+          <div class="list">
+            {% for appointment in upcoming_appointments %}
+            <div class="list__item">
+              <div style="flex:1">
+                <strong>{{ appointment.date }} {{ appointment.time }} - {{ appointment.vehicle_plate }}</strong>
+                <small style="color:var(--muted);display:block">{{ appointment.client_name }} - {{ appointment.service_type }}</small>
+              </div>
+              <a class="link" href="/ordenes/{{ appointment.id }}">Ver orden</a>
+            </div>
+            {% endfor %}
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+</body>
+</html>

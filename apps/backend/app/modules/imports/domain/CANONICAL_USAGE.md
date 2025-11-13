@@ -7,7 +7,7 @@ El schema canónico unifica todos los tipos de documentos (facturas, recibos, ex
 - **Validación** consistente con reglas por país (EC/ES)
 - **Enrutamiento** automático a tablas destino (expenses/income/bank_movements)
 - **Extensibilidad** sin cambiar modelo core
-- **Compatibilidad** hacia atrás con formato legacy
+- **Entrada canónica**: las fuentes deben convertir cualquier formato legacy antes de enviar datos
 
 ## Estructura básica
 
@@ -130,39 +130,7 @@ else:
 
 ## Conversión desde formato legacy
 
-```python
-from app.modules.imports.domain.canonical_schema import convert_legacy_to_canonical
-
-# Formato antiguo (DocumentoProcesado)
-legacy = {
-    "fecha": "2025-01-15",
-    "concepto": "Compra suministros",
-    "importe": 112.0,
-    "documentoTipo": "factura",
-    "invoice": "001-002-000123",
-    "cliente": "Proveedor ABC",
-    "origen": "ocr"
-}
-
-# Convertir a canónico
-canonical = convert_legacy_to_canonical(legacy)
-
-print(canonical["doc_type"])  # "invoice"
-print(canonical["totals"]["total"])  # 112.0
-```
-
-### Detección automática
-
-```python
-from app.modules.imports.domain.canonical_schema import detect_and_convert
-
-# Detecta automáticamente si es legacy o canónico
-data = {"fecha": "2025-01-15", "documentoTipo": "factura", ...}
-canonical = detect_and_convert(data)  # Convierte si es legacy
-
-data2 = {"doc_type": "invoice", "issue_date": "2025-01-15", ...}
-canonical2 = detect_and_convert(data2)  # No convierte, ya es canónico
-```
+> ⚠️ El backend **ya no convierte** formatos legacy. Si un proveedor externo sigue generando `DocumentoProcesado`, debe transformarlo en origen para cumplir el schema SPEC-1 antes de enviar los datos.
 
 ## Propuestas de enrutamiento
 
@@ -342,7 +310,7 @@ print(VALID_COUNTRIES)
 ## Mejores prácticas
 
 1. **Siempre valida** después de construir un documento
-2. **Usa detect_and_convert** para manejar legacy y canónico transparentemente
+2. **Ejecuta `validate_canonical()`** tan pronto recibas cada documento y rechaza payloads que no cumplan el schema antes de continuar el pipeline
 3. **Añade confidence** para tracking de calidad
 4. **Rellena metadata** con información adicional sin contaminar campos core
 5. **Construye routing_proposal** basado en reglas del negocio

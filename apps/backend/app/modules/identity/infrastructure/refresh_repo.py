@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Optional
 
@@ -25,7 +25,14 @@ class SqlRefreshTokenRepo(RefreshTokenRepo):
                 VALUES (:id, :user_id, :tenant_id, :created_at, NULL)
                 """
             ),
-            {"id": family_id, "user_id": user_id, "tenant_id": (tenant_id if (tenant_id and str(tenant_id).strip()) else None), "created_at": _utcnow() },
+            {
+                "id": family_id,
+                "user_id": user_id,
+                "tenant_id": (
+                    tenant_id if (tenant_id and str(tenant_id).strip()) else None
+                ),
+                "created_at": _utcnow(),
+            },
         )
         self.db.commit()
         return family_id
@@ -137,7 +144,3 @@ class SqlRefreshTokenRepo(RefreshTokenRepo):
             .first()
         )
         return str(row["family_id"]) if row else None
-
-
-
-

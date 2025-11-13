@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import time
 import hmac
 import hashlib
 from typing import Any, Dict
@@ -14,7 +13,9 @@ from app.config.database import SessionLocal
 
 
 def _sign(secret: str, payload: Dict[str, Any]) -> str:
-    body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode(
+        "utf-8"
+    )
     sig = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
     return sig
 
@@ -37,14 +38,29 @@ def deliver(delivery_id: str) -> dict:
         try:
             r = requests.post(url, json=payload, headers=headers, timeout=10)
             if 200 <= r.status_code < 300:
-                db.execute(text("UPDATE webhook_deliveries SET status='SENT', attempts=attempts+1 WHERE id=CAST(:id AS uuid)"), {"id": did})
+                db.execute(
+                    text(
+                        "UPDATE webhook_deliveries SET status='SENT', attempts=attempts+1 WHERE id=CAST(:id AS uuid)"
+                    ),
+                    {"id": did},
+                )
                 db.commit()
                 return {"ok": True}
             else:
-                db.execute(text("UPDATE webhook_deliveries SET status='FAILED', attempts=attempts+1, last_error=:e WHERE id=CAST(:id AS uuid)"), {"id": did, "e": f"HTTP {r.status_code}"})
+                db.execute(
+                    text(
+                        "UPDATE webhook_deliveries SET status='FAILED', attempts=attempts+1, last_error=:e WHERE id=CAST(:id AS uuid)"
+                    ),
+                    {"id": did, "e": f"HTTP {r.status_code}"},
+                )
                 db.commit()
                 return {"ok": False, "status": r.status_code}
         except Exception as e:
-            db.execute(text("UPDATE webhook_deliveries SET status='FAILED', attempts=attempts+1, last_error=:e WHERE id=CAST(:id AS uuid)"), {"id": did, "e": str(e)})
+            db.execute(
+                text(
+                    "UPDATE webhook_deliveries SET status='FAILED', attempts=attempts+1, last_error=:e WHERE id=CAST(:id AS uuid)"
+                ),
+                {"id": did, "e": str(e)},
+            )
             db.commit()
             return {"ok": False, "error": str(e)}

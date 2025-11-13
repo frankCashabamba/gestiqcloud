@@ -10,6 +10,7 @@ export interface FormularioEmpresa {
   nombre_empresa: string;
   tipo_empresa: string;
   tipo_negocio: string;
+  sector_plantilla_id?: number | null;
   ruc: string;
   telefono: string;
   direccion: string;

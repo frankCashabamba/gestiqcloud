@@ -17,9 +17,9 @@ export function createClient(opts: CreateClientOpts): AxiosInstance {
   const {
     baseURL,
     tokenKey = 'access_token',
-    refreshPath = '/v1/auth/refresh',
+    refreshPath = '/api/v1/auth/refresh',
     csrfPath,
-    authExemptSuffixes = ['/v1/auth/login', '/v1/auth/refresh', '/v1/auth/logout'],
+    authExemptSuffixes = ['/api/v1/auth/login', '/api/v1/auth/refresh', '/api/v1/auth/logout'],
   } = opts
 
   // Always include credentials for cross-site cookie flows (login/refresh/CSRF)

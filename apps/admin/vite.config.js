@@ -2,11 +2,12 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 var rawBase = process.env.VITE_BASE_PATH || '/';
 var basePath = rawBase.endsWith('/') ? rawBase : "".concat(rawBase, "/");
 var buildId = process.env.VITE_BUILD_ID || new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
 function pkgPath(p) {
-    return new URL(p, import.meta.url).pathname;
+    return fileURLToPath(new URL(p, import.meta.url));
 }
 function exists(p) {
     try {

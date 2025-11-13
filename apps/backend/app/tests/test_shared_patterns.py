@@ -19,9 +19,9 @@ def test_base_use_case_stores_repo_and_executes():
 
 def test_sqlalchemy_repo_stores_db_reference():
     sentinel = object()
+
     class _Repo(SqlAlchemyRepo):
         pass
 
     r = _Repo(sentinel)  # type: ignore[arg-type]
     assert getattr(r, "db") is sentinel
-

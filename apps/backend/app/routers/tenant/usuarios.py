@@ -9,4 +9,3 @@ USUARIOS: List[dict] = []
 @router.get("")
 def list_usuarios():
     return USUARIOS
-

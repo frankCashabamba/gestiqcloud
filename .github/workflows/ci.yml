@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
   push:
@@ -50,6 +50,7 @@ jobs:
       FRONTEND_URL: "http://localhost:8081"
       TENANT_NAMESPACE_UUID: "0280249e-6707-40fb-8d60-1e8f3aea0f8e"
       JWT_SECRET_KEY: "devsecrets@devsecretdevsecret"
+      SECRET_KEY: "devsecretkeysecretkey32chars"
       IMPORTS_ENABLED: "1"
       TEST_MINIMAL: "1"
 

@@ -4,6 +4,7 @@ Bowler codemod to rewrite legacy imports to new app layout.
 Examples:
 - backend.app.* -> apps.backend.app.*
 """
+
 from bowler import Query
 
 RULES = [

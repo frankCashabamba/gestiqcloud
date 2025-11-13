@@ -14,4 +14,3 @@ class ImportBatchStatus:
     PARTIAL = "PARTIAL"
     ERROR = "ERROR"
     PROMOTED = "PROMOTED"
-

@@ -19,6 +19,7 @@ MESSAGES: Dict[str, Dict[str, str]] = {
     },
 }
 
+
 def detect_lang(request: Request) -> Lang:
     # 1) cookie explícita
     lang = request.cookies.get("lang")
@@ -31,6 +32,7 @@ def detect_lang(request: Request) -> Lang:
         if code in ("es", "en"):
             return code  # type: ignore[return-value]
     return "es"
+
 
 def t(request: Request, key: str) -> str:
     lang = detect_lang(request)

@@ -29,4 +29,3 @@ class ClienteOut:
     provincia: Optional[str]
     pais: Optional[str]
     codigo_postal: Optional[str]
-

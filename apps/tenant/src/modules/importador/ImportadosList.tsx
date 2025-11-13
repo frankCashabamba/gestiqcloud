@@ -42,7 +42,7 @@ export default function ImportadosList() {
     setMessage(null)
     setLoading(true)
     try {
-      const data = await listarPendientes(token || undefined)
+      const data = await listarPendientes()
       setItems(data)
       setEditing({})
       const initialSelected: Record<number, boolean> = {}
@@ -100,7 +100,7 @@ export default function ImportadosList() {
   const onDelete = async (id: number) => {
     setRowStatus(id, { deleting: true })
     try {
-      await eliminarPendiente(id, token || undefined)
+      await eliminarPendiente(id)
       setMessage('Registro eliminado')
       await load()
     } catch (err: any) {

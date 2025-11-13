@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime
 from typing import Literal
@@ -24,9 +24,9 @@ DireccionTipo = Literal[
 
 class ProveedorContactoIn(BaseModel):
     tipo: ContactoTipo
-    nombre: str | None = None
+    name: str | None = None
     email: EmailStr | None = None
-    telefono: constr(strip_whitespace=True) | None = None
+    phone: constr(strip_whitespace=True) | None = None
     notas: str | None = Field(default=None, max_length=255)
 
 
@@ -34,7 +34,7 @@ class ProveedorDireccionIn(BaseModel):
     tipo: DireccionTipo
     linea1: str
     linea2: str | None = None
-    ciudad: str | None = None
+    city: str | None = None
     region: str | None = None
     codigo_postal: str | None = None
     pais: constr(strip_whitespace=True, min_length=2, max_length=3) | None = None
@@ -42,7 +42,7 @@ class ProveedorDireccionIn(BaseModel):
 
 
 class ProveedorBase(BaseModel):
-    nombre: str
+    name: str
     nombre_comercial: str | None = None
     nif: constr(strip_whitespace=True, max_length=32) | None = None
     pais: constr(strip_whitespace=True, min_length=2, max_length=3) | None = None
@@ -83,7 +83,7 @@ class ProveedorDireccionOut(ProveedorDireccionIn):
 
 class ProveedorOut(ProveedorBase):
     id: int
-    empresa_id: int
+    tenant_id: int
     iban_actualizado_por: str | None = None
     iban_actualizado_at: datetime | None = None
     contactos: list[ProveedorContactoOut] = Field(default_factory=list)
@@ -95,7 +95,7 @@ class ProveedorOut(ProveedorBase):
 
 class ProveedorListOut(BaseModel):
     id: int
-    nombre: str
+    name: str
     nombre_comercial: str | None = None
     email: EmailStr | None = None
-    telefono: str | None = None
+    phone: str | None = None

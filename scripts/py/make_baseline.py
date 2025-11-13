@@ -8,12 +8,17 @@ from pathlib import Path
 
 def main():
     repo_root = Path(__file__).resolve().parents[2]
-    baseline_dir = repo_root / "ops" / "migrations" / "2025-09-22_000_baseline_full_schema"
+    baseline_dir = (
+        repo_root / "ops" / "migrations" / "2025-09-22_000_baseline_full_schema"
+    )
     out_file = baseline_dir / "up.sql"
 
     dsn = os.environ.get("DB_DSN") or os.environ.get("DATABASE_URL")
     if not dsn:
-        print("Set DB_DSN or DATABASE_URL to your Postgres DSN (e.g., postgresql://user:pass@host:5432/db)", file=sys.stderr)
+        print(
+            "Set DB_DSN or DATABASE_URL to your Postgres DSN (e.g., postgresql://user:pass@host:5432/db)",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # Requires pg_dump in PATH
@@ -28,7 +33,10 @@ def main():
     try:
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
     except FileNotFoundError:
-        print("pg_dump not found. Install PostgreSQL client tools and ensure pg_dump is in PATH.", file=sys.stderr)
+        print(
+            "pg_dump not found. Install PostgreSQL client tools and ensure pg_dump is in PATH.",
+            file=sys.stderr,
+        )
         sys.exit(2)
     except subprocess.CalledProcessError as e:
         print("pg_dump failed:", e.stderr or e.stdout, file=sys.stderr)
@@ -77,11 +85,13 @@ def main():
 
     # curated extensions at top (idempotent)
     ext_block = (
-        "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
-        "CREATE EXTENSION IF NOT EXISTS \"pgcrypto\";\n\n"
+        'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";\n'
+        'CREATE EXTENSION IF NOT EXISTS "pgcrypto";\n\n'
     )
     baseline_dir.mkdir(parents=True, exist_ok=True)
-    out_file.write_text(header + ext_block + "\n".join(cleaned) + "\n", encoding="utf-8")
+    out_file.write_text(
+        header + ext_block + "\n".join(cleaned) + "\n", encoding="utf-8"
+    )
     print(f"Baseline written to {out_file}")
 
 

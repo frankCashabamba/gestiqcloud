@@ -17,4 +17,3 @@ def init_logging(level: int | None = None) -> None:
         formatter = logging.Formatter("[%(levelname)s] %(name)s: %(message)s")
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-

@@ -1,0 +1,512 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PanERP — TPV</title>
+  <meta name="color-scheme" content="light dark" />
+  <style>
+    :root{
+      --font: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      --bg:#0b0e14; --surface:#121722; --surface2:#1a2130; --text:#e6e8ee; --muted:#a7afc0; --border:#2a2f3a;
+      --primary:#5B8CFF; --ok:#26d07c; --warn:#fbbf24; --err:#ff6b6b;
+      --pad:12px; --r:14px; --ctl:48px; --shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);-webkit-tap-highlight-color: transparent;}
+    .tpv{display:grid;grid-template-columns:2fr 1.2fr;grid-template-rows:64px 1fr 64px;grid-template-areas:"top top" "left right" "bottom bottom";height:100dvh;gap:0}
+    @media (max-width:1100px){.tpv{grid-template-columns:1fr;grid-template-rows:64px auto auto 64px;grid-template-areas:"top" "left" "right" "bottom"}}
+
+    /* Top bar */
+    .top{grid-area:top;display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
+    .brand{font-weight:600;display:flex;align-items:center;gap:10px}
+    .brand__logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--primary),#9fb6ff)}
+    .badge{padding:6px 10px;border-radius:999px;border:1px solid var(--border);font-size:12px;color:var(--muted);white-space:nowrap}
+    .badge.ok{color:var(--ok);border-color:color-mix(in srgb, var(--ok) 40%, var(--border))}
+    .badge.off{color:var(--warn);border-color:color-mix(in srgb, var(--warn) 40%, var(--border))}
+    .btn{height:var(--ctl);border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 14px;cursor:pointer}
+    .btn.primary{background:var(--primary);border-color:transparent}
+    .btn.ghost{background:transparent}
+    .btn.sm{height:40px;border-radius:10px;padding:0 12px;font-size:14px;}
+
+    /* Left column (catalog) */
+    .left{grid-area:left;display:grid;grid-template-rows:auto auto 1fr;gap:8px;padding:8px}
+    .search{display:flex;gap:8px;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:0 10px;height:48px}
+    .search input{border:0;background:transparent;color:var(--text);width:100%;font-size:16px}
+    .cats{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .cat{padding:8px 12px;border:1px solid var(--border);border-radius:999px;background:var(--surface);cursor:pointer}
+    .cat.active, .cat:hover{background:var(--surface2)}
+    .catalog{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;overflow:auto}
+    @media (max-width:1200px){.catalog{grid-template-columns:repeat(4,1fr)}}
+    @media (max-width:800px){.catalog{grid-template-columns:repeat(3,1fr)}}
+    .tile{display:flex;flex-direction:column;gap:8px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;cursor:pointer;user-select:none;box-shadow:var(--shadow)}
+    .tile strong{font-size:16px}
+    .tile small{color:var(--muted)}
+    .tile .tags{display:flex;gap:6px;flex-wrap:wrap}
+    .chip{font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:999px;color:var(--muted)}
+
+    /* Right column (cart & pay) */
+    .right{grid-area:right;display:grid;grid-template-rows:1fr auto;gap:8px;border-left:1px solid var(--border)}
+    .cart{padding:8px;overflow:auto}
+    .row{display:grid;grid-template-columns:1fr 76px 86px 40px;gap:8px;align-items:center;border-bottom:1px dashed var(--border);padding:8px 0}
+    .qty{display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+    .qty button{width:40px;height:40px;background:var(--surface2);border:0;color:var(--text);cursor:pointer}
+    .qty input{width:48px;text-align:center;border:0;background:var(--surface);color:var(--text);font-size:16px}
+    .sum{font-weight:700;text-align:right}
+    .del{background:transparent;border:0;color:var(--err);cursor:pointer;font-size:18px}
+    .line-tools{display:flex;gap:6px}
+    .line-tools .btn{height:32px;border-radius:8px;padding:0 10px;font-size:13px}
+
+    .pay{padding:8px;border-top:1px solid var(--border);background:var(--surface)}
+    .totals{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center}
+    .big{font-size:22px;font-weight:800}
+    .keypad{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
+    .keypad .btn{height:56px;border-radius:12px;font-size:18px}
+    .paymodes{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+
+    /* Bottom bar */
+    .bottom{grid-area:bottom;display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px;background:var(--surface);border-top:1px solid var(--border)}
+    .actions{display:flex;gap:8px;flex-wrap:wrap}
+
+    /* Receipt preview */
+    .receipt{background:#fff;color:#000;font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;font-size:12px;padding:12px;border-radius:8px;max-height:200px;overflow:auto}
+    .receipt h4{margin:0 0 8px 0}
+    .receipt table{width:100%;border-collapse:collapse}
+    .receipt td{padding:2px 0}
+
+    /* Status toast */
+    .toast{position:fixed;right:16px;bottom:16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;box-shadow:var(--shadow);display:none}
+    .toast.show{display:block}
+  </style>
+</head>
+<body>
+  <div class="tpv">
+    <!-- Top -->
+    <header class="top">
+      <div class="brand"><div class="brand__logo" aria-hidden="true"></div> <span>TPV — PanERP</span></div>
+      <div class="actions">
+        <button class="btn sm" id="btnCliente">Cliente</button>
+        <button class="btn sm" id="btnDescuentoGlobal">Descuento</button>
+        <button class="btn sm" id="btnEspera">Ticket en espera</button>
+        <button class="btn sm" id="btnReimp">Reimprimir</button>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <span id="netBadge" class="badge ok">Online</span>
+        <span class="badge">Cajón</span>
+        <span class="badge">Impresora</span>
+        <span class="badge">Caja abierta</span>
+      </div>
+    </header>
+
+    <!-- Left: catalog -->
+    <section class="left">
+      <div class="search" role="search">
+        <input id="search" placeholder="Buscar productos o escanear código (F2)" aria-label="Buscar productos" />
+        <input id="barcode" placeholder="Código de barras" aria-label="Código de barras" style="width:180px;border-left:1px solid var(--border);padding-left:10px"/>
+        <button class="btn sm" id="btnClear">Limpiar</button>
+      </div>
+      <div class="cats" role="tablist" aria-label="Categorías">
+        <button class="cat active" data-cat="*">Todo</button>
+        <button class="cat" data-cat="Pan">Pan</button>
+        <button class="cat" data-cat="Bollería">Bollería</button>
+        <button class="cat" data-cat="Bebidas">Bebidas</button>
+        <button class="cat" data-cat="Pastelería">Pastelería</button>
+        <button class="cat" data-cat="Salado">Salado</button>
+        <button class="cat" data-cat="Combos">Combos</button>
+      </div>
+      <div id="catalog" class="catalog" role="list" aria-label="Catálogo">
+        <!-- Tiles -->
+      </div>
+    </section>
+
+    <!-- Right: cart & pay -->
+    <aside class="right">
+      <div class="cart" role="list" aria-label="Carrito" id="cartList"></div>
+      <div class="pay">
+        <div class="totals">
+          <div>Subtotal</div><div id="subtotal" class="sum">0,00€</div>
+          <div>Descuento</div><div id="discount" class="sum">0,00€</div>
+          <div>IVA</div><div id="tax" class="sum">0,00€</div>
+          <div class="big">Total</div><div id="total" class="sum big">0,00€</div>
+        </div>
+        <div class="paymodes" role="group" aria-label="Métodos de pago">
+          <button class="btn" data-pay="cash">Efectivo</button>
+          <button class="btn" data-pay="card">Tarjeta</button>
+          <button class="btn" data-pay="mixed">Mixto</button>
+          <button class="btn ghost" id="btnAbrirCajon">Abrir cajón</button>
+          <button class="btn ghost" id="btnEtiqueta">Imprimir etiqueta</button>
+        </div>
+        <div id="payArea">
+          <!-- Keypad will render here -->
+        </div>
+        <div id="receipt" class="receipt" style="margin-top:8px;display:none"></div>
+      </div>
+    </aside>
+
+    <!-- Bottom -->
+    <footer class="bottom">
+      <div class="actions">
+        <button class="btn" id="btnBorrar">Borrar todo</button>
+        <button class="btn" id="btnNotas">Notas</button>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="btnCobrar">Cobrar</button>
+      </div>
+    </footer>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite">Acción realizada</div>
+
+  <script>
+    // --- Demo data ---
+    const catalog = [
+      {id:1, sku:'BAR', name:'Barra', price:1.20, cat:'Pan', tags:['popular']},
+      {id:2, sku:'BAG', name:'Baguette', price:1.30, cat:'Pan'},
+      {id:3, sku:'CROIS', name:'Croissant', price:1.10, cat:'Bollería'},
+      {id:4, sku:'NAP', name:'Napolitana choc.', price:1.40, cat:'Bollería'},
+      {id:5, sku:'CAF', name:'Café solo', price:1.20, cat:'Bebidas', tags:['rápido']},
+      {id:6, sku:'CL', name:'Café con leche', price:1.60, cat:'Bebidas'},
+      {id:7, sku:'ZUM', name:'Zumo naranja', price:2.00, cat:'Bebidas'},
+      {id:8, sku:'MOL', name:'Mollete', price:1.10, cat:'Pan'},
+      {id:9, sku:'CIA', name:'Ciabatta', price:1.50, cat:'Pan'},
+      {id:10, sku:'DON', name:'Donut', price:1.20, cat:'Pastelería'},
+      {id:11, sku:'TAR', name:'Tarta porción', price:2.50, cat:'Pastelería'},
+      {id:12, sku:'EMP', name:'Empanada', price:2.00, cat:'Salado'},
+      {id:101, sku:'COM1', name:'Combo Café + Croissant', price:2.20, cat:'Combos', tags:['ahorro']}
+    ];
+    const TAX = 0.10;
+    const euros = n => n.toLocaleString('es-ES',{style:'currency', currency:'EUR'});
+
+    // --- State ---
+    let cart = [];
+    let ticketNotes = '';
+    let globalDiscountPct = 0; // 0..1
+    const heldTickets = []; // {id, cart, globalDiscountPct, ticketNotes}
+    let selectedPay = 'cash';
+    let offline = false;
+
+    // --- UI helpers ---
+    const toast = (msg)=>{ const t=document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 1800); }
+
+    // --- Render catalog ---
+    const elCatalog = document.getElementById('catalog');
+    function renderCatalog(list){
+      elCatalog.innerHTML='';
+      list.forEach(p=>{
+        const b = document.createElement('button');
+        b.className='tile'; b.setAttribute('role','listitem'); b.title = p.sku;
+        const tags = (p.tags||[]).map(t=>`<span class="chip">${t}</span>`).join('');
+        b.innerHTML = `<strong>${p.name}</strong><small>${euros(p.price)}</small><div class="tags">${tags}</div>`;
+        b.onclick = ()=> addToCart(p);
+        elCatalog.appendChild(b);
+      });
+    }
+
+    // --- Render cart ---
+    const elCart = document.getElementById('cartList');
+    function renderCart(){
+      elCart.innerHTML='';
+      cart.forEach((c, idx)=>{
+        const line = document.createElement('div');
+        line.className = 'row';
+        line.innerHTML = `
+          <div>
+            <div style="display:flex;gap:6px;align-items:center;justify-content:space-between">
+              <strong>${c.name}</strong>
+              <div class="line-tools">
+                <button class="btn ghost" title="Descuento línea" onclick="lineDiscount(${idx})">-%</button>
+                <button class="btn ghost" title="Notas" onclick="lineNote(${idx})">📝</button>
+              </div>
+            </div>
+            <small style="color:var(--muted)">${euros(c.price)} ${c.discount?`· Desc ${(c.discount*100).toFixed(0)}%`:''} ${c.note?`· ${c.note}`:''}</small>
+          </div>
+          <div class="qty">
+            <button aria-label="menos" onclick="updateQty(${idx},-1)">–</button>
+            <input aria-label="cantidad" value="${c.qty}" readonly />
+            <button aria-label="más" onclick="updateQty(${idx},1)">+</button>
+          </div>
+          <div class="sum">${euros(lineTotal(c))}</div>
+          <button class="del" aria-label="Eliminar" onclick="removeItem(${idx})">✕</button>
+        `;
+        elCart.appendChild(line);
+      });
+      renderTotals();
+    }
+
+    function lineTotal(c){
+      const price = c.price * (1 - (c.discount||0));
+      return price * c.qty;
+    }
+
+    function renderTotals(){
+      const sub = cart.reduce((s,c)=> s + c.price * c.qty, 0);
+      const lineDisc = cart.reduce((s,c)=> s + (c.price*c.qty - lineTotal(c)), 0);
+      const baseAfterLine = sub - lineDisc;
+      const gDisc = baseAfterLine * globalDiscountPct;
+      const base = baseAfterLine - gDisc;
+      const tax = base * TAX;
+      const total = base + tax;
+      document.getElementById('subtotal').textContent = euros(baseAfterLine);
+      document.getElementById('discount').textContent = '-' + euros(lineDisc + gDisc);
+      document.getElementById('tax').textContent = euros(tax);
+      document.getElementById('total').textContent = euros(total);
+    }
+
+    // --- Cart ops ---
+    function addToCart(p){
+      const ix = cart.findIndex(x=>x.id===p.id);
+      if (ix>=0) cart[ix].qty += 1; else cart.push({...p, qty:1});
+      renderCart();
+    }
+    function updateQty(i, d){
+      cart[i].qty = Math.max(1, cart[i].qty + d);
+      renderCart();
+    }
+    function removeItem(i){
+      cart.splice(i,1); renderCart();
+    }
+    function lineDiscount(i){
+      const v = prompt('Descuento línea (%)', (cart[i].discount||0)*100);
+      if (v===null) return;
+      const pct = Math.min(100, Math.max(0, parseFloat(v)||0)) / 100;
+      cart[i].discount = pct; renderCart();
+    }
+    function lineNote(i){
+      const v = prompt('Notas de línea', cart[i].note||'');
+      if (v===null) return; cart[i].note = v; renderCart();
+    }
+    window.updateQty = updateQty; window.removeItem = removeItem; window.lineDiscount = lineDiscount; window.lineNote = lineNote;
+
+    // --- Filters & search ---
+    const searchEl = document.getElementById('search');
+    const barcodeEl = document.getElementById('barcode');
+    function applyFilters(){
+      const q = searchEl.value.toLowerCase();
+      const catBtn = document.querySelector('.cat.active');
+      const cat = catBtn ? catBtn.dataset.cat : '*';
+      const filtered = catalog.filter(p =>
+        (cat==='*' || p.cat === cat) &&
+        (!q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q))
+      );
+      renderCatalog(filtered);
+    }
+    document.querySelectorAll('.cat').forEach(b=> b.addEventListener('click', ()=>{
+      document.querySelectorAll('.cat').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active'); applyFilters();
+    }));
+    searchEl.addEventListener('input', applyFilters);
+    barcodeEl.addEventListener('keydown', (e)=>{
+      if (e.key === 'Enter') {
+        const code = barcodeEl.value.trim().toLowerCase();
+        const p = catalog.find(x=> x.sku.toLowerCase() === code);
+        if (p) addToCart(p); else toast('Código no encontrado');
+        barcodeEl.value = '';
+      }
+    });
+    document.getElementById('btnClear').addEventListener('click', ()=>{ searchEl.value=''; applyFilters(); });
+
+    // --- Global discount ---
+    document.getElementById('btnDescuentoGlobal').addEventListener('click', ()=>{
+      const v = prompt('Descuento global (%)', globalDiscountPct*100);
+      if (v===null) return;
+      globalDiscountPct = Math.min(100, Math.max(0, parseFloat(v)||0)) / 100;
+      renderTotals();
+    });
+
+    // --- Hold / resume tickets ---
+    document.getElementById('btnEspera').addEventListener('click', ()=>{
+      if (cart.length===0) { toast('No hay líneas'); return; }
+      const id = 'T' + Math.floor(Math.random()*1e6);
+      heldTickets.push({ id, cart: JSON.parse(JSON.stringify(cart)), globalDiscountPct, ticketNotes });
+      cart = []; globalDiscountPct=0; ticketNotes='';
+      renderCart(); toast('Ticket en espera: '+id+' · pulsa Reimprimir para ver lista');
+    });
+    document.getElementById('btnReimp').addEventListener('click', ()=>{
+      if (heldTickets.length===0) { toast('No hay tickets en espera'); return; }
+      const pick = prompt('Tickets en espera:\n' + heldTickets.map(t=>t.id).join(', ') + '\nEscribe ID para recuperar');
+      if (!pick) return;
+      const ix = heldTickets.findIndex(t=>t.id===pick.trim());
+      if (ix<0) { toast('ID no encontrado'); return; }
+      const t = heldTickets.splice(ix,1)[0];
+      cart = t.cart; globalDiscountPct = t.globalDiscountPct; ticketNotes = t.ticketNotes;
+      renderCart(); toast('Ticket recuperado: '+pick);
+    });
+
+    // --- Notes ---
+    document.getElementById('btnNotas').addEventListener('click', ()=>{
+      const v = prompt('Notas del ticket', ticketNotes || '');
+      if (v===null) return; ticketNotes = v; toast('Notas guardadas');
+    });
+
+    // --- Customer (simple) ---
+    document.getElementById('btnCliente').addEventListener('click', ()=>{
+      const v = prompt('Cliente (nombre o código)', '');
+      if (v===null) return; toast('Cliente asignado: ' + v);
+    });
+
+    // --- Drawer & label (demo) ---
+    document.getElementById('btnAbrirCajon').addEventListener('click', ()=> toast('Cajón abierto (demo)'));
+    document.getElementById('btnEtiqueta').addEventListener('click', ()=> toast('Etiqueta impresa (demo)'));
+
+    // --- Payment modes ---
+    document.querySelectorAll('[data-pay]').forEach(b=> b.addEventListener('click', ()=>{
+      selectedPay = b.dataset.pay;
+      renderPayArea();
+    }));
+
+    function totalsRaw(){
+      const sub = cart.reduce((s,c)=> s + c.price * c.qty, 0);
+      const lineDisc = cart.reduce((s,c)=> s + (c.price*c.qty - lineTotal(c)), 0);
+      const baseAfterLine = sub - lineDisc;
+      const gDisc = baseAfterLine * globalDiscountPct;
+      const base = baseAfterLine - gDisc;
+      const tax = base * TAX;
+      const total = base + tax;
+      return {sub, lineDisc, gDisc, base, tax, total};
+    }
+
+    function renderPayArea(){
+      const area = document.getElementById('payArea');
+      const t = totalsRaw().total;
+      if (selectedPay === 'cash') {
+        area.innerHTML = `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end">
+            <div>
+              <label>Entregado (€)</label>
+              <input id="entregado" style="width:100%;height:48px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 10px;font-size:18px" inputmode="decimal" />
+            </div>
+            <div>
+              <label>Cambio</label>
+              <div id="cambio" class="big">—</div>
+            </div>
+          </div>
+          <div class="keypad" aria-label="Teclado numérico">
+            ${[7,8,9,'⌫',4,5,6,'×2',1,2,3,'%',0,',','Borrar','Exacto'].map(k => `<button class="btn">${k}</button>`).join('')}
+          </div>
+        `;
+        const inp = area.querySelector('#entregado');
+        const cam = area.querySelector('#cambio');
+        const setCambio = ()=> {
+          const val = parseFloat(inp.value.replace(',','.')) || 0;
+          cam.textContent = euros(Math.max(0, val - t));
+        };
+        inp.addEventListener('input', setCambio);
+        area.querySelectorAll('.keypad .btn').forEach((b)=>{
+          b.addEventListener('click', ()=>{
+            const k = b.textContent;
+            if (k==='⌫'){ inp.value = inp.value.slice(0,-1); }
+            else if (k==='×2'){ const v = parseFloat(inp.value.replace(',','.'))||0; inp.value = (v*2).toString(); }
+            else if (k==='%'){ inp.value = (t * 1.10).toFixed(2); } // +10%
+            else if (k==='Borrar'){ inp.value=''; }
+            else if (k==='Exacto'){ inp.value = t.toFixed(2); }
+            else if (k===','){ inp.value += ','; }
+            else { inp.value += k; }
+            setCambio();
+          });
+        });
+      } else if (selectedPay === 'card') {
+        area.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div><strong>Importe a cobrar</strong><div class="big">${euros(t)}</div></div>
+            <button class="btn">Iniciar TPV Tarjeta</button>
+          </div>
+          <small style="color:var(--muted)">Conexión con pinpad/RedSys simulada en demo.</small>
+        `;
+      } else {
+        // mixed
+        area.innerHTML = `
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div><label>Efectivo</label><input id="mixCash" style="width:100%;height:48px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 10px;font-size:18px" inputmode="decimal" /></div>
+            <div><label>Tarjeta</label><input id="mixCard" style="width:100%;height:48px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 10px;font-size:18px" inputmode="decimal" /></div>
+            <div><label>Pendiente</label><div id="mixLeft" class="big">${euros(t)}</div></div>
+          </div>
+        `;
+        const cash = area.querySelector('#mixCash');
+        const card = area.querySelector('#mixCard');
+        const left = area.querySelector('#mixLeft');
+        function upd(){
+          const c = parseFloat((cash.value||'0').replace(',','.'))||0;
+          const k = parseFloat((card.value||'0').replace(',','.'))||0;
+          left.textContent = euros(Math.max(0, t - c - k));
+        }
+        cash.addEventListener('input', upd); card.addEventListener('input', upd);
+      }
+    }
+    renderPayArea();
+
+    // --- Checkout ---
+    document.getElementById('btnCobrar').addEventListener('click', ()=>{
+      if (cart.length===0){ toast('No hay líneas'); return; }
+      const { total, base, tax } = totalsRaw();
+      const ticket = {
+        id:'T'+Date.now(),
+        lines: cart.map(c=>({sku:c.sku, name:c.name, qty:c.qty, price:c.price, discount:c.discount||0})),
+        totals:{ base, tax, total, discountGlobal: globalDiscountPct, taxRate: TAX },
+        pay:selectedPay, notes: ticketNotes, ts:new Date().toISOString(), offline
+      };
+      // Offline queue
+      if (offline){
+        const queued = JSON.parse(localStorage.getItem('queue')||'[]');
+        queued.push(ticket); localStorage.setItem('queue', JSON.stringify(queued));
+        toast('Cobrado (offline). Se sincronizará.');
+      } else {
+        toast('Cobrado. Imprimiendo ticket…');
+      }
+      showReceipt(ticket);
+      // Reset
+      cart = []; globalDiscountPct=0; ticketNotes=''; renderCart();
+    });
+
+    function showReceipt(t){
+      const el = document.getElementById('receipt');
+      const L = t.lines.map(l=> `<tr><td>${l.qty} x ${l.name}</td><td style="text-align:right">${euros(l.qty*l.price*(1-l.discount))}</td></tr>`).join('');
+      el.innerHTML = `
+        <h4>Panadería Centro</h4>
+        <div>Ticket ${t.id}</div>
+        <div>${new Date(t.ts).toLocaleString('es-ES')}</div>
+        <hr />
+        <table>${L}</table>
+        <hr />
+        <div>Base: ${euros(t.totals.base)}</div>
+        <div>IVA (${(t.totals.taxRate*100).toFixed(0)}%): ${euros(t.totals.tax)}</div>
+        <div><strong>Total: ${euros(t.totals.total)}</strong></div>
+        <div>Pago: ${t.pay}</div>
+        ${t.offline?'<div>** PENDIENTE DE SINCRONIZAR **</div>':''}
+        ${t.notes?('<div>Notas: '+t.notes+'</div>'):''}
+      `;
+      el.style.display='block';
+    }
+
+    // --- Offline demo toggle ---
+    const netBadge = document.getElementById('netBadge');
+    window.addEventListener('keydown', (e)=>{
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='o'){
+        offline = !offline;
+        netBadge.textContent = offline ? 'Offline' : 'Online';
+        netBadge.className = 'badge ' + (offline ? 'off' : 'ok');
+        if (!offline){
+          // try to flush
+          const queued = JSON.parse(localStorage.getItem('queue')||'[]');
+          if (queued.length){
+            localStorage.removeItem('queue');
+            toast('Sincronizados ' + queued.length + ' tickets');
+          }
+        }
+      }
+      if (e.key === 'F2'){ document.getElementById('search').focus(); }
+    });
+
+    // --- Clear all ---
+    document.getElementById('btnBorrar').addEventListener('click', ()=>{
+      if (!confirm('¿Vaciar carrito?')) return;
+      cart = []; globalDiscountPct=0; ticketNotes=''; renderCart();
+    });
+
+    // Init
+    renderCatalog(catalog);
+    renderCart();
+    applyFilters();
+  </script>
+</body>
+</html>

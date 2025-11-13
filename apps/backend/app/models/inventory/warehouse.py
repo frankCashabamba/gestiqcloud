@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import Optional
 
-from sqlalchemy import String, Boolean, Integer, JSON
+from sqlalchemy import String, Boolean, JSON, text as sa_text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
+from uuid import uuid4
 
 from app.config.database import Base
 
@@ -18,11 +19,24 @@ def _uuid_col():
 
 class Warehouse(Base):
     __tablename__ = "warehouses"
+    __table_args__ = {"extend_existing": True}
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[str] = mapped_column(
+        _uuid_col(),
+        primary_key=True,
+        # Python-side default for tests/SQLite and client-side generation
+        default=lambda: uuid4(),
+        # Server-side default for Postgres so ORM can fetch RETURNING
+        server_default=sa_text("gen_random_uuid()"),
+    )
     tenant_id: Mapped[str] = mapped_column(_uuid_col(), index=True)
     code: Mapped[str] = mapped_column(String, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # DB column is 'active' but our model uses 'is_active' in code
+    is_active: Mapped[bool] = mapped_column(
+        "active", Boolean, default=True, nullable=False
+    )
     # Avoid reserved attribute name 'metadata'
-    extra_metadata: Mapped[Optional[dict]] = mapped_column("metadata", JSON, nullable=True)
+    extra_metadata: Mapped[Optional[dict]] = mapped_column(
+        "metadata", JSON, nullable=True
+    )

@@ -1,0 +1,34 @@
+/* src/components/SimpleLineChart.css */
+
+.simple-line-chart {
+  width: 100%;
+  height: 180px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-svg {
+  width: 100%;
+  height: 150px;
+}
+
+.chart-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 150px;
+  color: #9CA3AF;
+  font-size: 0.875rem;
+}
+
+.chart-legend {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  color: #6B7280;
+}
+
+.chart-legend__label {
+  font-weight: 500;
+}

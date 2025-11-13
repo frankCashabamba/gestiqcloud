@@ -1,0 +1,13 @@
+{
+  "name": ["nombre", "producto", "name", "descripcion", "description", "articulo", "artículo"],
+  "sku": ["sku", "codigo", "código", "code", "referencia", "ref"],
+  "price": ["precio", "price", "venta", "pvp", "unitario"],
+  "stock": ["stock", "cantidad", "qty", "existencia"],
+  "unit": ["unidad", "uom", "u/m", "unit"],
+  "category": ["categoria", "categoría", "category", "clase", "familia"],
+  "image_url": ["foto", "imagen", "image", "url imagen", "url"],
+  "packs": ["bultos", "packs", "cajas"],
+  "units_per_pack": ["cantidad por bulto", "unidades por bulto", "u x bulto", "u x pack", "cantidad x bulto"],
+  "pack_price": ["precio por bulto", "precio bulto", "precio caja"]
+}
+

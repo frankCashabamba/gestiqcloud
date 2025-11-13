@@ -15,7 +15,8 @@ from app.settings.schemas.configuracion_empresa import (
 
 
 class EmpresaConfiguracionOut(BaseModel):
-    """ Class EmpresaConfiguracionOut - auto-generated docstring. """
+    """Class EmpresaConfiguracionOut - auto-generated docstring."""
+
     logo_empresa: Optional[str] = None
     color_primario: Optional[str] = "#4f46e5"
     color_secundario: Optional[str] = "#6c757d"

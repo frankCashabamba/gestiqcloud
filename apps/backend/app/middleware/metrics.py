@@ -19,4 +19,3 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             # nunca romper la request por métricas
             pass
         return resp
-

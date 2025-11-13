@@ -9,13 +9,16 @@ from pydantic import BaseModel, ConfigDict
 
 
 class RolBase(BaseModel):
-    """ Class RolBase - auto-generated docstring. """
+    """Class RolBase - auto-generated docstring."""
+
     nombre: str
     descripcion: Optional[str] = None
     permisos: Dict[str, bool] = {}
 
+
 class RolCreate(BaseModel):
-    """ Class RolCreate - auto-generated docstring. """
+    """Class RolCreate - auto-generated docstring."""
+
     nombre: str
     descripcion: Optional[str]
     permisos: List[str]
@@ -23,18 +26,24 @@ class RolCreate(BaseModel):
 
 
 class RolUpdate(RolBase):
-    """ Class RolUpdate - auto-generated docstring. """
+    """Class RolUpdate - auto-generated docstring."""
+
     pass
 
+
 class RolResponse(RolBase):
-    """ Class RolResponse - auto-generated docstring. """
+    """Class RolResponse - auto-generated docstring."""
+
     id: int
-    empresa_id: int
+    tenant_id: int
     creado_por_empresa: bool
 
     model_config = ConfigDict(from_attributes=True)
+
+
 class RolEmpresaOut(BaseModel):
-    """ Class RolEmpresaOut - auto-generated docstring. """
+    """Class RolEmpresaOut - auto-generated docstring."""
+
     id: int
     nombre: str
     descripcion: Optional[str]

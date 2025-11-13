@@ -1,0 +1,213 @@
+              name               
+---------------------------------
+ aceite grande 900ml
+ aceite peque funda
+ achote
+ amor grande
+ amor peque
+ apanadura
+ atun 140gr
+ atún 180 gr
+ atún tripack  80 gr
+ avena trad  250 ml
+ azucar 1 kg
+ azucar 2Kg
+ bananas
+ bicarbonato
+ bizcochos
+ bizcochos de dulce
+ bonobon
+ brazo gitano
+ brazo gitano choco
+ brujita
+ Cafe buen dia 10gr
+ café buen dia 20 gr
+ Cafes pequeños
+ cafe Toscana
+ canela en polvo
+ canela en sobres
+ capuchino/mocachino 250 ml
+ caracoles
+ cc pequeña 300ml
+ cepillo dental
+ chavelita
+ cheescake
+ chocho 1/2
+ chocochip
+ chocolatada
+ chocolate pequeño polvo
+ chupetes pin pon
+ cifrut mediana
+ cifrut peque
+ cigarros elefant
+ coca cola 2ltrs
+ coca cola sin azucar
+ coca de 3 lt
+ coca retornables
+ cocoa-rikakako polvo
+ colada morada
+ cola la otra 3L
+ coopcake
+ cortado
+ crema chantilly
+ cubetas huevo
+ donas
+ eceite en botella
+ enrollados
+ ENSALADA DE frutas
+ esencia de vainilla
+ fosforera
+ fosforos
+ frutos secos
+ funda tostado-chocho
+ fuze te
+ fuzete
+ galleta amor peque leche
+ galleta maria
+ galleta oreo mediana 54gr x6
+ galletas amor
+ galletas maria peques
+ galletas miniorio-MINICHIPS
+ galletas oreo big
+ galletas oreo peque 36gr x12
+ galletas salticas/ricas
+ Gatorade 500ml x12
+ Gatorade750ml
+ gelatina gelac grande
+ gelatina sin sabor
+ gelatoni 120g
+ gelatoni 200g
+ globos
+ globos big
+ gomitas/bombones 86u
+ guitig 1ltr
+ guitig 500ml
+ huevos
+ ishpingo
+ jabon protex
+ JAMON
+ JUGOS YA
+ leche condensada
+ leche condensada grande
+ LECHE EN CARTON
+ leche en polvo
+ leche grande toni
+ leche peque 450 ml
+ lechetoni 200gr
+ lechetoni fresa/chocolate  135g
+ letras de fc
+ lonchys 63 gr
+ lonchys pequeños
+ maicena 200gr
+ manicho
+ manjar
+ mantel
+ mayonesa 100g
+ mayonesa 200
+ melvas
+ mermelada 100g
+ mermelada grande
+ mia peque
+ mias grandes
+ mocachino botella 285 ml
+ Mogul
+ moncaibas
+ moncaibas chocolate
+ mortadela carne 100g
+ mortadela carne 170g
+ mosaico
+ mote
+ musse
+ naranjada funda grande
+ orejas
+ Otras Leches
+ palanquetas
+ pan de agua
+ pan de leche
+ pan de mortadela
+ pan dulce-mestizo
+ pañitos húmedos
+ papel aluminio
+ papel hada de 12
+ papel higienico x4 hada
+ paquete de fosforos
+ paquete servilletas
+ paquete vasos 5oz
+ pasta colgate
+ pilas
+ pipas
+ polvo hornear
+ PONIMALTA
+ ponimalta peque
+ power grande
+ presto barba
+ prestobarba
+ produleche
+ pulpin 1 litro
+ pulpin grande
+ pulpin peque
+ queso 250 gr
+ queso grande
+ Queso mozzarela
+ queso pequeño 125 gr
+ quesos paraiso
+ queso venteros
+ regia
+ RIKOLATE tableta
+ RIZADAS LIMON-POLLO
+ ROCKLETS 15GR
+ rositas
+ rosquillas
+ RoYAL GELATINA 200G
+ royal gelatina 400grm
+ sal
+ salchicha carne175g
+ salchicha pollo 175g
+ sal marina
+ salsa de tomate 100g
+ salsa de tomate 200
+ sardina 156 gr tinapa
+ sardina 425 gr
+ saviloe 320ml
+ Sporade 500
+ sporade grande
+ sprite-fanta- fiora
+ tabaco LARK
+ Tabaco Mentolado
+ tango
+ tarjeta claro 1
+ tarjeta claro 2
+ tarjeta claro 3
+ tarjeta claro 5
+ TATOS
+ TE
+ toalla sanitarias
+ toni conflex 190g
+ toni Frush
+ toni liquido 120g
+ toni liquido  190gr
+ toni mix/ conflex 92g
+ topper
+ torta corazón
+ tortas de 3 leches
+ tortas peque
+ traiden
+ trufas
+ tubito galak
+ velas
+ velas largas volcanicas
+ velas volcánicas
+ VIVE 100
+ VIVE 100 peque
+ yogurt 600ml
+ yogurt conflex 80g
+ yogurt funda grande
+ yogurt funda pequeño
+ yogurt iquido 250g
+ yogurt liquido 100g
+ yogurt liquido 500g
+ yogurt liquido galon 2LT
+ yogurt liquido valde 1 LT
+ yougurt conflex 165g
+(209 rows)
+

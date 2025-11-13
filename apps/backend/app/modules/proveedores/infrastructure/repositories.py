@@ -1,10 +1,14 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Iterable, List
 
 from sqlalchemy.orm import Session
 
-from .models import Proveedor, ProveedorAddress, ProveedorContact
+from app.models.suppliers import (
+    Proveedor,
+    ProveedorContacto as ProveedorContact,
+    ProveedorDireccion as ProveedorAddress,
+)
 
 
 class ProveedorRepo:
@@ -14,26 +18,26 @@ class ProveedorRepo:
         self.db = db
 
     # Proveedor -----------------------------------------------------------------
-    def list(self, empresa_id: int) -> List[Proveedor]:
+    def list(self, tenant_id: int) -> List[Proveedor]:
         return (
             self.db.query(Proveedor)
-            .filter(Proveedor.empresa_id == empresa_id)
-            .order_by(Proveedor.nombre.asc())
+            .filter(Proveedor.tenant_id == tenant_id)
+            .order_by(Proveedor.name.asc())
             .all()
         )
 
-    def get(self, empresa_id: int, pid: int) -> Proveedor | None:
+    def get(self, tenant_id: int, pid: int) -> Proveedor | None:
         return (
             self.db.query(Proveedor)
-            .filter(Proveedor.empresa_id == empresa_id, Proveedor.id == pid)
+            .filter(Proveedor.tenant_id == tenant_id, Proveedor.id == pid)
             .first()
         )
 
-    def create(self, empresa_id: int, **payload) -> Proveedor:
+    def create(self, tenant_id: int, **payload) -> Proveedor:
         contactos_data = payload.pop("contactos", []) or []
         direcciones_data = payload.pop("direcciones", []) or []
 
-        proveedor = Proveedor(empresa_id=empresa_id, **payload)
+        proveedor = Proveedor(tenant_id=tenant_id, **payload)
         self.db.add(proveedor)
         self._apply_contactos(proveedor, contactos_data)
         self._apply_direcciones(proveedor, direcciones_data)
@@ -41,11 +45,11 @@ class ProveedorRepo:
         self.db.refresh(proveedor)
         return proveedor
 
-    def update(self, empresa_id: int, pid: int, **payload) -> Proveedor:
+    def update(self, tenant_id: int, pid: int, **payload) -> Proveedor:
         contactos_data = payload.pop("contactos", None)
         direcciones_data = payload.pop("direcciones", None)
 
-        proveedor = self.get(empresa_id, pid)
+        proveedor = self.get(tenant_id, pid)
         if not proveedor:
             raise ValueError("Proveedor no encontrado")
 
@@ -61,8 +65,8 @@ class ProveedorRepo:
         self.db.refresh(proveedor)
         return proveedor
 
-    def delete(self, empresa_id: int, pid: int) -> None:
-        proveedor = self.get(empresa_id, pid)
+    def delete(self, tenant_id: int, pid: int) -> None:
+        proveedor = self.get(tenant_id, pid)
         if not proveedor:
             raise ValueError("Proveedor no encontrado")
         self.db.delete(proveedor)
@@ -74,7 +78,9 @@ class ProveedorRepo:
         for data in contactos:
             proveedor.contactos.append(ProveedorContact(**data))
 
-    def _apply_direcciones(self, proveedor: Proveedor, direcciones: Iterable[dict]) -> None:
+    def _apply_direcciones(
+        self, proveedor: Proveedor, direcciones: Iterable[dict]
+    ) -> None:
         proveedor.direcciones.clear()
         for data in direcciones:
             proveedor.direcciones.append(ProveedorAddress(**data))

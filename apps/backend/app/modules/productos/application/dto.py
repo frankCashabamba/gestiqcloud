@@ -16,4 +16,3 @@ class ProductoOut:
     nombre: str
     precio: float
     activo: bool
-

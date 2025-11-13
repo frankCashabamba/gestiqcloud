@@ -52,11 +52,13 @@ def admin_login(
 ):
     ident = data.identificador.strip().lower()
     try:
-        log.info("admin.login.attempt origin=%s ua=%s ip=%s ident=%s",
-                 request.headers.get("origin"),
-                 request.headers.get("user-agent", ""),
-                 request.client.host if request.client else "",
-                 ident)
+        log.info(
+            "admin.login.attempt origin=%s ua=%s ip=%s ident=%s",
+            request.headers.get("origin"),
+            request.headers.get("user-agent", ""),
+            request.client.host if request.client else "",
+            ident,
+        )
     except Exception:
         pass
 
@@ -142,9 +144,16 @@ def admin_login(
     )
 
     # 6) JWTs
-    access = token_service.issue_access({"sub": user.email, "user_id": str(user.id), "kind": "admin"})
+    access = token_service.issue_access(
+        {"sub": user.email, "user_id": str(user.id), "kind": "admin"}
+    )
     refresh = token_service.issue_refresh(
-        {"sub": user.email, "user_id": str(user.id), "kind": "admin", "family_id": family_id},
+        {
+            "sub": user.email,
+            "user_id": str(user.id),
+            "kind": "admin",
+            "family_id": family_id,
+        },
         jti=jti,
         prev_jti=None,
     )
@@ -182,9 +191,11 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
         pass
     repo = SqlRefreshTokenRepo(db)
     try:
-        log.debug("admin.refresh.attempt ua=%s ip=%s",
-                  request.headers.get("user-agent", ""),
-                  request.client.host if request.client else "")
+        log.debug(
+            "admin.refresh.attempt ua=%s ip=%s",
+            request.headers.get("user-agent", ""),
+            request.client.host if request.client else "",
+        )
     except Exception:
         pass
     res = rotate_refresh(

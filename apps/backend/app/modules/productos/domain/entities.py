@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional
@@ -10,11 +10,10 @@ class Producto:
     nombre: str
     precio: float
     activo: bool
-    empresa_id: int  # tenant scope
+    tenant_id: int  # tenant scope
 
     def validate(self) -> None:
-        if not self.nombre or not self.nombre.strip():
+        if not self.name or not self.name.strip():
             raise ValueError("nombre requerido")
-        if self.precio < 0:
+        if self.price < 0:
             raise ValueError("precio no puede ser negativo")
-

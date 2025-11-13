@@ -1,23 +1,22 @@
-import React from 'react'
-
-const ProductosList = React.lazy(() => import('./components/ProductosList').then(m => ({ default: (m as any).default || (m as any).ProductosList })))
-const KardexView = React.lazy(() => import('./components/KardexView').then(m => ({ default: (m as any).default || (m as any).KardexView })))
-const BodegasList = React.lazy(() => import('./components/BodegasList').then(m => ({ default: (m as any).default || (m as any).BodegasList })))
-
-export const manifest = {
+// apps/tenant/src/modules/inventario/manifest.ts
+export const inventarioManifest = {
   id: 'inventario',
   name: 'Inventario',
-  version: '1.0.0',
-  permissions: ['inventario.read', 'inventario.write'],
-  routes: [
-    { path: '/inventario', element: ProductosList },
-    { path: '/inventario/kardex/:productId', element: KardexView },
-    { path: '/inventario/bodegas', element: BodegasList }
+  icon: '📦',
+  path: '/inventario',
+  enabled: true,
+  requiredRole: 'operario',
+  description: 'Control de stock, movimientos y valoración de inventario',
+  features: [
+    'Vista de stock actual por almacén',
+    'Movimientos de entrada/salida',
+    'Alertas configurables de stock bajo',
+    'Notificaciones por email/WhatsApp/Telegram',
+    'Ajustes de inventario',
+    'Lotes y caducidades',
+    'Exportación a CSV',
   ],
-  menu: {
-    title: 'Inventario',
-    icon: '📦',
-    route: '/inventario',
-    order: 20
-  }
 }
+
+// Alias para compatibilidad
+export const manifest = inventarioManifest

@@ -116,7 +116,11 @@ REQUIRED_INDEX_NAMES: List[str] = [
 
 def _connect(dsn: str) -> Engine:
     url = make_url(dsn)
-    if url.get_backend_name() not in ("postgresql", "postgresql+psycopg2", "postgresql+psycopg"):
+    if url.get_backend_name() not in (
+        "postgresql",
+        "postgresql+psycopg2",
+        "postgresql+psycopg",
+    ):
         raise SystemExit("This checker is intended for PostgreSQL DSNs.")
     return create_engine(dsn, future=True)
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from typing import Optional
 
 
 def _bool_env(name: str, default: bool = False) -> bool:
@@ -23,12 +22,15 @@ def init_fastapi(app) -> None:
         return
     try:
         from opentelemetry import trace
-        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+            OTLPSpanExporter,
+        )
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
         from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+
         # engine may be missing at import-time in some tests
         try:
             from app.config.database import engine
@@ -36,7 +38,9 @@ def init_fastapi(app) -> None:
             engine = None
 
         service_name = os.getenv("OTEL_SERVICE_NAME", "gestiqcloud-api")
-        provider = TracerProvider(resource=Resource.create({"service.name": service_name}))
+        provider = TracerProvider(
+            resource=Resource.create({"service.name": service_name})
+        )
         trace.set_tracer_provider(provider)
         exporter = OTLPSpanExporter(endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
         provider.add_span_processor(BatchSpanProcessor(exporter))
@@ -55,7 +59,7 @@ def init_celery() -> None:
         return
     try:
         from opentelemetry.instrumentation.celery import CeleryInstrumentor
+
         CeleryInstrumentor().instrument()
     except Exception:
         pass
-

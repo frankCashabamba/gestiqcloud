@@ -1,61 +1,68 @@
 from __future__ import annotations
 
-from typing import Optional, Sequence, Mapping
+from typing import Optional, Sequence, Mapping, Any
+from uuid import UUID
 
 from app.modules.empresa.application.ports import EmpresaRepo, EmpresaDTO
-from app.models.empresa.empresa import Empresa as EmpresaORM
+from app.models.tenant import Tenant as EmpresaORM
 from app.modules.shared.infrastructure.sqlalchemy_repo import SqlAlchemyRepo
 import logging
+
 logger = logging.getLogger(__name__)
 
-class SqlEmpresaRepo(SqlAlchemyRepo, EmpresaRepo):
 
+def _to_uuid(value: Any) -> UUID:
+    if isinstance(value, UUID):
+        return value
+    return UUID(str(value))
+
+
+class SqlEmpresaRepo(SqlAlchemyRepo, EmpresaRepo):
     def _to_dto(self, e: EmpresaORM) -> EmpresaDTO:
         return EmpresaDTO(
             id=getattr(e, "id", None),
-            nombre=getattr(e, "nombre", None),
+            name=getattr(e, "name", None),
             slug=getattr(e, "slug", None),
         )
 
     def list_all(self) -> Sequence[EmpresaDTO]:
         logger.debug("DB URL: %s", str(self.db.get_bind().url))
-        rows = (self.db.query(EmpresaORM)
-                .order_by(EmpresaORM.id.desc())
-                .limit(200).all())
+        rows = self.db.query(EmpresaORM).order_by(EmpresaORM.id.desc()).limit(200).all()
         logger.debug("Empresas encontradas: %d", len(rows))
         return [self._to_dto(e) for e in rows]
 
-    def list_by_tenant(self, *, tenant_id: int) -> Sequence[EmpresaDTO]:
+    def list_by_tenant(self, *, tenant_id: Any) -> Sequence[EmpresaDTO]:
+        tenant_uuid = _to_uuid(tenant_id)
         rows = (
             self.db.query(EmpresaORM)
-            .filter(EmpresaORM.id == tenant_id)
+            .filter(EmpresaORM.id == tenant_uuid)
             .order_by(EmpresaORM.id.desc())
             .all()
         )
         return [self._to_dto(e) for e in rows]
 
-    def get(self, *, id: int) -> Optional[EmpresaDTO]:
-        e = self.db.query(EmpresaORM).filter(EmpresaORM.id == id).first()
+    def get(self, *, id: Any) -> Optional[EmpresaDTO]:
+        e = self.db.query(EmpresaORM).filter(EmpresaORM.id == _to_uuid(id)).first()
         return self._to_dto(e) if e else None
 
     # --- CRUD admin ---
     def create(self, data: Mapping) -> EmpresaDTO:
         m = EmpresaORM(
-            nombre=data.get("nombre"),
+            name=data.get("name"),
             slug=data.get("slug"),
-            ruc=data.get("ruc"),
-            telefono=data.get("telefono"),
-            direccion=data.get("direccion"),
-            ciudad=data.get("ciudad"),
-            provincia=data.get("provincia"),
-            cp=data.get("cp"),
-            pais=data.get("pais"),
+            tax_id=data.get("tax_id"),
+            phone=data.get("phone"),
+            address=data.get("address"),
+            city=data.get("city"),
+            state=data.get("state"),
+            postal_code=data.get("cp"),
+            country=data.get("country"),
             logo=data.get("logo"),
-            color_primario=data.get("color_primario") or "#4f46e5",
-            activo=bool(data.get("activo", True)),
-            motivo_desactivacion=data.get("motivo_desactivacion"),
-            plantilla_inicio=data.get("plantilla_inicio") or "cliente",
-            sitio_web=data.get("sitio_web"),
+            primary_color=data.get("primary_color") or "#4f46e5",
+            active=bool(data.get("active", True)),
+            deactivation_reason=data.get("deactivation_reason"),
+            default_template=data.get("initial_template") or "client",
+            website=data.get("website"),
             config_json=data.get("config_json"),
         )
         self.db.add(m)
@@ -65,26 +72,26 @@ class SqlEmpresaRepo(SqlAlchemyRepo, EmpresaRepo):
         self.db.refresh(m)
         return self._to_dto(m)
 
-    def update(self, id: int, data: Mapping) -> Optional[EmpresaDTO]:
-        m = self.db.query(EmpresaORM).filter(EmpresaORM.id == id).first()
+    def update(self, id: Any, data: Mapping) -> Optional[EmpresaDTO]:
+        m = self.db.query(EmpresaORM).filter(EmpresaORM.id == _to_uuid(id)).first()
         if not m:
             return None
         for field in (
-            "nombre",
+            "name",
             "slug",
-            "ruc",
-            "telefono",
-            "direccion",
-            "ciudad",
-            "provincia",
-            "cp",
-            "pais",
+            "tax_id",
+            "phone",
+            "address",
+            "city",
+            "state",
+            "postal_code",
+            "country",
             "logo",
-            "color_primario",
-            "activo",
-            "motivo_desactivacion",
-            "plantilla_inicio",
-            "sitio_web",
+            "primary_color",
+            "active",
+            "deactivation_reason",
+            "default_template",
+            "website",
             "config_json",
         ):
             if field in data and data[field] is not None:
@@ -94,8 +101,8 @@ class SqlEmpresaRepo(SqlAlchemyRepo, EmpresaRepo):
         self.db.refresh(m)
         return self._to_dto(m)
 
-    def delete(self, id: int) -> bool:
-        m = self.db.query(EmpresaORM).filter(EmpresaORM.id == id).first()
+    def delete(self, id: Any) -> bool:
+        m = self.db.query(EmpresaORM).filter(EmpresaORM.id == _to_uuid(id)).first()
         if not m:
             return False
         self.db.delete(m)

@@ -4,18 +4,19 @@ const ImportadorPanel = React.lazy(() => import('./Panel'))
 const Wizard = React.lazy(() => import('./Wizard'))
 
 export const manifest = {
-  id: 'importador',
-  name: 'Importador',
+  id: 'imports',
+  name: 'Imports',
   version: '1.0.0',
-  permissions: ['importador.read', 'importador.write'],
+  permissions: ['imports.read', 'imports.write'],
   routes: [
-    { path: '/importador', element: ImportadorPanel },
-    { path: '/importador/wizard', element: Wizard }
+    { path: '/imports', element: ImportadorPanel },
+    { path: '/imports/wizard', element: Wizard }
   ],
   menu: {
-    title: 'Importador',
+    title: 'Imports',
     icon: '📤',
-    route: '/importador',
-    order: 55
+    route: '/imports',
+    order: 55,
+    category: 'tools'
   }
 }

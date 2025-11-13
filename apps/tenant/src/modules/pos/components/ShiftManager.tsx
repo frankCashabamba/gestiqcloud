@@ -2,8 +2,8 @@
  * ShiftManager - Gestión de turnos de caja
  */
 import React, { useState, useEffect } from 'react'
-import { openShift, closeShift, getCurrentShift } from '../services'
-import type { POSShift, POSRegister } from '../../../types/pos'
+import { openShift, closeShift, getCurrentShift, getShiftSummary, getLastDailyCount } from '../services'
+import type { POSShift, POSRegister, ShiftSummary } from '../../../types/pos'
 
 interface ShiftManagerProps {
   register: POSRegister
@@ -14,11 +14,16 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
   const [currentShift, setCurrentShift] = useState<POSShift | null>(null)
   const [loading, setLoading] = useState(false)
   const [openingFloat, setOpeningFloat] = useState('100.00')
-  const [closingTotal, setClosingTotal] = useState('')
+  const [closingCash, setClosingCash] = useState('')
+  const [lossAmount, setLossAmount] = useState('')
+  const [lossNote, setLossNote] = useState('')
   const [showCloseModal, setShowCloseModal] = useState(false)
+  const [summary, setSummary] = useState<ShiftSummary | null>(null)
+  const [loadingSummary, setLoadingSummary] = useState(false)
 
   useEffect(() => {
     loadCurrentShift()
+    loadSuggestedOpeningFloat()
   }, [register.id])
 
   const loadCurrentShift = async () => {
@@ -28,6 +33,17 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
       onShiftChange(shift)
     } catch (error) {
       console.error('Error loading shift:', error)
+    }
+  }
+
+  const loadSuggestedOpeningFloat = async () => {
+    try {
+      const lastCount = await getLastDailyCount(register.id)
+      if (lastCount && lastCount.counted_cash > 0) {
+        setOpeningFloat(lastCount.counted_cash.toFixed(2))
+      }
+    } catch (error) {
+      console.error('Error loading suggested opening float:', error)
     }
   }
 
@@ -53,23 +69,71 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
     }
   }
 
+  const handleShowCloseModal = async () => {
+    setShowCloseModal(true)
+    if (currentShift) {
+      setLoadingSummary(true)
+      try {
+        const shiftSummary = await getShiftSummary(currentShift.id)
+        setSummary(shiftSummary)
+      } catch (error: any) {
+        console.error('Error loading summary:', error)
+        alert('Error al cargar el resumen del turno')
+      } finally {
+        setLoadingSummary(false)
+      }
+    }
+  }
+
   const handleCloseShift = async () => {
     if (!currentShift) return
-    if (!closingTotal || parseFloat(closingTotal) < 0) {
-      alert('Ingrese el total de cierre')
+    
+    if (summary && summary.pending_receipts > 0) {
+      alert(`No se puede cerrar el turno. Hay ${summary.pending_receipts} recibo(s) sin cobrar/terminar.`)
+      return
+    }
+
+    if (!closingCash || parseFloat(closingCash) < 0) {
+      alert('Ingrese el total de efectivo en caja')
       return
     }
 
     setLoading(true)
     try {
-      await closeShift({
+      const payload: any = {
         shift_id: currentShift.id,
-        closing_total: parseFloat(closingTotal)
-      })
+        closing_cash: parseFloat(closingCash),
+      }
+      
+      if (lossAmount && parseFloat(lossAmount) > 0) {
+        payload.loss_amount = parseFloat(lossAmount)
+      }
+      if (lossNote) {
+        payload.loss_note = lossNote
+      }
+
+      const result = await closeShift(payload)
+
+      // Mostrar resumen del cierre
+      const discrepancy = result.difference
+      const msg = `Turno cerrado exitosamente!\n\n` +
+        `Ventas Totales: €${result.total_sales?.toFixed(2) || '0.00'}\n` +
+        `Ventas en Efectivo: €${result.cash_sales?.toFixed(2) || '0.00'}\n` +
+        `Efectivo Esperado: €${result.expected_cash?.toFixed(2) || '0.00'}\n` +
+        `Efectivo Contado: €${result.counted_cash?.toFixed(2) || '0.00'}\n` +
+        `Diferencia: €${discrepancy?.toFixed(2) || '0.00'}` +
+        (result.loss_amount > 0 ? `\nPérdidas: €${result.loss_amount?.toFixed(2)}` : '') +
+        (result.loss_note ? `\nNota: ${result.loss_note}` : '')
+
+      alert(msg)
+
       setCurrentShift(null)
       onShiftChange(null)
       setShowCloseModal(false)
-      alert('Turno cerrado exitosamente')
+      setClosingCash('')
+      setLossAmount('')
+      setLossNote('')
+      setSummary(null)
     } catch (error: any) {
       alert(error.response?.data?.detail || 'Error al cerrar turno')
     } finally {
@@ -82,14 +146,17 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
       <div className="bg-white rounded-lg shadow p-6 mb-4">
         <h2 className="text-xl font-bold mb-4">Abrir Turno - {register.name}</h2>
         <div className="mb-4">
-          <label className="block text-sm font-medium mb-2">Monto de Apertura (€)</label>
+          <label className="block text-sm font-medium mb-2">
+            Monto de Apertura (€)
+          <span className="text-xs text-gray-500 ml-2">(sugerido del cierre anterior)</span>
+          </label>
           <input
             type="number"
             step="0.01"
             value={openingFloat}
-            onChange={(e) => setOpeningFloat(e.target.value)}
-            className="w-full px-3 py-2 border rounded"
-            disabled={loading}
+          onChange={(e) => setOpeningFloat(e.target.value)}
+          className="w-full px-3 py-2 border rounded"
+          disabled={loading}
           />
         </div>
         <button
@@ -110,11 +177,11 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
           <h3 className="font-semibold text-green-800">Turno Abierto</h3>
           <p className="text-sm text-green-700">
             Apertura: {new Date(currentShift.opened_at).toLocaleString()} | 
-            Fondo: €{currentShift.opening_float.toFixed(2)}
+            Fondo: €{(Number(currentShift.opening_float) || 0).toFixed(2)}
           </p>
         </div>
         <button
-          onClick={() => setShowCloseModal(true)}
+          onClick={handleShowCloseModal}
           className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
         >
           Cerrar Turno
@@ -122,31 +189,125 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
       </div>
 
       {showCloseModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full m-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold mb-4">Cerrar Turno</h3>
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Total en Caja (€)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={closingTotal}
-                onChange={(e) => setClosingTotal(e.target.value)}
-                className="w-full px-3 py-2 border rounded"
-                placeholder="0.00"
-                autoFocus
-              />
+
+            {loadingSummary ? (
+              <div className="py-8 text-center text-gray-500">Cargando resumen...</div>
+            ) : summary ? (
+              <>
+                {/* Alertas */}
+                {summary.pending_receipts > 0 && (
+                  <div className="bg-red-50 border border-red-300 text-red-800 p-3 rounded mb-4">
+                    ⚠️ Hay {summary.pending_receipts} recibo(s) sin cobrar/terminar. No se puede cerrar el turno.
+                  </div>
+                )}
+
+                {/* Resumen de ventas */}
+                <div className="mb-4 p-4 bg-blue-50 rounded">
+                  <h4 className="font-semibold mb-2">Resumen de Ventas</h4>
+                  <p>Total de ventas: €{summary.sales_total.toFixed(2)}</p>
+                  <p>Productos vendidos: {summary.receipts_count}</p>
+                </div>
+
+                {/* Productos vendidos */}
+                <div className="mb-4">
+                  <h4 className="font-semibold mb-2">Productos Vendidos</h4>
+                  <div className="max-h-60 overflow-y-auto border rounded">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-100 sticky top-0">
+                        <tr>
+                          <th className="p-2 text-left">Código</th>
+                          <th className="p-2 text-left">Producto</th>
+                          <th className="p-2 text-right">Vendido</th>
+                          <th className="p-2 text-right">Subtotal</th>
+                          <th className="p-2 text-right">Stock Restante</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {summary.items_sold
+                          .filter(item => item.qty_sold > 0)
+                          .map((item, idx) => (
+                            <tr key={idx} className="border-t">
+                              <td className="p-2">{item.code || '-'}</td>
+                              <td className="p-2">{item.name}</td>
+                              <td className="p-2 text-right">{item.qty_sold.toFixed(2)}</td>
+                              <td className="p-2 text-right">€{item.subtotal.toFixed(2)}</td>
+                              <td className="p-2 text-right">
+                                {item.stock.length > 0 ? (
+                                  <div className="space-y-1">
+                                    {item.stock.map((s, i) => (
+                                      <div key={i} className={s.qty < 0 ? 'text-red-600 font-semibold' : s.qty === 0 ? 'text-gray-400' : ''}>
+                                        {s.warehouse_name}: {s.qty.toFixed(2)}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-400">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            ) : null}
+
+            {/* Formulario de cierre */}
+            <div className="space-y-4 border-t pt-4 mt-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Total en Efectivo (€) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={closingCash}
+                  onChange={(e) => setClosingCash(e.target.value)}
+                  className="w-full px-3 py-2 border rounded"
+                  placeholder="0.00"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Pérdidas/Mermas (€)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={lossAmount}
+                  onChange={(e) => setLossAmount(e.target.value)}
+                  className="w-full px-3 py-2 border rounded"
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Nota de Pérdidas</label>
+                <textarea
+                  value={lossNote}
+                  onChange={(e) => setLossNote(e.target.value)}
+                  className="w-full px-3 py-2 border rounded"
+                  placeholder="Descripción de pérdidas o productos deteriorados..."
+                  rows={3}
+                />
+              </div>
             </div>
-            <div className="flex gap-2">
+
+            <div className="flex gap-2 mt-6">
               <button
                 onClick={handleCloseShift}
-                disabled={loading}
-                className="flex-1 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50"
+                disabled={loading || (summary?.pending_receipts ?? 0) > 0}
+                className="flex-1 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Cerrando...' : 'Cerrar Turno'}
               </button>
               <button
-                onClick={() => setShowCloseModal(false)}
+                onClick={() => {
+                  setShowCloseModal(false)
+                  setSummary(null)
+                }}
                 disabled={loading}
                 className="flex-1 bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
               >

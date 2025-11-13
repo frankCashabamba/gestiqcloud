@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from typing import Sequence
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -11,15 +12,13 @@ from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
 
 
 class ListarEmpresasAdmin(BaseUseCase[EmpresaRepo]):
-
     def execute(self) -> Sequence[EmpresaDTO]:
-        print("entrooooooooooooooo")    
+        print("entrooooooooooooooo")
         return list(self.repo.list_all())
 
 
 class ListarEmpresasTenant(BaseUseCase[EmpresaRepo]):
-
-    def execute(self, *, tenant_id: int) -> Sequence[EmpresaDTO]:
+    def execute(self, *, tenant_id: uuid.UUID | str) -> Sequence[EmpresaDTO]:
         return list(self.repo.list_by_tenant(tenant_id=tenant_id))
 
 
@@ -29,7 +28,7 @@ class ListarEmpresasTenant(BaseUseCase[EmpresaRepo]):
 def crear_usuario_admin(
     db: Session,
     *,
-    empresa_id: int,
+    tenant_id: uuid.UUID,
     nombre_encargado: str,
     apellido_encargado: str,
     email: str,
@@ -57,7 +56,7 @@ def crear_usuario_admin(
 
     hasher = PasslibPasswordHasher()
     user = UsuarioEmpresa(
-        empresa_id=empresa_id,
+        tenant_id=tenant_id,
         nombre_encargado=nombre_encargado,
         apellido_encargado=apellido_encargado,
         email=email_clean,

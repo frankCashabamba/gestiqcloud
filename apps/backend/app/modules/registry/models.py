@@ -39,4 +39,3 @@ class ModuleSummary(BaseModel):
     permissions: List[str]
     plan_flags: List[str]
     ui: Optional[UiMenu] = None
-

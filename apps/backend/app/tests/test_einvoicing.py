@@ -12,7 +12,9 @@ from app.models.core.sri_submissions import SRISubmission
 client = TestClient(app)
 
 
-def _assert_task_called_with_uuid_like(task_mock, expected_invoice_id, expected_tenant_id):
+def _assert_task_called_with_uuid_like(
+    task_mock, expected_invoice_id, expected_tenant_id
+):
     """
     Permite que el código pase UUID o str a .delay(), comparando por str().
     """
@@ -35,9 +37,9 @@ def ctx():
 
     # ---- Usuario simulado (para Depends) ----
     async def _fake_user():
-        class _U:
-            ...
-        u = _U()
+        class _U: ...
+
+        u = _U()  # noqa: F841
         u.tenant_id = tenant_id
         return u
 
@@ -51,12 +53,19 @@ def ctx():
 
     # Registro de override SOLO para el usuario (FastAPI lo respeta)
     from app.core import security as security_module
-    app.dependency_overrides[security_module.get_current_active_tenant_user] = _fake_user
+
+    app.dependency_overrides[security_module.get_current_active_tenant_user] = (
+        _fake_user
+    )
 
     # Parches EN EL MÓDULO DONDE SE USAN los símbolos
-    p_db = patch("app.modules.einvoicing.application.use_cases.get_db_session", new=_fake_db_ctx)
+    p_db = patch(
+        "app.modules.einvoicing.application.use_cases.get_db_session", new=_fake_db_ctx
+    )
     p_sri = patch("app.modules.einvoicing.application.use_cases.sign_and_send_sri_task")
-    p_fact = patch("app.modules.einvoicing.application.use_cases.sign_and_send_facturae_task")
+    p_fact = patch(
+        "app.modules.einvoicing.application.use_cases.sign_and_send_facturae_task"
+    )
 
     p_db.start()
     mock_sri = p_sri.start()
@@ -77,6 +86,7 @@ def ctx():
 
 
 # -------------------- Tests de envío --------------------
+
 
 def test_send_einvoice_ec_success(ctx):
     invoice_id = uuid4()
@@ -131,6 +141,7 @@ def test_send_einvoice_unsupported_country(ctx):
 
 
 # -------------------- Tests de status --------------------
+
 
 def test_get_einvoice_status_found(ctx):
     invoice_id = uuid4()

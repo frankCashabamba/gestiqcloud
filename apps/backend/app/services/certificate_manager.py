@@ -1,225 +1,350 @@
 """
 Certificate Manager - Gestión de certificados digitales para e-factura
 
-Maneja el almacenamiento seguro y recuperación de certificados PKCS#12
-para firmas digitales en SRI (Ecuador) y SII (España).
+Gestiona certificados PKCS#12 (.p12/.pfx) para:
+- Ecuador: SRI (Servicio de Rentas Internas)
+- España: SII/AEAT (Agencia Estatal de Administración Tributaria)
+
+Los certificados se almacenan de forma segura y se utilizan para firmar
+documentos electrónicos (XML) antes de enviarlos a las autoridades fiscales.
 """
 
 import os
 import base64
+import hashlib
 from typing import Optional, Dict, Any
+from uuid import UUID
 from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.hazmat.backends import default_backend
 
-from app.config.database import get_db_session
+from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+
+from app.config.database import get_db
 from app.models.core.einvoicing import EinvoicingCredentials
 
 
 class CertificateManager:
     """
-    Gestiona certificados digitales para e-factura.
-
-    Soporta:
-    - Almacenamiento en base de datos (BLOB)
-    - Almacenamiento en S3 (recomendado para prod)
-    - Validación de certificados
-    - Extracción de información del certificado
+    Gestiona el almacenamiento y recuperación de certificados digitales.
+    
+    Métodos:
+        - store_certificate: Almacena un certificado PKCS#12
+        - get_certificate: Recupera información del certificado
+        - validate_certificate: Valida un certificado PKCS#12
+        - delete_certificate: Elimina un certificado
     """
-
-    def __init__(self):
-        # En desarrollo, usar filesystem
-        # En producción, usar S3
-        self.storage_type = os.getenv("CERT_STORAGE_TYPE", "filesystem")
-        self.cert_dir = Path("uploads/certs") if self.storage_type == "filesystem" else None
-
-        if self.cert_dir:
-            self.cert_dir.mkdir(parents=True, exist_ok=True)
-
+    
+    def __init__(self, storage_path: Optional[str] = None):
+        """
+        Inicializa el gestor de certificados.
+        
+        Args:
+            storage_path: Ruta donde almacenar certificados (default: ./uploads/certificates)
+        """
+        self.storage_path = Path(storage_path or os.getenv("CERT_STORAGE_PATH", "./uploads/certificates"))
+        self.storage_path.mkdir(parents=True, exist_ok=True)
+    
+    def _get_cert_filename(self, tenant_id: UUID, country: str) -> str:
+        """Genera nombre de archivo único para el certificado"""
+        tenant_hash = hashlib.sha256(str(tenant_id).encode()).hexdigest()[:16]
+        return f"{country.lower()}_{tenant_hash}.p12"
+    
+    def _get_cert_path(self, tenant_id: UUID, country: str) -> Path:
+        """Obtiene la ruta completa del archivo de certificado"""
+        return self.storage_path / self._get_cert_filename(tenant_id, country)
+    
+    async def validate_certificate(
+        self,
+        cert_data: bytes,
+        password: str,
+    ) -> Dict[str, Any]:
+        """
+        Valida un certificado PKCS#12.
+        
+        Args:
+            cert_data: Datos binarios del certificado
+            password: Contraseña del certificado
+        
+        Returns:
+            Dict con información del certificado (subject, issuer, validity)
+        
+        Raises:
+            ValueError: Si el certificado es inválido
+        """
+        try:
+            # Intentar cargar el certificado
+            private_key, certificate, additional_certs = pkcs12.load_key_and_certificates(
+                cert_data,
+                password.encode('utf-8'),
+                backend=default_backend()
+            )
+            
+            if not certificate:
+                raise ValueError("No se encontró certificado en el archivo P12")
+            
+            if not private_key:
+                raise ValueError("No se encontró clave privada en el archivo P12")
+            
+            # Extraer información del certificado
+            subject = certificate.subject.rfc4514_string()
+            issuer = certificate.issuer.rfc4514_string()
+            not_before = certificate.not_valid_before
+            not_after = certificate.not_valid_after
+            
+            return {
+                "valid": True,
+                "subject": subject,
+                "issuer": issuer,
+                "not_before": not_before.isoformat(),
+                "not_after": not_after.isoformat(),
+                "has_private_key": True,
+                "additional_certs_count": len(additional_certs) if additional_certs else 0,
+            }
+        
+        except Exception as e:
+            raise ValueError(f"Certificado inválido: {str(e)}")
+    
     async def store_certificate(
         self,
-        tenant_id: str,
+        tenant_id: UUID,
         country: str,
         cert_data: bytes,
         password: str,
-        cert_type: str = "p12"
+        cert_type: str = "p12",
     ) -> str:
         """
-        Almacena un certificado para un tenant/país.
-
+        Almacena un certificado digital.
+        
         Args:
-            tenant_id: UUID del tenant
-            country: 'EC' o 'ES'
-            cert_data: Bytes del archivo P12/PFX
+            tenant_id: ID del tenant
+            country: Código de país ('EC' o 'ES')
+            cert_data: Datos binarios del certificado
             password: Contraseña del certificado
-            cert_type: Tipo de certificado ('p12', 'pfx')
-
+            cert_type: Tipo de certificado (default: 'p12')
+        
         Returns:
-            cert_ref: Referencia para recuperar el certificado
+            Referencia del certificado almacenado
+        
+        Raises:
+            ValueError: Si el certificado es inválido
+            HTTPException: Si hay error al almacenar
         """
-        # Validar certificado
-        cert_info = self._validate_certificate(cert_data, password)
-        if not cert_info:
-            raise ValueError("Certificado inválido o contraseña incorrecta")
-
-        # Generar referencia única
-        cert_ref = f"{tenant_id}_{country}_{cert_type}_{cert_info['serial']}"
-
-        # Almacenar según tipo de storage
-        if self.storage_type == "filesystem":
-            cert_path = self.cert_dir / f"{cert_ref}.p12"
-            with open(cert_path, "wb") as f:
+        # Validar certificado primero
+        cert_info = await self.validate_certificate(cert_data, password)
+        
+        # Guardar archivo físico
+        cert_path = self._get_cert_path(tenant_id, country)
+        try:
+            with open(cert_path, 'wb') as f:
                 f.write(cert_data)
-        elif self.storage_type == "database":
-            # Almacenar en DB como BLOB
-            await self._store_in_database(tenant_id, country, cert_data, cert_ref)
-        elif self.storage_type == "s3":
-            # TODO: Implementar S3 storage
-            raise NotImplementedError("S3 storage not implemented yet")
-
-        # Actualizar/insertar credenciales en DB
-        await self._update_credentials(
-            tenant_id, country, cert_ref, password, cert_info
-        )
-
-        return cert_ref
-
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error al guardar certificado: {str(e)}"
+            )
+        
+        # Guardar referencia en base de datos
+        db_gen = get_db()
+        db: Session = next(db_gen)
+        try:
+            # Buscar credencial existente
+            stmt = select(EinvoicingCredentials).where(
+                EinvoicingCredentials.tenant_id == tenant_id,
+                EinvoicingCredentials.country == country
+            )
+            result = db.execute(stmt)
+            credential = result.scalar_one_or_none()
+            
+            cert_ref = str(cert_path)
+            password_hash = hashlib.sha256(password.encode()).hexdigest()
+            
+            if credential:
+                # Actualizar existente
+                if country == "EC":
+                    credential.sri_cert_ref = cert_ref
+                    credential.sri_key_ref = password_hash  # En prod usar encryption
+                    credential.sri_env = os.getenv("SRI_ENV", "staging")
+                elif country == "ES":
+                    credential.sii_cert_ref = cert_ref
+                    credential.sii_key_ref = password_hash
+                    credential.sii_agency = "AEAT"
+            else:
+                # Crear nuevo
+                new_credential = EinvoicingCredentials(
+                    tenant_id=tenant_id,
+                    country=country
+                )
+                if country == "EC":
+                    new_credential.sri_cert_ref = cert_ref
+                    new_credential.sri_key_ref = password_hash
+                    new_credential.sri_env = os.getenv("SRI_ENV", "staging")
+                elif country == "ES":
+                    new_credential.sii_cert_ref = cert_ref
+                    new_credential.sii_key_ref = password_hash
+                    new_credential.sii_agency = "AEAT"
+                
+                db.add(new_credential)
+            
+            db.commit()
+            return cert_ref
+        
+        except Exception as e:
+            db.rollback()
+            # Limpiar archivo si falla DB
+            if cert_path.exists():
+                cert_path.unlink()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error al guardar en base de datos: {str(e)}"
+            )
+        finally:
+            db.close()
+    
     async def get_certificate(
         self,
-        tenant_id: str,
+        tenant_id: UUID,
         country: str
     ) -> Optional[Dict[str, Any]]:
         """
-        Recupera certificado y datos para un tenant/país.
+        Recupera información del certificado.
+        
+        Args:
+            tenant_id: ID del tenant
+            country: Código de país
+        
+        Returns:
+            Dict con información del certificado o None si no existe
         """
-        async with get_db_session() as db:
-            result = await db.execute("""
-                SELECT sri_cert_ref, sri_key_ref, sri_env,
-                       sii_cert_ref, sii_key_ref
-                FROM einvoicing_credentials
-                WHERE tenant_id = :tenant_id AND country = :country
-            """, {"tenant_id": tenant_id, "country": country})
-
-            creds = result.first()
-            if not creds:
+        db_gen = get_db()
+        db: Session = next(db_gen)
+        try:
+            stmt = select(EinvoicingCredentials).where(
+                EinvoicingCredentials.tenant_id == tenant_id,
+                EinvoicingCredentials.country == country
+            )
+            result = db.execute(stmt)
+            credential = result.scalar_one_or_none()
+            
+            if not credential:
                 return None
-
-            cert_ref = creds.sri_cert_ref if country == "EC" else creds.sii_cert_ref
+            
+            cert_ref = None
+            if country == "EC" and credential.sri_cert_ref:
+                cert_ref = credential.sri_cert_ref
+            elif country == "ES" and credential.sii_cert_ref:
+                cert_ref = credential.sii_cert_ref
+            
             if not cert_ref:
                 return None
-
-            # Recuperar archivo según storage type
-            cert_data = await self._retrieve_certificate_data(cert_ref)
-
+            
+            cert_path = Path(cert_ref)
+            if not cert_path.exists():
+                return None
+            
             return {
-                "cert_data": cert_data,
                 "cert_ref": cert_ref,
                 "country": country,
-                "env": creds.sri_env if country == "EC" else "production"
+                "exists": True,
+                "created_at": credential.created_at.isoformat() if credential.created_at else None,
             }
-
-    def _validate_certificate(self, cert_data: bytes, password: str) -> Optional[Dict[str, Any]]:
+        
+        finally:
+            db.close()
+    
+    async def delete_certificate(
+        self,
+        tenant_id: UUID,
+        country: str
+    ) -> bool:
         """
-        Valida un certificado PKCS#12 y extrae información.
+        Elimina un certificado.
+        
+        Args:
+            tenant_id: ID del tenant
+            country: Código de país
+        
+        Returns:
+            True si se eliminó correctamente
         """
+        cert_path = self._get_cert_path(tenant_id, country)
+        
+        # Eliminar archivo físico
+        if cert_path.exists():
+            try:
+                cert_path.unlink()
+            except Exception:
+                pass  # Continuar aunque falle eliminar archivo
+        
+        # Eliminar referencia en DB
+        db_gen = get_db()
+        db: Session = next(db_gen)
         try:
-            private_key, certificate, additional_certificates = pkcs12.load_key_and_certificates(
-                cert_data, password.encode(), default_backend()
+            stmt = select(EinvoicingCredentials).where(
+                EinvoicingCredentials.tenant_id == tenant_id,
+                EinvoicingCredentials.country == country
             )
-
-            if not certificate:
-                return None
-
-            # Extraer información básica
-            subject = certificate.subject
-            issuer = certificate.issuer
-            serial = certificate.serial_number
-            not_before = certificate.not_valid_before
-            not_after = certificate.not_valid_after
-
-            return {
-                "subject": str(subject),
-                "issuer": str(issuer),
-                "serial": str(serial),
-                "not_before": not_before,
-                "not_after": not_after,
-                "is_valid": True
-            }
-
-        except Exception as e:
-            print(f"Certificate validation failed: {e}")
+            result = db.execute(stmt)
+            credential = result.scalar_one_or_none()
+            
+            if credential:
+                if country == "EC":
+                    credential.sri_cert_ref = None
+                    credential.sri_key_ref = None
+                elif country == "ES":
+                    credential.sii_cert_ref = None
+                    credential.sii_key_ref = None
+                
+                db.commit()
+                return True
+            
+            return False
+        
+        except Exception:
+            db.rollback()
+            return False
+        finally:
+            db.close()
+    
+    async def get_certificate_for_signing(
+        self,
+        tenant_id: UUID,
+        country: str
+    ) -> Optional[tuple[bytes, str]]:
+        """
+        Obtiene el certificado y password para firma digital.
+        
+        Args:
+            tenant_id: ID del tenant
+            country: Código de país
+        
+        Returns:
+            Tupla (cert_data, password) o None si no existe
+            
+        Note:
+            En producción, el password debe estar encriptado en DB
+        """
+        cert_info = await self.get_certificate(tenant_id, country)
+        if not cert_info:
             return None
-
-    async def _store_in_database(
-        self,
-        tenant_id: str,
-        country: str,
-        cert_data: bytes,
-        cert_ref: str
-    ):
-        """Almacena certificado en base de datos como BLOB."""
-        async with get_db_session() as db:
-            # Aquí iría la lógica para almacenar en una tabla de certificados
-            # Por simplicidad, usamos filesystem por ahora
-            pass
-
-    async def _retrieve_certificate_data(self, cert_ref: str) -> bytes:
-        """Recupera datos del certificado según storage type."""
-        if self.storage_type == "filesystem":
-            cert_path = self.cert_dir / f"{cert_ref}.p12"
-            if cert_path.exists():
-                with open(cert_path, "rb") as f:
-                    return f.read()
-            else:
-                raise FileNotFoundError(f"Certificate {cert_ref} not found")
-
-        elif self.storage_type == "database":
-            # Recuperar de DB
-            async with get_db_session() as db:
-                # TODO: Implementar consulta a tabla de certificados
-                pass
-
-        elif self.storage_type == "s3":
-            # TODO: Implementar S3 retrieval
-            pass
-
-        raise ValueError(f"Unsupported storage type: {self.storage_type}")
-
-    async def _update_credentials(
-        self,
-        tenant_id: str,
-        country: str,
-        cert_ref: str,
-        password: str,
-        cert_info: Dict[str, Any]
-    ):
-        """Actualiza las credenciales de e-factura en la base de datos."""
-        async with get_db_session() as db:
-            # Insertar o actualizar credenciales
-            await db.execute("""
-                INSERT INTO einvoicing_credentials (
-                    tenant_id, country, sri_cert_ref, sri_env,
-                    sii_cert_ref, created_at
-                ) VALUES (
-                    :tenant_id, :country,
-                    CASE WHEN :country = 'EC' THEN :cert_ref ELSE NULL END,
-                    CASE WHEN :country = 'EC' THEN 'production' ELSE NULL END,
-                    CASE WHEN :country = 'ES' THEN :cert_ref ELSE NULL END,
-                    NOW()
-                )
-                ON CONFLICT (tenant_id, country)
-                DO UPDATE SET
-                    sri_cert_ref = CASE WHEN :country = 'EC' THEN :cert_ref ELSE einvoicing_credentials.sri_cert_ref END,
-                    sri_env = CASE WHEN :country = 'EC' THEN 'production' ELSE einvoicing_credentials.sri_env END,
-                    sii_cert_ref = CASE WHEN :country = 'ES' THEN :cert_ref ELSE einvoicing_credentials.sii_cert_ref END
-            """, {
-                "tenant_id": tenant_id,
-                "country": country,
-                "cert_ref": cert_ref
-            })
-
-            await db.commit()
+        
+        cert_path = Path(cert_info["cert_ref"])
+        if not cert_path.exists():
+            return None
+        
+        try:
+            with open(cert_path, 'rb') as f:
+                cert_data = f.read()
+            
+            # En producción, recuperar password encriptado de DB
+            # Por ahora, retornar None (el password debe pasarse en cada request)
+            return (cert_data, None)  # type: ignore
+        
+        except Exception:
+            return None
 
 
 # Instancia global

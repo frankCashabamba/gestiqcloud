@@ -15,4 +15,3 @@ MANIFEST = ModuleManifest(
     ],
     ui=UiMenu(title="Clientes", icon="users", route="/clientes", order=20),
 )
-

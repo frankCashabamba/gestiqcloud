@@ -8,17 +8,24 @@ type FormT = Omit<T, 'id'>
 export default function TipoEmpresaForm() {
   const { id } = useParams()
   const nav = useNavigate()
-  const [form, setForm] = useState<FormT>({ nombre: '' })
+  const [form, setForm] = useState<FormT>({ name: '', description: '', active: true })
   const { success, error } = useToast()
 
-  useEffect(() => { if (id) { getTipoEmpresa(id).then((x)=> setForm({ nombre: x.nombre })).catch(()=>{}) } }, [id])
+  useEffect(() => {
+    if (id) {
+      getTipoEmpresa(id)
+        .then((x) => setForm({ name: x.name, description: x.description ?? '', active: x.active ?? true }))
+        .catch(() => {})
+    }
+  }, [id])
 
   const onSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault()
     try {
-      if (!form.nombre?.trim()) throw new Error('Nombre es requerido')
-      if (id) await updateTipoEmpresa(id, form)
-      else await createTipoEmpresa(form)
+      if (!form.name?.trim()) throw new Error('Nombre es requerido')
+      const payload: FormT = { ...form, name: form.name.trim() }
+      if (id) await updateTipoEmpresa(id, payload)
+      else await createTipoEmpresa(payload)
       success('Tipo de empresa guardado')
       nav('..')
     } catch(e:any) {
@@ -32,7 +39,7 @@ export default function TipoEmpresaForm() {
       <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
         <div>
           <label className="block mb-1">Nombre</label>
-          <input value={form.nombre} onChange={(e)=> setForm({ nombre: e.target.value })} className="border px-2 py-1 w-full rounded" required />
+          <input value={form.name} onChange={(e)=> setForm({ ...form, name: e.target.value })} className="border px-2 py-1 w-full rounded" required />
         </div>
         <div className="pt-2">
           <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">Guardar</button>

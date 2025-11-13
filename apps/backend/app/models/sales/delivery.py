@@ -18,6 +18,7 @@ def _uuid_col():
 
 class Delivery(Base):
     __tablename__ = "deliveries"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     tenant_id: Mapped[str] = mapped_column(_uuid_col(), index=True)

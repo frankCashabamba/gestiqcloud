@@ -4,60 +4,63 @@ Auto-generated module docstring."""
 
 import uuid
 from typing import List, Optional
+from datetime import datetime
 
-from sqlalchemy import JSON, Float, ForeignKey, String
+from sqlalchemy import JSON, Float, ForeignKey, String, Boolean, Numeric, Text, DateTime
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
 
 from app.config.database import Base
 from app.models.tenant import Tenant
 
 
 class Product(Base):
-    """ Class Product - auto-generated docstring. """
-    __tablename__ = "products"
+    """Product model - MODERN schema (English names)"""
 
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    sku: Mapped[str | None] = mapped_column(String, index=True, nullable=True)
-    name: Mapped[str] = mapped_column(String, index=True)
-    price: Mapped[float] = mapped_column(Float)
+    __tablename__ = "products"
+    __table_args__ = {"extend_existing": True}
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id"), nullable=False
+    )
+    sku: Mapped[str | None] = mapped_column(String(100), index=True, nullable=True)
+    name: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    cost_price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    tax_rate: Mapped[float | None] = mapped_column(
+        Numeric(5, 2), nullable=True, default=21.00
+    )
+    category: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
     stock: Mapped[float] = mapped_column(Float, default=0)
-    unit: Mapped[str] = mapped_column(String, default="unidad")
+    unit: Mapped[str] = mapped_column(Text, default="unit")
     product_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"))
+    category_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("product_categories.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     tenant: Mapped["Tenant"] = relationship()
-
-    # Relación uno a uno (este producto tiene UNA receta asociada)
-    recipe: Mapped[Optional["Recipe"]] = relationship(back_populates="product", uselist=False)
-
-    # Este producto puede estar en muchos ingredientes de recetas
-    used_in_ingredients: Mapped[List["RecipeIngredient"]] = relationship(back_populates="product")
-
-
-class Recipe(Base):
-    """ Class Recipe - auto-generated docstring. """
-    __tablename__ = "recipes"
-
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
-    yield_quantity: Mapped[float] = mapped_column(Float)
-
-    product: Mapped["Product"] = relationship(back_populates="recipe")
-
-    ingredients: Mapped[List["RecipeIngredient"]] = relationship(
-        back_populates="recipe", cascade="all, delete-orphan"
+    category = relationship(
+        "ProductCategory", foreign_keys=[category_id], lazy="select"
+    )
+    recipe: Mapped[Optional["Recipe"]] = relationship(  # noqa: F821
+        back_populates="product", uselist=False
+    )
+    used_in_ingredients: Mapped[List["RecipeIngredient"]] = relationship(  # noqa: F821
+        back_populates="product"
     )
 
 
-class RecipeIngredient(Base):
-    """ Class RecipeIngredient - auto-generated docstring. """
-    __tablename__ = "recipe_ingredients"
-
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    recipe_id: Mapped[int] = mapped_column(ForeignKey("recipes.id"))
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
-    quantity: Mapped[float] = mapped_column(Float)
-    unit: Mapped[str] = mapped_column(String)
-
-    recipe: Mapped["Recipe"] = relationship(back_populates="ingredients")
-    product: Mapped["Product"] = relationship(back_populates="used_in_ingredients")
+# Recipe and RecipeIngredient models moved to app.models.recipes
+# Import from there instead: from app.models.recipes import Recipe, RecipeIngredient

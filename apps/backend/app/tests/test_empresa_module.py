@@ -1,6 +1,5 @@
 from fastapi.testclient import TestClient
 import pytest
-from .conftest import admin_login
 
 
 @pytest.mark.xfail(reason="CSRF enforced in tests without HTTPS; CRUD blocked (403)")
@@ -23,7 +22,10 @@ def test_admin_empresas_crud(client: TestClient, db, superuser_factory, admin_lo
     emp_id = emp["id"]
 
     # list
-    r = client.get("/api/v1/admin/empresas/completa-json", headers={"Authorization": f"Bearer {tok}"})
+    r = client.get(
+        "/api/v1/admin/empresas/completa-json",
+        headers={"Authorization": f"Bearer {tok}"},
+    )
     assert r.status_code == 200
     assert any(e["id"] == emp_id for e in r.json())
 

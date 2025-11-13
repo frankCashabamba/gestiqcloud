@@ -1,6 +1,7 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from uuid import UUID
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -23,12 +24,12 @@ class SetPasswordIn(BaseModel):
 
 
 @router.post("/{user_id}/set-password")
-def set_password(user_id: int, payload: SetPasswordIn, db: Session = Depends(get_db)):
+def set_password(user_id: UUID, payload: SetPasswordIn, db: Session = Depends(get_db)):
     """Establece una contraseÃ±a para un usuario admin (UsuarioEmpresa).
 
     Requiere scope admin. No devuelve la contraseÃ±a ni el hash.
     """
-    user = db.get(UsuarioEmpresa, user_id)
+    user = db.query(UsuarioEmpresa).filter(UsuarioEmpresa.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="user_not_found")
     # Solo admins de empresa; nunca superusuarios ni otros tipos
@@ -41,4 +42,3 @@ def set_password(user_id: int, payload: SetPasswordIn, db: Session = Depends(get
     db.add(user)
     db.commit()
     return {"ok": True}
-

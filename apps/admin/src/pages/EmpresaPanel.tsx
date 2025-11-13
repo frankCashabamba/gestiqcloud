@@ -8,9 +8,11 @@ export const EmpresaPanel: React.FC = () => {
   const { empresas, loading, error } = useEmpresas();
   const [search, setSearch] = useState('');
 
-  const empresasFiltradas = empresas.filter((e) =>
-    e.nombre.toLowerCase().includes(search.toLowerCase())
-  );
+  const normalizedSearch = search.trim().toLowerCase();
+  const empresasFiltradas = (empresas ?? []).filter((e) => {
+    const nombre = (e?.nombre || '').toString().toLowerCase();
+    return nombre.includes(normalizedSearch);
+  });
 
   return (
 
@@ -75,6 +77,12 @@ export const EmpresaPanel: React.FC = () => {
                     className="inline-flex items-center gap-1 bg-yellow-500 hover:bg-yellow-600 text-white text-sm px-3 py-1.5 rounded-md"
                   >
                     ⚙️ Módulos
+                  </a>
+                  <a
+                    href={`/admin/empresas/${empresa.id}/configuracion`}
+                    className="inline-flex items-center gap-1 bg-purple-500 hover:bg-purple-600 text-white text-sm px-3 py-1.5 rounded-md"
+                  >
+                    🧩 Configuración avanzada
                   </a>
                   <button
                     onClick={() => alert(`Actuar como empresa ${empresa.id}`)}

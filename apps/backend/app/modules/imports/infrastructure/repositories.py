@@ -59,9 +59,11 @@ class ImportsRepository:
             query = query.filter(ImportItem.status == status)
         if q:
             from sqlalchemy import cast, String
+
             query = query.filter(cast(ImportItem.normalized, String).ilike(f"%{q}%"))
         return query.order_by(ImportItem.idx.asc()).all()
 
+    @with_tenant_context
     @with_tenant_context
     def bulk_add_items(
         self,
@@ -71,34 +73,44 @@ class ImportsRepository:
         items: Iterable[Dict[str, Any]],
     ) -> int:
         """Insert items skipping duplicates by (batch_id, idempotency_key)."""
-        # RLS ensures only tenant's items are queried
-        existing_keys = set(
-            k
-            for (k,) in db.query(ImportItem.idempotency_key)
-            .filter(ImportItem.batch_id == batch_id)
-            .all()
-            if k is not None
+        from sqlalchemy.dialects.postgresql import insert
+
+        items_list = list(items)
+        print(
+            f"🔍 DEBUG bulk_add_items: tenant_id={tenant_id}, batch_id={batch_id}, items count={len(items_list)}"
         )
-        count = 0
-        for data in items:
-            idem = data.get("idempotency_key")
-            if idem and idem in existing_keys:
-                continue
-            obj = ImportItem(batch_id=batch_id, **data)
-            db.add(obj)
-            if idem:
-                existing_keys.add(idem)
-            count += 1
-        db.commit()
-        return count
+        if not items_list:
+            return 0
+
+        # Add batch_id and tenant_id to each item
+        for item in items_list:
+            item["batch_id"] = batch_id
+            item["tenant_id"] = tenant_id
+            if "id" not in item:
+                item["id"] = uuid.uuid4()
+
+        print(f"🔍 DEBUG: First item sample: {items_list[0]}")
+        # Batch insert without ON CONFLICT (let DB handle uniqueness)
+        stmt = insert(ImportItem).values(items_list)
+        
+        result = db.execute(stmt)
+        print(f"🔍 DEBUG: Execute result rowcount={result.rowcount}")
+        db.flush()  # Flush instead of commit, let caller commit
+
+        # Return number of rows actually inserted
+        return result.rowcount if result.rowcount is not None else 0
 
     @with_tenant_context
     def exists_promoted_hash(
         self, db: Session, tenant_id: uuid.UUID, dedupe_hash: str
     ) -> bool:
         # RLS handles tenant_id filtering
-        q = db.query(ImportItem).join(ImportBatch).filter(
-            ImportItem.dedupe_hash == dedupe_hash,
-            ImportItem.status == "PROMOTED",
+        q = (
+            db.query(ImportItem)
+            .join(ImportBatch)
+            .filter(
+                ImportItem.dedupe_hash == dedupe_hash,
+                ImportItem.status == "PROMOTED",
+            )
         )
         return db.query(q.exists()).scalar() or False

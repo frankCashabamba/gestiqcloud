@@ -1,0 +1,25 @@
+[MESSAGES CONTROL]
+disable=
+    missing-module-docstring,
+    missing-function-docstring,
+    missing-class-docstring,
+    line-too-long,
+    trailing-whitespace,
+    trailing-newlines,
+    missing-final-newline,
+    wrong-import-order,
+    ungrouped-imports,
+    import-outside-toplevel,
+    broad-exception-caught,
+    raise-missing-from,
+    unused-import,
+    unused-variable,
+    unused-argument,
+    redefined-outer-name,
+    singleton-comparison
+
+[BASIC]
+good-names=db,id,pk,i,j,k,e,f,s,u
+
+[FORMAT]
+max-line-length=120

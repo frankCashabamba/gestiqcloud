@@ -9,6 +9,7 @@ Requirements:
     - DATABASE_URL environment variable
     - PostgreSQL with RLS policies applied
 """
+
 import os
 import sys
 import uuid
@@ -40,7 +41,7 @@ def get_db_session() -> Session:
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
         raise RuntimeError("DATABASE_URL not set")
-    
+
     engine = create_engine(database_url)
     SessionLocal = sessionmaker(bind=engine)
     return SessionLocal()
@@ -49,7 +50,7 @@ def get_db_session() -> Session:
 def check_rls_enabled(db: Session, tables: List[str]) -> dict:
     """Verify RLS is enabled on all tables."""
     results = {}
-    
+
     query = text("""
         SELECT
             tablename,
@@ -62,22 +63,22 @@ def check_rls_enabled(db: Session, tables: List[str]) -> dict:
         WHERE pt.schemaname = 'public'
           AND pt.tablename = ANY(:tables)
     """)
-    
+
     rows = db.execute(query, {"tables": tables}).fetchall()
-    
+
     for row in rows:
         results[row[0]] = {
             "rls_enabled": row[1] == "ENABLED",
             "force_rls": row[2] == "YES",
         }
-    
+
     return results
 
 
 def check_policies_exist(db: Session, tables: List[str]) -> dict:
     """Verify CRUD policies exist for each table."""
     results = {}
-    
+
     query = text("""
         SELECT
             tablename,
@@ -88,22 +89,22 @@ def check_policies_exist(db: Session, tables: List[str]) -> dict:
           AND tablename = ANY(:tables)
         ORDER BY tablename, cmd
     """)
-    
+
     rows = db.execute(query, {"tables": tables}).fetchall()
-    
+
     for table in tables:
         table_policies = [r for r in rows if r[0] == table]
-        
+
         has_select = any("SELECT" in r[2] for r in table_policies)
         has_insert = any("INSERT" in r[2] for r in table_policies)
         has_update = any("UPDATE" in r[2] for r in table_policies)
         has_delete = any("DELETE" in r[2] for r in table_policies)
-        
+
         results[table] = {
             "policies": [{"name": r[1], "cmd": r[2]} for r in table_policies],
             "has_crud": has_select and has_insert and has_update and has_delete,
         }
-    
+
     return results
 
 
@@ -111,9 +112,9 @@ def test_isolation(db: Session) -> dict:
     """Test RLS isolation with two tenants."""
     tenant_a = uuid.uuid4()
     tenant_b = uuid.uuid4()
-    
+
     results = {"success": True, "errors": []}
-    
+
     try:
         # Create test data for tenant A
         db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_a)})
@@ -127,7 +128,7 @@ def test_isolation(db: Session) -> dict:
         db.add(batch_a)
         db.commit()
         batch_a_id = batch_a.id
-        
+
         # Create test data for tenant B
         db.begin()
         db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_b)})
@@ -141,71 +142,77 @@ def test_isolation(db: Session) -> dict:
         db.add(batch_b)
         db.commit()
         batch_b_id = batch_b.id
-        
+
         # Test 1: Tenant A should see only their batch
         db.begin()
         db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_a)})
-        batches = db.query(ImportBatch).filter(
-            ImportBatch.id.in_([batch_a_id, batch_b_id])
-        ).all()
-        
+        batches = (
+            db.query(ImportBatch)
+            .filter(ImportBatch.id.in_([batch_a_id, batch_b_id]))
+            .all()
+        )
+
         if len(batches) != 1 or batches[0].id != batch_a_id:
             results["success"] = False
             results["errors"].append(
                 f"Tenant A saw {len(batches)} batches (expected 1 with id={batch_a_id})"
             )
-        
+
         # Test 2: Tenant B should see only their batch
         db.commit()
         db.begin()
         db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_b)})
-        batches = db.query(ImportBatch).filter(
-            ImportBatch.id.in_([batch_a_id, batch_b_id])
-        ).all()
-        
+        batches = (
+            db.query(ImportBatch)
+            .filter(ImportBatch.id.in_([batch_a_id, batch_b_id]))
+            .all()
+        )
+
         if len(batches) != 1 or batches[0].id != batch_b_id:
             results["success"] = False
             results["errors"].append(
                 f"Tenant B saw {len(batches)} batches (expected 1 with id={batch_b_id})"
             )
-        
+
         # Test 3: No tenant context should see 0 rows
         db.commit()
         db.begin()
         db.execute(text("RESET app.tenant_id"))
-        batches = db.query(ImportBatch).filter(
-            ImportBatch.id.in_([batch_a_id, batch_b_id])
-        ).all()
-        
+        batches = (
+            db.query(ImportBatch)
+            .filter(ImportBatch.id.in_([batch_a_id, batch_b_id]))
+            .all()
+        )
+
         if len(batches) != 0:
             results["success"] = False
             results["errors"].append(
                 f"No tenant context saw {len(batches)} batches (expected 0)"
             )
-        
+
         # Cleanup
         db.commit()
         db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_a)})
         db.query(ImportBatch).filter(ImportBatch.id == batch_a_id).delete()
         db.commit()
-        
+
         db.begin()
         db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_b)})
         db.query(ImportBatch).filter(ImportBatch.id == batch_b_id).delete()
         db.commit()
-        
+
     except Exception as e:
         results["success"] = False
         results["errors"].append(f"Exception during isolation test: {e}")
         db.rollback()
-    
+
     return results
 
 
 def main():
     """Run verification checks."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Verify RLS for imports module")
     parser.add_argument(
         "--test-isolation",
@@ -213,13 +220,13 @@ def main():
         help="Run isolation tests (creates/deletes test data)",
     )
     args = parser.parse_args()
-    
+
     db = get_db_session()
-    
+
     print("=" * 60)
     print("RLS Verification for Imports Module")
     print("=" * 60)
-    
+
     # Check 1: RLS enabled
     print("\n1. Checking RLS is enabled...")
     rls_status = check_rls_enabled(db, IMPORTS_TABLES)
@@ -230,12 +237,12 @@ def main():
         print(f"  {symbol} {table}: {force}")
         if not (status["rls_enabled"] and status["force_rls"]):
             all_enabled = False
-    
+
     if all_enabled:
         print("  ✓ All tables have RLS ENABLED and FORCE")
     else:
         print("  ✗ Some tables missing RLS or FORCE")
-    
+
     # Check 2: CRUD policies
     print("\n2. Checking CRUD policies...")
     policies = check_policies_exist(db, IMPORTS_TABLES)
@@ -257,12 +264,12 @@ def main():
             if "DELETE" not in " ".join(cmds):
                 missing.append("DELETE")
             print(f"    Missing: {', '.join(missing)}")
-    
+
     if all_have_crud:
         print("  ✓ All tables have full CRUD policies")
     else:
         print("  ✗ Some tables missing CRUD policies")
-    
+
     # Check 3: Isolation test
     if args.test_isolation:
         print("\n3. Testing tenant isolation...")
@@ -273,13 +280,13 @@ def main():
             print("  ✗ Isolation tests FAILED:")
             for error in isolation_results["errors"]:
                 print(f"    - {error}")
-    
+
     # Summary
     print("\n" + "=" * 60)
     all_passed = all_enabled and all_have_crud
     if args.test_isolation:
         all_passed = all_passed and isolation_results["success"]
-    
+
     if all_passed:
         print("✓ ALL CHECKS PASSED")
         sys.exit(0)

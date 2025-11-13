@@ -5,8 +5,10 @@ import { TENANT_PROVEEDORES } from '@shared/endpoints'
 export type ProveedorContacto = {
   id?: number
   tipo: 'facturacion' | 'entrega' | 'administracion' | 'comercial' | 'soporte'
+  name?: string | null
   nombre?: string | null
   email?: string | null
+  phone?: string | null
   telefono?: string | null
   notas?: string | null
 }
@@ -16,7 +18,10 @@ export type ProveedorDireccion = {
   tipo: 'facturacion' | 'entrega' | 'administracion' | 'otros'
   linea1: string
   linea2?: string | null
+  address?: string | null
+  city?: string | null
   ciudad?: string | null
+  state?: string | null
   region?: string | null
   codigo_postal?: string | null
   pais?: string | null
@@ -25,14 +30,20 @@ export type ProveedorDireccion = {
 
 export type Proveedor = {
   id: number
-  empresa_id: number
-  nombre: string
+  tenant_id: number
+  name: string
   nombre_comercial?: string | null
   nif?: string | null
+  tax_id?: string | null
   pais?: string | null
   idioma?: string | null
   email?: string | null
+  phone?: string | null
   telefono?: string | null
+  address?: string | null
+  city?: string | null
+  state?: string | null
+  web?: string | null
   tipo_impuesto?: string | null
   retencion_irpf?: number | null
   exento_impuestos: boolean
@@ -45,18 +56,26 @@ export type Proveedor = {
   iban?: string | null
   iban_actualizado_por?: string | null
   iban_actualizado_at?: string | null
+  active?: boolean
+  activo?: boolean
   contactos: ProveedorContacto[]
   direcciones: ProveedorDireccion[]
 }
 
 export type ProveedorPayload = {
-  nombre: string
+  name: string
   nombre_comercial?: string | null
   nif?: string | null
+  tax_id?: string | null
   pais?: string | null
   idioma?: string | null
   email?: string | null
+  phone?: string | null
   telefono?: string | null
+  address?: string | null
+  city?: string | null
+  state?: string | null
+  web?: string | null
   tipo_impuesto?: string | null
   retencion_irpf?: number | null
   exento_impuestos?: boolean
@@ -68,6 +87,8 @@ export type ProveedorPayload = {
   metodo_pago?: string | null
   iban?: string | null
   iban_confirmacion?: string | null
+  active?: boolean
+  activo?: boolean
   contactos: ProveedorContacto[]
   direcciones: ProveedorDireccion[]
 }

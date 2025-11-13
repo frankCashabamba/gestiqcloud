@@ -1,13 +1,12 @@
 from uuid import UUID
 from typing import Optional
-from datetime import datetime
 import inspect
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from fastapi import HTTPException, status
 
 from app.config.database import get_db_session
+
 # Tasks may require Celery in environments where it's not installed during unit tests.
 # Provide resilient imports so tests can patch these symbols without importing Celery.
 try:
@@ -16,6 +15,7 @@ try:
         sign_and_send_facturae_task,  # type: ignore
     )
 except Exception:  # pragma: no cover - test environment without Celery
+
     class _DummyTask:
         def delay(self, *args, **kwargs):  # pragma: no cover
             class _R:
@@ -25,12 +25,14 @@ except Exception:  # pragma: no cover - test environment without Celery
 
     sign_and_send_sri_task = _DummyTask()  # type: ignore
     sign_and_send_facturae_task = _DummyTask()  # type: ignore
-from app.models.core.einvoicing import SRISubmission, SIIBatch, SIIBatchItem
+from app.models.core.einvoicing import SRISubmission, SIIBatchItem
 from app.schemas.einvoicing import EinvoicingStatusResponse
+
 
 class EinvoicingTaskResult:
     def __init__(self, task_id: str):
         self.task_id = task_id
+
 
 async def send_einvoice_use_case(
     tenant_id: UUID, invoice_id: UUID, country: str
@@ -48,6 +50,7 @@ async def send_einvoice_use_case(
             detail=f"Unsupported country for e-invoicing: {country}",
         )
     return EinvoicingTaskResult(task.id)
+
 
 async def get_einvoice_status_use_case(
     tenant_id: UUID, invoice_id: UUID
@@ -67,17 +70,22 @@ async def get_einvoice_status_use_case(
             sri_result = exec_fn.return_value
         else:
             sri_result = exec_fn(
-                select(SRISubmission).where(
+                select(SRISubmission)
+                .where(
                     SRISubmission.tenant_id == tenant_id,
                     SRISubmission.invoice_id == invoice_id,
-                ).order_by(SRISubmission.created_at.desc())
+                )
+                .order_by(SRISubmission.created_at.desc())
             )
             if inspect.isawaitable(sri_result):
                 sri_result = await sri_result
         sri_submission = sri_result.scalars().first()
 
         if sri_submission:
-            submitted_at = getattr(sri_submission, "submitted_at", None) or sri_submission.created_at
+            submitted_at = (
+                getattr(sri_submission, "submitted_at", None)
+                or sri_submission.created_at
+            )
             return EinvoicingStatusResponse(
                 invoice_id=invoice_id,
                 status=sri_submission.status,
@@ -93,10 +101,12 @@ async def get_einvoice_status_use_case(
             sii_result = exec_fn.return_value
         else:
             sii_result = exec_fn(
-                select(SIIBatchItem).where(
+                select(SIIBatchItem)
+                .where(
                     SIIBatchItem.tenant_id == tenant_id,
                     SIIBatchItem.invoice_id == invoice_id,
-                ).order_by(SIIBatchItem.created_at.desc())
+                )
+                .order_by(SIIBatchItem.created_at.desc())
             )
             if inspect.isawaitable(sii_result):
                 sii_result = await sii_result

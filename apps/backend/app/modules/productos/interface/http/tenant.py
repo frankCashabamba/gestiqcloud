@@ -1,6 +1,7 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Optional, List
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -11,6 +12,8 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.models.core.products import Product
+from app.models.core.product_category import ProductCategory
+from app.middleware.tenant import ensure_tenant
 
 
 router = APIRouter(
@@ -20,13 +23,31 @@ router = APIRouter(
 protected = [Depends(with_access_claims), Depends(require_scope("tenant"))]
 
 
-def _empresa_id_from_request(request: Request) -> int | None:
+def _empresa_id_from_request(request: Request) -> str | None:
+    """
+    Devuelve tenant_id como UUID string (no int).
+    FALLBACK DEV: Si no hay token válido, usa el primer tenant.
+    """
+    import os
+
     try:
         claims = getattr(request.state, "access_claims", None) or {}
         tid = claims.get("tenant_id") if isinstance(claims, dict) else None
         if tid is None:
+            # DEV MODE fallback
+            dev_mode = os.getenv("ENVIRONMENT", "production") != "production"
+            if dev_mode:
+                from sqlalchemy import text
+                from app.config.database import SessionLocal
+
+                with SessionLocal() as db_temp:
+                    result = db_temp.execute(
+                        text("SELECT id FROM tenants LIMIT 1")
+                    ).fetchone()
+                    if result:
+                        return str(result[0])
             return None
-        return int(str(tid))
+        return str(tid)
     except Exception:
         return None
 
@@ -35,63 +56,251 @@ class ProductIn(BaseModel):
     name: str = Field(min_length=1)
     price: float = Field(ge=0)
     stock: float = Field(ge=0)
-    unit: str = Field(min_length=1)
+    unit: str = Field(min_length=1, default="unit")
+    category: Optional[str] = None
+    sku: Optional[str] = None
+    activo: Optional[bool] = True
     product_metadata: Optional[dict] = None
 
 
 class ProductOut(BaseModel):
-    id: int
+    id: UUID
     name: str
     price: float
     stock: float
     unit: str
+    sku: Optional[str] = None
+    categoria: Optional[str] = None
+    descripcion: Optional[str] = None
+    iva_tasa: Optional[float] = None
+    activo: bool = True
+    precio_compra: Optional[float] = None
     product_metadata: Optional[dict] = None
 
     class Config:
         from_attributes = True
 
 
+# ============================================================================
+# CATEGORÍAS - DEBEN IR ANTES DE LAS RUTAS DINÁMICAS /{product_id}
+# ============================================================================
+
+
+class CategoryIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    description: Optional[str] = None
+    parent_id: Optional[str] = None
+
+
+class CategoryOut(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    parent_id: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+def get_categories_for_request(request: Request, db: Session) -> List[CategoryOut]:
+    tenant_id = _empresa_id_from_request(request)
+    print(f"[DEBUG] list_categories - tenant_id: {tenant_id}, type: {type(tenant_id)}")
+    if tenant_id is None:
+        return []
+
+    categories = (
+        db.query(ProductCategory)
+        .filter(ProductCategory.tenant_id == tenant_id)
+        .order_by(ProductCategory.name.asc())
+        .all()
+    )
+
+    print(f"[DEBUG] Categorías encontradas: {len(categories)}")
+    for c in categories:
+        print(f"  - {c.id}: {c.name} (tenant: {c.tenant_id})")
+
+    return [
+        CategoryOut(
+            id=str(c.id),
+            name=c.name,
+            description=c.description,
+            parent_id=str(c.parent_id) if c.parent_id else None,
+        )
+        for c in categories
+    ]
+
+
+@router.get(
+    "/product-categories", response_model=List[CategoryOut], dependencies=protected
+)
+def list_categories(request: Request, db: Session = Depends(get_db)):
+    return get_categories_for_request(request, db)
+
+
+@router.post(
+    "/product-categories",
+    response_model=CategoryOut,
+    status_code=201,
+    dependencies=protected,
+)
+def create_category(
+    payload: CategoryIn, request: Request, db: Session = Depends(get_db)
+):
+    tenant_id = _empresa_id_from_request(request)
+    print(f"[DEBUG] create_category - tenant_id: {tenant_id}, type: {type(tenant_id)}")
+    if tenant_id is None:
+        raise HTTPException(status_code=400, detail="missing_tenant")
+
+    obj = ProductCategory(
+        tenant_id=tenant_id,
+        name=payload.name,
+        description=payload.description,
+        parent_id=payload.parent_id if payload.parent_id else None,
+    )
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    print(f"[DEBUG] Categoría creada: {obj.id} con tenant_id={obj.tenant_id}")
+    return CategoryOut(
+        id=str(obj.id),
+        name=obj.name,
+        description=obj.description,
+        parent_id=str(obj.parent_id) if obj.parent_id else None,
+    )
+
+
+@router.delete(
+    "/product-categories/{category_id}", status_code=204, dependencies=protected
+)
+def delete_category(category_id: str, request: Request, db: Session = Depends(get_db)):
+    tenant_id = _empresa_id_from_request(request)
+
+    try:
+        obj = (
+            db.query(ProductCategory).filter(ProductCategory.id == category_id).first()
+        )
+    except Exception:
+        return
+
+    if not obj:
+        return
+    if tenant_id is not None and str(obj.tenant_id) != str(tenant_id):
+        return
+
+    db.delete(obj)
+    db.commit()
+    return
+
+
+# ============================================================================
+# PRODUCTOS - RUTAS GENERALES
+# ============================================================================
+
+
+@router.get("", response_model=List[ProductOut])
 @router.get("/", response_model=List[ProductOut])
+@router.get("/search", response_model=List[ProductOut])  # Alias para búsqueda
 def list_products(
     request: Request,
     db: Session = Depends(get_db),
     q: Optional[str] = Query(default=None, description="text search on name"),
-    limit: int = Query(default=50, ge=1, le=200),
+    categoria: Optional[str] = Query(default=None, description="filter by category"),
+    activo: Optional[bool] = Query(default=None, description="filter by active status"),
+    limit: int = Query(default=500, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
+    _tid: str = Depends(ensure_tenant),
 ):
     # Public GET, but tenant-scoped when a token is present.
-    empresa_id = _empresa_id_from_request(request)
-    if empresa_id is None:
+    tenant_id = _empresa_id_from_request(request)
+    if tenant_id is None:
         return []
-    query = select(Product).where(Product.empresa_id == empresa_id)
+
+    query = select(Product).where(Product.tenant_id == tenant_id)
+
+    # Filtro por estado activo (opcional)
+    if activo is not None:
+        query = query.where(Product.active == activo)
+
+    # Filtro por búsqueda de texto
     if q:
         like = f"%{q}%"
         query = query.where(Product.name.ilike(like))
-    query = query.order_by(Product.id.asc()).limit(limit).offset(offset)
+
+    # Filtro por categoría
+    if categoria:
+        query = query.where(Product.categoria == categoria)
+
+    query = query.order_by(Product.name.asc()).limit(limit).offset(offset)
     rows = db.execute(query).scalars().all()
     return rows
 
 
 @router.get("/{product_id}", response_model=ProductOut)
-def get_product(product_id: int, db: Session = Depends(get_db)):
-    obj = db.get(Product, product_id)
+def get_product(
+    product_id: str, db: Session = Depends(get_db), _tid: str = Depends(ensure_tenant)
+):
+    obj = db.query(Product).filter(Product.id == product_id).first()
     if not obj:
         raise HTTPException(status_code=404, detail="product_not_found")
     return obj
 
 
-@router.post("/", response_model=ProductOut, status_code=201, dependencies=protected)
+def _generate_next_sku(db: Session, tenant_id: str, categoria: str | None) -> str:
+    """Genera SKU automático: {PREFIJO}-{SECUENCIA}"""
+    import re
+
+    # Prefijo según categoría (3 caracteres)
+    if categoria:
+        prefix = re.sub(r"[^A-Z]", "", categoria.upper())[:3] or "PRO"
+    else:
+        prefix = "PRO"
+
+    # Buscar último SKU con ese prefijo en el tenant
+    from sqlalchemy import text
+
+    result = db.execute(
+        text(
+            "SELECT sku FROM products "
+            "WHERE tenant_id =:tid AND sku LIKE :pattern "
+            "ORDER BY sku DESC LIMIT 1"
+        ),
+        {"tid": tenant_id, "pattern": f"{prefix}-%"},
+    ).fetchone()
+
+    if result and result[0]:
+        # Extraer número: "PAN-0042" → 42
+        match = re.search(r"-(\d+)$", result[0])
+        if match:
+            next_num = int(match.group(1)) + 1
+        else:
+            next_num = 1
+    else:
+        next_num = 1
+
+    return f"{prefix}-{next_num:04d}"
+
+
+@router.post("", response_model=ProductOut, status_code=201, dependencies=protected)
 def create_product(payload: ProductIn, request: Request, db: Session = Depends(get_db)):
-    empresa_id = _empresa_id_from_request(request)
-    if empresa_id is None:
+    tenant_id = _empresa_id_from_request(request)
+    if tenant_id is None:
         raise HTTPException(status_code=400, detail="missing_tenant")
+
+    # Auto-generar SKU si viene vacío
+    sku = payload.sku
+    if not sku or sku.strip() == "":
+        sku = _generate_next_sku(db, tenant_id, payload.category)
+
     obj = Product(
         name=payload.name,
         price=payload.price,
         stock=payload.stock,
         unit=payload.unit,
+        sku=sku,
+        categoria=payload.category,
+        activo=payload.active if payload.active is not None else True,
         product_metadata=payload.product_metadata,
-        empresa_id=empresa_id,
+        tenant_id=tenant_id,
     )
     db.add(obj)
     db.commit()
@@ -100,33 +309,364 @@ def create_product(payload: ProductIn, request: Request, db: Session = Depends(g
 
 
 @router.put("/{product_id}", response_model=ProductOut, dependencies=protected)
-def update_product(product_id: int, payload: ProductIn, request: Request, db: Session = Depends(get_db)):
-    empresa_id = _empresa_id_from_request(request)
-    obj = db.get(Product, product_id)
+def update_product(
+    product_id: str, payload: ProductIn, request: Request, db: Session = Depends(get_db)
+):
+    """Actualizar producto (soporta UUID)"""
+    tenant_id = _empresa_id_from_request(request)
+    print(f"[DEBUG] update_product - product_id: {product_id}, tenant_id: {tenant_id}")
+
+    # Intentar UUID primero
+    try:
+        obj = db.query(Product).filter(Product.id == product_id).first()
+    except Exception as e:
+        print(f"[DEBUG] Error al buscar producto: {e}")
+        obj = None
+
     if not obj:
+        print(f"[DEBUG] Producto no encontrado: {product_id}")
         raise HTTPException(status_code=404, detail="product_not_found")
-    if empresa_id is not None and getattr(obj, "empresa_id", None) != empresa_id:
+    if tenant_id is not None and str(getattr(obj, "tenant_id", None)) != str(tenant_id):
+        print(
+            f"[DEBUG] Tenant mismatch: obj.tenant_id={obj.tenant_id}, request.tenant_id={tenant_id}"
+        )
         raise HTTPException(status_code=404, detail="product_not_found")
+
     obj.name = payload.name
     obj.price = payload.price
     obj.stock = payload.stock
     obj.unit = payload.unit
-    obj.product_metadata = payload.product_metadata
+    if payload.category is not None:
+        obj.categoria = payload.category
+    if payload.sku is not None:
+        obj.sku = payload.sku
+    if payload.active is not None:
+        obj.active = payload.active
+    if payload.product_metadata is not None:
+        obj.product_metadata = payload.product_metadata
+
     db.add(obj)
     db.commit()
     db.refresh(obj)
     return obj
 
 
+# ============================================================================
+# OPERACIONES INDIVIDUALES DE PRODUCTOS
+# ============================================================================
+
+
 @router.delete("/{product_id}", status_code=204, dependencies=protected)
 def delete_product(product_id: int, request: Request, db: Session = Depends(get_db)):
-    empresa_id = _empresa_id_from_request(request)
+    tenant_id = _empresa_id_from_request(request)
     obj = db.get(Product, product_id)
     if not obj:
         return  # idempotent
-    if empresa_id is not None and getattr(obj, "empresa_id", None) != empresa_id:
+    if tenant_id is not None and getattr(obj, "tenant_id", None) != tenant_id:
         # idempotent for other tenants
         return
     db.delete(obj)
     db.commit()
     return
+
+
+@router.delete("/purge", status_code=204, dependencies=protected)
+def purge_products(request: Request, db: Session = Depends(get_db)):
+    """
+    Elimina TODOS los productos del tenant actual y su stock asociado.
+    - Borra stock_moves y stock_items por tenant_id
+    - Borra productos y categorías del tenant
+    Pensado para reiniciar el catálogo antes de una importación.
+    """
+    from sqlalchemy import text
+
+    tenant_id = _empresa_id_from_request(request)
+    if tenant_id is None:
+        raise HTTPException(status_code=400, detail="missing_tenant")
+
+    # Orden: movimientos -> stock -> productos -> categorías (evitar referencias)
+    db.execute(
+        text("DELETE FROM stock_moves WHERE tenant_id = :tid"), {"tid": tenant_id}
+    )
+    db.execute(
+        text("DELETE FROM stock_items WHERE tenant_id = :tid"), {"tid": tenant_id}
+    )
+    # Productos primero, categorías después (por si FK opcional)
+    db.execute(text("DELETE FROM products WHERE tenant_id = :tid"), {"tid": tenant_id})
+    try:
+        db.execute(
+            text("DELETE FROM product_categories WHERE tenant_id = :tid"),
+            {"tid": tenant_id},
+        )
+    except Exception:
+        # Si la tabla no existe en algún despliegue, ignorar
+        pass
+    db.commit()
+    return
+
+
+# -------- Professional purge flow (POST + dry-run + confirmations) --------
+
+
+class PurgeRequest(BaseModel):
+    confirm: str = Field(description="Type PURGE to confirm irreversible deletion")
+    include_stock: bool = True
+    include_categories: bool = True
+    dry_run: bool = False
+
+
+class PurgeResponse(BaseModel):
+    dry_run: bool
+    counts: dict
+    deleted: dict
+
+
+def _is_owner_or_manager(request: Request) -> bool:
+    """Best‑effort RBAC gate for destructive ops.
+
+    Accept if:
+      - role/rol is owner|manager|admin, OR
+      - roles (list) contains owner|manager|admin, OR
+      - permissions/scopes contains 'admin' or 'products:purge', OR
+      - environment is non‑production (developer convenience).
+    """
+    import os
+
+    try:
+        claims = getattr(request.state, "access_claims", None) or {}
+        # Super-admin flags win (empresa-level or general)
+        if str(
+            claims.get("es_admin_empresa")
+            or claims.get("es_admin")
+            or claims.get("is_admin")
+            or ""
+        ).lower() in ("1", "true", "yes"):
+            return True
+
+        # single role keys
+        role = (claims.get("role") or claims.get("rol") or "").lower()
+        if role in {"owner", "manager", "admin"}:
+            return True
+        # list of roles
+        roles = claims.get("roles") or claims.get("perfiles") or []
+        roles = [
+            str(r).lower()
+            for r in (roles if isinstance(roles, (list, tuple)) else [roles])
+        ]
+        if any(r in {"owner", "manager", "admin"} for r in roles):
+            return True
+        # permissions/scopes
+        scopes = claims.get("scopes") or claims.get("permissions") or []
+        scopes = [
+            str(s).lower()
+            for s in (scopes if isinstance(scopes, (list, tuple)) else [scopes])
+        ]
+        if any(s in {"admin", "products:purge"} for s in scopes):
+            return True
+        # dev convenience
+        env = (os.getenv("ENVIRONMENT") or os.getenv("ENV") or "development").lower()
+        if env != "production":
+            return True
+        return False
+    except Exception:
+        return False
+
+
+@router.post("/purge", response_model=PurgeResponse, dependencies=protected)
+def purge_products_pro(
+    request: Request, payload: PurgeRequest, db: Session = Depends(get_db)
+):
+    from sqlalchemy import text
+
+    tenant_id = _empresa_id_from_request(request)
+    if tenant_id is None:
+        raise HTTPException(status_code=400, detail="missing_tenant")
+
+    if not _is_owner_or_manager(request):
+        raise HTTPException(status_code=403, detail="forbidden")
+
+    # Collect counts first (for both dry-run and after delete report)
+    def _count(sql: str) -> int:
+        try:
+            return int(db.execute(text(sql), {"tid": tenant_id}).scalar() or 0)
+        except Exception:
+            return 0
+
+    counts = {
+        "stock_moves": _count(
+            "SELECT COUNT(*) FROM stock_moves WHERE tenant_id = :tid"
+        ),
+        "stock_items": _count(
+            "SELECT COUNT(*) FROM stock_items WHERE tenant_id = :tid"
+        ),
+        "products": _count("SELECT COUNT(*) FROM products WHERE tenant_id = :tid"),
+        "product_categories": _count(
+            "SELECT COUNT(*) FROM product_categories WHERE tenant_id = :tid"
+        ),
+    }
+
+    if payload.dry_run:
+        return PurgeResponse(
+            dry_run=True, counts=counts, deleted={k: 0 for k in counts}
+        )
+
+    if (payload.confirm or "").strip().upper() != "PURGE":
+        raise HTTPException(status_code=400, detail="confirmation_required")
+
+    # Perform purge in transaction order
+    deleted = {k: 0 for k in counts}
+    if payload.include_stock:
+        deleted["stock_moves"] = (
+            db.execute(
+                text("DELETE FROM stock_moves WHERE tenant_id = :tid RETURNING 1"),
+                {"tid": tenant_id},
+            ).rowcount
+            or 0
+        )
+        deleted["stock_items"] = (
+            db.execute(
+                text("DELETE FROM stock_items WHERE tenant_id = :tid RETURNING 1"),
+                {"tid": tenant_id},
+            ).rowcount
+            or 0
+        )
+    deleted["products"] = (
+        db.execute(
+            text("DELETE FROM products WHERE tenant_id = :tid RETURNING 1"),
+            {"tid": tenant_id},
+        ).rowcount
+        or 0
+    )
+    if payload.include_categories:
+        try:
+            deleted["product_categories"] = (
+                db.execute(
+                    text(
+                        "DELETE FROM product_categories WHERE tenant_id = :tid RETURNING 1"
+                    ),
+                    {"tid": tenant_id},
+                ).rowcount
+                or 0
+            )
+        except Exception:
+            deleted["product_categories"] = 0
+    db.commit()
+
+    # Best-effort audit log
+    try:
+        from app.models.auth.audit import AuthAuditLog  # if exists
+
+        entry = AuthAuditLog(
+            tenant_id=tenant_id,
+            action="products_purge",
+            meta={
+                "deleted": deleted,
+                "requested_by": getattr(request.state, "user_id", None),
+            },
+        )
+        db.add(entry)
+        db.commit()
+    except Exception:
+        pass
+
+    return PurgeResponse(dry_run=False, counts=counts, deleted=deleted)
+
+
+# -------- Bulk activar/desactivar -------------------------------------------
+
+
+class BulkActiveIn(BaseModel):
+    ids: List[UUID] = Field(default_factory=list)
+    active: bool
+
+
+@router.post("/bulk/active", dependencies=protected)
+def bulk_set_active(
+    payload: BulkActiveIn, request: Request, db: Session = Depends(get_db)
+):
+    """Activa o desactiva masivamente productos por id dentro del tenant actual.
+
+    UI puede pasar los ids visibles (filtrados) para aplicar en bloque.
+    """
+    from sqlalchemy import select
+
+    tenant_id = _empresa_id_from_request(request)
+    if tenant_id is None:
+        raise HTTPException(status_code=400, detail="missing_tenant")
+    if not payload.ids:
+        return {"updated": 0}
+
+    # Cargar y actualizar de forma segura bajo tenant
+    q = (
+        select(Product)
+        .where(Product.tenant_id == tenant_id)
+        .where(Product.id.in_(payload.ids))
+    )
+    rows = db.execute(q).scalars().all()
+    for obj in rows:
+        obj.active = bool(payload.active)
+        db.add(obj)
+    db.commit()
+    return {"updated": len(rows)}
+
+
+# -------- Asignación masiva de categorías -----------------------------------
+
+
+class BulkCategoryIn(BaseModel):
+    ids: List[UUID] = Field(default_factory=list, description="IDs de productos")
+    category_name: str = Field(min_length=1, description="Nombre de categoría")
+
+
+@router.post("/bulk/category", dependencies=protected)
+def bulk_assign_category(
+    payload: BulkCategoryIn, request: Request, db: Session = Depends(get_db)
+):
+    """Asigna masivamente una categoría a múltiples productos.
+
+    - Si la categoría no existe, se crea automáticamente
+    - Actualiza solo productos del tenant actual
+    """
+    from sqlalchemy import select
+
+    tenant_id = _empresa_id_from_request(request)
+    if tenant_id is None:
+        raise HTTPException(status_code=400, detail="missing_tenant")
+    if not payload.ids:
+        return {"updated": 0, "category_created": False}
+
+    # Buscar o crear categoría
+    category = (
+        db.query(ProductCategory)
+        .filter(
+            ProductCategory.tenant_id == tenant_id,
+            ProductCategory.name == payload.category_name,
+        )
+        .first()
+    )
+
+    category_created = False
+    if not category:
+        category = ProductCategory(tenant_id=tenant_id, name=payload.category_name)
+        db.add(category)
+        db.flush()
+        category_created = True
+
+    # Actualizar productos
+    q = (
+        select(Product)
+        .where(Product.tenant_id == tenant_id)
+        .where(Product.id.in_(payload.ids))
+    )
+    rows = db.execute(q).scalars().all()
+    for obj in rows:
+        obj.categoria = payload.category_name
+        obj.category_id = category.id
+        db.add(obj)
+
+    db.commit()
+    return {
+        "updated": len(rows),
+        "category_created": category_created,
+        "category_name": payload.category_name,
+    }

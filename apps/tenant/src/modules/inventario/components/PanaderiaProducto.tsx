@@ -1,18 +1,18 @@
 import React, { useState } from 'react'
 
-type Ingrediente = { nombre: string; cantidad: string; unidad: string }
+type Ingrediente = { name: string; cantidad: string; unidad: string }
 
 export default function PanaderiaProducto() {
   const [nombre, setNombre] = useState('')
   const [precio, setPrecio] = useState('')
   const [stock, setStock] = useState('')
   const [rinde, setRinde] = useState('')
-  const [ingredientes, setIngredientes] = useState<Ingrediente[]>([{ nombre: '', cantidad: '', unidad: '' }])
+  const [ingredientes, setIngredientes] = useState<Ingrediente[]>([{ name: '', cantidad: '', unidad: '' }])
 
   const onIngChange = (i: number, field: keyof Ingrediente, val: string) => {
     setIngredientes(prev => prev.map((ing, idx) => idx===i ? { ...ing, [field]: val } as Ingrediente : ing))
   }
-  const addIng = () => setIngredientes(prev => [...prev, { nombre: '', cantidad: '', unidad: '' }])
+  const addIng = () => setIngredientes(prev => [...prev, { name: '', cantidad: '', unidad: '' }])
 
   const calcularCosto = () => {
     alert('Cálculo de costo pendiente')
@@ -30,7 +30,7 @@ export default function PanaderiaProducto() {
         <h3 className="text-lg mt-4">Ingredientes</h3>
         {ingredientes.map((ing, idx) => (
           <div key={idx} className="flex gap-2 my-1">
-            <input placeholder="Ingrediente" value={ing.nombre} onChange={(e)=> onIngChange(idx, 'nombre', e.target.value)} className="border p-1 flex-1" />
+            <input placeholder="Ingrediente" value={ing.name} onChange={(e)=> onIngChange(idx, 'name', e.target.value)} className="border p-1 flex-1" />
             <input placeholder="Cantidad" value={ing.cantidad} onChange={(e)=> onIngChange(idx, 'cantidad', e.target.value)} className="border p-1 w-20" />
             <input placeholder="Unidad (g, kg, L)" value={ing.unidad} onChange={(e)=> onIngChange(idx, 'unidad', e.target.value)} className="border p-1 w-24" />
           </div>

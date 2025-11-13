@@ -1,0 +1,53 @@
+INFO:     127.0.0.1:52790 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:40424 - "POST /api/v1/tenant/auth/logout HTTP/1.0" 200 OK
+INFO:     172.18.0.7:40426 - "GET /api/v1/tenant/settings/theme HTTP/1.0" 200 OK
+INFO:     172.18.0.7:40434 - "POST /api/v1/tenant/auth/refresh HTTP/1.0" 401 Unauthorized
+INFO:     127.0.0.1:43384 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:40442 - "POST /api/v1/tenant/auth/login HTTP/1.0" 200 OK
+INFO:     172.18.0.7:40446 - "GET /api/v1/me/tenant HTTP/1.0" 200 OK
+INFO:     172.18.0.7:40460 - "GET /api/v1/me/tenant HTTP/1.0" 200 OK
+INFO:     172.18.0.7:40466 - "GET /api/v1/tenant/settings/theme HTTP/1.0" 200 OK
+INFO:     172.18.0.7:40468 - "GET /api/v1/tenant/settings/theme?empresa=kusi-panaderia HTTP/1.0" 200 OK
+INFO:     172.18.0.7:40472 - "GET /api/v1/tenant/settings/theme?empresa=kusi-panaderia HTTP/1.0" 200 OK
+INFO:     172.18.0.7:40486 - "GET /api/v1/tenant/settings/theme?empresa=kusi-panaderia HTTP/1.0" 200 OK
+INFO:     172.18.0.7:40478 - "GET /api/v1/modulos/empresa/kusi-panaderia/seleccionables HTTP/1.0" 200 OK
+INFO:     172.18.0.7:40490 - "GET /api/v1/modulos/empresa/kusi-panaderia/seleccionables HTTP/1.0" 200 OK
+INFO:     172.18.0.7:55220 - "GET /api/v1/modulos/empresa/kusi-panaderia/seleccionables HTTP/1.0" 200 OK
+[DEBUG] RLS set for tenant: 5c7bea07-05ca-457f-b321-722b1628b170INFO:     172.18.0.7:55226 - "GET /api/v1/me/tenant HTTP/1.0" 200 OK
+
+INFO:     172.18.0.7:55244 - "GET /api/v1/inventory/warehouses HTTP/1.0" 200 OK
+INFO:     172.18.0.7:55248 - "GET /api/v1/pos/registers HTTP/1.0" 200 OK
+INFO:     172.18.0.7:55240 - "GET /api/v1/tenant/products/ HTTP/1.0" 200 OK
+INFO:     172.18.0.7:55262 - "GET /api/v1/pos/shifts/current/1878ed19-44c3-4055-b17f-990672f5379f HTTP/1.0" 200 OK
+INFO:     127.0.0.1:51168 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:43796 - "POST /api/v1/pos/receipts HTTP/1.0" 201 Created
+INFO:     172.18.0.7:43800 - "GET /api/v1/me/tenant HTTP/1.0" 200 OK
+INFO:     172.18.0.7:43814 - "GET /api/v1/inventory/warehouses HTTP/1.0" 200 OK
+INFO:     127.0.0.1:58970 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:43826 - "POST /api/v1/pos/receipts/06bab35d-8636-47a8-9b3e-26273b65325f/checkout HTTP/1.0" 500 Internal Server Error
+INFO:     127.0.0.1:35080 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57148 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51972 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50860 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43040 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52286 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33716 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:45462 - "POST /api/v1/pos/receipts/06bab35d-8636-47a8-9b3e-26273b65325f/checkout HTTP/1.0" 500 Internal Server Error
+INFO:     127.0.0.1:41864 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42854 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47554 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39532 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     172.18.0.7:35720 - "POST /api/v1/pos/receipts/06bab35d-8636-47a8-9b3e-26273b65325f/checkout HTTP/1.0" 500 Internal Server Error
+INFO:     127.0.0.1:43230 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54832 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43850 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35536 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54776 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57172 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40620 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36554 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44848 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55132 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54166 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36546 - "GET /api/v1/imports/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60098 - "GET /api/v1/imports/health HTTP/1.1" 200 OK

@@ -43,7 +43,7 @@ export default function TipoEmpresaList() {
         <tbody>
           {items.map((it) => (
             <tr key={it.id} className="border-t">
-              <td className="py-2 px-3">{it.nombre}</td>
+              <td className="py-2 px-3">{it.name}</td>
               <td className="py-2 px-3">
                 <Link to={`${it.id}/editar`} className="text-blue-600 hover:underline mr-3">Editar</Link>
                 <button

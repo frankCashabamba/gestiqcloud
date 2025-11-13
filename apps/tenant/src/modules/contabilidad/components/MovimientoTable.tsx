@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+﻿import React, { useMemo } from 'react'
 import type { Asiento } from '../types/movimiento'
 import { MovimientoTipoBadge, type TipoMovimiento } from './MovimientoTipoBadge'
 import { useI18n } from '../../../i18n/I18nProvider'
@@ -27,7 +27,7 @@ export const MovimientoTable: React.FC<Props> = ({ asientos }) => {
         const tipo: TipoMovimiento = isIngreso && !isGasto ? 'ingreso' : 'gasto'
         const importe = (ap.haber ?? 0) > 0 ? ap.haber : (ap.debe ?? 0)
         out.push({
-          id: `${a.id}-${ap.cuenta}-${ap.descripcion}`,
+          id: `${a.id}-${ap.cuenta}-${ap.description}`,
           fecha: a.fecha,
           cuenta: ap.cuenta,
           categoria: '-',

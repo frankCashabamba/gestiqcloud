@@ -1,21 +1,25 @@
 # apps/backend/prod.py
-import os, sys, subprocess
+import os
+import sys
+import subprocess
 from pathlib import Path
 
 PORT = int(os.getenv("PORT", "8000"))
 ENV = os.getenv("ENV", "development")
 
 # Rutas del monorepo
-BACKEND_DIR = Path(__file__).resolve().parent             # apps/backend
-APPS_DIR = BACKEND_DIR.parent                             # apps
-ROOT = APPS_DIR.parent                                    # repo root (/opt/render/project/src)
+BACKEND_DIR = Path(__file__).resolve().parent  # apps/backend
+APPS_DIR = BACKEND_DIR.parent  # apps
+ROOT = APPS_DIR.parent  # repo root (/opt/render/project/src)
 sys.path[:0] = [str(ROOT), str(APPS_DIR), str(BACKEND_DIR)]
 
 # Conexión y paths de scripts/migraciones legacy
 DB_DSN = os.getenv("DATABASE_URL") or os.getenv("DB_DSN")
 SCRIPTS = ROOT / "scripts" / "py"
 MIG_ROOT = ROOT / "ops" / "migrations"
-MIG_ROOT_LOCAL = BACKEND_DIR / "ops" / "migrations"  # fallback when only backend subtree is deployed
+MIG_ROOT_LOCAL = (
+    BACKEND_DIR / "ops" / "migrations"
+)  # fallback when only backend subtree is deployed
 
 
 def run_apply_rls() -> None:
@@ -42,7 +46,9 @@ def run_apply_rls() -> None:
         print("scripts/py/apply_rls.py no existe; se omite.")
         return
 
-    schemas = [s.strip() for s in (os.getenv("RLS_SCHEMAS", "public").split(",")) if s.strip()]
+    schemas = [
+        s.strip() for s in (os.getenv("RLS_SCHEMAS", "public").split(",")) if s.strip()
+    ]
     set_default = os.getenv("RLS_SET_DEFAULT", "1").lower() in ("1", "true", "yes")
 
     env = os.environ.copy()
@@ -74,12 +80,14 @@ def run_alembic() -> None:
 
     # Inyecta PYTHONPATH y DATABASE_URL al proceso hijo (alembic CLI)
     env = os.environ.copy()
-    env["PYTHONPATH"] = os.pathsep.join([
-        str(ROOT),
-        str(APPS_DIR),
-        str(BACKEND_DIR),
-        env.get("PYTHONPATH", ""),
-    ])
+    env["PYTHONPATH"] = os.pathsep.join(
+        [
+            str(ROOT),
+            str(APPS_DIR),
+            str(BACKEND_DIR),
+            env.get("PYTHONPATH", ""),
+        ]
+    )
     if DB_DSN:
         env.setdefault("DATABASE_URL", DB_DSN)
 
@@ -90,7 +98,6 @@ def run_alembic() -> None:
         cwd=str(BACKEND_DIR),
         env=env,
     )
-
 
 
 def run_legacy_migrations() -> None:
@@ -142,7 +149,16 @@ def run_legacy_migrations() -> None:
         if up.exists():
             print(f"🚀 applying migration: {d.name} (up.sql)")
             subprocess.run(
-                [sys.executable, str(apply_py), "--dsn", DB_DSN, "--dir", str(d), "--action", "up"],
+                [
+                    sys.executable,
+                    str(apply_py),
+                    "--dsn",
+                    DB_DSN,
+                    "--dir",
+                    str(d),
+                    "--action",
+                    "up",
+                ],
                 check=True,
                 env=env,
             )
@@ -161,18 +177,21 @@ def run_legacy_migrations() -> None:
     check_py = SCRIPTS / "check_schema.py"
     if check_py.exists():
         try:
-            subprocess.run([sys.executable, str(check_py), "--dsn", DB_DSN], check=True, env=env)
+            subprocess.run(
+                [sys.executable, str(check_py), "--dsn", DB_DSN], check=True, env=env
+            )
         except subprocess.CalledProcessError as e:
             print(f"⚠️  Schema check warning: {e}")
 
 
 def start_app() -> None:
     try:
-        from app.main import app           # rootDir=apps/backend
+        from app.main import app  # rootDir=apps/backend
     except ModuleNotFoundError:
         from apps.backend.app.main import app
 
     import uvicorn
+
     log_level = os.getenv("UVICORN_LOG_LEVEL", "info")
     # Nota: Render suele gestionar la concurrencia; deja 1 worker salvo que lo controles con un proceso externo.
     uvicorn.run(app, host="0.0.0.0", port=PORT, log_level=log_level)
@@ -197,6 +216,7 @@ if __name__ == "__main__":
             except Exception:
                 from apps.backend.app.config.database import Base, engine
             from sqlalchemy import inspect
+
             insp = inspect(engine)
             # Heurística: si no existe una tabla crítica, crea todo
             critical = [
@@ -205,7 +225,9 @@ if __name__ == "__main__":
             ]
             missing = [t for t in critical if not insp.has_table(t)]
             if missing:
-                print(f"↪️  Tablas críticas ausentes {missing}; ejecutando Base.metadata.create_all()")
+                print(
+                    f"↪️  Tablas críticas ausentes {missing}; ejecutando Base.metadata.create_all()"
+                )
                 try:
                     Base.metadata.create_all(bind=engine)
                     print("✅ ORM bootstrap completado")

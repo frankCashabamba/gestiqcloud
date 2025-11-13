@@ -24,8 +24,14 @@ export function EmpresaModulos() {
           listModulosPublicos(),
           listEmpresaModulos(empresaId),
         ])
+        const moduloLookup = new Map(mods.map(m => [m.id, m]))
+        const enrichedAsignados = empMods.map((registro) => {
+          if (registro.modulo?.nombre) return registro
+          const moduloInfo = moduloLookup.get(registro.modulo_id)
+          return moduloInfo ? { ...registro, modulo: moduloInfo } : registro
+        })
         setCatalogo(mods)
-        setAsignados(empMods)
+        setAsignados(enrichedAsignados)
       } catch (e: any) {
         error(getErrorMessage(e))
       } finally {

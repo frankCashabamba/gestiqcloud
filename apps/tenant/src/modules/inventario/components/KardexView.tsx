@@ -4,7 +4,7 @@ import { ensureArray } from '../../../shared/utils/array'
 import type { KardexEntry } from '../types/producto'
 import { usePagination, Pagination } from '../../../shared/pagination'
 
-export function KardexView() {
+export default function KardexView() {
   const [items, setItems] = useState<KardexEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [from, setFrom] = useState('')

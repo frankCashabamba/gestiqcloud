@@ -4,20 +4,29 @@ Auto-generated module docstring."""
 
 from datetime import datetime
 from typing import Dict, List, Optional
+from uuid import UUID
 
-from sqlalchemy import (JSON, Boolean, DateTime, ForeignKey, Integer, String,
-                        Text)
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
-from app.models.empresa.empresa import Empresa, Idioma, Moneda
+
 
 class ConfiguracionEmpresa(Base):
-    """ Class ConfiguracionEmpresa - auto-generated docstring. """
+    """Class ConfiguracionEmpresa - auto-generated docstring."""
+
     __tablename__ = "core_configuracionempresa"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    empresa_id: Mapped[int] = mapped_column(ForeignKey("core_empresa.id"), unique=True, nullable=False)
+    tenant_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.id"),
+        unique=True,
+        index=True,
+        nullable=True,
+    )
 
     idioma_predeterminado: Mapped[str] = mapped_column(String(10), default="es")
     zona_horaria: Mapped[str] = mapped_column(String(50), default="UTC")
@@ -30,8 +39,12 @@ class ConfiguracionEmpresa(Base):
     permitir_roles_personalizados: Mapped[bool] = mapped_column(Boolean, default=True)
     limite_usuarios: Mapped[int] = mapped_column(Integer, default=10)
 
-    dias_laborales: Mapped[List[str]] = mapped_column(JSON, default=lambda: ["lunes", "martes", "miércoles", "jueves", "viernes"])
-    horario_atencion: Mapped[Dict[str, str]] = mapped_column(JSON, default=lambda: {"inicio": "09:00", "fin": "18:00"})
+    dias_laborales: Mapped[List[str]] = mapped_column(
+        JSON, default=lambda: ["lunes", "martes", "miércoles", "jueves", "viernes"]
+    )
+    horario_atencion: Mapped[Dict[str, str]] = mapped_column(
+        JSON, default=lambda: {"inicio": "09:00", "fin": "18:00"}
+    )
     tipo_operacion: Mapped[str] = mapped_column(String, default="ventas")
 
     razon_social: Mapped[Optional[str]] = mapped_column(String)
@@ -39,21 +52,29 @@ class ConfiguracionEmpresa(Base):
     regimen_fiscal: Mapped[Optional[str]] = mapped_column(String)
 
     creado_en: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    actualizado_en: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    actualizado_en: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
     idioma_id: Mapped[Optional[int]] = mapped_column(ForeignKey("core_idioma.id"))
     moneda_id: Mapped[Optional[int]] = mapped_column(ForeignKey("core_moneda.id"))
 
-    empresa: Mapped[Empresa] = relationship(Empresa)
-
+    tenant = relationship("Tenant", foreign_keys=[tenant_id])
 
 
 class ConfiguracionInventarioEmpresa(Base):
-    """ Class ConfiguracionInventarioEmpresa - auto-generated docstring. """
+    """Class ConfiguracionInventarioEmpresa - auto-generated docstring."""
+
     __tablename__ = "core_configuracioninventarioempresa"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    empresa_id: Mapped[int] = mapped_column(ForeignKey("core_empresa.id"), unique=True, nullable=False)
+    tenant_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.id"),
+        unique=True,
+        index=True,
+        nullable=True,
+    )
 
     control_stock_activo: Mapped[bool] = mapped_column(Boolean, default=True)
     notificar_bajo_stock: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -63,4 +84,4 @@ class ConfiguracionInventarioEmpresa(Base):
     categorias_personalizadas: Mapped[bool] = mapped_column(Boolean, default=False)
     campos_extra_producto: Mapped[Optional[dict]] = mapped_column(JSON)
 
-    empresa: Mapped[Empresa] = relationship(Empresa)
+    tenant = relationship("Tenant", foreign_keys=[tenant_id])

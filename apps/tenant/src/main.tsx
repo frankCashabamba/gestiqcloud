@@ -40,7 +40,7 @@ setupPWA((ev) => {
 // Load tenant theme tokens (non-blocking)
 ;(async () => {
   try {
-    const t = await apiFetch<any>('/v1/tenant/settings/theme')
+    const t = await apiFetch<any>('/api/v1/tenant/settings/theme')
     if (t) applyTheme(t)
   } catch {}
 })()

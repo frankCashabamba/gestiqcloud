@@ -65,13 +65,13 @@ export function SessionKeepAlive({
       }, responseWindowMs)
     }, warnAfterMs)
     return clearAll
-  }, [token, warnAfterMs, responseWindowMs, logout, rev])
+  }, [token, warnAfterMs, responseWindowMs, logout])
 
   // Reinicia timers con actividad (throttle)
   useEffect(() => {
     if (!token) return
     let last = 0
-    const throttleMs = 1000
+    const throttleMs = 5000  // Reduced frequency from 1s to 5s
     const handler = () => {
       const now = Date.now()
       if (now - last < throttleMs) return
@@ -81,7 +81,7 @@ export function SessionKeepAlive({
       setRemaining(Math.floor(responseWindowMs / 1000))
       setRev((x) => x + 1)
     }
-    const events = ['click', 'keydown', 'mousemove', 'touchstart', 'scroll', 'visibilitychange'] as const
+    const events = ['click', 'keydown'] as const  // Only essential events
     events.forEach((ev) => window.addEventListener(ev, handler, { passive: true }))
     return () => events.forEach((ev) => window.removeEventListener(ev, handler as any))
   }, [token, responseWindowMs, open])

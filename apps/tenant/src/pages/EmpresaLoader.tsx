@@ -2,6 +2,7 @@ import React, { Suspense, useEffect, useMemo, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import { apiFetch } from '../lib/http'
 import { applyTheme } from '@shared/ui'
+import { useAuth } from '../auth/AuthContext'
 
 type LazyComp = React.LazyExoticComponent<React.ComponentType<any>>
 type ThemeResp = { sector?: string } & Record<string, any>
@@ -10,6 +11,7 @@ const PLANTILLAS = import.meta.glob('../plantillas/*.tsx')
 
 export default function EmpresaLoader() {
   const { empresa } = useParams()
+  const { profile } = useAuth()
   const [Component, setComponent] = useState<LazyComp | null>(null)
   const [ready, setReady] = useState(false)
   const [sector, setSector] = useState<string | null>(null)
@@ -19,7 +21,7 @@ export default function EmpresaLoader() {
     ;(async () => {
       try {
         if (!empresa) return
-        const t = await apiFetch<ThemeResp>(`/v1/tenant/settings/theme?empresa=${encodeURIComponent(empresa)}`)
+        const t = await apiFetch<ThemeResp>(`/api/v1/tenant/settings/theme?empresa=${encodeURIComponent(empresa)}`)
         if (t) {
           try { applyTheme(t as any) } catch {}
           const s = t.sector || 'default'
@@ -56,6 +58,15 @@ export default function EmpresaLoader() {
     })()
     return () => { mounted = false }
   }, [sector, empresa])
+
+  // Si el valor de la URL es literalmente ':empresa' (o está URL-encoded), redirige a un slug real o a raíz
+  try {
+    const dec = empresa ? decodeURIComponent(empresa) : ''
+    if (dec && dec.startsWith(':')) {
+      const slug = profile?.empresa_slug
+      return <Navigate to={slug ? `/${slug}` : `/`} replace />
+    }
+  } catch {}
 
   if (!empresa) return <Navigate to="/error" replace />
   if (!ready || !Component) return <div className="p-10 text-center">Cargando plantilla…</div>

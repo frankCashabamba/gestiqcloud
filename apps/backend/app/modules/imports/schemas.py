@@ -8,9 +8,12 @@ from pydantic import Field
 # Procesamiento de documentos
 # --------------------
 
+
 class DocumentoProcesado(BaseModel):
     # Campos comunes detectados/normalizados por los extractores
-    tipo: Optional[str] = None                 # "factura"|"recibo"|"transferencia"|"bancario"|"desconocido"
+    tipo: Optional[str] = (
+        None  # "factura"|"recibo"|"transferencia"|"bancario"|"desconocido"
+    )
     importe: Optional[float] = None
     cliente: Optional[str] = None
     invoice: Optional[str] = None
@@ -42,34 +45,8 @@ class OCRJobStatusResponse(BaseModel):
 
 
 # --------------------
-# CRUD de DatosImportados
+# Legacy schemas removed - use ImportBatch/ImportItem instead
 # --------------------
-
-class DatosImportadosBase(BaseModel):
-    tipo: str
-    origen: str
-    datos: Dict[str, Any]
-    estado: Optional[str] = "pendiente"
-    hash: Optional[str] = None
-
-
-class DatosImportadosCreate(DatosImportadosBase):
-    pass
-
-
-class DatosImportadosUpdate(BaseModel):
-    tipo: Optional[str] = None
-    origen: Optional[str] = None
-    datos: Optional[Dict[str, Any]] = None
-    estado: Optional[str] = None
-    hash: Optional[str] = None
-
-
-class DatosImportadosOut(DatosImportadosBase):
-    id: int
-    empresa_id: int
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class OkResponse(BaseModel):
@@ -84,11 +61,17 @@ class HayPendientesOut(BaseModel):
 # Batches e items (para pipelines avanzados)
 # --------------------
 
+
 class BatchCreate(BaseModel):
-    source_type: str            # 'invoices'|'bank'|'receipts'
-    origin: str                 # 'excel'|'ocr'|'api'
+    source_type: str  # 'invoices'|'bank'|'receipts'
+    origin: str  # 'excel'|'ocr'|'api'
     file_key: Optional[str] = None
     mapping_id: Optional[UUID] = None
+    # Fase A - Clasificación persistida
+    suggested_parser: Optional[str] = None
+    classification_confidence: Optional[float] = None
+    ai_enhanced: Optional[bool] = False
+    ai_provider: Optional[str] = None
 
 
 class BatchOut(BaseModel):
@@ -99,8 +82,21 @@ class BatchOut(BaseModel):
     file_key: Optional[str] = None
     mapping_id: Optional[UUID] = None
     created_at: datetime
+    # Fase A - Clasificación persistida
+    suggested_parser: Optional[str] = None
+    classification_confidence: Optional[float] = None
+    ai_enhanced: bool = False
+    ai_provider: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UpdateClassificationRequest(BaseModel):
+    """Schema para actualizar clasificación de un batch (PATCH /batches/{id}/classification)"""
+    suggested_parser: Optional[str] = None
+    classification_confidence: Optional[float] = None
+    ai_enhanced: Optional[bool] = None
+    ai_provider: Optional[str] = None
 
 
 class ItemOut(BaseModel):
@@ -135,6 +131,7 @@ class PromoteResult(BaseModel):
 # Ingesta de filas
 # --------------------
 
+
 class IngestRows(BaseModel):
     rows: List[Dict[str, Any]]
     mapping_id: Optional[UUID] = None
@@ -142,9 +139,14 @@ class IngestRows(BaseModel):
     defaults: Optional[Dict[str, Any]] = None
 
 
+class PromoteItems(BaseModel):
+    item_ids: List[str]
+
+
 # --------------------
 # ImportMapping (plantillas)
 # --------------------
+
 
 class ImportMappingBase(BaseModel):
     name: str
@@ -171,7 +173,7 @@ class ImportMappingUpdate(BaseModel):
 
 class ImportMappingOut(ImportMappingBase):
     id: UUID
-    empresa_id: int
+    tenant_id: UUID
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

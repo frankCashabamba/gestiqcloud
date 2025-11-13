@@ -15,4 +15,3 @@ except Exception:  # pragma: no cover - keep imports resilient in CI
         CORS_ORIGINS = ["http://localhost:8081", "http://localhost:8082"]
 
     settings = _SettingsFallback()  # type: ignore
-

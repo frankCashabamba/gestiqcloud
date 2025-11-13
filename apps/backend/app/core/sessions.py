@@ -1,6 +1,7 @@
 """
 Server-side session middleware backed by pluggable stores (Redis or in-memory).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -118,7 +119,9 @@ class SessionMiddlewareServerSide(BaseHTTPMiddleware):
             raw_samesite = str(getattr(settings, "COOKIE_SAMESITE", "Strict")).lower()
             if raw_samesite not in ("lax", "strict", "none"):
                 raw_samesite = "lax"
-            cookie_samesite = raw_samesite.capitalize()  # store canonical, lower() on set_cookie
+            cookie_samesite = (
+                raw_samesite.capitalize()
+            )  # store canonical, lower() on set_cookie
             if cdomain is None:
                 cdomain = getattr(settings, "COOKIE_DOMAIN", None)
         except Exception:
@@ -160,7 +163,9 @@ class SessionMiddlewareServerSide(BaseHTTPMiddleware):
         raw = request.cookies.get(self.cfg.cookie_name)
         sid = None
         session: Dict[str, Any] = {}
-        store_for_read = self._fallback_store if self._using_fallback() else self._primary_store
+        store_for_read = (
+            self._fallback_store if self._using_fallback() else self._primary_store
+        )
         if raw:
             try:
                 sid = self.signer.unsign(raw.encode()).decode()
@@ -192,11 +197,15 @@ class SessionMiddlewareServerSide(BaseHTTPMiddleware):
         response: Response = await call_next(request)
 
         # Persist session if it's dirty or a known sid with content
-        if getattr(request.state, "session_dirty", False) or (sid and request.state.session):
+        if getattr(request.state, "session_dirty", False) or (
+            sid and request.state.session
+        ):
             data = dict(request.state.session)
             if not sid:
                 sid = secrets.token_urlsafe(32)
-            store_for_write = self._fallback_store if self._using_fallback() else self._primary_store
+            store_for_write = (
+                self._fallback_store if self._using_fallback() else self._primary_store
+            )
             try:
                 await store_for_write.set(sid, data, self.cfg.ttl_seconds)
             except Exception as exc:  # pragma: no cover - depends on store backend

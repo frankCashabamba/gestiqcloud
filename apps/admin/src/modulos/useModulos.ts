@@ -4,15 +4,33 @@ import api from "../utils/axios";
 export interface Modulo {
   id: number;
   nombre: string;
-  icono: string;
+  icono?: string;
   descripcion?: string;
 }
+
+type BackendModulo = {
+  id: number;
+  name?: string;
+  nombre?: string | null;
+  description?: string | null;
+  descripcion?: string | null;
+  icono?: string | null;
+};
 
 export type UseModulosResult = {
   modulos: Modulo[];
   loading: boolean;
   error: string | null;
 };
+
+function normalizeModulo(raw: BackendModulo): Modulo {
+  return {
+    id: raw.id,
+    nombre: (raw.nombre || raw.name || "").trim(),
+    icono: raw.icono || undefined,
+    descripcion: raw.descripcion || raw.description || undefined,
+  };
+}
 
 export function useModulos(): UseModulosResult {
   const [modulos, setModulos] = useState<Modulo[]>([]);
@@ -25,11 +43,12 @@ export function useModulos(): UseModulosResult {
       try {
         setLoading(true);
         setError(null);
-        const res = await api.get<Modulo[]>(
+        const res = await api.get<BackendModulo[]>(
           "/v1/admin/modulos/publicos",
           { signal: ac.signal } as any
         );
-        setModulos(res.data || []);
+        const data = res.data || [];
+        setModulos(data.map(normalizeModulo));
       } catch (err: any) {
         if (err?.name === "CanceledError" || err?.code === "ERR_CANCELED") return;
         console.error("Error cargando módulos", err);

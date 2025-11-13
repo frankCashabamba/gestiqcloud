@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
+from uuid import UUID
+from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 
 class PromoteResult:
@@ -11,52 +14,845 @@ class PromoteResult:
 
 class InvoiceHandler:
     @staticmethod
-    def promote(normalized: Dict[str, Any], promoted_id: Optional[str] = None) -> PromoteResult:
-        """Idempotent skeleton: if already promoted, skip; else return a fake id.
-        Replace with real insert into domain models.
+    def promote(
+        db: Session,
+        tenant_id: UUID,
+        normalized: Dict[str, Any],
+        promoted_id: Optional[str] = None,
+        **kwargs,
+    ) -> PromoteResult:
+        """
+        Promociona factura completa a tabla invoices con líneas.
+        IMPLEMENTACIÓN REAL - guarda en base de datos.
         """
         if promoted_id:
             return PromoteResult(domain_id=promoted_id, skipped=True)
-        # Minimal fake id composed from key fields
-        inv = str(normalized.get("invoice_number") or normalized.get("invoice") or "")
-        date = str(normalized.get("invoice_date") or normalized.get("date") or "")
-        domain_id = f"inv:{inv}:{date}" if inv or date else None
-        return PromoteResult(domain_id=domain_id, skipped=False)
+
+        from app.models.core.facturacion import Invoice
+        from app.models.core.invoiceLine import LineaFactura
+        from app.models.core.clients import Cliente
+        from uuid import uuid4
+        from datetime import datetime, date
+
+        try:
+            # Extraer número de factura
+            invoice_number = str(
+                normalized.get("invoice_number")
+                or normalized.get("numero")
+                or normalized.get("numero_factura")
+                or normalized.get("number")
+                or f"INV-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+            ).strip()
+
+            # Fecha de emisión
+            fecha_raw = (
+                normalized.get("invoice_date")
+                or normalized.get("fecha_emision")
+                or normalized.get("fecha")
+                or normalized.get("date")
+                or normalized.get("issue_date")
+            )
+            if isinstance(fecha_raw, str):
+                for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"]:
+                    try:
+                        fecha_emision = (
+                            datetime.strptime(fecha_raw, fmt).date().isoformat()
+                        )
+                        break
+                    except ValueError:
+                        continue
+                else:
+                    fecha_emision = datetime.utcnow().date().isoformat()
+            elif isinstance(fecha_raw, (date, datetime)):
+                fecha_emision = (
+                    fecha_raw.isoformat()
+                    if isinstance(fecha_raw, date)
+                    else fecha_raw.date().isoformat()
+                )
+            else:
+                fecha_emision = datetime.utcnow().date().isoformat()
+
+            # Proveedor
+            vendor_name = str(
+                normalized.get("vendor_name")
+                or normalized.get("proveedor")
+                or normalized.get("supplier")
+                or normalized.get("vendor", {}).get("name")
+                or "Proveedor desconocido"
+            ).strip()
+
+            # Importes
+            subtotal = float(
+                normalized.get("subtotal")
+                or normalized.get("base_imponible")
+                or normalized.get("totals", {}).get("subtotal")
+                or 0
+            )
+            iva = float(
+                normalized.get("tax")
+                or normalized.get("iva")
+                or normalized.get("impuesto")
+                or normalized.get("totals", {}).get("tax")
+                or 0
+            )
+            total = float(
+                normalized.get("total")
+                or normalized.get("amount")
+                or normalized.get("totals", {}).get("total")
+                or (subtotal + iva)
+            )
+
+            # Buscar o crear cliente/proveedor
+            cliente = (
+                db.query(Cliente)
+                .filter(Cliente.tenant_id == tenant_id, Cliente.nombre == vendor_name)
+                .first()
+            )
+            if not cliente:
+                cliente = Cliente(
+                    tenant_id=tenant_id,
+                    nombre=vendor_name,
+                    tipo="proveedor",
+                    email=None,
+                    telefono=None,
+                )
+                db.add(cliente)
+                db.flush()
+
+            # Crear factura
+            invoice = Invoice(
+                id=uuid4(),
+                tenant_id=tenant_id,
+                cliente_id=cliente.id,
+                numero=invoice_number,
+                proveedor=vendor_name,
+                fecha_emision=fecha_emision,
+                subtotal=subtotal,
+                iva=iva,
+                total=total,
+                monto=int(total),
+                estado="pendiente",
+            )
+            db.add(invoice)
+            db.flush()
+
+            # Crear líneas
+            lines_data = normalized.get("lines") or normalized.get("lineas") or []
+            if not lines_data and total > 0:
+                lines_data = [
+                    {
+                        "descripcion": normalized.get("concepto")
+                        or "Importe de factura",
+                        "cantidad": 1,
+                        "precio_unitario": total,
+                    }
+                ]
+
+            for line in lines_data:
+                descripcion = str(
+                    line.get("descripcion")
+                    or line.get("desc")
+                    or line.get("description")
+                    or ""
+                ).strip()
+                if not descripcion:
+                    continue
+
+                cantidad = float(
+                    line.get("cantidad") or line.get("qty") or line.get("quantity") or 1
+                )
+                precio_unitario = float(
+                    line.get("precio_unitario")
+                    or line.get("unit_price")
+                    or line.get("precio")
+                    or line.get("price")
+                    or 0
+                )
+                iva_linea = float(line.get("iva") or line.get("tax_amount") or 0)
+
+                linea = LineaFactura(
+                    id=uuid4(),
+                    factura_id=invoice.id,
+                    sector="base",
+                    descripcion=descripcion,
+                    cantidad=cantidad,
+                    precio_unitario=precio_unitario,
+                    iva=iva_linea,
+                )
+                db.add(linea)
+
+            db.flush()
+            return PromoteResult(domain_id=str(invoice.id), skipped=False)
+
+        except Exception as e:
+            return PromoteResult(domain_id=None, skipped=False)
 
 
 class BankHandler:
     @staticmethod
-    def promote(normalized: Dict[str, Any], promoted_id: Optional[str] = None) -> PromoteResult:
+    def promote(
+        db: Session,
+        tenant_id: UUID,
+        normalized: Dict[str, Any],
+        promoted_id: Optional[str] = None,
+        **kwargs,
+    ) -> PromoteResult:
+        """
+        Promociona transacción bancaria a tabla bank_transactions.
+        IMPLEMENTACIÓN REAL - guarda en base de datos.
+        """
         if promoted_id:
             return PromoteResult(domain_id=promoted_id, skipped=True)
-        ref = str(normalized.get("entry_ref") or normalized.get("description") or "")
-        date = str(normalized.get("transaction_date") or normalized.get("date") or "")
-        amt = normalized.get("amount")
-        domain_id = f"bnk:{date}:{amt}:{ref[:12]}" if date or amt else None
-        return PromoteResult(domain_id=domain_id, skipped=False)
+
+        from app.models.core.facturacion import (
+            BankTransaction,
+            BankAccount,
+            MovimientoTipo,
+            MovimientoEstado,
+        )
+        from uuid import uuid4
+        from datetime import datetime, date
+
+        try:
+            # Fecha
+            fecha_raw = (
+                normalized.get("date")
+                or normalized.get("fecha")
+                or normalized.get("value_date")
+                or normalized.get("transaction_date")
+                or normalized.get("bank_tx", {}).get("value_date")
+            )
+            if isinstance(fecha_raw, str):
+                for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"]:
+                    try:
+                        fecha = datetime.strptime(fecha_raw, fmt).date()
+                        break
+                    except ValueError:
+                        continue
+                else:
+                    fecha = datetime.utcnow().date()
+            elif isinstance(fecha_raw, (date, datetime)):
+                fecha = fecha_raw if isinstance(fecha_raw, date) else fecha_raw.date()
+            else:
+                fecha = datetime.utcnow().date()
+
+            # Importe y dirección
+            amount = float(
+                normalized.get("amount")
+                or normalized.get("importe")
+                or normalized.get("monto")
+                or normalized.get("bank_tx", {}).get("amount")
+                or 0
+            )
+
+            direction = (
+                normalized.get("direction")
+                or normalized.get("bank_tx", {}).get("direction")
+                or ("debit" if amount < 0 else "credit")
+            )
+
+            if amount < 0:
+                amount = abs(amount)
+
+            # Concepto
+            concepto = str(
+                normalized.get("description")
+                or normalized.get("concepto")
+                or normalized.get("narrative")
+                or normalized.get("bank_tx", {}).get("narrative")
+                or "Movimiento bancario"
+            ).strip()
+
+            # Referencia
+            referencia = (
+                str(
+                    normalized.get("reference")
+                    or normalized.get("referencia")
+                    or normalized.get("external_ref")
+                    or normalized.get("bank_tx", {}).get("external_ref")
+                    or ""
+                ).strip()
+                or None
+            )
+
+            # IBAN
+            iban = str(normalized.get("iban") or "").strip() or None
+
+            # Moneda
+            moneda = str(
+                normalized.get("currency")
+                or normalized.get("moneda")
+                or (normalized.get("country") == "EC" and "USD")
+                or "EUR"
+            ).upper()
+
+            # Buscar o crear cuenta bancaria
+            if iban:
+                cuenta = (
+                    db.query(BankAccount)
+                    .filter(
+                        BankAccount.tenant_id == tenant_id, BankAccount.iban == iban
+                    )
+                    .first()
+                )
+            else:
+                cuenta = (
+                    db.query(BankAccount)
+                    .filter(BankAccount.tenant_id == tenant_id)
+                    .first()
+                )
+
+            if not cuenta:
+                cuenta = BankAccount(
+                    id=uuid4(),
+                    tenant_id=tenant_id,
+                    nombre="Cuenta Principal",
+                    iban=iban or f"ES00-{str(uuid4())[:16]}",
+                    banco="Banco desconocido",
+                    moneda=moneda,
+                    cliente_id=None,
+                )
+                db.add(cuenta)
+                db.flush()
+
+            # Tipo de movimiento
+            tipo_map = {
+                "transfer": MovimientoTipo.TRANSFERENCIA,
+                "transferencia": MovimientoTipo.TRANSFERENCIA,
+                "card": MovimientoTipo.TARJETA,
+                "tarjeta": MovimientoTipo.TARJETA,
+                "cash": MovimientoTipo.EFECTIVO,
+                "efectivo": MovimientoTipo.EFECTIVO,
+                "receipt": MovimientoTipo.RECIBO,
+                "recibo": MovimientoTipo.RECIBO,
+            }
+            tipo_str = str(
+                normalized.get("tipo") or normalized.get("type") or "otro"
+            ).lower()
+            tipo = tipo_map.get(tipo_str, MovimientoTipo.OTRO)
+
+            # Crear transacción
+            transaction = BankTransaction(
+                id=uuid4(),
+                tenant_id=tenant_id,
+                cuenta_id=cuenta.id,
+                fecha=fecha,
+                importe=amount,
+                moneda=moneda,
+                tipo=tipo,
+                estado=MovimientoEstado.PENDIENTE,
+                concepto=concepto,
+                referencia=referencia,
+                contrapartida_nombre=str(
+                    normalized.get("counterparty_name") or ""
+                ).strip()
+                or None,
+                contrapartida_iban=str(
+                    normalized.get("counterparty_iban") or ""
+                ).strip()
+                or None,
+                fuente=normalized.get("source") or "import",
+                categoria=str(normalized.get("categoria") or "").strip() or None,
+                origen=direction,
+            )
+            db.add(transaction)
+            db.flush()
+
+            return PromoteResult(domain_id=str(transaction.id), skipped=False)
+
+        except Exception as e:
+            return PromoteResult(domain_id=None, skipped=False)
 
 
 class ExpenseHandler:
     @staticmethod
-    def promote(normalized: Dict[str, Any], promoted_id: Optional[str] = None) -> PromoteResult:
+    def promote(
+        db: Session,
+        tenant_id: UUID,
+        normalized: Dict[str, Any],
+        promoted_id: Optional[str] = None,
+        **kwargs,
+    ) -> PromoteResult:
+        """
+        Promociona gasto/recibo a tabla gastos.
+        IMPLEMENTACIÓN REAL - guarda en base de datos.
+        """
         if promoted_id:
             return PromoteResult(domain_id=promoted_id, skipped=True)
-        date = str(normalized.get("expense_date") or normalized.get("date") or "")
-        amt = normalized.get("amount")
-        domain_id = f"exp:{date}:{amt}" if date or amt else None
-        return PromoteResult(domain_id=domain_id, skipped=False)
+
+        from app.models.expenses.gasto import Gasto
+        from uuid import uuid4
+        from datetime import datetime, date
+        from decimal import Decimal
+
+        try:
+            # Fecha
+            fecha_raw = (
+                normalized.get("date")
+                or normalized.get("fecha")
+                or normalized.get("expense_date")
+                or normalized.get("issue_date")
+            )
+            if isinstance(fecha_raw, str):
+                for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"]:
+                    try:
+                        fecha = datetime.strptime(fecha_raw, fmt).date()
+                        break
+                    except ValueError:
+                        continue
+                else:
+                    fecha = datetime.utcnow().date()
+            elif isinstance(fecha_raw, (date, datetime)):
+                fecha = fecha_raw if isinstance(fecha_raw, date) else fecha_raw.date()
+            else:
+                fecha = datetime.utcnow().date()
+
+            # Concepto
+            concepto = str(
+                normalized.get("description")
+                or normalized.get("concepto")
+                or normalized.get("descripcion")
+                or "Gasto"
+            ).strip()
+
+            # Categoría
+            categoria = (
+                str(
+                    normalized.get("category") or normalized.get("categoria") or "otros"
+                )
+                .strip()
+                .lower()
+            )
+
+            # Importes
+            iva = float(
+                normalized.get("tax")
+                or normalized.get("iva")
+                or normalized.get("totals", {}).get("tax")
+                or 0
+            )
+            total = float(
+                normalized.get("total")
+                or normalized.get("amount")
+                or normalized.get("importe")
+                or normalized.get("totals", {}).get("total")
+                or 0
+            )
+            importe = total - iva if iva > 0 else total
+
+            # Forma de pago
+            payment_map = {
+                "cash": "efectivo",
+                "card": "tarjeta",
+                "transfer": "transferencia",
+                "direct_debit": "domiciliacion",
+            }
+            forma_pago_raw = str(
+                normalized.get("payment_method")
+                or normalized.get("forma_pago")
+                or normalized.get("payment", {}).get("method")
+                or "efectivo"
+            ).lower()
+            forma_pago = payment_map.get(forma_pago_raw, forma_pago_raw)
+
+            # Número de factura
+            factura_numero = (
+                str(
+                    normalized.get("invoice_number")
+                    or normalized.get("numero_factura")
+                    or normalized.get("receipt_number")
+                    or ""
+                ).strip()
+                or None
+            )
+
+            # Proveedor (opcional)
+            proveedor_nombre = str(
+                normalized.get("vendor")
+                or normalized.get("proveedor")
+                or normalized.get("vendor", {}).get("name")
+                or ""
+            ).strip()
+
+            proveedor_id = None
+            if proveedor_nombre:
+                try:
+                    from app.models.suppliers.proveedor import Proveedor
+
+                    proveedor = (
+                        db.query(Proveedor)
+                        .filter(
+                            Proveedor.tenant_id == tenant_id,
+                            Proveedor.nombre == proveedor_nombre,
+                        )
+                        .first()
+                    )
+                    if proveedor:
+                        proveedor_id = proveedor.id
+                except Exception:
+                    pass
+
+            # Usuario (obtener del contexto o usar genérico)
+            usuario_id = uuid4()
+
+            # Crear gasto
+            gasto = Gasto(
+                id=uuid4(),
+                tenant_id=tenant_id,
+                fecha=fecha,
+                concepto=concepto,
+                categoria=categoria,
+                subcategoria=None,
+                importe=Decimal(str(importe)),
+                iva=Decimal(str(iva)),
+                total=Decimal(str(total)),
+                proveedor_id=proveedor_id,
+                forma_pago=forma_pago,
+                factura_numero=factura_numero,
+                estado="pendiente",
+                usuario_id=usuario_id,
+                notas=normalized.get("notes") or None,
+            )
+            db.add(gasto)
+            db.flush()
+
+            return PromoteResult(domain_id=str(gasto.id), skipped=False)
+
+        except Exception as e:
+            return PromoteResult(domain_id=None, skipped=False)
 
 
-def publish_to_destination(db, tenant_id, doc_type: str, extracted_data: Dict[str, Any]) -> Optional[str]:
+class ProductHandler:
+    @staticmethod
+    def promote(
+        db: Session,
+        tenant_id: UUID,
+        normalized: Dict[str, Any],
+        promoted_id: Optional[str] = None,
+        *,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> PromoteResult:
+        """Promote validated product data to modern products schema (ORM).
+
+        Fields: name, price, stock, unit, sku, category_id, product_metadata.
+        Category is resolved/created in product_categories by name.
+        """
+        if promoted_id:
+            return PromoteResult(domain_id=promoted_id, skipped=True)
+
+        # Import here to avoid circular dependency
+        from app.models.core.products import Product
+        from app.models.core.product_category import ProductCategory
+
+        # Extract and validate required fields
+        name = str(
+            normalized.get("name")
+            or normalized.get("producto")
+            or normalized.get("nombre")
+            or ""
+        ).strip()
+        if not name:
+            return PromoteResult(domain_id=None, skipped=False)
+
+        # Prices and quantities
+        price = (
+            normalized.get("price")
+            or normalized.get("precio")
+            or normalized.get("pvp")
+            or 0
+        )
+        try:
+            price = float(price)
+        except (ValueError, TypeError):
+            price = 0.0
+
+        stock = (
+            normalized.get("stock")
+            or normalized.get("cantidad")
+            or normalized.get("quantity")
+            or 0
+        )
+        try:
+            stock = float(stock)
+        except (ValueError, TypeError):
+            stock = 0.0
+
+        # Category resolution
+        category_id = None
+        category_name = str(
+            normalized.get("category") or normalized.get("categoria") or ""
+        ).strip()
+        if category_name:
+            category = (
+                db.query(ProductCategory)
+                .filter(
+                    ProductCategory.tenant_id == tenant_id,
+                    ProductCategory.name == category_name,
+                )
+                .first()
+            )
+            if not category:
+                category = ProductCategory(tenant_id=tenant_id, name=category_name)
+                db.add(category)
+                db.flush()
+            category_id = category.id
+
+        # SKU generation if missing - usar mismo sistema que create_product
+        sku = (
+            normalized.get("sku") or normalized.get("codigo") or normalized.get("code")
+        )
+        if not sku:
+            # Generar SKU secuencial: {PREFIX}-{NUM}
+            import re
+
+            prefix = "PRO"
+            if category_name:
+                prefix = re.sub(r"[^A-Z]", "", category_name.upper())[:3] or "PRO"
+
+            # Buscar último SKU con ese prefijo
+            result = db.execute(
+                text(
+                    "SELECT sku FROM products "
+                    "WHERE tenant_id = :tid AND sku LIKE :pattern "
+                    "ORDER BY sku DESC LIMIT 1"
+                ),
+                {"tid": str(tenant_id), "pattern": f"{prefix}-%"},
+            ).fetchone()
+
+            if result and result[0]:
+                match = re.search(r"-(\d+)$", result[0])
+                next_num = int(match.group(1)) + 1 if match else 1
+            else:
+                next_num = 1
+
+            sku = f"{prefix}-{next_num:04d}"
+
+        # Upsert-like: look up existing by tenant + (sku or name)
+        existing = (
+            db.query(Product)
+            .filter(
+                Product.tenant_id == tenant_id,
+                (Product.sku == sku) | (Product.name == name),
+            )
+            .first()
+        )
+
+        if existing:
+            existing.price = price
+            existing.stock = stock
+            existing.unit = (
+                normalized.get("unit")
+                or normalized.get("unidad")
+                or existing.unit
+                or "unidad"
+            )
+            try:
+                if options and options.get("activate"):
+                    setattr(existing, "activo", True)
+            except Exception:
+                pass
+            if category_id:
+                existing.category_id = category_id
+            # Keep or extend metadata
+            meta = dict(existing.product_metadata or {})
+            if normalized.get("_imported_at"):
+                meta["imported_at"] = normalized.get("_imported_at")
+            meta.setdefault("source", "excel_import")
+            existing.product_metadata = meta
+            db.flush()
+            # Inicializar stock_items si procede (sólo primera vez y si hay cantidad)
+            try:
+                if float(stock or 0) > 0:
+                    from app.models.inventory.stock import StockItem
+                    from app.models.inventory.warehouse import Warehouse
+
+                    has_si = (
+                        db.query(StockItem)
+                        .filter(StockItem.product_id == existing.id)
+                        .first()
+                    )
+                    if not has_si:
+                        # Buscar almacén preferente ALM-1; si no existe, crear uno por defecto
+                        target_code = (options or {}).get("target_warehouse")
+                        if target_code:
+                            wh = (
+                                db.query(Warehouse)
+                                .filter(
+                                    Warehouse.tenant_id == tenant_id,
+                                    Warehouse.code == target_code,
+                                )
+                                .first()
+                            )
+                            if not wh and (options or {}).get(
+                                "create_missing_warehouses", True
+                            ):
+                                wh = Warehouse(
+                                    tenant_id=tenant_id,
+                                    code=target_code,
+                                    name=target_code,
+                                    is_active=True,
+                                )
+                                db.add(wh)
+                                db.flush()
+                        if not (locals().get("wh")):
+                            wh = (
+                                db.query(Warehouse)
+                                .filter(Warehouse.tenant_id == tenant_id)
+                                .order_by(Warehouse.code.asc())
+                                .first()
+                            )
+                        if not wh:
+                            wh = Warehouse(
+                                tenant_id=tenant_id,
+                                code="ALM-1",
+                                name="Principal",
+                                is_active=True,
+                            )
+                            db.add(wh)
+                            db.flush()
+                        # Crear stock_item
+                        si = StockItem(
+                            tenant_id=tenant_id,
+                            warehouse_id=str(wh.id),
+                            product_id=str(existing.id),
+                            qty=float(stock),
+                        )
+                        db.add(si)
+                        db.flush()
+                        # Intentar movimiento con columnas existentes (fallback SQL crudo)
+                        try:
+                            db.execute(
+                                text(
+                                    "INSERT INTO stock_moves (tenant_id, product_id, warehouse_id, qty, kind) "
+                                    "VALUES (:tid, :pid, :wid, :qty, :kind)"
+                                ),
+                                {
+                                    "tid": str(tenant_id),
+                                    "pid": str(existing.id),
+                                    "wid": str(wh.id),
+                                    "qty": float(stock),
+                                    "kind": "receipt",
+                                },
+                            )
+                        except Exception:
+                            # si la tabla/columnas difieren, continuar sin move
+                            pass
+            except Exception:
+                # No bloquear import si falla la inicialización de stock por alguna razón
+                pass
+            return PromoteResult(domain_id=str(existing.id), skipped=False)
+
+        # Create new product
+        product = Product(
+            tenant_id=tenant_id,
+            sku=sku,
+            name=name,
+            price=price,
+            stock=stock,
+            unit=(normalized.get("unit") or normalized.get("unidad") or "unidad"),
+            category_id=category_id,
+            product_metadata={
+                "imported_at": normalized.get("_imported_at"),
+                "source": "excel_import",
+            },
+        )
+        try:
+            if options and options.get("activate"):
+                setattr(product, "activo", True)
+        except Exception:
+            pass
+        db.add(product)
+        db.flush()
+        # Inicializar stock_items si procede (sólo si hay cantidad y aún no existen)
+        try:
+            if float(stock or 0) > 0:
+                from app.models.inventory.stock import StockItem
+                from app.models.inventory.warehouse import Warehouse
+
+                has_si = (
+                    db.query(StockItem)
+                    .filter(StockItem.product_id == product.id)
+                    .first()
+                )
+                if not has_si:
+                    target_code = (options or {}).get("target_warehouse")
+                    if target_code:
+                        wh = (
+                            db.query(Warehouse)
+                            .filter(
+                                Warehouse.tenant_id == tenant_id,
+                                Warehouse.code == target_code,
+                            )
+                            .first()
+                        )
+                        if not wh and (options or {}).get(
+                            "create_missing_warehouses", True
+                        ):
+                            wh = Warehouse(
+                                tenant_id=tenant_id,
+                                code=target_code,
+                                name=target_code,
+                                is_active=True,
+                            )
+                            db.add(wh)
+                            db.flush()
+                    if not (locals().get("wh")):
+                        wh = (
+                            db.query(Warehouse)
+                            .filter(Warehouse.tenant_id == tenant_id)
+                            .order_by(Warehouse.code.asc())
+                            .first()
+                        )
+                    if not wh:
+                        wh = Warehouse(
+                            tenant_id=tenant_id,
+                            code="ALM-1",
+                            name="Principal",
+                            is_active=True,
+                        )
+                        db.add(wh)
+                        db.flush()
+                    si = StockItem(
+                        tenant_id=tenant_id,
+                        warehouse_id=str(wh.id),
+                        product_id=str(product.id),
+                        qty=float(stock),
+                    )
+                    db.add(si)
+                    db.flush()
+                    try:
+                        db.execute(
+                            text(
+                                "INSERT INTO stock_moves (tenant_id, product_id, warehouse_id, qty, kind) "
+                                "VALUES (:tid, :pid, :wid, :qty, :kind)"
+                            ),
+                            {
+                                "tid": str(tenant_id),
+                                "pid": str(product.id),
+                                "wid": str(wh.id),
+                                "qty": float(stock),
+                                "kind": "receipt",
+                            },
+                        )
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        return PromoteResult(domain_id=str(product.id), skipped=False)
+
+
+def publish_to_destination(
+    db, tenant_id, doc_type: str, extracted_data: Dict[str, Any]
+) -> Optional[str]:
     """
     Publica extracted_data a tablas destino según doc_type.
-    
+
     Args:
         db: SQLAlchemy Session
         tenant_id: UUID del tenant
         doc_type: tipo de documento (factura/recibo/banco/transferencia)
         extracted_data: datos canónicos extraídos
-    
+
     Returns:
         destination_id: ID del registro creado en tabla destino
     """
@@ -67,9 +863,8 @@ def publish_to_destination(db, tenant_id, doc_type: str, extracted_data: Dict[st
         "transferencia": BankHandler,
         "desconocido": ExpenseHandler,
     }
-    
+
     handler = handler_map.get(doc_type, ExpenseHandler)
     result = handler.promote(extracted_data)
-    
-    return result.domain_id if result and not result.skipped else None
 
+    return result.domain_id if result and not result.skipped else None

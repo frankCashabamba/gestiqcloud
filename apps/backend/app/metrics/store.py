@@ -17,8 +17,9 @@ def record(method: str, path: str, status: int, dur_ms: int) -> None:
         _dur_sum_ms[key] += max(0, int(dur_ms))
 
 
-def snapshot() -> Tuple[Dict[Tuple[str, str, int], int], Dict[Tuple[str, str, int], int]]:
+def snapshot() -> Tuple[
+    Dict[Tuple[str, str, int], int], Dict[Tuple[str, str, int], int]
+]:
     with _lock:
         # devuelve copias del estado actual
         return dict(_counts), dict(_dur_sum_ms)
-

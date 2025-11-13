@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react'
 import ModuloSelector from '../modulos/ModuloSelector'
 import { useCrearEmpresa } from '../hooks/useCrearEmpresa'
 import type { FormularioEmpresa } from '../typesall/empresa'
+import SectorPlantillaSelector, { type SectorTemplate } from '../components/SectorPlantillaSelector'
 
 const INITIAL_STATE: FormularioEmpresa = {
   nombre_empresa: '',
   tipo_empresa: '',
   tipo_negocio: '',
+  sector_plantilla_id: null,
   ruc: '',
   telefono: '',
   direccion: '',
@@ -40,9 +42,10 @@ export const CrearEmpresa: React.FC = () => {
       nonEmpty(formData.nombre_empresa) &&
       nonEmpty(formData.nombre_encargado) &&
       nonEmpty(formData.apellido_encargado) &&
-      emailOk
+      emailOk &&
+      !!formData.sector_plantilla_id
     )
-  }, [formData.nombre_empresa, formData.nombre_encargado, formData.apellido_encargado, formData.email])
+  }, [formData.nombre_empresa, formData.nombre_encargado, formData.apellido_encargado, formData.email, formData.sector_plantilla_id])
 
   // Autogenerar username visual (no editable) nombre.apellido
   useEffect(() => {
@@ -129,6 +132,7 @@ export const CrearEmpresa: React.FC = () => {
     if (!formData.email.trim()) return 'El correo es obligatorio.'
     if (!isEmail.test(formData.email.trim())) return 'El correo no tiene un formato válido.'
     if (!isPhone(formData.telefono || '')) return 'Teléfono inválido.'
+    if (!formData.sector_plantilla_id) return 'Selecciona un sector para aplicar la configuración base.'
     const rucErr = validateRucByCountry(formData.pais, formData.ruc)
     if (rucErr) return rucErr
     if (!isUrl(formData.sitio_web || '')) return 'El sitio web no es una URL válida.'
@@ -145,6 +149,19 @@ export const CrearEmpresa: React.FC = () => {
   }
 
   const err = (k: string) => (fieldErrors as any)?.[k]
+
+  const handleSectorChange = (sectorId: number | null) => {
+    setFormData((prev) => ({ ...prev, sector_plantilla_id: sectorId }))
+  }
+
+  const handleTemplateMeta = (template: SectorTemplate | null) => {
+    if (!template) return
+    setFormData((prev) => ({
+      ...prev,
+      color_primario: template.branding.color_primario || prev.color_primario,
+      plantilla_inicio: template.branding.plantilla_inicio || prev.plantilla_inicio,
+    }))
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -230,6 +247,15 @@ export const CrearEmpresa: React.FC = () => {
             </div>
           </section>
 
+          <section>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Sector / Plantilla base *</h2>
+            <SectorPlantillaSelector
+              value={formData.sector_plantilla_id ?? null}
+              onChange={handleSectorChange}
+              onTemplateSelected={handleTemplateMeta}
+            />
+          </section>
+
           {/* Módulos */}
           <section>
             <h2 className="text-lg font-semibold text-slate-900 mb-4">Módulos a contratar</h2>
@@ -295,7 +321,7 @@ export const CrearEmpresa: React.FC = () => {
 
             {!canSubmit && (
               <div className="text-xs text-slate-600">
-                Completa: nombre de empresa, nombre y apellido del administrador y correo válido.
+                Completa: nombre de empresa, nombre y apellido del administrador, correo válido y sector base.
               </div>
             )}
 

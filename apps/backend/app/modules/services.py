@@ -1,14 +1,14 @@
-"""Module: services.py
+﻿"""Module: services.py
 
 Service layer helpers for module assignment to companies and users.
 """
 
 from fastapi import HTTPException
+import uuid
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.models.core.modulo import EmpresaModulo, ModuloAsignado
-from app.models.tenant import Tenant
 from app.db.rls import set_tenant_guc
 from app.modules import crud, schemas
 
@@ -16,13 +16,17 @@ from app.modules import crud, schemas
 # ---------- EMPRESA-MODULO ----------
 def asignar_modulo_a_empresa_si_no_existe(
     db: Session,
-    empresa_id: int,
+    tenant_id: int,
     modulo_in: schemas.EmpresaModuloCreate,
 ):
-    existente = db.query(EmpresaModulo).filter_by(
-        empresa_id=empresa_id,
-        modulo_id=modulo_in.modulo_id,
-    ).first()
+    existente = (
+        db.query(EmpresaModulo)
+        .filter_by(
+            tenant_id=tenant_id,
+            modulo_id=modulo_in.modulo_id,
+        )
+        .first()
+    )
 
     if existente:
         raise HTTPException(
@@ -30,22 +34,26 @@ def asignar_modulo_a_empresa_si_no_existe(
             detail="Este módulo ya fue asignado a esta empresa.",
         )
 
-    return crud.asignar_modulo_a_empresa(db, empresa_id, modulo_in)
+    return crud.asignar_modulo_a_empresa(db, tenant_id, modulo_in)
 
 
 # ---------- USUARIO-MODULO ----------
 def asignar_modulo_a_usuario_si_empresa_lo_tiene(
     db: Session,
-    empresa_id: int,
+    tenant_id: int,
     usuario_id: int,
     modulo_id: int,
 ):
     # Verifica que la empresa tenga contratado el módulo
-    empresa_modulo = db.query(EmpresaModulo).filter_by(
-        empresa_id=empresa_id,
-        modulo_id=modulo_id,
-        activo=True,
-    ).first()
+    empresa_modulo = (
+        db.query(EmpresaModulo)
+        .filter_by(
+            tenant_id=tenant_id,
+            modulo_id=modulo_id,
+            activo=True,
+        )
+        .first()
+    )
 
     if not empresa_modulo:
         raise HTTPException(
@@ -54,11 +62,15 @@ def asignar_modulo_a_usuario_si_empresa_lo_tiene(
         )
 
     # Verifica que el usuario aún no tenga el módulo asignado
-    existente = db.query(ModuloAsignado).filter_by(
-        empresa_id=empresa_id,
-        usuario_id=usuario_id,
-        modulo_id=modulo_id,
-    ).first()
+    existente = (
+        db.query(ModuloAsignado)
+        .filter_by(
+            tenant_id=tenant_id,
+            usuario_id=usuario_id,
+            modulo_id=modulo_id,
+        )
+        .first()
+    )
 
     if existente:
         raise HTTPException(
@@ -66,31 +78,56 @@ def asignar_modulo_a_usuario_si_empresa_lo_tiene(
             detail="Este módulo ya está asignado al usuario.",
         )
 
-    return crud.asignar_modulo_a_usuario(db, empresa_id, usuario_id, modulo_id)
+    return crud.asignar_modulo_a_usuario(db, tenant_id, usuario_id, modulo_id)
 
 
 def upsert_modulo_a_empresa(
     db: Session,
-    empresa_id: int,
+    tenant_id: str,
     modulo_in: schemas.EmpresaModuloCreate,
 ) -> schemas.EmpresaModuloOutAdmin:
-    # Resolve tenant_id from empresa_id to avoid relying on GUC triggers in admin routes
-    tenant_row = db.query(Tenant).filter(Tenant.empresa_id == empresa_id).first()
-    if not tenant_row:
-        raise HTTPException(status_code=400, detail="Empresa sin tenant asociado")
-    tenant_uuid = getattr(tenant_row, "id")
+    """Create/update module assignment for a tenant.
+
+    Accepts modern tenant UUIDs. For backward compatibility, also accepts a slug
+    and tries to resolve it. The historical integer mapping via tenants.tenant_id
+    was removed in migrations, so do not rely on that column anymore.
+    """
+    tenant_uuid: str | None = None
+
+    # 1) If it's a UUID, use it directly
+    try:
+        _ = uuid.UUID(str(tenant_id))
+        tenant_uuid = str(tenant_id)
+    except Exception:
+        tenant_uuid = None
+
+    # 2) If not a UUID, try resolve by slug
+    if not tenant_uuid:
+        row = db.execute(
+            text("SELECT id::text FROM tenants WHERE slug = :slug"),
+            {"slug": str(tenant_id)},
+        ).first()
+        if row and row[0]:
+            tenant_uuid = row[0]
+
+    if not tenant_uuid:
+        raise HTTPException(status_code=400, detail="tenant_not_found")
     # Set GUC locally for this transaction to satisfy any trigger relying on it
     try:
         set_tenant_guc(db, str(tenant_uuid), persist=False)
     except Exception:
         pass
-    existente = db.query(EmpresaModulo).filter_by(
-        empresa_id=empresa_id,
-        modulo_id=modulo_in.modulo_id,
-    ).first()
+    existente = (
+        db.query(EmpresaModulo)
+        .filter_by(
+            tenant_id=tenant_uuid,
+            modulo_id=modulo_in.modulo_id,
+        )
+        .first()
+    )
 
     if existente:
-        existente.activo = modulo_in.activo  # type: ignore[assignment]
+        existente.active = modulo_in.active  # type: ignore[assignment]
         existente.fecha_expiracion = modulo_in.fecha_expiracion  # type: ignore[assignment]
         existente.plantilla_inicial = modulo_in.plantilla_inicial  # type: ignore[assignment]
         db.commit()
@@ -98,10 +135,9 @@ def upsert_modulo_a_empresa(
         asignacion = existente
     else:
         asignacion = EmpresaModulo(
-            empresa_id=empresa_id,
-            modulo_id=modulo_in.modulo_id,
             tenant_id=tenant_uuid,
-            activo=modulo_in.activo,
+            modulo_id=modulo_in.modulo_id,
+            activo=modulo_in.active,
             fecha_expiracion=modulo_in.fecha_expiracion,
             plantilla_inicial=modulo_in.plantilla_inicial,
         )
@@ -111,21 +147,21 @@ def upsert_modulo_a_empresa(
 
     # Asegura que las relaciones estén cargadas
     db.refresh(asignacion)
-    _ = asignacion.empresa
+    _ = asignacion.tenant
     _ = asignacion.modulo
 
-    # Coalesce de slug profesional: preferir slug, luego nombre, luego empresa_id
+    # Coalesce de slug profesional: preferir slug, luego nombre, luego tenant_id
     empresa_slug = (
-        getattr(asignacion.empresa, "slug", None)
-        or getattr(asignacion.empresa, "nombre", None)
-        or str(asignacion.empresa_id)
+        getattr(asignacion.tenant, "slug", None)
+        or getattr(asignacion.tenant, "nombre", None)
+        or str(asignacion.tenant_id)
     )
 
     return schemas.EmpresaModuloOutAdmin(
         id=asignacion.id,  # type: ignore[arg-type]
-        empresa_id=asignacion.empresa_id,  # type: ignore[arg-type]
+        tenant_id=asignacion.tenant_id,  # type: ignore[arg-type]
         modulo_id=asignacion.modulo_id,  # type: ignore[arg-type]
-        activo=asignacion.activo,  # type: ignore[arg-type]
+        active=asignacion.active,  # type: ignore[arg-type]
         fecha_activacion=asignacion.fecha_activacion,  # type: ignore[arg-type]
         fecha_expiracion=asignacion.fecha_expiracion,  # type: ignore[arg-type]
         plantilla_inicial=asignacion.plantilla_inicial,  # type: ignore[arg-type]

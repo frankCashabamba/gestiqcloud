@@ -18,7 +18,10 @@ def main():
     # Ensure DATABASE_URL exists
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
-        print("Set DATABASE_URL to your Postgres DSN (e.g., postgresql://...)", file=sys.stderr)
+        print(
+            "Set DATABASE_URL to your Postgres DSN (e.g., postgresql://...)",
+            file=sys.stderr,
+        )
         sys.exit(2)
 
     # Create revision via autogenerate in backend/alembic/versions
@@ -43,4 +46,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from 'react'
+﻿import React, { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createFactura } from '../../services'
 import { useToast, getErrorMessage } from '../../../../shared/toast'
 
-type Linea = { descripcion: string; cantidad: number; precio_unitario: number; iva: number }
+type Linea = { description: string; cantidad: number; precio_unitario: number; iva: number }
 
-const nueva = (): Linea => ({ descripcion: '', cantidad: 1, precio_unitario: 0, iva: 12 })
+const nueva = (): Linea => ({ description: '', cantidad: 1, precio_unitario: 0, iva: 12 })
 
 export default function PanaderiaFacturaPage() {
   const nav = useNavigate()
@@ -30,7 +30,7 @@ export default function PanaderiaFacturaPage() {
       if (lineas.length === 0) throw new Error('Agrega al menos una línea')
       await createFactura({ fecha, total: Number(totals.total.toFixed(2)), estado, cliente_id: undefined })
       success('Factura creada (panadería)')
-      nav('/mod/facturacion')
+      nav('/facturacion')
     } catch(e:any) { error(getErrorMessage(e)) }
   }
 
@@ -48,7 +48,7 @@ export default function PanaderiaFacturaPage() {
           {lineas.map((l, i) => (
             <div key={i} className="border rounded p-3">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div><label className="block mb-1">Descripción</label><input className="border px-2 py-1 w-full rounded" value={l.descripcion} onChange={(e)=> update(i,{ descripcion: e.target.value })} /></div>
+                <div><label className="block mb-1">Descripción</label><input className="border px-2 py-1 w-full rounded" value={l.description} onChange={(e)=> update(i,{ description: e.target.value })} /></div>
                 <div><label className="block mb-1">Cantidad</label><input type="number" min={0} className="border px-2 py-1 w-full rounded" value={l.cantidad} onChange={(e)=> update(i,{ cantidad: Number(e.target.value) })} /></div>
                 <div><label className="block mb-1">Precio Unitario</label><input type="number" step="0.01" min={0} className="border px-2 py-1 w-full rounded" value={l.precio_unitario} onChange={(e)=> update(i,{ precio_unitario: Number(e.target.value) })} /></div>
                 <div><label className="block mb-1">IVA %</label><input type="number" min={0} className="border px-2 py-1 w-full rounded" value={l.iva} onChange={(e)=> update(i,{ iva: Number(e.target.value) })} /></div>
@@ -67,7 +67,7 @@ export default function PanaderiaFacturaPage() {
 
         <div className="pt-2">
           <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">Guardar</button>
-          <button type="button" className="ml-3 px-3 py-2" onClick={()=> nav('/mod/facturacion/sectores')}>Cancelar</button>
+          <button type="button" className="ml-3 px-3 py-2" onClick={()=> nav('/facturacion/sectores')}>Cancelar</button>
         </div>
       </form>
     </div>

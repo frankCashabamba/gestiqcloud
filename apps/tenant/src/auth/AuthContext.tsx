@@ -26,11 +26,25 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   useEffect(() => {
     (async () => {
       try {
-        const t = token ?? (await refreshOnce())
+        // Soporte magic-link: #access_token=...
+        if (!token && typeof window !== 'undefined') {
+          try {
+            const hash = window.location.hash || ''
+            const m = hash.match(/[#&]access_token=([^&]+)/)
+            if (m && m[1]) {
+              const tok = decodeURIComponent(m[1])
+              sessionStorage.setItem('access_token_tenant', tok)
+              try { localStorage.setItem('authToken', tok) } catch {}
+              // Limpia el hash para no dejar el token en la URL
+              try { history.replaceState(null, document.title, window.location.pathname + window.location.search) } catch {}
+            }
+          } catch {}
+        }
+        const t = token ?? sessionStorage.getItem('access_token_tenant') ?? (await refreshOnce())
         if (t) {
           setToken(t)
           sessionStorage.setItem('access_token_tenant', t)
-          const me = await apiFetch<MeTenant>('/v1/me/tenant', { headers: { Authorization: `Bearer ${t}` }, retryOn401: false })
+          const me = await apiFetch<MeTenant>('/api/v1/me/tenant', { headers: { Authorization: `Bearer ${t}` }, retryOn401: false })
           setProfile(me)
 
            // Initialize ElectricSQL for offline sync
@@ -59,7 +73,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     inflightRefresh = (async () => {
       try {
         const data = await apiFetch<{ access_token?: string }>(
-          '/v1/tenant/auth/refresh',
+          '/api/v1/tenant/auth/refresh',
           { method: 'POST' } as any
         )
         return data?.access_token ?? null
@@ -73,7 +87,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }
 
   async function loadMe(tok: string) {
-    const me = await apiFetch<MeTenant>('/v1/me/tenant', { headers: { Authorization: `Bearer ${tok}` }, retryOn401: false })
+    const me = await apiFetch<MeTenant>('/api/v1/me/tenant', { headers: { Authorization: `Bearer ${tok}` }, retryOn401: false })
     setProfile(me)
   }
 
@@ -84,14 +98,15 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }
 
   const login = async (body: LoginBody) => {
-    const data = await apiFetch<LoginResponse>('/v1/tenant/auth/login', { method: 'POST', body: JSON.stringify(body), retryOn401: false })
+    const data = await apiFetch<LoginResponse>('/api/v1/tenant/auth/login', { method: 'POST', body: JSON.stringify(body), retryOn401: false })
     setToken(data.access_token)
     sessionStorage.setItem('access_token_tenant', data.access_token)
+    try { localStorage.setItem('authToken', data.access_token) } catch {}
     await loadMe(data.access_token)
   }
 
   const logout = async () => {
-    try { await apiFetch('/v1/tenant/auth/logout', { method: 'POST', retryOn401: false }) } catch {}
+    try { await apiFetch('/api/v1/tenant/auth/logout', { method: 'POST', retryOn401: false }) } catch {}
     clear()
   }
 
@@ -100,6 +115,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     if (t) {
       setToken(t)
       sessionStorage.setItem('access_token_tenant', t)
+      try { localStorage.setItem('authToken', t) } catch {}
       return true
     }
     return false

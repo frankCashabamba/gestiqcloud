@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from email.utils import format_datetime
 from importlib import import_module
-from typing import Optional, Tuple, Callable
+from typing import Optional, Tuple
 
 from fastapi import APIRouter, Depends, Response
 import os
@@ -16,6 +16,7 @@ logger = logging.getLogger("app.router")
 # Utilidades comunes
 # ----------------------------
 
+
 def _httpdate(dt: datetime) -> str:
     """Formatea a HTTP-date (IMF-fixdate) en UTC."""
     if dt.tzinfo is None:
@@ -24,9 +25,11 @@ def _httpdate(dt: datetime) -> str:
         dt = dt.astimezone(timezone.utc)
     return format_datetime(dt, usegmt=True)
 
+
 def _legacy_deprecation_dependency(response: Response):
     """Inyecta headers de deprecación/retirada para rutas legacy."""
     from backend.app.config.settings import settings
+
     # Deprecation: "true" o fecha
     dep = getattr(settings, "LEGACY_DEPRECATION", None)  # puede ser bool|datetime|str
     if isinstance(dep, datetime):
@@ -36,7 +39,7 @@ def _legacy_deprecation_dependency(response: Response):
     else:
         response.headers["Deprecation"] = "true"  # fallback conservador
 
-    sunset = getattr(settings, "LEGACY_SUNSET", None)     # datetime|str|None
+    sunset = getattr(settings, "LEGACY_SUNSET", None)  # datetime|str|None
     link = getattr(settings, "LEGACY_DEPRECATION_LINK", None)
     if isinstance(sunset, datetime):
         response.headers["Sunset"] = _httpdate(sunset)
@@ -44,6 +47,7 @@ def _legacy_deprecation_dependency(response: Response):
         response.headers["Sunset"] = str(sunset)
     if link:
         response.headers["Link"] = f'<{link}>; rel="deprecation"'
+
 
 def _wrap_deprecated_router(rt: APIRouter) -> APIRouter:
     """Envuelve un router para marcar todas sus rutas como deprecated y añadir dependencia de headers legacy."""
@@ -57,13 +61,15 @@ def _wrap_deprecated_router(rt: APIRouter) -> APIRouter:
     wrapper.include_router(rt)
     return wrapper
 
+
 def _import_attr(module_path: str, attr: str = "router"):
     mod = import_module(module_path)
     return getattr(mod, attr)
 
+
 def include_router_safe(
     r: APIRouter,
-    primary: Tuple[str, str],                 # (module_path, attr)
+    primary: Tuple[str, str],  # (module_path, attr)
     *,
     prefix: str = "",
     fallback: Optional[Tuple[str, str]] = None,
@@ -73,45 +79,73 @@ def include_router_safe(
     Intenta incluir el router `primary`. Si falla y hay `fallback`, lo intenta.
     Si `mark_deprecated=True`, envuelve con _wrap_deprecated_router antes de incluir.
     """
+
     def _include(module_path: str, attr: str) -> None:
         rt = _import_attr(module_path, attr)
         # Some modules expose router=None when feature is disabled; skip gracefully
         if rt is None:
             raise ModuleNotFoundError(f"{module_path}.{attr} returned None")
         if not isinstance(rt, APIRouter):
-            raise ModuleNotFoundError(f"{module_path}.{attr} is not an APIRouter (got {type(rt).__name__})")
+            raise ModuleNotFoundError(
+                f"{module_path}.{attr} is not an APIRouter (got {type(rt).__name__})"
+            )
         if mark_deprecated:
             rt = _wrap_deprecated_router(rt)
         r.include_router(rt, prefix=prefix)
 
     try:
         _include(*primary)
-        logger.debug("Mounted router %s.%s at prefix='%s' (deprecated=%s)", primary[0], primary[1], prefix, mark_deprecated)
+        logger.debug(
+            "Mounted router %s.%s at prefix='%s' (deprecated=%s)",
+            primary[0],
+            primary[1],
+            prefix,
+            mark_deprecated,
+        )
         return True
     except Exception as e:
         # Silence noisy stack traces for optional modules not present in some deployments
         if isinstance(e, ModuleNotFoundError):
-            logger.debug("Skip mounting %s.%s (primary): module not found: %s", primary[0], primary[1], getattr(e, "name", str(e)))
+            logger.debug(
+                "Skip mounting %s.%s (primary): module not found: %s",
+                primary[0],
+                primary[1],
+                getattr(e, "name", str(e)),
+            )
         else:
             logger.debug(
                 "Skip mounting %s.%s (primary): %s",
-                primary[0], primary[1], e, exc_info=True
+                primary[0],
+                primary[1],
+                e,
+                exc_info=True,
             )
         if fallback:
             try:
                 _include(*fallback)
                 logger.debug(
                     "Mounted fallback router %s.%s at prefix='%s' (deprecated=%s)",
-                    fallback[0], fallback[1], prefix, mark_deprecated,
+                    fallback[0],
+                    fallback[1],
+                    prefix,
+                    mark_deprecated,
                 )
                 return True
             except Exception as e2:
                 if isinstance(e2, ModuleNotFoundError):
-                    logger.debug("Skip mounting %s.%s (fallback): module not found: %s", fallback[0], fallback[1], getattr(e2, "name", str(e2)))
+                    logger.debug(
+                        "Skip mounting %s.%s (fallback): module not found: %s",
+                        fallback[0],
+                        fallback[1],
+                        getattr(e2, "name", str(e2)),
+                    )
                 else:
                     logger.debug(
                         "Skip mounting %s.%s (fallback): %s",
-                        fallback[0], fallback[1], e2, exc_info=True
+                        fallback[0],
+                        fallback[1],
+                        e2,
+                        exc_info=True,
                     )
     return False
 
@@ -120,9 +154,11 @@ def include_router_safe(
 # Montaje de secciones
 # ----------------------------
 
+
 def _mount_empresas(r: APIRouter) -> None:
     include_router_safe(r, ("app.modules.empresa.interface.http.admin", "router"))
     include_router_safe(r, ("app.modules.empresa.interface.http.tenant", "router"))
+
 
 def build_api_router() -> APIRouter:
     """Agrega routers de todos los módulos, con fallback a paths legacy cuando aplique."""
@@ -133,18 +169,15 @@ def build_api_router() -> APIRouter:
         r,
         ("app.modules.identity.interface.http.admin", "router"),
         prefix="/admin",
-        fallback=("app.api.v1.admin.auth", "router"),
     )
     include_router_safe(
         r,
         ("app.modules.identity.interface.http.tenant", "router"),
         prefix="/tenant",
-        fallback=("app.api.v1.tenant.auth", "router"),
     )
     include_router_safe(
         r,
         ("app.modules.identity.interface.http.profile", "router"),
-        fallback=("app.api.v1.profile", "router"),
     )
     # Generic auth alias (/api/v1/auth/*) + me + telemetry
     include_router_safe(r, ("app.api.v1.auth", "router"))
@@ -156,23 +189,30 @@ def build_api_router() -> APIRouter:
         r,
         ("app.modules.identity.interface.http.sessions", "router"),
         prefix="/tenant",
-        fallback=("app.api.v1.tenant.sessions", "router"),
     )
 
-    # Productos
-    include_router_safe(r, ("app.modules.productos.interface.http.tenant", "router"))
+    # Products (EN-only) - mount under /tenant like clientes
+    include_router_safe(
+        r, ("app.modules.productos.interface.http.public", "router")
+    )
+    include_router_safe(
+        r, ("app.modules.productos.interface.http.tenant", "router"), prefix="/tenant"
+    )
     include_router_safe(r, ("app.modules.productos.interface.http.admin", "router"))
 
     # Empresas
     _mount_empresas(r)
     # Alta de empresas: usar router moderno únicamente
 
-    # Clientes
-    include_router_safe(r, ("app.modules.clients.interface.http.tenant", "router"))
+    # Clientes (mount under /tenant to align FE endpoints)
+    include_router_safe(
+        r, ("app.modules.clients.interface.http.tenant", "router"), prefix="/tenant"
+    )
 
-    # Proveedores
-    include_router_safe(r, ("app.modules.proveedores.interface.http.tenant", "router"))
-
+    # Proveedores (mount under /tenant)
+    include_router_safe(
+        r, ("app.modules.proveedores.interface.http.tenant", "router"), prefix="/tenant"
+    )
 
     # Módulos
     include_router_safe(r, ("app.modules.modulos.interface.http.admin", "router"))
@@ -181,44 +221,89 @@ def build_api_router() -> APIRouter:
 
     # Usuarios de empresa (tenant) y admin
     include_router_safe(r, ("app.modules.usuarios.interface.http.tenant", "router"))
-    include_router_safe(r, ("app.modules.usuarios.interface.http.tenant", "public_router"))
-    include_router_safe(r, ("app.modules.usuarios.interface.http.admin", "router"), prefix="/admin")
+    include_router_safe(
+        r, ("app.modules.usuarios.interface.http.tenant", "public_router")
+    )
+    include_router_safe(
+        r, ("app.modules.usuarios.interface.http.admin", "router"), prefix="/admin"
+    )
 
     # Module registry (catalog)
-    include_router_safe(r, ("app.modules.registry.interface.http.admin", "router"), prefix="/admin")
+    include_router_safe(
+        r, ("app.modules.registry.interface.http.admin", "router"), prefix="/admin"
+    )
     include_router_safe(r, ("app.modules.registry.interface.http.tenant", "router"))
 
     # Admin config (modern)
-    include_router_safe(r, ("app.modules.admin_config.interface.http.admin", "router"), prefix="/admin")
+    include_router_safe(
+        r, ("app.modules.admin_config.interface.http.admin", "router"), prefix="/admin"
+    )
 
     # Me endpoints (admin/tenant helpers)
     include_router_safe(r, ("app.api.v1.me", "router"))
 
     # Facturación
-    include_router_safe(r, ("app.modules.facturacion.interface.http.tenant", "router"))
-    include_router_safe(r, ("app.modules.facturacion.interface.http.send_email", "router"))
+    include_router_safe(
+        r, ("app.modules.facturacion.interface.http.tenant", "router"), prefix="/tenant"
+    )
+    include_router_safe(
+        r, ("app.modules.facturacion.interface.http.send_email", "router"),
+        prefix="/tenant",
+    )
     # Inventario
-    # Inventario
-    include_router_safe(r, ("app.modules.inventario.interface.http.tenant", "router"))
+    include_router_safe(
+        r, ("app.modules.inventario.interface.http.tenant", "router"), prefix="/tenant"
+    )
     # Ventas
-    include_router_safe(r, ("app.modules.ventas.interface.http.tenant", "router"))
-    include_router_safe(r, ("app.modules.ventas.interface.http.tenant", "deliveries_router"))
-    include_router_safe(r, ("app.modules.inventario.interface.http.tenant", "router"))
+    include_router_safe(
+        r, ("app.modules.ventas.interface.http.tenant", "router"), prefix="/tenant"
+    )
+    include_router_safe(
+        r,
+        ("app.modules.ventas.interface.http.tenant", "deliveries_router"),
+        prefix="/tenant",
+    )
+
+    # Compras
+    include_router_safe(
+        r, ("app.modules.compras.interface.http.tenant", "router"), prefix="/tenant"
+    )
+
+    # Gastos
+    include_router_safe(
+        r, ("app.modules.gastos.interface.http.tenant", "router"), prefix="/tenant"
+    )
+
+    # (deduplicated) Inventario router is already mounted above
 
     # Imports (opcional: controlado por IMPORTS_ENABLED)
-    if os.getenv("IMPORTS_ENABLED", "0") in ("1", "true", "True"):  # habilita solo si está ON
-        if include_router_safe(r, ("app.modules.imports.interface.http.tenant", "router")):
-            include_router_safe(
-                r,
-                ("app.modules.imports.interface.http.tenant", "legacy_router"),
-                prefix="/legacy",
-                mark_deprecated=True,
-            )
- 
+    if os.getenv("IMPORTS_ENABLED", "0") in (
+        "1",
+        "true",
+        "True",
+    ):  # habilita solo si está ON
+        include_router_safe(
+            r, ("app.modules.imports.interface.http.tenant", "router"), prefix="/tenant"
+        )
+
+    # Smart Preview endpoints
+    include_router_safe(
+        r, ("app.modules.imports.interface.http.preview", "router"), prefix="/imports"
+    )
+    
+    # Import Files endpoints (classification, etc.)
+    include_router_safe(
+        r, ("app.modules.imports.interface.http.preview", "files_router"), prefix="/imports"
+    )
     # Imports public (health) router
     if os.getenv("IMPORTS_ENABLED", "0") in ("1", "true", "True"):
-        _mounted_public = include_router_safe(r, ("app.modules.imports.interface.http.tenant", "public_router"))
-        logger.info("imports.public_router mounted=%s via IMPORTS_ENABLED", bool(_mounted_public))
+        _mounted_public = include_router_safe(
+            r, ("app.modules.imports.interface.http.tenant", "public_router")
+        )
+        logger.info(
+            "imports.public_router mounted=%s via IMPORTS_ENABLED",
+            bool(_mounted_public),
+        )
 
     # Auto-enable imports router in SQLite-based test envs even if IMPORTS_ENABLED is off
     # This keeps CI/dev tests stable without affecting production (Postgres).
@@ -226,32 +311,85 @@ def build_api_router() -> APIRouter:
         db_url = os.getenv("DATABASE_URL", "")
         if db_url.startswith("sqlite"):
             logger.debug("Auto-enabling imports router (SQLite test env detected)")
-            if include_router_safe(r, ("app.modules.imports.interface.http.tenant", "router")):
-                include_router_safe(
-                    r,
-                    ("app.modules.imports.interface.http.tenant", "legacy_router"),
-                    prefix="/legacy",
-                    mark_deprecated=True,
-                )
-            include_router_safe(r, ("app.modules.imports.interface.http.tenant", "public_router"))
+            include_router_safe(
+                r,
+                ("app.modules.imports.interface.http.tenant", "router"),
+                prefix="/tenant",
+            )
+            include_router_safe(
+                r, ("app.modules.imports.interface.http.preview", "router"), prefix="/imports"
+            )
+            include_router_safe(
+                r, ("app.modules.imports.interface.http.tenant", "public_router")
+            )
 
     # Contabilidad
-    include_router_safe(r, ("app.modules.contabilidad.interface.http.tenant", "router"))
+    include_router_safe(
+        r, ("app.modules.contabilidad.interface.http.tenant", "router"),
+        prefix="/tenant",
+    )
 
-    # Facturae
-    include_router_safe(r, ("app.modules.facturae.interface.http.tenant", "router"))
+    # RRHH (Human Resources)
+    include_router_safe(
+        r, ("app.modules.rrhh.interface.http.tenant", "router"), prefix="/tenant"
+    )
+
+    # Finanzas
+    include_router_safe(
+        r, ("app.modules.finanzas.interface.http.tenant", "router"), prefix="/tenant"
+    )
+
+    # Producción
+    include_router_safe(
+        r, ("app.modules.produccion.interface.http.tenant", "router"), prefix="/tenant"
+    )
 
     # Importador Excel
-    include_router_safe(r, ("app.modules.importador_excel.interface.http.tenant", "router"))
+    include_router_safe(
+        r, ("app.modules.imports.interface.http.tenant", "router"), prefix="/tenant"
+    )
+    
+    # Conversiones de documentos
+    include_router_safe(
+        r, ("app.modules.ventas.interface.http.conversions", "router"),
+        prefix="/tenant"
+    )
+    include_router_safe(
+        r, ("app.modules.pos.interface.http.conversions", "router"),
+        prefix="/tenant"
+    )
+    
+    # CRM
+    include_router_safe(
+        r, ("app.modules.crm.presentation.tenant", "router"), prefix="/tenant"
+    )
 
     # Settings (tenant)
-    include_router_safe(r, ("app.modules.settings.interface.http.tenant", "router"), prefix="/tenant/settings")
+    include_router_safe(
+        r,
+        ("app.modules.settings.interface.http.tenant", "router"),
+        prefix="/tenant/settings",
+    )
+    # Settings admin: field-config + ui-plantillas
+    include_router_safe(
+        r, ("app.modules.settings.interface.http.tenant", "admin_router")
+    )
 
-    # Tenant onboarding/configuración inicial (router histórico no modular)
-    include_router_safe(r, ("app.routers.configuracionincial", "router"), prefix="/tenant")
+    # Dashboard KPIs
+    include_router_safe(r, ("app.routers.dashboard_stats", "router"))
+
+    # Tenant roles management
+    include_router_safe(r, ("app.routers.tenant.roles", "router"))
+
+    # Migrations management (admin)
+    include_router_safe(r, ("app.routers.migrations", "router"))
+
+    # (removed) Tenant onboarding/configuración inicial router (legacy)
 
     # Admin usuarios (router histórico): mantener mientras exista el panel actual
-    include_router_safe(r, ("app.routers.admin.usuarios", "router"), prefix="/admin/usuarios")
+    include_router_safe(
+        r, ("app.routers.admin.usuarios", "router"), prefix="/admin/usuarios"
+    )
 
     # Roles base (histórico para admin actual): CRUD de roles
     include_router_safe(r, ("app.routers.roles", "router"))
@@ -261,32 +399,51 @@ def build_api_router() -> APIRouter:
     # Legacy routers retirados: no intentar montarlos para evitar ruido en logs
 
     # E-invoicing (SRI/SII)
-    include_router_safe(r, ("app.modules.einvoicing.interface.http.tenant", "router"))
+    include_router_safe(
+        r, ("app.modules.einvoicing.interface.http.tenant", "router"), prefix="/tenant"
+    )
 
     # Templates & Overlays
-    include_router_safe(r, ("app.modules.templates.interface.http.tenant", "router"))
-    include_router_safe(r, ("app.modules.templates.interface.http.admin", "router"), prefix="/admin")
+    include_router_safe(
+        r, ("app.modules.templates.interface.http.tenant", "router"), prefix="/tenant"
+    )
+    include_router_safe(
+        r, ("app.modules.templates.interface.http.admin", "router"), prefix="/admin"
+    )
 
     # Copilot (tenant-first)
-    include_router_safe(r, ("app.modules.copilot.interface.http.tenant", "router"))
+    include_router_safe(
+        r, ("app.modules.copilot.interface.http.tenant", "router"), prefix="/tenant"
+    )
 
     # POS / Caja
-    include_router_safe(r, ("app.modules.pos.interface.http.tenant", "router"))
+    include_router_safe(
+        r, ("app.modules.pos.interface.http.tenant", "router"), prefix="/tenant"
+    )
 
     # Reconciliation (Payments AR/AP)
-    include_router_safe(r, ("app.modules.reconciliation.interface.http.tenant", "router"))
+    include_router_safe(
+        r, ("app.modules.reconciliation.interface.http.tenant", "router"),
+        prefix="/tenant",
+    )
 
     # Export CSV
-    include_router_safe(r, ("app.modules.export.interface.http.tenant", "router"))
+    include_router_safe(
+        r, ("app.modules.export.interface.http.tenant", "router"), prefix="/tenant"
+    )
 
     # Webhooks per tenant
-    include_router_safe(r, ("app.modules.webhooks.interface.http.tenant", "router"))
+    include_router_safe(
+        r, ("app.modules.webhooks.interface.http.tenant", "router"), prefix="/tenant"
+    )
 
     # Final safeguard: ensure imports router is mounted in non-production envs
     try:
         env = os.getenv("ENV", "development").lower()
         has_imports = any(
-            (getattr(rt, "path", "") or "").startswith("/imports") or (getattr(rt, "path", "") or "").startswith("/api/v1/imports")
+            (path := (getattr(rt, "path", "") or "")).startswith("/imports")
+            or path.startswith("/api/v1/imports")
+            or path.startswith("/tenant/imports")
             for rt in r.routes
         )
         if env != "production" and not has_imports:
@@ -294,22 +451,32 @@ def build_api_router() -> APIRouter:
             mounted = include_router_safe(
                 r,
                 ("app.modules.imports.interface.http.tenant", "router"),
-                fallback=("apps.backend.app.modules.imports.interface.http.tenant", "router"),
+                prefix="/tenant",
+                fallback=(
+                    "apps.backend.app.modules.imports.interface.http.tenant",
+                    "router",
+                ),
             ) or include_router_safe(
                 r,
                 ("backend.app.modules.imports.interface.http.tenant", "router"),
+                prefix="/tenant",
             )
             if mounted:
                 include_router_safe(
                     r,
                     ("app.modules.imports.interface.http.tenant", "public_router"),
-                    fallback=("apps.backend.app.modules.imports.interface.http.tenant", "public_router"),
+                    fallback=(
+                        "apps.backend.app.modules.imports.interface.http.tenant",
+                        "public_router",
+                    ),
                 ) or include_router_safe(
                     r,
-                    ("backend.app.modules.imports.interface.http.tenant", "public_router"),
+                    (
+                        "backend.app.modules.imports.interface.http.tenant",
+                        "public_router",
+                    ),
                 )
     except Exception:
         pass
 
     return r
-

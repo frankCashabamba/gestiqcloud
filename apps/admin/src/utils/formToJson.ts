@@ -8,23 +8,22 @@ export function buildEmpresaPayload(f: FormularioEmpresa) {
   if (f.config_json && f.config_json.trim()) {
     try { cfg = JSON.parse(f.config_json) } catch { cfg = undefined }
   }
-  // Inyecta tipo_empresa/tipo_negocio (sector) en config_json mientras no haya columnas
   const extra: any = {}
   if (f.tipo_empresa) extra.tipo_empresa = f.tipo_empresa
   if (f.tipo_negocio) extra.tipo_negocio = f.tipo_negocio
   const config_json = { ...(cfg || {}), ...extra }
   return {
-    nombre: f.nombre_empresa?.trim(),
-    ruc: f.ruc?.trim(),
-    telefono: f.telefono?.trim(),
-    direccion: f.direccion?.trim(),
-    ciudad: f.ciudad?.trim(),
-    provincia: f.provincia?.trim(),
+    name: f.nombre_empresa?.trim(),
+    initial_template: f.plantilla_inicio || 'cliente',
+    tax_id: f.ruc?.trim(),
+    phone: f.telefono?.trim(),
+    address: f.direccion?.trim(),
+    city: f.ciudad?.trim(),
+    state: f.provincia?.trim(),
     cp: f.cp?.trim(),
-    pais: f.pais?.trim(),
-    sitio_web: f.sitio_web?.trim(),
-    color_primario: f.color_primario || '#4f46e5',
-    plantilla_inicio: f.plantilla_inicio || 'cliente',
+    country: f.pais?.trim(),
+    website: f.sitio_web?.trim(),
+    primary_color: f.color_primario || '#4f46e5',
     config_json,
   }
 }
@@ -53,5 +52,6 @@ export async function buildEmpresaCompletaPayload(f: FormularioEmpresa) {
     const data = await fileToDataUrl(f.logo)
     logo = { data, filename: f.logo.name }
   }
-  return { empresa, admin, modulos, ...(logo ? { logo } : {}) }
+  const sectorPayload = f.sector_plantilla_id ? { sector_plantilla_id: f.sector_plantilla_id } : {}
+  return { empresa, admin, modulos, ...(logo ? { logo } : {}), ...sectorPayload }
 }

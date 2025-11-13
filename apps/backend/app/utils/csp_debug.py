@@ -7,6 +7,7 @@ from app.middleware.security_headers import _csp_for_request
 
 router = APIRouter(tags=["debug"], include_in_schema=False)
 
+
 @router.get("/__csp")
 def csp_preview(request: Request):
     """Dev-only endpoint to inspect the effective CSP string for the given request."""
@@ -14,6 +15,7 @@ def csp_preview(request: Request):
         "env": settings.ENV,
         "csp": _csp_for_request(request),
     }
+
 
 def attach(app):
     """Attach /__csp (in non-production) and log CSP on startup."""

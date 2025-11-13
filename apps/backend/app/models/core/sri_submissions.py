@@ -37,4 +37,3 @@ class SRISubmission:  # noqa: D401 - simple data holder
         # Map both alias names so use_case can read receipt_number
         self.clave_acceso = clave_acceso
         self.receipt_number = clave_acceso
-

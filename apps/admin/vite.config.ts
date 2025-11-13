@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const rawBase = process.env.VITE_BASE_PATH || '/'
 const basePath = rawBase.endsWith('/') ? rawBase : `${rawBase}/`
@@ -10,7 +11,7 @@ const basePath = rawBase.endsWith('/') ? rawBase : `${rawBase}/`
 const buildId = process.env.VITE_BUILD_ID || new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)
 
 function pkgPath(p: string) {
-  return new URL(p, import.meta.url).pathname
+  return fileURLToPath(new URL(p, import.meta.url))
 }
 
 function exists(p: string) {
@@ -42,6 +43,11 @@ export default defineConfig({
   define: {
     __APP_BUILD_ID__: JSON.stringify(buildId),
     __APP_VERSION__: JSON.stringify(process.env.npm_package_version || '0.0.0')
+  },
+  server: {
+    host: process.env.HOST || '0.0.0.0',
+    port: Number(process.env.PORT || 8081),
+    strictPort: false,
   },
   resolve: { alias },
   plugins: [

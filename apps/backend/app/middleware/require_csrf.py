@@ -9,6 +9,7 @@ EXEMPT_SUFFIXES = ("/auth/login", "/auth/refresh", "/auth/logout")
 
 HEADER_NAMES = ("X-CSRF-Token", "X-CSRF")  # acepta ambos
 
+
 class RequireCSRFMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         method = request.method.upper()
@@ -24,7 +25,9 @@ class RequireCSRFMiddleware(BaseHTTPMiddleware):
 
         # Lee cookie, session y header
         cookie = request.cookies.get("csrf_token")
-        session_token = getattr(getattr(request, "state", object()), "session", {}).get("csrf")
+        session_token = getattr(getattr(request, "state", object()), "session", {}).get(
+            "csrf"
+        )
         sent = None
         for hname in HEADER_NAMES:
             v = request.headers.get(hname)
@@ -41,6 +44,8 @@ class RequireCSRFMiddleware(BaseHTTPMiddleware):
             ok = True
 
         if not ok:
-            return JSONResponse({"detail": "CSRF token missing/invalid"}, status_code=403)
+            return JSONResponse(
+                {"detail": "CSRF token missing/invalid"}, status_code=403
+            )
 
         return await call_next(request)

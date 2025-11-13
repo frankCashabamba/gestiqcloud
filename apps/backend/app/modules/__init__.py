@@ -6,7 +6,6 @@ back to getattr traversal.
 """
 
 import importlib
-from types import ModuleType
 from typing import Any
 
 
@@ -14,4 +13,3 @@ def __getattr__(name: str) -> Any:  # PEP 562 lazy import
     if name == "einvoicing":
         return importlib.import_module(__name__ + ".einvoicing")
     raise AttributeError(name)
-

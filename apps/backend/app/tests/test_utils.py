@@ -6,4 +6,3 @@ def test_now_ts_and_ping_ok():
     assert isinstance(t, int)
     assert t > 0
     assert ping_ok() == {"ok": True}
-

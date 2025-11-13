@@ -1,4 +1,4 @@
-﻿
+
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
@@ -88,7 +88,7 @@ export default function UsuarioForm() {
           username: usuario.username ?? '',
           password: '',
           es_admin_empresa: usuario.es_admin_empresa,
-          activo: usuario.activo,
+          activo: usuario.active,
           modulos: usuario.modulos ?? [],
           roles: usuario.roles ?? [],
         })
@@ -258,7 +258,7 @@ export default function UsuarioForm() {
                     checked={form.modulos.includes(mod.id)}
                     onChange={() => handleCheckboxChange('modulos', mod.id)}
                   />
-                  <span>{mod.nombre || `Módulo #${mod.id}`}</span>
+                  <span>{mod.name || `Módulo #${mod.id}`}</span>
                 </label>
               ))}
               {!modules.length && <p className="text-xs text-slate-400">No hay Módulos contratados.</p>}
@@ -278,7 +278,7 @@ export default function UsuarioForm() {
                     checked={form.roles.includes(rol.id)}
                     onChange={() => handleCheckboxChange('roles', rol.id)}
                   />
-                  <span>{rol.nombre}</span>
+                  <span>{rol.name}</span>
                 </label>
               ))}
               {!roles.length && <p className="text-xs text-slate-400">No hay roles definidos. Puedes crearlos desde Configuración.</p>}

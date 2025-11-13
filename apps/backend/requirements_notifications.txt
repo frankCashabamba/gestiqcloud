@@ -1,0 +1,19 @@
+# ============================================================================
+# Dependencias para Sistema de Notificaciones
+# ============================================================================
+
+# Celery + Redis (async workers)
+celery>=5.3.4
+redis>=5.0.1
+
+# Email
+# (incluido en stdlib de Python, no requiere instalación)
+
+# WhatsApp (Twilio)
+twilio>=8.10.0
+
+# Telegram
+# (usa requests, ya incluido en FastAPI)
+
+# Opcional: Monitoring
+flower>=2.0.1  # Web UI para Celery

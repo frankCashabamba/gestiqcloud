@@ -1,4 +1,4 @@
-﻿# app/core/access_guard.py
+# app/core/access_guard.py
 from fastapi import HTTPException, Request
 from sqlalchemy import text
 from app.config.database import SessionLocal
@@ -9,6 +9,7 @@ from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
 
 
 token_service = PyJWTTokenService()
+
 
 def with_access_claims(request: Request) -> Dict[str, Any]:
     # 1) extrae Authorization
@@ -28,28 +29,49 @@ def with_access_claims(request: Request) -> Dict[str, Any]:
     try:
         tenant_slug = (request.headers.get("X-Tenant-Slug") or "").strip()
         if tenant_slug:
-            # Soporta tokens con tenant_id como empresa_id (int) o UUID segÃºn despliegue
-            tid = str(claims.get("tenant_id")) if isinstance(claims, dict) and claims.get("tenant_id") is not None else None
+            # Soporta tokens con tenant_id como tenant_id (int) o UUID segÃºn despliegue
+            tid = (
+                str(claims.get("tenant_id"))
+                if isinstance(claims, dict) and claims.get("tenant_id") is not None
+                else None
+            )
             if tid:
-                # Primero intenta core_empresa.slug si tid es numÃ©rico
+                # Primero intenta tenants.slug si tid es numÃ©rico
                 ok = False
                 if tid.isdigit():
                     try:
                         with SessionLocal() as db:
-                            row = db.execute(text("SELECT slug FROM core_empresa WHERE id=:id"), {"id": int(tid)}).first()
-                            ok = bool(row and row[0] and str(row[0]).strip() == tenant_slug)
+                            row = db.execute(
+                                text("SELECT slug FROM tenants WHERE tenant_id=:id"),
+                                {"id": int(tid)},
+                            ).first()
+                            ok = bool(
+                                row and row[0] and str(row[0]).strip() == tenant_slug
+                            )
                     except Exception:
                         ok = False
                 # Si no ok y hay tabla tenants, valida contra tenants.slug
                 if not ok:
                     try:
                         with SessionLocal() as db:
-                            # tid puede ser UUID; compara por id::text o por empresa_id si es dÃ­gito
+                            # tid puede ser UUID; compara por id::text o por tenant_id si es dÃ­gito
                             if tid.isdigit():
-                                row = db.execute(text("SELECT slug FROM tenants WHERE empresa_id=:id"), {"id": int(tid)}).first()
+                                row = db.execute(
+                                    text(
+                                        "SELECT slug FROM tenants WHERE tenant_id =:id"
+                                    ),
+                                    {"id": int(tid)},
+                                ).first()
                             else:
-                                row = db.execute(text("SELECT slug FROM tenants WHERE CAST(id AS TEXT)=:id"), {"id": tid}).first()
-                            ok = bool(row and row[0] and str(row[0]).strip() == tenant_slug)
+                                row = db.execute(
+                                    text(
+                                        "SELECT slug FROM tenants WHERE tenant_id =:id"
+                                    ),
+                                    {"id": tid},
+                                ).first()
+                            ok = bool(
+                                row and row[0] and str(row[0]).strip() == tenant_slug
+                            )
                     except Exception:
                         ok = False
                 if not ok:
@@ -62,4 +84,3 @@ def with_access_claims(request: Request) -> Dict[str, Any]:
 
     request.state.access_claims = claims
     return claims
-

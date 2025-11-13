@@ -6,8 +6,10 @@ try:
     from .validators.country_validators import get_validator_for_country
     from .validators.error_catalog import ERROR_CATALOG
 except ImportError:
+
     def get_validator_for_country(country_code: str):
         raise ValueError(f"Validadores de país no disponibles: {country_code}")
+
     ERROR_CATALOG = {}
 
 
@@ -35,7 +37,12 @@ def _is_currency(v: Any) -> bool:
     return bool(re.match(r"^[A-Z]{3}$", s))
 
 
-def validate_invoices(n: Dict[str, Any], *, enable_currency_rule: bool = True, country: Optional[str] = None) -> List[dict]:
+def validate_invoices(
+    n: Dict[str, Any],
+    *,
+    enable_currency_rule: bool = True,
+    country: Optional[str] = None,
+) -> List[dict]:
     errors: List[dict] = []
 
     if not n.get("invoice_number"):
@@ -59,10 +66,12 @@ def validate_invoices(n: Dict[str, Any], *, enable_currency_rule: bool = True, c
     if all(x is not None for x in (net, tax, total)):
         diff = round((net + tax) - total, 2)
         if diff != 0:
-            errors.append({
-                "field": "total_amount",
-                "msg": f"no cuadra con base+iva (diferencia: {diff})"
-            })
+            errors.append(
+                {
+                    "field": "total_amount",
+                    "msg": f"no cuadra con base+iva (diferencia: {diff})",
+                }
+            )
 
     iti = n.get("issuer_tax_id") or n.get("supplier_tax_id")
     if iti is not None:
@@ -95,10 +104,7 @@ def validate_invoices(n: Dict[str, Any], *, enable_currency_rule: bool = True, c
 
 def _convert_validation_errors(validation_errors: List[dict]) -> List[dict]:
     """Convierte errores del catálogo al formato legacy."""
-    return [
-        {"field": err["field"], "msg": err["message"]}
-        for err in validation_errors
-    ]
+    return [{"field": err["field"], "msg": err["message"]} for err in validation_errors]
 
 
 def validate_bank(n: Dict[str, Any]) -> List[dict]:
@@ -114,7 +120,9 @@ def validate_bank(n: Dict[str, Any]) -> List[dict]:
     return errors
 
 
-def validate_expenses(n: Dict[str, Any], *, require_categories: bool | str = False) -> List[dict]:
+def validate_expenses(
+    n: Dict[str, Any], *, require_categories: bool | str = False
+) -> List[dict]:
     errors: List[dict] = []
     if not n.get("expense_date"):
         errors.append({"field": "expense_date", "msg": "obligatorio"})
@@ -123,7 +131,9 @@ def validate_expenses(n: Dict[str, Any], *, require_categories: bool | str = Fal
     if require_categories:
         cat = n.get("category") or n.get("categoria")
         if not str(cat or "").strip():
-            errors.append({"field": "category", "msg": "categoria requerida por politica"})
+            errors.append(
+                {"field": "category", "msg": "categoria requerida por politica"}
+            )
     return errors
 
 
@@ -145,7 +155,7 @@ def validate_canonical(n: Dict[str, Any]) -> List[dict]:
         Lista de errores con formato {"field": str, "msg": str}
     """
     from app.modules.imports.domain.canonical_schema import (
-        validate_canonical as full_validate
+        validate_canonical as full_validate,
     )
 
     is_valid, error_messages = full_validate(n)
@@ -180,10 +190,12 @@ def validate_totals(totals: Optional[Dict[str, Any]]) -> List[dict]:
 
     expected_total = subtotal + tax
     if abs(expected_total - total) > 0.01:
-        errors.append({
-            "field": "totals.total",
-            "msg": f"no cuadra: esperado {expected_total:.2f}, recibido {total:.2f}"
-        })
+        errors.append(
+            {
+                "field": "totals.total",
+                "msg": f"no cuadra: esperado {expected_total:.2f}, recibido {total:.2f}",
+            }
+        )
 
     return errors
 
@@ -209,9 +221,10 @@ def validate_tax_breakdown(tax_breakdown: Optional[List[Dict[str, Any]]]) -> Lis
         if not item.get("code"):
             errors.append({"field": f"tax_breakdown[{idx}].code", "msg": "obligatorio"})
         if item.get("amount") is None:
-            errors.append({"field": f"tax_breakdown[{idx}].amount", "msg": "obligatorio"})
+            errors.append(
+                {"field": f"tax_breakdown[{idx}].amount", "msg": "obligatorio"}
+            )
         if item.get("rate") is None:
             errors.append({"field": f"tax_breakdown[{idx}].rate", "msg": "obligatorio"})
 
     return errors
-

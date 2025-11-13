@@ -1,39 +1,23 @@
 /**
  * TicketCart - Carrito de compras POS
+ * Los totales se calculan en el backend para garantizar consistencia
  */
 import React from 'react'
 import type { CartItem } from '../../../types/pos'
 
 interface TicketCartProps {
   items: CartItem[]
+  totals: {
+    subtotal: number
+    tax: number
+    total: number
+  }
   onUpdateQty: (index: number, qty: number) => void
   onRemoveItem: (index: number) => void
   onClear: () => void
 }
 
-export default function TicketCart({ items, onUpdateQty, onRemoveItem, onClear }: TicketCartProps) {
-  const calculateTotals = () => {
-    let subtotal = 0
-    let taxTotal = 0
-
-    items.forEach((item) => {
-      const lineSubtotal = item.qty * item.unit_price
-      const discount = lineSubtotal * (item.discount_pct / 100)
-      const lineNet = lineSubtotal - discount
-      const lineTax = lineNet * item.tax_rate
-
-      subtotal += lineNet
-      taxTotal += lineTax
-    })
-
-    return {
-      subtotal: subtotal.toFixed(2),
-      taxTotal: taxTotal.toFixed(2),
-      total: (subtotal + taxTotal).toFixed(2)
-    }
-  }
-
-  const totals = calculateTotals()
+export default function TicketCart({ items, totals, onUpdateQty, onRemoveItem, onClear }: TicketCartProps) {
 
   return (
     <div className="bg-white rounded-lg shadow h-full flex flex-col">
@@ -80,9 +64,9 @@ export default function TicketCart({ items, onUpdateQty, onRemoveItem, onClear }
                     onChange={(e) => onUpdateQty(index, parseFloat(e.target.value) || 0)}
                     className="w-20 px-2 py-1 border rounded text-sm"
                   />
-                  <span className="text-sm">× €{item.unit_price.toFixed(2)}</span>
+                  <span className="text-sm">× €{(item.unit_price ?? 0).toFixed(2)}</span>
                   <span className="ml-auto font-semibold">
-                    €{item.line_total.toFixed(2)}
+                    €{(item.line_total ?? 0).toFixed(2)}
                   </span>
                 </div>
 
@@ -102,15 +86,15 @@ export default function TicketCart({ items, onUpdateQty, onRemoveItem, onClear }
           <div className="space-y-1 text-sm">
             <div className="flex justify-between">
               <span>Subtotal:</span>
-              <span>€{totals.subtotal}</span>
+              <span>€{totals.subtotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
               <span>IVA:</span>
-              <span>€{totals.taxTotal}</span>
+              <span>€{totals.tax.toFixed(2)}</span>
             </div>
             <div className="flex justify-between font-bold text-lg pt-2 border-t">
               <span>TOTAL:</span>
-              <span>€{totals.total}</span>
+              <span>€{totals.total.toFixed(2)}</span>
             </div>
           </div>
         </div>

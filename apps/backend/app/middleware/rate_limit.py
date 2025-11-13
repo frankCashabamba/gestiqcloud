@@ -6,7 +6,7 @@ from typing import Optional
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response, JSONResponse
+from starlette.responses import JSONResponse
 
 try:
     from redis import asyncio as aioredis
@@ -15,7 +15,9 @@ except Exception:  # pragma: no cover
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, *, redis_url: Optional[str] = None, limit_per_minute: int = 120):
+    def __init__(
+        self, app, *, redis_url: Optional[str] = None, limit_per_minute: int = 120
+    ):
         super().__init__(app)
         self.limit = max(1, int(limit_per_minute))
         self.redis_url = redis_url or os.getenv("REDIS_URL")
@@ -23,13 +25,24 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     async def _get_redis(self):
         if self.redis is None and self.redis_url and aioredis is not None:
-            self.redis = aioredis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
+            self.redis = aioredis.from_url(
+                self.redis_url, encoding="utf-8", decode_responses=True
+            )
         return self.redis
 
     async def dispatch(self, request: Request, call_next):
         # Skip health
         if request.url.path in ("/health", "/healthz", "/"):
             return await call_next(request)
+
+        # Exempt large-file chunked upload endpoints from generic rate limiting
+        # to allow many small requests during a single file upload.
+        try:
+            path = request.url.path or ""
+            if path.startswith("/api/v1/imports/uploads/chunk"):
+                return await call_next(request)
+        except Exception:
+            pass
 
         # If no Redis, allow
         r = await self._get_redis()
@@ -44,7 +57,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             if isinstance(claims, dict):
                 user_id = claims.get("user_id")
                 tenant_id = claims.get("tenant_id")
-            ident = user_id or tenant_id or (request.client.host if request.client else "anon")
+            ident = (
+                user_id
+                or tenant_id
+                or (request.client.host if request.client else "anon")
+            )
             bucket = int(time.time() // 60)  # per-minute window
             key = f"rl:{ident}:{bucket}"
             ttl = 120  # seconds (1m window + slack)
@@ -60,4 +77,3 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         return await call_next(request)
-

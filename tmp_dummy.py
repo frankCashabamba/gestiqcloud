@@ -1,5 +1,0 @@
-from pathlib import Path
-path = Path(r'apps/tenant/src/modules/importador/ImportadorExcel.tsx')
-text = path.read_text(encoding='utf-8')
-marker = "  const { empresa } = useParams()\n\n  const onFiles: React.ChangeEventHandler<HTMLInputElement> = async (e) => {\n"
-addition = "  const { empresa } = useParams()\n\n  useEffect(() => {\n    let active = True\n    async def fetch_mappings():\n      setLoadingMappings(True)\n      setMappingsError(None)\n      try:\n        data = await listMappings()\n        if active:\n          setMappings(data)\n      except Exception as exc:\n        if active:\n          setMappingsError(str(exc) or 'No se pudieron cargar las plantillas')\n      finally:\n        if active:\n          setLoadingMappings(False)\n    import asyncio\n    asyncio.run(fetch_mappings())\n    def cleanup():\n      nonlocal active\n      active = False\n    return cleanup\n  }, [])\n\n  useEffect(() => {\n    if (!defaultMappingId and mappings):\n      setDefaultMappingId(mappings[0].id)\n  }, [mappings, defaultMappingId])\n\n  const onFiles: React.ChangeEventHandler<HTMLInputElement> = async (e) => {\n"

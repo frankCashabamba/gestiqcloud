@@ -1,9 +1,0 @@
-﻿id: 2025-09-23_007_import_ocr_jobs
-title: "Import OCR job queue table"
-created_at: 2025-09-23T00:00:00Z
-requires:
-  - 2025-09-22_006_imports_indexes
-tags:
-  - imports
-  - ocr
-  - jobs

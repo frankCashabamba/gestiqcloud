@@ -70,7 +70,11 @@
   }
 
   .gc-button--primary {
-    @apply gc-button bg-blue-600 text-white shadow-sm hover:bg-blue-500;
+    @apply gc-button text-white shadow-sm;
+    background-color: var(--gc-primary);
+  }
+  .gc-button--primary:hover {
+    background-color: var(--gc-primary-dark);
   }
 
   .gc-button--ghost {
@@ -99,6 +103,18 @@
 }
 
 @layer utilities {
+  :root.theme-pending .gc-topbar {
+    background-color: #f8fafc; /* slate-50 */
+    color: #0f172a; /* slate-900 */
+  }
+  :root.theme-pending .gc-topbar a { color: #0f172a; }
+  :root.theme-pending .gc-topbar a:hover { opacity: .9; }
+  .gc-topbar {
+    background-color: var(--gc-primary);
+    color: #ffffff;
+  }
+  .gc-topbar a { color: #ffffff; }
+  .gc-topbar a:hover { opacity: .9; }
   .gc-grid-2 {
     @apply grid gap-5 md:grid-cols-2;
   }

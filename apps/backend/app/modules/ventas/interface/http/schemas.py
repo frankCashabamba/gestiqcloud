@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict
 class VentaBase(BaseModel):
     fecha: date
     total: float
-    cliente_id: int | None = None
+    cliente_id: str | None = None
     estado: str | None = None
 
 
@@ -18,6 +18,6 @@ class VentaUpdate(VentaBase):
 
 
 class VentaOut(VentaBase):
-    id: int
+    id: str
 
     model_config = ConfigDict(from_attributes=True)

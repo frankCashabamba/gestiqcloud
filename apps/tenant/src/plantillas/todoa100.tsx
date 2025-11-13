@@ -1,8 +1,19 @@
+﻿
+import React from 'react'
+import RetailDashboardPro from './retail_pro'
 
+const TodoA100Plantilla: React.FC<{ slug?: string }> = () => {
+  return <RetailDashboardPro />
+}
+
+export default TodoA100Plantilla
+
+/* LEGACY VERSION
 import React, { useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import SectorLayout from './components/SectorLayout'
 import { useMisModulos } from '../hooks/useMisModulos'
+import { useDashboardKPIs, formatCurrency, formatNumber } from '../hooks/useDashboardKPIs'
 
 function buildSlug(name?: string, url?: string, slug?: string): string {
   if (slug) return slug.toLowerCase()
@@ -18,10 +29,16 @@ function buildSlug(name?: string, url?: string, slug?: string): string {
     .replace(/\s+/g, '')
 }
 
-const kpiCard = (key: string, title: string, helper: string) => (
-  <article key={key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+const kpiCard = (key: string, title: string, value: string | number, helper: string, loading?: boolean) => (
+  <article key={key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</p>
-    <p className="mt-3 text-2xl font-semibold text-slate-900">--</p>
+    <p className="mt-3 text-2xl font-semibold text-slate-900">
+      {loading ? (
+        <span className="inline-block w-20 h-8 bg-slate-200 animate-pulse rounded"></span>
+      ) : (
+        value
+      )}
+    </p>
     <p className="mt-2 text-[11px] text-slate-400">{helper}</p>
   </article>
 )
@@ -30,14 +47,15 @@ const TodoA100Plantilla: React.FC<{ slug?: string }> = ({ slug }) => {
   const { modules, allowedSlugs } = useMisModulos()
   const { empresa } = useParams()
   const prefix = empresa ? `/${empresa}` : ''
+  const { data: kpisData, loading: kpisLoading } = useDashboardKPIs({ periodo: 'today' })
 
   const sideNav = useMemo(
     () =>
       [...modules]
-        .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
         .map((m) => ({
-          label: m.nombre || buildSlug(m.nombre, m.url, m.slug),
-          to: `/mod/${buildSlug(m.nombre, m.url, m.slug)}`,
+          label: m.name || buildSlug(m.name, m.url, m.slug),
+          to: `/${buildSlug(m.name, m.url, m.slug)}`,
         })),
     [modules]
   )
@@ -47,17 +65,43 @@ const TodoA100Plantilla: React.FC<{ slug?: string }> = ({ slug }) => {
   const kpis = useMemo(() => {
     const items: React.ReactNode[] = []
     if (allowedSlugs.has('ventas')) {
-      items.push(kpiCard('ventas', 'Ventas por tienda', 'Compara sucursales y define objetivos diarios.'))
-      items.push(kpiCard('ticket', 'Ticket promedio', 'Mide el valor de cada compra para ajustar promociones.'))
+      items.push(
+        kpiCard(
+          'ventas',
+          'Ventas del día',
+          kpisData ? formatCurrency(kpisData.ventas.total) : '--',
+          'Total de ventas registradas hoy.',
+          kpisLoading
+        )
+      )
+      items.push(
+        kpiCard(
+          'ticket',
+          'Ticket promedio',
+          kpisData ? formatCurrency(kpisData.ventas.promedio) : '--',
+          'Valor promedio por transacción.',
+          kpisLoading
+        )
+      )
     }
     if (allowedSlugs.has('inventario')) {
-      items.push(kpiCard('rotacion', 'Rotaci?n de stock', 'Identifica productos de alta y baja rotaci?n.'))
+      items.push(
+        kpiCard(
+          'stock',
+          'Productos en stock',
+          kpisData ? formatNumber(kpisData.inventario.productos_en_stock) : '--',
+          'Productos con existencias activas.',
+          kpisLoading
+        )
+      )
     }
     if (!items.length) {
-      items.push(kpiCard('placeholder', 'KPIs personalizados', 'A?ade m?tricas de ventas y merchandising.'))
+      items.push(
+        kpiCard('placeholder', 'KPIs personalizados', '--', 'Añade métricas de ventas y merchandising.')
+      )
     }
     return items
-  }, [allowedSlugs])
+  }, [allowedSlugs, kpisData, kpisLoading])
 
   return (
     <SectorLayout
@@ -117,4 +161,5 @@ const TodoA100Plantilla: React.FC<{ slug?: string }> = ({ slug }) => {
   )
 }
 
-export default TodoA100Plantilla
+// export default TodoA100Plantilla
+*/

@@ -4,16 +4,18 @@ Auto-generated module docstring."""
 
 from datetime import date, datetime
 from typing import Dict, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
 
 # ---------- MÓDULO ----------
 class ModuloBase(BaseModel):
-    """ Class ModuloBase - auto-generated docstring. """
-    nombre: str
-    descripcion: Optional[str] = None
-    activo: bool
+    """Class ModuloBase - auto-generated docstring."""
+
+    name: str
+    description: Optional[str] = None
+    active: bool
     icono: Optional[str] = "📦"
     url: Optional[str]
     plantilla_inicial: str
@@ -24,63 +26,71 @@ class ModuloBase(BaseModel):
 
 
 class ModuloCreate(ModuloBase):
-    """ Class ModuloCreate - auto-generated docstring. """
+    """Class ModuloCreate - auto-generated docstring."""
+
     pass
 
 
 class ModuloOut(ModuloBase):
-    """ Class ModuloOut - auto-generated docstring. """
+    """Class ModuloOut - auto-generated docstring."""
+
     id: int
-    nombre: str
-    activo: bool
+    name: str
+    active: bool
 
     model_config = ConfigDict(from_attributes=True)
 
 
 # ---------- EMPRESA-MÓDULO ----------
 class EmpresaModuloBase(BaseModel):
-    """ Class EmpresaModuloBase - auto-generated docstring. """
+    """Class EmpresaModuloBase - auto-generated docstring."""
+
     modulo_id: int
-    activo: bool = True
+    active: bool = True
     fecha_expiracion: Optional[date] = None
     plantilla_inicial: Optional[str] = None
 
 
-
 class EmpresaModuloCreate(EmpresaModuloBase):
-    """ Class EmpresaModuloCreate - auto-generated docstring. """
+    """Class EmpresaModuloCreate - auto-generated docstring."""
+
     pass
 
 
 class EmpresaModuloOut(EmpresaModuloBase):
-    """ Class EmpresaModuloOut - auto-generated docstring. """
+    """Class EmpresaModuloOut - auto-generated docstring."""
+
     id: int
-    empresa_id: int
-    empresa_slug: Optional[str] 
-    activo: bool
+    tenant_id: UUID
+    empresa_slug: Optional[str]
+    active: bool
     fecha_expiracion: Optional[date] = None
     fecha_activacion: Optional[date] = None
     plantilla_inicial: Optional[str] = None
 
-
     modulo: ModuloOut
 
     model_config = ConfigDict(from_attributes=True)
+
+
 # ---------- MÓDULO ASIGNADO A USUARIO ----------
 class ModuloAsignadoBase(BaseModel):
-    """ Class ModuloAsignadoBase - auto-generated docstring. """
+    """Class ModuloAsignadoBase - auto-generated docstring."""
+
     modulo_id: int
 
 
 class ModuloAsignadoCreate(ModuloAsignadoBase):
-    """ Class ModuloAsignadoCreate - auto-generated docstring. """
+    """Class ModuloAsignadoCreate - auto-generated docstring."""
+
     usuario_id: int
 
 
 class ModuloAsignadoOut(BaseModel):
-    """ Class ModuloAsignadoOut - auto-generated docstring. """
+    """Class ModuloAsignadoOut - auto-generated docstring."""
+
     id: int
-    empresa_id: int
+    tenant_id: UUID
     usuario_id: int
     modulo_id: int
     fecha_asignacion: datetime
@@ -89,14 +99,13 @@ class ModuloAsignadoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-
-
 class EmpresaModuloOutAdmin(BaseModel):
-    """ Class EmpresaModuloOutAdmin - auto-generated docstring. """
+    """Class EmpresaModuloOutAdmin - auto-generated docstring."""
+
     id: int
-    empresa_id: int
+    tenant_id: UUID
     modulo_id: int
-    activo: bool
+    active: bool
     fecha_activacion: date
     fecha_expiracion: Optional[date]
     plantilla_inicial: Optional[str]
@@ -105,10 +114,12 @@ class EmpresaModuloOutAdmin(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class ModuloUpdate(BaseModel):
-    """ Class ModuloUpdate - auto-generated docstring. """
-    nombre: Optional[str]
-    descripcion: Optional[str]
+    """Class ModuloUpdate - auto-generated docstring."""
+
+    name: Optional[str]
+    description: Optional[str]
     icono: Optional[str]
     url: Optional[str]
     plantilla_inicial: Optional[str]
@@ -116,4 +127,4 @@ class ModuloUpdate(BaseModel):
     modelo_objetivo: Optional[str]
     filtros_contexto: Optional[Dict]
     categoria: Optional[str]
-    activo: Optional[bool]    
+    active: Optional[bool]

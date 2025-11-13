@@ -1,5 +1,4 @@
-
-import pytest
+﻿import pytest
 from fastapi.testclient import TestClient
 
 TENANT_LOGIN = {
@@ -10,12 +9,15 @@ TENANT_LOGIN = {
 
 @pytest.fixture
 def tenant_headers(client: TestClient, usuario_empresa_factory, seed_tenant_context):
-    usuario, empresa = seed_tenant_context
+    usuario, tenant = seed_tenant_context
     # login
-    r = client.post("/api/v1/tenant/auth/login", json={
-        "identificador": usuario.email,
-        "password": "tenant123",
-    })
+    r = client.post(
+        "/api/v1/tenant/auth/login",
+        json={
+            "identificador": usuario.email,
+            "password": "tenant123",
+        },
+    )
     assert r.status_code == 200, r.text
     token = r.json().get("access_token")
     assert token
@@ -28,15 +30,14 @@ def seed_tenant_context(db, usuario_empresa_factory):
     from app.models.empresa.rolempresas import RolEmpresa
     from app.models.empresa.usuarioempresa import UsuarioEmpresa
 
-    usuario, empresa = usuario_empresa_factory(email="tenant_admin@example.com", username="tenantadmin")
+    usuario, tenant = usuario_empresa_factory(
+        email="tenant_admin@example.com", username="tenantadmin"
+    )
     usuario.is_verified = True
     db.add(usuario)
+    # Tenant already created by factory
 
-    modulo_a = (
-        db.query(Modulo)
-        .filter(Modulo.nombre == "Ventas")
-        .first()
-    )
+    modulo_a = db.query(Modulo).filter(Modulo.name == "Ventas").first()
     if not modulo_a:
         modulo_a = Modulo(
             nombre="Ventas",
@@ -47,11 +48,7 @@ def seed_tenant_context(db, usuario_empresa_factory):
         )
         db.add(modulo_a)
 
-    modulo_b = (
-        db.query(Modulo)
-        .filter(Modulo.nombre == "Compras")
-        .first()
-    )
+    modulo_b = db.query(Modulo).filter(Modulo.name == "Compras").first()
     if not modulo_b:
         modulo_b = Modulo(
             nombre="Compras",
@@ -67,52 +64,50 @@ def seed_tenant_context(db, usuario_empresa_factory):
     for modulo in (modulo_a, modulo_b):
         exists_link = (
             db.query(EmpresaModulo)
-            .filter_by(empresa_id=empresa.id, modulo_id=modulo.id)
+            .filter_by(tenant_id=tenant.id, modulo_id=modulo.id)
             .first()
         )
         if not exists_link:
-            db.add(EmpresaModulo(empresa_id=empresa.id, modulo_id=modulo.id, activo=True))
+            db.add(EmpresaModulo(tenant_id=tenant.id, modulo_id=modulo.id, activo=True))
 
     rol_admin = (
         db.query(RolEmpresa)
-        .filter_by(empresa_id=empresa.id, nombre="Super Admin")
+        .filter_by(tenant_id=tenant.id, nombre="Super Admin")
         .first()
     )
     if not rol_admin:
         rol_admin = RolEmpresa(
-            empresa_id=empresa.id,
+            tenant_id=tenant.id,
             nombre="Super Admin",
             descripcion="Acceso total",
             permisos={},
         )
         db.add(rol_admin)
     else:
-        rol_admin.descripcion = "Acceso total"
+        rol_admin.description = "Acceso total"
         if not rol_admin.permisos:
             rol_admin.permisos = {}
 
     rol_editor = (
-        db.query(RolEmpresa)
-        .filter_by(empresa_id=empresa.id, nombre="Editor")
-        .first()
+        db.query(RolEmpresa).filter_by(tenant_id=tenant.id, nombre="Editor").first()
     )
     if not rol_editor:
         rol_editor = RolEmpresa(
-            empresa_id=empresa.id,
+            tenant_id=tenant.id,
             nombre="Editor",
             descripcion="Puede editar",
             permisos={},
         )
         db.add(rol_editor)
     else:
-        rol_editor.descripcion = "Puede editar"
+        rol_editor.description = "Puede editar"
         if not rol_editor.permisos:
             rol_editor.permisos = {}
 
     extra_admins = (
         db.query(UsuarioEmpresa)
         .filter(
-            UsuarioEmpresa.empresa_id == empresa.id,
+            UsuarioEmpresa.tenant_id == tenant.id,
             UsuarioEmpresa.id != usuario.id,
             UsuarioEmpresa.es_admin_empresa.is_(True),
         )
@@ -123,8 +118,8 @@ def seed_tenant_context(db, usuario_empresa_factory):
 
     db.commit()
     db.refresh(usuario)
-    db.refresh(empresa)
-    return usuario, empresa
+    db.refresh(tenant)
+    return usuario, tenant
 
 
 def test_listar_usuarios(client: TestClient, tenant_headers):
@@ -155,7 +150,9 @@ def test_check_username_public(client: TestClient):
 
 
 def test_crear_usuario_estandar(client: TestClient, tenant_headers):
-    modules = client.get("/api/v1/tenant/usuarios/modulos", headers=tenant_headers).json()
+    modules = client.get(
+        "/api/v1/tenant/usuarios/modulos", headers=tenant_headers
+    ).json()
     roles = client.get("/api/v1/tenant/usuarios/roles", headers=tenant_headers).json()
     payload = {
         "nombre_encargado": "Juan",
@@ -219,7 +216,9 @@ def test_actualizar_usuario(client: TestClient, tenant_headers):
         "modulos": [],
         "roles": [],
     }
-    r = client.patch(f"/api/v1/tenant/usuarios/{usuario_id}", json=update, headers=tenant_headers)
+    r = client.patch(
+        f"/api/v1/tenant/usuarios/{usuario_id}", json=update, headers=tenant_headers
+    )
     assert r.status_code == 200
     data = r.json()
     assert data["apellido_encargado"] == "Actualizada"

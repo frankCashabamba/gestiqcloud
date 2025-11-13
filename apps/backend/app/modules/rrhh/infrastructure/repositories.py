@@ -1,6 +1,6 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from .models import Vacacion
+from app.models.hr import Vacacion
 from app.core.crud_base import CRUDBase
 
 
