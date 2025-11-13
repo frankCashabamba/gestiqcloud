@@ -22,7 +22,7 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session):
     try:
         db.execute(
             text(
-                "INSERT INTO tenants(id, tenant_id, slug) VALUES (:id::uuid, 1, 'acme') ON CONFLICT (tenant_id) DO NOTHING"
+                "INSERT INTO tenants(id, tenant_id, slug) VALUES (CAST(:id AS uuid), 1, 'acme') ON CONFLICT (tenant_id) DO NOTHING"
             ),
             {"id": str(tid)},
         )
