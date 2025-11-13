@@ -1,37 +1,22 @@
 import api from '../../shared/api/client'
 import { ADMIN_CONFIG } from '@shared/endpoints'
 
-type MonedaAliases = {
-  /**
-   * Algunas API legacy siguen devolviendo estos nombres en inglés. Los marcamos como opcionales
-   * para que el tipado admita ambos formatos sin romper el typecheck.
-   */
-  code?: string
-  name?: string
-  symbol?: string
-  active?: boolean
-}
-
 export type Moneda = {
   id: number
   codigo: string
   nombre: string
   simbolo: string
   activo: boolean
-} & MonedaAliases
+}
 
 type MonedaPayload = Pick<Moneda, 'codigo' | 'nombre' | 'simbolo' | 'activo'>
 
 const normalizeMoneda = (input: Partial<Moneda>): Moneda => ({
   id: input.id ?? 0,
-  codigo: input.codigo ?? input.code ?? '',
-  nombre: input.nombre ?? input.name ?? '',
-  simbolo: input.simbolo ?? input.symbol ?? '',
-  activo: input.activo ?? input.active ?? true,
-  code: input.code ?? input.codigo,
-  name: input.name ?? input.nombre,
-  symbol: input.symbol ?? input.simbolo,
-  active: input.active ?? input.activo,
+  codigo: input.codigo ?? '',
+  nombre: input.nombre ?? '',
+  simbolo: input.simbolo ?? '',
+  activo: input.activo ?? true,
 })
 
 const buildPayload = (payload: MonedaPayload) => ({
