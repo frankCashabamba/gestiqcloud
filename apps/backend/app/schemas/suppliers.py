@@ -1,19 +1,18 @@
-﻿"""Schemas Pydantic para Proveedores"""
+"""Schemas Pydantic para Proveedores"""
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class ProveedorContactoCreate(BaseModel):
     """Schema para crear contacto de proveedor"""
 
     name: str = Field(..., max_length=255)
-    cargo: Optional[str] = Field(None, max_length=100)
-    email: Optional[EmailStr] = None
-    phone: Optional[str] = Field(None, max_length=50)
+    cargo: str | None = Field(None, max_length=100)
+    email: EmailStr | None = None
+    phone: str | None = Field(None, max_length=50)
 
 
 class ProveedorContactoResponse(ProveedorContactoCreate):
@@ -29,11 +28,11 @@ class ProveedorContactoResponse(ProveedorContactoCreate):
 class ProveedorDireccionCreate(BaseModel):
     """Schema para crear dirección de proveedor"""
 
-    tipo: Optional[str] = Field(None, pattern="^(fiscal|envio|otro)$")
-    address: Optional[str] = None
-    city: Optional[str] = Field(None, max_length=100)
-    state: Optional[str] = Field(None, max_length=100)
-    codigo_postal: Optional[str] = Field(None, max_length=20)
+    tipo: str | None = Field(None, pattern="^(fiscal|envio|otro)$")
+    address: str | None = None
+    city: str | None = Field(None, max_length=100)
+    state: str | None = Field(None, max_length=100)
+    codigo_postal: str | None = Field(None, max_length=20)
     pais: str = Field(default="ES", max_length=2)
 
 
@@ -50,15 +49,15 @@ class ProveedorDireccionResponse(ProveedorDireccionCreate):
 class ProveedorBase(BaseModel):
     """Campos comunes de Proveedor"""
 
-    codigo: Optional[str] = Field(None, max_length=50)
+    codigo: str | None = Field(None, max_length=50)
     name: str = Field(..., max_length=255)
-    nombre_comercial: Optional[str] = Field(None, max_length=255)
-    tax_id: Optional[str] = Field(None, max_length=50)
-    email: Optional[EmailStr] = None
-    phone: Optional[str] = Field(None, max_length=50)
-    web: Optional[str] = Field(None, max_length=255)
+    nombre_comercial: str | None = Field(None, max_length=255)
+    tax_id: str | None = Field(None, max_length=50)
+    email: EmailStr | None = None
+    phone: str | None = Field(None, max_length=50)
+    web: str | None = Field(None, max_length=255)
     active: bool = True
-    notas: Optional[str] = None
+    notas: str | None = None
 
 
 class ProveedorCreate(ProveedorBase):
@@ -71,15 +70,15 @@ class ProveedorCreate(ProveedorBase):
 class ProveedorUpdate(BaseModel):
     """Schema para actualizar proveedor"""
 
-    codigo: Optional[str] = Field(None, max_length=50)
-    name: Optional[str] = Field(None, max_length=255)
-    nombre_comercial: Optional[str] = Field(None, max_length=255)
-    tax_id: Optional[str] = Field(None, max_length=50)
-    email: Optional[EmailStr] = None
-    phone: Optional[str] = Field(None, max_length=50)
-    web: Optional[str] = Field(None, max_length=255)
-    active: Optional[bool] = None
-    notas: Optional[str] = None
+    codigo: str | None = Field(None, max_length=50)
+    name: str | None = Field(None, max_length=255)
+    nombre_comercial: str | None = Field(None, max_length=255)
+    tax_id: str | None = Field(None, max_length=50)
+    email: EmailStr | None = None
+    phone: str | None = Field(None, max_length=50)
+    web: str | None = Field(None, max_length=255)
+    active: bool | None = None
+    notas: str | None = None
 
     model_config = ConfigDict(extra="forbid")
 

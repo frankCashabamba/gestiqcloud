@@ -1,30 +1,29 @@
-﻿"""
+"""
 Router API para gestión de notificaciones multi-canal
 """
 
-from datetime import datetime, timedelta
 import uuid
-
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy import desc, text
-from sqlalchemy.orm import Session
-from typing import Any, List, Optional
+from datetime import datetime, timedelta
+from typing import Any
 
 from app.config.database import get_db
+from app.middleware.rls import get_current_tenant_id
 from app.models.ai.incident import NotificationChannel, NotificationLog, StockAlert
 from app.schemas.notifications import (
     NotificationChannelCreate,
-    NotificationChannelUpdate,
     NotificationChannelResponse,
+    NotificationChannelUpdate,
     NotificationLogResponse,
-    StockAlertResponse,
-    NotificationTestRequest,
     NotificationSendRequest,
+    NotificationTestRequest,
+    StockAlertResponse,
 )
-from app.middleware.rls import get_current_tenant_id
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import desc, text
+from sqlalchemy.orm import Session
 
 send_notification_task: Any
-_celery_import_exception: Optional[Exception]
+_celery_import_exception: Exception | None
 
 try:
     from app.workers.notifications import send_notification_task
@@ -40,6 +39,7 @@ router = APIRouter(prefix="/api/v1/notifications", tags=["Notifications"])
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _get_notification_task():
     if send_notification_task is None:
@@ -61,19 +61,15 @@ def _get_notification_task():
 # ============================================================================
 
 
-@router.get("/channels", response_model=List[NotificationChannelResponse])
+@router.get("/channels", response_model=list[NotificationChannelResponse])
 def list_channels(
-    tipo: Optional[str] = Query(
-        None, description="Filtrar por tipo: email, whatsapp, telegram"
-    ),
-    activo: Optional[bool] = Query(None),
+    tipo: str | None = Query(None, description="Filtrar por tipo: email, whatsapp, telegram"),
+    activo: bool | None = Query(None),
     db: Session = Depends(get_db),
     tenant_id: str = Depends(get_current_tenant_id),
 ):
     """Lista todos los canales de notificación configurados"""
-    query = db.query(NotificationChannel).filter(
-        NotificationChannel.tenant_id == tenant_id
-    )
+    query = db.query(NotificationChannel).filter(NotificationChannel.tenant_id == tenant_id)
 
     if tipo:
         query = query.filter(NotificationChannel.tipo == tipo)
@@ -319,11 +315,11 @@ def send_notification(
 # ============================================================================
 
 
-@router.get("/log", response_model=List[NotificationLogResponse])
+@router.get("/log", response_model=list[NotificationLogResponse])
 def list_logs(
-    tipo: Optional[str] = Query(None),
-    estado: Optional[str] = Query(None),
-    ref_type: Optional[str] = Query(None),
+    tipo: str | None = Query(None),
+    estado: str | None = Query(None),
+    ref_type: str | None = Query(None),
     days: int = Query(7, ge=1, le=90, description="Días hacia atrás"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
@@ -355,12 +351,7 @@ def list_logs(
 
     _total = query.count()
 
-    logs = (
-        query.order_by(desc(NotificationLog.created_at))
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    logs = query.order_by(desc(NotificationLog.created_at)).offset(offset).limit(limit).all()
 
     return logs
 
@@ -411,9 +402,9 @@ def get_log_stats(
 # ============================================================================
 
 
-@router.get("/alerts", response_model=List[StockAlertResponse])
+@router.get("/alerts", response_model=list[StockAlertResponse])
 def list_stock_alerts(
-    estado: Optional[str] = Query("active"),
+    estado: str | None = Query("active"),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
     tenant_id: str = Depends(get_current_tenant_id),
@@ -434,10 +425,7 @@ def list_stock_alerts(
     if estado:
         base_sql += " AND status = :st"
         params["st"] = estado
-    base_sql += (
-        " ORDER BY (threshold_qty - current_qty) ASC, created_at DESC "
-        " LIMIT :lim"
-    )
+    base_sql += " ORDER BY (threshold_qty - current_qty) ASC, created_at DESC " " LIMIT :lim"
 
     rows = db.execute(text(base_sql), params).mappings().all()
     # Retornar dicts compatibles con StockAlertResponse

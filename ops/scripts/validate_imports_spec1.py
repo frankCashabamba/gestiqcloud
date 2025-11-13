@@ -10,12 +10,12 @@ Opciones:
     --ci: Modo CI (exit code 1 si hay fallos)
 """
 
-import sys
+import json
 import subprocess
+import sys
+from datetime import datetime
 from pathlib import Path
 from typing import List
-from datetime import datetime
-import json
 
 
 class ValidationResult:
@@ -236,7 +236,7 @@ def generate_html_report(results: List[ValidationResult], output_path: Path):
 <body>
     <h1>📊 SPEC-1 Compliance Report</h1>
     <p><strong>Fecha:</strong> {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
-    
+
     <div class="summary">
         <h2>Resumen</h2>
         <p><strong>Compliance:</strong> {passed_count}/{total_count} checks pasados</p>
@@ -244,7 +244,7 @@ def generate_html_report(results: List[ValidationResult], output_path: Path):
             <div class="progress-bar" style="width: {compliance_pct}%">{compliance_pct:.0f}%</div>
         </div>
     </div>
-    
+
     <h2>Resultados detallados</h2>
 """
 

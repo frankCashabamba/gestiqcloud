@@ -31,4 +31,3 @@ export async function updateIdioma(id: number | string, payload: Omit<Idioma, 'i
 export async function removeIdioma(id: number | string): Promise<void> {
   await api.delete(ADMIN_CONFIG.idiomas.byId(id))
 }
-

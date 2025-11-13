@@ -14,4 +14,3 @@ echo "Exporting schema from container '${CONTAINER}' DB '${DB_NAME}' to '${OUTPU
 docker exec "${CONTAINER}" bash -lc "pg_dump -U postgres -s -x -O -d ${DB_NAME}" > "${OUTPUT}"
 
 echo "Schema exported to ${OUTPUT}"
-

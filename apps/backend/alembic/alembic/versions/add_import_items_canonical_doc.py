@@ -5,8 +5,8 @@ Revises: import_batches_parser_metadata
 Create Date: 2025-11-13 10:00:00.000000
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision = "import_items_canonical_doc"

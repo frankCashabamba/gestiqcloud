@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import Optional, Sequence, Mapping, Any
+import logging
+from collections.abc import Mapping, Sequence
+from typing import Any
 from uuid import UUID
 
-from app.modules.empresa.application.ports import EmpresaRepo, EmpresaDTO
 from app.models.tenant import Tenant as EmpresaORM
+from app.modules.empresa.application.ports import EmpresaDTO, EmpresaRepo
 from app.modules.shared.infrastructure.sqlalchemy_repo import SqlAlchemyRepo
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ class SqlEmpresaRepo(SqlAlchemyRepo, EmpresaRepo):
         )
         return [self._to_dto(e) for e in rows]
 
-    def get(self, *, id: Any) -> Optional[EmpresaDTO]:
+    def get(self, *, id: Any) -> EmpresaDTO | None:
         e = self.db.query(EmpresaORM).filter(EmpresaORM.id == _to_uuid(id)).first()
         return self._to_dto(e) if e else None
 
@@ -72,7 +73,7 @@ class SqlEmpresaRepo(SqlAlchemyRepo, EmpresaRepo):
         self.db.refresh(m)
         return self._to_dto(m)
 
-    def update(self, id: Any, data: Mapping) -> Optional[EmpresaDTO]:
+    def update(self, id: Any, data: Mapping) -> EmpresaDTO | None:
         m = self.db.query(EmpresaORM).filter(EmpresaORM.id == _to_uuid(id)).first()
         if not m:
             return None

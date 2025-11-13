@@ -2,7 +2,7 @@
 
 ## 🎯 Problema Resuelto
 
-**Antes**: El sistema rechazaba Excels que no coincidían con el formato esperado.  
+**Antes**: El sistema rechazaba Excels que no coincidían con el formato esperado.
 **Ahora**: El sistema **se adapta automáticamente** a cualquier formato de Excel del cliente.
 
 ---
@@ -29,7 +29,7 @@ tapados  | 196      | 0.15                  | —
 
 **Sistema auto-mapea**:
 - `PRODUCTO` → `name` ✅
-- `CANTIDAD` → `cantidad` ✅  
+- `CANTIDAD` → `cantidad` ✅
 - `PRECIO UNITARIO VENTA` → `precio` ✅ (detecta "precio" + "venta")
 
 ---
@@ -198,7 +198,7 @@ export function ProductosImport() {
   return (
     <>
       <input type="file" onChange={e => handleFileSelect(e.target.files[0])} />
-      
+
       {preview && (
         <VistaPrevia
           analysis={preview.analysis}
@@ -228,10 +228,10 @@ Pan      | 0.50   | 100
 ### Caso 2: Excel del Cliente (Kusi)
 ```
 PRODUCTO | CANTIDAD | PRECIO UNITARIO VENTA | SOBRANTE DIARIO | VENTA DIARIA | TOTAL
-PAN      |          |                        |                 |              |       
+PAN      |          |                        |                 |              |
 tapados  | 196      | 0.15                   |                 | 196          | 29.4
 ```
-**Resultado**: 
+**Resultado**:
 - ✅ Detecta "PRECIO UNITARIO VENTA" → precio
 - ✅ Detecta "PAN" como categoría
 - ✅ Ignora columnas irrelevantes (TOTAL, VENTA DIARIA)
@@ -364,6 +364,6 @@ Si el importador no reconoce una columna:
 
 ---
 
-**Versión**: 1.0.0  
-**Fecha**: 2 Nov 2025  
+**Versión**: 1.0.0
+**Fecha**: 2 Nov 2025
 **Estado**: ✅ Backend Ready | Frontend Ready | Integración Pendiente

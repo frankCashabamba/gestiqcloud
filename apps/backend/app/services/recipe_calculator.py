@@ -3,22 +3,20 @@ Recipe Calculator - Servicio de cálculo de costos y producción
 Calcula costos de recetas y materiales necesarios para producción
 """
 
-from uuid import UUID
-from typing import Dict, List, Optional
 from decimal import Decimal
-from sqlalchemy.orm import Session
-from sqlalchemy import text
+from uuid import UUID
 
-from app.models.recipes import Recipe, RecipeIngredient
 from app.models.core.products import Product
-
+from app.models.recipes import Recipe, RecipeIngredient
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 # ============================================================================
 # CÁLCULO DE COSTOS
 # ============================================================================
 
 
-def calculate_recipe_cost(db: Session, recipe_id: UUID) -> Dict:
+def calculate_recipe_cost(db: Session, recipe_id: UUID) -> dict:
     """
     Calcula costo total de receta con desglose detallado
 
@@ -48,18 +46,16 @@ def calculate_recipe_cost(db: Session, recipe_id: UUID) -> Dict:
         raise ValueError(f"Receta no encontrada: {recipe_id}")
 
     # Obtener ingredientes
-    ingredientes = (
-        db.query(RecipeIngredient).filter(RecipeIngredient.recipe_id == recipe_id).all()
-    )
+    ingredientes = db.query(RecipeIngredient).filter(RecipeIngredient.recipe_id == recipe_id).all()
 
     # Calcular costo total sumando todos los ingredientes
     # Los costos individuales ya están calculados por la columna GENERATED
     desglose = []
-    costo_total = Decimal('0')
+    costo_total = Decimal("0")
 
     for ing in ingredientes:
         producto = db.query(Product).filter(Product.id == ing.producto_id).first()
-        
+
         # costo_ingrediente ya está calculado por la columna GENERATED
         costo_ing = Decimal(str(ing.costo_ingrediente or 0))
         costo_total += costo_ing
@@ -79,11 +75,13 @@ def calculate_recipe_cost(db: Session, recipe_id: UUID) -> Dict:
     # Calcular porcentajes
     costo_total_float = float(costo_total)
     for item in desglose:
-        item["porcentaje"] = (item["costo"] / costo_total_float * 100) if costo_total_float > 0 else 0
+        item["porcentaje"] = (
+            (item["costo"] / costo_total_float * 100) if costo_total_float > 0 else 0
+        )
 
     # Actualizar solo costo_total (costo_por_unidad se calcula automáticamente)
     recipe.costo_total = costo_total
-    
+
     db.commit()
     db.refresh(recipe)
 
@@ -131,9 +129,7 @@ def calculate_ingredient_cost(
 # ============================================================================
 
 
-def calculate_purchase_for_production(
-    db: Session, recipe_id: UUID, qty_to_produce: int
-) -> Dict:
+def calculate_purchase_for_production(db: Session, recipe_id: UUID, qty_to_produce: int) -> dict:
     """
     Calcula materiales necesarios para producir X unidades
 
@@ -202,15 +198,13 @@ def calculate_purchase_for_production(
         "batches_required": round(batches_required, 2),
         "ingredientes": ingredientes,
         "costo_total_produccion": round(costo_total, 2),
-        "costo_por_unidad": round(costo_total / qty_to_produce, 4)
-        if qty_to_produce > 0
-        else 0,
+        "costo_por_unidad": round(costo_total / qty_to_produce, 4) if qty_to_produce > 0 else 0,
     }
 
 
 def calculate_production_time(
     db: Session, recipe_id: UUID, qty_to_produce: int, workers: int = 1
-) -> Dict:
+) -> dict:
     """
     Estima tiempo de producción
 
@@ -257,8 +251,8 @@ def create_purchase_order_from_recipe(
     db: Session,
     recipe_id: UUID,
     qty_to_produce: int,
-    supplier_id: Optional[UUID] = None,
-) -> Dict:
+    supplier_id: UUID | None = None,
+) -> dict:
     """
     Crea orden de compra automática basada en receta
 
@@ -286,10 +280,11 @@ def create_purchase_order_from_recipe(
                 "producto_nombre": ing["producto"],
                 "qty": ing["presentaciones_necesarias"],
                 "unidad": "presentacion",  # Comprar por presentación completa
-                "precio_estimado": ing["costo_estimado"]
-                / ing["presentaciones_necesarias"]
-                if ing["presentaciones_necesarias"] > 0
-                else 0,
+                "precio_estimado": (
+                    ing["costo_estimado"] / ing["presentaciones_necesarias"]
+                    if ing["presentaciones_necesarias"] > 0
+                    else 0
+                ),
                 "total": ing["costo_estimado"],
                 "notas": f"Para producción de {qty_to_produce} {calculation['recipe']['nombre']}",
             }
@@ -314,7 +309,7 @@ def create_purchase_order_from_recipe(
 # ============================================================================
 
 
-def compare_recipe_costs(db: Session, recipe_ids: List[UUID]) -> List[Dict]:
+def compare_recipe_costs(db: Session, recipe_ids: list[UUID]) -> list[dict]:
     """
     Compara costos de múltiples recetas
 
@@ -347,7 +342,7 @@ def compare_recipe_costs(db: Session, recipe_ids: List[UUID]) -> List[Dict]:
 
 def get_recipe_profitability(
     db: Session, recipe_id: UUID, selling_price: float, indirect_costs_pct: float = 0.30
-) -> Dict:
+) -> dict:
     """
     Calcula rentabilidad de receta
 

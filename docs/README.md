@@ -8,55 +8,55 @@ Esta carpeta contiene toda la documentación del proyecto GestiQCloud ERP/CRM.
 
 ### 🎯 Estado del Proyecto
 
-- **[RESUMEN_FINAL_DESARROLLO.md](RESUMEN_FINAL_DESARROLLO.md)** ⭐  
+- **[RESUMEN_FINAL_DESARROLLO.md](RESUMEN_FINAL_DESARROLLO.md)** ⭐
   Estado completo del desarrollo (FASES 1-4 completadas, 80% total)
 
-- **[PLAN_DESARROLLO_MODULOS_COMPLETO.md](PLAN_DESARROLLO_MODULOS_COMPLETO.md)**  
+- **[PLAN_DESARROLLO_MODULOS_COMPLETO.md](PLAN_DESARROLLO_MODULOS_COMPLETO.md)**
   Plan detallado para FASES 5-6 pendientes
 
-- **[ANALISIS_MODULOS_PENDIENTES.md](ANALISIS_MODULOS_PENDIENTES.md)**  
+- **[ANALISIS_MODULOS_PENDIENTES.md](ANALISIS_MODULOS_PENDIENTES.md)**
   Análisis de módulos pendientes de implementar
 
-- **[DESARROLLO_MODULOS_POR_SECTOR.md](DESARROLLO_MODULOS_POR_SECTOR.md)**  
+- **[DESARROLLO_MODULOS_POR_SECTOR.md](DESARROLLO_MODULOS_POR_SECTOR.md)**
   Configuración de módulos por sector (Panadería, Retail, Restaurante, Taller)
 
 ---
 
 ### 🔧 Guías Operativas
 
-- **[SETUP_AND_TEST.md](SETUP_AND_TEST.md)**  
+- **[SETUP_AND_TEST.md](SETUP_AND_TEST.md)**
   Guía de instalación y configuración inicial
 
-- **[DATABASE_SETUP_GUIDE.md](DATABASE_SETUP_GUIDE.md)**  
+- **[DATABASE_SETUP_GUIDE.md](DATABASE_SETUP_GUIDE.md)**
   Configuración y estructura de base de datos
 
-- **[TROUBLESHOOTING_DOCKER.md](TROUBLESHOOTING_DOCKER.md)**  
+- **[TROUBLESHOOTING_DOCKER.md](TROUBLESHOOTING_DOCKER.md)**
   Solución de problemas comunes con Docker
 
-- **[TESTING_E2E_MANUAL.md](TESTING_E2E_MANUAL.md)**  
+- **[TESTING_E2E_MANUAL.md](TESTING_E2E_MANUAL.md)**
   Guía de testing manual end-to-end
 
 ---
 
 ### 🏗️ Arquitectura y Decisiones
 
-- **[DECISION_ARQUITECTURA.md](DECISION_ARQUITECTURA.md)**  
+- **[DECISION_ARQUITECTURA.md](DECISION_ARQUITECTURA.md)**
   Decisiones arquitectónicas importantes
 
-- **[SECURITY_GUARDS.md](SECURITY_GUARDS.md)**  
+- **[SECURITY_GUARDS.md](SECURITY_GUARDS.md)**
   Seguridad, RLS y políticas de acceso
 
-- **[routing-and-cors.md](routing-and-cors.md)**  
+- **[routing-and-cors.md](routing-and-cors.md)**
   Configuración de CORS y routing
 
-- **[compose_profiles.md](compose_profiles.md)**  
+- **[compose_profiles.md](compose_profiles.md)**
   Perfiles de Docker Compose
 
 ---
 
 ### 🚀 Despliegue
 
-- **[rollout-checklist.md](rollout-checklist.md)**  
+- **[rollout-checklist.md](rollout-checklist.md)**
   Checklist para despliegue a producción
 
 ---
@@ -170,5 +170,5 @@ docs/
 
 ---
 
-**Mantenido por**: GestiQCloud Team  
+**Mantenido por**: GestiQCloud Team
 **Contacto**: Ver README.md principal del proyecto

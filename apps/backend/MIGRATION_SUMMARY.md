@@ -72,8 +72,8 @@ CREATE TABLE modulos_modulo_new (
     filtros_contexto JSONB,
     categoria VARCHAR(50)
 );
-INSERT INTO modulos_modulo_new (name, description, active, icono, url, plantilla_inicial, context_type, modelo_objetivo, filtros_contexto, categoria) 
-  SELECT name, description, active, icono, url, plantilla_inicial, context_type, modelo_objetivo, filtros_contexto, categoria 
+INSERT INTO modulos_modulo_new (name, description, active, icono, url, plantilla_inicial, context_type, modelo_objetivo, filtros_contexto, categoria)
+  SELECT name, description, active, icono, url, plantilla_inicial, context_type, modelo_objetivo, filtros_contexto, categoria
   FROM modulos_modulo;
 DROP TABLE modulos_modulo CASCADE;
 ALTER TABLE modulos_modulo_new RENAME TO modulos_modulo;
@@ -88,8 +88,8 @@ CREATE TABLE modulos_empresamodulo_new (
     fecha_expiracion DATE,
     plantilla_inicial VARCHAR(255)
 );
-INSERT INTO modulos_empresamodulo_new (tenant_id, modulo_id, activo, fecha_activacion, fecha_expiracion, plantilla_inicial) 
-  SELECT tenant_id, gen_random_uuid(), activo, fecha_activacion, fecha_expiracion, plantilla_inicial 
+INSERT INTO modulos_empresamodulo_new (tenant_id, modulo_id, activo, fecha_activacion, fecha_expiracion, plantilla_inicial)
+  SELECT tenant_id, gen_random_uuid(), activo, fecha_activacion, fecha_expiracion, plantilla_inicial
   FROM modulos_empresamodulo;
 DROP TABLE modulos_empresamodulo CASCADE;
 ALTER TABLE modulos_empresamodulo_new RENAME TO modulos_empresamodulo;
@@ -104,8 +104,8 @@ CREATE TABLE modulos_moduloasignado_new (
     ver_modulo_auto BOOLEAN DEFAULT true,
     UNIQUE(usuario_id, modulo_id, tenant_id)
 );
-INSERT INTO modulos_moduloasignado_new (tenant_id, usuario_id, modulo_id, fecha_asignacion, ver_modulo_auto) 
-  SELECT tenant_id, usuario_id, gen_random_uuid(), fecha_asignacion, ver_modulo_auto 
+INSERT INTO modulos_moduloasignado_new (tenant_id, usuario_id, modulo_id, fecha_asignacion, ver_modulo_auto)
+  SELECT tenant_id, usuario_id, gen_random_uuid(), fecha_asignacion, ver_modulo_auto
   FROM modulos_moduloasignado;
 DROP TABLE modulos_moduloasignado CASCADE;
 ALTER TABLE modulos_moduloasignado_new RENAME TO modulos_moduloasignado;
@@ -121,19 +121,19 @@ CREATE TABLE core_rolempresa_new (
     creado_por_empresa BOOLEAN DEFAULT false,
     UNIQUE(tenant_id, nombre)
 );
-INSERT INTO core_rolempresa_new (tenant_id, nombre, descripcion, permisos, rol_base_id, creado_por_empresa) 
-  SELECT tenant_id, nombre, descripcion, permisos, NULL, creado_por_empresa 
+INSERT INTO core_rolempresa_new (tenant_id, nombre, descripcion, permisos, rol_base_id, creado_por_empresa)
+  SELECT tenant_id, nombre, descripcion, permisos, NULL, creado_por_empresa
   FROM core_rolempresa;
 DROP TABLE core_rolempresa CASCADE;
 ALTER TABLE core_rolempresa_new RENAME TO core_rolempresa;
 
 -- 5. Actualizar PerfilUsuario para FK a UUID
-ALTER TABLE core_perfilusuario 
+ALTER TABLE core_perfilusuario
   DROP CONSTRAINT IF EXISTS core_perfilusuario_usuario_id_fkey;
-ALTER TABLE core_perfilusuario 
+ALTER TABLE core_perfilusuario
   ALTER COLUMN usuario_id TYPE UUID USING usuario_id::UUID;
-ALTER TABLE core_perfilusuario 
-  ADD CONSTRAINT core_perfilusuario_usuario_id_fkey 
+ALTER TABLE core_perfilusuario
+  ADD CONSTRAINT core_perfilusuario_usuario_id_fkey
   FOREIGN KEY (usuario_id) REFERENCES usuarios_usuarioempresa(id);
 ```
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Protocol, Sequence, Optional
+from collections.abc import Sequence
+from typing import Protocol
 
 from app.modules.admin_config.application.paises.dto import PaisIn, PaisOut
 
@@ -10,7 +11,7 @@ class PaisRepo(Protocol):
 
     def create(self, data: PaisIn) -> PaisOut: ...
 
-    def get(self, id: int) -> Optional[PaisOut]: ...
+    def get(self, id: int) -> PaisOut | None: ...
 
     def update(self, id: int, data: PaisIn) -> PaisOut: ...
 

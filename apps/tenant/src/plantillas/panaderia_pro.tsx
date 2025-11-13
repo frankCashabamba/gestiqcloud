@@ -42,9 +42,9 @@ interface KPIData {
 const PanaderiaDashboard: React.FC = () => {
   const { empresa } = useParams<{ empresa?: string }>()
   const { modules } = useMisModulos()
-  
+
   // Solo cargar KPIs si hay módulos de ventas/producción activos
-  const shouldLoadKPIs = modules.some(m => 
+  const shouldLoadKPIs = modules.some(m =>
     ['ventas', 'pos', 'produccion', 'inventario'].includes((m.slug || '').toLowerCase())
   )
   const { data: kpisData, loading: kpisLoading } = usePanaderiaKPIs({ enabled: shouldLoadKPIs })
@@ -59,7 +59,7 @@ const PanaderiaDashboard: React.FC = () => {
 
   // Helper: verificar si un módulo está activo
   const isModuleEnabled = (moduleName: string) => {
-    return modules.some(m => 
+    return modules.some(m =>
       (m.slug || '').toLowerCase() === moduleName.toLowerCase() ||
       (m.name || '').toLowerCase().includes(moduleName.toLowerCase())
     )
@@ -74,8 +74,8 @@ const PanaderiaDashboard: React.FC = () => {
   ].filter(Boolean) as Array<{ label: string; href: string; icon: string }>
 
   return (
-    <DashboardPro 
-      sectorName="PanERP" 
+    <DashboardPro
+      sectorName="PanERP"
       sectorIcon="🥖"
       customLinks={customLinks}
     >
@@ -189,8 +189,8 @@ const PanaderiaDashboard: React.FC = () => {
                 <span>{produccion.progreso?.toFixed(0) || 0}%</span>
               </div>
               <div className="progress-bar">
-                <div 
-                  className="progress-bar__fill" 
+                <div
+                  className="progress-bar__fill"
                   style={{ width: `${produccion.progreso || 0}%` }}
                 />
               </div>

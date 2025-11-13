@@ -112,7 +112,7 @@ docker exec -i db psql -U postgres -d gestiqclouddb_dev < ops/schema/complete_sc
 
 ```sql
 -- Contar tablas creadas
-SELECT COUNT(*) FROM information_schema.tables 
+SELECT COUNT(*) FROM information_schema.tables
 WHERE table_schema = 'public' AND table_type = 'BASE TABLE';
 -- Esperado: ~50 tablas
 
@@ -128,9 +128,9 @@ SELECT COUNT(*) FROM core_rolbase;      -- 4 roles
 SELECT COUNT(*) FROM core_moneda;       -- 2 monedas
 
 -- Verificar índices
-SELECT schemaname, tablename, indexname 
-FROM pg_indexes 
-WHERE schemaname = 'public' 
+SELECT schemaname, tablename, indexname
+FROM pg_indexes
+WHERE schemaname = 'public'
 ORDER BY tablename;
 ```
 
@@ -241,6 +241,6 @@ python scripts/migrate_old_to_new.py --backup backup_old_system.pgcustom
 
 ---
 
-**Versión**: 2.0  
-**Última actualización**: 26 Enero 2025  
+**Versión**: 2.0
+**Última actualización**: 26 Enero 2025
 **Compatibilidad**: PostgreSQL 15+

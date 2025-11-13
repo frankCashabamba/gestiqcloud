@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS import_batches (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX ix_import_batches_tenant_status_created 
+CREATE INDEX ix_import_batches_tenant_status_created
     ON import_batches(tenant_id, status, created_at);
 
 -- Import Items (individual rows within batch)
@@ -37,30 +37,30 @@ CREATE TABLE IF NOT EXISTS import_items (
 );
 
 -- Unique constraint for idempotency (only when idempotency_key is not null)
-CREATE UNIQUE INDEX uq_import_items_batch_idem 
+CREATE UNIQUE INDEX uq_import_items_batch_idem
     ON import_items(batch_id, idempotency_key)
     WHERE idempotency_key IS NOT NULL;
 
 -- Also keep tenant-level uniqueness
-CREATE UNIQUE INDEX uq_import_items_tenant_idem 
+CREATE UNIQUE INDEX uq_import_items_tenant_idem
     ON import_items(tenant_id, idempotency_key)
     WHERE idempotency_key IS NOT NULL;
 
-CREATE INDEX ix_import_items_tenant_dedupe 
+CREATE INDEX ix_import_items_tenant_dedupe
     ON import_items(tenant_id, dedupe_hash);
 
-CREATE INDEX ix_import_items_batch_id 
+CREATE INDEX ix_import_items_batch_id
     ON import_items(batch_id);
 
-CREATE INDEX ix_import_items_normalized_gin 
+CREATE INDEX ix_import_items_normalized_gin
     ON import_items USING gin(normalized);
 
-CREATE INDEX ix_import_items_raw_gin 
+CREATE INDEX ix_import_items_raw_gin
     ON import_items USING gin(raw);
 
 -- Conditional index for doc_type searches
-CREATE INDEX ix_import_items_doc_type 
-    ON import_items((normalized->>'doc_type')) 
+CREATE INDEX ix_import_items_doc_type
+    ON import_items((normalized->>'doc_type'))
     WHERE normalized ? 'doc_type';
 
 -- Import Mappings (reusable templates)
@@ -77,10 +77,10 @@ CREATE TABLE IF NOT EXISTS import_mappings (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX ix_import_mappings_tenant_source 
+CREATE INDEX ix_import_mappings_tenant_source
     ON import_mappings(tenant_id, source_type);
 
-CREATE INDEX ix_import_mappings_mappings_gin 
+CREATE INDEX ix_import_mappings_mappings_gin
     ON import_mappings USING gin(mappings);
 
 -- Import Item Corrections (audit trail)
@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS import_item_corrections (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX ix_import_item_corrections_item_id 
+CREATE INDEX ix_import_item_corrections_item_id
     ON import_item_corrections(item_id);
 
 -- Import Lineage (track promotions)
@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS import_lineage (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX ix_import_lineage_item_id 
+CREATE INDEX ix_import_lineage_item_id
     ON import_lineage(item_id);
 
 -- Import OCR Jobs
@@ -125,10 +125,10 @@ CREATE TABLE IF NOT EXISTS import_ocr_jobs (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX ix_import_ocr_jobs_status_created 
+CREATE INDEX ix_import_ocr_jobs_status_created
     ON import_ocr_jobs(status, created_at);
 
-CREATE INDEX ix_import_ocr_jobs_tenant_status_created 
+CREATE INDEX ix_import_ocr_jobs_tenant_status_created
     ON import_ocr_jobs(tenant_id, status, created_at);
 
 -- RLS Policies (multi-tenant isolation)

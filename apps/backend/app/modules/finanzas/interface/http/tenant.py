@@ -17,38 +17,35 @@ MIGRADO DE:
 - app/routers/finance_complete.py (caja completa)
 """
 
-from typing import Optional, List
-from uuid import UUID
-from datetime import datetime, date, timedelta
+from datetime import date, datetime
 from decimal import Decimal
 from math import ceil
-
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
-from sqlalchemy import select, func, and_, or_, extract
+from uuid import UUID
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
+from app.models.core.facturacion import BankTransaction
 
 # Models
 from app.models.finance.caja import CajaMovimiento, CierreCaja
-from app.models.core.facturacion import BankTransaction
 
 # Schemas - Caja
 from app.schemas.finance_caja import (
     CajaMovimientoCreate,
-    CajaMovimientoResponse,
     CajaMovimientoList,
-    CierreCajaCreate,
-    CierreCajaClose,
-    CierreCajaResponse,
-    CierreCajaList,
+    CajaMovimientoResponse,
     CajaSaldoResponse,
     CajaStats,
+    CierreCajaClose,
+    CierreCajaCreate,
+    CierreCajaList,
+    CierreCajaResponse,
 )
-
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import and_, func, select
+from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/finance",
@@ -65,81 +62,67 @@ router = APIRouter(
 # HELPERS - Funciones auxiliares
 # ============================================================================
 
+
 def _get_cierre_abierto(
-    db: Session,
-    tenant_id: UUID,
-    fecha: date,
-    caja_id: Optional[UUID] = None
-) -> Optional[CierreCaja]:
+    db: Session, tenant_id: UUID, fecha: date, caja_id: UUID | None = None
+) -> CierreCaja | None:
     """Busca un cierre abierto para la fecha y caja especificadas"""
     stmt = select(CierreCaja).where(
-        CierreCaja.tenant_id == tenant_id,
-        CierreCaja.fecha == fecha,
-        CierreCaja.status == "ABIERTO"
+        CierreCaja.tenant_id == tenant_id, CierreCaja.fecha == fecha, CierreCaja.status == "ABIERTO"
     )
-    
+
     if caja_id:
         stmt = stmt.where(CierreCaja.caja_id == caja_id)
     else:
         stmt = stmt.where(CierreCaja.caja_id.is_(None))
-    
+
     return db.execute(stmt).scalar_one_or_none()
 
 
 def _calcular_totales_dia(
-    db: Session,
-    tenant_id: UUID,
-    fecha: date,
-    caja_id: Optional[UUID] = None
+    db: Session, tenant_id: UUID, fecha: date, caja_id: UUID | None = None
 ) -> dict:
     """Calcula totales de ingresos y egresos del día"""
     stmt = select(
-        func.sum(CajaMovimiento.importe).filter(CajaMovimiento.importe > 0).label('ingresos'),
-        func.sum(CajaMovimiento.importe).filter(CajaMovimiento.importe < 0).label('egresos')
-    ).where(
-        CajaMovimiento.tenant_id == tenant_id,
-        CajaMovimiento.fecha == fecha
-    )
-    
+        func.sum(CajaMovimiento.importe).filter(CajaMovimiento.importe > 0).label("ingresos"),
+        func.sum(CajaMovimiento.importe).filter(CajaMovimiento.importe < 0).label("egresos"),
+    ).where(CajaMovimiento.tenant_id == tenant_id, CajaMovimiento.fecha == fecha)
+
     if caja_id:
         stmt = stmt.where(CajaMovimiento.caja_id == caja_id)
     else:
         stmt = stmt.where(CajaMovimiento.caja_id.is_(None))
-    
+
     result = db.execute(stmt).one()
-    
+
     ingresos = result.ingresos or Decimal("0")
     egresos = abs(result.egresos or Decimal("0"))
-    
-    return {
-        'total_ingresos': ingresos,
-        'total_egresos': egresos
-    }
+
+    return {"total_ingresos": ingresos, "total_egresos": egresos}
 
 
 # ============================================================================
 # ENDPOINTS - MOVIMIENTOS DE CAJA
 # ============================================================================
 
+
 @router.get(
-    "/caja/movimientos",
-    response_model=CajaMovimientoList,
-    summary="Listar movimientos de caja"
+    "/caja/movimientos", response_model=CajaMovimientoList, summary="Listar movimientos de caja"
 )
 async def list_movimientos(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    fecha_desde: Optional[date] = None,
-    fecha_hasta: Optional[date] = None,
-    tipo: Optional[str] = Query(None, regex="^(INGRESO|EGRESO|AJUSTE)$"),
-    categoria: Optional[str] = None,
-    caja_id: Optional[UUID] = None,
+    fecha_desde: date | None = None,
+    fecha_hasta: date | None = None,
+    tipo: str | None = Query(None, regex="^(INGRESO|EGRESO|AJUSTE)$"),
+    categoria: str | None = None,
+    caja_id: UUID | None = None,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
     """
     Lista movimientos de caja con filtros.
-    
+
     **Filtros:**
     - fecha_desde/fecha_hasta: Rango de fechas
     - tipo: INGRESO, EGRESO, AJUSTE
@@ -147,9 +130,9 @@ async def list_movimientos(
     - caja_id: Filtrar por caja específica
     """
     tenant_id = claims["tenant_id"]
-    
+
     stmt = select(CajaMovimiento).where(CajaMovimiento.tenant_id == tenant_id)
-    
+
     if fecha_desde:
         stmt = stmt.where(CajaMovimiento.fecha >= fecha_desde)
     if fecha_hasta:
@@ -160,18 +143,19 @@ async def list_movimientos(
         stmt = stmt.where(CajaMovimiento.categoria == categoria)
     if caja_id:
         stmt = stmt.where(CajaMovimiento.caja_id == caja_id)
-    
+
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = db.execute(count_stmt).scalar_one()
-    
-    stmt = stmt.order_by(
-        CajaMovimiento.fecha.desc(),
-        CajaMovimiento.created_at.desc()
-    ).offset(skip).limit(limit)
-    
+
+    stmt = (
+        stmt.order_by(CajaMovimiento.fecha.desc(), CajaMovimiento.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+
     result = db.execute(stmt)
     movimientos = result.scalars().all()
-    
+
     return CajaMovimientoList(
         items=[CajaMovimientoResponse.from_orm(m) for m in movimientos],
         total=total,
@@ -185,7 +169,7 @@ async def list_movimientos(
     "/caja/movimientos",
     response_model=CajaMovimientoResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Crear movimiento de caja"
+    summary="Crear movimiento de caja",
 )
 async def create_movimiento(
     data: CajaMovimientoCreate,
@@ -194,52 +178,46 @@ async def create_movimiento(
 ):
     """
     Crea un nuevo movimiento de caja.
-    
+
     Si existe un cierre abierto para la fecha, se vincula automáticamente.
     """
     tenant_id = claims["tenant_id"]
     user_id = claims["user_id"]
-    
+
     cierre = _get_cierre_abierto(db, tenant_id, data.fecha, data.caja_id)
-    
+
     movimiento = CajaMovimiento(
         tenant_id=tenant_id,
         usuario_id=user_id,
         cierre_id=cierre.id if cierre else None,
-        **data.dict()
+        **data.dict(),
     )
-    
+
     db.add(movimiento)
-    
+
     if cierre:
         totales = _calcular_totales_dia(db, tenant_id, data.fecha, data.caja_id)
-        cierre.total_ingresos = totales['total_ingresos']
-        cierre.total_egresos = totales['total_egresos']
-        cierre.saldo_teorico = (
-            cierre.saldo_inicial + cierre.total_ingresos - cierre.total_egresos
-        )
-    
+        cierre.total_ingresos = totales["total_ingresos"]
+        cierre.total_egresos = totales["total_egresos"]
+        cierre.saldo_teorico = cierre.saldo_inicial + cierre.total_ingresos - cierre.total_egresos
+
     db.commit()
     db.refresh(movimiento)
-    
+
     return CajaMovimientoResponse.from_orm(movimiento)
 
 
-@router.get(
-    "/caja/saldo",
-    response_model=CajaSaldoResponse,
-    summary="Obtener saldo actual de caja"
-)
+@router.get("/caja/saldo", response_model=CajaSaldoResponse, summary="Obtener saldo actual de caja")
 async def get_saldo_actual(
-    fecha: Optional[date] = Query(None, description="Fecha (por defecto hoy)"),
-    caja_id: Optional[UUID] = None,
+    fecha: date | None = Query(None, description="Fecha (por defecto hoy)"),
+    caja_id: UUID | None = None,
     moneda: str = Query("EUR", description="Moneda"),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
     """
     Obtiene el saldo actual de caja.
-    
+
     Calcula:
     - Saldo inicial (del cierre o del día anterior)
     - Total ingresos del día
@@ -248,9 +226,9 @@ async def get_saldo_actual(
     """
     tenant_id = claims["tenant_id"]
     fecha_consulta = fecha or date.today()
-    
+
     cierre_hoy = _get_cierre_abierto(db, tenant_id, fecha_consulta, caja_id)
-    
+
     if cierre_hoy:
         return CajaSaldoResponse(
             fecha=fecha_consulta,
@@ -260,35 +238,35 @@ async def get_saldo_actual(
             total_egresos_hoy=cierre_hoy.total_egresos,
             saldo_actual=cierre_hoy.saldo_teorico,
             caja_id=caja_id,
-            tiene_cierre_abierto=True
+            tiene_cierre_abierto=True,
         )
     else:
         stmt = select(CierreCaja).where(
             CierreCaja.tenant_id == tenant_id,
             CierreCaja.fecha < fecha_consulta,
-            CierreCaja.status == "CERRADO"
+            CierreCaja.status == "CERRADO",
         )
-        
+
         if caja_id:
             stmt = stmt.where(CierreCaja.caja_id == caja_id)
         else:
             stmt = stmt.where(CierreCaja.caja_id.is_(None))
-        
+
         stmt = stmt.order_by(CierreCaja.fecha.desc()).limit(1)
         ultimo_cierre = db.execute(stmt).scalar_one_or_none()
-        
+
         saldo_inicial = ultimo_cierre.saldo_real if ultimo_cierre else Decimal("0")
         totales = _calcular_totales_dia(db, tenant_id, fecha_consulta, caja_id)
-        
+
         return CajaSaldoResponse(
             fecha=fecha_consulta,
             moneda=moneda,
             saldo_inicial=saldo_inicial,
-            total_ingresos_hoy=totales['total_ingresos'],
-            total_egresos_hoy=totales['total_egresos'],
-            saldo_actual=saldo_inicial + totales['total_ingresos'] - totales['total_egresos'],
+            total_ingresos_hoy=totales["total_ingresos"],
+            total_egresos_hoy=totales["total_egresos"],
+            saldo_actual=saldo_inicial + totales["total_ingresos"] - totales["total_egresos"],
             caja_id=caja_id,
-            tiene_cierre_abierto=False
+            tiene_cierre_abierto=False,
         )
 
 
@@ -296,42 +274,40 @@ async def get_saldo_actual(
 # ENDPOINTS - CIERRES DE CAJA
 # ============================================================================
 
+
 @router.get(
-    "/caja/cierre-diario",
-    response_model=CierreCajaResponse,
-    summary="Obtener cierre diario"
+    "/caja/cierre-diario", response_model=CierreCajaResponse, summary="Obtener cierre diario"
 )
 async def get_cierre_diario(
-    fecha: Optional[date] = Query(None, description="Fecha (por defecto hoy)"),
-    caja_id: Optional[UUID] = None,
+    fecha: date | None = Query(None, description="Fecha (por defecto hoy)"),
+    caja_id: UUID | None = None,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
     """Obtiene el cierre de caja del día (o crea uno si no existe)"""
     tenant_id = claims["tenant_id"]
     fecha_consulta = fecha or date.today()
-    
+
     cierre = _get_cierre_abierto(db, tenant_id, fecha_consulta, caja_id)
-    
+
     if not cierre:
         stmt = select(CierreCaja).where(
-            CierreCaja.tenant_id == tenant_id,
-            CierreCaja.fecha == fecha_consulta
+            CierreCaja.tenant_id == tenant_id, CierreCaja.fecha == fecha_consulta
         )
-        
+
         if caja_id:
             stmt = stmt.where(CierreCaja.caja_id == caja_id)
         else:
             stmt = stmt.where(CierreCaja.caja_id.is_(None))
-        
+
         cierre = db.execute(stmt).scalar_one_or_none()
-    
+
     if not cierre:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No existe cierre para la fecha {fecha_consulta}. Use POST /caja/cierre para crear uno."
+            detail=f"No existe cierre para la fecha {fecha_consulta}. Use POST /caja/cierre para crear uno.",
         )
-    
+
     return CierreCajaResponse.from_orm(cierre)
 
 
@@ -339,7 +315,7 @@ async def get_cierre_diario(
     "/caja/cierre",
     response_model=CierreCajaResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Abrir caja"
+    summary="Abrir caja",
 )
 async def abrir_caja(
     data: CierreCajaCreate,
@@ -349,32 +325,32 @@ async def abrir_caja(
     """Abre caja para el día (crea cierre en estado ABIERTO)"""
     tenant_id = claims["tenant_id"]
     user_id = claims["user_id"]
-    
+
     cierre_existe = _get_cierre_abierto(db, tenant_id, data.fecha, data.caja_id)
     if cierre_existe:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Ya existe un cierre abierto para la fecha {data.fecha}"
+            detail=f"Ya existe un cierre abierto para la fecha {data.fecha}",
         )
-    
+
     stmt = select(CierreCaja).where(
         CierreCaja.tenant_id == tenant_id,
         CierreCaja.fecha < data.fecha,
-        CierreCaja.status == "CERRADO"
+        CierreCaja.status == "CERRADO",
     )
-    
+
     if data.caja_id:
         stmt = stmt.where(CierreCaja.caja_id == data.caja_id)
     else:
         stmt = stmt.where(CierreCaja.caja_id.is_(None))
-    
+
     stmt = stmt.order_by(CierreCaja.fecha.desc()).limit(1)
     ultimo_cierre = db.execute(stmt).scalar_one_or_none()
-    
+
     saldo_inicial = data.saldo_inicial
     if saldo_inicial == Decimal("0") and ultimo_cierre:
         saldo_inicial = ultimo_cierre.saldo_real
-    
+
     cierre = CierreCaja(
         tenant_id=tenant_id,
         fecha=data.fecha,
@@ -385,20 +361,18 @@ async def abrir_caja(
         status="ABIERTO",
         abierto_por=user_id,
         abierto_at=datetime.utcnow(),
-        notas=data.notas
+        notas=data.notas,
     )
-    
+
     db.add(cierre)
     db.commit()
     db.refresh(cierre)
-    
+
     return CierreCajaResponse.from_orm(cierre)
 
 
 @router.post(
-    "/caja/cierre/{cierre_id}/cerrar",
-    response_model=CierreCajaResponse,
-    summary="Cerrar caja"
+    "/caja/cierre/{cierre_id}/cerrar", response_model=CierreCajaResponse, summary="Cerrar caja"
 )
 async def cerrar_caja(
     cierre_id: UUID,
@@ -409,78 +383,66 @@ async def cerrar_caja(
     """Cierra caja (marca cierre como CERRADO)"""
     tenant_id = claims["tenant_id"]
     user_id = claims["user_id"]
-    
-    stmt = select(CierreCaja).where(
-        CierreCaja.id == cierre_id,
-        CierreCaja.tenant_id == tenant_id
-    )
+
+    stmt = select(CierreCaja).where(CierreCaja.id == cierre_id, CierreCaja.tenant_id == tenant_id)
     cierre = db.execute(stmt).scalar_one_or_none()
-    
+
     if not cierre:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cierre no encontrado"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cierre no encontrado")
+
     if cierre.status != "ABIERTO":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"El cierre ya está en estado {cierre.status}"
+            detail=f"El cierre ya está en estado {cierre.status}",
         )
-    
+
     totales = _calcular_totales_dia(db, tenant_id, cierre.fecha, cierre.caja_id)
-    cierre.total_ingresos = totales['total_ingresos']
-    cierre.total_egresos = totales['total_egresos']
-    cierre.saldo_teorico = (
-        cierre.saldo_inicial + cierre.total_ingresos - cierre.total_egresos
-    )
-    
+    cierre.total_ingresos = totales["total_ingresos"]
+    cierre.total_egresos = totales["total_egresos"]
+    cierre.saldo_teorico = cierre.saldo_inicial + cierre.total_ingresos - cierre.total_egresos
+
     cierre.saldo_real = data.saldo_real
     cierre.diferencia = cierre.saldo_real - cierre.saldo_teorico
-    cierre.cuadrado = (cierre.diferencia == Decimal("0"))
-    
+    cierre.cuadrado = cierre.diferencia == Decimal("0")
+
     if data.detalles_billetes:
         total_contado = data.detalles_billetes.calcular_total()
         if abs(total_contado - data.saldo_real) > Decimal("0.01"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"El desglose de billetes ({total_contado}) no coincide con saldo real ({data.saldo_real})"
+                detail=f"El desglose de billetes ({total_contado}) no coincide con saldo real ({data.saldo_real})",
             )
         cierre.detalles_billetes = data.detalles_billetes.dict()
-    
+
     if data.notas:
         cierre.notas = (cierre.notas or "") + f"\n[CIERRE] {data.notas}"
-    
+
     cierre.status = "CERRADO" if cierre.cuadrado else "PENDIENTE"
     cierre.cerrado_por = user_id
     cierre.cerrado_at = datetime.utcnow()
-    
+
     db.commit()
     db.refresh(cierre)
-    
+
     return CierreCajaResponse.from_orm(cierre)
 
 
-@router.get(
-    "/caja/cierres",
-    response_model=CierreCajaList,
-    summary="Listar cierres de caja"
-)
+@router.get("/caja/cierres", response_model=CierreCajaList, summary="Listar cierres de caja")
 async def list_cierres(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    fecha_desde: Optional[date] = None,
-    fecha_hasta: Optional[date] = None,
-    status: Optional[str] = Query(None, regex="^(ABIERTO|CERRADO|PENDIENTE)$"),
-    caja_id: Optional[UUID] = None,
+    fecha_desde: date | None = None,
+    fecha_hasta: date | None = None,
+    status: str | None = Query(None, regex="^(ABIERTO|CERRADO|PENDIENTE)$"),
+    caja_id: UUID | None = None,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
     """Lista cierres de caja con filtros"""
     tenant_id = claims["tenant_id"]
-    
+
     stmt = select(CierreCaja).where(CierreCaja.tenant_id == tenant_id)
-    
+
     if fecha_desde:
         stmt = stmt.where(CierreCaja.fecha >= fecha_desde)
     if fecha_hasta:
@@ -489,15 +451,15 @@ async def list_cierres(
         stmt = stmt.where(CierreCaja.status == status)
     if caja_id:
         stmt = stmt.where(CierreCaja.caja_id == caja_id)
-    
+
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = db.execute(count_stmt).scalar_one()
-    
+
     stmt = stmt.order_by(CierreCaja.fecha.desc()).offset(skip).limit(limit)
-    
+
     result = db.execute(stmt)
     cierres = result.scalars().all()
-    
+
     return CierreCajaList(
         items=[CierreCajaResponse.from_orm(c) for c in cierres],
         total=total,
@@ -507,107 +469,95 @@ async def list_cierres(
     )
 
 
-@router.get(
-    "/caja/stats",
-    response_model=CajaStats,
-    summary="Estadísticas de caja"
-)
+@router.get("/caja/stats", response_model=CajaStats, summary="Estadísticas de caja")
 async def get_caja_stats(
     fecha_desde: date = Query(..., description="Fecha inicio"),
     fecha_hasta: date = Query(..., description="Fecha fin"),
-    caja_id: Optional[UUID] = None,
+    caja_id: UUID | None = None,
     moneda: str = Query("EUR", description="Moneda"),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
     """Estadísticas de caja por período"""
     tenant_id = claims["tenant_id"]
-    
+
     stmt = select(CajaMovimiento).where(
         CajaMovimiento.tenant_id == tenant_id,
         CajaMovimiento.fecha >= fecha_desde,
         CajaMovimiento.fecha <= fecha_hasta,
-        CajaMovimiento.moneda == moneda
+        CajaMovimiento.moneda == moneda,
     )
-    
+
     if caja_id:
         stmt = stmt.where(CajaMovimiento.caja_id == caja_id)
-    
+
     result = db.execute(
         select(
             func.sum(CajaMovimiento.importe).filter(CajaMovimiento.importe > 0),
             func.sum(CajaMovimiento.importe).filter(CajaMovimiento.importe < 0),
-            func.count()
+            func.count(),
         ).select_from(stmt.subquery())
     ).one()
-    
+
     total_ingresos = result[0] or Decimal("0")
     total_egresos = abs(result[1] or Decimal("0"))
     total_movimientos = result[2] or 0
-    
+
     ingresos_cat = {}
     egresos_cat = {}
-    
-    for cat in ['VENTA', 'COMPRA', 'GASTO', 'NOMINA', 'BANCO', 'CAMBIO', 'AJUSTE', 'OTRO']:
+
+    for cat in ["VENTA", "COMPRA", "GASTO", "NOMINA", "BANCO", "CAMBIO", "AJUSTE", "OTRO"]:
         result_ing = db.execute(
             select(func.sum(CajaMovimiento.importe)).select_from(
                 stmt.where(
-                    CajaMovimiento.tipo == 'INGRESO',
-                    CajaMovimiento.categoria == cat
+                    CajaMovimiento.tipo == "INGRESO", CajaMovimiento.categoria == cat
                 ).subquery()
             )
         ).scalar_one()
         ingresos_cat[cat] = result_ing or Decimal("0")
-        
+
         result_egr = db.execute(
             select(func.sum(CajaMovimiento.importe)).select_from(
                 stmt.where(
-                    CajaMovimiento.tipo == 'EGRESO',
-                    CajaMovimiento.categoria == cat
+                    CajaMovimiento.tipo == "EGRESO", CajaMovimiento.categoria == cat
                 ).subquery()
             )
         ).scalar_one()
         egresos_cat[cat] = abs(result_egr or Decimal("0"))
-    
+
     dias = (fecha_hasta - fecha_desde).days + 1
     promedio_ingresos = total_ingresos / dias if dias > 0 else Decimal("0")
     promedio_egresos = total_egresos / dias if dias > 0 else Decimal("0")
-    
+
     stmt_cierres = select(CierreCaja).where(
         CierreCaja.tenant_id == tenant_id,
         CierreCaja.fecha >= fecha_desde,
-        CierreCaja.fecha <= fecha_hasta
+        CierreCaja.fecha <= fecha_hasta,
     )
-    
+
     if caja_id:
         stmt_cierres = stmt_cierres.where(CierreCaja.caja_id == caja_id)
-    
+
     total_cierres = db.execute(
         select(func.count()).select_from(stmt_cierres.subquery())
     ).scalar_one()
-    
+
     cierres_cuadrados = db.execute(
-        select(func.count()).select_from(
-            stmt_cierres.where(CierreCaja.cuadrado == True).subquery()
-        )
+        select(func.count()).select_from(stmt_cierres.where(CierreCaja.cuadrado == True).subquery())
     ).scalar_one()
-    
+
     total_diferencias = db.execute(
         select(func.sum(CierreCaja.diferencia)).select_from(stmt_cierres.subquery())
     ).scalar_one() or Decimal("0")
-    
+
     count_ingresos = db.execute(
-        select(func.count()).select_from(
-            stmt.where(CajaMovimiento.tipo == 'INGRESO').subquery()
-        )
+        select(func.count()).select_from(stmt.where(CajaMovimiento.tipo == "INGRESO").subquery())
     ).scalar_one()
-    
+
     count_egresos = db.execute(
-        select(func.count()).select_from(
-            stmt.where(CajaMovimiento.tipo == 'EGRESO').subquery()
-        )
+        select(func.count()).select_from(stmt.where(CajaMovimiento.tipo == "EGRESO").subquery())
     ).scalar_one()
-    
+
     return CajaStats(
         fecha_desde=fecha_desde,
         fecha_hasta=fecha_hasta,
@@ -632,18 +582,15 @@ async def get_caja_stats(
 # ENDPOINTS - BANCO
 # ============================================================================
 
-@router.get(
-    "/banco/movimientos",
-    response_model=dict,
-    summary="Listar movimientos bancarios"
-)
+
+@router.get("/banco/movimientos", response_model=dict, summary="Listar movimientos bancarios")
 def list_movimientos_banco(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    fecha_desde: Optional[str] = None,
-    fecha_hasta: Optional[str] = None,
-    tipo: Optional[str] = None,
-    conciliado: Optional[bool] = None,
+    fecha_desde: str | None = None,
+    fecha_hasta: str | None = None,
+    tipo: str | None = None,
+    conciliado: bool | None = None,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
@@ -660,6 +607,7 @@ def list_movimientos_banco(
         query = query.filter(BankTransaction.tipo == tipo)
     if conciliado is not None:
         from app.models.core.facturacion import MovimientoEstado
+
         estado = MovimientoEstado.CONCILIADO if conciliado else MovimientoEstado.PENDIENTE
         query = query.filter(BankTransaction.estado == estado)
 
@@ -686,11 +634,7 @@ def list_movimientos_banco(
     }
 
 
-@router.post(
-    "/banco/{id}/conciliar",
-    response_model=dict,
-    summary="Conciliar movimiento bancario"
-)
+@router.post("/banco/{id}/conciliar", response_model=dict, summary="Conciliar movimiento bancario")
 def conciliar_movimiento(
     id: UUID,
     db: Session = Depends(get_db),
@@ -729,13 +673,9 @@ def conciliar_movimiento(
     }
 
 
-@router.get(
-    "/banco/saldos",
-    response_model=list,
-    summary="Obtener saldos bancarios"
-)
+@router.get("/banco/saldos", response_model=list, summary="Obtener saldos bancarios")
 def get_saldos_banco(
-    fecha: Optional[str] = None,
+    fecha: str | None = None,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):

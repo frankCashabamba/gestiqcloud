@@ -110,4 +110,3 @@ export default function MappingSuggestModal({ file, open, onClose, onSaved }: Pr
     </div>
   )
 }
-

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
-from uuid import UUID
 from datetime import datetime
+from uuid import UUID
 
 try:
     from celery import Task  # type: ignore
@@ -40,9 +40,7 @@ class ValidateTask(Task):
     retry_jitter = True
 
 
-def _impl(
-    item_id: str, tenant_id: str, batch_id: str, task_id: str | None = None
-) -> dict:
+def _impl(item_id: str, tenant_id: str, batch_id: str, task_id: str | None = None) -> dict:
     """
     Valida extracted_data según país del tenant.
 
@@ -92,8 +90,8 @@ def _impl(
 
         try:
             from app.modules.imports.validators.country_validators import (
-                validate_spain,
                 validate_ecuador,
+                validate_spain,
             )
 
             country_code = "ES"
@@ -155,9 +153,8 @@ if _celery_available and celery_app is not None:  # pragma: no cover
 
     @celery_app.task(base=ValidateTask, bind=True, name="imports.validate")
     def validate_item(self, item_id: str, tenant_id: str, batch_id: str) -> dict:
-        return _impl(
-            item_id, tenant_id, batch_id, task_id=getattr(self.request, "id", None)
-        )
+        return _impl(item_id, tenant_id, batch_id, task_id=getattr(self.request, "id", None))
+
 else:
 
     def validate_item(item_id: str, tenant_id: str, batch_id: str) -> dict:  # type: ignore

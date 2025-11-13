@@ -15,4 +15,3 @@ const api = createSharedClient({
 })
 
 export default api
-

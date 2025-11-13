@@ -1,11 +1,10 @@
-﻿from fastapi import Depends, HTTPException
-from sqlalchemy.orm import Session
-
+from app.config.database import get_db
+from app.models.empresa.rolempresas import RolEmpresa
+from app.models.empresa.usuario_rolempresa import UsuarioRolempresa
 from app.routers.protected import get_current_user
 from app.schemas.configuracion import AuthenticatedUser
-from app.config.database import get_db
-from app.models.empresa.usuario_rolempresa import UsuarioRolempresa
-from app.models.empresa.rolempresas import RolEmpresa
+from fastapi import Depends, HTTPException
+from sqlalchemy.orm import Session
 
 
 def require_empresa_admin(
@@ -46,9 +45,7 @@ def _flatten_perms(perms: dict) -> set[str]:
 
 def _has_perm(db: Session, user: AuthenticatedUser, perm_key: str) -> bool:
     # Superadmin o admin de empresa: acceso total
-    if getattr(user, "is_superadmin", False) or getattr(
-        user, "es_admin_empresa", False
-    ):
+    if getattr(user, "is_superadmin", False) or getattr(user, "es_admin_empresa", False):
         return True
     tenant_id = getattr(user, "tenant_id", None)
     user_id = getattr(user, "user_id", None)
@@ -80,9 +77,7 @@ def _has_perm(db: Session, user: AuthenticatedUser, perm_key: str) -> bool:
     return perm_key in acc
 
 
-def _require_perm(
-    perm_key: str, db: Session, current_user: AuthenticatedUser
-) -> AuthenticatedUser:
+def _require_perm(perm_key: str, db: Session, current_user: AuthenticatedUser) -> AuthenticatedUser:
     if _has_perm(db, current_user, perm_key):
         return current_user
     raise HTTPException(status_code=403, detail="forbidden")

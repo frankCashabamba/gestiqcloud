@@ -2,7 +2,7 @@
 -- BASELINE MODERNA - GestiQCloud v2.0
 -- Schema 100% Inglés - Fresh Start Nov 2025
 -- =====================================================
--- 
+--
 -- Esta es la migración baseline consolidada que crea
 -- el esquema completo moderno desde cero.
 --

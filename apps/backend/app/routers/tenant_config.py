@@ -2,25 +2,23 @@
 Tenant Configuration Router - Configuración por tenant
 """
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-
 from app.config.database import get_db
 from app.middleware.tenant import ensure_tenant
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
 
 
 @router.get("/tenant")
-def get_tenant_settings(
-    db: Session = Depends(get_db), tenant_id: str = Depends(ensure_tenant)
-):
+def get_tenant_settings(db: Session = Depends(get_db), tenant_id: str = Depends(ensure_tenant)):
     """
     Obtener configuración del tenant (moneda, IVA, POS, etc.)
     """
-    query = text("""
-        SELECT 
+    query = text(
+        """
+        SELECT
             currency,
             locale,
             timezone,
@@ -30,19 +28,21 @@ def get_tenant_settings(
         FROM tenant_settings
         WHERE tenant_id = :tenant_id
         LIMIT 1
-    """)
+    """
+    )
 
     result = db.execute(query, {"tenant_id": tenant_id}).first()
 
     if not result:
         # Crear configuración por defecto si no existe
-        insert_query = text("""
+        insert_query = text(
+            """
             INSERT INTO tenant_settings (
-                tenant_id, 
-                currency, 
-                locale, 
-                timezone, 
-                settings, 
+                tenant_id,
+                currency,
+                locale,
+                timezone,
+                settings,
                 pos_config
             ) VALUES (
                 :tenant_id,
@@ -53,7 +53,8 @@ def get_tenant_settings(
                 '{"tax": {"price_includes_tax": true, "default_rate": 0.15}}'::jsonb
             )
             RETURNING currency, locale, timezone, settings, pos_config, invoice_config
-        """)
+        """
+        )
 
         result = db.execute(insert_query, {"tenant_id": tenant_id}).first()
         db.commit()

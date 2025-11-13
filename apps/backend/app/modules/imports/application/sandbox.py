@@ -73,9 +73,7 @@ def sandbox_pdf(pdf_path: str, output_path: str | None = None) -> str:
                             page.delete_annot(annot)
                             removed_count["forms"] += 1
                     except Exception as e:
-                        logger.warning(
-                            f"Error processing annotation on page {page_num}: {e}"
-                        )
+                        logger.warning(f"Error processing annotation on page {page_num}: {e}")
 
             # Remove embedded files (if any)
             try:
@@ -86,8 +84,7 @@ def sandbox_pdf(pdf_path: str, output_path: str | None = None) -> str:
                     # We'd need to work with the PDF structure directly
                     # For now, log warning
                     logger.warning(
-                        f"Page {page_num} has embedded files - "
-                        "cannot remove automatically"
+                        f"Page {page_num} has embedded files - " "cannot remove automatically"
                     )
                     removed_count["embeds"] += 1
             except Exception as e:

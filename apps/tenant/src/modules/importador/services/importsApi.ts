@@ -98,15 +98,15 @@ export async function createBatch(payload: CreateBatchPayload, authToken?: strin
 }
 
 export async function ingestBatch(
-  batchId: string, 
-  payload: IngestBatchPayload, 
+  batchId: string,
+  payload: IngestBatchPayload,
   authToken?: string,
   columnMappingId?: string | null
 ) {
-  const url = columnMappingId 
+  const url = columnMappingId
     ? `/api/v1/imports/batches/${batchId}/ingest?column_mapping_id=${columnMappingId}`
     : `/api/v1/imports/batches/${batchId}/ingest`
-    
+
   return apiFetch<{ accepted: number; rejected: number; errors?: unknown[] }>(
     url,
     {
@@ -202,7 +202,7 @@ export async function downloadErrorsCsv(batchId: string) {
   const token = getStoredToken()
   const headers: HeadersInit = { }
   if (token) headers['Authorization'] = `Bearer ${token}`
-  
+
   const res = await fetch(`${API_URL}/api/v1/imports/batches/${batchId}/errors.csv`, {
     credentials: 'include',
     headers,
@@ -219,7 +219,7 @@ export async function uploadBatchPhotos(batchId: string, files: File[]) {
   const token = getStoredToken()
   const headers: HeadersInit = { }
   if (token) headers['Authorization'] = `Bearer ${token}`
-  
+
   const res = await fetch(`${API_URL}/api/v1/imports/batches/${batchId}/photos`, {
     method: 'POST',
     body: form,
@@ -238,7 +238,7 @@ export async function uploadItemPhotos(batchId: string, itemId: string, files: F
   const token = getStoredToken()
   const headers: HeadersInit = { }
   if (token) headers['Authorization'] = `Bearer ${token}`
-  
+
   const res = await fetch(`${API_URL}/api/v1/imports/batches/${batchId}/items/${itemId}/photos`, {
     method: 'POST',
     body: form,
@@ -383,5 +383,3 @@ export async function getParserRegistry(authToken?: string) {
     authToken,
   })
 }
-
-

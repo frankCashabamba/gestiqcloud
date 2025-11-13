@@ -1,20 +1,21 @@
-﻿"""
+"""
 Workers Celery para notificaciones multi-canal
 Soporta: Email (SMTP), WhatsApp (Twilio/API), Telegram (Bot API)
 """
 
+import os
+import smtplib
+from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import Any
+
+import requests
 from celery import shared_task
 from sqlalchemy import text
-from datetime import datetime
-import requests
-import smtplib
-import os
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from typing import Optional, Dict, Any, List
 
-from app.models.ai.incident import NotificationChannel, NotificationLog, StockAlert
 from app.db.session import get_db_context
+from app.models.ai.incident import NotificationChannel, NotificationLog, StockAlert
 
 
 @shared_task(bind=True, max_retries=3)
@@ -25,9 +26,9 @@ def send_notification_task(
     destinatario: str,
     asunto: str,
     mensaje: str,
-    ref_type: Optional[str] = None,
-    ref_id: Optional[str] = None,
-    config_override: Optional[Dict[str, Any]] = None,
+    ref_type: str | None = None,
+    ref_id: str | None = None,
+    config_override: dict[str, Any] | None = None,
 ):
     """
     Envía notificación por canal configurado
@@ -114,9 +115,7 @@ def send_notification_task(
             raise self.retry(exc=e, countdown=60 * (2**self.request.retries))
 
 
-def send_email(
-    config: Dict[str, Any], to: str, subject: str, body: str
-) -> Dict[str, Any]:
+def send_email(config: dict[str, Any], to: str, subject: str, body: str) -> dict[str, Any]:
     """
     Envía email vía SMTP
 
@@ -162,7 +161,7 @@ def send_email(
     return {"sent": True, "to": to, "from": from_email, "subject": subject}
 
 
-def send_whatsapp(config: Dict[str, Any], phone: str, message: str) -> Dict[str, Any]:
+def send_whatsapp(config: dict[str, Any], phone: str, message: str) -> dict[str, Any]:
     """
     Envía WhatsApp vía Twilio o API genérica
 
@@ -225,7 +224,7 @@ def send_whatsapp(config: Dict[str, Any], phone: str, message: str) -> Dict[str,
         raise ValueError(f"Provider WhatsApp no soportado: {provider}")
 
 
-def send_telegram(config: Dict[str, Any], chat_id: str, message: str) -> Dict[str, Any]:
+def send_telegram(config: dict[str, Any], chat_id: str, message: str) -> dict[str, Any]:
     """
     Envía mensaje vía Telegram Bot API
 
@@ -284,7 +283,7 @@ def check_and_notify_low_stock():
             return {"message": "No hay alertas pendientes", "count": 0}
 
         # 3. Agrupar por tenant
-        by_tenant: Dict[str, List[StockAlert]] = {}
+        by_tenant: dict[str, list[StockAlert]] = {}
         for alert in alerts:
             tenant_id = str(alert.tenant_id)
             if tenant_id not in by_tenant:

@@ -1,6 +1,7 @@
-﻿import os
-import uuid
 import importlib
+import os
+import uuid
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -91,17 +92,14 @@ def client() -> TestClient:
     # Ensure imports router is mounted in test env (fallbacks)
     try:
         has_imports = any(
-            getattr(r, "path", "").startswith("/api/v1/imports")
-            for r in app.router.routes
+            getattr(r, "path", "").startswith("/api/v1/imports") for r in app.router.routes
         )
     except Exception:
         has_imports = False
     if not has_imports:
         # Try canonical path
         try:
-            from app.modules.imports.interface.http.tenant import (
-                router as _imports_router,
-            )
+            from app.modules.imports.interface.http.tenant import router as _imports_router
 
             app.include_router(_imports_router, prefix="/api/v1")
             has_imports = True
@@ -110,9 +108,7 @@ def client() -> TestClient:
         # Try relative apps.backend path (how tests import this package)
         if not has_imports:
             try:
-                from app.modules.imports.interface.http.tenant import (
-                    router as _imports_router_rel,
-                )
+                from app.modules.imports.interface.http.tenant import router as _imports_router_rel
 
                 app.include_router(_imports_router_rel, prefix="/api/v1")
                 has_imports = True
@@ -123,14 +119,19 @@ def client() -> TestClient:
 
 @pytest.fixture
 def db():
-    from app.config.database import SessionLocal, Base, engine
+    from app.config.database import Base, SessionLocal, engine
 
     _load_all_models()
     _prune_pg_only_tables(Base.metadata)
     Base.metadata.create_all(bind=engine)
     _ensure_sqlite_stub_tables(engine)
     # Sanity: ensure critical tables are present
-    required = {"auth_user", "usuarios_usuariorolempresa", "auth_refresh_family", "auth_refresh_token"}
+    required = {
+        "auth_user",
+        "usuarios_usuariorolempresa",
+        "auth_refresh_family",
+        "auth_refresh_token",
+    }
     missing = required.difference(Base.metadata.tables.keys())
     if missing:
         # Try direct imports of critical modules, then create_all again
@@ -197,27 +198,23 @@ def usuario_empresa_factory(db):
         password: str = "tenant123",
         es_admin_empresa: bool = True,
     ):
-        from sqlalchemy import or_
+        import uuid as _uuid
 
-        from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
         from app.models.empresa.usuarioempresa import UsuarioEmpresa
         from app.models.tenant import Tenant
-        import uuid as _uuid
+        from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
+        from sqlalchemy import or_
 
         hasher = PasslibPasswordHasher()
 
         existing = (
             db.query(UsuarioEmpresa)
-            .filter(
-                or_(UsuarioEmpresa.email == email, UsuarioEmpresa.username == username)
-            )
+            .filter(or_(UsuarioEmpresa.email == email, UsuarioEmpresa.username == username))
             .first()
         )
         if existing:
             # Get tenant from existing usuario
-            tenant_obj = (
-                db.get(Tenant, existing.tenant_id) if existing.tenant_id else None
-            )
+            tenant_obj = db.get(Tenant, existing.tenant_id) if existing.tenant_id else None
 
             if tenant_obj:
                 if empresa_nombre and tenant_obj.name != empresa_nombre:

@@ -5,10 +5,11 @@ Handles reconciliation of conflicting changes during sync operations.
 Implements business logic for resolving data conflicts in multi-tenant environment.
 """
 
-from typing import Dict, Any, List
 from datetime import datetime
-from sqlalchemy.orm import Session
+from typing import Any
+
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 
 class ConflictResolver:
@@ -27,8 +28,8 @@ class ConflictResolver:
         self.tenant_id = tenant_id
 
     def resolve_stock_conflict(
-        self, local: Dict[str, Any], remote: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, local: dict[str, Any], remote: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Resolve stock item conflicts.
 
@@ -60,8 +61,8 @@ class ConflictResolver:
             }
 
     def resolve_receipt_conflict(
-        self, local: Dict[str, Any], remote: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, local: dict[str, Any], remote: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Resolve POS receipt conflicts.
 
@@ -86,8 +87,8 @@ class ConflictResolver:
         return conflict_receipt
 
     def resolve_product_conflict(
-        self, local: Dict[str, Any], remote: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, local: dict[str, Any], remote: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Resolve product conflicts.
 
@@ -116,8 +117,8 @@ class ConflictResolver:
         return merged
 
     def resolve_conflict(
-        self, entity_type: str, local: Dict[str, Any], remote: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, entity_type: str, local: dict[str, Any], remote: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Main conflict resolution dispatcher.
         """
@@ -130,9 +131,7 @@ class ConflictResolver:
         resolver = resolvers.get(entity_type, self._default_resolution)
         return resolver(local, remote)
 
-    def _default_resolution(
-        self, local: Dict[str, Any], remote: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _default_resolution(self, local: dict[str, Any], remote: dict[str, Any]) -> dict[str, Any]:
         """
         Default: Last Write Wins strategy.
         """
@@ -156,8 +155,8 @@ class ConflictResolver:
 
 
 async def handle_sync_conflicts(
-    conflicts: List[Dict[str, Any]], tenant_id: str, db: Session
-) -> List[Dict[str, Any]]:
+    conflicts: list[dict[str, Any]], tenant_id: str, db: Session
+) -> list[dict[str, Any]]:
     """
     Process sync conflicts and return resolved changes.
 
@@ -190,8 +189,8 @@ async def handle_sync_conflicts(
 def log_conflict_resolution(
     db: Session,
     tenant_id: str,
-    original_conflict: Dict[str, Any],
-    resolution: Dict[str, Any],
+    original_conflict: dict[str, Any],
+    resolution: dict[str, Any],
 ):
     """
     Log conflict resolution for audit purposes.
@@ -199,7 +198,8 @@ def log_conflict_resolution(
     try:
         # Insert into conflict log table (would need to create this table)
         db.execute(
-            text("""
+            text(
+                """
             INSERT INTO sync_conflict_log (
                 tenant_id, entity_type, entity_id,
                 conflict_data, resolution, resolved_at
@@ -207,7 +207,8 @@ def log_conflict_resolution(
                 :tenant_id, :entity_type, :entity_id,
                 :conflict_data, :resolution, NOW()
             )
-        """),
+        """
+            ),
             {
                 "tenant_id": tenant_id,
                 "entity_type": original_conflict.get("table"),

@@ -1,7 +1,7 @@
 # 📋 AUDITORÍA TÉCNICA GESTIQCLOUD - README
 
-**Fecha de auditoría**: 2025-11-06  
-**Puntuación global**: 67 → **75/100** (+8 puntos tras mejoras)  
+**Fecha de auditoría**: 2025-11-06
+**Puntuación global**: 67 → **75/100** (+8 puntos tras mejoras)
 **Estado**: ✅ Mejoras implementadas, pendiente instalación de dependencias
 
 ---
@@ -281,14 +281,14 @@ pytest --cov=app --cov-report=term > coverage-report.txt
 
 ## 🎉 CONCLUSIÓN
 
-**Implementado hoy**: 7 tareas críticas (70% del plan)  
-**Tiempo total**: ~6 horas de implementación  
-**Beneficio**: +8 puntos en puntuación global (67 → 75)  
+**Implementado hoy**: 7 tareas críticas (70% del plan)
+**Tiempo total**: ~6 horas de implementación
+**Beneficio**: +8 puntos en puntuación global (67 → 75)
 **Próximos pasos**: Instalar deps + completar frontend JWT (2 días)
 
 **Lee los informes técnicos para detalles completos de cada área.**
 
 ---
 
-**Generado**: 2025-11-06  
+**Generado**: 2025-11-06
 **Autor**: Auditoría Técnica Automatizada

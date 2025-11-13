@@ -2,13 +2,12 @@
 
 import uuid
 from datetime import datetime
-from typing import Optional
-
-from sqlalchemy import JSON, String, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
+from sqlalchemy import JSON, ForeignKey, String
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 class TenantSettings(Base):
@@ -33,16 +32,14 @@ class TenantSettings(Base):
         default=dict,
         # Estructura: {"pos": {...}, "inventory": {...}, etc}
     )
-    pos_config: Mapped[Optional[dict]] = mapped_column(
+    pos_config: Mapped[dict | None] = mapped_column(
         JSONB().with_variant(JSON(), "sqlite"), nullable=True
     )
-    invoice_config: Mapped[Optional[dict]] = mapped_column(
+    invoice_config: Mapped[dict | None] = mapped_column(
         JSONB().with_variant(JSON(), "sqlite"), nullable=True
     )
     locale: Mapped[str] = mapped_column(String(10), nullable=False, default="es")
-    timezone: Mapped[str] = mapped_column(
-        String(50), nullable=False, default="Europe/Madrid"
-    )
+    timezone: Mapped[str] = mapped_column(String(50), nullable=False, default="Europe/Madrid")
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="EUR")
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import List
 
 
 @dataclass
@@ -18,7 +17,7 @@ class SecurityConfig:
     max_pdf_pages: int = 20
 
     # Allowed MIME types
-    allowed_mime_types: List[str] = field(
+    allowed_mime_types: list[str] = field(
         default_factory=lambda: [
             "application/pdf",
             "image/jpeg",

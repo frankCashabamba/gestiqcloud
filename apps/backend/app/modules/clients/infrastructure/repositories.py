@@ -1,12 +1,12 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
+from app.core.crud_base import CRUDBase
+from app.models.core.clients import Cliente as ClienteORM
 from app.modules.clients.application.ports import ClienteRepo
 from app.modules.clients.domain.entities import Cliente
-from app.models.core.clients import Cliente as ClienteORM
 from app.modules.shared.infrastructure.sqlalchemy_repo import SqlAlchemyRepo
-from app.core.crud_base import CRUDBase
 
 
 class ClienteCRUD(CRUDBase[ClienteORM, "ClienteCreateDTO", "ClienteUpdateDTO"]):
@@ -29,7 +29,7 @@ class SqlAlchemyClienteRepo(SqlAlchemyRepo, ClienteRepo):
             tenant_id=m.tenant_id,
         )
 
-    def get(self, id: int) -> Optional[Cliente]:
+    def get(self, id: int) -> Cliente | None:
         m = self.db.query(ClienteORM).filter(ClienteORM.id == id).first()
         return self._to_entity(m) if m else None
 
@@ -102,9 +102,7 @@ class SqlAlchemyClienteRepo(SqlAlchemyRepo, ClienteRepo):
                     "country": self.pais,
                     "postal_code": self.codigo_postal,
                 }
-                return {
-                    k: v for k, v in d.items() if not exclude_unset or v is not None
-                }
+                return {k: v for k, v in d.items() if not exclude_unset or v is not None}
 
         dto = ClienteUpdateDTO(**c.__dict__).model_dump(exclude_unset=True)
         m = ClienteCRUD(ClienteORM).update(self.db, c.id, dto)

@@ -118,7 +118,7 @@ const DashboardPro: React.FC<DashboardProProps> = ({
         <nav>
           <ul>
             <li><Link to={`/${empresa}`} className="active">🏠 Dashboard</Link></li>
-            
+
             {/* Módulos contratados */}
             {modulosLoading ? (
               <li className="sidebar-loading">Cargando módulos...</li>
@@ -138,7 +138,7 @@ const DashboardPro: React.FC<DashboardProProps> = ({
                   )
                 })
             )}
-            
+
             {/* Enlaces personalizados del sector */}
             {customLinks.length > 0 && (
               <>

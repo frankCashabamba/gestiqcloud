@@ -1,6 +1,6 @@
 # 📊 Importador: Resumen Ejecutivo
 
-**Fecha**: 11 Noviembre 2025  
+**Fecha**: 11 Noviembre 2025
 **Estado Global**: 80% completado (Backend 95% + Frontend 66%)
 
 ---
@@ -131,7 +131,7 @@ Sistema universal de importación de archivos con IA asistida configurables:
 ```
 Backend:
   [ ] FASE_A: Campos DB + migración (1.5h)
-  
+
 Frontend:
   [ ] Conectar clasificación (2-3h)
   [ ] Persistir en batch (1-2h)
@@ -236,6 +236,6 @@ Frontend:
 
 ---
 
-**Última actualización**: 11 Nov 2025  
-**Responsable**: AI Code Review  
+**Última actualización**: 11 Nov 2025
+**Responsable**: AI Code Review
 **Proxima revisión**: Después de completar FASE_A backend

@@ -82,4 +82,3 @@ export function createAuth(cfg: AuthConfig) {
 
   return { AuthProvider, useAuth }
 }
-

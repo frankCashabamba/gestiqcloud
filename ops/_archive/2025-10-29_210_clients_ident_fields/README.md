@@ -13,4 +13,3 @@ Cambios
 Impacto
 - Backward compatible. No elimina columnas.
 - No afecta RLS.
-

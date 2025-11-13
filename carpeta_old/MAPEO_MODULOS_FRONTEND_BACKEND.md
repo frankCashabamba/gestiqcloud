@@ -1,7 +1,7 @@
 # MAPEO DE MÓDULOS FRONTEND ↔ BACKEND
 
-**Fecha:** 2025-11-05  
-**Proyecto:** GestiqCloud  
+**Fecha:** 2025-11-05
+**Proyecto:** GestiqCloud
 **Objetivo:** Mapear todos los módulos frontend con sus correspondientes módulos backend
 
 ---
@@ -48,7 +48,7 @@
 
 ### 1. 👥 CLIENTES
 
-**Frontend:** `apps/tenant/src/modules/clientes/`  
+**Frontend:** `apps/tenant/src/modules/clientes/`
 **Backend:** `apps/backend/app/modules/clients/`
 
 **Manifest Frontend:**
@@ -83,7 +83,7 @@ routes: ['/clientes', '/clientes/nuevo', '/clientes/:id/editar']
 
 ### 2. 🛍️ COMPRAS
 
-**Frontend:** `apps/tenant/src/modules/compras/`  
+**Frontend:** `apps/tenant/src/modules/compras/`
 **Backend:** `apps/backend/app/modules/compras/`
 
 **Manifest Frontend:**
@@ -118,7 +118,7 @@ order: 50
 
 ### 3. 📊 CONTABILIDAD
 
-**Frontend:** `apps/tenant/src/modules/contabilidad/`  
+**Frontend:** `apps/tenant/src/modules/contabilidad/`
 **Backend:** `apps/backend/app/modules/contabilidad/`
 
 **Manifest Frontend:**
@@ -147,7 +147,7 @@ description: 'Plan de cuentas, asientos contables y reportes financieros'
 
 ### 4. 📄 FACTURACIÓN
 
-**Frontend:** `apps/tenant/src/modules/facturacion/`  
+**Frontend:** `apps/tenant/src/modules/facturacion/`
 **Backend:** `apps/backend/app/modules/facturacion/` + `einvoicing/`
 
 **Manifest Frontend:**
@@ -189,7 +189,7 @@ routes: ['/facturacion', '/facturacion/nueva', '/facturacion/:id/editar']
 
 ### 5. 💰 FINANZAS
 
-**Frontend:** `apps/tenant/src/modules/finanzas/`  
+**Frontend:** `apps/tenant/src/modules/finanzas/`
 **Backend:** `apps/backend/app/modules/finanzas/`
 
 **Manifest Frontend:**
@@ -216,7 +216,7 @@ routes: ['/finanzas/caja', '/finanzas/bancos']
 
 ### 6. 💵 GASTOS
 
-**Frontend:** `apps/tenant/src/modules/gastos/`  
+**Frontend:** `apps/tenant/src/modules/gastos/`
 **Backend:** `apps/backend/app/modules/gastos/`
 
 **Manifest Frontend:**
@@ -251,7 +251,7 @@ order: 70
 
 ### 7. 📤 IMPORTADOR (imports)
 
-**Frontend:** `apps/tenant/src/modules/importador/`  
+**Frontend:** `apps/tenant/src/modules/importador/`
 **Backend:** `apps/backend/app/modules/imports/`
 
 **Manifest Frontend:**
@@ -295,7 +295,7 @@ routes: ['/imports', '/imports/wizard']
 
 ### 8. 📦 INVENTARIO
 
-**Frontend:** `apps/tenant/src/modules/inventario/`  
+**Frontend:** `apps/tenant/src/modules/inventario/`
 **Backend:** `apps/backend/app/modules/inventario/`
 
 **Manifest Frontend:**
@@ -340,7 +340,7 @@ features: ['Stock actual', 'Movimientos', 'Alertas', 'Ajustes', 'Lotes']
 
 ### 9. 🛒 POS (Punto de Venta)
 
-**Frontend:** `apps/tenant/src/modules/pos/`  
+**Frontend:** `apps/tenant/src/modules/pos/`
 **Backend:** `apps/backend/app/modules/pos/`
 
 **Manifest Frontend:**
@@ -384,7 +384,7 @@ routes: ['/pos']
 
 ### 10. 🏭 PRODUCCIÓN
 
-**Frontend:** `apps/tenant/src/modules/produccion/`  
+**Frontend:** `apps/tenant/src/modules/produccion/`
 **Backend:** ❌ **NO EXISTE MÓDULO**
 
 **Manifest Frontend:**
@@ -430,7 +430,7 @@ routes: [
 
 ### 11. 📦 PRODUCTOS
 
-**Frontend:** `apps/tenant/src/modules/productos/`  
+**Frontend:** `apps/tenant/src/modules/productos/`
 **Backend:** `apps/backend/app/modules/productos/`
 
 **Manifest Frontend:**
@@ -465,7 +465,7 @@ features: ['Configuración por sector', 'Importación masiva', 'Precios e impues
 
 ### 12. 👥 PROVEEDORES
 
-**Frontend:** `apps/tenant/src/modules/proveedores/`  
+**Frontend:** `apps/tenant/src/modules/proveedores/`
 **Backend:** `apps/backend/app/modules/proveedores/`
 
 **Manifest Frontend:**
@@ -500,7 +500,7 @@ order: 60
 
 ### 13. 👷 RRHH (Recursos Humanos)
 
-**Frontend:** `apps/tenant/src/modules/rrhh/`  
+**Frontend:** `apps/tenant/src/modules/rrhh/`
 **Backend:** `apps/backend/app/modules/rrhh/`
 
 **Manifest Frontend:**
@@ -526,7 +526,7 @@ routes: ['/rrhh', '/rrhh/vacaciones', '/rrhh/fichajes', '/rrhh/nomina']
 
 ### 14. ⚙️ SETTINGS (Configuración)
 
-**Frontend:** `apps/tenant/src/modules/settings/`  
+**Frontend:** `apps/tenant/src/modules/settings/`
 **Backend:** `apps/backend/app/modules/settings/`
 
 **Manifest Frontend:**
@@ -558,7 +558,7 @@ routes: [
 
 ### 15. 👤 USUARIOS
 
-**Frontend:** `apps/tenant/src/modules/usuarios/`  
+**Frontend:** `apps/tenant/src/modules/usuarios/`
 **Backend:** `apps/backend/app/modules/usuarios/`
 
 **Manifest Frontend:**
@@ -585,7 +585,7 @@ order: 80
 
 ### 16. 📊 VENTAS
 
-**Frontend:** `apps/tenant/src/modules/ventas/`  
+**Frontend:** `apps/tenant/src/modules/ventas/`
 **Backend:** `apps/backend/app/modules/ventas/`
 
 **Manifest Frontend:**

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+
 from celery import Celery
 from kombu import Queue
 
@@ -39,25 +40,17 @@ celery_app.conf.update(
     task_max_retries=3,
     broker_connection_retry_on_startup=True,
     task_routes={
-        "app.modules.imports.application.tasks.task_preprocess.*": {
-            "queue": "imports_pre"
-        },
+        "app.modules.imports.application.tasks.task_preprocess.*": {"queue": "imports_pre"},
         "app.modules.imports.application.tasks.task_ocr.*": {"queue": "imports_ocr"},
-        "app.modules.imports.application.tasks.task_classify.*": {
-            "queue": "imports_ml"
-        },
-        "app.modules.imports.application.tasks.task_extract.*": {
-            "queue": "imports_etl"
-        },
-        "app.modules.imports.application.tasks.task_validate.*": {
-            "queue": "imports_val"
-        },
-        "app.modules.imports.application.tasks.task_publish.*": {
-            "queue": "imports_pub"
-        },
+        "app.modules.imports.application.tasks.task_classify.*": {"queue": "imports_ml"},
+        "app.modules.imports.application.tasks.task_extract.*": {"queue": "imports_etl"},
+        "app.modules.imports.application.tasks.task_validate.*": {"queue": "imports_val"},
+        "app.modules.imports.application.tasks.task_publish.*": {"queue": "imports_pub"},
         # Route file imports to ETL queue
         "imports.import_file": {"queue": "imports_etl"},
-        "imports.import_products_excel": {"queue": "imports_etl"},  # Keep for backward compatibility
+        "imports.import_products_excel": {
+            "queue": "imports_etl"
+        },  # Keep for backward compatibility
     },
     task_queues=(
         Queue("imports_pre", routing_key="imports_pre"),

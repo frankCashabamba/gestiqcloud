@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
-from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 
 def _mask_email(val: str | None) -> str | None:
@@ -24,7 +24,7 @@ def _mask_phone(val: str | None) -> str | None:
     return "*" * (len(digits) - 4) + "".join(digits[-4:])
 
 
-def pii_mask_row(row: Dict[str, Any]) -> Dict[str, Any]:
+def pii_mask_row(row: dict[str, Any]) -> dict[str, Any]:
     out = dict(row)
     for k in list(out.keys()):
         lk = k.lower()
@@ -39,16 +39,14 @@ def pii_mask_row(row: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-def _fetch_all(db: Session, sql: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _fetch_all(db: Session, sql: str, params: dict[str, Any]) -> list[dict[str, Any]]:
     res = db.execute(text(sql), params)
     cols = [c for c in res.keys()]
-    rows = [dict(zip(cols, r)) for r in res.fetchall()]
+    rows = [dict(zip(cols, r, strict=False)) for r in res.fetchall()]
     return rows
 
 
-def query_readonly(
-    db: Session, topic: str, params: Dict[str, Any] | None = None
-) -> Dict[str, Any]:
+def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     p = params or {}
     # Only allow curated read-only queries (RLS enforced by DB)
     if topic == "ventas_mes":
@@ -87,7 +85,9 @@ def query_readonly(
         return {"cards": [{"title": "Stock bajo", "data": rows}], "sql": sql}
 
     if topic == "pendientes_sri_sii":
-        sql_sri = "SELECT count(*) AS pendientes FROM sri_submissions WHERE status NOT IN ('AUTHORIZED')"
+        sql_sri = (
+            "SELECT count(*) AS pendientes FROM sri_submissions WHERE status NOT IN ('AUTHORIZED')"
+        )
         sql_sii = "SELECT count(*) AS pendientes FROM sii_batches WHERE status NOT IN ('ACCEPTED')"
         sri = _fetch_all(db, sql_sri, {})
         sii = _fetch_all(db, sql_sii, {})
@@ -112,8 +112,8 @@ def query_readonly(
 
 
 def create_invoice_draft(
-    db: Session, tenant_empresa_id: int, payload: Dict[str, Any]
-) -> Dict[str, Any]:
+    db: Session, tenant_empresa_id: int, payload: dict[str, Any]
+) -> dict[str, Any]:
     # Create a minimal draft invoice; never post
     proveedor = str(payload.get("proveedor") or "N/A")
     cliente_id = payload.get("cliente_id")
@@ -141,8 +141,8 @@ def create_invoice_draft(
 
 
 def create_order_draft(
-    db: Session, payload: Dict[str, Any], tenant_id: str | None = None
-) -> Dict[str, Any]:
+    db: Session, payload: dict[str, Any], tenant_id: str | None = None
+) -> dict[str, Any]:
     cur = db.execute(
         text(
             "INSERT INTO sales_orders(customer_id, status, created_at) VALUES (:cid, 'draft', now()) RETURNING id"
@@ -167,8 +167,8 @@ def create_order_draft(
 
 
 def create_transfer_draft(
-    db: Session, payload: Dict[str, Any], tenant_id: str | None = None
-) -> Dict[str, Any]:
+    db: Session, payload: dict[str, Any], tenant_id: str | None = None
+) -> dict[str, Any]:
     # Draft transfer: two stock_move tentative rows (no stock_items update)
     src = int(payload.get("from_warehouse_id"))
     dst = int(payload.get("to_warehouse_id"))
@@ -184,7 +184,7 @@ def create_transfer_draft(
     return {"status": "draft_transfer"}
 
 
-def suggest_overlay_fields(db: Session) -> Dict[str, Any]:
+def suggest_overlay_fields(db: Session) -> dict[str, Any]:
     # Simple heuristic suggestion based on products/clients columns
     # Returns a safe overlay proposal within limits
     overlay = {

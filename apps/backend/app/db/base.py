@@ -1,7 +1,6 @@
-from app.config.database import Base  # la misma Base en todo el proyecto
-
 # Muy importante: importar el agregador para registrar TODOS los modelos
 import app.models  # noqa: F401
+from app.config.database import Base  # la misma Base en todo el proyecto
 
 # Cargar modelos de módulos vertical-slice para Alembic (sin efectos secundarios)
 try:

@@ -1,7 +1,6 @@
-from typing import List, Optional
-from sqlalchemy.orm import Session
-from app.models.purchases import Compra
 from app.core.crud_base import CRUDBase
+from app.models.purchases import Compra
+from sqlalchemy.orm import Session
 
 
 class CompraCRUD(CRUDBase[Compra, "CompraCreateDTO", "CompraUpdateDTO"]):
@@ -13,7 +12,7 @@ class CompraRepo:
         self.db = db
         self.crud = CompraCRUD(Compra)
 
-    def list(self, tenant_id) -> List[Compra]:
+    def list(self, tenant_id) -> list[Compra]:
         return (
             self.db.query(Compra)
             .filter(Compra.tenant_id == tenant_id)
@@ -21,12 +20,8 @@ class CompraRepo:
             .all()
         )
 
-    def get(self, tenant_id, cid) -> Optional[Compra]:
-        return (
-            self.db.query(Compra)
-            .filter(Compra.tenant_id == tenant_id, Compra.id == cid)
-            .first()
-        )
+    def get(self, tenant_id, cid) -> Compra | None:
+        return self.db.query(Compra).filter(Compra.tenant_id == tenant_id, Compra.id == cid).first()
 
     def create(
         self,
@@ -87,13 +82,9 @@ class CompraRepo:
                     "total": self.total,
                     "estado": self.estado,
                 }
-                return {
-                    k: v for k, v in d.items() if not exclude_unset or v is not None
-                }
+                return {k: v for k, v in d.items() if not exclude_unset or v is not None}
 
-        dto = CompraUpdateDTO(
-            fecha=fecha, proveedor_id=proveedor_id, total=total, estado=estado
-        )
+        dto = CompraUpdateDTO(fecha=fecha, proveedor_id=proveedor_id, total=total, estado=estado)
         obj = self.get(tenant_id, cid)
         if not obj:
             raise ValueError("Compra no encontrada")

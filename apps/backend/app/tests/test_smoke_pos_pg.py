@@ -2,27 +2,27 @@ from __future__ import annotations
 
 import uuid as _uuid
 
-from sqlalchemy.orm import Session
-from sqlalchemy import text
 import pytest
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 
 def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session):
+    from app.models.inventory.stock import StockItem, StockMove
     from app.modules.pos.interface.http.tenant import (
-        create_register,
-        RegisterIn,
-        open_shift,
-        OpenShiftIn,
-        create_receipt,
-        ReceiptCreateIn,
-        add_item,
         ItemIn,
-        take_payment,
+        OpenShiftIn,
         PaymentIn,
-        post_receipt,
         PostReceiptIn,
+        ReceiptCreateIn,
+        RegisterIn,
+        add_item,
+        create_receipt,
+        create_register,
+        open_shift,
+        post_receipt,
+        take_payment,
     )
-    from app.models.inventory.stock import StockMove, StockItem
 
     tid = _uuid.uuid4()
     tid_str = str(tid)
@@ -53,9 +53,7 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session):
         state = _State()
 
     # Create register
-    reg = create_register(
-        RegisterIn(code="R1", name="Caja 1", default_warehouse_id=1), _Req(), db
-    )
+    reg = create_register(RegisterIn(code="R1", name="Caja 1", default_warehouse_id=1), _Req(), db)
     assert reg["id"]
 
     # Open shift
@@ -91,9 +89,5 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session):
     assert mv is not None and mv.kind == "issue" and mv.posted is True
 
     # Verify stock_items decreased (may be negative if starting from zero)
-    si = (
-        db.query(StockItem)
-        .filter(StockItem.warehouse_id == 1, StockItem.product_id == 1)
-        .first()
-    )
+    si = db.query(StockItem).filter(StockItem.warehouse_id == 1, StockItem.product_id == 1).first()
     assert si is not None

@@ -1,6 +1,6 @@
-from datetime import date, datetime
-from typing import Dict, Any, List, Optional
 import re
+from datetime import date, datetime
+from typing import Any
 
 try:
     from .validators.country_validators import get_validator_for_country
@@ -38,12 +38,12 @@ def _is_currency(v: Any) -> bool:
 
 
 def validate_invoices(
-    n: Dict[str, Any],
+    n: dict[str, Any],
     *,
     enable_currency_rule: bool = True,
-    country: Optional[str] = None,
-) -> List[dict]:
-    errors: List[dict] = []
+    country: str | None = None,
+) -> list[dict]:
+    errors: list[dict] = []
 
     if not n.get("invoice_number"):
         errors.append({"field": "invoice_number", "msg": "obligatorio"})
@@ -102,13 +102,13 @@ def validate_invoices(
     return errors
 
 
-def _convert_validation_errors(validation_errors: List[dict]) -> List[dict]:
+def _convert_validation_errors(validation_errors: list[dict]) -> list[dict]:
     """Convierte errores del catálogo al formato legacy."""
     return [{"field": err["field"], "msg": err["message"]} for err in validation_errors]
 
 
-def validate_bank(n: Dict[str, Any]) -> List[dict]:
-    errors: List[dict] = []
+def validate_bank(n: dict[str, Any]) -> list[dict]:
+    errors: list[dict] = []
     if not n.get("transaction_date"):
         errors.append({"field": "transaction_date", "msg": "obligatorio"})
     if n.get("amount") is None:
@@ -120,10 +120,8 @@ def validate_bank(n: Dict[str, Any]) -> List[dict]:
     return errors
 
 
-def validate_expenses(
-    n: Dict[str, Any], *, require_categories: bool | str = False
-) -> List[dict]:
-    errors: List[dict] = []
+def validate_expenses(n: dict[str, Any], *, require_categories: bool | str = False) -> list[dict]:
+    errors: list[dict] = []
     if not n.get("expense_date"):
         errors.append({"field": "expense_date", "msg": "obligatorio"})
     if n.get("amount") is None:
@@ -131,9 +129,7 @@ def validate_expenses(
     if require_categories:
         cat = n.get("category") or n.get("categoria")
         if not str(cat or "").strip():
-            errors.append(
-                {"field": "category", "msg": "categoria requerida por politica"}
-            )
+            errors.append({"field": "category", "msg": "categoria requerida por politica"})
     return errors
 
 
@@ -142,7 +138,7 @@ def validate_expenses(
 # ============================================================================
 
 
-def validate_canonical(n: Dict[str, Any]) -> List[dict]:
+def validate_canonical(n: dict[str, Any]) -> list[dict]:
     """
     Validador principal para schema canónico.
 
@@ -154,9 +150,7 @@ def validate_canonical(n: Dict[str, Any]) -> List[dict]:
     Returns:
         Lista de errores con formato {"field": str, "msg": str}
     """
-    from app.modules.imports.domain.canonical_schema import (
-        validate_canonical as full_validate,
-    )
+    from app.modules.imports.domain.canonical_schema import validate_canonical as full_validate
 
     is_valid, error_messages = full_validate(n)
 
@@ -167,7 +161,7 @@ def validate_canonical(n: Dict[str, Any]) -> List[dict]:
     return [{"field": "general", "msg": msg} for msg in error_messages]
 
 
-def validate_totals(totals: Optional[Dict[str, Any]]) -> List[dict]:
+def validate_totals(totals: dict[str, Any] | None) -> list[dict]:
     """
     Valida bloque totals del schema canónico.
 
@@ -179,7 +173,7 @@ def validate_totals(totals: Optional[Dict[str, Any]]) -> List[dict]:
     Returns:
         Lista de errores
     """
-    errors: List[dict] = []
+    errors: list[dict] = []
 
     if not totals:
         return errors
@@ -200,7 +194,7 @@ def validate_totals(totals: Optional[Dict[str, Any]]) -> List[dict]:
     return errors
 
 
-def validate_tax_breakdown(tax_breakdown: Optional[List[Dict[str, Any]]]) -> List[dict]:
+def validate_tax_breakdown(tax_breakdown: list[dict[str, Any]] | None) -> list[dict]:
     """
     Valida desglose de impuestos (tax_breakdown).
 
@@ -212,7 +206,7 @@ def validate_tax_breakdown(tax_breakdown: Optional[List[Dict[str, Any]]]) -> Lis
     Returns:
         Lista de errores
     """
-    errors: List[dict] = []
+    errors: list[dict] = []
 
     if not tax_breakdown:
         return errors
@@ -221,9 +215,7 @@ def validate_tax_breakdown(tax_breakdown: Optional[List[Dict[str, Any]]]) -> Lis
         if not item.get("code"):
             errors.append({"field": f"tax_breakdown[{idx}].code", "msg": "obligatorio"})
         if item.get("amount") is None:
-            errors.append(
-                {"field": f"tax_breakdown[{idx}].amount", "msg": "obligatorio"}
-            )
+            errors.append({"field": f"tax_breakdown[{idx}].amount", "msg": "obligatorio"})
         if item.get("rate") is None:
             errors.append({"field": f"tax_breakdown[{idx}].rate", "msg": "obligatorio"})
 

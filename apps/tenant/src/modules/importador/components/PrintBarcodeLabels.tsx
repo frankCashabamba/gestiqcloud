@@ -1,6 +1,6 @@
 ﻿/**
  * Componente de impresión de etiquetas con códigos de barras
- * 
+ *
  * Genera etiquetas imprimibles para:
  * - Productos importados desde Excel
  * - Productos sin código de barras original
@@ -19,7 +19,7 @@ export type ProductLabel = {
   categoria?: string
 }
 
-export type LabelSize = 
+export type LabelSize =
   | '40x30'  // 40mm x 30mm (pequeña, solo código)
   | '50x40'  // 50mm x 40mm (estándar con precio)
   | '70x50'  // 70mm x 50mm (grande con info completa)
@@ -55,7 +55,7 @@ export default function PrintBarcodeLabels({
   // Genera códigos de barras usando JsBarcode
   const generateBarcodes = () => {
     setGenerating(true)
-    
+
     setTimeout(() => {
       if (!printRef.current) return
 

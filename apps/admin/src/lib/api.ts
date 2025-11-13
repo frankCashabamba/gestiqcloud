@@ -36,8 +36,5 @@ export const apiPostForm = async <T>(url: string, form: FormData): Promise<T> =>
       "Content-Type": "multipart/form-data",
     },
   });
-  return res.data; 
+  return res.data;
 };
-
-
-

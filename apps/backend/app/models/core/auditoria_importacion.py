@@ -1,11 +1,12 @@
 # app/models/auditoria_importacion.py
-from sqlalchemy import ForeignKey, text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
+from uuid import UUID as PyUUID
+
 from app.config.database import Base
+from sqlalchemy import ForeignKey, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from uuid import UUID as PyUUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 # Column type for Postgres UUID
 PG_UUID = PGUUID(as_uuid=True)
@@ -16,9 +17,7 @@ class AuditoriaImportacion(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    documento_id: Mapped[int] = mapped_column(
-        index=True
-    )  # id temporal o definitivo (legacy)
+    documento_id: Mapped[int] = mapped_column(index=True)  # id temporal o definitivo (legacy)
     # Nuevos campos para enlazar con staging por lotes
     batch_id: Mapped[PyUUID | None] = mapped_column(PG_UUID, nullable=True, index=True)
     item_id: Mapped[PyUUID | None] = mapped_column(PG_UUID, nullable=True, index=True)

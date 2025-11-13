@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import os
 import sys
-from pathlib import Path
 from logging.config import fileConfig
+from pathlib import Path
 
-from sqlalchemy import engine_from_config, pool
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 # ------------------------------------------------------------
 # Bootstrap de paths (monorepo) para que Alembic encuentre `app`
@@ -46,9 +46,7 @@ except ModuleNotFoundError:
     # Fallback explícito por si el import absoluto falla
     import importlib
 
-    target_metadata = importlib.import_module(
-        "apps.backend.app.db.base"
-    ).target_metadata  # type: ignore
+    target_metadata = importlib.import_module("apps.backend.app.db.base").target_metadata  # type: ignore
 
 
 def run_migrations_offline() -> None:

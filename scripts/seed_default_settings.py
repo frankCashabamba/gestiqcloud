@@ -4,23 +4,22 @@ Seed Default Settings para todos los Tenants
 Crear TenantSettings con configuración por defecto según país
 """
 
+import argparse
 import sys
 import traceback
-import argparse
 from pathlib import Path
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from app.config.database import get_db_url
-from app.models.empresa.tenant import Tenant
-from app.models.core.settings import TenantSettings
-from app.modules.settings.application.use_cases import SettingsManager
 
+from app.config.database import get_db_url
+from app.models.core.settings import TenantSettings
+from app.models.empresa.tenant import Tenant
+from app.modules.settings.application.use_cases import SettingsManager
 
 # Agregar el directorio apps/backend al path
 backend_path = Path(__file__).resolve().parent.parent / "apps" / "backend"
 sys.path.insert(0, str(backend_path))
-
-
 
 
 def seed_default_settings():
@@ -146,8 +145,9 @@ def verify_settings():
 
     try:
         # Query para verificar
-        query = text("""
-            SELECT 
+        query = text(
+            """
+            SELECT
                 t.id,
                 t.name,
                 t.country,
@@ -157,7 +157,8 @@ def verify_settings():
             FROM tenants t
             LEFT JOIN tenant_settings ts ON t.id = ts.tenant_id
             ORDER BY t.name
-        """)
+        """
+        )
 
         result = db.execute(query)
         rows = result.fetchall()
@@ -183,7 +184,6 @@ def verify_settings():
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(description="Seed default settings para tenants")
     parser.add_argument(
         "--verify", action="store_true", help="Solo verificar, no crear"

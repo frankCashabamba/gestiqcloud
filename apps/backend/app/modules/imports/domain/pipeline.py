@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import os
 from uuid import UUID
-from typing import Optional
 
 try:
     from celery import chain, group
@@ -17,18 +16,18 @@ except Exception:  # pragma: no cover - optional in tests
 from sqlalchemy.orm import Session
 
 try:
-    from app.modules.imports.application.celery_app import celery_app, RUNNER_MODE
+    from app.modules.imports.application.celery_app import RUNNER_MODE, celery_app
 except Exception:  # pragma: no cover - allow running without Celery
     celery_app = None  # type: ignore
     RUNNER_MODE = os.getenv("IMPORTS_RUNNER_MODE", "inline")
-from app.modules.imports.application.tasks.task_preprocess import preprocess_item
-from app.modules.imports.application.tasks.task_ocr import ocr_item
+from app.config.database import session_scope
+from app.models.core.modelsimport import ImportBatch, ImportItem
 from app.modules.imports.application.tasks.task_classify import classify_item
 from app.modules.imports.application.tasks.task_extract import extract_item
-from app.modules.imports.application.tasks.task_validate import validate_item
+from app.modules.imports.application.tasks.task_ocr import ocr_item
+from app.modules.imports.application.tasks.task_preprocess import preprocess_item
 from app.modules.imports.application.tasks.task_publish import publish_item
-from app.config.database import session_scope
-from app.models.core.modelsimport import ImportItem, ImportBatch
+from app.modules.imports.application.tasks.task_validate import validate_item
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,7 @@ def enqueue_item_pipeline(
     item_id: UUID,
     tenant_id: UUID,
     batch_id: UUID,
-    db: Optional[Session] = None,
+    db: Session | None = None,
 ) -> str:
     """
     Enqueue pipeline completo para un item.

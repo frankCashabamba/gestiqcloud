@@ -1,22 +1,19 @@
 from __future__ import annotations
 
-
-from typing import Optional
+import os
+from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy.orm import Session
-
+from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.config.database import get_db
 from app.db.rls import ensure_rls
+from app.models.core.facturacion import Invoice
 from app.modules.facturacion import schemas
 from app.modules.facturacion.crud import factura_crud
-from app.models.core.facturacion import Invoice
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
-from pathlib import Path
-import os
+from sqlalchemy.orm import Session
 
 
 def _tenant_uuid(request: Request) -> UUID:
@@ -42,10 +39,10 @@ router = APIRouter(
 def listar_facturas_principales(
     request: Request,
     db: Session = Depends(get_db),
-    estado: Optional[str] = Query(None),
-    q: Optional[str] = Query(None),
-    desde: Optional[str] = Query(None),
-    hasta: Optional[str] = Query(None),
+    estado: str | None = Query(None),
+    q: str | None = Query(None),
+    desde: str | None = Query(None),
+    hasta: str | None = Query(None),
 ):
     tenant_id = _tenant_uuid(request)
     return factura_crud.obtener_facturas_principales(
@@ -80,18 +77,14 @@ def actualizar_factura(
 
     factura_uuid = factura_id
     invoice = (
-        db.query(Invoice)
-        .filter(Invoice.id == factura_uuid, Invoice.tenant_id == tenant_id)
-        .first()
+        db.query(Invoice).filter(Invoice.id == factura_uuid, Invoice.tenant_id == tenant_id).first()
     )
 
     if not invoice:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
 
     if invoice.estado not in ["draft", "borrador"]:
-        raise HTTPException(
-            status_code=400, detail="Solo se pueden editar facturas en borrador"
-        )
+        raise HTTPException(status_code=400, detail="Solo se pueden editar facturas en borrador")
 
     # Actualizar campos permitidos
     update_data = factura.model_dump(exclude_unset=True, exclude_none=True)
@@ -112,9 +105,7 @@ def anular_factura(factura_id: UUID, request: Request, db: Session = Depends(get
 
     factura_uuid = factura_id
     invoice = (
-        db.query(Invoice)
-        .filter(Invoice.id == factura_uuid, Invoice.tenant_id == tenant_id)
-        .first()
+        db.query(Invoice).filter(Invoice.id == factura_uuid, Invoice.tenant_id == tenant_id).first()
     )
 
     if not invoice:
@@ -162,15 +153,13 @@ def descargar_pdf(
     db: Session = Depends(get_db),
 ):
     tenant_id = _tenant_uuid(request)
-    factura = (
-        db.query(Invoice).filter_by(id=factura_id, tenant_id=tenant_id).first()
-    )
+    factura = db.query(Invoice).filter_by(id=factura_id, tenant_id=tenant_id).first()
     if not factura:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
     # Render con Jinja2 (template por vertical si existe)
     try:
-        from weasyprint import HTML
         from jinja2 import Environment, FileSystemLoader, select_autoescape
+        from weasyprint import HTML
 
         # Cargar templates PDF
         base_dir = Path(__file__).resolve().parents[5]  # apps/backend
@@ -191,13 +180,10 @@ def descargar_pdf(
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={
-                "Content-Disposition": f"attachment; filename=invoice_{factura.id}.pdf"
-            },
+            headers={"Content-Disposition": f"attachment; filename=invoice_{factura.id}.pdf"},
         )
     except Exception:
         raise HTTPException(
             status_code=501,
             detail="Renderizador PDF/plantilla no disponible (instala WeasyPrint/Jinja2)",
         )
-

@@ -7,20 +7,20 @@ Documento que documenta los nuevos parsers creados para soportar múltiples form
 ### 1. CSV Products (`csv_products.py`)
 - **Tipo**: Productos
 - **Extensión**: .csv
-- **Campos esperados**: 
+- **Campos esperados**:
   - `name`/`producto`/`nombre` - Nombre del producto (obligatorio)
   - `price`/`precio`/`unit_price` - Precio unitario
   - `quantity`/`cantidad`/`stock` - Cantidad/inventario
   - `sku`/`codigo` - Código único
   - `category`/`categoria` - Categoría (default: "GENERAL")
   - `description`/`descripcion` - Descripción del producto
-  
+
 - **Características**:
   - Detección flexible de columnas (mapeo por keywords)
   - Conversión automática de decimales (`,` → `.`)
   - Limpieza de valores nulos
   - Metadatos de importación
-  
+
 - **Output**: CanonicalDocument con `doc_type='product'`
 
 **Uso**:
@@ -40,13 +40,13 @@ result = parser_info["handler"]("path/to/products.csv")
 - **Estructura esperada**: Elementos anidados con productos
   - Tags detectados: `product`, `producto`, `item`, `article`, `articulo`, `row`, `fila`
   - Campos: name, price, quantity, sku, category, description
-  
+
 - **Características**:
   - Remoción automática de namespaces
   - Búsqueda flexible de elementos
   - Fallback a atributos si no hay elementos hijo
   - Soporte para múltiples variantes de nombres
-  
+
 - **Output**: CanonicalDocument con `doc_type='product'`
 
 **Ejemplo XML válido**:
@@ -84,7 +84,7 @@ result = parser_info["handler"]("path/to/products.csv")
   - Mapeo flexible de columnas
   - Parseo de fechas
   - Validación: requiere description y amount
-  
+
 - **Output**: CanonicalDocument con `doc_type='expense'`
 
 **Sheet de ejemplo**:
@@ -100,10 +100,10 @@ result = parser_info["handler"]("path/to/products.csv")
 ### 4. PDF QR Code (`pdf_qr.py`)
 - **Tipo**: Facturas/Recibos (con QR)
 - **Extensión**: .pdf
-- **Dependencias**: 
+- **Dependencias**:
   - `pdf2image` - Conversión PDF → imágenes
   - `pyzbar` - Detección de códigos QR
-  
+
 - **Características**:
   - Conversión página a página de PDF a imágenes
   - Extracción de códigos QR de cada página
@@ -253,13 +253,13 @@ pytest tests/modules/imports/test_pdf_qr.py
 - [ ] Fase C: Validación canónica y handlers
   - Extender `canonical_schema.py` para soportar todos los `doc_type`
   - Crear handlers específicos (ProductHandler, ExpenseHandler, etc.)
-  
+
 - [ ] Tests unitarios para cada parser
-  
+
 - [ ] Integración con endpoint `/imports/files/classify`
-  
+
 - [ ] Integración con task Celery `task_import_file`
-  
+
 - [ ] Actualizar documentación y PARSER_REGISTRY.md
 
 ## Resumen

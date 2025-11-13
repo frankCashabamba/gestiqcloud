@@ -1,24 +1,22 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
-
+from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.config.database import get_db
 from app.db.rls import ensure_rls, tenant_id_from_request
 from app.modules.copilot.services import (
-    query_readonly,
     create_invoice_draft,
     create_order_draft,
     create_transfer_draft,
+    query_readonly,
     suggest_overlay_fields,
 )
-
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/ai",
@@ -39,10 +37,10 @@ class AskIn(BaseModel):
     topic: str = Field(
         description="ventas_mes|ventas_por_almacen|top_productos|stock_bajo|pendientes_sri_sii|cobros_pagos"
     )
-    params: Optional[Dict[str, Any]] = None
+    params: dict[str, Any] | None = None
 
 
-@router.post("/ask", response_model=Dict[str, Any])
+@router.post("/ask", response_model=dict[str, Any])
 def ai_ask(payload: AskIn, db: Session = Depends(get_db)):
     if not _feature_enabled():
         raise HTTPException(status_code=403, detail="copilot_disabled")
@@ -55,7 +53,7 @@ class ActIn(BaseModel):
     action: str = Field(
         description="create_invoice_draft|create_order_draft|create_transfer_draft|suggest_overlay_fields"
     )
-    payload: Optional[Dict[str, Any]] = None
+    payload: dict[str, Any] | None = None
 
 
 def _allow(action: str) -> bool:
@@ -67,7 +65,7 @@ def _allow(action: str) -> bool:
     return action in set_allowed
 
 
-@router.post("/act", response_model=Dict[str, Any])
+@router.post("/act", response_model=dict[str, Any])
 def ai_act(payload: ActIn, request: Request, db: Session = Depends(get_db)):
     if not _feature_enabled():
         raise HTTPException(status_code=403, detail="copilot_disabled")
@@ -79,9 +77,7 @@ def ai_act(payload: ActIn, request: Request, db: Session = Depends(get_db)):
         tenant_id = claims.get("tenant_id")
         if tenant_id is None or not str(tenant_id).isdigit():
             # In este backend convivimos con tenant_id mientras dura la transición
-            raise HTTPException(
-                status_code=400, detail="empresa_id_required_for_invoice"
-            )
+            raise HTTPException(status_code=400, detail="empresa_id_required_for_invoice")
         return create_invoice_draft(db, int(tenant_id), payload.payload or {})
 
     if payload.action == "create_order_draft":

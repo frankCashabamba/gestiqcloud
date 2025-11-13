@@ -27,5 +27,3 @@ export default function SectorRedirect() {
   if (!slug) return <div style={{ padding: 16 }}>Cargando plantillas</div>
   return <Navigate to={`/plantilla/${slug}`} replace />
 }
-
-

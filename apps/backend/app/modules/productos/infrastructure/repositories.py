@@ -1,12 +1,12 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
+from app.core.crud_base import CRUDBase
+from app.models.core.products import Product  # ✅ CORREGIDO: modelo centralizado
 from app.modules.productos.application.ports import ProductoRepo
 from app.modules.productos.domain.entities import Producto
-from app.models.core.products import Product  # ✅ CORREGIDO: modelo centralizado
 from app.modules.shared.infrastructure.sqlalchemy_repo import SqlAlchemyRepo
-from app.core.crud_base import CRUDBase
 
 
 class ProductoCRUD(CRUDBase[Product, "ProductoCreateDTO", "ProductoUpdateDTO"]):
@@ -23,7 +23,7 @@ class SqlAlchemyProductoRepo(SqlAlchemyRepo, ProductoRepo):
             tenant_id=m.tenant_id,
         )
 
-    def get(self, id: int) -> Optional[Producto]:
+    def get(self, id: int) -> Producto | None:
         m = self.db.query(Product).filter(Product.id == id).first()
         return self._to_entity(m) if m else None
 
@@ -74,9 +74,7 @@ class SqlAlchemyProductoRepo(SqlAlchemyRepo, ProductoRepo):
                     "precio": self.price,
                     "activo": self.active,
                 }
-                return {
-                    k: v for k, v in d.items() if not exclude_unset or v is not None
-                }
+                return {k: v for k, v in d.items() if not exclude_unset or v is not None}
 
         dto = ProductoUpdateDTO(nombre=p.name, precio=p.price, activo=p.active)
         m = ProductoCRUD(Product).update(self.db, p.id, dto)

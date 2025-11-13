@@ -1,6 +1,14 @@
 # Auto-generado: registra todos los modelos importándolos
 
 # Core models
+# Sistema IA + Incidencias + Alertas
+from app.models.ai import Incident, NotificationChannel, NotificationLog, StockAlert
+from app.models.auth.refresh_family import RefreshFamily
+
+# Auth & Security
+from app.models.auth.useradmis import SuperUser
+from app.models.core.auditoria_importacion import AuditoriaImportacion
+from app.models.core.clients import Cliente
 from app.models.core.facturacion import (
     BankAccount,
     BankTransaction,
@@ -13,21 +21,9 @@ from app.models.core.facturacion import (
 )
 from app.models.core.invoiceLine import LineaFactura, LineaPanaderia, LineaTaller
 from app.models.core.modulo import EmpresaModulo, Modulo, ModuloAsignado
-from app.models.core.products import Product
-from app.models.recipes import Recipe, RecipeIngredient
 from app.models.core.product_category import ProductCategory
-from app.models.core.auditoria_importacion import AuditoriaImportacion
-from app.models.core.clients import Cliente
+from app.models.core.products import Product
 from app.models.core.settings import TenantSettings
-
-# Empresa (legacy)
-from app.models.empresa.rolempresas import RolEmpresa
-from app.models.empresa.settings import (
-    ConfiguracionEmpresa,
-    ConfiguracionInventarioEmpresa,
-)
-from app.models.empresa.usuario_rolempresa import UsuarioRolempresa
-from app.models.empresa.usuarioempresa import UsuarioEmpresa
 from app.models.empresa.empresa import (
     CategoriaEmpresa,
     DiaSemana,
@@ -35,45 +31,45 @@ from app.models.empresa.empresa import (
     Idioma,
     Moneda,
     Pais,
-    RefTimezone,
-    RefLocale,
     PerfilUsuario,
     PermisoAccionGlobal,
+    RefLocale,
+    RefTimezone,
     RolBase,
     SectorPlantilla,
     TipoEmpresa,
     TipoNegocio,
 )
 
-# Auth & Security
-from app.models.auth.useradmis import SuperUser
-from app.models.auth.refresh_family import RefreshFamily
-from app.models.security.auth_audit import AuthAudit
-from app.models.tenant import Tenant
-
-# Nuevos módulos profesionales
-from app.models.sales import Venta
-from app.models.suppliers import Proveedor, ProveedorContacto, ProveedorDireccion
-from app.models.purchases import Compra, CompraLinea
+# Empresa (legacy)
+from app.models.empresa.rolempresas import RolEmpresa
+from app.models.empresa.settings import ConfiguracionEmpresa, ConfiguracionInventarioEmpresa
+from app.models.empresa.usuario_rolempresa import UsuarioRolempresa
+from app.models.empresa.usuarioempresa import UsuarioEmpresa
 from app.models.expenses import Gasto
-from app.models.finance import CajaMovimiento, CierreCaja, BancoMovimiento
+from app.models.finance import BancoMovimiento, CajaMovimiento, CierreCaja
 from app.models.hr import Empleado, Vacacion
-from app.models.pos import (
-    POSRegister,
-    POSShift,
-    POSReceipt,
-    POSReceiptLine,
-    POSPayment,
-    StoreCredit,
-    StoreCreditEvent,
-    DocSeries,
-)
-
-# Sistema IA + Incidencias + Alertas
-from app.models.ai import Incident, StockAlert, NotificationChannel, NotificationLog
 
 # Imports system
 from app.models.imports import ImportColumnMapping
+from app.models.pos import (
+    DocSeries,
+    POSPayment,
+    POSReceipt,
+    POSReceiptLine,
+    POSRegister,
+    POSShift,
+    StoreCredit,
+    StoreCreditEvent,
+)
+from app.models.purchases import Compra, CompraLinea
+from app.models.recipes import Recipe, RecipeIngredient
+
+# Nuevos módulos profesionales
+from app.models.sales import Venta
+from app.models.security.auth_audit import AuthAudit
+from app.models.suppliers import Proveedor, ProveedorContacto, ProveedorDireccion
+from app.models.tenant import Tenant
 
 __all__ = [
     # Core Facturación

@@ -2,24 +2,23 @@
 SQLAlchemy Models - Sistema de Recetas
 """
 
+from app.config.database import Base as BaseModel
 from sqlalchemy import (
-    Column,
-    String,
-    Integer,
-    Numeric,
     Boolean,
-    Text,
+    Column,
+    Computed,
     DateTime,
     ForeignKey,
     Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
     text,
-    Computed,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-
-from app.config.database import Base as BaseModel
 
 
 class Recipe(BaseModel):
@@ -27,9 +26,7 @@ class Recipe(BaseModel):
 
     __tablename__ = "recipes"
 
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
-    )
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     tenant_id = Column(
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
@@ -45,9 +42,7 @@ class Recipe(BaseModel):
     costo_por_unidad = Column(
         Numeric(12, 4),
         Computed(
-            text(
-                "CASE WHEN rendimiento > 0 THEN costo_total / rendimiento ELSE 0 END"
-            ),
+            text("CASE WHEN rendimiento > 0 THEN costo_total / rendimiento ELSE 0 END"),
             persisted=True,
         ),
     )
@@ -55,9 +50,7 @@ class Recipe(BaseModel):
     instrucciones = Column(Text)
     activo = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     ingredientes = relationship(
@@ -67,9 +60,7 @@ class Recipe(BaseModel):
         lazy="selectin",
     )
 
-    product = relationship(
-        "Product", foreign_keys=[product_id], back_populates="recipe"
-    )
+    product = relationship("Product", foreign_keys=[product_id], back_populates="recipe")
 
     # Constraints
     __table_args__ = (
@@ -88,9 +79,7 @@ class RecipeIngredient(BaseModel):
 
     __tablename__ = "recipe_ingredients"
 
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
-    )
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     recipe_id = Column(
         UUID(as_uuid=True), ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False
     )

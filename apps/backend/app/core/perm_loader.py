@@ -1,14 +1,15 @@
 # app/core/perm_loader.py
-from typing import Dict, Any
-from sqlalchemy.orm import Session
-from app.models.empresa.usuarioempresa import UsuarioEmpresa
-from app.models.tenant import Tenant
+from typing import Any
+
+from app.models.core.modulo import Modulo, ModuloAsignado
 from app.models.empresa.rolempresas import RolEmpresa
 from app.models.empresa.usuario_rolempresa import UsuarioRolempresa
-from app.models.core.modulo import Modulo, ModuloAsignado
+from app.models.empresa.usuarioempresa import UsuarioEmpresa
+from app.models.tenant import Tenant
+from sqlalchemy.orm import Session
 
 
-def build_tenant_claims(db: Session, user: UsuarioEmpresa) -> Dict[str, Any]:
+def build_tenant_claims(db: Session, user: UsuarioEmpresa) -> dict[str, Any]:
     # Tenant: prioriza relación ya cargada
     tenant = getattr(user, "tenant", None)
     if tenant is None and user.tenant_id:
@@ -18,7 +19,7 @@ def build_tenant_claims(db: Session, user: UsuarioEmpresa) -> Dict[str, Any]:
         return {}
 
     # Permisos: Admin de empresa tiene acceso completo
-    permisos: Dict[str, Any] = {}
+    permisos: dict[str, Any] = {}
 
     if getattr(user, "es_admin_empresa", False):
         # Admin de empresa: permisos completos
@@ -38,9 +39,7 @@ def build_tenant_claims(db: Session, user: UsuarioEmpresa) -> Dict[str, Any]:
         # Usuario regular: cargar permisos desde roles
         try:
             relacion_rol = (
-                db.query(UsuarioRolempresa)
-                .filter_by(usuario_id=user.id, activo=True)
-                .first()
+                db.query(UsuarioRolempresa).filter_by(usuario_id=user.id, activo=True).first()
             )
 
             if relacion_rol:
@@ -64,7 +63,7 @@ def build_tenant_claims(db: Session, user: UsuarioEmpresa) -> Dict[str, Any]:
     )
     permisos_modulos = {f"ver_{m.modulo.url}": True for m in modulos_asignados}
 
-    permisos_finales: Dict[str, Any] = {**permisos, **permisos_modulos}
+    permisos_finales: dict[str, Any] = {**permisos, **permisos_modulos}
 
     plantilla = getattr(tenant, "plantilla_inicio", None) or "DefaultPlantilla"
 

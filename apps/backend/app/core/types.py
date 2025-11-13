@@ -9,7 +9,7 @@ transition to full UUID multi-tenant.
 """
 
 # app/core/types.py
-from typing import Protocol, runtime_checkable, Union
+from typing import Protocol, Union, runtime_checkable
 from uuid import UUID
 
 # Accept both int and UUID (and string UUID in some SQLite contexts)

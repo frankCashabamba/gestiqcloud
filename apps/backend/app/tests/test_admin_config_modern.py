@@ -25,8 +25,6 @@ def test_admin_config_tipo_empresa_crud(client: TestClient):
     assert te["nombre"] == "SRL"
 
     # Update
-    r2 = client.put(
-        f"/api/v1/admin/config/tipo-empresa/{te['id']}", json={"nombre": "EIRL"}
-    )
+    r2 = client.put(f"/api/v1/admin/config/tipo-empresa/{te['id']}", json={"nombre": "EIRL"})
     assert r2.status_code == 200
     assert r2.json()["nombre"] == "EIRL"

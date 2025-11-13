@@ -2,10 +2,11 @@
 Stripe Payment Provider
 """
 
-import stripe
-from typing import Dict, Any
-from decimal import Decimal
 import logging
+from decimal import Decimal
+from typing import Any
+
+import stripe
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 class StripeProvider:
     """Proveedor de pagos Stripe (España principalmente)"""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         self.api_key = config.get("secret_key")
         self.webhook_secret = config.get("webhook_secret")
 
@@ -29,8 +30,8 @@ class StripeProvider:
         invoice_id: str,
         success_url: str,
         cancel_url: str,
-        metadata: Dict[str, Any] = None,
-    ) -> Dict[str, str]:
+        metadata: dict[str, Any] = None,
+    ) -> dict[str, str]:
         """Crear sesión de pago Stripe Checkout"""
 
         try:
@@ -70,7 +71,7 @@ class StripeProvider:
             logger.error(f"Error Stripe: {e}")
             raise ValueError(f"Error creando sesión de pago: {str(e)}")
 
-    def handle_webhook(self, payload: bytes, headers: Dict[str, str]) -> Dict[str, Any]:
+    def handle_webhook(self, payload: bytes, headers: dict[str, str]) -> dict[str, Any]:
         """Procesar webhook de Stripe"""
 
         sig_header = headers.get("stripe-signature") or headers.get("Stripe-Signature")
@@ -79,9 +80,7 @@ class StripeProvider:
             raise ValueError("Firma de webhook no encontrada")
 
         try:
-            event = stripe.Webhook.construct_event(
-                payload, sig_header, self.webhook_secret
-            )
+            event = stripe.Webhook.construct_event(payload, sig_header, self.webhook_secret)
 
             logger.info(f"Webhook Stripe recibido: {event.type}")
 
@@ -96,9 +95,9 @@ class StripeProvider:
                     "amount": amount,
                     "currency": session.currency.upper(),
                     "payment_id": session.payment_intent,
-                    "customer_email": session.customer_details.email
-                    if session.customer_details
-                    else None,
+                    "customer_email": (
+                        session.customer_details.email if session.customer_details else None
+                    ),
                 }
 
             elif event.type == "payment_intent.succeeded":
@@ -120,9 +119,11 @@ class StripeProvider:
                 return {
                     "status": "failed",
                     "invoice_id": payment_intent.metadata.get("invoice_id"),
-                    "error": payment_intent.last_payment_error.message
-                    if payment_intent.last_payment_error
-                    else "Unknown error",
+                    "error": (
+                        payment_intent.last_payment_error.message
+                        if payment_intent.last_payment_error
+                        else "Unknown error"
+                    ),
                 }
 
             else:
@@ -137,7 +138,7 @@ class StripeProvider:
             logger.error(f"Error procesando webhook Stripe: {e}")
             raise
 
-    def refund(self, payment_id: str, amount: Decimal = None) -> Dict[str, Any]:
+    def refund(self, payment_id: str, amount: Decimal = None) -> dict[str, Any]:
         """Reembolsar pago via Stripe"""
 
         try:

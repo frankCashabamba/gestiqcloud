@@ -1,10 +1,9 @@
 """Schemas Pydantic para Gastos"""
 
 from datetime import date, datetime
-from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # Base schema
@@ -12,21 +11,17 @@ class GastoBase(BaseModel):
     """Campos comunes de Gasto"""
 
     numero: str = Field(..., max_length=50, description="Número de gasto")
-    proveedor_id: Optional[UUID] = Field(None, description="ID del proveedor")
-    categoria_gasto_id: Optional[UUID] = Field(
-        None, description="ID de categoría de gasto"
-    )
+    proveedor_id: UUID | None = Field(None, description="ID del proveedor")
+    categoria_gasto_id: UUID | None = Field(None, description="ID de categoría de gasto")
     fecha: date = Field(default_factory=date.today)
     concepto: str = Field(..., max_length=255, description="Concepto del gasto")
     subtotal: float = Field(default=0, ge=0)
     impuestos: float = Field(default=0, ge=0)
     total: float = Field(default=0, ge=0)
     estado: str = Field(default="draft", pattern="^(draft|approved|paid|cancelled)$")
-    metodo_pago: Optional[str] = Field(None, pattern="^(cash|card|transfer|check)$")
-    referencia: Optional[str] = Field(
-        None, max_length=100, description="Referencia bancaria o cheque"
-    )
-    notas: Optional[str] = None
+    metodo_pago: str | None = Field(None, pattern="^(cash|card|transfer|check)$")
+    referencia: str | None = Field(None, max_length=100, description="Referencia bancaria o cheque")
+    notas: str | None = None
 
 
 # Create schema
@@ -40,18 +35,18 @@ class GastoCreate(GastoBase):
 class GastoUpdate(BaseModel):
     """Schema para actualizar gasto (todos campos opcionales)"""
 
-    numero: Optional[str] = Field(None, max_length=50)
-    proveedor_id: Optional[UUID] = None
-    categoria_gasto_id: Optional[UUID] = None
-    fecha: Optional[date] = None
-    concepto: Optional[str] = Field(None, max_length=255)
-    subtotal: Optional[float] = Field(None, ge=0)
-    impuestos: Optional[float] = Field(None, ge=0)
-    total: Optional[float] = Field(None, ge=0)
-    estado: Optional[str] = Field(None, pattern="^(draft|approved|paid|cancelled)$")
-    metodo_pago: Optional[str] = Field(None, pattern="^(cash|card|transfer|check)$")
-    referencia: Optional[str] = Field(None, max_length=100)
-    notas: Optional[str] = None
+    numero: str | None = Field(None, max_length=50)
+    proveedor_id: UUID | None = None
+    categoria_gasto_id: UUID | None = None
+    fecha: date | None = None
+    concepto: str | None = Field(None, max_length=255)
+    subtotal: float | None = Field(None, ge=0)
+    impuestos: float | None = Field(None, ge=0)
+    total: float | None = Field(None, ge=0)
+    estado: str | None = Field(None, pattern="^(draft|approved|paid|cancelled)$")
+    metodo_pago: str | None = Field(None, pattern="^(cash|card|transfer|check)$")
+    referencia: str | None = Field(None, max_length=100)
+    notas: str | None = None
 
     model_config = ConfigDict(extra="forbid")
 

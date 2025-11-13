@@ -1,11 +1,9 @@
 from __future__ import annotations
 
+from app.core.login_rate_limit import check as _check
+from app.core.login_rate_limit import incr_fail as _incr_fail
+from app.core.login_rate_limit import reset as _reset
 from app.modules.identity.application.ports import RateLimiter
-from app.core.login_rate_limit import (
-    check as _check,
-    incr_fail as _incr_fail,
-    reset as _reset,
-)
 
 
 class SimpleRateLimiter(RateLimiter):

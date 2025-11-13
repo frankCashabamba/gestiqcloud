@@ -14,7 +14,7 @@
 
     async function testLogin() {
       output.textContent = 'Testing...\n';
-      
+
       try {
         // Test CSRF first
         output.textContent += `\nFetching CSRF: ${API_BASE}/v1/admin/auth/csrf\n`;
@@ -23,7 +23,7 @@
           headers: { 'Accept': 'application/json' }
         });
         output.textContent += `CSRF Status: ${csrfRes.status}\n`;
-        
+
         // Test Login
         output.textContent += `\nTesting Login: ${API_BASE}/v1/admin/auth/login\n`;
         const loginRes = await fetch(`${API_BASE}/v1/admin/auth/login`, {
@@ -38,11 +38,11 @@
             password: 'Admin.2025'
           })
         });
-        
+
         output.textContent += `Login Status: ${loginRes.status}\n`;
         const data = await loginRes.json();
         output.textContent += `Response: ${JSON.stringify(data, null, 2)}\n`;
-        
+
       } catch (err) {
         output.textContent += `\nError: ${err.message}\n`;
         output.textContent += `Stack: ${err.stack}\n`;

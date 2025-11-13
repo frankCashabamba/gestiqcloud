@@ -15,10 +15,10 @@ Notes:
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
-import sys
-import os
 import hashlib
+import os
+import sys
+from pathlib import Path
 
 
 def _read_sql(path: Path) -> str:

@@ -107,6 +107,6 @@ docker exec -i db psql -U postgres -d gestiqclouddb_dev < \
 
 ---
 
-**Estado**: Archivado  
-**Reemplazado por**: 2025-11-01_000_baseline_modern  
+**Estado**: Archivado
+**Reemplazado por**: 2025-11-01_000_baseline_modern
 **Fecha de archivo**: Nov 1, 2025

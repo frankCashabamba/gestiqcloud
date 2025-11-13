@@ -58,4 +58,3 @@ export async function deleteImportTemplate(
 ): Promise<void> {
     await api.delete(`/api/v1/imports/mappings/${id}`)
 }
-

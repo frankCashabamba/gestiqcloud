@@ -8,7 +8,7 @@ Tablas requeridas (ya deberían existir):
 
 ```sql
 -- Verificar tablas
-SELECT tablename FROM pg_tables 
+SELECT tablename FROM pg_tables
 WHERE tablename IN (
   'products', 'product_categories', 'stock_items', 'warehouses',
   'invoices', 'invoice_lines', 'clients',
@@ -247,7 +247,7 @@ journalctl -u gestiq-runner -f
 ```bash
 # Verificar batches recientes
 psql $DATABASE_URL -c "
-SELECT 
+SELECT
   source_type,
   status,
   COUNT(*) as count,
@@ -315,8 +315,8 @@ psql $DATABASE_URL -c "SELECT 1;"
 
 # Verificar RLS
 psql $DATABASE_URL -c "
-SELECT tablename, rowsecurity 
-FROM pg_tables 
+SELECT tablename, rowsecurity
+FROM pg_tables
 WHERE tablename LIKE 'import_%';
 "
 ```
@@ -392,14 +392,14 @@ IMPORTS_OCR_WORKERS=4
 
 ```sql
 -- Índices importantes
-CREATE INDEX CONCURRENTLY idx_import_items_batch_status 
+CREATE INDEX CONCURRENTLY idx_import_items_batch_status
   ON import_items(batch_id, status);
 
-CREATE INDEX CONCURRENTLY idx_import_items_promoted 
-  ON import_items(promoted_at) 
+CREATE INDEX CONCURRENTLY idx_import_items_promoted
+  ON import_items(promoted_at)
   WHERE status = 'PROMOTED';
 
-CREATE INDEX CONCURRENTLY idx_import_batches_tenant_created 
+CREATE INDEX CONCURRENTLY idx_import_batches_tenant_created
   ON import_batches(tenant_id, created_at DESC);
 ```
 
@@ -449,5 +449,5 @@ curl http://localhost:8000/api/v1/imports/batches \
 
 ---
 
-**Última actualización**: 2025-11-05  
+**Última actualización**: 2025-11-05
 **Versión**: 1.0.0

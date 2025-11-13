@@ -52,16 +52,16 @@ def validate_document(doc: dict, country: str):
     try:
         validator = get_validator_for_country(country)
         errors = []
-        
+
         if doc.get("tax_id"):
             errors.extend(validator.validate_tax_id(doc["tax_id"]))
-        
+
         if doc.get("invoice_number"):
             errors.extend(validator.validate_invoice_number(doc["invoice_number"]))
-        
+
         if doc.get("tax_rates"):
             errors.extend(validator.validate_tax_rates(doc["tax_rates"]))
-        
+
         return errors
     except ValueError as e:
         return [{"code": "UNSUPPORTED_COUNTRY", "message": str(e)}]
@@ -112,13 +112,13 @@ from typing import List
 
 class MXValidator(CountryValidator):
     """Validador para México (SAT)."""
-    
+
     VALID_IVA_RATES = [0.0, 8.0, 16.0]
-    
+
     def validate_tax_id(self, tax_id: str) -> List[ValidationError]:
         """Valida RFC mexicano."""
         errors = []
-        
+
         if not re.match(r"^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$", tax_id):
             errors.append(
                 self._create_error(
@@ -130,9 +130,9 @@ class MXValidator(CountryValidator):
                     },
                 )
             )
-        
+
         return errors
-    
+
     def validate_tax_rates(self, rates: List[float]) -> List[ValidationError]:
         """Valida tasas de IVA para México."""
         errors = []
@@ -150,7 +150,7 @@ class MXValidator(CountryValidator):
                     )
                 )
         return errors
-    
+
     def validate_invoice_number(self, number: str) -> List[ValidationError]:
         """Valida UUID de CFDI."""
         errors = []
@@ -185,34 +185,34 @@ from app.modules.imports.validators import get_validator_for_country
 def validate_batch(invoices: list[dict], country: str):
     """Valida un lote de facturas con reporte agregado."""
     validator = get_validator_for_country(country)
-    
+
     results = {
         "valid": [],
         "invalid": [],
         "stats": {"total": 0, "errors": 0, "warnings": 0}
     }
-    
+
     for idx, invoice in enumerate(invoices):
         errors = []
-        
+
         if invoice.get("issuer_tax_id"):
             errors.extend(validator.validate_tax_id(invoice["issuer_tax_id"]))
-        
+
         if invoice.get("invoice_number"):
             errors.extend(validator.validate_invoice_number(invoice["invoice_number"]))
-        
+
         if invoice.get("tax_rates"):
             errors.extend(validator.validate_tax_rates(invoice["tax_rates"]))
-        
+
         results["stats"]["total"] += 1
-        
+
         if errors:
             error_count = sum(1 for e in errors if e["severity"] == "error")
             warning_count = sum(1 for e in errors if e["severity"] == "warning")
-            
+
             results["stats"]["errors"] += error_count
             results["stats"]["warnings"] += warning_count
-            
+
             results["invalid"].append({
                 "index": idx,
                 "invoice": invoice,
@@ -220,7 +220,7 @@ def validate_batch(invoices: list[dict], country: str):
             })
         else:
             results["valid"].append(invoice)
-    
+
     return results
 
 # Uso
@@ -255,13 +255,13 @@ def explain_error(code: str, params: dict = None):
     """Genera mensaje de ayuda para un código de error."""
     if code not in ERROR_CATALOG:
         return f"Error desconocido: {code}"
-    
+
     error_def = ERROR_CATALOG[code]
     message = error_def["message_template"]
-    
+
     if params:
         message = message.format(**params)
-    
+
     return f"""
 ERROR: {message}
 ACCIÓN SUGERIDA: {error_def["suggested_action"]}

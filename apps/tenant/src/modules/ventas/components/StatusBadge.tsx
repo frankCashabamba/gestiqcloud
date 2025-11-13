@@ -16,18 +16,17 @@ export default function StatusBadge({ estado }: { estado: EstadoVenta }) {
   const label = e ? e.charAt(0).toUpperCase() + e.slice(1) : '-'
 
   return (
-    <span style={{ 
-      padding: '3px 10px', 
-      borderRadius: 999, 
-      fontSize: 11, 
-      fontWeight: 600, 
+    <span style={{
+      padding: '3px 10px',
+      borderRadius: 999,
+      fontSize: 11,
+      fontWeight: 600,
       textTransform: 'uppercase',
       letterSpacing: '0.02em',
       display: 'inline-block',
-      ...style 
+      ...style
     }}>
       {label}
     </span>
   )
 }
-

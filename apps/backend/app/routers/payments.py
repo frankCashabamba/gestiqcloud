@@ -1,20 +1,20 @@
-﻿"""
+"""
 Payments Router - Payment links and webhooks
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from pydantic import BaseModel, Field
-from uuid import UUID
-from decimal import Decimal
-from typing import Optional, Dict, Any
 import logging
+from decimal import Decimal
+from typing import Any
+from uuid import UUID
 
 from app.config.database import get_db
 from app.middleware.tenant import ensure_tenant, get_current_user
 from app.services.payments import get_provider
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
@@ -30,9 +30,9 @@ class PaymentLinkRequest(BaseModel):
 
     invoice_id: UUID
     provider: str = Field(..., pattern="^(stripe|kushki|payphone)$")
-    success_url: Optional[str] = None
-    cancel_url: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    success_url: str | None = None
+    cancel_url: str | None = None
+    metadata: dict[str, Any] | None = Field(default_factory=dict)
 
 
 class PaymentLinkResponse(BaseModel):
@@ -40,8 +40,8 @@ class PaymentLinkResponse(BaseModel):
 
     url: str
     session_id: str
-    payment_id: Optional[str] = None
-    expires_at: Optional[str] = None
+    payment_id: str | None = None
+    expires_at: str | None = None
 
 
 # ============================================================================
@@ -49,17 +49,19 @@ class PaymentLinkResponse(BaseModel):
 # ============================================================================
 
 
-def get_provider_config(provider: str, tenant_id: str, db: Session) -> Dict[str, Any]:
+def get_provider_config(provider: str, tenant_id: str, db: Session) -> dict[str, Any]:
     """Obtener configuración del proveedor desde DB"""
 
-    query = text("""
+    query = text(
+        """
         SELECT config
         FROM payment_providers
         WHERE tenant_id = :tenant_id
           AND provider = :provider
           AND active = true
         LIMIT 1
-    """)
+    """
+    )
 
     result = db.execute(query, {"tenant_id": tenant_id, "provider": provider}).first()
 
@@ -93,18 +95,20 @@ def get_provider_config(provider: str, tenant_id: str, db: Session) -> Dict[str,
     return result[0]
 
 
-def get_invoice_data(invoice_id: UUID, db: Session) -> Dict[str, Any]:
+def get_invoice_data(invoice_id: UUID, db: Session) -> dict[str, Any]:
     """Obtener datos de factura"""
 
-    query = text("""
-        SELECT 
+    query = text(
+        """
+        SELECT
             i.id, i.numero, i.total, i.estado,
             c.name as cliente_nombre,
             c.email as cliente_email
         FROM invoices i
         LEFT JOIN clientes c ON c.id = i.cliente_id
         WHERE i.id = :invoice_id
-    """)
+    """
+    )
 
     result = db.execute(query, {"invoice_id": str(invoice_id)}).first()
 
@@ -149,12 +153,8 @@ def create_payment_link(
 
     # 4. URLs de callback
     base_url = "https://tu-dominio.com"  # TODO: desde config
-    success_url = (
-        data.success_url or f"{base_url}/payments/success?invoice_id={invoice['id']}"
-    )
-    cancel_url = (
-        data.cancel_url or f"{base_url}/payments/cancel?invoice_id={invoice['id']}"
-    )
+    success_url = data.success_url or f"{base_url}/payments/success?invoice_id={invoice['id']}"
+    cancel_url = data.cancel_url or f"{base_url}/payments/cancel?invoice_id={invoice['id']}"
 
     # 5. Crear enlace
     try:
@@ -172,7 +172,8 @@ def create_payment_link(
         )
 
         # 6. Guardar en DB
-        insert_query = text("""
+        insert_query = text(
+            """
             INSERT INTO payment_links (
                 id, tenant_id, invoice_id, provider,
                 session_id, payment_url, status, created_by
@@ -181,7 +182,8 @@ def create_payment_link(
                 gen_random_uuid(), :tenant_id, :invoice_id, :provider,
                 :session_id, :payment_url, 'pending', :created_by
             )
-        """)
+        """
+        )
 
         db.execute(
             insert_query,
@@ -214,9 +216,7 @@ def create_payment_link(
 
 
 @router.post("/webhook/{provider}")
-async def handle_webhook(
-    provider: str, request: Request, db: Session = Depends(get_db)
-):
+async def handle_webhook(provider: str, request: Request, db: Session = Depends(get_db)):
     """Procesar webhooks de proveedores de pago"""
 
     try:
@@ -243,22 +243,26 @@ async def handle_webhook(
             invoice_id = result.get("invoice_id")
 
             if invoice_id:
-                update_query = text("""
+                update_query = text(
+                    """
                     UPDATE invoices
                     SET estado = 'paid'
                     WHERE id = :invoice_id
                       AND estado != 'paid'
-                """)
+                """
+                )
 
                 db.execute(update_query, {"invoice_id": invoice_id})
 
                 # Actualizar link
-                update_link = text("""
+                update_link = text(
+                    """
                     UPDATE payment_links
                     SET status = 'completed', completed_at = NOW()
                     WHERE invoice_id = :invoice_id
                       AND status = 'pending'
-                """)
+                """
+                )
 
                 db.execute(update_link, {"invoice_id": invoice_id})
 
@@ -270,13 +274,15 @@ async def handle_webhook(
             invoice_id = result.get("invoice_id")
 
             if invoice_id:
-                update_link = text("""
+                update_link = text(
+                    """
                     UPDATE payment_links
-                    SET status = 'failed', 
+                    SET status = 'failed',
                         error_message = :error
                     WHERE invoice_id = :invoice_id
                       AND status = 'pending'
-                """)
+                """
+                )
 
                 db.execute(
                     update_link,
@@ -308,8 +314,9 @@ def get_payment_status(
 ):
     """Consultar estado de pago"""
 
-    query = text("""
-        SELECT 
+    query = text(
+        """
+        SELECT
             pl.id, pl.provider, pl.status, pl.payment_url,
             pl.created_at, pl.completed_at, pl.error_message,
             i.total, i.estado as invoice_status
@@ -319,11 +326,10 @@ def get_payment_status(
           AND pl.tenant_id = :tenant_id
         ORDER BY pl.created_at DESC
         LIMIT 1
-    """)
+    """
+    )
 
-    result = db.execute(
-        query, {"invoice_id": str(invoice_id), "tenant_id": tenant_id}
-    ).first()
+    result = db.execute(query, {"invoice_id": str(invoice_id), "tenant_id": tenant_id}).first()
 
     if not result:
         raise HTTPException(404, "No se encontró información de pago")
@@ -344,7 +350,7 @@ def get_payment_status(
 @router.post("/refund/{payment_id}")
 def refund_payment(
     payment_id: str,
-    amount: Optional[Decimal] = None,
+    amount: Decimal | None = None,
     db: Session = Depends(get_db),
     tenant_id: str = Depends(ensure_tenant),
     current_user: dict = Depends(get_current_user),
@@ -352,18 +358,18 @@ def refund_payment(
     """Reembolsar pago"""
 
     # 1. Buscar payment
-    query = text("""
+    query = text(
+        """
         SELECT pl.provider, pl.session_id, i.total
         FROM payment_links pl
         JOIN invoices i ON i.id = pl.invoice_id
         WHERE pl.session_id = :payment_id
           AND pl.tenant_id = :tenant_id
           AND pl.status = 'completed'
-    """)
+    """
+    )
 
-    payment = db.execute(
-        query, {"payment_id": payment_id, "tenant_id": tenant_id}
-    ).first()
+    payment = db.execute(query, {"payment_id": payment_id, "tenant_id": tenant_id}).first()
 
     if not payment:
         raise HTTPException(404, "Pago no encontrado o no completado")
@@ -379,12 +385,13 @@ def refund_payment(
         result = provider.refund(payment_id, refund_amount)
 
         # 4. Registrar reembolso
-        insert_refund = text("""
+        insert_refund = text(
+            """
             INSERT INTO payment_refunds (
                 id, payment_link_id, amount, status,
                 refund_id, created_by
             )
-            SELECT 
+            SELECT
                 gen_random_uuid(),
                 pl.id,
                 :amount,
@@ -393,7 +400,8 @@ def refund_payment(
                 :created_by
             FROM payment_links pl
             WHERE pl.session_id = :payment_id
-        """)
+        """
+        )
 
         db.execute(
             insert_refund,

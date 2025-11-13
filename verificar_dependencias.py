@@ -3,17 +3,19 @@
 
 import sys
 
+
 def check_dependency(name: str, import_name: str = None):
     """Verifica si una dependencia está instalada."""
     import_name = import_name or name
     try:
         module = __import__(import_name)
-        version = getattr(module, '__version__', 'OK')
+        version = getattr(module, "__version__", "OK")
         print(f"✅ {name}: {version}")
         return True
     except ImportError:
         print(f"❌ {name}: NO INSTALADO")
         return False
+
 
 print("=" * 60)
 print("VERIFICACIÓN DE DEPENDENCIAS PARA IMPORTADOR OCR")
@@ -36,25 +38,28 @@ check_dependency("Pyzbar (QR)", "pyzbar")
 # Verificar configuración de Tesseract
 print("\n🔧 Configuración de Tesseract:")
 try:
+    import io
+
     import pytesseract
     from PIL import Image
-    import io
-    
+
     # Crear imagen de prueba
-    test_img = Image.new('RGB', (100, 30), color='white')
-    
+    test_img = Image.new("RGB", (100, 30), color="white")
+
     # Intentar ejecutar Tesseract
     try:
         pytesseract.get_tesseract_version()
         print("✅ Tesseract ejecutable encontrado y funcional")
     except Exception as e:
-        print(f"⚠️ Tesseract instalado pero no encontrado en PATH:")
+        print("⚠️ Tesseract instalado pero no encontrado en PATH:")
         print(f"   Error: {e}")
-        print(f"\n   Solución en Windows:")
-        print(f"   1. Descarga: https://github.com/UB-Mannheim/tesseract/wiki")
-        print(f"   2. Instala en: C:\\Program Files\\Tesseract-OCR\\")
-        print(f"   3. Agrega al PATH o configura:")
-        print(f"      pytesseract.pytesseract.tesseract_cmd = r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'")
+        print("\n   Solución en Windows:")
+        print("   1. Descarga: https://github.com/UB-Mannheim/tesseract/wiki")
+        print("   2. Instala en: C:\\Program Files\\Tesseract-OCR\\")
+        print("   3. Agrega al PATH o configura:")
+        print(
+            "      pytesseract.pytesseract.tesseract_cmd = r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'"
+        )
 except ImportError:
     print("⚠️ No se puede verificar Tesseract (pytesseract no instalado)")
 

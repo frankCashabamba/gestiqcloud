@@ -38,22 +38,22 @@
 - **Imports**: Sistema batch con validación/correcciones/promoción
 
 ### ¿Qué Ya Funciona?
-✅ Multi‑tenant con RLS (tenant_id int + tenant_id UUID en migración)  
-✅ Migraciones automáticas (ops/migrations/ + bootstrap_imports.py)  
-✅ Sistema de importaciones con batch/validación/promoción  
-✅ Inventario con stock_moves y warehouse  
-✅ PWA con Service Worker (outbox offline‑lite + caché GET)  
-✅ Celery worker orquestado (einvoicing tasks, stub funcional)  
-✅ Edge gateway (Cloudflare) para CORS/auth  
+✅ Multi‑tenant con RLS (tenant_id int + tenant_id UUID en migración)
+✅ Migraciones automáticas (ops/migrations/ + bootstrap_imports.py)
+✅ Sistema de importaciones con batch/validación/promoción
+✅ Inventario con stock_moves y warehouse
+✅ PWA con Service Worker (outbox offline‑lite + caché GET)
+✅ Celery worker orquestado (einvoicing tasks, stub funcional)
+✅ Edge gateway (Cloudflare) para CORS/auth
 ✅ Webhooks y auditoría (auth_audit_log)
 
 ### ¿Qué Falta para el MVP?
-🔲 **TPV/POS**: Interfaz frontend + endpoints completos (ticket→factura, devoluciones)  
-🔲 **Numeración documental**: Serie+correlativo por registro/caja  
-🔲 **E‑factura operativa**: EC SRI XML firmado + ES Facturae completo  
-🔲 **Pagos online**: Enlaces (Stripe ES, Kushki/PayPhone EC)  
-🔲 **Impresión térmica**: Plantillas HTML 58/80mm  
-🔲 **Vales/Store Credit**: Devoluciones sin efectivo  
+🔲 **TPV/POS**: Interfaz frontend + endpoints completos (ticket→factura, devoluciones)
+🔲 **Numeración documental**: Serie+correlativo por registro/caja
+🔲 **E‑factura operativa**: EC SRI XML firmado + ES Facturae completo
+🔲 **Pagos online**: Enlaces (Stripe ES, Kushki/PayPhone EC)
+🔲 **Impresión térmica**: Plantillas HTML 58/80mm
+🔲 **Vales/Store Credit**: Devoluciones sin efectivo
 🔲 **Offline‑first real**: ElectricSQL/PGlite (iteración futura)
 
 ---
@@ -84,27 +84,27 @@ graph TB
         POS[POS/Tenant PWA<br/>React + Workbox SW]
         ADM[Admin PWA<br/>React + Vite]
     end
-    
+
     subgraph "Edge Layer"
         EDGE[Cloudflare Worker<br/>edge-gateway.js<br/>CORS + Auth]
     end
-    
+
     subgraph "Backend FastAPI"
         API[FastAPI BFF<br/>/api/v1/*<br/>RLS Middleware]
         ROUTERS[Routers:<br/>pos, einvoicing,<br/>inventory, sales]
         MODS[Modules:<br/>imports, einvoicing]
     end
-    
+
     subgraph "Async Workers"
         CELERY[Celery Worker<br/>Redis broker]
         TASKS[Tasks:<br/>sign_sri, sign_facturae<br/>send_email, export]
     end
-    
+
     subgraph "Database"
         PG[(Postgres 15<br/>RLS + tenant_id)]
         REDIS[(Redis)]
     end
-    
+
     subgraph "Storage & External"
         S3[S3/Local<br/>Uploads/Certs]
         SRI[EC SRI API]
@@ -112,7 +112,7 @@ graph TB
         STRIPE[Stripe API]
         KUSHKI[Kushki/PayPhone]
     end
-    
+
     POS -->|REST/WebSocket| EDGE
     ADM -->|REST| EDGE
     EDGE -->|Proxy + JWT| API
@@ -128,7 +128,7 @@ graph TB
     API --> STRIPE
     API --> KUSHKI
     API --> S3
-    
+
     style POS fill:#4A90E2
     style API fill:#50C878
     style CELERY fill:#FF6B6B
@@ -793,7 +793,7 @@ pytest apps/backend/app/tests -v
 ### ✅ Ya Implementado (Enero 2025)
 1. ✅ **Migraciones SQL** - 2 nuevas migraciones creadas
 2. ✅ **Router POS completo** - 900 líneas (13 endpoints)
-3. ✅ **Router Payments** - 250 líneas (4 endpoints)  
+3. ✅ **Router Payments** - 250 líneas (4 endpoints)
 4. ✅ **Workers E-factura** - 700 líneas (SRI + Facturae)
 5. ✅ **3 Providers de pago** - Stripe, Kushki, PayPhone
 6. ✅ **Plantillas HTML** - 58mm y 80mm completas
@@ -827,7 +827,7 @@ pytest apps/backend/app/tests -v
 
 ### Backend API
 - ✅ **POS**: 100% implementado (900 líneas)
-- ✅ **Payments**: 100% implementado (250 líneas)  
+- ✅ **Payments**: 100% implementado (250 líneas)
 - ✅ **E-factura**: 95% implementado (700 líneas workers)
 - ✅ **Numeración**: 100% implementado (150 líneas)
 - ✅ **Store Credits**: 100% implementado (migraciones + lógica)
@@ -852,10 +852,10 @@ pytest apps/backend/app/tests -v
 - ✅ **IMPLEMENTATION_COMPLETE.md**: Guía de activación
 
 ### Progreso Global
-**Backend**: 95% completo ✅  
-**Frontend**: 40% completo 📝  
-**Infraestructura**: 90% completo ✅  
-**Documentación**: 100% completo ✅  
+**Backend**: 95% completo ✅
+**Frontend**: 40% completo 📝
+**Infraestructura**: 90% completo ✅
+**Documentación**: 100% completo ✅
 
 **TOTAL MVP**: ~75% completo 📊
 
@@ -905,8 +905,7 @@ scripts/
 
 ---
 
-**Versión**: 1.0.0  
-**Última actualización**: Enero 2025  
-**Estado**: Backend Production-Ready ✅  
+**Versión**: 1.0.0
+**Última actualización**: Enero 2025
+**Estado**: Backend Production-Ready ✅
 **Mantenedores**: GestiQCloud Team
-

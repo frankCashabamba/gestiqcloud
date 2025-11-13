@@ -2,8 +2,8 @@
 Payments Service - Payment providers integration
 """
 
-from typing import Protocol, Dict, Any
 from decimal import Decimal
+from typing import Any, Dict, Protocol
 
 
 class PaymentProvider(Protocol):
@@ -16,8 +16,8 @@ class PaymentProvider(Protocol):
         invoice_id: str,
         success_url: str,
         cancel_url: str,
-        metadata: Dict[str, Any] = None,
-    ) -> Dict[str, str]:
+        metadata: dict[str, Any] = None,
+    ) -> dict[str, str]:
         """
         Crear enlace de pago.
 
@@ -26,7 +26,7 @@ class PaymentProvider(Protocol):
         """
         ...
 
-    def handle_webhook(self, payload: bytes, headers: Dict[str, str]) -> Dict[str, Any]:
+    def handle_webhook(self, payload: bytes, headers: dict[str, str]) -> dict[str, Any]:
         """
         Procesar webhook del proveedor.
 
@@ -35,7 +35,7 @@ class PaymentProvider(Protocol):
         """
         ...
 
-    def refund(self, payment_id: str, amount: Decimal = None) -> Dict[str, Any]:
+    def refund(self, payment_id: str, amount: Decimal = None) -> dict[str, Any]:
         """
         Reembolsar pago.
 
@@ -46,7 +46,7 @@ class PaymentProvider(Protocol):
         ...
 
 
-def get_provider(name: str, config: Dict[str, Any]) -> PaymentProvider:
+def get_provider(name: str, config: dict[str, Any]) -> PaymentProvider:
     """Factory para obtener proveedor de pago"""
 
     if name == "stripe":

@@ -1,8 +1,8 @@
 # 🧪 Testing Completo - Todos los Módulos
 
-**Fecha:** 03 Noviembre 2025  
-**Backend:** http://localhost:8000  
-**Frontend:** http://localhost:8082  
+**Fecha:** 03 Noviembre 2025
+**Backend:** http://localhost:8000
+**Frontend:** http://localhost:8082
 **Estado:** Listo para testing
 
 ---
@@ -337,6 +337,6 @@ type ops\migrations\2025-11-03_201_hr_nominas\up.sql | docker exec -i db psql -U
 
 ---
 
-**Estado actual:** Backend 100% → Testing manual pendiente  
-**Frontend:** Contabilidad creado → Verificar build  
+**Estado actual:** Backend 100% → Testing manual pendiente
+**Frontend:** Contabilidad creado → Verificar build
 **Base Datos:** Migraciones aplicadas → Testing pendiente

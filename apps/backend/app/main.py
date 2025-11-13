@@ -1,20 +1,22 @@
-from fastapi import FastAPI, Response, Request
+import asyncio
+import importlib
+import logging
+import os
+import sys
+import types
+from contextlib import asynccontextmanager
+from pathlib import Path
+from urllib import error as urlerror
+from urllib import request as urlrequest
+
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.openapi.docs import (
     get_redoc_html,
     get_swagger_ui_html,
     get_swagger_ui_oauth2_redirect_html,
 )
-from pathlib import Path
-import logging
-import os
-import sys
-import types
-import importlib
-from contextlib import asynccontextmanager
-import asyncio
-from urllib import request as urlrequest, error as urlerror
+from fastapi.staticfiles import StaticFiles
 
 # Set import aliases so both `app.*` and `apps.backend.app.*` imports work
 try:
@@ -34,14 +36,13 @@ try:
 except Exception:
     pass
 
-from .platform.http.router import build_api_router
 from .config.settings import settings
 from .core.sessions import SessionMiddlewareServerSide
-from .middleware.security_headers import security_headers_middleware
-from .telemetry.otel import init_fastapi
-from .middleware.request_log import RequestLogMiddleware
 from .middleware.rate_limit import RateLimitMiddleware
-
+from .middleware.request_log import RequestLogMiddleware
+from .middleware.security_headers import security_headers_middleware
+from .platform.http.router import build_api_router
+from .telemetry.otel import init_fastapi
 
 app = FastAPI(
     title="GestiqCloud API",
@@ -88,9 +89,7 @@ async def _bootstrap_docs_assets() -> None:
     try:
         await _ensure_docs_assets()
     except Exception as exc:
-        logging.getLogger("app.docs").warning(
-            "Could not prepare Swagger/ReDoc assets: %s", exc
-        )
+        logging.getLogger("app.docs").warning("Could not prepare Swagger/ReDoc assets: %s", exc)
 
 
 app.mount("/docs/assets", StaticFiles(directory=str(DOCS_ASSETS_DIR)), name="docs-assets")
@@ -140,6 +139,7 @@ async def _rewrite_v1_to_api_v1(request: Request, call_next):
     response = await call_next(request)
     return response
 
+
 # UTF-8 middleware
 @app.middleware("http")
 async def force_utf8_response(request, call_next):
@@ -151,11 +151,11 @@ async def force_utf8_response(request, call_next):
 
 # CORS
 allow_origins = (
-    settings.CORS_ORIGINS
-    if isinstance(settings.CORS_ORIGINS, list)
-    else [settings.CORS_ORIGINS]
+    settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else [settings.CORS_ORIGINS]
 )
-raw_methods = getattr(settings, "CORS_ALLOW_METHODS", ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+raw_methods = getattr(
+    settings, "CORS_ALLOW_METHODS", ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+)
 if isinstance(raw_methods, str):
     allow_methods = [m.strip().upper() for m in raw_methods.split(",") if m.strip()]
 else:
@@ -213,7 +213,7 @@ except Exception:
 # Endpoint-specific rate limiting (críticos: login, password reset, etc.)
 try:
     from app.middleware.endpoint_rate_limit import EndpointRateLimiter
-    
+
     app.add_middleware(
         EndpointRateLimiter,
         limits={
@@ -224,7 +224,7 @@ try:
             "/api/v1/tenant/auth/password-reset-confirm": (5, 300),
             "/api/v1/admin/usuarios": (30, 60),
             "/api/v1/admin/empresas": (20, 60),
-        }
+        },
     )
     logging.getLogger("app.startup").info("Endpoint-specific rate limiting enabled")
 except Exception as e:
@@ -245,19 +245,21 @@ def health():
 def ready():
     """Healthcheck profundo: verifica DB y Redis"""
     checks = {"database": False, "redis": False}
-    
+
     # Check database
     try:
         from app.config.database import ping as db_ping  # type: ignore
+
         checks["database"] = bool(db_ping())
     except Exception as e:
         logging.getLogger("app.health").warning(f"DB health check failed: {e}")
         checks["database"] = False
-    
+
     # Check Redis (si está configurado)
     if settings.REDIS_URL:
         try:
             import redis
+
             r = redis.from_url(settings.REDIS_URL, socket_connect_timeout=2)
             r.ping()
             checks["redis"] = True
@@ -266,13 +268,13 @@ def ready():
             checks["redis"] = False
     else:
         checks["redis"] = True  # No required, mark as OK
-    
+
     all_ok = all(checks.values())
     status_code = 200 if all_ok else 503
     return Response(
         content=f'{{"status": "{"ok" if all_ok else "fail"}", "checks": {checks}}}'.encode(),
         media_type="application/json",
-        status_code=status_code
+        status_code=status_code,
     )
 
 
@@ -344,7 +346,7 @@ app.include_router(build_api_router(), prefix="/api/v1")
 #
 # Routers eliminados:
 # - POS → app/modules/pos/interface/http/tenant.py
-# - Products → app/modules/productos/interface/http/tenant.py  
+# - Products → app/modules/productos/interface/http/tenant.py
 # - Payments → app/modules/reconciliation/interface/http/tenant.py (pendiente)
 # - E-invoicing → app/modules/einvoicing/interface/http/tenant.py
 # - Finance → app/modules/finanzas/interface/http/tenant.py
@@ -379,9 +381,7 @@ except Exception as e:
 
 # Admin field configuration (nuevos endpoints de settings)
 try:
-    from app.modules.settings.interface.http.tenant import (
-        admin_router as _admin_field_router,
-    )
+    from app.modules.settings.interface.http.tenant import admin_router as _admin_field_router
 
     app.include_router(_admin_field_router, prefix="/api/v1")
 except Exception:
@@ -390,9 +390,7 @@ except Exception:
 
 # Tenant field config (lectura pública por tenant)
 try:
-    from app.modules.settings.interface.http.tenant import (
-        router as _tenant_settings_router,
-    )
+    from app.modules.settings.interface.http.tenant import router as _tenant_settings_router
 
     app.include_router(_tenant_settings_router, prefix="/api/v1/tenant/settings")
 except Exception:
@@ -491,10 +489,8 @@ except Exception:
 if not has_imports:
     mounted = False
     try:
-        from .modules.imports.interface.http.tenant import (
-            router as _rel_imports_router,
-            public_router as _rel_imports_public,
-        )
+        from .modules.imports.interface.http.tenant import public_router as _rel_imports_public
+        from .modules.imports.interface.http.tenant import router as _rel_imports_router
 
         app.include_router(_rel_imports_router, prefix="/api/v1")
         app.include_router(_rel_imports_public, prefix="/api/v1")
@@ -502,11 +498,9 @@ if not has_imports:
     except Exception:
         pass
     try:
-        from app.modules.imports.interface.http.tenant import (
-            router as _imports_router,
-            public_router as _imports_public,
-        )
         from app.modules.imports.interface.http.preview import router as _preview_router
+        from app.modules.imports.interface.http.tenant import public_router as _imports_public
+        from app.modules.imports.interface.http.tenant import router as _imports_router
 
         app.include_router(_imports_router, prefix="/api/v1")
         app.include_router(_imports_public, prefix="/api/v1")
@@ -517,8 +511,10 @@ if not has_imports:
     if not mounted:
         try:
             from backend.app.modules.imports.interface.http.tenant import (
-                router as _imports_router_b,
                 public_router as _imports_public_b,
+            )
+            from backend.app.modules.imports.interface.http.tenant import (
+                router as _imports_router_b,
             )
 
             app.include_router(_imports_router_b, prefix="/api/v1")
@@ -529,6 +525,7 @@ if not has_imports:
 # Preview router (standalone)
 try:
     from app.modules.imports.interface.http.preview import router as preview_router
+
     app.include_router(preview_router, prefix="/api/v1/imports")
     print("[INFO] Preview router mounted at /api/v1/imports/preview")
 except Exception as e:
@@ -537,6 +534,7 @@ except Exception as e:
 # IA Classification router (Fase D)
 try:
     from app.modules.imports.ai.http_endpoints import router as ai_router
+
     app.include_router(ai_router, prefix="/api/v1/imports")
     _router_logger.info("IA Classification router mounted at /api/v1/imports/ai")
 except Exception as e:
@@ -618,11 +616,7 @@ async def lifespan(app: FastAPI):
     runner_to_start = None
     global _imports_job_runner
     try:
-        if (
-            _imports_job_runner is None
-            and _imports_enabled()
-            and _imports_tables_ready()
-        ):
+        if _imports_job_runner is None and _imports_enabled() and _imports_tables_ready():
             try:
                 from app.modules.imports.application.job_runner import job_runner as _jr
 
@@ -655,9 +649,7 @@ async def lifespan(app: FastAPI):
             loop = asyncio.get_event_loop()
             loop.run_in_executor(None, _start_runner)
         except Exception:
-            logging.getLogger("app.startup").exception(
-                "Failed starting imports runner post-bind"
-            )
+            logging.getLogger("app.startup").exception("Failed starting imports runner post-bind")
     # shutdown
     if _imports_job_runner:
         try:

@@ -7,7 +7,6 @@ Uso: python update_golden.py
 import json
 from pathlib import Path
 
-
 GOLDEN_DIR = Path(__file__).parent / "golden_outputs"
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "documents"
 
@@ -40,7 +39,7 @@ def update_bank_csv():
     from app.modules.imports.extractores.bank_extractor import extract_bank_csv
 
     csv_path = FIXTURES_DIR / "banco_movimientos.csv"
-    with open(csv_path, "r", encoding="utf-8") as f:
+    with open(csv_path, encoding="utf-8") as f:
         extracted = extract_bank_csv(f.read())
 
     output_path = GOLDEN_DIR / "banco_movimientos.json"

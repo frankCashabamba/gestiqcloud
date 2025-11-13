@@ -35,7 +35,7 @@ interface ProductosResponse {
 const ProductosImportados: React.FC = () => {
   const { token, profile } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
-  
+
   const [productos, setProductos] = useState<ProductoImportado[]>([])
   const [autoMode, setAutoMode] = useState(true)
   const [targetWarehouse, setTargetWarehouse] = useState('ALM-1')
@@ -45,7 +45,7 @@ const ProductosImportados: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<Partial<ProductoImportado>>({})
-  
+
   const batchId = searchParams.get('batch_id')
   const status = searchParams.get('status') || 'OK'
   const offset = parseInt(searchParams.get('offset') || '0', 10)
@@ -55,10 +55,10 @@ const ProductosImportados: React.FC = () => {
     try {
       setLoading(true)
       // Si hay batchId, usar endpoint específico; sino, listar todos
-      const endpoint = batchId 
+      const endpoint = batchId
         ? `/api/v1/imports/batches/${batchId}/items/products`
         : '/api/v1/imports/items/products'
-      
+
       const url = new URL(endpoint, window.location.origin)
       if (status) url.searchParams.set('status', status)
       url.searchParams.set('offset', offset.toString())
@@ -75,7 +75,7 @@ const ProductosImportados: React.FC = () => {
       })
 
       if (!res.ok) throw new Error(`Error ${res.status}: ${res.statusText}`)
-      
+
       const data: ProductosResponse = await res.json()
       setProductos(data.items)
       setTotal(data.total)
@@ -180,7 +180,7 @@ const ProductosImportados: React.FC = () => {
 
       const result = await res.json()
       alert(`✅ ${result.deleted} productos eliminados`)
-      
+
       setSelectedIds(new Set())
       fetchProductos()
     } catch (err: any) {
@@ -198,10 +198,10 @@ const ProductosImportados: React.FC = () => {
 
     try {
       // Si hay batchId, promover todo el batch; sino, promover items individuales
-      const endpoint = batchId 
+      const endpoint = batchId
         ? `/api/v1/imports/batches/${batchId}/promote`
         : '/api/v1/imports/items/promote'
-      
+
       const url = new URL(endpoint, window.location.origin)
       if (autoMode) {
         url.searchParams.set('auto', '1')
@@ -226,14 +226,14 @@ const ProductosImportados: React.FC = () => {
 
       const result = await res.json()
       console.log('🎯 Resultado de promoción:', result)
-      
+
       if (result.errors && result.errors.length > 0) {
         console.error('❌ Errores en promoción:', result.errors.slice(0, 5))
         alert(`Promovidos: ${result.promoted}/${result.total}\nErrores: ${result.errors.length}\nRevisa la consola para detalles.`)
       } else {
         alert(`✅ ${result.promoted} productos promovidos exitosamente`)
       }
-      
+
       setSelectedIds(new Set())
       fetchProductos()
     } catch (err: any) {
@@ -328,7 +328,7 @@ const ProductosImportados: React.FC = () => {
             <option value="ERROR_VALIDATION">Con errores</option>
             <option value="PROMOTED">Promovidos</option>
           </select>
-          
+
           {!batchId && (
             <span className="text-xs text-neutral-500 ml-2">
               Mostrando productos de todos los lotes importados

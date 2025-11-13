@@ -13,9 +13,9 @@ Outputs a summary of:
 
 from __future__ import annotations
 
+import fnmatch
 import os
 import re
-import fnmatch
 import subprocess
 from pathlib import Path
 

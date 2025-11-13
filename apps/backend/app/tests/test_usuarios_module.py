@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 from fastapi.testclient import TestClient
 
 TENANT_LOGIN = {
@@ -26,7 +26,7 @@ def tenant_headers(client: TestClient, usuario_empresa_factory, seed_tenant_cont
 
 @pytest.fixture
 def seed_tenant_context(db, usuario_empresa_factory):
-    from app.models.core.modulo import Modulo, EmpresaModulo
+    from app.models.core.modulo import EmpresaModulo, Modulo
     from app.models.empresa.rolempresas import RolEmpresa
     from app.models.empresa.usuarioempresa import UsuarioEmpresa
 
@@ -63,18 +63,12 @@ def seed_tenant_context(db, usuario_empresa_factory):
 
     for modulo in (modulo_a, modulo_b):
         exists_link = (
-            db.query(EmpresaModulo)
-            .filter_by(tenant_id=tenant.id, modulo_id=modulo.id)
-            .first()
+            db.query(EmpresaModulo).filter_by(tenant_id=tenant.id, modulo_id=modulo.id).first()
         )
         if not exists_link:
             db.add(EmpresaModulo(tenant_id=tenant.id, modulo_id=modulo.id, activo=True))
 
-    rol_admin = (
-        db.query(RolEmpresa)
-        .filter_by(tenant_id=tenant.id, nombre="Super Admin")
-        .first()
-    )
+    rol_admin = db.query(RolEmpresa).filter_by(tenant_id=tenant.id, nombre="Super Admin").first()
     if not rol_admin:
         rol_admin = RolEmpresa(
             tenant_id=tenant.id,
@@ -88,9 +82,7 @@ def seed_tenant_context(db, usuario_empresa_factory):
         if not rol_admin.permisos:
             rol_admin.permisos = {}
 
-    rol_editor = (
-        db.query(RolEmpresa).filter_by(tenant_id=tenant.id, nombre="Editor").first()
-    )
+    rol_editor = db.query(RolEmpresa).filter_by(tenant_id=tenant.id, nombre="Editor").first()
     if not rol_editor:
         rol_editor = RolEmpresa(
             tenant_id=tenant.id,
@@ -150,9 +142,7 @@ def test_check_username_public(client: TestClient):
 
 
 def test_crear_usuario_estandar(client: TestClient, tenant_headers):
-    modules = client.get(
-        "/api/v1/tenant/usuarios/modulos", headers=tenant_headers
-    ).json()
+    modules = client.get("/api/v1/tenant/usuarios/modulos", headers=tenant_headers).json()
     roles = client.get("/api/v1/tenant/usuarios/roles", headers=tenant_headers).json()
     payload = {
         "nombre_encargado": "Juan",
@@ -216,9 +206,7 @@ def test_actualizar_usuario(client: TestClient, tenant_headers):
         "modulos": [],
         "roles": [],
     }
-    r = client.patch(
-        f"/api/v1/tenant/usuarios/{usuario_id}", json=update, headers=tenant_headers
-    )
+    r = client.patch(f"/api/v1/tenant/usuarios/{usuario_id}", json=update, headers=tenant_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["apellido_encargado"] == "Actualizada"

@@ -6,4 +6,3 @@ ALTER TABLE IF EXISTS product_categories
   DROP COLUMN IF EXISTS category_metadata;
 
 COMMIT;
-

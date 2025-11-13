@@ -93,9 +93,7 @@ class TestMimeTypeCheck:
     @mock.patch("app.modules.imports.application.security_guards.magic")
     def test_disallowed_mime_type(self, mock_magic, temp_file):
         """Test disallowed MIME type raises error."""
-        mock_magic.Magic.return_value.from_file.return_value = (
-            "application/x-executable"
-        )
+        mock_magic.Magic.return_value.from_file.return_value = "application/x-executable"
 
         with pytest.raises(SecurityViolationError) as exc_info:
             check_file_mime(temp_file, ["image/jpeg", "image/png"])
@@ -103,9 +101,7 @@ class TestMimeTypeCheck:
         assert exc_info.value.code == "INVALID_MIME_TYPE"
         assert "executable" in exc_info.value.detail.lower()
 
-    @mock.patch(
-        "app.modules.imports.application.security_guards.MAGIC_AVAILABLE", False
-    )
+    @mock.patch("app.modules.imports.application.security_guards.MAGIC_AVAILABLE", False)
     def test_magic_not_available(self, temp_file):
         """Test graceful degradation when magic not available."""
         result = check_file_mime(temp_file, ["image/jpeg"])  # noqa: F841
@@ -116,9 +112,7 @@ class TestMimeTypeCheck:
 class TestAntivirusScan:
     """Test antivirus scanning."""
 
-    @mock.patch(
-        "app.modules.imports.application.security_guards.CLAMD_AVAILABLE", False
-    )
+    @mock.patch("app.modules.imports.application.security_guards.CLAMD_AVAILABLE", False)
     def test_clamav_not_available(self, temp_file):
         """Test graceful degradation when ClamAV not available."""
         scan_virus(temp_file)  # Should not raise, just log warning
@@ -153,9 +147,7 @@ class TestAntivirusScan:
     @mock.patch("app.modules.imports.application.security_guards.clamd")
     def test_clamav_daemon_not_running(self, mock_clamd, temp_file):
         """Test graceful handling when ClamAV daemon not running."""
-        mock_clamd.ClamdUnixSocket.return_value.ping.side_effect = Exception(
-            "Connection refused"
-        )
+        mock_clamd.ClamdUnixSocket.return_value.ping.side_effect = Exception("Connection refused")
         mock_clamd.ClamdNetworkSocket.return_value.ping.side_effect = Exception(
             "Connection refused"
         )
@@ -166,9 +158,7 @@ class TestAntivirusScan:
 class TestPDFValidation:
     """Test PDF-specific validation."""
 
-    @mock.patch(
-        "app.modules.imports.application.security_guards.PYMUPDF_AVAILABLE", True
-    )
+    @mock.patch("app.modules.imports.application.security_guards.PYMUPDF_AVAILABLE", True)
     @mock.patch("app.modules.imports.application.security_guards.fitz")
     def test_pdf_page_count_within_limit(self, mock_fitz, temp_pdf):
         """Test PDF with pages within limit passes."""
@@ -180,9 +170,7 @@ class TestPDFValidation:
 
         assert count == 10
 
-    @mock.patch(
-        "app.modules.imports.application.security_guards.PYMUPDF_AVAILABLE", True
-    )
+    @mock.patch("app.modules.imports.application.security_guards.PYMUPDF_AVAILABLE", True)
     @mock.patch("app.modules.imports.application.security_guards.fitz")
     def test_pdf_page_count_exceeds_limit(self, mock_fitz, temp_pdf):
         """Test PDF with too many pages raises error."""
@@ -196,9 +184,7 @@ class TestPDFValidation:
         assert exc_info.value.code == "PDF_TOO_MANY_PAGES"
         assert "25" in exc_info.value.detail
 
-    @mock.patch(
-        "app.modules.imports.application.security_guards.PYMUPDF_AVAILABLE", True
-    )
+    @mock.patch("app.modules.imports.application.security_guards.PYMUPDF_AVAILABLE", True)
     @mock.patch("app.modules.imports.application.security_guards.fitz")
     def test_pdf_security_check_no_threats(self, mock_fitz, temp_pdf):
         """Test PDF without threats passes."""
@@ -215,9 +201,7 @@ class TestPDFValidation:
         assert threats["has_js"] is False
         assert threats["has_forms"] is False
 
-    @mock.patch(
-        "app.modules.imports.application.security_guards.PYMUPDF_AVAILABLE", True
-    )
+    @mock.patch("app.modules.imports.application.security_guards.PYMUPDF_AVAILABLE", True)
     @mock.patch("app.modules.imports.application.security_guards.fitz")
     def test_pdf_security_check_javascript(self, mock_fitz, temp_pdf):
         """Test PDF with JavaScript detected."""
@@ -236,9 +220,7 @@ class TestPDFValidation:
 
         assert threats["has_js"] is True
 
-    @mock.patch(
-        "app.modules.imports.application.security_guards.PYMUPDF_AVAILABLE", False
-    )
+    @mock.patch("app.modules.imports.application.security_guards.PYMUPDF_AVAILABLE", False)
     def test_pdf_checks_disabled_when_not_available(self, temp_pdf):
         """Test graceful degradation when PyMuPDF not available."""
         count = count_pdf_pages(temp_pdf, max_pages=20)
@@ -252,9 +234,7 @@ class TestIntegratedValidation:
     """Test full validation workflow."""
 
     @mock.patch("app.modules.imports.application.security_guards.MAGIC_AVAILABLE", True)
-    @mock.patch(
-        "app.modules.imports.application.security_guards.CLAMD_AVAILABLE", False
-    )
+    @mock.patch("app.modules.imports.application.security_guards.CLAMD_AVAILABLE", False)
     @mock.patch("app.modules.imports.application.security_guards.magic")
     def test_full_validation_passes(self, mock_magic, temp_file):
         """Test full validation with all checks passing."""

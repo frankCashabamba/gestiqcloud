@@ -88,7 +88,7 @@ export async function removeProducto(id: string): Promise<void> {
 }
 
 export async function purgeProductos(): Promise<void> {
-  await apiFetch(`${PRODUCTS_BASE}/purge`, { 
+  await apiFetch(`${PRODUCTS_BASE}/purge`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ confirm: 'PURGE' })
@@ -139,7 +139,7 @@ export async function importProductosExcel(file: File): Promise<{ batch_id: stri
   const formData = new FormData()
   formData.append('file', file)
   formData.append('entity_type', 'productos')
-  
+
   return apiFetch<{ batch_id: string; items_count: number }>('/api/v1/imports/upload', {
     method: 'POST',
     body: formData,

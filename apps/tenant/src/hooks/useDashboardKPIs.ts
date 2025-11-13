@@ -100,7 +100,7 @@ export function useDashboardKPIs(options: UseDashboardKPIsOptions = {}) {
       setLoading(false)
       return
     }
-    
+
     fetchKPIs()
 
     if (autoRefresh) {

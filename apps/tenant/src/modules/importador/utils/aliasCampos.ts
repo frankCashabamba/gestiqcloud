@@ -5,4 +5,3 @@ export function getAliasSugeridos() {
     monto: ['monto', 'importe', 'total', 'valor'],
   } as Record<string, string[]>
 }
-

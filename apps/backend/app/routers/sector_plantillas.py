@@ -2,20 +2,19 @@
 Router para gestión de plantillas de sector
 """
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-
 from app.config.database import get_db
-from app.schemas.sector_plantilla import ApplySectorTemplateRequest
-from app.services.sector_templates import (
-    get_available_templates,
-    get_template_preview,
-    apply_sector_template,
-)
-from app.models.core.ui_template import UiTemplate
-from pydantic import BaseModel
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
+from app.models.core.ui_template import UiTemplate
+from app.schemas.sector_plantilla import ApplySectorTemplateRequest
+from app.services.sector_templates import (
+    apply_sector_template,
+    get_available_templates,
+    get_template_preview,
+)
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 # Old URL: /api/v1/sectores (deprecated, kept for backward compatibility reference)
 router = APIRouter(prefix="/api/v1/sectors", tags=["Plantillas de Sector"])
@@ -86,14 +85,17 @@ async def create_ui_template(payload: UiTemplateIn, db: Session = Depends(get_db
     db.add(row)
     db.commit()
     db.refresh(row)
-    return {"ok": True, "item": {
-        "slug": row.slug,
-        "label": row.label,
-        "description": row.description,
-        "pro": bool(row.pro),
-        "active": bool(row.active),
-        "ord": row.ord,
-    }}
+    return {
+        "ok": True,
+        "item": {
+            "slug": row.slug,
+            "label": row.label,
+            "description": row.description,
+            "pro": bool(row.pro),
+            "active": bool(row.active),
+            "ord": row.ord,
+        },
+    }
 
 
 @router.put(
@@ -113,14 +115,17 @@ async def update_ui_template(slug: str, payload: UiTemplateIn, db: Session = Dep
     row.ord = payload.ord
     db.commit()
     db.refresh(row)
-    return {"ok": True, "item": {
-        "slug": row.slug,
-        "label": row.label,
-        "description": row.description,
-        "pro": bool(row.pro),
-        "active": bool(row.active),
-        "ord": row.ord,
-    }}
+    return {
+        "ok": True,
+        "item": {
+            "slug": row.slug,
+            "label": row.label,
+            "description": row.description,
+            "pro": bool(row.pro),
+            "active": bool(row.active),
+            "ord": row.ord,
+        },
+    }
 
 
 @router.delete(
@@ -138,9 +143,7 @@ async def delete_ui_template(slug: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{sector_plantilla_id}", summary="Ver detalle de plantilla")
-async def get_sector_template_detail(
-    sector_plantilla_id: int, db: Session = Depends(get_db)
-):
+async def get_sector_template_detail(sector_plantilla_id: int, db: Session = Depends(get_db)):
     """
     Obtiene vista previa detallada de una plantilla de sector.
 
@@ -157,9 +160,7 @@ async def get_sector_template_detail(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error obteniendo plantilla: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error obteniendo plantilla: {str(e)}")
 
 
 @router.post("/apply", summary="Aplicar plantilla de sector (solo diseño)")
@@ -196,6 +197,4 @@ async def apply_template_to_tenant(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         db.rollback()
-        raise HTTPException(
-            status_code=500, detail=f"Error aplicando plantilla: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error aplicando plantilla: {str(e)}")

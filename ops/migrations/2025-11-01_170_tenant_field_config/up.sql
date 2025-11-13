@@ -19,4 +19,3 @@ CREATE INDEX IF NOT EXISTS idx_tfc_tenant ON tenant_field_config(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_tfc_tenant_module ON tenant_field_config(tenant_id, module);
 
 COMMIT;
-

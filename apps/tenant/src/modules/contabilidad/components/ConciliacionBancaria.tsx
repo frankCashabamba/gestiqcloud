@@ -8,4 +8,3 @@ export function ConciliacionBancaria() {
     </div>
   )
 }
-

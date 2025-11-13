@@ -1,6 +1,6 @@
 # ✅ AUDITORÍA FINAL - SIN DUPLICACIÓN CONFIRMADA
 
-**Fecha:** 2025-11-06  
+**Fecha:** 2025-11-06
 **Conclusión:** ✅ **NO HAY DUPLICACIÓN** - Migración exitosa
 
 ---
@@ -158,7 +158,7 @@ Cuando agregué `tenant_id` a las llamadas de CompraRepo y GastoRepo:
 # ANTES
 return CompraRepo(db).list()
 
-# DESPUÉS  
+# DESPUÉS
 tenant_id = claims["tenant_id"]
 return CompraRepo(db).list(tenant_id)  # ⚠️ Método puede no aceptar tenant_id
 ```

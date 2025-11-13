@@ -24,7 +24,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../apps/backend")
 
 from app.models.core.modelsimport import ImportBatch
 
-
 IMPORTS_TABLES = [
     "import_batches",
     "import_items",
@@ -51,7 +50,8 @@ def check_rls_enabled(db: Session, tables: List[str]) -> dict:
     """Verify RLS is enabled on all tables."""
     results = {}
 
-    query = text("""
+    query = text(
+        """
         SELECT
             tablename,
             CASE WHEN rowsecurity THEN 'ENABLED' ELSE 'DISABLED' END as rls_status,
@@ -62,7 +62,8 @@ def check_rls_enabled(db: Session, tables: List[str]) -> dict:
         LEFT JOIN pg_class pc ON pc.relname = pt.tablename
         WHERE pt.schemaname = 'public'
           AND pt.tablename = ANY(:tables)
-    """)
+    """
+    )
 
     rows = db.execute(query, {"tables": tables}).fetchall()
 
@@ -79,7 +80,8 @@ def check_policies_exist(db: Session, tables: List[str]) -> dict:
     """Verify CRUD policies exist for each table."""
     results = {}
 
-    query = text("""
+    query = text(
+        """
         SELECT
             tablename,
             policyname,
@@ -88,7 +90,8 @@ def check_policies_exist(db: Session, tables: List[str]) -> dict:
         WHERE schemaname = 'public'
           AND tablename = ANY(:tables)
         ORDER BY tablename, cmd
-    """)
+    """
+    )
 
     rows = db.execute(query, {"tables": tables}).fetchall()
 

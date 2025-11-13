@@ -1,21 +1,20 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
 class Cliente:
-    id: Optional[int]
+    id: int | None
     nombre: str
-    identificacion: Optional[str]
-    email: Optional[str]
-    telefono: Optional[str]
-    direccion: Optional[str]
-    localidad: Optional[str]
-    provincia: Optional[str]
-    pais: Optional[str]
-    codigo_postal: Optional[str]
+    identificacion: str | None
+    email: str | None
+    telefono: str | None
+    direccion: str | None
+    localidad: str | None
+    provincia: str | None
+    pais: str | None
+    codigo_postal: str | None
     tenant_id: int
 
     def validate(self) -> None:

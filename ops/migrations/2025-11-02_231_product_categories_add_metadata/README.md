@@ -11,4 +11,3 @@ What this migration does
 
 Apply
 - This directory is auto‑applied by `scripts/py/bootstrap_imports.py` and the Admin UI Migrate button.
-

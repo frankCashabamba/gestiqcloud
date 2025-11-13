@@ -44,4 +44,3 @@ Objetivo: validar funcional funcional para el Go‑Live piloto.
 ## Rollback
 - Si migraciones fallan: revertir despliegue y restaurar backup de DB más reciente.
 - Desactivar Beat (`ENABLE_EINVOICING_BEAT=0`) si hay efectos no deseados.
-

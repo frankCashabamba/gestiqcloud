@@ -1,72 +1,52 @@
 from __future__ import annotations
 
-from typing import List, Dict
-from datetime import datetime
-import re
-import unicodedata
 import json
 import os
+import re
+import time
+import unicodedata
+from datetime import datetime
 from pathlib import Path
 from uuid import UUID
-from fastapi import (
-    APIRouter,
-    Depends,
-    File,
-    HTTPException,
-    UploadFile,
-    Request,
-    Query,
-    status,
-)
-import os
-import time
-from sqlalchemy.orm import Session
-from sqlalchemy import text
 
+from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.config.database import get_db
 from app.db.rls import ensure_rls
-from app.modules.imports import crud
-from app.modules.imports.application.job_runner import enqueue_job
-from app.modules.imports.schemas import (
-    DocumentoProcesadoResponse,
-    HayPendientesOut,
-    BatchCreate,
-    BatchOut,
-    UpdateClassificationRequest,
-    ItemOut,
-    ItemPatch,
-    IngestRows,
-    PromoteItems,
-    ImportMappingCreate,
-    ImportMappingUpdate,
-    ImportMappingOut,
-    OkResponse,
-    OCRJobEnqueuedResponse,
-    OCRJobStatusResponse,
-)
-from app.services.excel_analyzer import analyze_excel_stream
-from app.modules.imports.extractores.utilidades import calcular_hash_documento
-from app.models.ai.incident import Incident  # Log duplicates to Incidencias panel
 from app.models.core.modelsimport import (
+    ImportAttachment,
     ImportBatch,
     ImportItem,
-    ImportMapping,
-    ImportLineage,
     ImportItemCorrection,
+    ImportLineage,
+    ImportMapping,
     ImportOCRJob,
-    ImportAttachment,
 )
 from app.models.imports import ImportColumnMapping
+from app.modules.imports.application.job_runner import enqueue_job
+from app.modules.imports.schemas import (
+    BatchCreate,
+    BatchOut,
+    ImportMappingCreate,
+    ImportMappingOut,
+    ImportMappingUpdate,
+    IngestRows,
+    ItemOut,
+    ItemPatch,
+    OCRJobEnqueuedResponse,
+    OCRJobStatusResponse,
+    OkResponse,
+    PromoteItems,
+    UpdateClassificationRequest,
+)
 from app.services.excel_analyzer import analyze_excel_stream
-from app.models.core.facturacion import BankAccount, BankTransaction, MovimientoTipo, Invoice
-from app.models.core.clients import Cliente
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 
 # Avoid importing heavy domain models at import time to keep router mountable in test envs
 # (domain handlers perform promotion separately)
-from app.models.core.auditoria_importacion import AuditoriaImportacion
 from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 
 def _get_claims(request: Request) -> dict:
@@ -107,9 +87,7 @@ def _throttle_ingest(tenant_id: str | int):
     buf = [t for t in buf if t >= window_start]
     # Re-read limit from env to allow test overrides
     try:
-        limit = int(
-            os.getenv("IMPORTS_MAX_INGESTS_PER_MIN", str(_DEFAULT_INGEST_LIMIT))
-        )
+        limit = int(os.getenv("IMPORTS_MAX_INGESTS_PER_MIN", str(_DEFAULT_INGEST_LIMIT)))
     except Exception:
         limit = _DEFAULT_INGEST_LIMIT
     if len(buf) >= limit:
@@ -122,8 +100,9 @@ def _throttle_ingest(tenant_id: str | int):
 # Large file uploads (local chunked)
 # ------------------------------
 
-from pydantic import BaseModel
 from uuid import uuid4
+
+from pydantic import BaseModel
 
 
 class InitChunkUploadDTO(BaseModel):
@@ -194,9 +173,7 @@ def init_chunk_upload(dto: InitChunkUploadDTO, request: Request):
 
 
 @router.put("/uploads/chunk/{upload_id}/{part_number}")
-async def upload_chunk_part(
-    upload_id: str, part_number: int, request: Request
-):
+async def upload_chunk_part(upload_id: str, part_number: int, request: Request):
     """Receive a chunk part (raw body) <= max upload size and store it on disk."""
     claims = _get_claims(request)
     tenant_id = claims.get("tenant_id")
@@ -244,9 +221,9 @@ def complete_chunk_upload(upload_id: str, dto: CompleteChunkUploadDTO, request: 
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
 
+    import glob
     import os
     import shutil
-    import glob
     from uuid import uuid4 as _uuid4
 
     base_tmp = os.path.join("uploads", "tmp", str(tenant_id), upload_id)
@@ -273,7 +250,7 @@ def complete_chunk_upload(upload_id: str, dto: CompleteChunkUploadDTO, request: 
         import json
 
         if os.path.exists(meta_path):
-            with open(meta_path, "r", encoding="utf-8") as f:
+            with open(meta_path, encoding="utf-8") as f:
                 meta = json.load(f)
                 fn = str(meta.get("filename") or "")
                 _, ext = os.path.splitext(fn)
@@ -333,6 +310,7 @@ def create_batch_from_upload(
 ):
     """Create an ImportBatch from a previously uploaded file_key (local)."""
     from uuid import uuid4 as _uuid4
+
     from app.models.core.modelsimport import ImportBatch
 
     claims = _get_claims(request)
@@ -346,6 +324,7 @@ def create_batch_from_upload(
     if not dto.mapping_id and (dto.original_filename or ""):
         try:
             from app.models.imports import ImportColumnMapping
+
             patterns = (
                 db.query(ImportColumnMapping)
                 .filter(
@@ -359,7 +338,9 @@ def create_batch_from_upload(
 
             for m in patterns:
                 try:
-                    if m.file_pattern and _re.search(str(m.file_pattern), str(dto.original_filename), _re.I):
+                    if m.file_pattern and _re.search(
+                        str(m.file_pattern), str(dto.original_filename), _re.I
+                    ):
                         auto_mapping_id = str(m.id)
                         break
                 except Exception:
@@ -373,7 +354,9 @@ def create_batch_from_upload(
         source_type=(dto.source_type or "products"),
         origin="excel",
         file_key=dto.file_key,
-        mapping_id=UUID(dto.mapping_id or auto_mapping_id) if (dto.mapping_id or auto_mapping_id) else None,
+        mapping_id=(
+            UUID(dto.mapping_id or auto_mapping_id) if (dto.mapping_id or auto_mapping_id) else None
+        ),
         created_by=str(user_id or "system"),
         status="PENDING",
     )
@@ -386,8 +369,8 @@ def create_batch_from_upload(
 @router.post("/batches/{batch_id}/start-excel-import")
 def start_excel_import(batch_id: UUID, request: Request, db: Session = Depends(get_db)):
     """Enqueue Celery task to import a large Excel pointed by batch.file_key."""
-    from app.modules.imports.application.celery_app import celery_app
     from app.models.core.modelsimport import ImportBatch
+    from app.modules.imports.application.celery_app import celery_app
 
     claims = _get_claims(request)
     tenant_id = claims.get("tenant_id")
@@ -433,9 +416,10 @@ async def suggest_mapping_endpoint(
     - If `file` provided: parses headers using openpyxl (stream) and suggests mapping.
     - Else uses `body.headers`.
     """
-    from app.services.excel_analyzer import analyze_excel_stream
     from io import BytesIO
+
     from app.modules.imports.application.transform_suggest import suggest_mapping
+    from app.services.excel_analyzer import analyze_excel_stream
 
     headers: list[str] | None = None
     if file is not None:
@@ -451,14 +435,17 @@ async def suggest_mapping_endpoint(
 
     # Optional: refine with Ollama if configured (best effort)
     try:
-        import os, json, httpx  # type: ignore
+        import json
+        import os
+
+        import httpx  # type: ignore
 
         ollama_url = os.getenv("OLLAMA_URL")
         if ollama_url and ollama_url.startswith("http"):
             prompt = (
                 "Sugiere un mapeo JSON de columnas de Excel a campos del sistema"
                 " (sku,name,price,stock,unit,category,image_url,packs,units_per_pack,pack_price)."
-                f"\nCabeceras: {headers}\nPropuesta actual: {{\"mapping\":{mapping},\"transforms\":{transforms},\"defaults\":{defaults}}}\n"
+                f'\nCabeceras: {headers}\nPropuesta actual: {{"mapping":{mapping},"transforms":{transforms},"defaults":{defaults}}}\n'
                 "Devuelve solo JSON con keys mapping, transforms, defaults."
             )
             payload = {"model": os.getenv("OLLAMA_MODEL", "llama3.1:8b"), "prompt": prompt}
@@ -565,19 +552,17 @@ async def procesar_documento_api(
         )
 
     allowed = {
-        "application/pdf", 
-        "image/jpeg", 
-        "image/png", 
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
         "image/heic",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "application/vnd.ms-excel",
-        "text/csv"
+        "text/csv",
     }
     content_type = file.content_type or "application/octet-stream"
     if content_type not in allowed:
-        raise HTTPException(
-            status_code=422, detail=f"Unsupported file type: {content_type}"
-        )
+        raise HTTPException(status_code=422, detail=f"Unsupported file type: {content_type}")
 
     filename = file.filename or "documento.pdf"
     job_id = enqueue_job(
@@ -610,13 +595,12 @@ async def parse_excel(
         or content_type.endswith("ms-excel")
         or file.filename.lower().endswith((".xlsx", ".xls"))
     ):
-        raise HTTPException(
-            status_code=415, detail=f"Unsupported file type: {file.content_type}"
-        )
+        raise HTTPException(status_code=415, detail=f"Unsupported file type: {file.content_type}")
 
     try:
-        import pandas as pd  # type: ignore
         from io import BytesIO
+
+        import pandas as pd  # type: ignore
 
         data = await file.read()
         if not data:
@@ -634,8 +618,7 @@ async def parse_excel(
         df = df.fillna("")
         headers = [str(h) for h in list(df.columns)]
         rows = [
-            {str(col): str(val) for col, val in row.items()}
-            for row in df.to_dict(orient="records")
+            {str(col): str(val) for col, val in row.items()} for row in df.to_dict(orient="records")
         ]
         return {"headers": headers, "rows": rows}
     except ImportError:
@@ -726,14 +709,15 @@ def imports_health(request: Request, db: Session = Depends(get_db)):
 # Parser Registry endpoint (Sprint 2)
 # ------------------------------
 
+
 @router.get("/parsers/registry", tags=["Imports"])
 def get_parser_registry(request: Request):
     """
     Retorna el registry de parsers disponibles.
     Usado por el frontend para mostrar opciones de override en el Wizard.
-    
+
     Endpoint: GET /api/v1/imports/parsers/registry
-    
+
     Respuesta:
     ```json
     {
@@ -749,7 +733,7 @@ def get_parser_registry(request: Request):
     ```
     """
     from app.modules.imports.parsers import registry
-    
+
     # Construir respuesta sin los handlers (no son serializables)
     parsers_info = {}
     for parser_id, parser_data in registry.list_parsers().items():
@@ -758,7 +742,7 @@ def get_parser_registry(request: Request):
             "doc_type": parser_data["doc_type"],
             "description": parser_data.get("description", ""),
         }
-    
+
     return {
         "parsers": parsers_info,
         "count": len(parsers_info),
@@ -771,9 +755,7 @@ def get_parser_registry(request: Request):
 
 
 @router.post("/batches", response_model=BatchOut)
-def create_batch_endpoint(
-    dto: BatchCreate, request: Request, db: Session = Depends(get_db)
-):
+def create_batch_endpoint(dto: BatchCreate, request: Request, db: Session = Depends(get_db)):
     """Skeleton endpoint for batch creation. Returns placeholder until models are wired."""
     from app.modules.imports.application import use_cases
 
@@ -797,9 +779,9 @@ def update_classification(
     """
     Actualizar campos de clasificación en un batch existente.
     Permite override manual del usuario sobre la clasificación automática.
-    
+
     Endpoint: PATCH /api/v1/imports/batches/{batch_id}/classification
-    
+
     Ejemplo:
     ```json
     {
@@ -814,7 +796,7 @@ def update_classification(
     tenant_id = claims.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
-    
+
     # Buscar batch con RLS (row-level security)
     batch = (
         db.query(ImportBatch)
@@ -824,10 +806,10 @@ def update_classification(
         )
         .first()
     )
-    
+
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
-    
+
     # Actualizar solo los campos que se proporcionen (no sobrescribir con None)
     if req.suggested_parser is not None:
         batch.suggested_parser = req.suggested_parser
@@ -837,7 +819,7 @@ def update_classification(
         batch.ai_enhanced = req.ai_enhanced
     if req.ai_provider is not None:
         batch.ai_provider = req.ai_provider
-    
+
     db.commit()
     db.refresh(batch)
     return batch
@@ -853,36 +835,34 @@ async def classify_and_persist_to_batch(
     """
     Clasificar archivo Y persistir resultado en el batch.
     Integra clasificación (heurística + IA) con persistencia automática.
-    
+
     Endpoint: POST /api/v1/imports/batches/{batch_id}/classify-and-persist
-    
+
     Pasos:
     1. Recibe archivo para clasificar
     2. Ejecuta clasificación heurística + IA
     3. Persiste resultado en campos: suggested_parser, classification_confidence, ai_enhanced, ai_provider
     4. Retorna batch actualizado
-    
+
     Retorna ClassifyResponse extendido con batch info.
     """
     import tempfile
+
     from app.modules.imports.services.classifier import classifier
-    
+
     claims = _get_claims(request)
     tenant_id = claims.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
-    
+
     # Validar archivo
     if not file.filename:
         raise HTTPException(status_code=422, detail="Nombre de archivo requerido")
-    
-    ext = file.filename.lower().split('.')[-1]
-    if ext not in ['xlsx', 'xls', 'csv', 'xml']:
-        raise HTTPException(
-            status_code=422,
-            detail="Solo se aceptan archivos Excel, CSV o XML"
-        )
-    
+
+    ext = file.filename.lower().split(".")[-1]
+    if ext not in ["xlsx", "xls", "csv", "xml"]:
+        raise HTTPException(status_code=422, detail="Solo se aceptan archivos Excel, CSV o XML")
+
     # Buscar batch
     batch = (
         db.query(ImportBatch)
@@ -892,37 +872,34 @@ async def classify_and_persist_to_batch(
         )
         .first()
     )
-    
+
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
-    
+
     tmp_path = None
     try:
         # Guardar temporalmente
         contents = await file.read()
-        with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}') as tmp:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
             tmp.write(contents)
             tmp_path = tmp.name
-        
+
         # Clasificar con IA
         result = await classifier.classify_file_with_ai(tmp_path, file.filename)
-        
+
         # Persistir en batch
         batch.suggested_parser = result.get("suggested_parser")
         batch.classification_confidence = result.get("confidence")
         batch.ai_enhanced = result.get("enhanced_by_ai", False)
         batch.ai_provider = result.get("ai_provider")
-        
+
         db.commit()
         db.refresh(batch)
-        
+
         return batch
-        
+
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error al clasificar y persistir: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error al clasificar y persistir: {str(e)}")
     finally:
         # Limpiar
         if tmp_path and os.path.exists(tmp_path):
@@ -937,10 +914,10 @@ def ingest_rows_endpoint(
     db: Session = Depends(get_db),
     column_mapping_id: str = None,  # Nuevo: ID del mapeo de columnas
 ):
-    from app.modules.imports.application import use_cases
-    from app.models.imports import ImportColumnMapping
     from uuid import UUID as PYUUID
-    from datetime import datetime
+
+    from app.models.imports import ImportColumnMapping
+    from app.modules.imports.application import use_cases
 
     claims = _get_claims(request)
     tenant_raw = claims.get("tenant_id")
@@ -1021,17 +998,13 @@ def ingest_rows_endpoint(
             defaults = mp.defaults or defaults
 
     # Limit number of rows per ingest (413 on overflow)
-    import os
     import logging
+    import os
 
     logger = logging.getLogger("imports")
     rows_count = len(payload.rows) if payload.rows else 0
-    print(
-        f"DEBUG ingest_endpoint: batch_id={batch_id}, payload.rows count={rows_count}"
-    )
-    logger.info(
-        f"ingest_endpoint: batch_id={batch_id}, payload.rows count={rows_count}"
-    )
+    print(f"DEBUG ingest_endpoint: batch_id={batch_id}, payload.rows count={rows_count}")
+    logger.info(f"ingest_endpoint: batch_id={batch_id}, payload.rows count={rows_count}")
 
     max_items = int(os.getenv("IMPORTS_MAX_ITEMS_PER_BATCH", "5000"))
     if payload.rows and len(payload.rows) > max_items:
@@ -1078,9 +1051,7 @@ def get_batch_endpoint(batch_id: UUID, request: Request, db: Session = Depends(g
 
 
 @router.get("/batches/{batch_id}/status")
-def get_batch_status_endpoint(
-    batch_id: UUID, request: Request, db: Session = Depends(get_db)
-):
+def get_batch_status_endpoint(batch_id: UUID, request: Request, db: Session = Depends(get_db)):
     from app.models.core.modelsimport import ImportItem
 
     claims = _get_claims(request)
@@ -1115,6 +1086,7 @@ def get_batch_status_endpoint(
     )
 
     from datetime import datetime as _dt
+
     return {
         "batch_id": str(batch_id),
         "status": batch.status,
@@ -1130,9 +1102,7 @@ def get_batch_status_endpoint(
 
 
 @router.post("/batches/{batch_id}/retry")
-def retry_batch_endpoint(
-    batch_id: UUID, request: Request, db: Session = Depends(get_db)
-):
+def retry_batch_endpoint(batch_id: UUID, request: Request, db: Session = Depends(get_db)):
     from app.modules.imports.domain.pipeline import retry_failed_items
 
     claims = _get_claims(request)
@@ -1203,7 +1173,9 @@ class SetMappingDTO(BaseModel):
 
 
 @router.post("/batches/{batch_id}/set-mapping", response_model=OkResponse)
-def set_batch_mapping_endpoint(batch_id: UUID, dto: SetMappingDTO, request: Request, db: Session = Depends(get_db)):
+def set_batch_mapping_endpoint(
+    batch_id: UUID, dto: SetMappingDTO, request: Request, db: Session = Depends(get_db)
+):
     claims = _get_claims(request)
     tenant_id = claims.get("tenant_id")
     if not tenant_id:
@@ -1256,9 +1228,7 @@ def list_batch_items_endpoint(
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
     repo = ImportsRepository()
-    items = repo.list_items(
-        db, tenant_id, batch_id, status=status, q=q
-    )  # batch_id es UUID
+    items = repo.list_items(db, tenant_id, batch_id, status=status, q=q)  # batch_id es UUID
     if with_ != "lineage":
         return items
     item_ids = [it.id for it in items]
@@ -1266,9 +1236,7 @@ def list_batch_items_endpoint(
         return items
     lineages = (
         db.query(ImportLineage)
-        .filter(
-            ImportLineage.item_id.in_(item_ids), ImportLineage.tenant_id == tenant_id
-        )
+        .filter(ImportLineage.item_id.in_(item_ids), ImportLineage.tenant_id == tenant_id)
         .all()
     )
     corrections = (
@@ -1331,9 +1299,7 @@ def list_all_products_endpoint(
     q: str | None = None,
     limit: int = Query(default=5000, le=10000),
     offset: int = Query(default=0, ge=0),
-    tenant_id: str | None = Query(
-        None, description="Tenant ID (UUID) - opcional si usa RLS"
-    ),
+    tenant_id: str | None = Query(None, description="Tenant ID (UUID) - opcional si usa RLS"),
 ):
     """List ALL import items formatted as products across all batches."""
     from app.modules.imports.infrastructure.repositories import ImportsRepository
@@ -1341,16 +1307,12 @@ def list_all_products_endpoint(
     # Si no viene tenant_id, intentar obtenerlo del RLS context
     if not tenant_id:
         try:
-            tenant_id = db.execute(
-                text("SELECT current_setting('app.tenant_id', true)")
-            ).scalar()
+            tenant_id = db.execute(text("SELECT current_setting('app.tenant_id', true)")).scalar()
         except Exception:
             pass
 
     if not tenant_id:
-        raise HTTPException(
-            status_code=400, detail="tenant_id required (via query param or RLS)"
-        )
+        raise HTTPException(status_code=400, detail="tenant_id required (via query param or RLS)")
 
     repo = ImportsRepository()
     # List items from ALL batches of type 'productos'
@@ -1396,9 +1358,7 @@ def list_all_products_endpoint(
                     or data.get("PRECIO")
                 ),
                 "costo": data.get("costo") or data.get("cost") or data.get("COSTO"),
-                "categoria": data.get("categoria")
-                or data.get("category")
-                or data.get("CATEGORIA"),
+                "categoria": data.get("categoria") or data.get("category") or data.get("CATEGORIA"),
                 "stock": (
                     data.get("stock")
                     or data.get("cantidad")
@@ -1406,10 +1366,7 @@ def list_all_products_endpoint(
                     or data.get("SOBRANTE DIARIO")
                     or 0
                 ),
-                "unidad": data.get("unidad")
-                or data.get("uom")
-                or data.get("UNIDAD")
-                or "unit",
+                "unidad": data.get("unidad") or data.get("uom") or data.get("UNIDAD") or "unit",
                 "iva": data.get("iva") or data.get("tax") or data.get("IVA") or 0,
                 "raw": item.raw,
                 "normalized": item.normalized,
@@ -1549,7 +1506,10 @@ def analyze_file_endpoint(
     mappings = (
         db.query(ImportColumnMapping)
         .filter(ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active == True)  # noqa: E712
-        .order_by(ImportColumnMapping.last_used_at.desc().nullslast(), ImportColumnMapping.created_at.desc())
+        .order_by(
+            ImportColumnMapping.last_used_at.desc().nullslast(),
+            ImportColumnMapping.created_at.desc(),
+        )
         .all()
     )
 
@@ -1572,9 +1532,7 @@ def analyze_file_endpoint(
 
 
 @router.get("/column-mappings")
-def list_column_mappings_endpoint(
-    request: Request, db: Session = Depends(get_db)
-):
+def list_column_mappings_endpoint(request: Request, db: Session = Depends(get_db)):
     """List saved column mappings for current tenant."""
     claims = _get_claims(request)
     tenant_id = claims.get("tenant_id")
@@ -1688,9 +1646,7 @@ def patch_batch_item_endpoint(
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
     user_id = claims.get("user_id")
-    it = use_cases.patch_item(
-        db, tenant_id, user_id, batch_id, item_id, patch.field, patch.value
-    )
+    it = use_cases.patch_item(db, tenant_id, user_id, batch_id, item_id, patch.field, patch.value)
     if not it:
         raise HTTPException(status_code=404, detail="Item no encontrado")
     return it
@@ -1769,9 +1725,7 @@ def delete_multiple_items_endpoint(
 
 
 @router.post("/batches/{batch_id}/validate", response_model=list[ItemOut])
-def validate_batch_endpoint(
-    batch_id: UUID, request: Request, db: Session = Depends(get_db)
-):
+def validate_batch_endpoint(batch_id: UUID, request: Request, db: Session = Depends(get_db)):
     from app.modules.imports.application import use_cases
 
     claims = _get_claims(request)
@@ -1783,9 +1737,7 @@ def validate_batch_endpoint(
 
 
 @router.delete("/batches/{batch_id}", response_model=OkResponse)
-def delete_batch_endpoint(
-    batch_id: UUID, request: Request, db: Session = Depends(get_db)
-):
+def delete_batch_endpoint(batch_id: UUID, request: Request, db: Session = Depends(get_db)):
     """Eliminar un lote completo y sus dependencias (items, attachments, lineage, corrections).
 
     Requiere contexto de tenant (RLS). Opera con seguridad multi-tenant.
@@ -1806,12 +1758,14 @@ def delete_batch_endpoint(
         raise HTTPException(status_code=404, detail="batch_not_found")
 
     # Obtener ids de items del lote para eliminar relaciones
-    item_ids = [it.id for it in db.query(ImportItem.id).filter(ImportItem.batch_id == batch_id).all()]
+    item_ids = [
+        it.id for it in db.query(ImportItem.id).filter(ImportItem.batch_id == batch_id).all()
+    ]
 
     if item_ids:
-        db.query(ImportAttachment).filter(
-            ImportAttachment.item_id.in_(item_ids)
-        ).delete(synchronize_session=False)
+        db.query(ImportAttachment).filter(ImportAttachment.item_id.in_(item_ids)).delete(
+            synchronize_session=False
+        )
         # lineage
         db.query(ImportLineage).filter(ImportLineage.item_id.in_(item_ids)).delete(
             synchronize_session=False
@@ -1917,9 +1871,7 @@ def promote_items_endpoint(
                 db.add(item)
                 promoted_count += 1
             else:
-                errors.append(
-                    {"item_id": item_id, "error": "promotion_failed", "src": src}
-                )
+                errors.append({"item_id": item_id, "error": "promotion_failed", "src": src})
         except Exception as e:
             errors.append({"item_id": item_id, "error": str(e)})
 
@@ -1956,11 +1908,10 @@ def promote_batch_endpoint(
 
 
 @router.get("/batches/{batch_id}/errors.csv")
-def errors_csv_endpoint(
-    batch_id: UUID, request: Request, db: Session = Depends(get_db)
-):
-    from io import StringIO
+def errors_csv_endpoint(batch_id: UUID, request: Request, db: Session = Depends(get_db)):
     import csv
+    from io import StringIO
+
     from app.modules.imports.infrastructure.repositories import ImportsRepository
 
     claims = _get_claims(request)
@@ -2016,12 +1967,7 @@ def bulk_patch_items(
 
     ids = payload.get("ids") or []
     changes = payload.get("changes") or {}
-    if (
-        not isinstance(ids, list)
-        or not isinstance(changes, dict)
-        or not ids
-        or not changes
-    ):
+    if not isinstance(ids, list) or not isinstance(changes, dict) or not ids or not changes:
         raise HTTPException(
             status_code=400, detail="Body invalido: {ids:[], changes:{campo:valor}}"
         )
@@ -2029,9 +1975,7 @@ def bulk_patch_items(
     # Aplicar cambios en cada id, campo por campo
     for item_id in ids:
         for field, value in changes.items():
-            use_cases.patch_item(
-                db, tenant_id, user_id, batch_id, item_id, field, value
-            )
+            use_cases.patch_item(db, tenant_id, user_id, batch_id, item_id, field, value)
 
     # Revalidar lote completo
     use_cases.revalidate_batch(db, tenant_id, batch_id)
@@ -2087,9 +2031,7 @@ async def analyze_import_file(
 
     # Validar tipo de archivo
     if not file.filename.endswith((".xlsx", ".xls")):
-        raise HTTPException(
-            status_code=400, detail="Solo se aceptan archivos Excel (.xlsx, .xls)"
-        )
+        raise HTTPException(status_code=400, detail="Solo se aceptan archivos Excel (.xlsx, .xls)")
 
     try:
         # Analizar Excel
@@ -2122,17 +2064,13 @@ async def analyze_import_file(
                     "description": m.description,
                     "mapping": m.mapping,
                     "use_count": m.use_count,
-                    "last_used_at": m.last_used_at.isoformat()
-                    if m.last_used_at
-                    else None,
+                    "last_used_at": m.last_used_at.isoformat() if m.last_used_at else None,
                 }
                 for m in saved_mappings
             ],
         }
     except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"Error analizando archivo: {str(e)}"
-        )
+        raise HTTPException(status_code=400, detail=f"Error analizando archivo: {str(e)}")
 
 
 # ------------------------------
@@ -2143,7 +2081,7 @@ async def analyze_import_file(
 @router.post("/column-mappings")
 def create_column_mapping(
     name: str,
-    mapping: Dict[str, str],
+    mapping: dict[str, str],
     description: str = None,
     file_pattern: str = None,
     request: Request = None,
@@ -2164,22 +2102,19 @@ def create_column_mapping(
         raise HTTPException(status_code=401, detail="tenant_id_missing")
     user_id = claims.get("user_id")
 
-    from app.models.imports import ImportColumnMapping
     from uuid import uuid4
+
+    from app.models.imports import ImportColumnMapping
 
     # Verificar que no exista con mismo nombre
     existing = (
         db.query(ImportColumnMapping)
-        .filter(
-            ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.name == name
-        )
+        .filter(ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.name == name)
         .first()
     )
 
     if existing:
-        raise HTTPException(
-            status_code=409, detail=f"Ya existe un mapeo con el nombre '{name}'"
-        )
+        raise HTTPException(status_code=409, detail=f"Ya existe un mapeo con el nombre '{name}'")
 
     obj = ImportColumnMapping(
         id=uuid4(),
@@ -2239,17 +2174,16 @@ def list_column_mappings(request: Request, db: Session = Depends(get_db)):
 
 
 @router.delete("/column-mappings/{mapping_id}")
-def delete_column_mapping(
-    mapping_id: str, request: Request, db: Session = Depends(get_db)
-):
+def delete_column_mapping(mapping_id: str, request: Request, db: Session = Depends(get_db)):
     """Elimina (soft delete) un mapeo guardado"""
     claims = _get_claims(request)
     tenant_id = claims.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
 
-    from app.models.imports import ImportColumnMapping
     from uuid import UUID
+
+    from app.models.imports import ImportColumnMapping
 
     obj = (
         db.query(ImportColumnMapping)
@@ -2270,9 +2204,7 @@ def delete_column_mapping(
 
 
 @router.post("/mappings", response_model=ImportMappingOut)
-def create_mapping(
-    dto: ImportMappingCreate, request: Request, db: Session = Depends(get_db)
-):
+def create_mapping(dto: ImportMappingCreate, request: Request, db: Session = Depends(get_db)):
     claims = _get_claims(request)
     # tenant_id is now UUID, not int
     tenant_id = claims.get("tenant_id")
@@ -2294,10 +2226,8 @@ def create_mapping(
     return obj
 
 
-@router.get("/mappings", response_model=List[ImportMappingOut])
-def list_mappings(
-    request: Request, db: Session = Depends(get_db), source_type: str | None = None
-):
+@router.get("/mappings", response_model=list[ImportMappingOut])
+def list_mappings(request: Request, db: Session = Depends(get_db), source_type: str | None = None):
     claims = _get_claims(request)
     # tenant_id is now UUID, not int
     tenant_id = claims.get("tenant_id")
@@ -2459,9 +2389,7 @@ async def upload_photo_to_batch(
         )
     allowed = {"image/jpeg", "image/png", "image/heic", "application/pdf"}
     if (file.content_type or "") not in allowed:
-        raise HTTPException(
-            status_code=422, detail=f"Unsupported file type: {file.content_type}"
-        )
+        raise HTTPException(status_code=422, detail=f"Unsupported file type: {file.content_type}")
     file.file.seek(0)
 
     # Crea item a partir de la foto + adjunta OCR y metadata
@@ -2478,8 +2406,8 @@ async def attach_photo_to_item(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    from app.modules.imports.application import use_cases
     from app.models.core.modelsimport import ImportItem
+    from app.modules.imports.application import use_cases
 
     claims = _get_claims(request)
     # tenant_id is now UUID, not int
@@ -2501,9 +2429,7 @@ async def attach_photo_to_item(
         )
     allowed = {"image/jpeg", "image/png", "image/heic", "application/pdf"}
     if (file.content_type or "") not in allowed:
-        raise HTTPException(
-            status_code=422, detail=f"Unsupported file type: {file.content_type}"
-        )
+        raise HTTPException(status_code=422, detail=f"Unsupported file type: {file.content_type}")
     file.file.seek(0)
 
     # Verificar scoping: item pertenece al batch y al tenant
@@ -2536,15 +2462,18 @@ async def attach_photo_to_item(
     # Size + mimetype limits and throttling handled above
     item = use_cases.attach_photo_and_reocr(db, str(tenant_id), str(user_id), it, file)
     return item
+
+
 # ------------------------------
 # Helpers: key normalization + fuzzy field lookup
 # ------------------------------
+
 
 def _norm_key(s: str) -> str:
     try:
         s = unicodedata.normalize("NFKD", s)
         # Normalizar espacios: NBSP y mÃºltiples espacios â†’ espacio simple
-        s = str(s).replace("\u00A0", " ")
+        s = str(s).replace("\u00a0", " ")
         s = re.sub(r"\s+", " ", s)
         s = "".join(ch for ch in s if not unicodedata.combining(ch))
         s = s.strip().lower()
@@ -2579,7 +2508,7 @@ def _parse_num(val):
         s = str(val).strip()
         if s == "":
             return None
-        s = s.replace("\u00A0", " ")
+        s = s.replace("\u00a0", " ")
         s = s.replace(" ", "")
         # Heuristic: if there is one comma and at least one dot, and comma comes after dot: treat dot as thousands
         if s.count(",") == 1 and s.count(".") >= 1 and s.find(",") > s.find("."):
@@ -2598,31 +2527,91 @@ def _parse_num(val):
 # Aliases registry (JSON-configurable)
 # ------------------------------
 
+
 def _load_aliases() -> dict:
     default_aliases = {
-        "codigo": ["codigo","cÃ³digo","sku","code","cod","codigo_barras","ean","ean13","upc","producto_codigo"],
+        "codigo": [
+            "codigo",
+            "cÃ³digo",
+            "sku",
+            "code",
+            "cod",
+            "codigo_barras",
+            "ean",
+            "ean13",
+            "upc",
+            "producto_codigo",
+        ],
         "nombre": [
-            "nombre","name","producto","descripcion","descripciÃ³n","detalle","articulo","artÃ­culo",
-            "nombre_articulo","nombre_producto","descripcion_articulo","descripcion_producto","desc",
+            "nombre",
+            "name",
+            "producto",
+            "descripcion",
+            "descripciÃ³n",
+            "detalle",
+            "articulo",
+            "artÃ­culo",
+            "nombre_articulo",
+            "nombre_producto",
+            "descripcion_articulo",
+            "descripcion_producto",
+            "desc",
         ],
         "precio": [
-            "precio","price","pvp","venta","precio_unitario_venta","precio_unitario","precio_venta",
-            "precio_lista","precio_final","importe","valor",
+            "precio",
+            "price",
+            "pvp",
+            "venta",
+            "precio_unitario_venta",
+            "precio_unitario",
+            "precio_venta",
+            "precio_lista",
+            "precio_final",
+            "importe",
+            "valor",
         ],
-        "precio_por_bulto": ["precio_por_bulto","precio_x_bulto","precio_bulto","pvp_bulto","venta_bulto"],
-        "costo": ["costo","cost","precio_costo","costo_unitario"],
+        "precio_por_bulto": [
+            "precio_por_bulto",
+            "precio_x_bulto",
+            "precio_bulto",
+            "pvp_bulto",
+            "venta_bulto",
+        ],
+        "costo": ["costo", "cost", "precio_costo", "costo_unitario"],
         "categoria": [
-            "categoria","category","rubro","familia","seccion","secciÃ³n","grupo","linea","lÃ­nea","subcategoria","sub_categoria",
+            "categoria",
+            "category",
+            "rubro",
+            "familia",
+            "seccion",
+            "secciÃ³n",
+            "grupo",
+            "linea",
+            "lÃ­nea",
+            "subcategoria",
+            "sub_categoria",
         ],
         "stock": [
-            "stock","cantidad","existencia","existencias","unidades","disponible","cantidad_actual","sobrante_diario",
+            "stock",
+            "cantidad",
+            "existencia",
+            "existencias",
+            "unidades",
+            "disponible",
+            "cantidad_actual",
+            "sobrante_diario",
         ],
-        "bultos": ["bultos","packs","paquetes"],
+        "bultos": ["bultos", "packs", "paquetes"],
         "cantidad_por_bulto": [
-            "cantidad_por_bulto","cant_por_bulto","unidades_por_bulto","cantidad_x_bulto","cant_x_bulto","u_x_bulto",
+            "cantidad_por_bulto",
+            "cant_por_bulto",
+            "unidades_por_bulto",
+            "cantidad_x_bulto",
+            "cant_x_bulto",
+            "u_x_bulto",
         ],
-        "unidad": ["unidad","uom","un","unidad_medida","medida"],
-        "iva": ["iva","tax","impuesto"],
+        "unidad": ["unidad", "uom", "un", "unidad_medida", "medida"],
+        "iva": ["iva", "tax", "impuesto"],
     }
     # Optional override via env
     cfg_path = os.getenv("IMPORTS_ALIASES_FILE")
@@ -2634,7 +2623,7 @@ def _load_aliases() -> dict:
     for p in candidates:
         try:
             if p.exists():
-                with p.open("r" , encoding="utf-8") as fh:
+                with p.open("r", encoding="utf-8") as fh:
                     data = json.load(fh)
                     if isinstance(data, dict):
                         # merge with defaults to keep missing keys

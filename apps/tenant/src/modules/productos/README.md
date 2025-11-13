@@ -164,8 +164,8 @@ Usa la lista base codificada en el backend.
 
 **Cambiar modo:**
 ```sql
-UPDATE tenant_module_settings 
-SET form_mode = 'mixed' 
+UPDATE tenant_module_settings
+SET form_mode = 'mixed'
 WHERE tenant_id = 'uuid-tenant' AND module = 'productos';
 ```
 
@@ -339,13 +339,13 @@ if (producto.receta_id) {
 3. Agregar manualmente el campo en los overrides del tenant
 
 ### "Los campos no se cargan dinámicamente"
-**Solución:** 
+**Solución:**
 1. Verificar llamada API en DevTools (Network)
 2. Verificar que `empresa` param esté en URL
 3. Forzar recarga dura (Ctrl+F5) por caché del Service Worker
 
 ### "El margen no se calcula"
-**Solución:** 
+**Solución:**
 1. Verificar que existan `precio_compra` y `precio` en el form
 2. El cálculo ocurre al submit, no en tiempo real
 3. Verificar que el campo `margen` esté en la configuración de sector retail
@@ -418,7 +418,7 @@ if (producto.receta_id) {
 
 ---
 
-**Versión del módulo:** 1.0.0  
-**Última actualización:** Octubre 2025  
-**Mantenedor:** Equipo GestiQCloud  
+**Versión del módulo:** 1.0.0
+**Última actualización:** Octubre 2025
+**Mantenedor:** Equipo GestiQCloud
 **Estado:** ✅ Production Ready

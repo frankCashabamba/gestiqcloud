@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from uuid import uuid4
-from app.modules.usuarios.interface.http.admin import set_password, SetPasswordIn
+
 from app.models.auth.useradmis import SuperUser
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
 from app.models.tenant import Tenant
+from app.modules.usuarios.interface.http.admin import SetPasswordIn, set_password
 
 
 def test_admin_set_password_updates_usuarioempresa_only(db):

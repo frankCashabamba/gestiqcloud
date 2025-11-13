@@ -16,4 +16,3 @@ api         IN  CNAME  gestiqcloud-api.onrender.com.
 ; - Import as a BIND zone file in Cloudflare if you intend to REPLACE existing DNS.
 ;   If you only want to adjust these hosts, add them manually to avoid overwriting DKIM/MX.
 ; - After Render verifies each domain, you may enable the Cloudflare proxy (orange cloud).
-

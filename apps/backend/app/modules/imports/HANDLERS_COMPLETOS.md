@@ -329,6 +329,6 @@ promoteBatch(batchId, { auto: true })
 
 ---
 
-**Versión**: 1.0 - Implementación completa  
-**Fecha**: 2025-11-05  
+**Versión**: 1.0 - Implementación completa
+**Fecha**: 2025-11-05
 **Autor**: Sistema de importación GestiqCloud

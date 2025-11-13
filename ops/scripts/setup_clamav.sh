@@ -70,21 +70,21 @@ fi
 if [ -f "$CLAMD_CONF" ]; then
     # Ensure socket is enabled
     sudo sed -i 's/^#LocalSocket /LocalSocket /' "$CLAMD_CONF" || true
-    
+
     # Increase max file size for imports (default 25MB, set to 32MB)
     if grep -q "^MaxFileSize" "$CLAMD_CONF"; then
         sudo sed -i 's/^MaxFileSize.*/MaxFileSize 32M/' "$CLAMD_CONF"
     else
         echo "MaxFileSize 32M" | sudo tee -a "$CLAMD_CONF"
     fi
-    
+
     # Increase max scan size
     if grep -q "^MaxScanSize" "$CLAMD_CONF"; then
         sudo sed -i 's/^MaxScanSize.*/MaxScanSize 128M/' "$CLAMD_CONF"
     else
         echo "MaxScanSize 128M" | sudo tee -a "$CLAMD_CONF"
     fi
-    
+
     echo "ClamAV daemon configured"
 else
     echo "Warning: Could not find clamd.conf"
@@ -100,7 +100,7 @@ if [ -f "$FRESHCLAM_CONF" ]; then
     if ! grep -q "^Daemon" "$FRESHCLAM_CONF"; then
         echo "Daemon yes" | sudo tee -a "$FRESHCLAM_CONF"
     fi
-    
+
     # Set update frequency (24 checks per day = every hour)
     if grep -q "^Checks" "$FRESHCLAM_CONF"; then
         sudo sed -i 's/^Checks.*/Checks 24/' "$FRESHCLAM_CONF"

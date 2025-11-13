@@ -43,8 +43,8 @@ Response: {
 }
 ```
 
-**¿Por qué falta?** Endpoint no existe  
-**¿Dónde usarlo?** Paso 1 del Wizard (selector tipo documento)  
+**¿Por qué falta?** Endpoint no existe
+**¿Dónde usarlo?** Paso 1 del Wizard (selector tipo documento)
 **¿Cuánto demora?** Backend: 1h, Frontend: 1h
 
 ---
@@ -58,8 +58,8 @@ POST /api/v1/imports/templates       # Crear
 DELETE /api/v1/imports/templates/:id # Eliminar
 ```
 
-**¿Por qué falta?** Implementado en localStorage, necesita BD  
-**¿Dónde usarlo?** Paso 3 (MapeoCampos) - "Cargar/Guardar Plantilla"  
+**¿Por qué falta?** Implementado en localStorage, necesita BD
+**¿Dónde usarlo?** Paso 3 (MapeoCampos) - "Cargar/Guardar Plantilla"
 **¿Cuánto demora?** Backend: 2h, Frontend: 1h
 
 ---
@@ -77,8 +77,8 @@ Mensaje cada 1s: {
 }
 ```
 
-**¿Por qué falta?** Está simulado (fallback)  
-**¿Dónde usarlo?** Paso 6 (Importando) - barra progreso en tiempo real  
+**¿Por qué falta?** Está simulado (fallback)
+**¿Dónde usarlo?** Paso 6 (Importando) - barra progreso en tiempo real
 **¿Cuánto demora?** Backend: 1h, Frontend: 1h
 
 ---
@@ -94,8 +94,8 @@ Response: {
 }
 ```
 
-**¿Por qué falta?** Endpoint existe pero no completo  
-**¿Dónde usarlo?** Paso 4 (ValidacionFilas) - validación Ecuador/España  
+**¿Por qué falta?** Endpoint existe pero no completo
+**¿Dónde usarlo?** Paso 4 (ValidacionFilas) - validación Ecuador/España
 **¿Cuánto demora?** Backend: 1h, Frontend: 0.5h
 
 ---

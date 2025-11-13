@@ -11,7 +11,7 @@ $countTenant = 0
 foreach ($f in $tenantFiles) {
     $content = Get-Content $f.FullName -Raw -Encoding UTF8
     $original = $content
-    
+
     # Dotted attributes
     $content = $content -replace '\.nombre\b', '.name'
     $content = $content -replace '\.descripcion\b', '.description'
@@ -25,7 +25,7 @@ foreach ($f in $tenantFiles) {
     $content = $content -replace '\.provincia\b', '.state'
     $content = $content -replace '\.ubicacion\b', '.location'
     $content = $content -replace '\.lote\b', '.lot'
-    
+
     # Type properties
     $content = $content -replace '\bnombre:', 'name:'
     $content = $content -replace '\bdescripcion:', 'description:'
@@ -39,7 +39,7 @@ foreach ($f in $tenantFiles) {
     $content = $content -replace '\bprovincia:', 'state:'
     $content = $content -replace '\bubicacion:', 'location:'
     $content = $content -replace '\blote:', 'lot:'
-    
+
     if ($content -ne $original) {
         [System.IO.File]::WriteAllText($f.FullName, $content, [System.Text.Encoding]::UTF8)
         $countTenant++
@@ -55,7 +55,7 @@ $countAdmin = 0
 foreach ($f in $adminFiles) {
     $content = Get-Content $f.FullName -Raw -Encoding UTF8
     $original = $content
-    
+
     # Dotted attributes
     $content = $content -replace '\.nombre\b', '.name'
     $content = $content -replace '\.descripcion\b', '.description'
@@ -67,7 +67,7 @@ foreach ($f in $adminFiles) {
     $content = $content -replace '\.direccion\b', '.address'
     $content = $content -replace '\.ciudad\b', '.city'
     $content = $content -replace '\.provincia\b', '.state'
-    
+
     # Type properties
     $content = $content -replace '\bnombre:', 'name:'
     $content = $content -replace '\bdescripcion:', 'description:'
@@ -79,7 +79,7 @@ foreach ($f in $adminFiles) {
     $content = $content -replace '\bdireccion:', 'address:'
     $content = $content -replace '\bciudad:', 'city:'
     $content = $content -replace '\bprovincia:', 'state:'
-    
+
     if ($content -ne $original) {
         [System.IO.File]::WriteAllText($f.FullName, $content, [System.Text.Encoding]::UTF8)
         $countAdmin++

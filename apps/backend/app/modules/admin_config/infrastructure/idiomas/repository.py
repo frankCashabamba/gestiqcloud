@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import Sequence
-
-from sqlalchemy.orm import Session
+from collections.abc import Sequence
 
 from app.models.empresa.empresa import Idioma as IdiomaORM
 from app.modules.admin_config.application.idiomas.dto import IdiomaIn, IdiomaOut
 from app.modules.admin_config.application.idiomas.ports import IdiomaRepo
+from sqlalchemy.orm import Session
 
 
 class SqlAlchemyIdiomaRepo(IdiomaRepo):
@@ -22,11 +21,7 @@ class SqlAlchemyIdiomaRepo(IdiomaRepo):
         )
 
     def list(self) -> Sequence[IdiomaOut]:
-        rows = (
-            self.db.query(IdiomaORM)
-            .order_by(IdiomaORM.codigo.asc())
-            .all()
-        )
+        rows = self.db.query(IdiomaORM).order_by(IdiomaORM.codigo.asc()).all()
         return [self._to_dto(r) for r in rows]
 
     def create(self, data: IdiomaIn) -> IdiomaOut:

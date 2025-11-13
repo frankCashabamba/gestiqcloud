@@ -33,15 +33,15 @@ export function SimpleLineChart({ data }: SimpleLineChartProps) {
 
   return (
     <div className="simple-line-chart">
-      <svg 
-        viewBox={`0 0 ${width} ${height}`} 
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
         className="chart-svg"
         preserveAspectRatio="none"
       >
         {/* Grid lines */}
         <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#E5E7EB" strokeWidth="1" />
         <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#E5E7EB" strokeWidth="1" />
-        
+
         {/* Line */}
         <polyline
           points={points}
@@ -51,7 +51,7 @@ export function SimpleLineChart({ data }: SimpleLineChartProps) {
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        
+
         {/* Points */}
         {data.map((d, i) => {
           const x = data.length > 1 ? (i / (data.length - 1)) * (width - padding * 2) + padding : width / 2
@@ -67,7 +67,7 @@ export function SimpleLineChart({ data }: SimpleLineChartProps) {
           )
         })}
       </svg>
-      
+
       {/* Legend */}
       <div className="chart-legend">
         <span className="chart-legend__label">

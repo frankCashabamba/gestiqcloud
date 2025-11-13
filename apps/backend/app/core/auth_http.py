@@ -1,16 +1,16 @@
-# -*- coding: utf-8 -*-
-from typing import Optional, Mapping
-from fastapi import Response
+from collections.abc import Mapping
+
+from app.config.database import SessionLocal
 from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
 from app.modules.identity.infrastructure.refresh_repo import SqlRefreshTokenRepo
-from app.config.database import SessionLocal
+from fastapi import Response
 
 # Cookie paths (alineados con app.main)
 ADMIN_REFRESH_COOKIE_PATH = "/api/v1/admin/auth"
 TENANT_REFRESH_COOKIE_PATH = "/api/v1/tenant/auth"
 
 
-def cookie_domain() -> Optional[str]:
+def cookie_domain() -> str | None:
     """Dominio para cookies segun entorno (None en dev)."""
     try:
         from app.config.settings import settings
@@ -33,9 +33,7 @@ def refresh_cookie_kwargs(*, path: str) -> dict:
     try:
         from app.config.settings import settings
 
-        secure = bool(
-            getattr(settings, "COOKIE_SECURE", (settings.ENV == "production"))
-        )
+        secure = bool(getattr(settings, "COOKIE_SECURE", (settings.ENV == "production")))
         raw = getattr(settings, "COOKIE_SAMESITE", "lax") or (
             "strict" if settings.ENV == "production" else "lax"
         )
@@ -66,9 +64,7 @@ def set_access_cookie(response: Response, token_str: str, *, path: str = "/") ->
     try:
         from app.config.settings import settings
 
-        secure = bool(
-            getattr(settings, "COOKIE_SECURE", (settings.ENV == "production"))
-        )
+        secure = bool(getattr(settings, "COOKIE_SECURE", (settings.ENV == "production")))
     except Exception:
         secure = False
     response.set_cookie(
@@ -89,7 +85,7 @@ def delete_auth_cookies(response: Response, *, path: str) -> None:
     response.delete_cookie("csrf_token", path="/", domain=cookie_domain())
 
 
-def extract_family_id_from_refresh(token: str) -> Optional[str]:
+def extract_family_id_from_refresh(token: str) -> str | None:
     """Best-effort para obtener family_id desde el refresh token."""
     try:
         payload: Mapping[str, object] = PyJWTTokenService().decode_and_validate(

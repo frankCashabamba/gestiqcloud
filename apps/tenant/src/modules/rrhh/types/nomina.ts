@@ -4,4 +4,3 @@ export type ReciboNomina = {
   mes: string
   monto: number
 }
-

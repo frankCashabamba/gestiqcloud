@@ -1,7 +1,6 @@
-from typing import List, Optional
-from sqlalchemy.orm import Session
-from app.models.expenses import Gasto
 from app.core.crud_base import CRUDBase
+from app.models.expenses import Gasto
+from sqlalchemy.orm import Session
 
 
 class GastoCRUD(CRUDBase[Gasto, "GastoCreateDTO", "GastoUpdateDTO"]):
@@ -13,10 +12,10 @@ class GastoRepo:
         self.db = db
         self.crud = GastoCRUD(Gasto)
 
-    def list(self) -> List[Gasto]:
+    def list(self) -> list[Gasto]:
         return list(self.crud.list(self.db))
 
-    def get(self, gid: int) -> Optional[Gasto]:
+    def get(self, gid: int) -> Gasto | None:
         return self.crud.get(self.db, gid)
 
     def create(
@@ -37,9 +36,7 @@ class GastoRepo:
                     "concepto": self.concepto,
                 }
 
-        dto = GastoCreateDTO(
-            fecha=fecha, proveedor_id=proveedor_id, monto=monto, concepto=concepto
-        )
+        dto = GastoCreateDTO(fecha=fecha, proveedor_id=proveedor_id, monto=monto, concepto=concepto)
         return self.crud.create(self.db, dto)
 
     def update(
@@ -65,13 +62,9 @@ class GastoRepo:
                     "monto": self.monto,
                     "concepto": self.concepto,
                 }
-                return {
-                    k: v for k, v in d.items() if not exclude_unset or v is not None
-                }
+                return {k: v for k, v in d.items() if not exclude_unset or v is not None}
 
-        dto = GastoUpdateDTO(
-            fecha=fecha, proveedor_id=proveedor_id, monto=monto, concepto=concepto
-        )
+        dto = GastoUpdateDTO(fecha=fecha, proveedor_id=proveedor_id, monto=monto, concepto=concepto)
         obj = self.crud.update(self.db, gid, dto)
         if not obj:
             raise ValueError("Gasto no encontrado")

@@ -1,8 +1,8 @@
-from pydantic import BaseModel, ConfigDict
-from typing import Any, Optional, List, Dict
-from uuid import UUID
 from datetime import datetime
-from pydantic import Field
+from typing import Any
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
 
 # --------------------
 # Procesamiento de documentos
@@ -11,25 +11,23 @@ from pydantic import Field
 
 class DocumentoProcesado(BaseModel):
     # Campos comunes detectados/normalizados por los extractores
-    tipo: Optional[str] = (
-        None  # "factura"|"recibo"|"transferencia"|"bancario"|"desconocido"
-    )
-    importe: Optional[float] = None
-    cliente: Optional[str] = None
-    invoice: Optional[str] = None
-    fecha: Optional[str] = None
-    cuenta: Optional[str] = None
-    concepto: Optional[str] = None
-    categoria: Optional[str] = None
-    origen: Optional[str] = None
-    documentoTipo: Optional[str] = None
+    tipo: str | None = None  # "factura"|"recibo"|"transferencia"|"bancario"|"desconocido"
+    importe: float | None = None
+    cliente: str | None = None
+    invoice: str | None = None
+    fecha: str | None = None
+    cuenta: str | None = None
+    concepto: str | None = None
+    categoria: str | None = None
+    origen: str | None = None
+    documentoTipo: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class DocumentoProcesadoResponse(BaseModel):
     archivo: str
-    documentos: List[DocumentoProcesado]
+    documentos: list[DocumentoProcesado]
 
 
 class OCRJobEnqueuedResponse(BaseModel):
@@ -40,8 +38,8 @@ class OCRJobEnqueuedResponse(BaseModel):
 class OCRJobStatusResponse(BaseModel):
     job_id: str
     status: str
-    result: Optional[DocumentoProcesadoResponse] = None
-    error: Optional[str] = None
+    result: DocumentoProcesadoResponse | None = None
+    error: str | None = None
 
 
 # --------------------
@@ -65,13 +63,13 @@ class HayPendientesOut(BaseModel):
 class BatchCreate(BaseModel):
     source_type: str  # 'invoices'|'bank'|'receipts'
     origin: str  # 'excel'|'ocr'|'api'
-    file_key: Optional[str] = None
-    mapping_id: Optional[UUID] = None
+    file_key: str | None = None
+    mapping_id: UUID | None = None
     # Fase A - Clasificación persistida
-    suggested_parser: Optional[str] = None
-    classification_confidence: Optional[float] = None
-    ai_enhanced: Optional[bool] = False
-    ai_provider: Optional[str] = None
+    suggested_parser: str | None = None
+    classification_confidence: float | None = None
+    ai_enhanced: bool | None = False
+    ai_provider: str | None = None
 
 
 class BatchOut(BaseModel):
@@ -79,38 +77,39 @@ class BatchOut(BaseModel):
     source_type: str
     origin: str
     status: str
-    file_key: Optional[str] = None
-    mapping_id: Optional[UUID] = None
+    file_key: str | None = None
+    mapping_id: UUID | None = None
     created_at: datetime
     # Fase A - Clasificación persistida
-    suggested_parser: Optional[str] = None
-    classification_confidence: Optional[float] = None
+    suggested_parser: str | None = None
+    classification_confidence: float | None = None
     ai_enhanced: bool = False
-    ai_provider: Optional[str] = None
+    ai_provider: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class UpdateClassificationRequest(BaseModel):
     """Schema para actualizar clasificación de un batch (PATCH /batches/{id}/classification)"""
-    suggested_parser: Optional[str] = None
-    classification_confidence: Optional[float] = None
-    ai_enhanced: Optional[bool] = None
-    ai_provider: Optional[str] = None
+
+    suggested_parser: str | None = None
+    classification_confidence: float | None = None
+    ai_enhanced: bool | None = None
+    ai_provider: str | None = None
 
 
 class ItemOut(BaseModel):
     id: UUID
     idx: int
     status: str
-    raw: Dict[str, Any] | None = None
-    normalized: Dict[str, Any] | None = None
-    errors: List[Dict[str, Any]] = Field(default_factory=list)
-    promoted_to: Optional[str] = None
-    promoted_id: Optional[UUID] = None
-    promoted_at: Optional[datetime] = None
-    lineage: List[Dict[str, Any]] = Field(default_factory=list)
-    last_correction: Optional[Dict[str, Any]] = None
+    raw: dict[str, Any] | None = None
+    normalized: dict[str, Any] | None = None
+    errors: list[dict[str, Any]] = Field(default_factory=list)
+    promoted_to: str | None = None
+    promoted_id: UUID | None = None
+    promoted_at: datetime | None = None
+    lineage: list[dict[str, Any]] = Field(default_factory=list)
+    last_correction: dict[str, Any] | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -133,14 +132,14 @@ class PromoteResult(BaseModel):
 
 
 class IngestRows(BaseModel):
-    rows: List[Dict[str, Any]]
-    mapping_id: Optional[UUID] = None
-    transforms: Optional[Dict[str, Any]] = None
-    defaults: Optional[Dict[str, Any]] = None
+    rows: list[dict[str, Any]]
+    mapping_id: UUID | None = None
+    transforms: dict[str, Any] | None = None
+    defaults: dict[str, Any] | None = None
 
 
 class PromoteItems(BaseModel):
-    item_ids: List[str]
+    item_ids: list[str]
 
 
 # --------------------
@@ -152,10 +151,10 @@ class ImportMappingBase(BaseModel):
     name: str
     source_type: str
     version: int = 1
-    mappings: Optional[Dict[str, str]] = None
-    transforms: Optional[Dict[str, Any]] = None
-    defaults: Optional[Dict[str, Any]] = None
-    dedupe_keys: Optional[List[str]] = None
+    mappings: dict[str, str] | None = None
+    transforms: dict[str, Any] | None = None
+    defaults: dict[str, Any] | None = None
+    dedupe_keys: list[str] | None = None
 
 
 class ImportMappingCreate(ImportMappingBase):
@@ -163,12 +162,12 @@ class ImportMappingCreate(ImportMappingBase):
 
 
 class ImportMappingUpdate(BaseModel):
-    name: Optional[str] = None
-    version: Optional[int] = None
-    mappings: Optional[Dict[str, str]] = None
-    transforms: Optional[Dict[str, Any]] = None
-    defaults: Optional[Dict[str, Any]] = None
-    dedupe_keys: Optional[List[str]] = None
+    name: str | None = None
+    version: int | None = None
+    mappings: dict[str, str] | None = None
+    transforms: dict[str, Any] | None = None
+    defaults: dict[str, Any] | None = None
+    dedupe_keys: list[str] | None = None
 
 
 class ImportMappingOut(ImportMappingBase):

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import Sequence
-
-from sqlalchemy.orm import Session
+from collections.abc import Sequence
 
 from app.models.empresa.empresa import Pais as PaisORM
 from app.modules.admin_config.application.paises.dto import PaisIn, PaisOut
 from app.modules.admin_config.application.paises.ports import PaisRepo
+from sqlalchemy.orm import Session
 
 
 class SqlAlchemyPaisRepo(PaisRepo):
@@ -22,11 +21,7 @@ class SqlAlchemyPaisRepo(PaisRepo):
         )
 
     def list(self) -> Sequence[PaisOut]:
-        rows = (
-            self.db.query(PaisORM)
-            .order_by(PaisORM.code.asc())
-            .all()
-        )
+        rows = self.db.query(PaisORM).order_by(PaisORM.code.asc()).all()
         return [self._to_dto(r) for r in rows]
 
     def create(self, data: PaisIn) -> PaisOut:

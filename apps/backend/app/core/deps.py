@@ -1,8 +1,7 @@
 from typing import Any
 
-from fastapi import HTTPException, Request
-
 from app.core.auth_shared import ensure_session
+from fastapi import HTTPException, Request
 
 
 def require_admin(request: Request) -> dict[str, Any]:

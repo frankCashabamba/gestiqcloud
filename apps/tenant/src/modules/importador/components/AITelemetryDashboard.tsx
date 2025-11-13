@@ -85,7 +85,7 @@ export const AITelemetryDashboard: React.FC = () => {
           <h2 className="text-2xl font-bold">📊 Telemetría IA</h2>
           <p className="text-sm text-gray-600 mt-1">Métricas de clasificación automática</p>
         </div>
-        
+
         <div className="flex gap-2">
           {(['24h', '7d', '30d'] as const).map((range) => (
             <button
@@ -166,12 +166,12 @@ export const AITelemetryDashboard: React.FC = () => {
       {/* Trend Chart */}
       <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
         <h3 className="text-lg font-bold mb-4">Tendencia de Precisión (últimos días)</h3>
-        
+
         <div className="space-y-4">
           {stats.metrics.map((metric) => (
             <div key={metric.date} className="flex items-center gap-4">
               <div className="w-20 text-sm font-medium text-gray-700">{metric.date}</div>
-              
+
               {/* Accuracy Bar */}
               <div className="flex-1">
                 <div className="bg-gray-200 rounded-full h-6 overflow-hidden">
@@ -189,7 +189,7 @@ export const AITelemetryDashboard: React.FC = () => {
               {/* Metrics */}
               <div className="w-48 text-right">
                 <div className="text-sm text-gray-600">
-                  <span className="font-medium">{metric.requests}</span> req • 
+                  <span className="font-medium">{metric.requests}</span> req •
                   <span className={`ml-2 ${getLatencyColor(metric.latency)}`}>
                     {Math.round(metric.latency)}ms
                   </span>

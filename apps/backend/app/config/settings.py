@@ -1,11 +1,11 @@
 # File: app/config/settings.py
 from __future__ import annotations
 
+import hashlib
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Literal, Optional, Union
-import hashlib
+from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -182,9 +182,9 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: SecretStr | None = None  # HS*
     JWT_PRIVATE_KEY: SecretStr | None = None  # RS*/ES*
     JWT_PUBLIC_KEY: SecretStr | None = None
-    JWT_ADDITIONAL_PUBLIC_KEYS: List[SecretStr] = []  # rotación opcional
+    JWT_ADDITIONAL_PUBLIC_KEYS: list[SecretStr] = []  # rotación opcional
     JWT_ISSUER: str = "gestiqcloud"
-    JWT_AUDIENCE: Optional[str] = None
+    JWT_AUDIENCE: str | None = None
     JWT_LEEWAY_SECONDS: int = 30
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
@@ -205,36 +205,36 @@ class Settings(BaseSettings):
             if env != "production":
                 derived = hashlib.sha256(val.encode("utf-8")).hexdigest()
                 print(
-                    "[settings][WARNING] SECRET_KEY demasiado corto (", len(val), "caracteres)",
+                    "[settings][WARNING] SECRET_KEY demasiado corto (",
+                    len(val),
+                    "caracteres)",
                     "→ derivando SHA-256 para entorno",
                     env,
                 )
                 return SecretStr(derived)
-            raise ValueError(
-                f"SECRET_KEY debe tener al menos 32 caracteres (actual: {len(val)})"
-            )
+            raise ValueError(f"SECRET_KEY debe tener al menos 32 caracteres (actual: {len(val)})")
         return v
 
     # Frontend
     FRONTEND_URL: str
-    FRONTEND_MODULES_PATH: Optional[str] = None
+    FRONTEND_MODULES_PATH: str | None = None
 
     # Cookies / CSRF
     SESSION_COOKIE_NAME: str = "bff_session"
-    COOKIE_DOMAIN: Optional[str] = None
+    COOKIE_DOMAIN: str | None = None
     CSRF_COOKIE_NAME: str = "csrf_token"
     COOKIE_SECURE: bool = False
     COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "lax"
 
     # CORS
-    CORS_ORIGINS: Union[str, List[str]] = Field(
+    CORS_ORIGINS: str | list[str] = Field(
         default=["http://localhost:5173", "http://localhost:5174", "http://localhost:8081"],
         description="Orígenes permitidos (lista o string con comas).",
     )
-    CORS_ALLOW_ORIGIN_REGEX: Optional[str] = None
+    CORS_ALLOW_ORIGIN_REGEX: str | None = None
     CORS_ALLOW_CREDENTIALS: bool = True
-    CORS_ALLOW_METHODS: List[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
-    CORS_ALLOW_HEADERS: List[str] = [
+    CORS_ALLOW_METHODS: list[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    CORS_ALLOW_HEADERS: list[str] = [
         "Authorization",
         "Content-Type",
         "X-CSRF-Token",
@@ -244,7 +244,7 @@ class Settings(BaseSettings):
         "X-Client-Revision",
     ]
     # Permite string con comas o lista JSON
-    ALLOWED_HOSTS: Union[str, List[str]] = Field(default_factory=list)
+    ALLOWED_HOSTS: str | list[str] = Field(default_factory=list)
 
     # Base de datos
     DATABASE_URL: SecretStr
@@ -254,10 +254,10 @@ class Settings(BaseSettings):
     DB_STATEMENT_TIMEOUT_MS: int = 15000  # 15s
 
     # Redis (opcional)
-    REDIS_URL: Optional[str] = None
+    REDIS_URL: str | None = None
 
     # CSP / otros headers
-    CSP_REPORT_URI: Optional[str] = None
+    CSP_REPORT_URI: str | None = None
     ALLOW_EMBED: bool = False
     HSTS_ENABLED: bool = True
     REFERRER_POLICY: str = "strict-origin-when-cross-origin"
@@ -301,35 +301,29 @@ class Settings(BaseSettings):
     # Fase D - IA Configurable
     IMPORT_AI_PROVIDER: Literal["local", "openai", "azure"] = Field(
         default="local",
-        description="AI provider for document classification (local | openai | azure)"
+        description="AI provider for document classification (local | openai | azure)",
     )
     IMPORT_AI_CONFIDENCE_THRESHOLD: float = Field(
         default=0.7,
-        description="Confidence threshold to trigger AI enhancement (use AI if < threshold)"
+        description="Confidence threshold to trigger AI enhancement (use AI if < threshold)",
     )
-    OPENAI_API_KEY: Optional[str] = None
+    OPENAI_API_KEY: str | None = None
     OPENAI_MODEL: str = Field(
-        default="gpt-3.5-turbo",
-        description="OpenAI model to use for classification"
+        default="gpt-3.5-turbo", description="OpenAI model to use for classification"
     )
-    AZURE_OPENAI_KEY: Optional[str] = None
-    AZURE_OPENAI_ENDPOINT: Optional[str] = None
+    AZURE_OPENAI_KEY: str | None = None
+    AZURE_OPENAI_ENDPOINT: str | None = None
     IMPORT_AI_CACHE_ENABLED: bool = Field(
-        default=True,
-        description="Enable caching of AI classifications"
+        default=True, description="Enable caching of AI classifications"
     )
-    IMPORT_AI_CACHE_TTL: int = Field(
-        default=86400,  # 24 hours
-        description="Cache TTL in seconds"
-    )
+    IMPORT_AI_CACHE_TTL: int = Field(default=86400, description="Cache TTL in seconds")  # 24 hours
     IMPORT_AI_LOG_TELEMETRY: bool = Field(
-        default=True,
-        description="Log AI classification telemetry for accuracy tracking"
+        default=True, description="Log AI classification telemetry for accuracy tracking"
     )
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
-    def split_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+    def split_cors_origins(cls, v: str | list[str]) -> list[str]:
         if isinstance(v, str):
             return [o.strip() for o in v.split(",") if o.strip()]
         return v

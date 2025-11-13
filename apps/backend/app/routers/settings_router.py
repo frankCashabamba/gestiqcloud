@@ -2,19 +2,15 @@
 Settings Router - Gestión de Configuración del Sistema
 """
 
-from typing import Dict, Any
+from typing import Any
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.middleware.tenant import get_current_user
 from app.models.core.settings import TenantSettings
-from app.schemas.settings import (
-    ModuleSettingsUpdate,
-    ModuleInfo,
-    ModuleListResponse,
-)
+from app.schemas.settings import ModuleInfo, ModuleListResponse, ModuleSettingsUpdate
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/v1/settings", tags=["Settings"])
 
@@ -37,9 +33,7 @@ def get_all_settings(
 ):
     """Obtener toda la configuración del tenant"""
     tenant_id = UUID(current_user["tenant_id"])
-    settings = (
-        db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
-    )
+    settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
 
     if not settings:
         settings = TenantSettings(
@@ -61,7 +55,7 @@ def get_all_settings(
     }
 
 
-@router.get("/{module}", response_model=Dict[str, Any], status_code=status.HTTP_200_OK)
+@router.get("/{module}", response_model=dict[str, Any], status_code=status.HTTP_200_OK)
 def get_module_settings(
     module: str,
     db: Session = Depends(get_db),
@@ -76,9 +70,7 @@ def get_module_settings(
             detail=f"Módulo '{module}' no encontrado",
         )
 
-    settings = (
-        db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
-    )
+    settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
 
     if not settings:
         return {}
@@ -92,7 +84,7 @@ def get_module_settings(
     }
 
 
-@router.put("/{module}", response_model=Dict[str, Any], status_code=status.HTTP_200_OK)
+@router.put("/{module}", response_model=dict[str, Any], status_code=status.HTTP_200_OK)
 def update_module_settings(
     module: str,
     settings_in: ModuleSettingsUpdate,
@@ -108,9 +100,7 @@ def update_module_settings(
             detail=f"Módulo '{module}' no encontrado",
         )
 
-    settings = (
-        db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
-    )
+    settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
 
     if not settings:
         settings = TenantSettings(
@@ -138,9 +128,7 @@ def update_module_settings(
     }
 
 
-@router.post(
-    "/{module}/enable", response_model=Dict[str, Any], status_code=status.HTTP_200_OK
-)
+@router.post("/{module}/enable", response_model=dict[str, Any], status_code=status.HTTP_200_OK)
 def enable_module(
     module: str,
     db: Session = Depends(get_db),
@@ -155,9 +143,7 @@ def enable_module(
             detail=f"Módulo '{module}' no encontrado",
         )
 
-    settings = (
-        db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
-    )
+    settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
 
     if not settings:
         settings = TenantSettings(
@@ -182,9 +168,7 @@ def enable_module(
     }
 
 
-@router.post(
-    "/{module}/disable", response_model=Dict[str, Any], status_code=status.HTTP_200_OK
-)
+@router.post("/{module}/disable", response_model=dict[str, Any], status_code=status.HTTP_200_OK)
 def disable_module(
     module: str,
     db: Session = Depends(get_db),
@@ -199,9 +183,7 @@ def disable_module(
             detail=f"Módulo '{module}' no encontrado",
         )
 
-    settings = (
-        db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
-    )
+    settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
 
     if not settings or not settings.enabled_modules:
         return {
@@ -222,9 +204,7 @@ def disable_module(
     }
 
 
-@router.get(
-    "/modules", response_model=ModuleListResponse, status_code=status.HTTP_200_OK
-)
+@router.get("/modules", response_model=ModuleListResponse, status_code=status.HTTP_200_OK)
 def list_modules(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -232,9 +212,7 @@ def list_modules(
     """Listar todos los módulos disponibles"""
     tenant_id = UUID(current_user["tenant_id"])
 
-    settings = (
-        db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
-    )
+    settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
 
     enabled_modules = settings.enabled_modules if settings else []
 

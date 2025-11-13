@@ -74,10 +74,10 @@ from app.config.settings import settings
 class FileClassifier:
     async def classify_file_with_ai(self, file_path: str, filename: str):
         """Clasificar archivo con mejora opcional de IA."""
-        
+
         # 1. Clasificación base (heurísticas existentes)
         base_result = self.classify_file(file_path, filename)
-        
+
         # 2. Si confianza es baja, usar IA para mejorar
         if base_result["confidence"] < settings.IMPORT_AI_CONFIDENCE_THRESHOLD:
             try:
@@ -85,17 +85,17 @@ class FileClassifier:
                 text = self._extract_text(file_path, filename)
                 if not text:
                     return base_result
-                
+
                 # Obtener provider IA
                 ai_provider = await get_ai_provider_singleton()
-                
+
                 # Clasificar con IA
                 ai_result = await ai_provider.classify_document(
                     text=text,
                     available_parsers=list(self.parsers_info.keys()),
                     doc_metadata={"filename": filename}
                 )
-                
+
                 # Si IA es más confiante, usar su resultado
                 if ai_result.confidence > base_result["confidence"]:
                     return {
@@ -105,11 +105,11 @@ class FileClassifier:
                         "enhanced_by_ai": True,
                         "ai_provider": ai_result.provider,
                     }
-            
+
             except Exception as e:
                 # Fallback a clasificación base si hay error
                 logger.warning(f"AI classification failed: {e}")
-        
+
         return base_result
 ```
 
@@ -133,31 +133,31 @@ from app.modules.imports.ai.local_provider import LocalAIProvider
 @pytest.mark.asyncio
 async def test_classify_invoice():
     provider = LocalAIProvider()
-    
+
     result = await provider.classify_document(
         text="Invoice #001 Total: $100.00 Customer: ABC Tax: $10",
         available_parsers=["csv_invoices", "products_excel"]
     )
-    
+
     assert result.suggested_parser == "csv_invoices"
     assert result.confidence > 0.5
 
 @pytest.mark.asyncio
 async def test_cache():
     provider = LocalAIProvider()
-    
+
     # Primera llamada
     result1 = await provider.classify_document(
         text="test",
         available_parsers=["csv_invoices"]
     )
-    
+
     # Segunda llamada (debe usar caché)
     result2 = await provider.classify_document(
         text="test",
         available_parsers=["csv_invoices"]
     )
-    
+
     assert result1.suggested_parser == result2.suggested_parser
 ```
 

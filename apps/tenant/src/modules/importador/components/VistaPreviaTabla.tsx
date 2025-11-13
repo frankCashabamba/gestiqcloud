@@ -20,4 +20,3 @@ export default function VistaPreviaTabla({ headers, rows }: { headers: string[];
     </div>
   )
 }
-

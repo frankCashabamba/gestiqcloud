@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import Sequence
-
-from sqlalchemy.orm import Session
+from collections.abc import Sequence
 
 from app.models.empresa.empresa import TipoEmpresa as TipoEmpresaORM
 from app.modules.admin_config.application.tipos_empresa.dto import TipoEmpresaIn, TipoEmpresaOut
 from app.modules.admin_config.application.tipos_empresa.ports import TipoEmpresaRepo
+from sqlalchemy.orm import Session
 
 
 class SqlAlchemyTipoEmpresaRepo(TipoEmpresaRepo):
@@ -22,11 +21,7 @@ class SqlAlchemyTipoEmpresaRepo(TipoEmpresaRepo):
         )
 
     def list(self) -> Sequence[TipoEmpresaOut]:
-        rows = (
-            self.db.query(TipoEmpresaORM)
-            .order_by(TipoEmpresaORM.name.asc())
-            .all()
-        )
+        rows = self.db.query(TipoEmpresaORM).order_by(TipoEmpresaORM.name.asc()).all()
         return [self._to_dto(r) for r in rows]
 
     def create(self, data: TipoEmpresaIn) -> TipoEmpresaOut:

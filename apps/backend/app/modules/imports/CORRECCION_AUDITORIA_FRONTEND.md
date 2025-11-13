@@ -1,7 +1,7 @@
 # ⚠️ CORRECCIÓN URGENTE: Frontend SÍ ESTÁ IMPLEMENTADO (99%)
 
-**Fecha de corrección:** 2025-11-11  
-**Responsable:** Auditoría automática (error de búsqueda)  
+**Fecha de corrección:** 2025-11-11
+**Responsable:** Auditoría automática (error de búsqueda)
 **Severidad:** CRÍTICA - Impacta roadmap completo
 
 ---
@@ -21,9 +21,9 @@ classifyApi.ts, useClassifyFile.ts, Wizard.tsx
 
 ## 📂 ARCHIVOS ENCONTRADOS Y VERIFICADOS
 
-### 1. **Wizard.tsx** - PRINCIPAL  
-**Ubicación:** `/apps/tenant/src/modules/importador/Wizard.tsx`  
-**Líneas:** 387 líneas de código  
+### 1. **Wizard.tsx** - PRINCIPAL
+**Ubicación:** `/apps/tenant/src/modules/importador/Wizard.tsx`
+**Líneas:** 387 líneas de código
 **Estado:** ✅ Completamente funcional
 
 **Contenido:**
@@ -44,9 +44,9 @@ import { createBatch, ingestBatch } from './services/importsApi'
 import { autoMapeoColumnas } from './services/autoMapeoColumnas'
 ```
 
-### 2. **classifyApi.ts** - SERVICIO  
-**Ubicación:** `/apps/tenant/src/modules/importador/services/classifyApi.ts`  
-**Líneas:** 101 líneas de código  
+### 2. **classifyApi.ts** - SERVICIO
+**Ubicación:** `/apps/tenant/src/modules/importador/services/classifyApi.ts`
+**Líneas:** 101 líneas de código
 **Estado:** ✅ Completamente implementado
 
 **Métodos disponibles:**
@@ -73,9 +73,9 @@ import { autoMapeoColumnas } from './services/autoMapeoColumnas'
 }
 ```
 
-### 3. **useClassifyFile.ts** - HOOK REACT  
-**Ubicación:** `/apps/tenant/src/modules/importador/hooks/useClassifyFile.ts`  
-**Líneas:** 82 líneas de código  
+### 3. **useClassifyFile.ts** - HOOK REACT
+**Ubicación:** `/apps/tenant/src/modules/importador/hooks/useClassifyFile.ts`
+**Líneas:** 82 líneas de código
 **Estado:** ✅ Completamente funcional
 
 **Hook Interface:**
@@ -150,20 +150,20 @@ Dentro de `/apps/tenant/src/modules/importador/` existen:
 async function onFile(e: React.ChangeEventHandler<HTMLInputElement>) {
   // 1. Parsear CSV
   const { headers, rows } = parseCSV(text)
-  
+
   // 2. Auto-mapear columnas
   const sugeridos = autoMapeoColumnas(hs, getAliasSugeridos())
-  
+
   // 3. Detectar tipo documento
   const docType = detectarTipoDocumento(hs)
-  
+
   // 4. Clasificar con IA (líneas 96-101)
   try {
     await classify(f)  // → useClassifyFile → classifyApi
   } catch (err) {
     console.warn('IA classification failed, using heuristic:', err)
   }
-  
+
   setStep('preview')
 }
 ```
@@ -173,7 +173,7 @@ async function onFile(e: React.ChangeEventHandler<HTMLInputElement>) {
 async function onImportAll() {
   // 1. Normalizar documento (línea 138)
   const docs = normalizarDocumento(rows, mapa)
-  
+
   // 2. Crear batch con clasificación (líneas 140-151)
   const batch = await createBatch({
     source_type: 'productos',
@@ -181,10 +181,10 @@ async function onImportAll() {
     ai_enhanced: classificationResult.enhanced_by_ai,
     ai_provider: classificationResult.ai_provider
   })
-  
+
   // 3. Ingestar filas (línea 155)
   await ingestBatch(batch.id, { rows: docs })
-  
+
   // 4. Promover con flags (líneas 158-172)
   await fetch(`/api/v1/imports/batches/${batch.id}/promote`, {
     method: 'POST',
@@ -257,7 +257,7 @@ Pero `/apps/tenant/` NO estaba incluida, por lo que los globs no la rastreaban.
 ## 🚀 IMPLICACIONES
 
 ### Roadmap anterior (INCORRECTO):
-- "20-25 días con frontend"  
+- "20-25 días con frontend"
 - "5-7 días sin frontend"
 
 ### Roadmap CORRECTO:

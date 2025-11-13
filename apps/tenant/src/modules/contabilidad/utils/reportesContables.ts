@@ -12,4 +12,3 @@ export function agruparPorCuenta(asientos: Asiento[]) {
   }
   return mapa
 }
-

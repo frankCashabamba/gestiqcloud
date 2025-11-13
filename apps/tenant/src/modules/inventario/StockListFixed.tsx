@@ -385,4 +385,3 @@ export default function StockList() {
     </div>
   )
 }
-

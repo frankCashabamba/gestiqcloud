@@ -22,4 +22,3 @@ export default function RecetaEditPage() {
     <RecetaForm open={true} recipe={recipe} onClose={() => nav('..', { replace: true })} />
   )
 }
-

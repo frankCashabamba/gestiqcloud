@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 from uuid import UUID
-from sqlalchemy.orm import Session
+
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 
 class PromoteResult:
-    def __init__(self, domain_id: Optional[str], skipped: bool = False):
+    def __init__(self, domain_id: str | None, skipped: bool = False):
         self.domain_id = domain_id
         self.skipped = skipped
 
@@ -17,8 +18,8 @@ class InvoiceHandler:
     def promote(
         db: Session,
         tenant_id: UUID,
-        normalized: Dict[str, Any],
-        promoted_id: Optional[str] = None,
+        normalized: dict[str, Any],
+        promoted_id: str | None = None,
         **kwargs,
     ) -> PromoteResult:
         """
@@ -28,11 +29,12 @@ class InvoiceHandler:
         if promoted_id:
             return PromoteResult(domain_id=promoted_id, skipped=True)
 
+        from datetime import date, datetime
+        from uuid import uuid4
+
+        from app.models.core.clients import Cliente
         from app.models.core.facturacion import Invoice
         from app.models.core.invoiceLine import LineaFactura
-        from app.models.core.clients import Cliente
-        from uuid import uuid4
-        from datetime import datetime, date
 
         try:
             # Extraer número de factura
@@ -55,9 +57,7 @@ class InvoiceHandler:
             if isinstance(fecha_raw, str):
                 for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"]:
                     try:
-                        fecha_emision = (
-                            datetime.strptime(fecha_raw, fmt).date().isoformat()
-                        )
+                        fecha_emision = datetime.strptime(fecha_raw, fmt).date().isoformat()
                         break
                     except ValueError:
                         continue
@@ -141,8 +141,7 @@ class InvoiceHandler:
             if not lines_data and total > 0:
                 lines_data = [
                     {
-                        "descripcion": normalized.get("concepto")
-                        or "Importe de factura",
+                        "descripcion": normalized.get("concepto") or "Importe de factura",
                         "cantidad": 1,
                         "precio_unitario": total,
                     }
@@ -150,10 +149,7 @@ class InvoiceHandler:
 
             for line in lines_data:
                 descripcion = str(
-                    line.get("descripcion")
-                    or line.get("desc")
-                    or line.get("description")
-                    or ""
+                    line.get("descripcion") or line.get("desc") or line.get("description") or ""
                 ).strip()
                 if not descripcion:
                     continue
@@ -184,7 +180,7 @@ class InvoiceHandler:
             db.flush()
             return PromoteResult(domain_id=str(invoice.id), skipped=False)
 
-        except Exception as e:
+        except Exception:
             return PromoteResult(domain_id=None, skipped=False)
 
 
@@ -193,8 +189,8 @@ class BankHandler:
     def promote(
         db: Session,
         tenant_id: UUID,
-        normalized: Dict[str, Any],
-        promoted_id: Optional[str] = None,
+        normalized: dict[str, Any],
+        promoted_id: str | None = None,
         **kwargs,
     ) -> PromoteResult:
         """
@@ -204,14 +200,15 @@ class BankHandler:
         if promoted_id:
             return PromoteResult(domain_id=promoted_id, skipped=True)
 
-        from app.models.core.facturacion import (
-            BankTransaction,
-            BankAccount,
-            MovimientoTipo,
-            MovimientoEstado,
-        )
+        from datetime import date, datetime
         from uuid import uuid4
-        from datetime import datetime, date
+
+        from app.models.core.facturacion import (
+            BankAccount,
+            BankTransaction,
+            MovimientoEstado,
+            MovimientoTipo,
+        )
 
         try:
             # Fecha
@@ -290,17 +287,11 @@ class BankHandler:
             if iban:
                 cuenta = (
                     db.query(BankAccount)
-                    .filter(
-                        BankAccount.tenant_id == tenant_id, BankAccount.iban == iban
-                    )
+                    .filter(BankAccount.tenant_id == tenant_id, BankAccount.iban == iban)
                     .first()
                 )
             else:
-                cuenta = (
-                    db.query(BankAccount)
-                    .filter(BankAccount.tenant_id == tenant_id)
-                    .first()
-                )
+                cuenta = db.query(BankAccount).filter(BankAccount.tenant_id == tenant_id).first()
 
             if not cuenta:
                 cuenta = BankAccount(
@@ -326,9 +317,7 @@ class BankHandler:
                 "receipt": MovimientoTipo.RECIBO,
                 "recibo": MovimientoTipo.RECIBO,
             }
-            tipo_str = str(
-                normalized.get("tipo") or normalized.get("type") or "otro"
-            ).lower()
+            tipo_str = str(normalized.get("tipo") or normalized.get("type") or "otro").lower()
             tipo = tipo_map.get(tipo_str, MovimientoTipo.OTRO)
 
             # Crear transacción
@@ -343,14 +332,8 @@ class BankHandler:
                 estado=MovimientoEstado.PENDIENTE,
                 concepto=concepto,
                 referencia=referencia,
-                contrapartida_nombre=str(
-                    normalized.get("counterparty_name") or ""
-                ).strip()
-                or None,
-                contrapartida_iban=str(
-                    normalized.get("counterparty_iban") or ""
-                ).strip()
-                or None,
+                contrapartida_nombre=str(normalized.get("counterparty_name") or "").strip() or None,
+                contrapartida_iban=str(normalized.get("counterparty_iban") or "").strip() or None,
                 fuente=normalized.get("source") or "import",
                 categoria=str(normalized.get("categoria") or "").strip() or None,
                 origen=direction,
@@ -360,7 +343,7 @@ class BankHandler:
 
             return PromoteResult(domain_id=str(transaction.id), skipped=False)
 
-        except Exception as e:
+        except Exception:
             return PromoteResult(domain_id=None, skipped=False)
 
 
@@ -369,8 +352,8 @@ class ExpenseHandler:
     def promote(
         db: Session,
         tenant_id: UUID,
-        normalized: Dict[str, Any],
-        promoted_id: Optional[str] = None,
+        normalized: dict[str, Any],
+        promoted_id: str | None = None,
         **kwargs,
     ) -> PromoteResult:
         """
@@ -380,10 +363,11 @@ class ExpenseHandler:
         if promoted_id:
             return PromoteResult(domain_id=promoted_id, skipped=True)
 
-        from app.models.expenses.gasto import Gasto
-        from uuid import uuid4
-        from datetime import datetime, date
+        from datetime import date, datetime
         from decimal import Decimal
+        from uuid import uuid4
+
+        from app.models.expenses.gasto import Gasto
 
         try:
             # Fecha
@@ -417,9 +401,7 @@ class ExpenseHandler:
 
             # Categoría
             categoria = (
-                str(
-                    normalized.get("category") or normalized.get("categoria") or "otros"
-                )
+                str(normalized.get("category") or normalized.get("categoria") or "otros")
                 .strip()
                 .lower()
             )
@@ -518,7 +500,7 @@ class ExpenseHandler:
 
             return PromoteResult(domain_id=str(gasto.id), skipped=False)
 
-        except Exception as e:
+        except Exception:
             return PromoteResult(domain_id=None, skipped=False)
 
 
@@ -527,10 +509,10 @@ class ProductHandler:
     def promote(
         db: Session,
         tenant_id: UUID,
-        normalized: Dict[str, Any],
-        promoted_id: Optional[str] = None,
+        normalized: dict[str, Any],
+        promoted_id: str | None = None,
         *,
-        options: Optional[Dict[str, Any]] = None,
+        options: dict[str, Any] | None = None,
     ) -> PromoteResult:
         """Promote validated product data to modern products schema (ORM).
 
@@ -541,36 +523,25 @@ class ProductHandler:
             return PromoteResult(domain_id=promoted_id, skipped=True)
 
         # Import here to avoid circular dependency
-        from app.models.core.products import Product
         from app.models.core.product_category import ProductCategory
+        from app.models.core.products import Product
 
         # Extract and validate required fields
         name = str(
-            normalized.get("name")
-            or normalized.get("producto")
-            or normalized.get("nombre")
-            or ""
+            normalized.get("name") or normalized.get("producto") or normalized.get("nombre") or ""
         ).strip()
         if not name:
             return PromoteResult(domain_id=None, skipped=False)
 
         # Prices and quantities
-        price = (
-            normalized.get("price")
-            or normalized.get("precio")
-            or normalized.get("pvp")
-            or 0
-        )
+        price = normalized.get("price") or normalized.get("precio") or normalized.get("pvp") or 0
         try:
             price = float(price)
         except (ValueError, TypeError):
             price = 0.0
 
         stock = (
-            normalized.get("stock")
-            or normalized.get("cantidad")
-            or normalized.get("quantity")
-            or 0
+            normalized.get("stock") or normalized.get("cantidad") or normalized.get("quantity") or 0
         )
         try:
             stock = float(stock)
@@ -579,9 +550,7 @@ class ProductHandler:
 
         # Category resolution
         category_id = None
-        category_name = str(
-            normalized.get("category") or normalized.get("categoria") or ""
-        ).strip()
+        category_name = str(normalized.get("category") or normalized.get("categoria") or "").strip()
         if category_name:
             category = (
                 db.query(ProductCategory)
@@ -598,9 +567,7 @@ class ProductHandler:
             category_id = category.id
 
         # SKU generation if missing - usar mismo sistema que create_product
-        sku = (
-            normalized.get("sku") or normalized.get("codigo") or normalized.get("code")
-        )
+        sku = normalized.get("sku") or normalized.get("codigo") or normalized.get("code")
         if not sku:
             # Generar SKU secuencial: {PREFIX}-{NUM}
             import re
@@ -641,14 +608,11 @@ class ProductHandler:
             existing.price = price
             existing.stock = stock
             existing.unit = (
-                normalized.get("unit")
-                or normalized.get("unidad")
-                or existing.unit
-                or "unidad"
+                normalized.get("unit") or normalized.get("unidad") or existing.unit or "unidad"
             )
             try:
                 if options and options.get("activate"):
-                    setattr(existing, "activo", True)
+                    existing.activo = True
             except Exception:
                 pass
             if category_id:
@@ -666,11 +630,7 @@ class ProductHandler:
                     from app.models.inventory.stock import StockItem
                     from app.models.inventory.warehouse import Warehouse
 
-                    has_si = (
-                        db.query(StockItem)
-                        .filter(StockItem.product_id == existing.id)
-                        .first()
-                    )
+                    has_si = db.query(StockItem).filter(StockItem.product_id == existing.id).first()
                     if not has_si:
                         # Buscar almacén preferente ALM-1; si no existe, crear uno por defecto
                         target_code = (options or {}).get("target_warehouse")
@@ -683,9 +643,7 @@ class ProductHandler:
                                 )
                                 .first()
                             )
-                            if not wh and (options or {}).get(
-                                "create_missing_warehouses", True
-                            ):
+                            if not wh and (options or {}).get("create_missing_warehouses", True):
                                 wh = Warehouse(
                                     tenant_id=tenant_id,
                                     code=target_code,
@@ -758,7 +716,7 @@ class ProductHandler:
         )
         try:
             if options and options.get("activate"):
-                setattr(product, "activo", True)
+                product.activo = True
         except Exception:
             pass
         db.add(product)
@@ -769,11 +727,7 @@ class ProductHandler:
                 from app.models.inventory.stock import StockItem
                 from app.models.inventory.warehouse import Warehouse
 
-                has_si = (
-                    db.query(StockItem)
-                    .filter(StockItem.product_id == product.id)
-                    .first()
-                )
+                has_si = db.query(StockItem).filter(StockItem.product_id == product.id).first()
                 if not has_si:
                     target_code = (options or {}).get("target_warehouse")
                     if target_code:
@@ -785,9 +739,7 @@ class ProductHandler:
                             )
                             .first()
                         )
-                        if not wh and (options or {}).get(
-                            "create_missing_warehouses", True
-                        ):
+                        if not wh and (options or {}).get("create_missing_warehouses", True):
                             wh = Warehouse(
                                 tenant_id=tenant_id,
                                 code=target_code,
@@ -842,8 +794,8 @@ class ProductHandler:
 
 
 def publish_to_destination(
-    db, tenant_id, doc_type: str, extracted_data: Dict[str, Any]
-) -> Optional[str]:
+    db, tenant_id, doc_type: str, extracted_data: dict[str, Any]
+) -> str | None:
     """
     Publica extracted_data a tablas destino según doc_type.
 

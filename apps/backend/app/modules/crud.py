@@ -6,12 +6,10 @@ import os
 import re
 import shutil
 
-from sqlalchemy.orm import Session, joinedload
-
-
 from app.models.core.modulo import EmpresaModulo, Modulo, ModuloAsignado
 from app.models.tenant import Tenant
 from app.modules import schemas
+from sqlalchemy.orm import Session, joinedload
 
 
 # ---------- MODULOS ----------
@@ -32,9 +30,7 @@ def crear_estructura_modulo(nombre: str):
 
     # 4. Prevenir escritura fuera del directorio
     if not base_path.startswith(os.path.abspath(base_dir)):
-        raise ValueError(
-            "�?O Ruta invA�lida: intento de escapar del directorio permitido."
-        )
+        raise ValueError("�?O Ruta invA�lida: intento de escapar del directorio permitido.")
 
     # 5. Crear carpeta si no existe
     try:
@@ -45,7 +41,8 @@ def crear_estructura_modulo(nombre: str):
         panel_path = os.path.join(base_path, "Panel.tsx")
         if not os.path.exists(panel_path):
             with open(panel_path, "w", encoding="utf-8") as f:
-                f.write(f"""// Auto-generado para el módulo: {nombre}
+                f.write(
+                    f"""// Auto-generado para el módulo: {nombre}
 import React from 'react';
 
 const Panel = () => {{
@@ -53,7 +50,8 @@ const Panel = () => {{
 }};
 
 export default Panel;
-""")
+"""
+                )
             print(f"✓ Panel.tsx creado en: {panel_path}")
         else:
             print(f"⚠ Ya existe: {panel_path} (no se sobrescribe)")
@@ -70,9 +68,7 @@ def obtener_modulo(db: Session, modulo_id: int):
 
 def crear_modulo(db: Session, modulo_data: schemas.ModuloCreate) -> Modulo:
     """Function crear_modulo - auto-generated docstring."""
-    existente = (
-        db.query(Modulo).filter(Modulo.name.ilike(modulo_data.name.strip())).first()
-    )
+    existente = db.query(Modulo).filter(Modulo.name.ilike(modulo_data.name.strip())).first()
 
     if existente:
         raise ValueError(f"Ya existe un mA3dulo con el nombre '{modulo_data.name}'")
@@ -193,9 +189,7 @@ def obtener_modulos_de_usuario(db: Session, tenant_id: int, usuario_id: int):
     """Function obtener_modulos_de_usuario - auto-generated docstring."""
     return (
         db.query(ModuloAsignado)
-        .options(
-            joinedload(ModuloAsignado.modulo)
-        )  # �o. Esto carga los datos del mA3dulo
+        .options(joinedload(ModuloAsignado.modulo))  # �o. Esto carga los datos del mA3dulo
         .filter(ModuloAsignado.tenant_id == tenant_id)
         .filter(ModuloAsignado.usuario_id == usuario_id)
         .all()
@@ -214,9 +208,7 @@ def listar_modulo_admins(db: Session) -> list[Modulo]:
 
 def crear_modulo_db_only(db: Session, modulo_data: schemas.ModuloCreate) -> Modulo:
     """Crear solo el registro del mA3dulo en BD (sin tocar el filesystem)."""
-    existente = (
-        db.query(Modulo).filter(Modulo.name.ilike(modulo_data.name.strip())).first()
-    )
+    existente = db.query(Modulo).filter(Modulo.name.ilike(modulo_data.name.strip())).first()
 
     if existente:
         raise ValueError(f"Ya existe un mA3dulo con el nombre '{modulo_data.name}'")
@@ -226,4 +218,3 @@ def crear_modulo_db_only(db: Session, modulo_data: schemas.ModuloCreate) -> Modu
     db.commit()
     db.refresh(nuevo_modulo)
     return nuevo_modulo
-

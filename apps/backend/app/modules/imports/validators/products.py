@@ -1,9 +1,9 @@
 """Validators for product imports."""
 
-from typing import Dict, Any, List
+from typing import Any
 
 
-def validate_product(data: Dict[str, Any]) -> List[str]:
+def validate_product(data: dict[str, Any]) -> list[str]:
     """Validate product import data.
 
     Args:
@@ -60,7 +60,7 @@ def validate_product(data: Dict[str, Any]) -> List[str]:
     return errors
 
 
-def validate_products_batch(items: List[Dict[str, Any]]) -> Dict[int, List[str]]:
+def validate_products_batch(items: list[dict[str, Any]]) -> dict[int, list[str]]:
     """Validate a batch of products.
 
     Args:

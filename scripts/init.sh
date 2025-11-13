@@ -92,5 +92,3 @@ PY
   *)
     echo "Usage: $0 {up|down|rebuild|logs [svc]|typecheck|migrate [up|down] [dir]|schema-check|schema-explain|auto-migrate|alembic-draft|baseline|local|compose-min|compose-backend|compose-all}" ;;
 esac
-
-

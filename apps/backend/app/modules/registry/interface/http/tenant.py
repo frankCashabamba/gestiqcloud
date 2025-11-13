@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from ...service import discover_manifests
 from ...models import ModuleSummary
-
+from ...service import discover_manifests
 
 router = APIRouter(prefix="/modules", tags=["modules"])
 

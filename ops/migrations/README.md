@@ -18,8 +18,8 @@ ops/migrations/
 ## 🎯 Migración Activa
 
 ### 2025-11-01_000_baseline_modern
-**Estado**: ✅ Aplicada  
-**Versión**: 2.0.0  
+**Estado**: ✅ Aplicada
+**Versión**: 2.0.0
 **Descripción**: Baseline consolidada con schema moderno 100% inglés
 
 Esta migración crea el esquema completo desde cero:
@@ -178,8 +178,8 @@ docker exec db psql -U postgres -d gestiqclouddb_dev -c "SELECT count(*) FROM pr
 
 # Verificar RLS
 docker exec db psql -U postgres -d gestiqclouddb_dev -c "
-  SELECT tablename, policyname 
-  FROM pg_policies 
+  SELECT tablename, policyname
+  FROM pg_policies
   WHERE tablename = 'products';
 "
 ```
@@ -193,6 +193,6 @@ docker exec db psql -U postgres -d gestiqclouddb_dev -c "
 
 ---
 
-**Última actualización**: Nov 2025  
-**Versión baseline**: 2.0.0  
+**Última actualización**: Nov 2025
+**Versión baseline**: 2.0.0
 **Próxima migración**: 2025-11-XX_001_*

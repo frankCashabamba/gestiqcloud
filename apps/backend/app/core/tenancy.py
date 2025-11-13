@@ -4,10 +4,7 @@ Provides a stable import path for RLS/tenant resolution.
 """
 
 try:
-    from app.db.rls import (  # noqa: F401
-        tenant_from_request,
-        get_current_tenant,
-    )
+    from app.db.rls import get_current_tenant, tenant_from_request  # noqa: F401
 except Exception:  # pragma: no cover
     pass
 

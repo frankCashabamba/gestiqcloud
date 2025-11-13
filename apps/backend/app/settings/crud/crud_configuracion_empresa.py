@@ -4,13 +4,12 @@ Auto-generated module docstring."""
 
 # crud/configuracion_empresa.py
 
-from sqlalchemy.orm import Session
-
 from app.models import ConfiguracionEmpresa
 from app.settings.schemas.configuracion_empresa import (
     ConfiguracionEmpresaCreate,
     ConfiguracionEmpresaUpdate,
 )
+from sqlalchemy.orm import Session
 
 
 def get_by_empresa(db: Session, tenant_id: int):
@@ -28,13 +27,9 @@ def create(db: Session, obj_in: ConfiguracionEmpresaCreate):
     return config
 
 
-def update(
-    db: Session, db_obj: ConfiguracionEmpresa, obj_in: ConfiguracionEmpresaUpdate
-):
+def update(db: Session, db_obj: ConfiguracionEmpresa, obj_in: ConfiguracionEmpresaUpdate):
     """Function update - auto-generated docstring."""
-    updates = obj_in.model_dump(
-        exclude_unset=True
-    )  # v2: reemplaza .dict(exclude_unset=True)
+    updates = obj_in.model_dump(exclude_unset=True)  # v2: reemplaza .dict(exclude_unset=True)
     for field, value in updates.items():
         setattr(db_obj, field, value)
     db.commit()

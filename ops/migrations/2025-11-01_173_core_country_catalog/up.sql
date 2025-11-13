@@ -18,4 +18,3 @@ INSERT INTO core_pais (codigo, nombre) VALUES
   ('MX','México') ON CONFLICT (codigo) DO NOTHING;
 
 COMMIT;
-

@@ -3,7 +3,7 @@
 ## ❌ Error Actual
 
 ```
-error during connect: Get "http://%2F%2F.%2Fpipe%2FdockerDesktopLinuxEngine/v1.51/...": 
+error during connect: Get "http://%2F%2F.%2Fpipe%2FdockerDesktopLinuxEngine/v1.51/...":
 open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.
 ```
 
@@ -332,5 +332,5 @@ Si nada funciona:
 
 ---
 
-**Última actualización**: Enero 2025  
+**Última actualización**: Enero 2025
 **Sistema**: Windows 10/11 + Docker Desktop + WSL2

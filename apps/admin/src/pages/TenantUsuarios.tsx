@@ -676,4 +676,3 @@ export const TenantUsuarios: React.FC = () => {
 }
 
 export default TenantUsuarios
-

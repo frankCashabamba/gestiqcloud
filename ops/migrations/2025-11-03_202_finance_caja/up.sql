@@ -30,35 +30,35 @@ COMMENT ON TYPE cierre_caja_status IS 'Estado de cierre: ABIERTO=En curso, CERRA
 CREATE TABLE caja_movimientos (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    
+
     -- Tipo y categoría
     tipo caja_movimiento_tipo NOT NULL,
     categoria caja_movimiento_categoria NOT NULL,
-    
+
     -- Importe
     importe NUMERIC(12, 2) NOT NULL,
     moneda CHAR(3) NOT NULL DEFAULT 'EUR',
-    
+
     -- Descripción
     concepto VARCHAR(255) NOT NULL,
     notas TEXT,
-    
+
     -- Referencia a documento origen
     ref_doc_type VARCHAR(50),
     ref_doc_id UUID,
-    
+
     -- Multi-caja (opcional)
     caja_id UUID,
-    
+
     -- Usuario responsable
     usuario_id UUID,
-    
+
     -- Fecha
     fecha DATE NOT NULL,
-    
+
     -- Relación con cierre
     cierre_id UUID REFERENCES cierres_caja(id) ON DELETE SET NULL,
-    
+
     -- Auditoría
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -93,12 +93,12 @@ COMMENT ON COLUMN caja_movimientos.cierre_id IS 'ID del cierre al que pertenece'
 CREATE TABLE cierres_caja (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    
+
     -- Fecha y caja
     fecha DATE NOT NULL,
     caja_id UUID,
     moneda CHAR(3) NOT NULL DEFAULT 'EUR',
-    
+
     -- === SALDOS ===
     saldo_inicial NUMERIC(12, 2) NOT NULL DEFAULT 0,
     total_ingresos NUMERIC(12, 2) NOT NULL DEFAULT 0,
@@ -106,31 +106,31 @@ CREATE TABLE cierres_caja (
     saldo_teorico NUMERIC(12, 2) NOT NULL DEFAULT 0,
     saldo_real NUMERIC(12, 2) NOT NULL DEFAULT 0,
     diferencia NUMERIC(12, 2) NOT NULL DEFAULT 0,
-    
+
     -- === ESTADO ===
     status cierre_caja_status NOT NULL DEFAULT 'ABIERTO',
     cuadrado BOOLEAN NOT NULL DEFAULT FALSE,
-    
+
     -- === DETALLES ===
     detalles_billetes JSONB,
     notas TEXT,
-    
+
     -- === USUARIOS ===
     abierto_por UUID,
     abierto_at TIMESTAMPTZ,
     cerrado_por UUID,
     cerrado_at TIMESTAMPTZ,
-    
+
     -- Auditoría
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
+
     -- === CONSTRAINTS ===
-    CONSTRAINT cierres_caja_fecha_caja_unique 
+    CONSTRAINT cierres_caja_fecha_caja_unique
         UNIQUE (tenant_id, fecha, caja_id),
-    CONSTRAINT cierres_caja_saldos_check 
+    CONSTRAINT cierres_caja_saldos_check
         CHECK (saldo_teorico = saldo_inicial + total_ingresos - total_egresos),
-    CONSTRAINT cierres_caja_diferencia_check 
+    CONSTRAINT cierres_caja_diferencia_check
         CHECK (diferencia = saldo_real - saldo_teorico)
 );
 
@@ -196,17 +196,17 @@ DECLARE
     v_total_egresos NUMERIC(12, 2);
 BEGIN
     -- Obtener datos del cierre
-    SELECT tenant_id, fecha, caja_id 
+    SELECT tenant_id, fecha, caja_id
     INTO v_tenant_id, v_fecha, v_caja_id
     FROM cierres_caja
     WHERE id = p_cierre_id;
-    
+
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Cierre no encontrado: %', p_cierre_id;
     END IF;
-    
+
     -- Calcular totales de movimientos
-    SELECT 
+    SELECT
         COALESCE(SUM(importe) FILTER (WHERE importe > 0), 0),
         COALESCE(ABS(SUM(importe) FILTER (WHERE importe < 0)), 0)
     INTO v_total_ingresos, v_total_egresos
@@ -214,7 +214,7 @@ BEGIN
     WHERE tenant_id = v_tenant_id
       AND fecha = v_fecha
       AND (caja_id = v_caja_id OR (caja_id IS NULL AND v_caja_id IS NULL));
-    
+
     -- Actualizar cierre
     UPDATE cierres_caja
     SET total_ingresos = v_total_ingresos,
@@ -236,7 +236,7 @@ BEGIN
     IF NEW.cierre_id IS NOT NULL THEN
         PERFORM recalcular_totales_cierre(NEW.cierre_id);
     END IF;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -253,7 +253,7 @@ CREATE TRIGGER caja_movimientos_actualizar_cierre
 
 -- Vista: Resumen diario de caja por tenant
 CREATE OR REPLACE VIEW v_caja_resumen_diario AS
-SELECT 
+SELECT
     tenant_id,
     fecha,
     caja_id,

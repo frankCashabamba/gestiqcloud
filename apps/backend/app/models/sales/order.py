@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-from typing import Optional
-
-from sqlalchemy import String, Integer, Numeric, JSON
+from app.config.database import Base
+from sqlalchemy import JSON, Integer, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
-
-from app.config.database import Base
 
 
 def _uuid_col():
@@ -22,12 +19,12 @@ class SalesOrder(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     tenant_id: Mapped[str] = mapped_column(_uuid_col(), index=True)
-    customer_id: Mapped[Optional[int]]
+    customer_id: Mapped[int | None]
     status: Mapped[str] = mapped_column(String, default="draft")
-    currency: Mapped[Optional[str]]
-    totals: Mapped[Optional[dict]] = mapped_column(JSON)
+    currency: Mapped[str | None]
+    totals: Mapped[dict | None] = mapped_column(JSON)
     # Avoid reserved attribute name 'metadata' in SQLAlchemy declarative
-    extra_metadata: Mapped[Optional[dict]] = mapped_column("metadata", JSON)
+    extra_metadata: Mapped[dict | None] = mapped_column("metadata", JSON)
 
 
 class SalesOrderItem(Base):
@@ -39,6 +36,6 @@ class SalesOrderItem(Base):
     product_id: Mapped[int] = mapped_column(Integer, nullable=False)
     qty: Mapped[float] = mapped_column(Numeric, nullable=False)
     unit_price: Mapped[float] = mapped_column(Numeric, default=0)
-    tax: Mapped[Optional[dict]] = mapped_column(JSON)
+    tax: Mapped[dict | None] = mapped_column(JSON)
     # Avoid reserved attribute name 'metadata'
-    extra_metadata: Mapped[Optional[dict]] = mapped_column("metadata", JSON)
+    extra_metadata: Mapped[dict | None] = mapped_column("metadata", JSON)

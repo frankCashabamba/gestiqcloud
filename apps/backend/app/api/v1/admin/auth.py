@@ -1,30 +1,30 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, Request
 import logging
-from pydantic import BaseModel
-from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.core.i18n import t
-from app.core.audit import audit as audit_log
-from app.models.auth.useradmis import SuperUser
 from app.config.settings import settings
+from app.core.audit import audit as audit_log
 from app.core.auth_http import (
-    set_refresh_cookie,
-    set_access_cookie,
-    delete_auth_cookies,
     best_effort_family_revoke,
+    delete_auth_cookies,
     refresh_cookie_path_admin,
+    set_access_cookie,
+    set_refresh_cookie,
 )
 from app.core.auth_shared import ensure_session, issue_csrf_and_cookie, rotate_refresh
+from app.core.csrf import issue_csrf_token
+from app.core.i18n import t
 from app.db.rls import set_tenant_guc
+from app.models.auth.useradmis import SuperUser
 
 # Identity services (ports/adapters)
 from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
 from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
 from app.modules.identity.infrastructure.rate_limit import SimpleRateLimiter
 from app.modules.identity.infrastructure.refresh_repo import SqlRefreshTokenRepo
-from app.core.csrf import issue_csrf_token
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from pydantic import BaseModel
+from sqlalchemy import func, or_
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 log = logging.getLogger("app.auth.admin")

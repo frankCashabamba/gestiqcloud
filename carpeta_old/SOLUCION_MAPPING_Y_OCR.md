@@ -107,7 +107,7 @@ IMPORTS_SKIP_OCR_IF_TEXT=true    # Detecta texto y no hace OCR
    ↓
 4. Parsea columnas automáticamente
    - PRODUCTO → nombre
-   - CANTIDAD → stock  
+   - CANTIDAD → stock
    - PRECIO UNITARIO VENTA → precio
    ↓
 5. Vista previa → Revisar y corregir
@@ -195,6 +195,6 @@ Sube PDFs:
 
 ---
 
-**Fecha**: 2025-11-05  
-**Fix**: Modal opcional + OCR optimizado  
+**Fecha**: 2025-11-05
+**Fix**: Modal opcional + OCR optimizado
 **Estado**: ✅ LISTO

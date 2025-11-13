@@ -280,6 +280,6 @@ Al modificar este módulo:
 
 ---
 
-**Versión**: 1.0.0  
-**Última actualización**: Enero 2025  
+**Versión**: 1.0.0
+**Última actualización**: Enero 2025
 **Estado**: ✅ Completado - Production Ready

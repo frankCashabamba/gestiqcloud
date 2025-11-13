@@ -12,4 +12,3 @@ export function useMovimientos() {
 
   return { asientos, loading }
 }
-

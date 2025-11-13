@@ -8,7 +8,7 @@ export function sendTelemetry(event: string, data?: any) {
     const last = _lastTelemetry[event] || 0
     if (now - last < TELEMETRY_THROTTLE_MS) return
     _lastTelemetry[event] = now
-    
+
     const url = '/api/v1/telemetry/event'
     const body = JSON.stringify({ event, data, ts: Math.floor(now / 1000) })
     if (navigator.sendBeacon) {
@@ -21,4 +21,3 @@ export function sendTelemetry(event: string, data?: any) {
 }
 
 export { track } from '@shared/telemetry'
-

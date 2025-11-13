@@ -1,9 +1,9 @@
 """Default Settings por Módulo y País"""
 
-from typing import Dict, Any
+from typing import Any
 
 # Configuración por defecto para España
-DEFAULT_SETTINGS_ES: Dict[str, Any] = {
+DEFAULT_SETTINGS_ES: dict[str, Any] = {
     "global": {
         "locale": "es_ES",
         "timezone": "Europe/Madrid",
@@ -144,7 +144,7 @@ DEFAULT_SETTINGS_ES: Dict[str, Any] = {
 }
 
 # Configuración por defecto para Ecuador
-DEFAULT_SETTINGS_EC: Dict[str, Any] = {
+DEFAULT_SETTINGS_EC: dict[str, Any] = {
     "global": {
         "locale": "es_EC",
         "timezone": "America/Guayaquil",
@@ -285,7 +285,7 @@ DEFAULT_SETTINGS_EC: Dict[str, Any] = {
 DEFAULT_SETTINGS = DEFAULT_SETTINGS_ES
 
 
-def get_default_settings(country: str = "ES") -> Dict[str, Any]:
+def get_default_settings(country: str = "ES") -> dict[str, Any]:
     """Obtener configuración por defecto según país"""
     if country.upper() == "EC":
         return DEFAULT_SETTINGS_EC.copy()

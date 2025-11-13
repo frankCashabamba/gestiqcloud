@@ -2,27 +2,30 @@
 CRM Pydantic Schemas
 """
 
-from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from uuid import UUID
 
 from app.modules.crm.domain.entities import (
-    LeadStatus, LeadSource, OpportunityStage, ActivityType, ActivityStatus
+    ActivityStatus,
+    ActivityType,
+    LeadSource,
+    LeadStatus,
+    OpportunityStage,
 )
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class LeadBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
-    company: Optional[str] = Field(None, max_length=200)
+    company: str | None = Field(None, max_length=200)
     email: EmailStr
-    phone: Optional[str] = Field(None, max_length=50)
+    phone: str | None = Field(None, max_length=50)
     status: LeadStatus = LeadStatus.NEW
     source: LeadSource = LeadSource.OTHER
-    assigned_to: Optional[UUID] = None
-    score: Optional[int] = Field(None, ge=0, le=100)
-    notes: Optional[str] = None
-    custom_fields: Optional[dict] = None
+    assigned_to: UUID | None = None
+    score: int | None = Field(None, ge=0, le=100)
+    notes: str | None = None
+    custom_fields: dict | None = None
 
 
 class LeadCreate(LeadBase):
@@ -30,41 +33,41 @@ class LeadCreate(LeadBase):
 
 
 class LeadUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=200)
-    company: Optional[str] = Field(None, max_length=200)
-    email: Optional[EmailStr] = None
-    phone: Optional[str] = None
-    status: Optional[LeadStatus] = None
-    source: Optional[LeadSource] = None
-    assigned_to: Optional[UUID] = None
-    score: Optional[int] = Field(None, ge=0, le=100)
-    notes: Optional[str] = None
-    custom_fields: Optional[dict] = None
+    name: str | None = Field(None, min_length=1, max_length=200)
+    company: str | None = Field(None, max_length=200)
+    email: EmailStr | None = None
+    phone: str | None = None
+    status: LeadStatus | None = None
+    source: LeadSource | None = None
+    assigned_to: UUID | None = None
+    score: int | None = Field(None, ge=0, le=100)
+    notes: str | None = None
+    custom_fields: dict | None = None
 
 
 class LeadOut(LeadBase):
     id: UUID
     tenant_id: UUID
-    converted_at: Optional[datetime] = None
-    opportunity_id: Optional[UUID] = None
+    converted_at: datetime | None = None
+    opportunity_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
 class OpportunityBase(BaseModel):
-    lead_id: Optional[UUID] = None
-    customer_id: Optional[UUID] = None
+    lead_id: UUID | None = None
+    customer_id: UUID | None = None
     title: str = Field(..., min_length=1, max_length=300)
-    description: Optional[str] = None
+    description: str | None = None
     value: float = Field(..., ge=0)
     currency: str = Field(default="EUR", min_length=3, max_length=3)
     probability: int = Field(default=50, ge=0, le=100)
     stage: OpportunityStage = OpportunityStage.QUALIFICATION
-    expected_close_date: Optional[datetime] = None
-    assigned_to: Optional[UUID] = None
-    custom_fields: Optional[dict] = None
+    expected_close_date: datetime | None = None
+    assigned_to: UUID | None = None
+    custom_fields: dict | None = None
 
 
 class OpportunityCreate(OpportunityBase):
@@ -72,42 +75,42 @@ class OpportunityCreate(OpportunityBase):
 
 
 class OpportunityUpdate(BaseModel):
-    lead_id: Optional[UUID] = None
-    customer_id: Optional[UUID] = None
-    title: Optional[str] = Field(None, min_length=1, max_length=300)
-    description: Optional[str] = None
-    value: Optional[float] = Field(None, ge=0)
-    currency: Optional[str] = Field(None, min_length=3, max_length=3)
-    probability: Optional[int] = Field(None, ge=0, le=100)
-    stage: Optional[OpportunityStage] = None
-    expected_close_date: Optional[datetime] = None
-    actual_close_date: Optional[datetime] = None
-    assigned_to: Optional[UUID] = None
-    lost_reason: Optional[str] = None
-    custom_fields: Optional[dict] = None
+    lead_id: UUID | None = None
+    customer_id: UUID | None = None
+    title: str | None = Field(None, min_length=1, max_length=300)
+    description: str | None = None
+    value: float | None = Field(None, ge=0)
+    currency: str | None = Field(None, min_length=3, max_length=3)
+    probability: int | None = Field(None, ge=0, le=100)
+    stage: OpportunityStage | None = None
+    expected_close_date: datetime | None = None
+    actual_close_date: datetime | None = None
+    assigned_to: UUID | None = None
+    lost_reason: str | None = None
+    custom_fields: dict | None = None
 
 
 class OpportunityOut(OpportunityBase):
     id: UUID
     tenant_id: UUID
-    actual_close_date: Optional[datetime] = None
-    lost_reason: Optional[str] = None
+    actual_close_date: datetime | None = None
+    lost_reason: str | None = None
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
 class ActivityBase(BaseModel):
-    lead_id: Optional[UUID] = None
-    opportunity_id: Optional[UUID] = None
-    customer_id: Optional[UUID] = None
+    lead_id: UUID | None = None
+    opportunity_id: UUID | None = None
+    customer_id: UUID | None = None
     type: ActivityType = ActivityType.NOTE
     subject: str = Field(..., min_length=1, max_length=300)
-    description: Optional[str] = None
+    description: str | None = None
     status: ActivityStatus = ActivityStatus.PENDING
-    due_date: Optional[datetime] = None
-    assigned_to: Optional[UUID] = None
+    due_date: datetime | None = None
+    assigned_to: UUID | None = None
 
 
 class ActivityCreate(ActivityBase):
@@ -115,23 +118,23 @@ class ActivityCreate(ActivityBase):
 
 
 class ActivityUpdate(BaseModel):
-    type: Optional[ActivityType] = None
-    subject: Optional[str] = Field(None, min_length=1, max_length=300)
-    description: Optional[str] = None
-    status: Optional[ActivityStatus] = None
-    due_date: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    assigned_to: Optional[UUID] = None
+    type: ActivityType | None = None
+    subject: str | None = Field(None, min_length=1, max_length=300)
+    description: str | None = None
+    status: ActivityStatus | None = None
+    due_date: datetime | None = None
+    completed_at: datetime | None = None
+    assigned_to: UUID | None = None
 
 
 class ActivityOut(ActivityBase):
     id: UUID
     tenant_id: UUID
     created_by: UUID
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -148,5 +151,5 @@ class DashboardMetrics(BaseModel):
 
 class ConvertLeadRequest(BaseModel):
     create_opportunity: bool = True
-    opportunity_title: Optional[str] = None
-    opportunity_value: Optional[float] = None
+    opportunity_title: str | None = None
+    opportunity_value: float | None = None

@@ -40,7 +40,7 @@ export default function ProductoForm() {
   const [fields, setFields] = useState<FieldCfg[] | null>(null)
   const [loadingCfg, setLoadingCfg] = useState(false)
   const [categorias, setCategorias] = useState<Categoria[]>([])
-  
+
   // Cargar categorías disponibles
   useEffect(() => {
     ;(async () => {

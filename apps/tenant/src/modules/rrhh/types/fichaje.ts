@@ -6,4 +6,3 @@ export type Fichaje = {
   horaFin?: string
   tipo: 'trabajo' | 'descanso' | 'otro'
 }
-

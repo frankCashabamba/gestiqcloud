@@ -1,18 +1,31 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime
-from typing import Any, Dict, Iterable, List, Optional
-import os
-
-from fastapi import UploadFile
-from sqlalchemy import func
-from sqlalchemy.orm import Session
 import logging
+import os
+from collections.abc import Iterable
+from datetime import datetime
+from typing import Any
 from uuid import UUID, uuid4
 
+from app.models.ai.incident import Incident
+from app.models.core.modelsimport import (
+    ImportAttachment,
+    ImportBatch,
+    ImportItem,
+    ImportItemCorrection,
+    ImportLineage,
+)
+from app.modules.imports.application.photo_utils import (
+    exif_auto_orienta,
+    guardar_adjunto_bytes,
+    ocr_texto,
+    parse_texto_banco,
+    parse_texto_factura,
+    parse_texto_recibo,
+)
+from app.modules.imports.application.status import ImportBatchStatus, ImportItemStatus
 from app.modules.imports.application.use_utils import apply_mapping
-from app.modules.imports.application.status import ImportItemStatus, ImportBatchStatus
 from app.modules.imports.domain.handlers import (
     BankHandler,
     ExpenseHandler,
@@ -20,28 +33,11 @@ from app.modules.imports.domain.handlers import (
     ProductHandler,
 )
 from app.modules.imports.infrastructure.repositories import ImportsRepository
-from app.modules.imports.validators import (
-    validate_bank,
-    validate_expenses,
-    validate_invoices,
-)
+from app.modules.imports.validators import validate_bank, validate_expenses, validate_invoices
 from app.modules.imports.validators.products import validate_product
-from app.models.core.modelsimport import (
-    ImportBatch,
-    ImportItem,
-    ImportItemCorrection,
-    ImportLineage,
-    ImportAttachment,
-)
-from app.models.ai.incident import Incident
-from app.modules.imports.application.photo_utils import (
-    exif_auto_orienta,
-    guardar_adjunto_bytes,
-    ocr_texto,
-    parse_texto_factura,
-    parse_texto_banco,
-    parse_texto_recibo,
-)
+from fastapi import UploadFile
+from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 # --- helpers -----------------------------------------------------------------
 
@@ -50,14 +46,12 @@ def _to_uuid(v) -> UUID:
     return v if isinstance(v, UUID) else UUID(str(v))
 
 
-def _idempotency_key(tenant_id: int | str, file_key: Optional[str], idx: int) -> str:
+def _idempotency_key(tenant_id: int | str, file_key: str | None, idx: int) -> str:
     base = f"{str(tenant_id)}:{file_key or ''}:{idx}"
     return hashlib.sha256(base.encode()).hexdigest()
 
 
-def _validate_by_type(
-    source_type: str, normalized: Dict[str, Any]
-) -> List[Dict[str, Any]]:
+def _validate_by_type(source_type: str, normalized: dict[str, Any]) -> list[dict[str, Any]]:
     # Feature flags simples vía env
     validate_currency = os.getenv("IMPORTS_VALIDATE_CURRENCY", "true").lower() in (
         "1",
@@ -80,7 +74,7 @@ def _validate_by_type(
     if source_type in ("products", "productos"):
         errs = validate_product(normalized)
         # Normalizar a formato {"field": str, "msg": str}
-        out: List[Dict[str, Any]] = []
+        out: list[dict[str, Any]] = []
         for e in errs:
             if isinstance(e, dict):
                 out.append(e)
@@ -90,9 +84,7 @@ def _validate_by_type(
     return []
 
 
-def _dedupe_hash(
-    source_type: str, data: Dict[str, Any], *, keys: Optional[List[str]] = None
-) -> str:
+def _dedupe_hash(source_type: str, data: dict[str, Any], *, keys: list[str] | None = None) -> str:
     def g(*keys):
         for k in keys:
             if k in data and data[k] is not None:
@@ -130,9 +122,7 @@ def _dedupe_hash(
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def _merge_src(
-    raw: Dict[str, Any] | None, normalized: Dict[str, Any] | None
-) -> Dict[str, Any]:
+def _merge_src(raw: dict[str, Any] | None, normalized: dict[str, Any] | None) -> dict[str, Any]:
     """Devuelve raw sobreescrito por normalized cuando exista."""
     raw = raw or {}
     normalized = normalized or {}
@@ -143,7 +133,7 @@ def _merge_src(
     return merged
 
 
-def _normalize_product_row(raw: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_product_row(raw: dict[str, Any]) -> dict[str, Any]:
     """Best-effort normalization for common product Excel headers when no mapping is provided.
 
     Maps frequent Spanish column names to canonical keys so validation/promote work
@@ -154,7 +144,7 @@ def _normalize_product_row(raw: Dict[str, Any]) -> Dict[str, Any]:
     # Work on lowercase keys for flexible matching
     lower = {str(k).strip().lower(): v for k, v in raw.items()}
 
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
     # Name
     out["name"] = (
         lower.get("name")
@@ -185,24 +175,14 @@ def _normalize_product_row(raw: Dict[str, Any]) -> Dict[str, Any]:
         or ""
     )
     # Category
-    out["categoria"] = (
-        lower.get("categoria") or lower.get("category") or raw.get("CATEGORIA") or ""
-    )
+    out["categoria"] = lower.get("categoria") or lower.get("category") or raw.get("CATEGORIA") or ""
     # SKU/code
     out["sku"] = (
-        lower.get("sku")
-        or lower.get("codigo")
-        or lower.get("code")
-        or raw.get("CODIGO")
-        or ""
+        lower.get("sku") or lower.get("codigo") or lower.get("code") or raw.get("CODIGO") or ""
     )
     # Unit
     out["unit"] = (
-        lower.get("unit")
-        or lower.get("unidad")
-        or lower.get("uom")
-        or raw.get("UNIDAD")
-        or "unit"
+        lower.get("unit") or lower.get("unidad") or lower.get("uom") or raw.get("UNIDAD") or "unit"
     )
     return out
 
@@ -211,7 +191,7 @@ def _normalize_product_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _create_batch_impl(
-    db: Session, tenant_id: int, user_id: Any, dto: Dict[str, Any]
+    db: Session, tenant_id: int, user_id: Any, dto: dict[str, Any]
 ) -> ImportBatch:
     # created_by se guarda como String (UUID en string si es posible)
     try:
@@ -266,7 +246,7 @@ def create_batch(
     return _create_batch_impl(db, tenant_id, user_id, dto)
 
 
-def _build_mock_normalized(source_type: str, suffix: str | None = None) -> Dict[str, Any]:
+def _build_mock_normalized(source_type: str, suffix: str | None = None) -> dict[str, Any]:
     """Construye datos mock para las pruebas heredadas."""
     today = datetime.utcnow().date().isoformat()
     identifier = suffix or "legacy"
@@ -323,10 +303,7 @@ def ingest_file(
         raise ValueError("Batch no encontrado")
 
     existing_count = (
-        db.query(func.count(ImportItem.id))
-        .filter(ImportItem.batch_id == batch_uuid)
-        .scalar()
-        or 0
+        db.query(func.count(ImportItem.id)).filter(ImportItem.batch_id == batch_uuid).scalar() or 0
     )
     idx = int(existing_count)
     item = ImportItem(
@@ -400,11 +377,11 @@ def ingest_rows(
     db: Session,
     tenant_id: int,
     batch: ImportBatch,
-    rows: Iterable[Dict[str, Any]],
-    mappings: Optional[Dict[str, str]] = None,
-    transforms: Optional[Dict[str, Any]] = None,
-    defaults: Optional[Dict[str, Any]] = None,
-    dedupe_keys: Optional[List[str]] = None,
+    rows: Iterable[dict[str, Any]],
+    mappings: dict[str, str] | None = None,
+    transforms: dict[str, Any] | None = None,
+    defaults: dict[str, Any] | None = None,
+    dedupe_keys: list[str] | None = None,
 ):
     t0 = datetime.utcnow()
     rows_list = list(rows)
@@ -415,19 +392,15 @@ def ingest_rows(
     )
 
     repo = ImportsRepository()
-    created: List[Dict[str, Any]] = []
+    created: list[dict[str, Any]] = []
     for idx, raw in enumerate(rows_list):
-        normalized = (
-            apply_mapping(raw, mappings, transforms, defaults) if mappings else None
-        )
+        normalized = apply_mapping(raw, mappings, transforms, defaults) if mappings else None
         # Fallback normalization for products when no mapping present
         if not normalized and (batch.source_type in ("products", "productos")):
             normalized = _normalize_product_row(raw)
         src = _merge_src(raw, normalized)
         errors = _validate_by_type(batch.source_type, src)
-        status = (
-            ImportItemStatus.OK if not errors else ImportItemStatus.ERROR_VALIDATION
-        )
+        status = ImportItemStatus.OK if not errors else ImportItemStatus.ERROR_VALIDATION
         dedupe = _dedupe_hash(batch.source_type, src, keys=dedupe_keys)
         idem = _idempotency_key(tenant_id, f"{batch.id}:{batch.file_key or ''}", idx)
         created.append(
@@ -479,9 +452,7 @@ def revalidate_batch(db: Session, tenant_id: int, batch_id: UUID | str):
         src = _merge_src(it.raw, it.normalized)
         errors = _validate_by_type(batch.source_type, src)
         it.errors = errors
-        it.status = (
-            ImportItemStatus.OK if not errors else ImportItemStatus.ERROR_VALIDATION
-        )
+        it.status = ImportItemStatus.OK if not errors else ImportItemStatus.ERROR_VALIDATION
         db.add(it)
     db.commit()
     out = repo.list_items(db, tenant_id, batch_uuid)
@@ -506,9 +477,7 @@ def revalidate_batch(db: Session, tenant_id: int, batch_id: UUID | str):
                 "batch_id": str(batch_uuid),
                 "items_total": len(out),
                 "items_ok": sum(1 for x in out if x.status == "OK"),
-                "items_error": sum(
-                    1 for x in out if x.status and x.status.startswith("ERROR")
-                ),
+                "items_error": sum(1 for x in out if x.status and x.status.startswith("ERROR")),
             },
         )
     except Exception:
@@ -572,9 +541,7 @@ def patch_item(
     return it
 
 
-def promote_batch(
-    db: Session, tenant_id: int, batch_id, *, options: dict | None = None
-):
+def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None = None):
     batch_uuid = _to_uuid(batch_id)
 
     # tenant_id parameter is already UUID, use directly
@@ -727,9 +694,7 @@ def ingest_photo(
     )  # si usas ImportMapping, pásalo aquí
 
     # 6) crear item + adjunto
-    idx = (
-        db.query(ImportItem).filter(ImportItem.batch_id == batch.id).count() or 0
-    ) + 1
+    idx = (db.query(ImportItem).filter(ImportItem.batch_id == batch.id).count() or 0) + 1
     item = ImportItem(
         batch_id=batch.id,
         idx=idx,

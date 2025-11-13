@@ -10,7 +10,7 @@ export default function CompraForm() {
   const { id } = useParams()
   const nav = useNavigate()
   const { success, error } = useToast()
-  
+
   const [form, setForm] = useState<FormT>({
     fecha: new Date().toISOString().slice(0, 10),
     fecha_entrega: '',
@@ -23,7 +23,7 @@ export default function CompraForm() {
     lineas: [],
     notas: ''
   })
-  
+
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -55,7 +55,7 @@ export default function CompraForm() {
     const subtotal = (form.lineas || []).reduce((sum, l) => sum + l.subtotal, 0)
     const impuesto = subtotal * 0.15 // 15% IVA - ajustar según país
     const total = subtotal + impuesto
-    
+
     setForm(prev => ({
       ...prev,
       subtotal,
@@ -66,22 +66,22 @@ export default function CompraForm() {
 
   const onSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault()
-    
+
     try {
       if (!form.fecha) throw new Error('Fecha es requerida')
       if (!form.lineas || form.lineas.length === 0) {
         throw new Error('Debe añadir al menos una línea')
       }
       if (form.total < 0) throw new Error('Total debe ser >= 0')
-      
+
       setLoading(true)
-      
+
       if (id) {
         await updateCompra(id, form)
       } else {
         await createCompra(form as Omit<Compra, 'id'>)
       }
-      
+
       success('Compra guardada')
       nav('..')
     } catch (e: any) {
@@ -96,7 +96,7 @@ export default function CompraForm() {
       <h3 className="text-xl font-semibold mb-3">
         {id ? 'Editar compra' : 'Nueva compra'}
       </h3>
-      
+
       <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 900 }}>
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -110,7 +110,7 @@ export default function CompraForm() {
               disabled={loading}
             />
           </div>
-          
+
           <div>
             <label className="block mb-1 font-medium">Fecha Entrega</label>
             <input
@@ -135,7 +135,7 @@ export default function CompraForm() {
               disabled={loading}
             />
           </div>
-          
+
           <div>
             <label className="block mb-1 font-medium">Nombre Proveedor</label>
             <input

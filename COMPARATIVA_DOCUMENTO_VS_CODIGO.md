@@ -398,6 +398,6 @@ El documento describe lo que **SE PLANEABA HACER** en 3 sprints, no lo que **YA 
 
 ---
 
-**Análisis realizado**: Nov 11, 2025  
-**Método**: Lectura de código + comparativa documento  
+**Análisis realizado**: Nov 11, 2025
+**Método**: Lectura de código + comparativa documento
 **Confianza**: Alta (verificado línea por línea)

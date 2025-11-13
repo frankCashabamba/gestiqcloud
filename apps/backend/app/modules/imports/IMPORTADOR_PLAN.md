@@ -26,7 +26,7 @@ Documento guía para profesionalizar el módulo de importaciones (`apps/tenant/s
 - [x] Inventario de formatos a soportar (lista inicial tomada de `C:\...\importacion`).
 - [x] Crear nuevos parsers en `app/modules/imports/parsers/`:
   - ✅ `csv_products.py` - CSV para productos
-  - ✅ `xml_products.py` - XML flexible para productos  
+  - ✅ `xml_products.py` - XML flexible para productos
   - ✅ `xlsx_expenses.py` - Excel para gastos/recibos
   - ✅ `pdf_qr.py` - PDF con extracción de códigos QR
 - [x] Registrar los parsers en un `registry` con metadatos (`id`, `doc_type`, `handler`).
@@ -182,7 +182,7 @@ Completa: `app/modules/imports/ai/README.md` e `INTEGRATION_EXAMPLE.md`
   - ❌ Ejemplos de integración en frontend
   - ❌ Tests de componentes de IA
 
-**Total Backend: ~97% completado** (Fase A operativa, falta solo tests)  
+**Total Backend: ~97% completado** (Fase A operativa, falta solo tests)
 **Total Frontend: ~90% completado** (Sprint 1-2 completado Nov 11)
 
 ---
@@ -253,8 +253,8 @@ Upload CSV → Clasificar con IA → Mostrar badge → Crear batch CON clasifica
 12. ✅ Agrupar errores por validador de país (ValidationErrorsByCountry.tsx)
 13. ✅ Conectar WebSocket progreso en paso 6 (useImportProgress + ImportProgressIndicator)
 
-**Sprint 1 Estimado**: ✅ 2-3 horas (COMPLETADO)  
-**Sprint 2 Estimado**: ✅ 3-4 horas (COMPLETADO Nov 11)  
+**Sprint 1 Estimado**: ✅ 2-3 horas (COMPLETADO)
+**Sprint 2 Estimado**: ✅ 3-4 horas (COMPLETADO Nov 11)
 **Sprint 3 Estimado**: ✅ 4-5 horas (COMPLETADO Nov 11)
 
 ---

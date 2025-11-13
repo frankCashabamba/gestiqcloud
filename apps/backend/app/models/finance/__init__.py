@@ -1,6 +1,6 @@
 """Finance module models"""
 
-from .caja import CajaMovimiento, CierreCaja
 from .banco import BancoMovimiento
+from .caja import CajaMovimiento, CierreCaja
 
 __all__ = ["CajaMovimiento", "CierreCaja", "BancoMovimiento"]

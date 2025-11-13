@@ -17,9 +17,9 @@ export function MetricCard({ title, value, subtitle, icon, color }: MetricCardPr
         <span className="metric-card__icon">{icon}</span>
         <span className="metric-card__title">{title}</span>
       </div>
-      
+
       <div className="metric-card__value">{value}</div>
-      
+
       {subtitle && (
         <div className="metric-card__subtitle">{subtitle}</div>
       )}

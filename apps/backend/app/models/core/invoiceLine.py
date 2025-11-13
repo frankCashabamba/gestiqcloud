@@ -3,11 +3,11 @@
 Auto-generated module docstring."""
 
 from uuid import UUID
+
+from app.config.database import Base
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
-
-from app.config.database import Base
 
 
 class LineaFactura(Base):

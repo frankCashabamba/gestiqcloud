@@ -1,18 +1,17 @@
 """Email utilities: token generation, rendering and SMTP send with dev fallback."""
 
-import smtplib
-import re
-from datetime import datetime
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.utils import formatdate, make_msgid, parseaddr, formataddr
 import logging
-
-from fastapi import BackgroundTasks
-from itsdangerous import URLSafeTimedSerializer
+import re
+import smtplib
+from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.utils import formataddr, formatdate, make_msgid, parseaddr
 
 from app.config.settings import settings
 from app.utils.email_renderer import render_template
+from fastapi import BackgroundTasks
+from itsdangerous import URLSafeTimedSerializer
 
 logger = logging.getLogger("app.email")
 
@@ -65,9 +64,7 @@ def send_email_mailtrap(to_email: str, subject: str, html_content: str) -> None:
             pass
     if not from_addr or ("@" not in from_addr):
         # Fallback: use SMTP user or a safe default
-        from_addr = (
-            getattr(settings, "EMAIL_HOST_USER", None) or "no-reply@localhost"
-        ).strip()
+        from_addr = (getattr(settings, "EMAIL_HOST_USER", None) or "no-reply@localhost").strip()
     if not from_name:
         from_name = getattr(settings, "app_name", "GestiqCloud")
     msg["From"] = formataddr((from_name, from_addr))
@@ -76,9 +73,7 @@ def send_email_mailtrap(to_email: str, subject: str, html_content: str) -> None:
     if not to_addr or ("@" not in to_addr):
         m_to = None
         try:
-            m_to = re.search(
-                r"([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})", to_email or ""
-            )
+            m_to = re.search(r"([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})", to_email or "")
         except Exception:
             m_to = None
         to_addr = m_to.group(1) if m_to else (to_email or "").strip()
@@ -156,9 +151,7 @@ def enviar_correo_bienvenida(
     background_tasks: BackgroundTasks,
 ) -> None:
     token = generar_token_email(user_email)
-    base = (
-        getattr(settings, "PASSWORD_RESET_URL_BASE", None) or settings.FRONTEND_URL
-    ).rstrip("/")
+    base = (getattr(settings, "PASSWORD_RESET_URL_BASE", None) or settings.FRONTEND_URL).rstrip("/")
     enlace = f"{base}/set-password?token={token}"
     contexto = {
         "nombre_empresa": empresa_nombre,
@@ -168,8 +161,7 @@ def enviar_correo_bienvenida(
     }
     html_content = render_template("bienvenida.html", contexto)
     if getattr(settings, "ENV", "development") == "development" and (
-        getattr(settings, "EMAIL_DEV_LOG_ONLY", False)
-        or not getattr(settings, "EMAIL_HOST", None)
+        getattr(settings, "EMAIL_DEV_LOG_ONLY", False) or not getattr(settings, "EMAIL_HOST", None)
     ):
         logger.info("[DEV EMAIL] Bienvenida link: %s", enlace)
     background_tasks.add_task(
@@ -183,9 +175,7 @@ def enviar_correo_bienvenida(
 
 def reenviar_correo_reset(user_email: str, background_tasks: BackgroundTasks) -> None:
     token = generar_token_email(user_email)
-    base = (
-        getattr(settings, "PASSWORD_RESET_URL_BASE", None) or settings.FRONTEND_URL
-    ).rstrip("/")
+    base = (getattr(settings, "PASSWORD_RESET_URL_BASE", None) or settings.FRONTEND_URL).rstrip("/")
     enlace = f"{base}/set-password?token={token}"
     contexto = {"enlace": enlace, "anio": datetime.now().year}
     try:
@@ -201,8 +191,7 @@ def reenviar_correo_reset(user_email: str, background_tasks: BackgroundTasks) ->
             </body></html>
             """
     if getattr(settings, "ENV", "development") == "development" and (
-        getattr(settings, "EMAIL_DEV_LOG_ONLY", False)
-        or not getattr(settings, "EMAIL_HOST", None)
+        getattr(settings, "EMAIL_DEV_LOG_ONLY", False) or not getattr(settings, "EMAIL_HOST", None)
     ):
         logger.info("[DEV EMAIL] Reset link: %s", enlace)
     background_tasks.add_task(

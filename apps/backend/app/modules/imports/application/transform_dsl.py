@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import ast
-import math
 import re
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 
 def _to_number(x: Any) -> float | None:
@@ -170,4 +170,3 @@ def apply_mapping_pipeline(
                 base[k] = v
 
     return base
-

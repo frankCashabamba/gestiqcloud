@@ -1,9 +1,8 @@
 from datetime import date
 
-from sqlalchemy.orm import Session
-
 from app.config.database import Base
 from app.modules.ventas.infrastructure.repositories import VentaRepo
+from sqlalchemy.orm import Session
 
 
 def test_ventas_repo_crud_compat(db: Session):
@@ -25,9 +24,7 @@ def test_ventas_repo_crud_compat(db: Session):
     assert got is not None and got.estado == "nuevo"
 
     # Update
-    v2 = repo.update(
-        v.id, fecha=v.fecha, cliente_id=v.cliente_id, total=12.0, estado="pagado"
-    )
+    v2 = repo.update(v.id, fecha=v.fecha, cliente_id=v.cliente_id, total=12.0, estado="pagado")
     assert v2 is not None and v2.total == 12.0 and v2.estado == "pagado"
 
     # Delete

@@ -5,15 +5,12 @@ Endpoints para ejecutar scripts seguros por tenant y, opcionalmente, SQL
 para superusuarios. Usar con extremo cuidado.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from typing import Optional
-
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
-
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-scripts"])
 
@@ -21,7 +18,7 @@ router = APIRouter(prefix="/api/v1/admin", tags=["admin-scripts"])
 class RunScriptIn(BaseModel):
     script: str
     # Opcionalmente permitir override de slug; el path ya lleva tenant_id
-    args: Optional[dict] = None
+    args: dict | None = None
 
 
 @router.post("/tenants/{tenant_id}/scripts/run")
@@ -32,7 +29,9 @@ def run_tenant_script(
     claims: dict = Depends(with_access_claims),
 ):
     # Requiere superusuario global
-    if not isinstance(claims, dict) or not (claims.get("is_superuser") or claims.get("es_admin_global")):
+    if not isinstance(claims, dict) or not (
+        claims.get("is_superuser") or claims.get("es_admin_global")
+    ):
         raise HTTPException(status_code=403, detail="superuser_required")
 
     script = (payload.script or "").strip().lower()
@@ -53,7 +52,9 @@ def execute_sql(
     claims: dict = Depends(with_access_claims),
 ):
     # Solo superusuario global
-    if not isinstance(claims, dict) or not (claims.get("is_superuser") or claims.get("es_admin_global")):
+    if not isinstance(claims, dict) or not (
+        claims.get("is_superuser") or claims.get("es_admin_global")
+    ):
         raise HTTPException(status_code=403, detail="superuser_required")
 
     sql = (payload.sql or "").strip()
@@ -75,7 +76,7 @@ def execute_sql(
 
 def _seed_pan_tapado(db: Session, tenant_id: str) -> None:
     # Helpers: asegurar producto por nombre
-    def ensure_product(name: str, unit: str, category: Optional[str] = None) -> str:
+    def ensure_product(name: str, unit: str, category: str | None = None) -> str:
         row = db.execute(
             text(
                 "SELECT id::text FROM products WHERE tenant_id = :tid AND lower(name) = lower(:n) LIMIT 1"
@@ -96,31 +97,51 @@ def _seed_pan_tapado(db: Session, tenant_id: str) -> None:
         fields = ["tenant_id", "name", "price"]
         params = {"tid": tenant_id, "name": name}
         if "unit" in cols:
-            fields.append("unit"); params["unit"] = unit
+            fields.append("unit")
+            params["unit"] = unit
         elif "uom" in cols:
-            fields.append("uom"); params["uom"] = unit
+            fields.append("uom")
+            params["uom"] = unit
         if "category" in cols:
-            fields.append("category"); params["category"] = category
+            fields.append("category")
+            params["category"] = category
         elif "categoria" in cols:
-            fields.append("categoria"); params["categoria"] = category
+            fields.append("categoria")
+            params["categoria"] = category
         if "tax_rate" in cols:
-            fields.append("tax_rate"); params["tax_rate"] = 0.15
+            fields.append("tax_rate")
+            params["tax_rate"] = 0.15
         elif "iva_tasa" in cols:
-            fields.append("iva_tasa"); params["iva_tasa"] = 0.15
+            fields.append("iva_tasa")
+            params["iva_tasa"] = 0.15
         if "cost_price" in cols:
-            fields.append("cost_price"); params["cost_price"] = 0
+            fields.append("cost_price")
+            params["cost_price"] = 0
         elif "precio_compra" in cols:
-            fields.append("precio_compra"); params["precio_compra"] = 0
+            fields.append("precio_compra")
+            params["precio_compra"] = 0
         if "active" in cols:
             fields.append("active")
         elif "activo" in cols:
             fields.append("activo")
         placeholders = []
         for f in fields:
-            if f == "tenant_id": placeholders.append(":tid")
-            elif f == "name": placeholders.append(":name")
-            elif f == "price": placeholders.append("0")
-            elif f in ("unit", "uom", "category", "categoria", "tax_rate", "iva_tasa", "cost_price", "precio_compra"):
+            if f == "tenant_id":
+                placeholders.append(":tid")
+            elif f == "name":
+                placeholders.append(":name")
+            elif f == "price":
+                placeholders.append("0")
+            elif f in (
+                "unit",
+                "uom",
+                "category",
+                "categoria",
+                "tax_rate",
+                "iva_tasa",
+                "cost_price",
+                "precio_compra",
+            ):
                 placeholders.append(f":{f}")
             elif f in ("active", "activo"):
                 placeholders.append("TRUE")
@@ -133,9 +154,7 @@ def _seed_pan_tapado(db: Session, tenant_id: str) -> None:
     # Asegurar producto final y receta
     prod_final_id = ensure_product("Pan Tapado", unit="unit", category="Panadería")
     rec = db.execute(
-        text(
-            "SELECT id::text FROM recipes WHERE tenant_id = :tid AND product_id = :pid LIMIT 1"
-        ),
+        text("SELECT id::text FROM recipes WHERE tenant_id = :tid AND product_id = :pid LIMIT 1"),
         {"tid": tenant_id, "pid": prod_final_id},
     ).first()
     if rec:
@@ -202,4 +221,3 @@ def _seed_pan_tapado(db: Session, tenant_id: str) -> None:
     except Exception:
         db.rollback()
         # No abortar si no existe la función; la receta queda creada
-

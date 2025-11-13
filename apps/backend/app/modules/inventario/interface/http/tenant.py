@@ -1,22 +1,18 @@
 from __future__ import annotations
 
-from typing import Optional, List
-
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field
-from uuid import UUID
-from sqlalchemy.orm import Session
-from sqlalchemy import select
+from datetime import datetime, timedelta
+from uuid import UUID, uuid4
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.models.inventory.warehouse import Warehouse
-from uuid import uuid4
-from app.models.inventory.stock import StockItem, StockMove
 from app.models.core.products import Product
-from datetime import datetime, timedelta
-
+from app.models.inventory.stock import StockItem, StockMove
+from app.models.inventory.warehouse import Warehouse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/inventory",
@@ -38,20 +34,20 @@ class WarehouseIn(BaseModel):
     code: str = Field(min_length=1)
     name: str = Field(min_length=1)
     is_active: bool = True
-    metadata: Optional[dict] = None
+    metadata: dict | None = None
 
 
 class WarehouseOut(WarehouseIn):
     # Accept UUID from ORM and serialize as string
     id: UUID
     # Map SQLAlchemy attribute 'extra_metadata' to API field 'metadata'
-    metadata: Optional[dict] = Field(default=None, validation_alias="extra_metadata")
+    metadata: dict | None = Field(default=None, validation_alias="extra_metadata")
 
     class Config:
         from_attributes = True
 
 
-@router.get("/warehouses", response_model=List[WarehouseOut])
+@router.get("/warehouses", response_model=list[WarehouseOut])
 def list_warehouses(request: Request, db: Session = Depends(get_db)):
     tid = _tenant_id_str(request)
     q = select(Warehouse)
@@ -62,9 +58,7 @@ def list_warehouses(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/warehouses", response_model=WarehouseOut, status_code=201)
-def create_warehouse(
-    payload: WarehouseIn, request: Request, db: Session = Depends(get_db)
-):
+def create_warehouse(payload: WarehouseIn, request: Request, db: Session = Depends(get_db)):
     tid = _tenant_id_str(request)
     obj = Warehouse(
         code=payload.code,
@@ -130,15 +124,15 @@ def delete_warehouse(wid: UUID, request: Request, db: Session = Depends(get_db))
 
 
 class StockQuery(BaseModel):
-    warehouse_id: Optional[str] = None
-    product_id: Optional[str] = None
+    warehouse_id: str | None = None
+    product_id: str | None = None
 
 
 class StockAdjustIn(BaseModel):
     warehouse_id: str
     product_id: str
     delta: float = Field(description="positive receipt, negative issue")
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 class StockItemOut(BaseModel):
@@ -146,19 +140,19 @@ class StockItemOut(BaseModel):
     warehouse_id: str
     product_id: str
     qty: float
-    ubicacion: Optional[str] = None
-    lote: Optional[str] = None
-    expires_at: Optional[str] = None
-    product: Optional[dict] = None
-    warehouse: Optional[dict] = None
+    ubicacion: str | None = None
+    lote: str | None = None
+    expires_at: str | None = None
+    product: dict | None = None
+    warehouse: dict | None = None
 
 
-@router.get("/stock", response_model=List[StockItemOut])
+@router.get("/stock", response_model=list[StockItemOut])
 def get_stock(
     request: Request,
     db: Session = Depends(get_db),
-    warehouse_id: Optional[str] = Query(default=None),
-    product_id: Optional[str] = Query(default=None),
+    warehouse_id: str | None = Query(default=None),
+    product_id: str | None = Query(default=None),
 ):
     tid = _tenant_id_str(request)
     # Join to enrich with product and warehouse info
@@ -186,7 +180,7 @@ def get_stock(
         q = q.where(StockItem.product_id == product_id)
     q = q.order_by(Product.name.asc(), Warehouse.code.asc())
     rows = db.execute(q).all()
-    out: List[StockItemOut] = []
+    out: list[StockItemOut] = []
     for r in rows:
         out.append(
             StockItemOut(
@@ -210,9 +204,7 @@ def get_stock(
 
 
 @router.post("/stock/adjust", response_model=StockItemOut)
-def adjust_stock(
-    payload: StockAdjustIn, request: Request, db: Session = Depends(get_db)
-):
+def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends(get_db)):
     # Find or create stock item
     tid = _tenant_id_str(request)
     row = (
@@ -283,9 +275,7 @@ class TransferIn(BaseModel):
 
 
 @router.post("/stock/transfer", response_model=dict)
-def transfer_stock(
-    payload: TransferIn, request: Request, db: Session = Depends(get_db)
-):
+def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(get_db)):
     tid = _tenant_id_str(request)
     # Create issue from source and receipt to destination, post atomically
     # Source
@@ -440,15 +430,15 @@ class AlertConfigIn(BaseModel):
     alert_type: str = Field(default="low_stock")
     threshold_type: str = Field(default="fixed")  # fixed, percentage
     threshold_value: float = Field(gt=0)
-    warehouse_ids: List[str] = Field(default_factory=list)
-    category_ids: List[str] = Field(default_factory=list)
-    product_ids: List[str] = Field(default_factory=list)
+    warehouse_ids: list[str] = Field(default_factory=list)
+    category_ids: list[str] = Field(default_factory=list)
+    product_ids: list[str] = Field(default_factory=list)
     notify_email: bool = False
-    email_recipients: List[str] = Field(default_factory=list)
+    email_recipients: list[str] = Field(default_factory=list)
     notify_whatsapp: bool = False
-    whatsapp_numbers: List[str] = Field(default_factory=list)
+    whatsapp_numbers: list[str] = Field(default_factory=list)
     notify_telegram: bool = False
-    telegram_chat_ids: List[str] = Field(default_factory=list)
+    telegram_chat_ids: list[str] = Field(default_factory=list)
     check_frequency_minutes: int = Field(default=60, ge=15)
     cooldown_hours: int = Field(default=24, ge=1)
     max_alerts_per_day: int = Field(default=10, ge=1)
@@ -461,20 +451,20 @@ class AlertConfigOut(BaseModel):
     alert_type: str
     threshold_type: str
     threshold_value: float
-    warehouse_ids: List[str]
-    category_ids: List[str]
-    product_ids: List[str]
+    warehouse_ids: list[str]
+    category_ids: list[str]
+    product_ids: list[str]
     notify_email: bool
-    email_recipients: List[str]
+    email_recipients: list[str]
     notify_whatsapp: bool
-    whatsapp_numbers: List[str]
+    whatsapp_numbers: list[str]
     notify_telegram: bool
-    telegram_chat_ids: List[str]
+    telegram_chat_ids: list[str]
     check_frequency_minutes: int
     cooldown_hours: int
     max_alerts_per_day: int
-    last_checked_at: Optional[str]
-    next_check_at: Optional[str]
+    last_checked_at: str | None
+    next_check_at: str | None
     created_at: str
     updated_at: str
 
@@ -483,16 +473,16 @@ class AlertHistoryOut(BaseModel):
     id: str
     alert_config_id: str
     product_id: str
-    warehouse_id: Optional[str]
+    warehouse_id: str | None
     alert_type: str
     threshold_value: float
     current_stock: float
     message: str
-    channels_sent: List[str]
+    channels_sent: list[str]
     sent_at: str
 
 
-@router.get("/alerts/configs", response_model=List[AlertConfigOut])
+@router.get("/alerts/configs", response_model=list[AlertConfigOut])
 def list_alert_configs(request: Request, db: Session = Depends(get_db)):
     """Lista configuraciones de alertas de inventario"""
     tid = _tenant_id_str(request)
@@ -601,7 +591,9 @@ def create_alert_config(payload: AlertConfigIn, request: Request, db: Session = 
 
 
 @router.put("/alerts/configs/{config_id}", response_model=AlertConfigOut)
-def update_alert_config(config_id: str, payload: AlertConfigIn, request: Request, db: Session = Depends(get_db)):
+def update_alert_config(
+    config_id: str, payload: AlertConfigIn, request: Request, db: Session = Depends(get_db)
+):
     """Actualiza una configuración de alertas"""
     tid = _tenant_id_str(request)
     try:
@@ -700,7 +692,7 @@ def test_alert_config(config_id: str, request: Request, db: Session = Depends(ge
             notification_service.send_email(
                 recipients=config.email_recipients,
                 subject=f"Test Alert: {config.name}",
-                body=test_message
+                body=test_message,
             )
             channels_sent.append("email")
     except Exception as e:
@@ -725,7 +717,7 @@ def test_alert_config(config_id: str, request: Request, db: Session = Depends(ge
     return {
         "status": "test_sent",
         "channels_sent": channels_sent,
-        "errors": errors if errors else None
+        "errors": errors if errors else None,
     }
 
 
@@ -744,16 +736,16 @@ def check_alerts(request: Request, db: Session = Depends(get_db)):
     return {
         "status": "checked",
         "alerts_sent": len(results.get("alerts_sent", [])),
-        "errors": results.get("errors", [])
+        "errors": results.get("errors", []),
     }
 
 
-@router.get("/alerts/history", response_model=List[AlertHistoryOut])
+@router.get("/alerts/history", response_model=list[AlertHistoryOut])
 def list_alert_history(
     request: Request,
     db: Session = Depends(get_db),
     limit: int = Query(default=50, le=200),
-    days_back: int = Query(default=7, le=90)
+    days_back: int = Query(default=7, le=90),
 ):
     """Lista el historial de alertas enviadas"""
     tid = _tenant_id_str(request)

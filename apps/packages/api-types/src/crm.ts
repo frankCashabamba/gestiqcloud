@@ -4,7 +4,7 @@
 
 import { UUID, Timestamp, PaginatedResponse } from './common'
 
-export type LeadStatus = 
+export type LeadStatus =
   | 'new'
   | 'contacted'
   | 'qualified'
@@ -13,7 +13,7 @@ export type LeadStatus =
   | 'won'
   | 'lost'
 
-export type LeadSource = 
+export type LeadSource =
   | 'website'
   | 'referral'
   | 'social_media'
@@ -45,7 +45,7 @@ export type LeadInput = Omit<Lead, 'id' | 'tenant_id' | 'created_at' | 'updated_
 
 export type LeadUpdate = Partial<LeadInput>
 
-export type OpportunityStage = 
+export type OpportunityStage =
   | 'qualification'
   | 'needs_analysis'
   | 'proposal'
@@ -95,7 +95,7 @@ export type Activity = {
   updated_at: Timestamp
 }
 
-export type ActivityType = 
+export type ActivityType =
   | 'call'
   | 'email'
   | 'meeting'
@@ -103,7 +103,7 @@ export type ActivityType =
   | 'note'
   | 'other'
 
-export type ActivityStatus = 
+export type ActivityStatus =
   | 'pending'
   | 'completed'
   | 'cancelled'

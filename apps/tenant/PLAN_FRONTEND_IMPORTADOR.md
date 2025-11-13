@@ -51,8 +51,8 @@ El **frontend está 80% completo** con UI/UX profesional, pero necesita **integr
 
 ### 2.1 Endpoints de Clasificación IA (BLOQUEADOR)
 
-**Status**: NO existe en backend  
-**Prioridad**: ALTA  
+**Status**: NO existe en backend
+**Prioridad**: ALTA
 **Dificultad**: MEDIA
 
 #### Que necesita el frontend:
@@ -89,7 +89,7 @@ Response:
 const classifyFile = async (file: File) => {
   // Actualmente NO hace nada, solo detecta por extensión
   // NECESITA: llamar a /imports/files/classify
-  
+
   const result = await fetch('/api/v1/imports/files/classify', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${token}` },
@@ -115,13 +115,13 @@ async def classify_file(
     """Clasificar archivo para determinar parser y doc_type."""
     tmp_path = save_temp_file(file)
     result = classifier.classify_file(str(tmp_path), file.filename)
-    
+
     if use_ai and result['confidence'] < 0.7:
         ai_result = await classifier.classify_file_with_ai(
             str(tmp_path), file.filename
         )
         return ai_result
-    
+
     return result
 ```
 
@@ -129,8 +129,8 @@ async def classify_file(
 
 ### 2.2 Endpoints de Plantillas (BLOQUEADOR)
 
-**Status**: Partial (localStorage fallback)  
-**Prioridad**: ALTA  
+**Status**: Partial (localStorage fallback)
+**Prioridad**: ALTA
 **Dificultad**: BAJA
 
 #### Que necesita el frontend:
@@ -172,7 +172,7 @@ async def list_templates(
     current_user = Depends(get_current_user)
 ):
     """Listar plantillas del usuario + sistema."""
-    
+
 @router.post('/imports/templates')
 async def create_template(
     template: ImportTemplateCreate,
@@ -194,8 +194,8 @@ async def delete_template(template_id: str, ...):
 
 ### 2.3 WebSocket de Progreso (IMPORTANTE)
 
-**Status**: Simulado (fallback)  
-**Prioridad**: MEDIA  
+**Status**: Simulado (fallback)
+**Prioridad**: MEDIA
 **Dificultad**: MEDIA
 
 #### Que necesita el frontend:
@@ -229,14 +229,14 @@ const { progress, error } = useImportProgress(batchId)
 @app.websocket("/ws/imports/progress/{batch_id}")
 async def import_progress_ws(websocket: WebSocket, batch_id: str):
     await websocket.accept()
-    
+
     while True:
         progress = await get_batch_progress(batch_id)
         await websocket.send_json(progress)
-        
+
         if progress['status'] in ['completed', 'error']:
             break
-        
+
         await asyncio.sleep(1)
 ```
 
@@ -244,8 +244,8 @@ async def import_progress_ws(websocket: WebSocket, batch_id: str):
 
 ### 2.4 Validadores por País (IMPORTANTE)
 
-**Status**: Backend ✅ Existe (FASE C)  
-**Prioridad**: MEDIA  
+**Status**: Backend ✅ Existe (FASE C)
+**Prioridad**: MEDIA
 **Dificultad**: BAJA
 
 #### Que necesita el frontend:
@@ -283,14 +283,14 @@ async def validate_batch(
 ):
     """Validar batch con reglas por país."""
     batch = db.query(ImportBatch).get(batch_id)
-    
+
     errors = validate_canonical(batch.canonical_doc)
-    
+
     if country:
         validator = get_validator_for_country(country)
         country_errors = validator.validate(batch.canonical_doc)
         errors.extend(country_errors)
-    
+
     return {
         "valid": len(errors) == 0,
         "errors": errors

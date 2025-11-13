@@ -1,13 +1,13 @@
 ﻿/**
  * TenantConfigContext
- * 
+ *
  * Provider global que carga y distribuye la configuración del tenant
  * según el sector seleccionado (panadería, taller, retail, etc.)
- * 
+ *
  * Uso:
  * ```tsx
  * const { config, features, sector } = useTenantConfig()
- * 
+ *
  * {features.inventory_expiry_tracking && (
  *   <DateInput name="expires_at" label="Fecha de Caducidad" />
  * )}
@@ -46,13 +46,13 @@ interface Features {
   inventory_lot_tracking: boolean
   inventory_serial_tracking: boolean
   inventory_auto_reorder: boolean
-  
+
   // POS
   pos_enable_weights: boolean
   pos_enable_batch_tracking: boolean
   pos_receipt_width_mm: number
   pos_return_window_days: number
-  
+
   // General
   price_includes_tax: boolean
   tax_rate: number
@@ -79,7 +79,7 @@ interface TenantConfigContextValue {
   loading: boolean
   error: string | null
   reload: () => Promise<void>
-  
+
   // Helpers de acceso rápido
   features: Features
   sector: Sector
@@ -98,13 +98,13 @@ export function TenantConfigProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true)
       setError(null)
-      
+
       const response = await apiFetch('/api/v1/settings/tenant-config') as TenantConfigData
       setConfig(response)
     } catch (err: any) {
       console.error('Error loading tenant config:', err)
       setError(err.message || 'Error cargando configuración del tenant')
-      
+
       // Fallback: configuración por defecto
       setConfig({
         tenant: {

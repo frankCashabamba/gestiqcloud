@@ -313,17 +313,17 @@ Las nuevas rutas ya están integradas en:
 
 **`AdminPanel.tsx`:**
 ```tsx
-{ 
-  nombre: 'Logs del Sistema', 
-  descripcion: 'Auditoría y monitoreo centralizado', 
-  icono: '/icons/logs.png', 
-  url_completa: 'logs' 
+{
+  nombre: 'Logs del Sistema',
+  descripcion: 'Auditoría y monitoreo centralizado',
+  icono: '/icons/logs.png',
+  url_completa: 'logs'
 },
-{ 
-  nombre: 'Incidencias', 
-  descripcion: '🤖 Con IA auto-resolución', 
-  icono: '/icons/incidents.png', 
-  url_completa: 'incidencias' 
+{
+  nombre: 'Incidencias',
+  descripcion: '🤖 Con IA auto-resolución',
+  icono: '/icons/incidents.png',
+  url_completa: 'incidencias'
 }
 ```
 

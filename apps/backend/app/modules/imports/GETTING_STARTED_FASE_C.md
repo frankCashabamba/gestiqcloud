@@ -60,7 +60,7 @@ Promotion to Destination Table
 class CanonicalDocument:
     """Documento canónico base (SPEC-1)."""
     doc_type: str  # 'invoice', 'bank_tx', 'product', 'expense'
-    
+
     # Campos específicos por tipo
     # ...
 
@@ -95,7 +95,7 @@ class ProductHandler:
     def validate(self, doc: CanonicalDocument) -> bool:
         """Validar documento antes de insertar."""
         pass
-    
+
     def promote(self, doc: CanonicalDocument, tenant_id: str) -> str:
         """Insertar producto y retornar ID."""
         pass
@@ -103,7 +103,7 @@ class ProductHandler:
 class ExpenseHandler:
     def validate(self, doc: CanonicalDocument) -> bool:
         pass
-    
+
     def promote(self, doc: CanonicalDocument, tenant_id: str) -> str:
         pass
 ```
@@ -184,21 +184,21 @@ promoted_id = handler.promote(canonical_doc, tenant_id)
   - [ ] Agregar ProductCanonicalDocument
   - [ ] Agregar ExpenseCanonicalDocument
   - [ ] Agregar validadores
-  
+
 - [ ] Crear ProductHandler
   - [ ] Método validate()
   - [ ] Método promote()
   - [ ] Mapeo a tabla 'products'
-  
+
 - [ ] Crear ExpenseHandler
   - [ ] Método validate()
   - [ ] Método promote()
   - [ ] Mapeo a tabla 'expenses'
-  
+
 - [ ] Actualizar handlers_router.py
   - [ ] Registrar ProductHandler
   - [ ] Registrar ExpenseHandler
-  
+
 - [ ] Crear validadores específicos
   - [ ] validators_product.py
   - [ ] validators_expense.py
@@ -225,7 +225,7 @@ promoted_id = handler.promote(canonical_doc, tenant_id)
 # En task_import_file()
 for import_item in import_batch.items:
     result = parser["handler"](file_path)  # Fase B
-    
+
     for parsed_item in result["items"]:
         # Fase C comienza aquí
         canonical = validate_canonical(parsed_item)

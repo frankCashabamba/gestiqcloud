@@ -3,13 +3,12 @@
 Auto-generated module docstring."""
 
 # app/core/empresa_crud.py
-from typing import List, Type, TypeVar
-
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from typing import TypeVar
 
 from app.core.base_crud import BaseCRUD
 from app.core.types import HasEmpresaID, IDType
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 # Declarar los genéricos con restricciones adecuadas
 ModelType = TypeVar("ModelType", bound=HasEmpresaID)
@@ -20,11 +19,11 @@ UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
 class EmpresaCRUD(BaseCRUD[ModelType, CreateSchemaType, UpdateSchemaType]):
     """Class EmpresaCRUD - auto-generated docstring."""
 
-    def __init__(self, model: Type[ModelType]):
+    def __init__(self, model: type[ModelType]):
         """Function __init__ - auto-generated docstring."""
         super().__init__(model)
 
-    def get_multi_by_empresa(self, db: Session, tenant_id: IDType) -> List[ModelType]:
+    def get_multi_by_empresa(self, db: Session, tenant_id: IDType) -> list[ModelType]:
         """Function get_multi_by_empresa - auto-generated docstring."""
         return db.query(self.model).filter(self.model.tenant_id == tenant_id).all()  # type: ignore[arg-type]
 

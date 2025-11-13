@@ -5,12 +5,13 @@ Cubre validación, conversión legacy y construcción de documentos.
 """
 
 import pytest
+
 from app.modules.imports.domain.canonical_schema import (
     CanonicalDocument,
-    validate_canonical,
     build_routing_proposal,
-    validate_totals,
+    validate_canonical,
     validate_tax_breakdown,
+    validate_totals,
 )
 from app.modules.imports.parsers import registry
 from app.modules.imports.services.classifier import classifier

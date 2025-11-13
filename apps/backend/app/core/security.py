@@ -7,10 +7,10 @@ import path: `app.core.security`.
 # ---- Auth cookies & tokens ---------------------------------------------------
 try:  # pragmatic, keep imports resilient during refactors
     from app.core.auth_shared import (  # noqa: F401
-        set_auth_cookies,
         clear_auth_cookies,
-        issue_access_token,
         decode_access_token,
+        issue_access_token,
+        set_auth_cookies,
     )
 except Exception:  # pragma: no cover
     pass
@@ -20,6 +20,7 @@ except Exception:  # pragma: no cover
 # el formato/longitud estándar $2b$ (~60 chars). Incluye verificación legacy
 # para hashes antiguos generados sin pre-hash.
 import hashlib
+
 import bcrypt
 
 
@@ -68,10 +69,7 @@ except Exception:  # pragma: no cover
     pass
 
 try:
-    from app.core.access_guard import (  # noqa: F401
-        require_tenant,
-        require_admin,
-    )
+    from app.core.access_guard import require_admin, require_tenant  # noqa: F401
 except Exception:  # pragma: no cover
     pass
 

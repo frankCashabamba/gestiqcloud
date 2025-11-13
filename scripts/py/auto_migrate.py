@@ -184,11 +184,9 @@ def main() -> int:
             def _is_idempotent_error(exc: Exception, stmt: str | None = None) -> bool:
                 try:
                     # psycopg3
-                    from psycopg.errors import (
-                        DuplicateTable as PG3DuplicateTable,  # type: ignore
-                        DuplicateObject as PG3DuplicateObject,  # type: ignore
-                        DuplicateSchema as PG3DuplicateSchema,  # type: ignore
-                    )
+                    from psycopg.errors import DuplicateObject as PG3DuplicateObject  # type: ignore
+                    from psycopg.errors import DuplicateSchema as PG3DuplicateSchema  # type: ignore
+                    from psycopg.errors import DuplicateTable as PG3DuplicateTable  # type: ignore
 
                     if isinstance(
                         exc, (PG3DuplicateTable, PG3DuplicateObject, PG3DuplicateSchema)
@@ -198,11 +196,9 @@ def main() -> int:
                     pass
                 try:
                     # psycopg2
-                    from psycopg2.errors import (  # type: ignore
-                        DuplicateTable as PG2DuplicateTable,
-                        DuplicateObject as PG2DuplicateObject,
-                        DuplicateSchema as PG2DuplicateSchema,
-                    )
+                    from psycopg2.errors import DuplicateObject as PG2DuplicateObject
+                    from psycopg2.errors import DuplicateSchema as PG2DuplicateSchema
+                    from psycopg2.errors import DuplicateTable as PG2DuplicateTable  # type: ignore
 
                     if isinstance(
                         exc, (PG2DuplicateTable, PG2DuplicateObject, PG2DuplicateSchema)

@@ -2,9 +2,7 @@ from fastapi.testclient import TestClient
 
 
 def _tenant_token(client: TestClient, usuario_empresa_factory):
-    usuario, tenant = usuario_empresa_factory(
-        email="dup@x.com", username="dup", password="secret"
-    )
+    usuario, tenant = usuario_empresa_factory(email="dup@x.com", username="dup", password="secret")
     r = client.post(
         "/api/v1/tenant/auth/login",
         json={"identificador": "dup", "password": "secret"},

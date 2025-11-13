@@ -4,20 +4,18 @@ Extractor para movimientos bancarios: CSV, MT940, CAMT.053.
 Soporta múltiples formatos bancarios y normaliza a schema canónico.
 """
 
-from typing import List, Dict, Any, Optional
 import csv
 import re
 from datetime import datetime
 from io import StringIO
-from app.modules.imports.domain.canonical_schema import (
-    CanonicalDocument,
-    build_routing_proposal,
-)
+from typing import Any
+
+from app.modules.imports.domain.canonical_schema import CanonicalDocument, build_routing_proposal
 
 
 def extraer_banco_csv(
     content: str, country: str = "EC", encoding: str = "utf-8"
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Extrae movimientos bancarios desde CSV.
 
@@ -46,10 +44,7 @@ def extraer_banco_csv(
             # Extraer campos principales
             fecha = row.get("fecha") or row.get("date") or row.get("value_date")
             descripcion = (
-                row.get("descripcion")
-                or row.get("description")
-                or row.get("narrative")
-                or ""
+                row.get("descripcion") or row.get("description") or row.get("narrative") or ""
             )
             referencia = row.get("referencia") or row.get("reference") or row.get("ref")
 
@@ -104,7 +99,7 @@ def extraer_banco_csv(
     return transactions
 
 
-def extraer_banco_mt940(content: str, country: str = "EC") -> List[Dict[str, Any]]:
+def extraer_banco_mt940(content: str, country: str = "EC") -> list[dict[str, Any]]:
     """
     Extrae movimientos desde formato MT940 (SWIFT).
 
@@ -152,9 +147,7 @@ def extraer_banco_mt940(content: str, country: str = "EC") -> List[Dict[str, Any
 
             # Narrativa desde bloque :86:
             narrative = (
-                detail_blocks[idx].strip()
-                if idx < len(detail_blocks)
-                else "Movimiento bancario"
+                detail_blocks[idx].strip() if idx < len(detail_blocks) else "Movimiento bancario"
             )
 
             canonical: CanonicalDocument = {
@@ -188,7 +181,7 @@ def extraer_banco_mt940(content: str, country: str = "EC") -> List[Dict[str, Any
     return transactions
 
 
-def extraer_banco_camt053(content: str, country: str = "EC") -> List[Dict[str, Any]]:
+def extraer_banco_camt053(content: str, country: str = "EC") -> list[dict[str, Any]]:
     """
     Extrae movimientos desde formato CAMT.053 (ISO 20022 XML).
 
@@ -227,9 +220,7 @@ def extraer_banco_camt053(content: str, country: str = "EC") -> List[Dict[str, A
 
             # Credit/Debit
             cd_match = re.search(r"<CdtDbtInd>(CRDT|DBIT)</CdtDbtInd>", entry)
-            direction = (
-                "credit" if cd_match and cd_match.group(1) == "CRDT" else "debit"
-            )
+            direction = "credit" if cd_match and cd_match.group(1) == "CRDT" else "debit"
 
             # Value date
             date_match = re.search(r"<ValDt><Dt>([0-9-]+)</Dt></ValDt>", entry)
@@ -237,9 +228,7 @@ def extraer_banco_camt053(content: str, country: str = "EC") -> List[Dict[str, A
 
             # Narrative
             narr_match = re.search(r"<Ustrd>(.*?)</Ustrd>", entry)
-            narrative = (
-                narr_match.group(1).strip() if narr_match else "Movimiento bancario"
-            )
+            narrative = narr_match.group(1).strip() if narr_match else "Movimiento bancario"
 
             # Reference
             ref_match = re.search(r"<EndToEndId>(.*?)</EndToEndId>", entry)
@@ -281,7 +270,7 @@ def extraer_banco_camt053(content: str, country: str = "EC") -> List[Dict[str, A
 # ============================================================================
 
 
-def _normalize_date(date_str: Optional[str]) -> Optional[str]:
+def _normalize_date(date_str: str | None) -> str | None:
     """Normaliza fecha a formato YYYY-MM-DD."""
     if not date_str:
         return None
@@ -311,14 +300,9 @@ def _categorize_narrative(narrative: str) -> str:
 
     if any(kw in narrative_lower for kw in ["gasolina", "combustible", "fuel", "gas"]):
         return "FUEL"
-    elif any(
-        kw in narrative_lower
-        for kw in ["luz", "agua", "internet", "servicios", "utilities"]
-    ):
+    elif any(kw in narrative_lower for kw in ["luz", "agua", "internet", "servicios", "utilities"]):
         return "UTILITIES"
-    elif any(
-        kw in narrative_lower for kw in ["nómina", "salario", "payroll", "salary"]
-    ):
+    elif any(kw in narrative_lower for kw in ["nómina", "salario", "payroll", "salary"]):
         return "PAYROLL"
     elif any(kw in narrative_lower for kw in ["alquiler", "rent", "arriendo"]):
         return "RENT"

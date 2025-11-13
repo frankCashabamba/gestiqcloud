@@ -8,12 +8,12 @@ auth + RLS stack. 100% UUID - no legacy int conversions.
 from __future__ import annotations
 
 import logging
-from fastapi import Depends, HTTPException, Request
-from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.db.rls import set_tenant_guc
+from fastapi import Depends, HTTPException, Request
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -56,9 +56,7 @@ def ensure_tenant(request: Request, db: Session = Depends(get_db)) -> str:
     try:
         claims = with_access_claims(request)
         claim_tid = claims.get("tenant_id") if isinstance(claims, dict) else None
-        tenant_uuid = _validate_tenant_uuid(
-            str(claim_tid) if claim_tid is not None else None
-        )
+        tenant_uuid = _validate_tenant_uuid(str(claim_tid) if claim_tid is not None else None)
         logger.info(f"Token validated: tenant_uuid={tenant_uuid}")
     except (HTTPException, Exception) as e:
         # FALLBACK para desarrollo: usar primer tenant de la BD
@@ -108,9 +106,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> dict:
 
     # Validate tenant_id from claims (must be UUID)
     claim_tid = claims.get("tenant_id") if isinstance(claims, dict) else None
-    tenant_uuid = _validate_tenant_uuid(
-        str(claim_tid) if claim_tid is not None else None
-    )
+    tenant_uuid = _validate_tenant_uuid(str(claim_tid) if claim_tid is not None else None)
 
     return {
         "id": uid,

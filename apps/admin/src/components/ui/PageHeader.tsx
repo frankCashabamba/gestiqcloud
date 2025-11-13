@@ -22,7 +22,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
           {breadcrumb}
         </div>
       )}
-      
+
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3">
@@ -43,7 +43,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
             </div>
           </div>
         </div>
-        
+
         {actions && (
           <div className="flex items-center gap-2">
             {actions}

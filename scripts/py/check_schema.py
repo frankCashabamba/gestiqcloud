@@ -17,11 +17,11 @@ import argparse
 import os
 from typing import Dict, List, Tuple
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.engine.url import make_url
-from sqlalchemy import inspect as sa_inspect
-
 
 REQUIRED_TABLES: Dict[str, List[str]] = {
     "import_batches": [

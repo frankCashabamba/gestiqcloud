@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from typing import Protocol, Sequence, Optional
+from collections.abc import Sequence
+from typing import Protocol
 
-from app.modules.admin_config.application.sectores_plantilla.dto import SectorPlantillaIn, SectorPlantillaOut
+from app.modules.admin_config.application.sectores_plantilla.dto import (
+    SectorPlantillaIn,
+    SectorPlantillaOut,
+)
 
 
 class SectorPlantillaRepo(Protocol):
@@ -10,7 +14,7 @@ class SectorPlantillaRepo(Protocol):
 
     def create(self, data: SectorPlantillaIn) -> SectorPlantillaOut: ...
 
-    def get(self, id: int) -> Optional[SectorPlantillaOut]: ...
+    def get(self, id: int) -> SectorPlantillaOut | None: ...
 
     def update(self, id: int, data: SectorPlantillaIn) -> SectorPlantillaOut: ...
 

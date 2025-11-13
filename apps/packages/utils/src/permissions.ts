@@ -26,4 +26,3 @@ export function toPermisosObject(raw: unknown): PermisosObject {
   }
   return normalizePermisos([])
 }
-

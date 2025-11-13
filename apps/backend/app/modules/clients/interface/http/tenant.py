@@ -1,23 +1,23 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request, HTTPException
-from sqlalchemy.orm import Session
 from uuid import UUID
 
+from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.config.database import get_db
 from app.db.rls import ensure_rls
 from app.modules.clients.application.dto import ClienteIn, ClienteOut
 from app.modules.clients.application.use_cases import (
-    CrearCliente,
     ActualizarCliente,
+    CrearCliente,
+    EliminarCliente,
     ListarClientes,
     ObtenerCliente,
-    EliminarCliente,
 )
 from app.modules.clients.infrastructure.repositories import SqlAlchemyClienteRepo
 from app.modules.clients.interface.http.schemas import ClienteInSchema, ClienteOutSchema
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.orm import Session
 
 
 def _schema_to_dto(payload: ClienteInSchema) -> ClienteIn:
@@ -76,9 +76,7 @@ def listar_clientes(request: Request, db: Session = Depends(get_db)):
 
 @router.post("", response_model=ClienteOutSchema)
 @router.post("/", response_model=ClienteOutSchema)
-def crear_cliente(
-    payload: ClienteInSchema, request: Request, db: Session = Depends(get_db)
-):
+def crear_cliente(payload: ClienteInSchema, request: Request, db: Session = Depends(get_db)):
     claims = request.state.access_claims
     tenant_id = claims.get("tenant_id")
     use = CrearCliente(SqlAlchemyClienteRepo(db))
@@ -107,9 +105,7 @@ def actualizar_cliente(
     tenant_id = claims.get("tenant_id")
     use = ActualizarCliente(SqlAlchemyClienteRepo(db))
     try:
-        updated = use.execute(
-            id=cliente_id, tenant_id=tenant_id, data=_schema_to_dto(payload)
-        )
+        updated = use.execute(id=cliente_id, tenant_id=tenant_id, data=_schema_to_dto(payload))
     except ValueError:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     return _dto_to_schema(updated)

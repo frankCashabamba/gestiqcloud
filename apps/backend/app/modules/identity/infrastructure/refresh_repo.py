@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from typing import Optional
-
+from app.core.refresh import _hash as _hash
+from app.core.refresh import _utcnow as _utcnow  # reuse proven helper
+from app.modules.identity.application.ports import RefreshTokenRepo
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-
-from app.modules.identity.application.ports import RefreshTokenRepo
-from app.core.refresh import _utcnow as _utcnow  # reuse proven helper
-from app.core.refresh import _hash as _hash
 
 
 class SqlRefreshTokenRepo(RefreshTokenRepo):
@@ -28,9 +25,7 @@ class SqlRefreshTokenRepo(RefreshTokenRepo):
             {
                 "id": family_id,
                 "user_id": user_id,
-                "tenant_id": (
-                    tenant_id if (tenant_id and str(tenant_id).strip()) else None
-                ),
+                "tenant_id": (tenant_id if (tenant_id and str(tenant_id).strip()) else None),
                 "created_at": _utcnow(),
             },
         )
@@ -127,7 +122,7 @@ class SqlRefreshTokenRepo(RefreshTokenRepo):
         )
         self.db.commit()
 
-    def get_family(self, *, jti: str) -> Optional[str]:
+    def get_family(self, *, jti: str) -> str | None:
         row = (
             self.db.execute(
                 text(

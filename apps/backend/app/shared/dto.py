@@ -1,4 +1,6 @@
-from typing import Generic, Optional, Sequence, TypeVar
+from collections.abc import Sequence
+from typing import Generic, TypeVar
+
 from pydantic import BaseModel
 
 T = TypeVar("T")
@@ -14,8 +16,8 @@ class IDModel(BaseDTO):
 
 
 class Timestamped(BaseDTO):
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
 class Page(Generic[T], BaseModel):

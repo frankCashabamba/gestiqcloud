@@ -19,32 +19,32 @@ COMMENT ON TYPE asiento_status IS 'Estado de asiento: BORRADOR=Sin validar, VALI
 CREATE TABLE plan_cuentas (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    
+
     -- Código y nombre
     codigo VARCHAR(20) NOT NULL,
     nombre VARCHAR(255) NOT NULL,
     descripcion TEXT,
-    
+
     -- Clasificación
     tipo cuenta_tipo NOT NULL,
     nivel INTEGER NOT NULL CHECK (nivel >= 1 AND nivel <= 4),
-    
+
     -- Jerarquía
     padre_id UUID REFERENCES plan_cuentas(id) ON DELETE CASCADE,
-    
+
     -- Configuración
     imputable BOOLEAN NOT NULL DEFAULT TRUE,
     activo BOOLEAN NOT NULL DEFAULT TRUE,
-    
+
     -- Saldos (calculados)
     saldo_debe NUMERIC(14, 2) NOT NULL DEFAULT 0,
     saldo_haber NUMERIC(14, 2) NOT NULL DEFAULT 0,
     saldo NUMERIC(14, 2) NOT NULL DEFAULT 0,
-    
+
     -- Auditoría
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
+
     -- === CONSTRAINTS ===
     CONSTRAINT plan_cuentas_tenant_codigo_unique UNIQUE (tenant_id, codigo)
 );
@@ -75,29 +75,29 @@ COMMENT ON COLUMN plan_cuentas.saldo IS 'Saldo neto (debe - haber)';
 CREATE TABLE asientos_contables (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    
+
     -- Numeración
     numero VARCHAR(50) NOT NULL UNIQUE,
-    
+
     -- Fecha y tipo
     fecha DATE NOT NULL,
     tipo VARCHAR(50) NOT NULL DEFAULT 'OPERACIONES',
-    
+
     -- Descripción
     descripcion TEXT NOT NULL,
-    
+
     -- Totales
     debe_total NUMERIC(14, 2) NOT NULL DEFAULT 0,
     haber_total NUMERIC(14, 2) NOT NULL DEFAULT 0,
     cuadrado BOOLEAN NOT NULL DEFAULT FALSE,
-    
+
     -- Estado
     status asiento_status NOT NULL DEFAULT 'BORRADOR',
-    
+
     -- Referencia a documento origen
     ref_doc_type VARCHAR(50),
     ref_doc_id UUID,
-    
+
     -- Auditoría
     created_by UUID,
     contabilizado_by UUID,
@@ -131,26 +131,26 @@ COMMENT ON COLUMN asientos_contables.ref_doc_type IS 'Tipo de documento origen (
 
 CREATE TABLE asiento_lineas (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
+
     -- Referencias
     asiento_id UUID NOT NULL REFERENCES asientos_contables(id) ON DELETE CASCADE,
     cuenta_id UUID NOT NULL REFERENCES plan_cuentas(id) ON DELETE RESTRICT,
-    
+
     -- Importes (solo uno debe tener valor)
     debe NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (debe >= 0),
     haber NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (haber >= 0),
-    
+
     -- Descripción
     descripcion VARCHAR(255),
-    
+
     -- Orden
     orden INTEGER NOT NULL DEFAULT 0,
-    
+
     -- Auditoría
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
+
     -- === CONSTRAINTS ===
-    CONSTRAINT asiento_lineas_debe_o_haber_check 
+    CONSTRAINT asiento_lineas_debe_o_haber_check
         CHECK ((debe > 0 AND haber = 0) OR (haber > 0 AND debe = 0))
 );
 
@@ -210,7 +210,7 @@ DECLARE
     v_haber NUMERIC(14, 2);
 BEGIN
     -- Calcular totales desde líneas de asientos contabilizados
-    SELECT 
+    SELECT
         COALESCE(SUM(debe), 0),
         COALESCE(SUM(haber), 0)
     INTO v_debe, v_haber
@@ -218,7 +218,7 @@ BEGIN
     INNER JOIN asientos_contables ac ON al.asiento_id = ac.id
     WHERE al.cuenta_id = p_cuenta_id
       AND ac.status = 'CONTABILIZADO';
-    
+
     -- Actualizar saldos
     UPDATE plan_cuentas
     SET saldo_debe = v_debe,
@@ -239,22 +239,22 @@ DECLARE
     v_cuadrado BOOLEAN;
 BEGIN
     -- Calcular totales
-    SELECT 
+    SELECT
         COALESCE(SUM(debe), 0),
         COALESCE(SUM(haber), 0)
     INTO v_debe, v_haber
     FROM asiento_lineas
     WHERE asiento_id = NEW.id;
-    
+
     v_cuadrado := ABS(v_debe - v_haber) < 0.01;
-    
+
     -- Actualizar asiento
     UPDATE asientos_contables
     SET debe_total = v_debe,
         haber_total = v_haber,
         cuadrado = v_cuadrado
     WHERE id = NEW.id;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -279,7 +279,7 @@ CREATE TRIGGER asiento_lineas_validar_cuadre
 
 -- Vista: Balance resumido por tipo
 CREATE OR REPLACE VIEW v_balance_resumido AS
-SELECT 
+SELECT
     tenant_id,
     tipo,
     SUM(saldo_debe) as total_debe,
@@ -294,7 +294,7 @@ COMMENT ON VIEW v_balance_resumido IS 'Balance resumido por tipo de cuenta';
 
 -- Vista: Asientos pendientes de contabilizar
 CREATE OR REPLACE VIEW v_asientos_pendientes AS
-SELECT 
+SELECT
     id,
     tenant_id,
     numero,

@@ -5,24 +5,23 @@ Golden tests: verifica que extractores produzcan output consistente.
 
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
 import pytest
-
 
 GOLDEN_DIR = Path(__file__).parent / "golden_outputs"
 
 
-def load_golden(filename: str) -> Dict[str, Any]:
+def load_golden(filename: str) -> dict[str, Any]:
     """Carga output esperado desde golden_outputs/."""
     path = GOLDEN_DIR / filename
     if not path.exists():
         pytest.skip(f"Golden output no existe: {filename}")
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
-def save_golden(filename: str, data: Dict[str, Any]):
+def save_golden(filename: str, data: dict[str, Any]):
     """Guarda output como golden (para regenerar)."""
     GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
     path = GOLDEN_DIR / filename
@@ -38,12 +37,7 @@ def test_golden_invoice_ec_extraction():
     from app.modules.imports.extractores.invoice_extractor import extract_invoice
 
     # PDF de muestra
-    pdf_path = (
-        Path(__file__).parent.parent
-        / "fixtures"
-        / "documents"
-        / "factura_ec_sample.pdf"
-    )
+    pdf_path = Path(__file__).parent.parent / "fixtures" / "documents" / "factura_ec_sample.pdf"
 
     with open(pdf_path, "rb") as f:
         pdf_content = f.read()
@@ -77,14 +71,9 @@ def test_golden_bank_csv_extraction():
     """
     from app.modules.imports.extractores.bank_extractor import extract_bank_csv
 
-    csv_path = (
-        Path(__file__).parent.parent
-        / "fixtures"
-        / "documents"
-        / "banco_movimientos.csv"
-    )
+    csv_path = Path(__file__).parent.parent / "fixtures" / "documents" / "banco_movimientos.csv"
 
-    with open(csv_path, "r", encoding="utf-8") as f:
+    with open(csv_path, encoding="utf-8") as f:
         csv_content = f.read()
 
     # Extraer
@@ -95,7 +84,7 @@ def test_golden_bank_csv_extraction():
 
     assert len(extracted) == len(golden)
 
-    for idx, (item, golden_item) in enumerate(zip(extracted, golden)):
+    for idx, (item, golden_item) in enumerate(zip(extracted, golden, strict=False)):
         assert item == golden_item, (
             f"Item {idx} difiere del golden.\n"
             f"Expected: {json.dumps(golden_item, indent=2)}\n"
@@ -144,16 +133,11 @@ def test_update_golden_outputs():
         pytest.skip("Usa --update-golden para regenerar")
 
     # Regenerar todos los golden outputs
-    from app.modules.imports.extractores.invoice_extractor import extract_invoice
     from app.modules.imports.extractores.bank_extractor import extract_bank_csv
+    from app.modules.imports.extractores.invoice_extractor import extract_invoice
 
     # Factura EC
-    pdf_path = (
-        Path(__file__).parent.parent
-        / "fixtures"
-        / "documents"
-        / "factura_ec_sample.pdf"
-    )
+    pdf_path = Path(__file__).parent.parent / "fixtures" / "documents" / "factura_ec_sample.pdf"
     with open(pdf_path, "rb") as f:
         extracted = extract_invoice(f.read(), country="EC")
     save_golden(
@@ -168,13 +152,8 @@ def test_update_golden_outputs():
     )
 
     # Banco CSV
-    csv_path = (
-        Path(__file__).parent.parent
-        / "fixtures"
-        / "documents"
-        / "banco_movimientos.csv"
-    )
-    with open(csv_path, "r") as f:
+    csv_path = Path(__file__).parent.parent / "fixtures" / "documents" / "banco_movimientos.csv"
+    with open(csv_path) as f:
         extracted_bank = extract_bank_csv(f.read())
     save_golden("banco_movimientos.json", extracted_bank)
 

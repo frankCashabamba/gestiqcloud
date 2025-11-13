@@ -54,11 +54,11 @@ export default function CajaList() {
   const totalIngresos = filtered
     .filter(m => m.tipo === 'ingreso')
     .reduce((sum, m) => sum + m.monto, 0)
-  
+
   const totalEgresos = filtered
     .filter(m => m.tipo === 'egreso')
     .reduce((sum, m) => sum + m.monto, 0)
-  
+
   const saldo = totalIngresos - totalEgresos
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -253,8 +253,8 @@ export default function CajaList() {
                 <td className="py-2 px-3">{m.concepto}</td>
                 <td className="py-2 px-3">
                   <span className={`px-2 py-1 rounded text-xs ${
-                    m.tipo === 'ingreso' 
-                      ? 'bg-green-100 text-green-800' 
+                    m.tipo === 'ingreso'
+                      ? 'bg-green-100 text-green-800'
                       : 'bg-red-100 text-red-800'
                   }`}>
                     {m.tipo}

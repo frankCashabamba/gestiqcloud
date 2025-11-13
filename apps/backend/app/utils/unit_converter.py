@@ -4,7 +4,6 @@ Soporta peso, volumen y temperatura para recetas profesionales
 """
 
 from decimal import Decimal
-from typing import Dict, Optional
 from enum import Enum
 
 
@@ -20,7 +19,7 @@ class UnitType(str, Enum):
 # ============================================================================
 
 # Peso: Base = kilogramo (kg)
-WEIGHT_TO_KG: Dict[str, Decimal] = {
+WEIGHT_TO_KG: dict[str, Decimal] = {
     "kg": Decimal("1"),
     "g": Decimal("0.001"),
     "lb": Decimal("0.453592"),  # 1 lb = 0.453592 kg
@@ -30,7 +29,7 @@ WEIGHT_TO_KG: Dict[str, Decimal] = {
 }
 
 # Volumen: Base = litro (L)
-VOLUME_TO_L: Dict[str, Decimal] = {
+VOLUME_TO_L: dict[str, Decimal] = {
     "L": Decimal("1"),
     "ml": Decimal("0.001"),
     "gal": Decimal("3.78541"),  # 1 galón US = 3.78541 L
@@ -51,7 +50,7 @@ VOLUME_TO_L: Dict[str, Decimal] = {
 # ============================================================================
 
 
-def get_unit_type(unit: str) -> Optional[UnitType]:
+def get_unit_type(unit: str) -> UnitType | None:
     """Determina el tipo de unidad"""
     unit_lower = unit.lower()
 

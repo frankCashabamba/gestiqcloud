@@ -2,13 +2,11 @@
 
 import uuid
 from datetime import date, datetime
-from typing import Optional
-
-from sqlalchemy import Date, String, Numeric, ForeignKey, Text
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
+from sqlalchemy import Date, ForeignKey, Numeric, String, Text
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 class Venta(Base):
@@ -27,7 +25,7 @@ class Venta(Base):
         index=True,
     )
     numero: Mapped[str] = mapped_column(String(50), nullable=False)
-    cliente_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    cliente_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("clients.id", ondelete="SET NULL"),
         nullable=True,
@@ -43,11 +41,9 @@ class Venta(Base):
         default="draft",
         # CheckConstraint added in migration
     )
-    notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    notas: Mapped[str | None] = mapped_column(Text, nullable=True)
     usuario_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow
-    )
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )

@@ -2,7 +2,7 @@
 
 ## Background
 
-GestiqCloud necesita un módulo de **ingesta y digitalización** que procese documentos heterogéneos (facturas, recibos, extractos/movimientos bancarios, tickets, fotos de documentos, PDF y hojas de cálculo) y los convierta en **datos estructurados normalizados** para su posterior uso contable/financiero. 
+GestiqCloud necesita un módulo de **ingesta y digitalización** que procese documentos heterogéneos (facturas, recibos, extractos/movimientos bancarios, tickets, fotos de documentos, PDF y hojas de cálculo) y los convierta en **datos estructurados normalizados** para su posterior uso contable/financiero.
 
 El objetivo es cubrir todo el ciclo de vida de la importación:
 
@@ -49,7 +49,7 @@ El objetivo es cubrir todo el ciclo de vida de la importación:
 - **Extracción de QR/barcodes** (p.ej., clave de acceso SRI).
 
 ### Won’t (por ahora)
-- Emisión/envío oficial de e‑facturas (FACe/SRI).  
+- Emisión/envío oficial de e‑facturas (FACe/SRI).
 - Entrenamiento pesado de LLM/LayoutLM en on‑prem.
 
 
@@ -146,7 +146,7 @@ PROMOTED --> [*]
   "issue_date": "YYYY-MM-DD",
   "vendor": { "name": "", "tax_id": "", "country": "" },
   "buyer":  { "name": "", "tax_id": "" },
-  "totals": { 
+  "totals": {
     "subtotal": 0.0, "tax": 0.0, "total": 0.0,
     "tax_breakdown": [{ "rate": 12, "amount": 1.20, "code": "IVA12-EC" }]
   },
@@ -165,21 +165,21 @@ PROMOTED --> [*]
 
 Al promover (`POST /batches/{id}/promote`) se mapea el canónico a las tablas finales. Propuesta mínima:
 
-**Tabla `expenses`**  
+**Tabla `expenses`**
 `(id uuid, tenant_id uuid, vendor_id uuid null, issue_date date, currency text, subtotal numeric, tax_total numeric, total numeric, category_code text null, account text null, source_item_id uuid unique, created_at timestamptz)`
 
-**Tabla `expense_lines`**  
+**Tabla `expense_lines`**
 `(id uuid, expense_id uuid fk, description text, qty numeric, unit_price numeric, tax_code text, tax_amount numeric, total numeric)`
 
 **Tabla `incomes`** *(análoga a expenses)* y `income_lines`.
 
-**Tabla `bank_movements`**  
+**Tabla `bank_movements`**
 `(id uuid, tenant_id uuid, value_date date, amount numeric, currency text, direction text, narrative text, external_ref text null, source_item_id uuid unique, created_at timestamptz)`
 
-**Tabla `attachments`**  
+**Tabla `attachments`**
 `(id uuid, owner_type text, owner_id uuid, file_key text, mime text, pages int, created_at timestamptz)`
 
-**Tabla `vendors`** *(catálogo opcional)*  
+**Tabla `vendors`** *(catálogo opcional)*
 `(id uuid, tenant_id uuid, name text, tax_id text, country text)` con índice único por `(tenant_id, tax_id)` cuando aplique.
 
 **Idempotencia**: `source_item_id` único en tablas destino + `dedupe_hash` en `import_items`.
@@ -439,19 +439,19 @@ def set_tenant(session, tenant_id: str):
 
 #### A.4 API y validación de contexto tenant
 
-- El **tenant** se obtiene del token/JWT o del subdominio; **nunca** del body.  
-- Middlewares: resolver `tenant_id` y setearlo en la sesión DB (ver *hook*).  
+- El **tenant** se obtiene del token/JWT o del subdominio; **nunca** del body.
+- Middlewares: resolver `tenant_id` y setearlo en la sesión DB (ver *hook*).
 - Todos los endpoints existentes de `/api/v1/imports` operan bajo RLS sin cambios de firma.
 
 ### B. Hardening JSONB, estados y catálogos
 
-- Convertir `raw/normalized/errors` y `mappings/transforms/defaults` a **JSONB** con índices **GIN** (ya incluido).  
-- **Enums/Checks** para estados (`batches`, `items`, `ocr_jobs`).  
+- Convertir `raw/normalized/errors` y `mappings/transforms/defaults` a **JSONB** con índices **GIN** (ya incluido).
+- **Enums/Checks** para estados (`batches`, `items`, `ocr_jobs`).
 - **Catálogo de errores** y objetos `{code, field, params}` en `errors`.
 
 ### C. Decisiones de enrutamiento & publicación
 
-- `import_routing_decisions` (proposed/confirmed/overridden) **scoped por `tenant_id`**.  
+- `import_routing_decisions` (proposed/confirmed/overridden) **scoped por `tenant_id`**.
 - `Publisher` hace **upsert** a `expenses/incomes/bank_movements` con `source_item_id` y `tenant_id`.
 
 ### D. Rastro y auditoría
@@ -460,39 +460,39 @@ def set_tenant(session, tenant_id: str):
 
 ### E. Seguridad & Observabilidad
 
-- ClamAV, libmagic; límites por tamaño y páginas; enmascarado de PAN.  
+- ClamAV, libmagic; límites por tamaño y páginas; enmascarado de PAN.
 - Logs JSON con `tenant_id` + métricas Prometheus y trazas OTel.
 
 ## Milestones
 
-**T0 – Tenantización canónica**  
-- Añadir `tenant_id UUID` a todas las tablas `import_*` y `auditoria_importacion`; backfill desde `core_empresa.tenant_id` (o tabla mapa).  
+**T0 – Tenantización canónica**
+- Añadir `tenant_id UUID` a todas las tablas `import_*` y `auditoria_importacion`; backfill desde `core_empresa.tenant_id` (o tabla mapa).
 - Índices y unicidades `UNIQUE(tenant_id, idempotency_key)` y `INDEX(tenant_id, dedupe_hash)`.
 
-**T1 – RLS fuerte**  
-- Activar RLS en todas las tablas `import_*` y destino.  
+**T1 – RLS fuerte**
+- Activar RLS en todas las tablas `import_*` y destino.
 - Middleware para `SET app.tenant_id` por request; tests de aislamiento de filas.
 
-**T2 – JSONB + estados**  
-- Migrar JSON→JSONB, GIN, enums/checks.  
+**T2 – JSONB + estados**
+- Migrar JSON→JSONB, GIN, enums/checks.
 - Catálogo de errores + export estable.
 
-**T3 – Pipeline OCR/extracción**  
+**T3 – Pipeline OCR/extracción**
 - OpenCV/Tesseract; parsers PDF/Facturae/UBL/CSV/Excel/CAMT/MT940; métricas de calidad.
 
-**T4 – Propuestas de enrutamiento**  
+**T4 – Propuestas de enrutamiento**
 - Tabla `import_routing_decisions`, endpoints `/proposal` y `/route`, UI de confirmación.
 
-**T5 – Publicación**  
+**T5 – Publicación**
 - Upsert a `expenses/incomes/bank_movements` con `tenant_id` + `source_item_id`; lineage.
 
-**T6 – Deprecación limpia**  
+**T6 – Deprecación limpia**
 - Retirar `tenant_id` de tablas `import_*` y `auditoria_importacion` tras 1–2 releases; mantener VIEW si se requiere compatibilidad temporal.
 
-**T7 – Observabilidad & Seguridad**  
+**T7 – Observabilidad & Seguridad**
 - Métricas Prometheus/OTel, eventos SSE; DLP básico, retención, WORM lógico.
 
-**T8 – QA/Fixtures**  
+**T8 – QA/Fixtures**
 - Golden tests con docs reales anonimizados; benchmarks de latencia/throughput por etapa.
 
 
@@ -563,11 +563,11 @@ def set_tenant(session, tenant_id: str):
 ---
 
 ### Snippets rápidos de entorno (Render)
-- `IMPORTS_ENABLED=1`, `IMPORTS_RUNNER_MODE=inline`, `IMPORTS_RUNNER_LOCK=8102025`  
-- `IMPORTS_OCR_DPI=200`, `IMPORTS_OCR_LANG=spa+eng`, `IMPORTS_OCR_PSM=6`, `IMPORTS_OCR_WORKERS=2`, `IMPORTS_MAX_PAGES=20`, `OMP_THREAD_LIMIT=1`  
+- `IMPORTS_ENABLED=1`, `IMPORTS_RUNNER_MODE=inline`, `IMPORTS_RUNNER_LOCK=8102025`
+- `IMPORTS_OCR_DPI=200`, `IMPORTS_OCR_LANG=spa+eng`, `IMPORTS_OCR_PSM=6`, `IMPORTS_OCR_WORKERS=2`, `IMPORTS_MAX_PAGES=20`, `OMP_THREAD_LIMIT=1`
 - Parche OCR: usa los archivos adjuntos `photo_utils.patch`/`photo_utils_optimized.py` que te dejé.
 
 ### Guía de uso
-1) Antes de tocar nada, pega el **Prompt 1** en tu PR → tendrás un review automatizado y guía de cambios.  
-2) Si falta alguna pieza, pega el prompt correspondiente (2–11) y aplica el diff que te devuelva.  
+1) Antes de tocar nada, pega el **Prompt 1** en tu PR → tendrás un review automatizado y guía de cambios.
+2) Si falta alguna pieza, pega el prompt correspondiente (2–11) y aplica el diff que te devuelva.
 3) Ejecuta el **Prompt 12** antes de cerrar el PR para validar que cumpliste el DoD.

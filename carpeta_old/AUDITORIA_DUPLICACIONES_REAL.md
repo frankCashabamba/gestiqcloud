@@ -1,13 +1,13 @@
 # AUDITORÍA DE DUPLICACIONES - Hallazgos Reales
 
-**Fecha:** 2025-11-06  
+**Fecha:** 2025-11-06
 **Conclusión:** ❌ **NO ELIMINAR NADA AÚN** - Los módulos en `/modules/` están **VACÍOS o INCOMPLETOS**
 
 ---
 
 ## ⚠️ HALLAZGO CRÍTICO
 
-**Los routers en `/routers/` tienen TODA la funcionalidad**  
+**Los routers en `/routers/` tienen TODA la funcionalidad**
 **Los módulos en `/modules/` son solo STUBS (plantillas vacías)**
 
 ### Evidencia:
@@ -394,6 +394,6 @@ code apps/backend/app/modules/rrhh/interface/http/tenant.py
 
 ---
 
-**Estado:** 🔴 CRÍTICO - No eliminar routers legacy  
-**Última actualización:** 2025-11-06  
+**Estado:** 🔴 CRÍTICO - No eliminar routers legacy
+**Última actualización:** 2025-11-06
 **Responsable:** Migración Manual Requerida

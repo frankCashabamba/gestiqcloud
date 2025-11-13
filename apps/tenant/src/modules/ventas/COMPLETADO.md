@@ -256,7 +256,7 @@ El formulario recalcula automáticamente los totales cuando cambian las líneas 
 
 ```typescript
 useEffect(() => {
-  const subtotal = lineas.reduce((sum, l) => 
+  const subtotal = lineas.reduce((sum, l) =>
     sum + (l.cantidad * l.precio_unitario * (1 - (l.descuento || 0) / 100)), 0)
   const impuesto = lineas.reduce((sum, l) => {
     const base = l.cantidad * l.precio_unitario * (1 - (l.descuento || 0) / 100)
@@ -289,14 +289,14 @@ const sorted = useMemo(() => {
 Un solo componente para crear Y editar:
 
 ```typescript
-useEffect(() => { 
-  if (id) { 
+useEffect(() => {
+  if (id) {
     setLoading(true)
     getVenta(id).then((x) => {
       setForm({/* mapeo de datos */})
       if (x.lineas) setLineas(x.lineas)
     }).finally(() => setLoading(false))
-  } 
+  }
 }, [id])
 ```
 
@@ -329,10 +329,10 @@ El módulo está preparado para i18n:
 
 ---
 
-**Estado**: ✅ **COMPLETADO AL 100%**  
-**Versión**: 1.0.0  
-**Fecha**: Enero 2025  
-**Tiempo estimado desarrollo**: 4-6 horas  
-**Código total**: ~1,000 líneas profesionales  
+**Estado**: ✅ **COMPLETADO AL 100%**
+**Versión**: 1.0.0
+**Fecha**: Enero 2025
+**Tiempo estimado desarrollo**: 4-6 horas
+**Código total**: ~1,000 líneas profesionales
 
 **🎉 LISTO PARA INTEGRACIÓN CON BACKEND 🎉**

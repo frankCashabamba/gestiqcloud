@@ -1,5 +1,4 @@
-﻿from __future__ import annotations
-
+from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,7 +10,7 @@ def seeded_modulos(db, usuario_empresa_factory):
 
     Devuelve tuple: (usuario, empresa, [mod1, mod2])
     """
-    from app.models.core.modulo import Modulo, EmpresaModulo, ModuloAsignado
+    from app.models.core.modulo import EmpresaModulo, Modulo, ModuloAsignado
 
     usuario, tenant_from_factory = usuario_empresa_factory(
         empresa_nombre="Empresa Test Mods",
@@ -49,9 +48,7 @@ def seeded_modulos(db, usuario_empresa_factory):
     for m in (m1, m2):
         exists = (
             db.query(EmpresaModulo)
-            .filter(
-                EmpresaModulo.tenant_id == tenant.id, EmpresaModulo.modulo_id == m.id
-            )
+            .filter(EmpresaModulo.tenant_id == tenant.id, EmpresaModulo.modulo_id == m.id)
             .first()
         )
         if not exists:

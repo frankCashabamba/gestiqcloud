@@ -1,7 +1,7 @@
 # 📊 Análisis de Tests Existentes
 
-**Fecha:** 03 Noviembre 2025  
-**Total tests:** 32 archivos  
+**Fecha:** 03 Noviembre 2025
+**Total tests:** 32 archivos
 **Estado:** Revisión para nueva estructura
 
 ---
@@ -154,7 +154,7 @@
 ## 🗑️ TESTS A ELIMINAR
 
 ### test.zip
-**Razón:** Archivo zip (no es un test)  
+**Razón:** Archivo zip (no es un test)
 **Acción:** ❌ Eliminar
 
 ---

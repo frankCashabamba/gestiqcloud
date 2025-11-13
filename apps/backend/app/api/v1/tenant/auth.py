@@ -1,32 +1,30 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, Request
 import logging
-from pydantic import BaseModel
-from sqlalchemy import func, or_
-from sqlalchemy.orm import Session, joinedload
 
-from app.core.perm_loader import build_tenant_claims
-from app.core.i18n import t
-from app.core.audit import audit as audit_log
+from app.api.email.email_utils import verificar_token_email
 from app.config.database import get_db
-from app.core.deps import set_tenant_scope
-from app.models.empresa.usuarioempresa import UsuarioEmpresa
 from app.config.settings import settings
-
+from app.core.audit import audit as audit_log
+from app.core.auth_http import refresh_cookie_path_tenant  # <- IMPORT NECESARIO
+from app.core.auth_http import (
+    best_effort_family_revoke,
+    delete_auth_cookies,
+    set_access_cookie,
+    set_refresh_cookie,
+)
+from app.core.auth_shared import ensure_session, issue_csrf_and_cookie, rotate_refresh
+from app.core.csrf import issue_csrf_token
+from app.core.deps import set_tenant_scope
+from app.core.i18n import t
+from app.core.perm_loader import build_tenant_claims
+from app.models.empresa.usuarioempresa import UsuarioEmpresa
 from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
 from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
 from app.modules.identity.infrastructure.rate_limit import SimpleRateLimiter
 from app.modules.identity.infrastructure.refresh_repo import SqlRefreshTokenRepo
-from app.api.email.email_utils import verificar_token_email
-
-from app.core.auth_http import (
-    set_refresh_cookie,
-    set_access_cookie,
-    delete_auth_cookies,
-    best_effort_family_revoke,
-    refresh_cookie_path_tenant,  # <- IMPORT NECESARIO
-)
-from app.core.auth_shared import ensure_session, issue_csrf_and_cookie, rotate_refresh
-from app.core.csrf import issue_csrf_token
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from pydantic import BaseModel
+from sqlalchemy import func, or_
+from sqlalchemy.orm import Session, joinedload
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 log = logging.getLogger("app.auth.tenant")
@@ -195,9 +193,7 @@ def tenant_login(
     # 5) Refresh family + primer token
     repo = SqlRefreshTokenRepo(db)
     try:
-        family_id = repo.create_family(
-            user_id=str(user.id), tenant_id=tenant_uuid_for_family
-        )
+        family_id = repo.create_family(user_id=str(user.id), tenant_id=tenant_uuid_for_family)
         jti = repo.issue_token(
             family_id=family_id,
             prev_jti=None,
@@ -357,7 +353,7 @@ def tenant_set_password(payload: SetPasswordIn, db: Session = Depends(get_db)):
     # marca como verificado si ese campo existe en el modelo
     try:
         if hasattr(user, "is_verified"):
-            setattr(user, "is_verified", True)
+            user.is_verified = True
     except Exception:
         pass
     db.add(user)

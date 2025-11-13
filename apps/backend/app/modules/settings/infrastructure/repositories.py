@@ -1,7 +1,7 @@
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import ProgrammingError
-from sqlalchemy import text
 from app.models.core.settings import TenantSettings
+from sqlalchemy import text
+from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.orm import Session
 
 
 class SettingsRepo:
@@ -31,7 +31,9 @@ class SettingsRepo:
             row = self.db.query(TenantSettings).first()
             if not row:
                 # Create settings row for current tenant using GUC app.tenant_id
-                tenant_id = self.db.execute(text("SELECT current_setting('app.tenant_id', true)")).scalar()
+                tenant_id = self.db.execute(
+                    text("SELECT current_setting('app.tenant_id', true)")
+                ).scalar()
                 if not tenant_id:
                     # No tenant in context; cannot create
                     return

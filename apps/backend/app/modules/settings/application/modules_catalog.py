@@ -1,8 +1,8 @@
 """Catálogo de Módulos Disponibles del Sistema"""
 
-from typing import List, Dict, Any
+from typing import Any
 
-AVAILABLE_MODULES: List[Dict[str, Any]] = [
+AVAILABLE_MODULES: list[dict[str, Any]] = [
     {
         "id": "pos",
         "name": "Punto de Venta",
@@ -195,29 +195,29 @@ MODULE_CATEGORIES = [
 ]
 
 
-def get_available_modules(country: str = None) -> List[Dict[str, Any]]:
+def get_available_modules(country: str = None) -> list[dict[str, Any]]:
     """Obtener módulos disponibles, opcionalmente filtrados por país"""
     if country:
         return [m for m in AVAILABLE_MODULES if country.upper() in m["countries"]]
     return AVAILABLE_MODULES.copy()
 
 
-def get_module_by_id(module_id: str) -> Dict[str, Any] | None:
+def get_module_by_id(module_id: str) -> dict[str, Any] | None:
     """Obtener módulo por ID"""
     return next((m for m in AVAILABLE_MODULES if m["id"] == module_id), None)
 
 
-def get_required_modules() -> List[str]:
+def get_required_modules() -> list[str]:
     """Obtener lista de módulos obligatorios"""
     return [m["id"] for m in AVAILABLE_MODULES if m["required"]]
 
 
-def get_default_enabled_modules() -> List[str]:
+def get_default_enabled_modules() -> list[str]:
     """Obtener lista de módulos habilitados por defecto"""
     return [m["id"] for m in AVAILABLE_MODULES if m["default_enabled"]]
 
 
-def validate_module_dependencies(enabled_modules: List[str]) -> Dict[str, List[str]]:
+def validate_module_dependencies(enabled_modules: list[str]) -> dict[str, list[str]]:
     """
     Validar que los módulos habilitados tengan sus dependencias activas
 

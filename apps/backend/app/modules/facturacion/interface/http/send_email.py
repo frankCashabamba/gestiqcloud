@@ -1,16 +1,16 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 from uuid import UUID
 
+from app.api.email.email_utils import enviar_correo_bienvenida as _send
+from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.config.database import get_db
 from app.db.rls import ensure_rls
-from app.api.email.email_utils import enviar_correo_bienvenida as _send
 from app.models.core.facturacion import Invoice
 from app.models.tenant import Tenant
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/facturacion",

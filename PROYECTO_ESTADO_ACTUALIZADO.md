@@ -39,7 +39,7 @@
 
 ### Resultado
 ```
-CSV Upload 
+CSV Upload
   → Clasificación automática con IA
   → Preview con badge "🤖 IA: Local"
   → Crear batch CON metadata de clasificación
@@ -309,5 +309,5 @@ apps/frontend/
 
 ---
 
-**Actualizado**: Nov 11, 2025 23:00 UTC  
+**Actualizado**: Nov 11, 2025 23:00 UTC
 **Versión**: 1.1 - Sprint 1 Completado

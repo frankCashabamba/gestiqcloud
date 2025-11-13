@@ -2,15 +2,16 @@ from __future__ import annotations
 
 import uuid as _uuid
 
-from sqlalchemy.orm import Session
 import pytest
+from sqlalchemy.orm import Session
 
 
 def test_smoke_sales_order_confirm_creates_reserve(db: Session):
     from sqlalchemy import text
-    from app.models.sales.order import SalesOrder, SalesOrderItem
+
     from app.models.inventory.stock import StockMove
-    from app.modules.ventas.interface.http.tenant import confirm_order, ConfirmIn
+    from app.models.sales.order import SalesOrder, SalesOrderItem
+    from app.modules.ventas.interface.http.tenant import ConfirmIn, confirm_order
 
     # Skip on non-Postgres (uses SET LOCAL/policy and UUID bindings)
     eng = db.get_bind()
@@ -35,11 +36,7 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session):
     so = SalesOrder(tenant_id=tid, customer_id=None, status="draft")
     db.add(so)
     db.flush()
-    db.add(
-        SalesOrderItem(
-            tenant_id=tid, order_id=so.id, product_id=1, qty=2, unit_price=10
-        )
-    )
+    db.add(SalesOrderItem(tenant_id=tid, order_id=so.id, product_id=1, qty=2, unit_price=10))
     db.commit()
 
     # Build a minimal request with access_claims

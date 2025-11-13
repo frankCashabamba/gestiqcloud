@@ -3,7 +3,7 @@
  * Módulo universal de importación para todos los tenants y plantillas
  */
 
-export type EntityType = 
+export type EntityType =
   | 'productos'
   | 'clientes'
   | 'proveedores'

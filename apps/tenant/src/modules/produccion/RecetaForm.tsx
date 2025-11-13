@@ -33,7 +33,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
   const [rendimiento, setRendimiento] = useState<number>(1);
   const [tiempoPreparacion, setTiempoPreparacion] = useState<number | null>(null);
   const [instrucciones, setInstrucciones] = useState('');
-  
+
   // Ingredientes
   const [ingredientes, setIngredientes] = useState<RecipeIngredient[]>([]);
 
@@ -50,7 +50,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
       setRendimiento(recipe.rendimiento);
       setTiempoPreparacion(recipe.tiempo_preparacion || null);
       setInstrucciones(recipe.instrucciones || '');
-      
+
       if (recipe.ingredientes) {
         setIngredientes(recipe.ingredientes.map(ing => ({
           producto_id: ing.producto_id,
@@ -107,7 +107,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
   const handleIngredientChange = (index: number, field: string, value: any) => {
     const updated = [...ingredientes];
     (updated[index] as any)[field] = value;
-    
+
     // Si se selecciona un producto, autocompletar datos de compra
     if (field === 'producto_id' && value) {
       const producto = products.find(p => p.id === value);
@@ -115,7 +115,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
         // Autocompletar con valores del producto
         updated[index].unidad_medida = producto.unit || 'kg';
         updated[index].unidad_presentacion = producto.unit || 'kg';
-        
+
         // Valores por defecto según la unidad
         const defaultPresentaciones: Record<string, { qty: number, desc: string }> = {
           'kg': { qty: 50, desc: 'Saco 50 kg' },
@@ -126,29 +126,29 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
           'unit': { qty: 24, desc: 'Caja 24 unidades' },
           'unidades': { qty: 24, desc: 'Caja 24 unidades' }
         };
-        
+
         const unit = (producto.unit || 'kg').toLowerCase();
         const defaultPres = defaultPresentaciones[unit] || { qty: 1, desc: 'Unidad' };
-        
+
         updated[index].qty_presentacion = defaultPres.qty;
         updated[index].presentacion_compra = defaultPres.desc;
         // Costo: usar cost_price si existe, sino dejar en 0 para que el usuario lo ingrese
-        updated[index].costo_presentacion = producto.cost_price ? 
+        updated[index].costo_presentacion = producto.cost_price ?
           Number(producto.cost_price) * defaultPres.qty : 0;
       }
     }
-    
+
     setIngredientes(updated);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!productId) {
       setError('Debe seleccionar un producto');
       return;
     }
-    
+
     if (rendimiento <= 0) {
       setError('Rendimiento debe ser mayor a 0');
       return;
@@ -271,7 +271,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
 
           {/* Ingredientes */}
           <Divider sx={{ my: 3 }} />
-          
+
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
             <Typography variant="h6">Ingredientes</Typography>
             <Button

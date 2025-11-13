@@ -8,36 +8,35 @@ Salida: lista de CanonicalDocument con doc_type='invoice'
 """
 
 import csv
-from typing import Dict, Any, List
-from pathlib import Path
+from typing import Any
 
 
-def parse_csv_invoices(file_path: str) -> Dict[str, Any]:
+def parse_csv_invoices(file_path: str) -> dict[str, Any]:
     """
     Parse CSV file with invoice data.
-    
+
     Args:
         file_path: Path to CSV file
-        
+
     Returns:
         Dict with 'invoices' list and metadata
     """
     invoices = []
     rows_processed = 0
     errors = []
-    
+
     try:
-        with open(file_path, 'r', encoding='utf-8-sig') as f:
+        with open(file_path, encoding="utf-8-sig") as f:
             reader = csv.DictReader(f)
             if not reader.fieldnames:
                 raise ValueError("CSV file is empty or has no headers")
-            
+
             for idx, row in enumerate(reader, start=1):
                 rows_processed += 1
-                
+
                 # Normalizar nombres de columna
                 normalized_row = {k.strip().lower(): v for k, v in row.items()}
-                
+
                 # Extraer campos canónicos
                 invoice = {
                     "doc_type": "invoice",
@@ -54,8 +53,7 @@ def parse_csv_invoices(file_path: str) -> Dict[str, Any]:
                         or normalized_row.get("fecha")
                     ),
                     "due_date": (
-                        normalized_row.get("due_date")
-                        or normalized_row.get("fecha_vencimiento")
+                        normalized_row.get("due_date") or normalized_row.get("fecha_vencimiento")
                     ),
                     "vendor": {
                         "name": (
@@ -81,21 +79,17 @@ def parse_csv_invoices(file_path: str) -> Dict[str, Any]:
                             or normalized_row.get("cliente")
                         ),
                         "tax_id": (
-                            normalized_row.get("buyer_tax_id")
-                            or normalized_row.get("buyer_ruc")
+                            normalized_row.get("buyer_tax_id") or normalized_row.get("buyer_ruc")
                         ),
                     },
                     "currency": (
-                        normalized_row.get("currency")
-                        or normalized_row.get("moneda")
-                        or "USD"
+                        normalized_row.get("currency") or normalized_row.get("moneda") or "USD"
                     ),
                     "totals": {
                         "subtotal": _to_float(normalized_row.get("subtotal")),
                         "tax": _to_float(normalized_row.get("tax") or normalized_row.get("iva")),
                         "total": _to_float(
-                            normalized_row.get("total")
-                            or normalized_row.get("amount")
+                            normalized_row.get("total") or normalized_row.get("amount")
                         ),
                     },
                     "payment": {
@@ -114,16 +108,16 @@ def parse_csv_invoices(file_path: str) -> Dict[str, Any]:
                     "_metadata": {
                         "parser": "csv_invoices",
                         "row_index": idx,
-                    }
+                    },
                 }
-                
+
                 # Limpiar nulos
                 invoice = _clean_dict(invoice)
                 invoices.append(invoice)
-                
+
     except Exception as e:
         errors.append(str(e))
-    
+
     return {
         "invoices": invoices,
         "rows_processed": rows_processed,
@@ -144,7 +138,7 @@ def _to_float(val) -> float | None:
         return None
 
 
-def _clean_dict(d: Dict) -> Dict:
+def _clean_dict(d: dict) -> dict:
     """Remover keys con valores None o strings vacíos."""
     if not isinstance(d, dict):
         return d

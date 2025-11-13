@@ -5,7 +5,7 @@ Sistema completo de planificación y ejecución de producción basado en recetas
 
 Arquitectura DDD (Domain-Driven Design):
 - domain/: Entidades, Value Objects, Reglas de negocio
-- application/: Casos de uso, Servicios de aplicación  
+- application/: Casos de uso, Servicios de aplicación
 - infrastructure/: Repositorios, Implementaciones técnicas
 - interface/: Controladores HTTP, Schemas Pydantic
 

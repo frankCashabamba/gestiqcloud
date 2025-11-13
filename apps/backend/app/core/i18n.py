@@ -1,10 +1,11 @@
 # app/core/i18n.py
-from typing import Dict, Literal
+from typing import Literal
+
 from fastapi import Request
 
 Lang = Literal["es", "en"]
 
-MESSAGES: Dict[str, Dict[str, str]] = {
+MESSAGES: dict[str, dict[str, str]] = {
     "es": {
         "invalid_credentials": "Credenciales inválidas",
         "company_not_found": "Empresa no encontrada",

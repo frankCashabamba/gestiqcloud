@@ -40,4 +40,3 @@ class SqlFooRepo(SqlAlchemyRepo):
 - modulos: `ListarModulos*`, `SqlModuloRepo`
 - productos: `Crear/ListarProductos`, `SqlAlchemyProductoRepo`
 - clients: `Crear/Actualizar/Listar/EliminarCliente`, `SqlAlchemyClienteRepo`
-

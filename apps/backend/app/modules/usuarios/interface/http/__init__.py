@@ -1,3 +1,3 @@
-from .tenant import router, public_router
+from .tenant import public_router, router
 
 __all__ = ["router", "public_router"]

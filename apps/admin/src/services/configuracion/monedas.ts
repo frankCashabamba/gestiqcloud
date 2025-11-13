@@ -49,4 +49,3 @@ export async function updateMoneda(id: number | string, payload: MonedaPayload):
 export async function removeMoneda(id: number | string): Promise<void> {
   await api.delete(ADMIN_CONFIG.monedas.byId(id))
 }
-

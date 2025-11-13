@@ -1,29 +1,29 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Optional, Any, Mapping, Sequence
-from uuid import uuid4
 import hashlib
-from fastapi import HTTPException
+import warnings
+from collections.abc import Mapping, Sequence
 from contextlib import contextmanager
-from sqlalchemy import text
+from datetime import UTC, datetime
+from typing import Any
+from uuid import uuid4
+
 import jwt
+from app.config.database import SessionLocal
+from app.config.settings import settings
+from fastapi import HTTPException
 from jwt import (
     ExpiredSignatureError,
     ImmatureSignatureError,
-    MissingRequiredClaimError,
     InvalidAudienceError,
     InvalidIssuerError,
     InvalidTokenError,
+    MissingRequiredClaimError,
 )
-
-import warnings
 from pydantic import SecretStr
+from sqlalchemy import text
+
 from apps.backend.app.shared.utils import now_ts
-
-from app.config.settings import settings
-from app.config.database import SessionLocal
-
 
 # ---------------------------
 # Helpers
@@ -37,7 +37,7 @@ def _hash(value: str) -> str:
 
 def _utcnow() -> datetime:
     """Fecha/hora UTC aware."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @contextmanager
@@ -59,17 +59,19 @@ def _with_session():
 # ---------------------------
 
 
-def family_create(user_id: str, tenant_id: Optional[str]) -> str:
+def family_create(user_id: str, tenant_id: str | None) -> str:
     """
     Crea una familia de refresh tokens y devuelve su ID (UUID).
     """
     family_id = str(uuid4())
     with _with_session() as db:
         db.execute(
-            text("""
+            text(
+                """
                 INSERT INTO auth_refresh_family (id, user_id, tenant_id, created_at, revoked_at)
                 VALUES (:id, :user_id, :tenant_id, :created_at, NULL)
-            """),
+            """
+            ),
             {
                 "id": family_id,
                 "user_id": user_id,
@@ -82,7 +84,7 @@ def family_create(user_id: str, tenant_id: Optional[str]) -> str:
 
 def token_issue(
     family_id: str,
-    prev_jti: Optional[str],
+    prev_jti: str | None,
     user_agent: str,
     ip: str,
 ) -> str:
@@ -92,12 +94,14 @@ def token_issue(
     jti = str(uuid4())
     with _with_session() as db:
         db.execute(
-            text("""
+            text(
+                """
                 INSERT INTO auth_refresh_token
                   (id, family_id, jti, prev_jti, used_at, revoked_at, ua_hash, ip_hash, created_at)
                 VALUES
                   (:id, :family_id, :jti, :prev_jti, NULL, NULL, :ua_hash, :ip_hash, :created_at)
-            """),
+            """
+            ),
             {
                 "id": str(uuid4()),
                 "family_id": family_id,
@@ -115,11 +119,13 @@ def token_mark_used(jti: str) -> None:
     """Marca un refresh token como usado (rotado)."""
     with _with_session() as db:
         db.execute(
-            text("""
+            text(
+                """
                 UPDATE auth_refresh_token
                    SET used_at = :ts
                  WHERE jti = :jti
-            """),
+            """
+            ),
             {"jti": jti, "ts": _utcnow()},
         )
 
@@ -134,12 +140,14 @@ def token_is_reused_or_revoked(jti: str) -> bool:
     with _with_session() as db:
         row = (
             db.execute(
-                text("""
+                text(
+                    """
                 SELECT used_at, revoked_at
                   FROM auth_refresh_token
                  WHERE jti = :jti
                  LIMIT 1
-            """),
+            """
+                ),
                 {"jti": jti},
             )
             .mappings()
@@ -156,34 +164,40 @@ def family_revoke(family_id: str) -> None:
     now = _utcnow()
     with _with_session() as db:
         db.execute(
-            text("""
+            text(
+                """
                 UPDATE auth_refresh_family
                    SET revoked_at = :ts
                  WHERE id = :fid
-            """),
+            """
+            ),
             {"fid": family_id, "ts": now},
         )
         db.execute(
-            text("""
+            text(
+                """
                 UPDATE auth_refresh_token
                    SET revoked_at = :ts
                  WHERE family_id = :fid
-            """),
+            """
+            ),
             {"fid": family_id, "ts": now},
         )
 
 
-def token_get_family(jti: str) -> Optional[str]:
+def token_get_family(jti: str) -> str | None:
     """Devuelve el family_id al que pertenece un jti, o None si no existe."""
     with _with_session() as db:
         row = (
             db.execute(
-                text("""
+                text(
+                    """
                 SELECT family_id
                   FROM auth_refresh_token
                  WHERE jti = :jti
                  LIMIT 1
-            """),
+            """
+                ),
                 {"jti": jti},
             )
             .mappings()
@@ -247,9 +261,7 @@ def _signing_key() -> str | bytes:
     # Algoritmos asimétricos (RS*/ES*)
     priv = _unwrap_secret(getattr(settings, "JWT_PRIVATE_KEY", None))
     if not isinstance(priv, (str, bytes)) or not priv:
-        raise RuntimeError(
-            "JWT_PRIVATE_KEY no está configurada para algoritmo asimétrico"
-        )
+        raise RuntimeError("JWT_PRIVATE_KEY no está configurada para algoritmo asimétrico")
     return priv
 
 
@@ -273,9 +285,7 @@ def _verification_keys() -> Sequence[str | bytes]:
     return keys
 
 
-def _base_claims(
-    payload: Mapping[str, Any], token_type: str, exp_seconds: int
-) -> dict[str, Any]:
+def _base_claims(payload: Mapping[str, Any], token_type: str, exp_seconds: int) -> dict[str, Any]:
     now = now_ts()
     claims = {
         **payload,
@@ -298,12 +308,10 @@ def create_access(payload: dict) -> str:
     return jwt.encode(claims, _signing_key(), algorithm=settings.JWT_ALGORITHM)
 
 
-def create_refresh(payload: dict, jti: str, prev_jti: Optional[str]) -> str:
+def create_refresh(payload: dict, jti: str, prev_jti: str | None) -> str:
     """Crea un JWT de refresh token."""
     exp_seconds = int(getattr(settings, "REFRESH_TOKEN_EXPIRE_DAYS", 30)) * 24 * 60 * 60
-    claims = _base_claims(
-        {**payload, "jti": jti, "prev_jti": prev_jti}, "refresh", exp_seconds
-    )
+    claims = _base_claims({**payload, "jti": jti, "prev_jti": prev_jti}, "refresh", exp_seconds)
     return jwt.encode(claims, _signing_key(), algorithm=settings.JWT_ALGORITHM)
 
 

@@ -79,10 +79,10 @@ import { useImportQueue } from './context/ImportQueueContext'
 
 function MyComponent() {
   const { queue, addToQueue, isProcessing, processingCount } = useImportQueue()
-  
+
   // Agregar archivos
   addToQueue(fileList)
-  
+
   // Ver estado
   console.log(`Procesando ${processingCount} archivos`)
 }

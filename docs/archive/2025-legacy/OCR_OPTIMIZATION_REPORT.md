@@ -266,6 +266,6 @@ For questions or issues, see SPEC-1 or raise in #imports-module Slack channel.
 
 ---
 
-**Generated**: 2025-10-17  
-**Version**: 1.0  
+**Generated**: 2025-10-17
+**Version**: 1.0
 **Authors**: GestiQCloud Engineering

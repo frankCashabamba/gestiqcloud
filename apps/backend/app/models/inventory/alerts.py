@@ -1,22 +1,23 @@
 """
 Inventory Alerts Models
 """
+
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional, List
 from uuid import UUID
 
-from sqlalchemy import Column, String, Boolean, Integer, Float, Text, DateTime, ARRAY, ForeignKey
+from sqlalchemy import ARRAY, Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
 
 Base = declarative_base()
 
 
 class AlertConfig(Base):
     """Configuration for inventory alerts"""
+
     __tablename__ = "inventory_alert_configs"
 
     id = Column(PGUUID(as_uuid=True), primary_key=True, default=UUID)
@@ -58,11 +59,17 @@ class AlertConfig(Base):
 
 class AlertHistory(Base):
     """History of sent alerts"""
+
     __tablename__ = "inventory_alert_history"
 
     id = Column(PGUUID(as_uuid=True), primary_key=True, default=UUID)
     tenant_id = Column(PGUUID(as_uuid=True), nullable=False, index=True)
-    alert_config_id = Column(PGUUID(as_uuid=True), ForeignKey("inventory_alert_configs.id", ondelete="CASCADE"), nullable=False, index=True)
+    alert_config_id = Column(
+        PGUUID(as_uuid=True),
+        ForeignKey("inventory_alert_configs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     product_id = Column(PGUUID(as_uuid=True), nullable=False, index=True)
     warehouse_id = Column(PGUUID(as_uuid=True), nullable=True, index=True)
     alert_type = Column(String(50), nullable=False)

@@ -1,15 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
 import logging
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-
-from app.config.database import get_db
-from app.config.settings import settings
 
 # Reuse existing concrete login handlers
 from app.api.v1.admin.auth import admin_login as _admin_login
 from app.api.v1.tenant.auth import tenant_login as _tenant_login
-
+from app.config.database import get_db
+from app.config.settings import settings
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger("app.api.auth_alias")
 

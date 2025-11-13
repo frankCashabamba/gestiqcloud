@@ -95,7 +95,7 @@ class Invoice(Base):
 # Tabla pos_receipts (usado en POS)
 # Similar funcionalidad pero diferentes nombres
 receipt_number (vs numero)
-total (vs total) 
+total (vs total)
 shift_id, register_id (vs cliente_id)
 status (vs estado)
 pos_receipt_lines (vs lineas)
@@ -126,11 +126,11 @@ class SalesOrder(Base):
 - **einvoicing**: Implementación completa para SRI (Ecuador) y SII (España)
 - **facturae**: Módulo vacío con estructura para FacturaE (España)
 
-**🔴 PROBLEMA**: 
+**🔴 PROBLEMA**:
 - `facturae` es un duplicado incompleto de la funcionalidad española en `einvoicing`
 - `einvoicing` ya maneja España con `sign_and_send_facturae_task` y `SIIBatchItem`
 
-**💡 RECOMENDACIÓN**: 
+**💡 RECOMENDACIÓN**:
 - **ELIMINAR** módulo `facturae` (está vacío)
 - Consolidar toda la facturación electrónica en `einvoicing`
 
@@ -237,7 +237,7 @@ async def procesar_archivo_factura(file: UploadFile, usuario_id, tenant_id, db):
 from app.models.core.facturacion import Invoice
 ```
 
-**🔴 PROBLEMA**: 
+**🔴 PROBLEMA**:
 - `facturacion` tiene procesamiento de archivos JSON
 - `imports` también importa facturas pero desde archivos externos (Excel, etc.)
 

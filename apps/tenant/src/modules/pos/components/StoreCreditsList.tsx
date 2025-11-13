@@ -136,7 +136,7 @@ export default function StoreCreditsList() {
                       </span>
                     </td>
                     <td className="border p-3">
-                      {credit.expires_at 
+                      {credit.expires_at
                         ? new Date(credit.expires_at).toLocaleDateString()
                         : 'Sin vencimiento'}
                     </td>
@@ -155,7 +155,7 @@ export default function StoreCreditsList() {
       {credits.length > 0 && (
         <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-sm text-gray-700">
-            <strong>Total vales:</strong> {credits.length} | 
+            <strong>Total vales:</strong> {credits.length} |
             <strong className="ml-4">Activos:</strong> {credits.filter(c => c.status === 'active').length} |
             <strong className="ml-4">Saldo total disponible:</strong> {' '}
             {credits

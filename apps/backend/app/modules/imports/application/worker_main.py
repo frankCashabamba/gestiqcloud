@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import signal
 import sys
+
 from app.modules.imports.application.celery_app import celery_app
 
 logging.basicConfig(

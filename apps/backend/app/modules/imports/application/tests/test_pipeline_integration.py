@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import pytest
 import os
-from uuid import uuid4
 from unittest.mock import MagicMock, patch
-from app.modules.imports.domain.pipeline import enqueue_item_pipeline, RUNNER_MODE
+from uuid import uuid4
+
+import pytest
+from app.modules.imports.domain.pipeline import RUNNER_MODE, enqueue_item_pipeline
 
 
 @pytest.mark.skipif(RUNNER_MODE != "inline", reason="Requires inline mode for tests")
@@ -34,13 +35,9 @@ def test_pipeline_inline_mode():
         mock_db.query.return_value.filter.return_value.first.return_value = mock_item
         mock_db.execute = MagicMock()
 
-        with patch(
-            "app.modules.imports.application.tasks.task_preprocess.preprocess_item"
-        ):
+        with patch("app.modules.imports.application.tasks.task_preprocess.preprocess_item"):
             with patch("app.modules.imports.application.tasks.task_ocr.ocr_item"):
-                with patch(
-                    "app.modules.imports.application.tasks.task_classify.classify_item"
-                ):
+                with patch("app.modules.imports.application.tasks.task_classify.classify_item"):
                     result = enqueue_item_pipeline(item_id, tenant_id, batch_id)  # noqa: F841
 
                     assert result == "inline"

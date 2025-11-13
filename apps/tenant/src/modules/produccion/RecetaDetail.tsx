@@ -35,12 +35,12 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
     try {
       setLoading(true);
       setError(null);
-      
+
       const [recipeData, breakdownData] = await Promise.all([
         getRecipe(recipeId),
         getCostBreakdown(recipeId)
       ]);
-      
+
       setRecipe(recipeData);
       setBreakdown(breakdownData);
     } catch (err: any) {
@@ -52,16 +52,16 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
 
   const handleUpdateProductPrice = async (multiplier: number = 2.5) => {
     if (!recipe || !breakdown) return;
-    
+
     try {
       setUpdating(true);
       const newPrice = breakdown.costo_por_unidad * multiplier;
-      
+
       await tenantApi.put(`/api/v1/tenant/products/${recipe.product_id}`, {
         price: Number(newPrice.toFixed(2)),
         cost_price: Number(breakdown.costo_por_unidad.toFixed(4))
       });
-      
+
       alert(`Precio actualizado a $${newPrice.toFixed(2)} (margen ${((multiplier - 1) * 100).toFixed(0)}%)`);
     } catch (err: any) {
       alert('Error al actualizar precio: ' + (err.message || 'Error desconocido'));
@@ -114,21 +114,21 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
               </Typography>
               <Typography variant="h6">{recipe.rendimiento} uds</Typography>
             </Grid>
-            
+
             <Grid item xs={6} sm={3}>
               <Typography variant="caption" color="text.secondary">
                 Costo Total
               </Typography>
               <Typography variant="h6">${breakdown.costo_total.toFixed(2)}</Typography>
             </Grid>
-            
+
             <Grid item xs={6} sm={3}>
               <Typography variant="caption" color="text.secondary">
                 Costo/Unidad
               </Typography>
               <Typography variant="h6">${breakdown.costo_por_unidad.toFixed(4)}</Typography>
             </Grid>
-            
+
             <Grid item xs={6} sm={3}>
               <Typography variant="caption" color="text.secondary">
                 Ingredientes
@@ -151,7 +151,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
         <Typography variant="h6" gutterBottom>
           Desglose de Ingredientes
         </Typography>
-        
+
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
             <TableHead>
@@ -179,8 +179,8 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
                     <strong>${item.costo.toFixed(2)}</strong>
                   </TableCell>
                   <TableCell align="right">
-                    <Chip 
-                      label={`${item.porcentaje.toFixed(1)}%`} 
+                    <Chip
+                      label={`${item.porcentaje.toFixed(1)}%`}
                       size="small"
                       color={item.porcentaje > 30 ? 'error' : item.porcentaje > 15 ? 'warning' : 'default'}
                     />

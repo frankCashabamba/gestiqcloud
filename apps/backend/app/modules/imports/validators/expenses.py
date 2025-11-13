@@ -1,11 +1,10 @@
 """Validators for expense/receipt imports."""
 
-from typing import Dict, Any, List
 from datetime import datetime
-import re
+from typing import Any
 
 
-def validate_expense(data: Dict[str, Any]) -> List[str]:
+def validate_expense(data: dict[str, Any]) -> list[str]:
     """Validate expense import data.
 
     Args:
@@ -24,10 +23,7 @@ def validate_expense(data: Dict[str, Any]) -> List[str]:
 
     # Required: description
     desc = str(
-        data.get("description")
-        or data.get("descripcion")
-        or data.get("concepto")
-        or ""
+        data.get("description") or data.get("descripcion") or data.get("concepto") or ""
     ).strip()
     if not desc:
         errors.append("Falta descripción del gasto")
@@ -62,9 +58,7 @@ def validate_expense(data: Dict[str, Any]) -> List[str]:
                 continue
 
         if not valid_date:
-            errors.append(
-                f"Fecha inválida: '{date_str}' (use YYYY-MM-DD o DD/MM/YYYY)"
-            )
+            errors.append(f"Fecha inválida: '{date_str}' (use YYYY-MM-DD o DD/MM/YYYY)")
 
     # Optional: category
     category = str(data.get("category") or data.get("categoria") or "").strip()
@@ -72,9 +66,7 @@ def validate_expense(data: Dict[str, Any]) -> List[str]:
         errors.append("Categoría demasiado larga (máx 100 caracteres)")
 
     # Optional: payment_method validation
-    payment_method = str(
-        data.get("payment_method") or data.get("forma_pago") or ""
-    ).strip().lower()
+    payment_method = str(data.get("payment_method") or data.get("forma_pago") or "").strip().lower()
     if payment_method:
         valid_methods = {"cash", "card", "transfer", "check", "other"}
         if payment_method not in valid_methods:
@@ -96,7 +88,7 @@ def validate_expense(data: Dict[str, Any]) -> List[str]:
     return errors
 
 
-def validate_expenses_batch(items: List[Dict[str, Any]]) -> Dict[int, List[str]]:
+def validate_expenses_batch(items: list[dict[str, Any]]) -> dict[int, list[str]]:
     """Validate a batch of expenses.
 
     Args:

@@ -1,8 +1,6 @@
-﻿"""Module: schemas.py
+"""Module: schemas.py
 
 Auto-generated module docstring."""
-
-from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr
 
@@ -21,22 +19,22 @@ class EmpresaCreate(BaseModel):
     """Class EmpresaCreate - auto-generated docstring."""
 
     name: str
-    slug: Optional[str]
-    tipo_empresa_id: Optional[int]
-    tipo_negocio_id: Optional[int]
-    tax_id: Optional[str]
-    phone: Optional[str]
-    address: Optional[str]
-    city: Optional[str]
-    state: Optional[str]
-    cp: Optional[str]
-    pais: Optional[str]
-    logo: Optional[str]
-    color_primario: Optional[str] = "#4f46e5"
-    plantilla_inicio: Optional[str] = "cliente"
-    sitio_web: Optional[str]
-    config_json: Optional[dict]
-    modulos: Optional[List[int]] = []
+    slug: str | None
+    tipo_empresa_id: int | None
+    tipo_negocio_id: int | None
+    tax_id: str | None
+    phone: str | None
+    address: str | None
+    city: str | None
+    state: str | None
+    cp: str | None
+    pais: str | None
+    logo: str | None
+    color_primario: str | None = "#4f46e5"
+    plantilla_inicio: str | None = "cliente"
+    sitio_web: str | None
+    config_json: dict | None
+    modulos: list[int] | None = []
 
 
 class EmpresaConUsuarioCreate(BaseModel):

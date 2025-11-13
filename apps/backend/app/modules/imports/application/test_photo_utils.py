@@ -63,9 +63,7 @@ def test_detect_native_text_in_pdf_with_text(tmp_path):
     pdf_path = tmp_path / "test.pdf"
     doc = fitz.open()
     page = doc.new_page()
-    page.insert_text(
-        (50, 50), "This is a test document with enough text to pass the threshold"
-    )
+    page.insert_text((50, 50), "This is a test document with enough text to pass the threshold")
     doc.save(str(pdf_path))
     doc.close()
 
@@ -149,11 +147,11 @@ def test_full_ocr_pipeline_timing(tmp_path, benchmark_threshold_ms=5000):
     Fecha: 2025-01-15
     Cliente: Test Company S.A.
     RUC: 1234567890001
-    
+
     Descripción          Cantidad    P.Unit    Total
     Producto A                  10     12.50   125.00
     Producto B                   5     25.00   125.00
-    
+
     Subtotal:                                  250.00
     IVA 12%:                                    30.00
     TOTAL:                                     280.00
@@ -171,6 +169,6 @@ def test_full_ocr_pipeline_timing(tmp_path, benchmark_threshold_ms=5000):
     assert text is not None
     assert "FACTURA" in text
     assert "001-001-000123" in text
-    assert elapsed_ms < benchmark_threshold_ms, (
-        f"OCR too slow: {elapsed_ms:.0f}ms > {benchmark_threshold_ms}ms"
-    )
+    assert (
+        elapsed_ms < benchmark_threshold_ms
+    ), f"OCR too slow: {elapsed_ms:.0f}ms > {benchmark_threshold_ms}ms"
