@@ -31,7 +31,7 @@ const ROLES_DISPONIBLES = [
 export const TenantUsuarios: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { showToast } = useToast()
+  const { show: showToast } = useToast()
 
   const [empresa, setEmpresa] = useState<any>(null)
   const [usuarios, setUsuarios] = useState<TenantUser[]>([])

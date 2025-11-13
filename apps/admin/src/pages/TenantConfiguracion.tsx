@@ -108,7 +108,9 @@ export default function TenantConfiguracion() {
     loadSectores();
     loadEmpresaData();
     // Cargar catálogos desde API (evitar hardcode)
-    listMonedas().then((rows)=> setMonedas(rows.filter(r=> r.active !== false))).catch(()=> setMonedas([]))
+    listMonedas()
+      .then((rows) => setMonedas(rows.filter((r) => r.activo !== false)))
+      .catch(() => setMonedas([]))
     listPaises().then((rows)=> setPaises(rows.filter(r=> r.active !== false))).catch(()=> setPaises([]))
     listTimezones().then((rows)=> setTimezones(rows.filter((r:any)=> r.active !== false))).catch(()=> setTimezones([]))
     listLocales().then((rows)=> setLocales(rows.filter((r:any)=> r.active !== false))).catch(()=> setLocales([]))
@@ -374,7 +376,7 @@ export default function TenantConfiguracion() {
             Configuración General
           </Typography>
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Locale</InputLabel>
                 <Select
@@ -392,7 +394,7 @@ export default function TenantConfiguracion() {
               </FormControl>
             </Grid>
             
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Timezone</InputLabel>
                 <Select
@@ -410,7 +412,7 @@ export default function TenantConfiguracion() {
               </FormControl>
             </Grid>
             
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Moneda</InputLabel>
                 <Select
@@ -419,15 +421,15 @@ export default function TenantConfiguracion() {
                   label="Moneda"
                 >
                   {monedas.map((m) => (
-                    <MenuItem key={m.code} value={m.code}>
-{m.code} - {m.name}
+                    <MenuItem key={m.codigo} value={m.codigo}>
+                      {m.codigo} - {m.nombre}
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
             
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>País</InputLabel>
                 <Select
@@ -437,14 +439,14 @@ export default function TenantConfiguracion() {
                 >
                   {paises.map((p) => (
                     <MenuItem key={p.code} value={p.code}>
-{p.code} - {p.name}
+                      {p.code} - {p.name}
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider sx={{ my: 2 }} />
               <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 600 }}>
                 🏢 Sector y Plantilla
@@ -454,7 +456,7 @@ export default function TenantConfiguracion() {
               </Typography>
             </Grid>
 
-            <Grid item xs={12} md={12}>
+            <Grid size={{ xs: 12, md: 12 }}>
               <FormControl fullWidth>
                 <InputLabel>Plantilla de Sector</InputLabel>
                 <Select
@@ -496,7 +498,7 @@ export default function TenantConfiguracion() {
             Configuración POS
           </Typography>
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Ancho de Ticket</InputLabel>
                 <Select
@@ -510,7 +512,7 @@ export default function TenantConfiguracion() {
               </FormControl>
             </Grid>
             
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 type="number"
@@ -521,7 +523,7 @@ export default function TenantConfiguracion() {
               />
             </Grid>
             
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 type="number"
@@ -532,7 +534,7 @@ export default function TenantConfiguracion() {
               />
             </Grid>
             
-            <Grid item xs={12}>
+            <Grid size={12}>
               <FormControlLabel
                 control={
                   <Switch
@@ -544,14 +546,14 @@ export default function TenantConfiguracion() {
               />
             </Grid>
             
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider sx={{ my: 2 }} />
               <Typography variant="subtitle1" gutterBottom>
                 Store Credits (Vales)
               </Typography>
             </Grid>
             
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -563,7 +565,7 @@ export default function TenantConfiguracion() {
               />
             </Grid>
             
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -575,7 +577,7 @@ export default function TenantConfiguracion() {
               />
             </Grid>
             
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 fullWidth
                 type="number"
@@ -594,7 +596,7 @@ export default function TenantConfiguracion() {
             Configuración de Inventario
           </Typography>
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -606,7 +608,7 @@ export default function TenantConfiguracion() {
               />
             </Grid>
             
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -618,7 +620,7 @@ export default function TenantConfiguracion() {
               />
             </Grid>
             
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -630,7 +632,7 @@ export default function TenantConfiguracion() {
               />
             </Grid>
             
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 type="number"
@@ -650,7 +652,7 @@ export default function TenantConfiguracion() {
             Configuración de Facturación
           </Typography>
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -662,7 +664,7 @@ export default function TenantConfiguracion() {
               />
             </Grid>
             
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -674,7 +676,7 @@ export default function TenantConfiguracion() {
               />
             </Grid>
             
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Prefijo de Serie"
@@ -684,7 +686,7 @@ export default function TenantConfiguracion() {
               />
             </Grid>
             
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 type="number"
@@ -695,7 +697,7 @@ export default function TenantConfiguracion() {
               />
             </Grid>
             
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -707,7 +709,7 @@ export default function TenantConfiguracion() {
               />
             </Grid>
             
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 multiline
@@ -733,7 +735,7 @@ export default function TenantConfiguracion() {
               🇪🇨 SRI Ecuador
             </Typography>
             <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <FormControlLabel
                   control={
                     <Switch
@@ -745,7 +747,7 @@ export default function TenantConfiguracion() {
                 />
               </Grid>
               
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <FormControl fullWidth>
                   <InputLabel>Entorno</InputLabel>
                   <Select
@@ -760,14 +762,14 @@ export default function TenantConfiguracion() {
                 </FormControl>
               </Grid>
               
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Divider />
                 <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>
                   Certificado Digital (.p12 / .pfx)
                 </Typography>
               </Grid>
               
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Button
                   variant="outlined"
                   component="label"
@@ -790,7 +792,7 @@ export default function TenantConfiguracion() {
                 )}
               </Grid>
               
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   type="password"
@@ -801,7 +803,7 @@ export default function TenantConfiguracion() {
                 />
               </Grid>
               
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Button
                   variant="contained"
                   onClick={() => handleUploadCertificate('sri')}
@@ -822,7 +824,7 @@ export default function TenantConfiguracion() {
               🇪🇸 SII España
             </Typography>
             <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <FormControlLabel
                   control={
                     <Switch
@@ -834,7 +836,7 @@ export default function TenantConfiguracion() {
                 />
               </Grid>
               
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   label="Agencia"
@@ -844,14 +846,14 @@ export default function TenantConfiguracion() {
                 />
               </Grid>
               
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Divider />
                 <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>
                   Certificado Digital
                 </Typography>
               </Grid>
               
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Button
                   variant="outlined"
                   component="label"
@@ -874,7 +876,7 @@ export default function TenantConfiguracion() {
                 )}
               </Grid>
               
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   type="password"
@@ -885,7 +887,7 @@ export default function TenantConfiguracion() {
                 />
               </Grid>
               
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Button
                   variant="contained"
                   onClick={() => handleUploadCertificate('sii')}
@@ -934,7 +936,7 @@ export default function TenantConfiguracion() {
           </Alert>
           
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 multiline
@@ -951,7 +953,7 @@ export default function TenantConfiguracion() {
               />
             </Grid>
             
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 multiline
@@ -968,7 +970,7 @@ export default function TenantConfiguracion() {
               />
             </Grid>
             
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 multiline
@@ -985,7 +987,7 @@ export default function TenantConfiguracion() {
               />
             </Grid>
             
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 multiline
@@ -1002,7 +1004,7 @@ export default function TenantConfiguracion() {
               />
             </Grid>
             
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 multiline
