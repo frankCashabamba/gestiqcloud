@@ -25,7 +25,7 @@ class EmpresaInSchema(BaseModel):
 
 
 class EmpresaOutSchema(BaseModel):
-    id: int | UUID
+    id: UUID
     name: str
     slug: str | None = None
     modulos: list[str] = []

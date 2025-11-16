@@ -87,7 +87,7 @@ class UsuarioEmpresa(Base):
     @property
     def is_active(self) -> bool:
         """Function is_active - auto-generated docstring."""
-        return self.active
+        return self.activo
 
     @property
     def is_superuser(self) -> bool:

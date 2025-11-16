@@ -1,8 +1,10 @@
 from typing import Union
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from app.core.crud_base import CRUDBase
 from app.models.sales import Venta
+from app.models.tenant import Tenant
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 
@@ -17,6 +19,15 @@ def _uuid_str(value: UUIDLike | None) -> str | None:
     if value is None:
         return None
     return str(value)
+
+
+def _uuid_obj(value: UUIDLike | None) -> UUID | None:
+    """Convert string or UUID to UUID object."""
+    if value is None:
+        return None
+    if isinstance(value, UUID):
+        return value
+    return UUID(value)
 
 
 class VentaRepo:
@@ -48,10 +59,16 @@ class VentaRepo:
                     "estado": self.estado,
                 }
 
+        tenant_id = self._resolve_tenant_id()
+        user_id = self._resolve_user_id()
         dto = VentaCreateDTO(
             fecha=fecha, cliente_id=_uuid_str(cliente_id), total=total, estado=estado
         )
-        return self.crud.create(self.db, dto)
+        return self.crud.create(
+            self.db,
+            dto,
+            extra_fields={"tenant_id": _uuid_obj(tenant_id), "usuario_id": _uuid_obj(user_id)},
+        )
 
     def update(
         self,
@@ -90,3 +107,18 @@ class VentaRepo:
         ok = self.crud.delete(self.db, str(vid))
         if not ok:
             raise ValueError("Venta no encontrada")
+
+    def _resolve_tenant_id(self) -> str:
+        tid = self.db.info.get("tenant_id")
+        if tid:
+            return str(tid)
+        tenant_id = self.db.scalar(select(Tenant.id).limit(1))
+        if tenant_id:
+            return str(tenant_id)
+        raise ValueError("tenant_id_missing")
+
+    def _resolve_user_id(self) -> str:
+        uid = self.db.info.get("user_id")
+        if uid:
+            return str(uid)
+        return str(uuid4())

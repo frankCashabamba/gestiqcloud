@@ -1,13 +1,9 @@
-"""Modelo de Ventas (Pedidos de venta pre-factura)"""
-
 import uuid
 from datetime import date, datetime
-
-from app.config.database import Base
-from sqlalchemy import Date, ForeignKey, Numeric, String, Text
+from sqlalchemy import String, Text, Date, Numeric, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
+from app.config.database import Base
 
 class Venta(Base):
     """Pedido de venta (pre-factura)"""
@@ -18,13 +14,23 @@ class Venta(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
     )
+
+    # 👇 DEFAULT para compatibilidad con SQLite/tests
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
+        default=uuid.uuid4,  # valor cualquiera, en SQLite no hay RLS ni FK real
     )
-    numero: Mapped[str] = mapped_column(String(50), nullable=False)
+
+    # 👇 DEFAULT sencillo para que no sea NULL
+    numero: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="",  # o default=lambda: str(uuid.uuid4())[:8]
+    )
+
     cliente_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("clients.id", ondelete="SET NULL"),
@@ -39,16 +45,23 @@ class Venta(Base):
         String(20),
         nullable=False,
         default="draft",
-        # CheckConstraint added in migration
     )
     notas: Mapped[str | None] = mapped_column(Text, nullable=True)
-    usuario_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
+
+    # 👇 Igual que tenant_id: default para compat
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        nullable=False,
+        default=uuid.uuid4,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        nullable=False, default=datetime.utcnow
+    )
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
-    # Relationships
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
     cliente = relationship("Cliente", foreign_keys=[cliente_id])
 

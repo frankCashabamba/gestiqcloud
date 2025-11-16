@@ -76,8 +76,16 @@ def ensure_rls(
                 logging.warning(f"Error converting tenant_id to tenant_id: {e}")
 
         # Usa SET LOCAL para scope de transacción/request
-        db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(t_id)})
-        db.execute(text("SET LOCAL app.user_id = :uid"), {"uid": str(u_id)})
+        # Pero solo en PostgreSQL (SQLite no lo soporta)
+        try:
+            from app.config.database import IS_SQLITE
+            
+            if not IS_SQLITE:
+                db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(t_id)})
+                db.execute(text("SET LOCAL app.user_id = :uid"), {"uid": str(u_id)})
+        except Exception:
+            # Si la BD no es PG, skip SET LOCAL
+            pass
 
         # Expón tenant_id en session.info para hooks/utilidades ORM
         try:

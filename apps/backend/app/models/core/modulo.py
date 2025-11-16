@@ -40,6 +40,22 @@ class Modulo(Base):
     filtros_contexto: Mapped[dict | None] = mapped_column(JSONB)  # type: ignore
     categoria: Mapped[str | None] = mapped_column(String(50))  # type: ignore
 
+    @property
+    def descripcion(self) -> str | None:
+        return self.description
+
+    @descripcion.setter
+    def descripcion(self, value: str | None) -> None:
+        self.description = value
+
+    @property
+    def activo(self) -> bool:
+        return bool(self.active)
+
+    @activo.setter
+    def activo(self, value: bool) -> None:
+        self.active = bool(value)
+
 
 class EmpresaModulo(Base):
     """Class EmpresaModulo - auto-generated docstring."""

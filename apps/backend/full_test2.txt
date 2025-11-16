@@ -1,0 +1,1408 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-8.4.1, pluggy-1.6.0 -- C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\python.exe
+cachedir: .pytest_cache
+rootdir: c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend
+configfile: pytest.ini
+plugins: anyio-4.9.0, asyncio-1.0.0, cov-7.0.0
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates FAILED   [100%]
+ERROR: Coverage failure: total of 39.14 is less than fail-under=40.00
+
+
+================================== FAILURES ===================================
+________________________ test_promote_skips_duplicates ________________________
+  + Exception Group Traceback (most recent call last):
+  |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 76, in collapse_excgroups
+  |     yield
+  |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 177, in __call__
+  |     async with anyio.create_task_group() as task_group:
+  |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\_backends\_asyncio.py", line 772, in __aexit__
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\_pytest\runner.py", line 344, in from_call
+    |     result: TResult | None = func()
+    |                              ^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\_pytest\runner.py", line 246, in <lambda>
+    |     lambda: runtest_hook(item=item, **kwds), when=when, reraise=reraise
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\_pytest\logging.py", line 850, in pytest_runtest_call
+    |     yield
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\_pytest\capture.py", line 900, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\_pytest\skipping.py", line 263, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\_pytest\runner.py", line 178, in pytest_runtest_call
+    |     item.runtest()
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\_pytest\python.py", line 1671, in runtest
+    |     self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\_pytest\python.py", line 157, in pytest_pyfunc_call
+    |     result = testfunction(**testargs)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\tests\test_imports_dedupe.py", line 52, in test_promote_skips_duplicates
+    |     r3 = client.post(
+    |          ^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py", line 538, in post
+    |     return super().post(
+    |            ^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 1144, in post
+    |     return self.request(
+    |            ^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py", line 437, in request
+    |     return super().request(
+    |            ^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 825, in request
+    |     return self.send(request, auth=auth, follow_redirects=follow_redirects)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 914, in send
+    |     response = self._send_handling_auth(
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 942, in _send_handling_auth
+    |     response = self._send_handling_redirects(
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 979, in _send_handling_redirects
+    |     response = self._send_single_request(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 1014, in _send_single_request
+    |     response = transport.handle_request(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py", line 340, in handle_request
+    |     raise exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py", line 337, in handle_request
+    |     portal.call(self.app, scope, receive, send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\from_thread.py", line 290, in call
+    |     return cast(T_Retval, self.start_task_soon(func, *args).result())
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py", line 456, in result
+    |     return self.__get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py", line 401, in __get_result
+    |     raise self._exception
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\from_thread.py", line 221, in _call_func
+    |     retval = await retval_or_awaitable
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\applications.py", line 1054, in __call__
+    |     await super().__call__(scope, receive, send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\applications.py", line 112, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\errors.py", line 187, in __call__
+    |     raise exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    |     await self.app(scope, receive, _send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(typ, value, traceback)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    |     raise exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\middleware\security_headers.py", line 65, in security_headers_middleware
+    |     resp: Response = await call_next(request)
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    |     raise app_exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(typ, value, traceback)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    |     raise exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\middleware\request_log.py", line 35, in dispatch
+    |     resp: Response = await call_next(request)
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    |     raise app_exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(typ, value, traceback)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    |     raise exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\core\sessions.py", line 193, in dispatch
+    |     response: Response = await call_next(request)
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    |     raise app_exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    |     await self.app(scope, receive, send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(typ, value, traceback)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    |     raise exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\main.py", line 146, in force_utf8_response
+    |     response = await call_next(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    |     raise app_exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(typ, value, traceback)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    |     raise exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\main.py", line 139, in _rewrite_v1_to_api_v1
+    |     response = await call_next(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    |     raise app_exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    |     raise exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 714, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 734, in app
+    |     await route.handle(scope, receive, send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 288, in handle
+    |     await self.app(scope, receive, send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 76, in app
+    |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    |     raise exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 73, in app
+    |     response = await f(request)
+    |                ^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\routing.py", line 301, in app
+    |     raw_response = await run_endpoint_function(
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\routing.py", line 214, in run_endpoint_function
+    |     return await run_in_threadpool(dependant.call, **values)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\concurrency.py", line 37, in run_in_threadpool
+    |     return await anyio.to_thread.run_sync(func)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\to_thread.py", line 56, in run_sync
+    |     return await get_async_backend().run_sync_in_worker_thread(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\_backends\_asyncio.py", line 2470, in run_sync_in_worker_thread
+    |     return await future
+    |            ^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\_backends\_asyncio.py", line 967, in run
+    |     result = context.run(func, *args)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\imports\interface\http\tenant.py", line 1906, in promote_batch_endpoint
+    |     res = use_cases.promote_batch(db, tenant_id, batch_id, options=options)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\imports\application\use_cases.py", line 653, in promote_batch
+    |     db.commit()
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\orm\session.py", line 2032, in commit
+    |     trans.commit(_to_root=True)
+    |   File "<string>", line 2, in commit
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 103, in _go
+    |     self._raise_for_prerequisite_state(fn.__name__, current_state)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\orm\session.py", line 973, in _raise_for_prerequisite_state
+    |     raise sa_exc.PendingRollbackError(
+    | sqlalchemy.exc.PendingRollbackError: This Session's transaction has been rolled back due to a previous exception during flush. To begin a new transaction with this Session, first issue Session.rollback(). Original exception was: (builtins.AttributeError) 'str' object has no attribute 'hex'
+    | [SQL: INSERT INTO incidents (id, tenant_id, tipo, severidad, titulo, descripcion, stack_trace, context, estado, assigned_to, auto_detected, auto_resolved, ia_suggestion, resolved_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+    | [parameters: [{'context': {'batch_id': 'e223bacb-2843-4b0e-9ef3-545a531dfa42', 'item_id': 'a264148d-b363-4ffe-83df-8b96ad5cffe2', 'idx': 1, 'source_type': 'invoices ... (255 characters truncated) ...  por hash duplicado', 'severidad': 'low', 'auto_detected': True, 'resolved_at': None, 'stack_trace': None, 'assigned_to': None, 'ia_suggestion': None}]] (Background on this error at: https://sqlalche.me/e/20/7s2a)
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\tests\test_imports_dedupe.py", line 52, in test_promote_skips_duplicates
+    r3 = client.post(
+         ^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py", line 538, in post
+    return super().post(
+           ^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 1144, in post
+    return self.request(
+           ^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py", line 437, in request
+    return super().request(
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 825, in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 914, in send
+    response = self._send_handling_auth(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 942, in _send_handling_auth
+    response = self._send_handling_redirects(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 979, in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 1014, in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py", line 340, in handle_request
+    raise exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py", line 337, in handle_request
+    portal.call(self.app, scope, receive, send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\from_thread.py", line 290, in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py", line 456, in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py", line 401, in __get_result
+    raise self._exception
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\from_thread.py", line 221, in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\applications.py", line 1054, in __call__
+    await super().__call__(scope, receive, send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\applications.py", line 112, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\errors.py", line 187, in __call__
+    raise exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\middleware\security_headers.py", line 65, in security_headers_middleware
+    resp: Response = await call_next(request)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    raise app_exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\middleware\request_log.py", line 35, in dispatch
+    resp: Response = await call_next(request)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    raise app_exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\core\sessions.py", line 193, in dispatch
+    response: Response = await call_next(request)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    raise app_exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\main.py", line 146, in force_utf8_response
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    raise app_exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\main.py", line 139, in _rewrite_v1_to_api_v1
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    raise app_exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 714, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 734, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\routing.py", line 214, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\concurrency.py", line 37, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\to_thread.py", line 56, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\_backends\_asyncio.py", line 2470, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\_backends\_asyncio.py", line 967, in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\imports\interface\http\tenant.py", line 1906, in promote_batch_endpoint
+    res = use_cases.promote_batch(db, tenant_id, batch_id, options=options)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\imports\application\use_cases.py", line 653, in promote_batch
+    db.commit()
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\orm\session.py", line 2032, in commit
+    trans.commit(_to_root=True)
+  File "<string>", line 2, in commit
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 103, in _go
+    self._raise_for_prerequisite_state(fn.__name__, current_state)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\orm\session.py", line 973, in _raise_for_prerequisite_state
+    raise sa_exc.PendingRollbackError(
+sqlalchemy.exc.PendingRollbackError: This Session's transaction has been rolled back due to a previous exception during flush. To begin a new transaction with this Session, first issue Session.rollback(). Original exception was: (builtins.AttributeError) 'str' object has no attribute 'hex'
+[SQL: INSERT INTO incidents (id, tenant_id, tipo, severidad, titulo, descripcion, stack_trace, context, estado, assigned_to, auto_detected, auto_resolved, ia_suggestion, resolved_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: [{'context': {'batch_id': 'e223bacb-2843-4b0e-9ef3-545a531dfa42', 'item_id': 'a264148d-b363-4ffe-83df-8b96ad5cffe2', 'idx': 1, 'source_type': 'invoices ... (255 characters truncated) ...  por hash duplicado', 'severidad': 'low', 'auto_detected': True, 'resolved_at': None, 'stack_trace': None, 'assigned_to': None, 'ia_suggestion': None}]] (Background on this error at: https://sqlalche.me/e/20/7s2a)
+
+During handling of the above exception, another exception occurred:
+
+client = <starlette.testclient.TestClient object at 0x0000029A27E85CD0>
+db = <sqlalchemy.orm.session.Session object at 0x0000029A42D3E410>
+usuario_empresa_factory = <function usuario_empresa_factory.<locals>._create at 0x0000029A442FD440>
+
+    def test_promote_skips_duplicates(client: TestClient, db, usuario_empresa_factory):
+        tok = _tenant_token(client, usuario_empresa_factory)
+        headers = {"Authorization": f"Bearer {tok}"}
+    
+        # Create batch and ingest two identical OK invoices
+        r = client.post(
+            "/api/v1/imports/batches",
+            json={"source_type": "invoices", "origin": "api"},
+            headers=headers,
+        )
+        assert r.status_code == 200
+        batch = r.json()
+    
+        rows = [
+            {
+                "invoice_number": "DUP-1",
+                "invoice_date": "2024-01-02",
+                "net_amount": 90.0,
+                "tax_amount": 10.0,
+                "total_amount": 100.0,
+            },
+            {
+                "invoice_number": "DUP-1",
+                "invoice_date": "2024-01-02",
+                "net_amount": 90.0,
+                "tax_amount": 10.0,
+                "total_amount": 100.0,
+            },
+        ]
+        r2 = client.post(
+            f"/api/v1/imports/batches/{batch['id']}/ingest",
+            json={"rows": rows},
+            headers=headers,
+        )
+        assert r2.status_code == 200
+    
+        # Promote first time
+>       r3 = client.post(
+            f"/api/v1/imports/batches/{batch['id']}/promote",
+            headers=headers,
+        )
+
+app\tests\test_imports_dedupe.py:52: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py:538: in post
+    return super().post(
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py:1144: in post
+    return self.request(
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py:437: in request
+    return super().request(
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py:825: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py:914: in send
+    response = self._send_handling_auth(
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py:1014: in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py:340: in handle_request
+    raise exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py:337: in handle_request
+    portal.call(self.app, scope, receive, send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\from_thread.py:290: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\from_thread.py:221: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\applications.py:112: in __call__
+    await self.middleware_stack(scope, receive, send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\errors.py:187: in __call__
+    raise exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:176: in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\contextlib.py:158: in __exit__
+    self.gen.throw(typ, value, traceback)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py:82: in collapse_excgroups
+    raise exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:178: in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\middleware\security_headers.py:65: in security_headers_middleware
+    resp: Response = await call_next(request)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:156: in call_next
+    raise app_exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:141: in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:176: in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\contextlib.py:158: in __exit__
+    self.gen.throw(typ, value, traceback)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py:82: in collapse_excgroups
+    raise exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:178: in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\middleware\request_log.py:35: in dispatch
+    resp: Response = await call_next(request)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:156: in call_next
+    raise app_exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:141: in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:176: in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\contextlib.py:158: in __exit__
+    self.gen.throw(typ, value, traceback)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py:82: in collapse_excgroups
+    raise exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:178: in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\core\sessions.py:193: in dispatch
+    response: Response = await call_next(request)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:156: in call_next
+    raise app_exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:141: in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\cors.py:85: in __call__
+    await self.app(scope, receive, send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:176: in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\contextlib.py:158: in __exit__
+    self.gen.throw(typ, value, traceback)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py:82: in collapse_excgroups
+    raise exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:178: in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\main.py:146: in force_utf8_response
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:156: in call_next
+    raise app_exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:141: in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:176: in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\contextlib.py:158: in __exit__
+    self.gen.throw(typ, value, traceback)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py:82: in collapse_excgroups
+    raise exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:178: in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\main.py:139: in _rewrite_v1_to_api_v1
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:156: in call_next
+    raise app_exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:141: in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py:714: in __call__
+    await self.middleware_stack(scope, receive, send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py:734: in app
+    await route.handle(scope, receive, send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py:288: in handle
+    await self.app(scope, receive, send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py:73: in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\routing.py:301: in app
+    raw_response = await run_endpoint_function(
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\routing.py:214: in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\concurrency.py:37: in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\to_thread.py:56: in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\_backends\_asyncio.py:2470: in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\_backends\_asyncio.py:967: in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+app\modules\imports\interface\http\tenant.py:1906: in promote_batch_endpoint
+    res = use_cases.promote_batch(db, tenant_id, batch_id, options=options)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\modules\imports\application\use_cases.py:653: in promote_batch
+    db.commit()
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\orm\session.py:2032: in commit
+    trans.commit(_to_root=True)
+<string>:2: in commit
+    ???
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\orm\state_changes.py:103: in _go
+    self._raise_for_prerequisite_state(fn.__name__, current_state)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <sqlalchemy.orm.session.SessionTransaction object at 0x0000029A6EC534D0>
+operation_name = 'commit', state = <SessionTransactionState.DEACTIVE: 4>
+
+    def _raise_for_prerequisite_state(
+        self, operation_name: str, state: _StateChangeState
+    ) -> NoReturn:
+        if state is SessionTransactionState.DEACTIVE:
+            if self._rollback_exception:
+>               raise sa_exc.PendingRollbackError(
+                    "This Session's transaction has been rolled back "
+                    "due to a previous exception during flush."
+                    " To begin a new transaction with this Session, "
+                    "first issue Session.rollback()."
+                    f" Original exception was: {self._rollback_exception}",
+                    code="7s2a",
+                )
+E               sqlalchemy.exc.PendingRollbackError: This Session's transaction has been rolled back due to a previous exception during flush. To begin a new transaction with this Session, first issue Session.rollback(). Original exception was: (builtins.AttributeError) 'str' object has no attribute 'hex'
+E               [SQL: INSERT INTO incidents (id, tenant_id, tipo, severidad, titulo, descripcion, stack_trace, context, estado, assigned_to, auto_detected, auto_resolved, ia_suggestion, resolved_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+E               [parameters: [{'context': {'batch_id': 'e223bacb-2843-4b0e-9ef3-545a531dfa42', 'item_id': 'a264148d-b363-4ffe-83df-8b96ad5cffe2', 'idx': 1, 'source_type': 'invoices ... (255 characters truncated) ...  por hash duplicado', 'severidad': 'low', 'auto_detected': True, 'resolved_at': None, 'stack_trace': None, 'assigned_to': None, 'ia_suggestion': None}]] (Background on this error at: https://sqlalche.me/e/20/7s2a)
+
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\orm\session.py:973: PendingRollbackError
+---------------------------- Captured stdout setup ----------------------------
+[settings] ENV= development ENV_FILE_USED= <none> SECRET_KEY_PRESENT= True SEARCH_DIRS= ['C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app\\config', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend', 'c:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend']
+[settings] ENV= development ENV_FILE_USED= <none> SECRET_KEY_PRESENT= True SEARCH_DIRS= ['C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app\\config', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend', 'c:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend']
+[INFO] Preview router mounted at /api/v1/imports/preview
+---------------------------- Captured stderr setup ----------------------------
+[DEBUG] app.router: Mounted router app.modules.identity.interface.http.admin.router at prefix='/admin' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.identity.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.identity.interface.http.profile.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.api.v1.auth.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.api.v1.me.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.api.v1.telemetry.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.api.v1.einvoicing.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.api.v1.email_health.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.identity.interface.http.sessions.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.productos.interface.http.public.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.productos.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.productos.interface.http.admin.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.empresa.interface.http.admin.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.empresa.interface.http.tenant.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.clients.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.proveedores.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.modulos.interface.http.admin.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.modulos.interface.http.tenant.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.modulos.interface.http.public.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.usuarios.interface.http.tenant.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.usuarios.interface.http.tenant.public_router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.usuarios.interface.http.admin.router at prefix='/admin' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.registry.interface.http.admin.router at prefix='/admin' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.registry.interface.http.tenant.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.admin_config.interface.http.admin.router at prefix='/admin' (deprecated=False)
+[DEBUG] app.router: Mounted router app.api.v1.me.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.facturacion.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.facturacion.interface.http.send_email.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.inventario.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.ventas.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.ventas.interface.http.tenant.deliveries_router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.compras.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.gastos.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.imports.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.imports.interface.http.preview.router at prefix='/imports' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.imports.interface.http.preview.files_router at prefix='/imports' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.imports.interface.http.tenant.public_router at prefix='' (deprecated=False)
+[INFO] app.router: imports.public_router mounted=True via IMPORTS_ENABLED
+[DEBUG] app.router: Mounted router app.modules.contabilidad.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.rrhh.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.finanzas.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Skip mounting app.modules.produccion.interface.http.tenant.router (primary): module not found: app.models.production.production_order
+[DEBUG] app.router: Mounted router app.modules.imports.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.ventas.interface.http.conversions.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.pos.interface.http.conversions.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.crm.presentation.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.settings.interface.http.tenant.router at prefix='/tenant/settings' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.settings.interface.http.tenant.admin_router at prefix='' (deprecated=False)
+[DEBUG] app.router: Skip mounting app.routers.dashboard_stats.router (primary): module not found: app.routers.dashboard_stats
+[DEBUG] app.router: Skip mounting app.routers.tenant.roles.router (primary): module not found: app.models.empresa.tenant
+[DEBUG] app.router: Mounted router app.routers.migrations.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.routers.admin.usuarios.router at prefix='/admin/usuarios' (deprecated=False)
+[DEBUG] app.router: Mounted router app.routers.roles.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.einvoicing.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.templates.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.templates.interface.http.admin.router at prefix='/admin' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.copilot.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.pos.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.reconciliation.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.export.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.webhooks.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[INFO] app.router: Sector Templates router mounted at /api/v1/sectores
+[INFO] app.router: Tenant Config router mounted at /api/v1/settings
+[INFO] app.router: Dashboard KPIs router mounted at /api/v1/dashboard/kpis
+[INFO] app.router: Admin Stats router mounted at /api/v1/admin/stats
+[INFO] app.router: Settings router mounted at /api/v1/settings
+[INFO] app.router: Tenant Settings (public) mounted at /api/v1/settings/tenant
+[INFO] app.router: Incidents router mounted at /api/v1/incidents
+[INFO] app.router: Notifications router mounted at /api/v1/notifications
+[INFO] app.router: ElectricSQL shapes router mounted at /api/v1/electric
+[INFO] app.router: IA Classification router mounted at /api/v1/imports/ai
+---------------------------- Captured stdout call -----------------------------
+DEBUG ingest_endpoint: batch_id=e223bacb-2843-4b0e-9ef3-545a531dfa42, payload.rows count=2\n\U0001f50d DEBUG bulk_add_items: tenant_id=c870fff3-d4c1-4e9b-b345-672988322905, batch_id=e223bacb-2843-4b0e-9ef3-545a531dfa42, items count=2\n\U0001f50d DEBUG: First item sample: {'idx': 0, 'raw': {'invoice_number': 'DUP-1', 'invoice_date': '2024-01-02', 'net_amount': 90.0, 'tax_amount': 10.0, 'total_amount': 100.0}, 'normalized': None, 'status': 'OK', 'errors': [], 'idempotency_key': 'd76e581e2acf0f905e300eec16523f2aeff4ea55552653478c11c254e6b01a5b', 'dedupe_hash': '55933bf547138984310826967c52dbd3be0d4228c0871fb96090786da7a1f421', 'batch_id': UUID('e223bacb-2843-4b0e-9ef3-545a531dfa42'), 'tenant_id': 'c870fff3-d4c1-4e9b-b345-672988322905', 'id': UUID('4306f47e-aefe-4ceb-8e63-4517177986d1')}\n\U0001f50d DEBUG: Execute result rowcount=2
+------------------------------ Captured log call ------------------------------
+WARNING  app.modules.imports.application.photo_utils:photo_utils.py:62 pyzbar unavailable or libzbar missing - QR code detection disabled
+============================== warnings summary ===============================
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\fields.py:1093: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'env'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    warn(
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\main.py:87: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\applications.py:4495: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+app/tests/test_imports_dedupe.py: 26 warnings
+  C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\_internal\_config.py:323: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\accounting.py:35: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\accounting.py:42: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("codigo")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\accounting.py:111: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("haber")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\accounting.py:150: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\fields.py:1062: PydanticDeprecatedSince20: `min_items` is deprecated and will be removed, use `min_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    warn('`min_items` is deprecated and will be removed, use `min_length` instead', DeprecationWarning)
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\accounting.py:165: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("lineas")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\contabilidad\interface\http\tenant.py:98: DeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    tipo: str | None = Query(None, regex="^(ACTIVO|PASIVO|PATRIMONIO|INGRESO|GASTO)$"),
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\contabilidad\interface\http\tenant.py:234: DeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    status: str | None = Query(None, regex="^(BORRADOR|CONTABILIZADO)$"),
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\hr_nomina.py:32: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\hr_nomina.py:38: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("codigo")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\hr_nomina.py:74: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\hr_nomina.py:148: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\hr_nomina.py:232: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\hr_nomina.py:294: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("metodo_pago")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\rrhh\interface\http\tenant.py:651: DeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    status: str | None = Query(None, regex="^(DRAFT|APPROVED|PAID|CANCELLED)$"),
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\rrhh\interface\http\tenant.py:652: DeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    tipo: str | None = Query(None, regex="^(MENSUAL|EXTRA|FINIQUITO|ESPECIAL)$"),
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\finance_caja.py:43: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\finance_caja.py:49: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("categoria")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\finance_caja.py:56: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("importe")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\finanzas\interface\http\tenant.py:117: DeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    tipo: str | None = Query(None, regex="^(INGRESO|EGRESO|AJUSTE)$"),
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\finanzas\interface\http\tenant.py:436: DeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    status: str | None = Query(None, regex="^(ABIERTO|CERRADO|PENDIENTE)$"),
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\sector_plantilla.py:115: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("modules", pre=True)
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\incidents.py:114: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("config")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\notifications.py:122: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=============================== tests coverage ================================
+_______________ coverage: platform win32, python 3.11.9-final-0 _______________
+
+Name                                                                       Stmts   Miss   Cover   Missing
+---------------------------------------------------------------------------------------------------------
+app\__init__.py                                                                1      0 100.00%
+app\api\__init__.py                                                            0      0 100.00%
+app\api\access.py                                                              0      0 100.00%
+app\api\common\__init__.py                                                     0      0 100.00%
+app\api\common\lang.py                                                         8      8   0.00%   2-13
+app\api\email\email_utils.py                                                 126    107  15.08%   20-27, 38-124, 129-134, 138-139, 143-144, 153-173, 177-197
+app\api\v1\__init__.py                                                         0      0 100.00%
+app\api\v1\admin\__init__.py                                                   0      0 100.00%
+app\api\v1\admin\auth.py                                                     118     83  29.66%   53-181, 188-213, 219-233, 239-252
+app\api\v1\auth.py                                                            44     29  34.09%   34-79
+app\api\v1\einvoicing.py                                                      27     12  55.56%   28-32, 42-48
+app\api\v1\email_health.py                                                    48     33  31.25%   15-53, 65-85
+app\api\v1\me.py                                                              75     57  24.00%   21, 30-36, 47-106, 123-141
+app\api\v1\profile.py                                                         13      4  69.23%   16-17, 31-32
+app\api\v1\telemetry.py                                                       14      1  92.86%   22
+app\api\v1\tenant\__init__.py                                                  0      0 100.00%
+app\api\v1\tenant\auth.py                                                    179     95  46.93%   59-60, 65, 71, 88-98, 102-112, 116-118, 142-145, 159-163, 166-180, 182-191, 203-217, 238-239, 264-285, 291-302, 308-318, 333-361
+app\api\v1\tenant\productos.py                                                31     31   0.00%   1-50
+app\api\v1\tenant\sessions.py                                                 13      3  76.92%   19-28
+app\config\__init__.py                                                         0      0 100.00%
+app\config\celery_config.py                                                   12     12   0.00%   5-105
+app\config\database.py                                                       134     56  58.21%   23-24, 48, 70, 122, 127-128, 148-162, 164-169, 174-175, 181-185, 199-200, 209-212, 223, 232-237, 248-254, 264-272
+app\config\settings.py                                                       272     91  66.54%   16-39, 57-78, 92, 94, 102-103, 130-131, 142-153, 200, 204-215, 329, 336, 342, 356, 365, 382, 394, 401-440, 452
+app\config\test_database.py                                                    6      6   0.00%   6-13
+app\core\__init__.py                                                           0      0 100.00%
+app\core\access_guard.py                                                      59     35  40.68%   22-23, 30-35, 37-38, 44-86
+app\core\audit.py                                                             13      6  53.85%   29-35
+app\core\auth_cookies.py                                                      50     50   0.00%   6-197
+app\core\auth_http.py                                                         71     37  47.89%   19-20, 24, 40-42, 47-48, 68-69, 83-85, 90-105, 110-119
+app\core\auth_shared.py                                                       96     77  19.79%   20, 54-172
+app\core\authz.py                                                             25     12  52.00%   11, 19, 26-37
+app\core\base_crud.py                                                         72     53  26.39%   26-40, 52-57, 61, 72-82, 88-98, 103-115
+app\core\config.py                                                             2      2   0.00%   7-8
+app\core\crud_base.py                                                         25     10  60.00%   27, 31, 35-38, 42-45, 49
+app\core\csrf.py                                                               7      0 100.00%
+app\core\db.py                                                                 3      3   0.00%   6-20
+app\core\deps.py                                                              18      8  55.56%   8-11, 15-18
+app\core\empresa_crud.py                                                      15      2  86.67%   28, 35
+app\core\i18n.py                                                              17     11  35.29%   26-35, 39-40
+app\core\jwt_provider.py                                                      13      1  92.31%   31
+app\core\log_context.py                                                       23     23   0.00%   6-55
+app\core\logging.py                                                           12     12   0.00%   6-19
+app\core\login_rate_limit.py                                                 138     97  29.71%   15-23, 46-51, 59-66, 78-79, 83-90, 95-96, 103-147, 151-193, 204-212, 216, 220
+app\core\maintenance.py                                                       10     10   0.00%   2-25
+app\core\perm_loader.py                                                       30     10  66.67%   16, 19, 40-51
+app\core\permissions.py                                                        4      2  50.00%   10-11
+app\core\ports_base.py                                                         8      8   0.00%   1-24
+app\core\refresh.py                                                          137    100  27.01%   46-54, 66-82, 94-115, 120-121, 140-159, 164-176, 190-206, 211-231, 240-245, 249-251, 255-265, 269-285, 289-301, 306-308, 313-315, 320-374
+app\core\security.py                                                          27      5  81.48%   40, 54-57
+app\core\security_cookies.py                                                  36     36   0.00%   6-123
+app\core\sessions.py                                                         131     37  71.76%   43-44, 50-52, 60-61, 66-71, 74, 77, 80-86, 89, 92, 121, 124-126, 138, 145, 148-149, 168-169, 225, 228-233
+app\core\tenancy.py                                                            4      4   0.00%   6-12
+app\core\types.py                                                              9      0 100.00%
+app\db\__init__.py                                                             0      0 100.00%
+app\db\base.py                                                                35      0 100.00%
+app\db\models.py                                                               0      0 100.00%
+app\db\rls.py                                                                 86     51  40.70%   22, 24-25, 47-49, 55, 60-76, 84-88, 93-99, 114, 125, 138-145, 154-166, 171-173
+app\db\session.py                                                             18      8  55.56%   30-34, 46-50
+app\main.py                                                                  373    162  56.57%   36-37, 68-84, 89-92, 100, 113, 118, 132-138, 160, 174-175, 206-211, 218-233, 242, 248-275, 284, 289, 294, 299, 304, 371-372, 380-381, 388-390, 397-398, 411-412, 422-423, 431-432, 440-441, 449-450, 458-459, 469-473, 488-489, 499-500, 510-511, 513-524, 532-533, 541-542, 549-550, 555-556, 561-562, 567-568, 573-574, 583-587, 601, 605-611, 616-659, 664
+app\middleware\__init__.py                                                     0      0 100.00%
+app\middleware\endpoint_rate_limit.py                                         64     46  28.12%   40-45, 50, 63-66, 70-72, 75-130, 145-180
+app\middleware\i18n_header.py                                                 10     10   0.00%   2-13
+app\middleware\metrics.py                                                     16     16   0.00%   1-21
+app\middleware\rate_limit.py                                                  50     38  24.00%   18-21, 24-26, 30-70
+app\middleware\request_log.py                                                 46     10  78.26%   19-20, 32-33, 40, 42, 53-54, 74-76
+app\middleware\require_csrf.py                                                29     29   0.00%   2-47
+app\middleware\rls.py                                                         16      7  56.25%   27-37, 46
+app\middleware\security_headers.py                                            36      9  75.00%   16, 19-40, 75, 79, 81, 87
+app\middleware\tenant.py                                                      55     44  20.00%   26-38, 51-90, 99-111
+app\middleware\tenant_middleware.py                                           31     31   0.00%   7-52
+app\models\__init__.py                                                        28      0 100.00%
+app\models\accounting\__init__.py                                              2      0 100.00%
+app\models\accounting\plan_cuentas.py                                         66      0 100.00%
+app\models\ai\__init__.py                                                      2      0 100.00%
+app\models\ai\incident.py                                                     84      0 100.00%
+app\models\auth\__init__.py                                                    0      0 100.00%
+app\models\auth\refresh_family.py                                             32      0 100.00%
+app\models\auth\useradmis.py                                                  23      0 100.00%
+app\models\core\__init__.py                                                    0      0 100.00%
+app\models\core\audit.py                                                       0      0 100.00%
+app\models\core\auditoria_importacion.py                                      21      0 100.00%
+app\models\core\clients.py                                                    20      0 100.00%
+app\models\core\document_line.py                                              26     26   0.00%   16-79
+app\models\core\einvoicing.py                                                 58      0 100.00%
+app\models\core\facturacion.py                                               104      0 100.00%
+app\models\core\invoiceLine.py                                                29      0 100.00%
+app\models\core\modelsimport.py                                              119      6  94.96%   105, 109, 188, 192, 196, 200
+app\models\core\modulo.py                                                     61      5  91.80%   45, 49, 53, 57, 87
+app\models\core\payment.py                                                    35     35   0.00%   15-93
+app\models\core\product_category.py                                           24      1  95.83%   47
+app\models\core\products.py                                                   32      0 100.00%
+app\models\core\settings.py                                                   22      1  95.45%   52
+app\models\core\sri_submissions.py                                            12     12   0.00%   11-38
+app\models\core\ui_field_config.py                                            28      0 100.00%
+app\models\core\ui_template.py                                                17      0 100.00%
+app\models\empresa\__init__.py                                                 0      0 100.00%
+app\models\empresa\empresa.py                                                105      0 100.00%
+app\models\empresa\rolempresas.py                                             22      0 100.00%
+app\models\empresa\settings.py                                                41      0 100.00%
+app\models\empresa\usuario_rolempresa.py                                      23      1  95.65%   49
+app\models\empresa\usuarioempresa.py                                          39      4  89.74%   85, 90, 95, 100
+app\models\expenses\__init__.py                                                2      0 100.00%
+app\models\expenses\gasto.py                                                  29      1  96.55%   66
+app\models\finance\__init__.py                                                 3      0 100.00%
+app\models\finance\banco.py                                                   24      1  95.83%   50
+app\models\finance\caja.py                                                    56      0 100.00%
+app\models\hr\__init__.py                                                      6      2  66.67%   9-11
+app\models\hr\empleado.py                                                     49      2  95.92%   59, 105
+app\models\hr\nomina.py                                                       68      0 100.00%
+app\models\imports.py                                                         22      1  95.45%   43
+app\models\inventory\stock.py                                                 34      2  94.12%   15-16
+app\models\inventory\warehouse.py                                             21      2  90.48%   15-16
+app\models\pos\__init__.py                                                     5      0 100.00%
+app\models\pos\doc_series.py                                                  22      1  95.45%   55
+app\models\pos\receipt.py                                                     59      3  94.92%   70, 103, 134
+app\models\pos\register.py                                                    34      2  94.12%   43, 80
+app\models\pos\store_credit.py                                                37      2  94.59%   53, 85
+app\models\production\__init__.py                                              5      0 100.00%
+app\models\production\_production_order.py                                    49      0 100.00%
+app\models\purchases\__init__.py                                               2      0 100.00%
+app\models\purchases\compra.py                                                43      2  95.35%   60, 94
+app\models\recipes.py                                                         44      2  95.45%   74, 129
+app\models\sales\__init__.py                                                   2      0 100.00%
+app\models\sales\delivery.py                                                  18      2  88.89%   12-13
+app\models\sales\order.py                                                     30      2  93.33%   12-13
+app\models\sales\venta.py                                                     26      1  96.15%   69
+app\models\security\__init__.py                                                0      0 100.00%
+app\models\security\auth_audit.py                                             15      0 100.00%
+app\models\suppliers\__init__.py                                               2      0 100.00%
+app\models\suppliers\proveedor.py                                             55      3  94.55%   51, 79, 109
+app\models\tenant.py                                                          45      3  93.33%   40, 105, 109
+app\modules\__init__.py                                                        6      1  83.33%   14
+app\modules\admin_config\application\__init__.py                               0      0 100.00%
+app\modules\admin_config\application\dias_semana\__init__.py                   0      0 100.00%
+app\modules\admin_config\application\dias_semana\dto.py                       13      0 100.00%
+app\modules\admin_config\application\dias_semana\ports.py                      5      0 100.00%
+app\modules\admin_config\application\dias_semana\use_cases.py                 23      8  65.22%   12, 17-20, 25, 30, 35
+app\modules\admin_config\application\horarios_atencion\__init__.py             0      0 100.00%
+app\modules\admin_config\application\horarios_atencion\dto.py                 13      0 100.00%
+app\modules\admin_config\application\horarios_atencion\ports.py                5      0 100.00%
+app\modules\admin_config\application\horarios_atencion\use_cases.py           23      8  65.22%   15, 20-23, 28, 33, 38
+app\modules\admin_config\application\idiomas\__init__.py                       0      0 100.00%
+app\modules\admin_config\application\idiomas\dto.py                           13      0 100.00%
+app\modules\admin_config\application\idiomas\ports.py                          5      0 100.00%
+app\modules\admin_config\application\idiomas\use_cases.py                     23      8  65.22%   12, 17-20, 25, 30, 35
+app\modules\admin_config\application\locales\__init__.py                       0      0 100.00%
+app\modules\admin_config\application\locales\dto.py                           12      0 100.00%
+app\modules\admin_config\application\locales\ports.py                          5      0 100.00%
+app\modules\admin_config\application\locales\use_cases.py                     23      8  65.22%   12, 17-20, 25, 30, 35
+app\modules\admin_config\application\monedas\__init__.py                       0      0 100.00%
+app\modules\admin_config\application\monedas\dto.py                           15      0 100.00%
+app\modules\admin_config\application\monedas\ports.py                          5      0 100.00%
+app\modules\admin_config\application\monedas\use_cases.py                     23      8  65.22%   12, 17-20, 25, 30, 35
+app\modules\admin_config\application\paises\__init__.py                        0      0 100.00%
+app\modules\admin_config\application\paises\dto.py                            13      0 100.00%
+app\modules\admin_config\application\paises\ports.py                           5      0 100.00%
+app\modules\admin_config\application\paises\use_cases.py                      23      8  65.22%   12, 17-20, 25, 30, 35
+app\modules\admin_config\application\sectores_plantilla\__init__.py            0      0 100.00%
+app\modules\admin_config\application\sectores_plantilla\dto.py                19      0 100.00%
+app\modules\admin_config\application\sectores_plantilla\ports.py               5      0 100.00%
+app\modules\admin_config\application\sectores_plantilla\use_cases.py          23      8  65.22%   15, 20-23, 28, 33, 38
+app\modules\admin_config\application\timezones\__init__.py                     0      0 100.00%
+app\modules\admin_config\application\timezones\dto.py                         14      0 100.00%
+app\modules\admin_config\application\timezones\ports.py                        5      0 100.00%
+app\modules\admin_config\application\timezones\use_cases.py                   23      8  65.22%   12, 17-20, 25, 30, 35
+app\modules\admin_config\application\tipos_empresa\__init__.py                 0      0 100.00%
+app\modules\admin_config\application\tipos_empresa\dto.py                     13      0 100.00%
+app\modules\admin_config\application\tipos_empresa\ports.py                    5      0 100.00%
+app\modules\admin_config\application\tipos_empresa\use_cases.py               23      8  65.22%   12, 17-20, 25, 30, 35
+app\modules\admin_config\application\tipos_negocio\__init__.py                 0      0 100.00%
+app\modules\admin_config\application\tipos_negocio\dto.py                     13      0 100.00%
+app\modules\admin_config\application\tipos_negocio\ports.py                    5      0 100.00%
+app\modules\admin_config\application\tipos_negocio\use_cases.py               23      8  65.22%   12, 17-20, 25, 30, 35
+app\modules\admin_config\infrastructure\__init__.py                            0      0 100.00%
+app\modules\admin_config\infrastructure\dias_semana\__init__.py                0      0 100.00%
+app\modules\admin_config\infrastructure\dias_semana\repository.py             40     26  35.00%   13, 16, 24-25, 28-36, 39-40, 43-52, 55-59
+app\modules\admin_config\infrastructure\horarios_atencion\__init__.py          0      0 100.00%
+app\modules\admin_config\infrastructure\horarios_atencion\repository.py       40     26  35.00%   16, 19, 27-32, 35-43, 46-47, 50-59, 62-66
+app\modules\admin_config\infrastructure\idiomas\__init__.py                    0      0 100.00%
+app\modules\admin_config\infrastructure\idiomas\repository.py                 40     26  35.00%   13, 16, 24-25, 28-36, 39-40, 43-52, 55-59
+app\modules\admin_config\infrastructure\locales\__init__.py                    0      0 100.00%
+app\modules\admin_config\infrastructure\locales\repository.py                 40     26  35.00%   13, 16, 23-24, 27-35, 38-39, 42-51, 54-58
+app\modules\admin_config\infrastructure\monedas\__init__.py                    0      0 100.00%
+app\modules\admin_config\infrastructure\monedas\repository.py                 41     27  34.15%   13, 16, 25-26, 29-38, 41-42, 45-55, 58-62
+app\modules\admin_config\infrastructure\paises\__init__.py                     0      0 100.00%
+app\modules\admin_config\infrastructure\paises\repository.py                  40     26  35.00%   13, 16, 24-25, 28-36, 39-40, 43-52, 55-59
+app\modules\admin_config\infrastructure\sectores_plantilla\__init__.py         0      0 100.00%
+app\modules\admin_config\infrastructure\sectores_plantilla\repository.py      42     28  33.33%   16, 19, 30-33, 36-46, 49-50, 53-64, 67-71
+app\modules\admin_config\infrastructure\timezones\__init__.py                  0      0 100.00%
+app\modules\admin_config\infrastructure\timezones\repository.py               41     27  34.15%   13, 16, 24-25, 28-37, 40-41, 44-54, 57-61
+app\modules\admin_config\infrastructure\tipos_empresa\__init__.py              0      0 100.00%
+app\modules\admin_config\infrastructure\tipos_empresa\repository.py           40     26  35.00%   13, 16, 24-25, 28-36, 39-40, 43-52, 55-59
+app\modules\admin_config\infrastructure\tipos_negocio\__init__.py              0      0 100.00%
+app\modules\admin_config\infrastructure\tipos_negocio\repository.py           40     26  35.00%   13, 16, 24-25, 28-36, 39-40, 43-52, 55-59
+app\modules\admin_config\interface\http\admin.py                             420    262  37.62%   137, 141, 145-146, 150-151, 160, 164, 175-176, 184-185, 193, 197, 201-202, 206-207, 215, 219, 223-224, 228-229, 237, 241, 245-246, 250-251, 259, 263, 267-268, 272-273, 283, 287, 291-292, 296-297, 305, 309, 313-314, 318-319, 327, 331, 335, 339, 348, 352, 356, 360, 370-372, 377-379, 384-391, 396-401, 407-409, 414-416, 421-428, 433-438, 444-446, 451-453, 458-465, 470-475, 481-483, 488-490, 495-502, 507-512, 518-520, 525-527, 532-539, 544-549, 555-557, 562-564, 569-576, 581-586, 592-594, 599-601, 606-613, 618-623, 629-631, 636-638, 643-648, 653-660, 665-670, 676-678, 683-685, 690-697, 702-707, 713-715, 720-722, 727-734, 739-744
+app\modules\admin_config\schemas.py                                          121      0 100.00%
+app\modules\ai_agent\__init__.py                                               3      0 100.00%
+app\modules\ai_agent\analyzer.py                                              73     58  20.55%   30-65, 81-105, 121-140, 155-180, 185-219, 224-237, 242-258
+app\modules\ai_agent\notifier.py                                             112    100  10.71%   26-92, 104-142, 150-160, 168-193, 198-223, 233, 249, 268-279
+app\modules\clients\application\__init__.py                                    1      0 100.00%
+app\modules\clients\application\dto.py                                        25      0 100.00%
+app\modules\clients\application\ports.py                                       5      0 100.00%
+app\modules\clients\application\use_cases.py                                  32     15  53.12%   14-17, 33-36, 52-53, 72-75, 91
+app\modules\clients\domain\__init__.py                                         1      0 100.00%
+app\modules\clients\domain\entities.py                                        18      2  88.89%   21-22
+app\modules\clients\infrastructure\__init__.py                                 1      0 100.00%
+app\modules\clients\infrastructure\repositories.py                            62     46  25.81%   18, 33-34, 37-43, 46-75, 78-111, 114-116
+app\modules\clients\interface\__init__.py                                      1      0 100.00%
+app\modules\clients\interface\http\__init__.py                                 1      0 100.00%
+app\modules\clients\interface\http\schemas.py                                 24      0 100.00%
+app\modules\clients\interface\http\tenant.py                                  58     31  46.55%   25-27, 42, 70-74, 80-84, 89-94, 104-111, 116-118
+app\modules\compras\infrastructure\repositories.py                            47     35  25.53%   12-13, 16, 24, 35-59, 71-91, 94-99
+app\modules\compras\interface\http\schemas.py                                 14      0 100.00%
+app\modules\compras\interface\http\tenant.py                                  39     20  48.72%   24-25, 30-34, 41-42, 52-56, 63-68
+app\modules\contabilidad\__init__.py                                           0      0 100.00%
+app\modules\contabilidad\application\__init__.py                               1      1   0.00%   1
+app\modules\contabilidad\crud.py                                               0      0 100.00%
+app\modules\contabilidad\domain\__init__.py                                    1      1   0.00%   1
+app\modules\contabilidad\infrastructure\__init__.py                            1      1   0.00%   1
+app\modules\contabilidad\interface\__init__.py                                 1      0 100.00%
+app\modules\contabilidad\interface\http\__init__.py                            1      0 100.00%
+app\modules\contabilidad\interface\http\tenant.py                            197    159  19.29%   56-73, 78-92, 105-124, 135-158, 167-174, 184-196, 205-220, 238-266, 283-330, 339-353, 363-389, 398-434, 448
+app\modules\contabilidad\schemas.py                                            0      0 100.00%
+app\modules\contabilidad\services.py                                           0      0 100.00%
+app\modules\copilot\interface\http\tenant.py                                  51     27  47.06%   33, 45-49, 60-65, 70-94
+app\modules\copilot\services.py                                               92     79  14.13%   10-15, 19-24, 28-39, 43-46, 50-111, 118-140, 146-166, 173-184, 190-201
+app\modules\crm\application\schemas.py                                       113      0 100.00%
+app\modules\crm\application\services.py                                      144    120  16.67%   28, 39-49, 52-53, 56-60, 63-75, 78-85, 94-125, 135-143, 146-151, 154-158, 163-179, 182-193, 196-261, 281-291, 294-298, 303-319
+app\modules\crm\domain\entities.py                                            35      0 100.00%
+app\modules\crm\domain\models.py                                              80      0 100.00%
+app\modules\crm\presentation\tenant.py                                       123     80  34.96%   41-45, 49-53, 58-60, 73-78, 90-97, 102-105, 110-117, 122-126, 133-153, 165-170, 177-184, 189-192, 199-206, 211-215, 228-234, 246-250, 257-264
+app\modules\crud.py                                                          105     84  20.00%   19-61, 66, 71-86, 91-100, 105-124, 129-134, 139, 147-155, 160, 176-185, 190, 201, 206, 211-220
+app\modules\einvoicing\__init__.py                                             0      0 100.00%
+app\modules\einvoicing\application\__init__.py                                 6      3  50.00%   12-14
+app\modules\einvoicing\application\use_cases.py                               45     32  28.89%   12, 30, 39-48, 58-120
+app\modules\einvoicing\interface\http\tenant.py                               68     42  38.24%   36-76, 81-101, 112-131
+app\modules\einvoicing\tasks.py                                               68     68   0.00%   1-159
+app\modules\electric_conflicts.py                                             62     48  22.58%   27-28, 39-56, 75-87, 97-117, 125-132, 138-149, 165-186, 198-223
+app\modules\electric_shapes.py                                                25     14  44.00%   25, 52-59, 72-85
+app\modules\empresa\__init__.py                                                0      0 100.00%
+app\modules\empresa\application\__init__.py                                    0      0 100.00%
+app\modules\empresa\application\ports.py                                       9      0 100.00%
+app\modules\empresa\application\use_cases.py                                  26     12  53.85%   16-17, 22, 43-69
+app\modules\empresa\domain\__init__.py                                         0      0 100.00%
+app\modules\empresa\infrastructure\__init__.py                                 0      0 100.00%
+app\modules\empresa\infrastructure\repositories.py                            52     34  34.62%   16-18, 23, 30-33, 36-43, 46-47, 51-74, 77-103, 106-111
+app\modules\empresa\interface\__init__.py                                      0      0 100.00%
+app\modules\empresa\interface\http\__init__.py                                 0      0 100.00%
+app\modules\empresa\interface\http\admin.py                                  349    270  22.64%   38-64, 69-82, 87-91, 97-111, 126-208, 227-238, 251-412, 463-475, 485-637
+app\modules\empresa\interface\http\schemas.py                                 25      0 100.00%
+app\modules\empresa\interface\http\tenant.py                                  24      9  62.50%   29-33, 38-41
+app\modules\export\interface\http\tenant.py                                   36     18  50.00%   26-31, 36-41, 50-57, 66-73
+app\modules\facturacion\__init__.py                                            0      0 100.00%
+app\modules\facturacion\application\__init__.py                                1      1   0.00%   1
+app\modules\facturacion\crud.py                                              110     88  20.00%   23-28, 32-34, 45-81, 85-91, 102-146, 150, 156-165, 169-186, 190-246
+app\modules\facturacion\domain\__init__.py                                     1      1   0.00%   1
+app\modules\facturacion\infrastructure\__init__.py                             1      1   0.00%   1
+app\modules\facturacion\interface\__init__.py                                  1      0 100.00%
+app\modules\facturacion\interface\http\__init__.py                             1      0 100.00%
+app\modules\facturacion\interface\http\send_email.py                          31     17  45.16%   28-46
+app\modules\facturacion\interface\http\tenant.py                              88     58  34.09%   20-24, 47-48, 64-65, 76-98, 104-123, 132-133, 142-146, 155-186
+app\modules\facturacion\schemas.py                                            69      0 100.00%
+app\modules\facturacion\services.py                                            0      0 100.00%
+app\modules\finanzas\interface\http\tenant.py                                231    192  16.88%   70-79, 86-101, 132-159, 184-207, 227-261, 288-311, 326-371, 384-427, 442-463, 482-561, 598-617, 644-669, 683-698
+app\modules\gastos\infrastructure\repositories.py                             43     31  27.91%   12-13, 16, 19, 24-40, 51-71, 74-76
+app\modules\gastos\interface\http\schemas.py                                  14      0 100.00%
+app\modules\gastos\interface\http\tenant.py                                   39     20  48.72%   24-25, 30-34, 41-42, 52-56, 63-68
+app\modules\identity\__init__.py                                               0      0 100.00%
+app\modules\identity\application\ports.py                                      9      0 100.00%
+app\modules\identity\infrastructure\__init__.py                                0      0 100.00%
+app\modules\identity\infrastructure\jwt_service.py                            83     28  66.27%   43-70, 80-81, 99-108, 119, 136-138, 144-145
+app\modules\identity\infrastructure\jwt_tokens.py                             12      0 100.00%
+app\modules\identity\infrastructure\passwords.py                               9      0 100.00%
+app\modules\identity\infrastructure\rate_limit.py                             12      1  91.67%   14
+app\modules\identity\infrastructure\refresh_repo.py                           37     12  67.57%   69-79, 82-99, 102-123, 126-141
+app\modules\identity\interface\__init__.py                                     0      0 100.00%
+app\modules\identity\interface\http\__init__.py                                0      0 100.00%
+app\modules\identity\interface\http\admin.py                                   2      0 100.00%
+app\modules\identity\interface\http\profile.py                                 2      0 100.00%
+app\modules\identity\interface\http\sessions.py                                2      0 100.00%
+app\modules\identity\interface\http\tenant.py                                  2      0 100.00%
+app\modules\imports\ai\__init__.py                                            41     26  36.59%   16-17, 21-22, 27-59, 69-71, 77
+app\modules\imports\ai\azure_provider.py                                      83     71  14.46%   26-52, 64-165, 174-206, 210
+app\modules\imports\ai\base.py                                                28      9  67.86%   41, 61, 71, 85-91
+app\modules\imports\ai\cache.py                                               40     28  30.00%   21-22, 27-30, 39-54, 60-65, 69-70, 75-81
+app\modules\imports\ai\http_endpoints.py                                      93     41  55.91%   66-86, 101-114, 144-160, 188-199, 228-243, 250-259
+app\modules\imports\ai\local_provider.py                                      64     48  25.00%   64-71, 87-142, 161-178, 182-184, 200-215
+app\modules\imports\ai\openai_provider.py                                     84     72  14.29%   26-49, 69-185, 196-230, 234
+app\modules\imports\ai\telemetry.py                                           76     45  40.79%   44-51, 70-82, 86-123, 127-131, 135-138, 150-151, 155-159
+app\modules\imports\application\__init__.py                                    1      0 100.00%
+app\modules\imports\application\job_runner.py                                 94     68  27.66%   19-30, 42-48, 51-54, 57-72, 75-96, 127-136, 149-157, 162-183
+app\modules\imports\application\ocr_config.py                                 22      4  81.82%   26, 45-47
+app\modules\imports\application\photo_utils.py                               298    246  17.45%   27-29, 35-37, 44-46, 52-54, 59, 73-89, 96-105, 113-143, 154-201, 209-224, 238-312, 317-321, 326-348, 353-357, 365-413, 430-480, 488-494, 499-506, 511-519, 528, 537
+app\modules\imports\application\security_config.py                            14      1  92.86%   55
+app\modules\imports\application\security_guards.py                           164    140  14.63%   17-19, 25-27, 33-35, 42-45, 49, 68-81, 102-122, 139-181, 198-219, 239-286, 320-385
+app\modules\imports\application\status.py                                     14      0 100.00%
+app\modules\imports\application\use_cases.py                                 368    236  35.87%   70-84, 96, 104-115, 131-133, 142-187, 200-201, 231-246, 251-282, 299-329, 337-350, 358-373, 399, 427, 439-440, 445-485, 491-541, 553, 572-573, 576, 617-618, 635-644, 649-651, 654-669, 673-678, 685-732, 738-773
+app\modules\imports\application\use_utils.py                                  42     37  11.90%   8-32, 47-73
+app\modules\imports\domain\__init__.py                                         3      0 100.00%
+app\modules\imports\domain\canonical_schema.py                               270    163  39.63%   199-205, 215-229, 234-257, 264-277, 296-460, 486-498
+app\modules\imports\domain\handlers.py                                       284    241  15.14%   30, 62-73, 111-181, 200-347, 363-504, 522-793, 811-822
+app\modules\imports\extractores\__init__.py                                    0      0 100.00%
+app\modules\imports\extractores\extractor_desconocido.py                      45     38  15.56%   10-53, 70-104
+app\modules\imports\extractores\extractor_factura.py                          34     30  11.76%   30-118
+app\modules\imports\extractores\extractor_recibo.py                           19     14  26.32%   20-126
+app\modules\imports\extractores\extractor_transferencia.py                    38     34  10.53%   13-83
+app\modules\imports\extractores\utilidades.py                                149    118  20.81%   49-55, 59-72, 88-175, 180-186, 190, 194-200, 204-208, 212-214, 218-223, 227-228, 232-240, 244-250, 254-262, 266-270, 274-276, 280-302, 306-321, 328-337, 344-354
+app\modules\imports\infrastructure\__init__.py                                 1      0 100.00%
+app\modules\imports\infrastructure\repositories.py                            56     11  80.36%   35-38, 58, 60-62, 79, 98-101
+app\modules\imports\infrastructure\tenant_middleware.py                       60     26  56.67%   31, 38-39, 42, 46-48, 73-74, 77, 80-85, 102-120
+app\modules\imports\interface\__init__.py                                      1      0 100.00%
+app\modules\imports\interface\http\__init__.py                                 2      0 100.00%
+app\modules\imports\interface\http\preview.py                                141     91  35.46%   53-56, 73-133, 146-157, 168-180, 205-218, 249-278, 302-331
+app\modules\imports\interface\http\tenant.py                                1178    954  19.02%   56, 91-92, 94, 123-167, 178-206, 218-288, 312-366, 372-396, 419-470, 485-520, 537-574, 587-632, 637-650, 664-701, 735-746, 766, 795-825, 849-906, 937, 941-971, 981-998, 1011, 1044-1050, 1055-1090, 1106-1124, 1140-1168, 1179-1196, 1205-1211, 1223-1291, 1305-1376, 1396-1460, 1484-1531, 1537-1548, 1580-1600, 1616-1630, 1641-1652, 1663-1686, 1696-1720, 1729-1736, 1745-1784, 1799-1879, 1899, 1907, 1912-1942, 1959-1982, 1993-2007, 2027-2073, 2099-2132, 2144-2161, 2179-2203, 2208-2226, 2231-2244, 2249-2261, 2271-2298, 2303-2328, 2333-2347, 2362-2398, 2409-2464, 2473-2483, 2487-2491, 2495-2499, 2503-2523, 2620, 2626-2636
+app\modules\imports\parsers\__init__.py                                       41      3  92.68%   33, 37, 41
+app\modules\imports\parsers\csv_bank.py                                       37     32  13.51%   24-118, 130-135, 140-142
+app\modules\imports\parsers\csv_invoices.py                                   31     26  16.13%   24-121, 133-138, 143-145
+app\modules\imports\parsers\csv_products.py                                   41     35  14.63%   20-126, 138-143, 148-150
+app\modules\imports\parsers\generic_excel.py                                  61     57   6.56%   28-115
+app\modules\imports\parsers\pdf_qr.py                                         80     74   7.50%   19-67, 94-172, 177-182, 187-189
+app\modules\imports\parsers\products_excel.py                                 94     89   5.32%   27-172, 192-222
+app\modules\imports\parsers\xlsx_expenses.py                                 115    106   7.83%   22-72, 91-146, 161-230, 235-240, 245-256, 261-263
+app\modules\imports\parsers\xml_camt053_bank.py                               84     76   9.52%   23-41, 53-61, 66-147, 152-160, 165-170, 175-177
+app\modules\imports\parsers\xml_invoice.py                                    90     80  11.11%   26-51, 63-73, 80-89, 95-168, 173-185, 190-201, 206-210, 215-220
+app\modules\imports\parsers\xml_products.py                                   95     89   6.32%   25-59, 80-179, 184-189
+app\modules\imports\schemas.py                                               107      0 100.00%
+app\modules\imports\services.py                                              121     94  22.31%   38-41, 46-61, 66-69, 78-142, 150-155, 159-186
+app\modules\imports\services\classifier.py                                   175    149  14.86%   65-75, 95-151, 155-177, 181-193, 197-219, 228-257, 266-296, 305-360, 372-373, 379-390, 398-401, 405-408, 412-432, 441-470
+app\modules\imports\validators\__init__.py                                     5      0 100.00%
+app\modules\imports\validators\country_validators.py                         151    122  19.21%   13, 18, 23, 27-28, 57-92, 96-126, 130-147, 151-176, 180-212, 216-225, 235-287, 291-294, 298-302, 306-314, 318-334, 338-363, 368-380
+app\modules\imports\validators\error_catalog.py                               13      0 100.00%
+app\modules\imports\validators\products.py                                    39     36   7.69%   19-60, 72-79
+app\modules\imports\validators_impl.py                                       126     89  29.37%   8-13, 19, 23-32, 36-37, 49, 52-57, 60, 63, 69, 78-86, 90-95, 100, 107, 111-120, 124-133, 153-161, 176-194, 209-222
+app\modules\inventario\interface\http\tenant.py                              384    248  35.42%   25-30, 52-57, 62-79, 84-90, 97-110, 115-123, 157-203, 209-267, 279-370, 381-419, 488-500, 532-567, 598-621, 650-664, 670-717, 727-736, 751-765
+app\modules\modulos\__init__.py                                                0      0 100.00%
+app\modules\modulos\application\__init__.py                                    0      0 100.00%
+app\modules\modulos\application\perm_loader.py                                 1      1   0.00%   2
+app\modules\modulos\application\use_cases.py                                  10      2  80.00%   11, 16
+app\modules\modulos\infrastructure\__init__.py                                 0      0 100.00%
+app\modules\modulos\infrastructure\repositories.py                            13      5  61.54%   11-12, 15-24, 27
+app\modules\modulos\interface\__init__.py                                      0      0 100.00%
+app\modules\modulos\interface\http\__init__.py                                 1      0 100.00%
+app\modules\modulos\interface\http\admin.py                                  204    158  22.55%   39-70, 92-109, 114-141, 146, 159, 173, 178-180, 186, 191, 196, 207-388, 397, 402-417, 426, 431-438
+app\modules\modulos\interface\http\public.py                                  22     12  45.45%   21-41
+app\modules\modulos\interface\http\schemas.py                                 10      0 100.00%
+app\modules\modulos\interface\http\tenant.py                                  32     18  43.75%   28-45
+app\modules\pos\interface\http\conversions.py                                 83     56  32.53%   32-35, 100-171, 192-227, 246-291
+app\modules\pos\interface\http\tenant.py                                     618    484  21.68%   41-52, 57-68, 73-76, 83, 105-106, 120-121, 126-128, 147-148, 157-180, 189-223, 233-235, 298-320, 326-346, 358-418, 428-518, 529-673, 686-725, 731-783, 809-854, 867-996, 1007-1213, 1227-1273, 1284-1482, 1501-1537, 1556-1585, 1604-1649, 1668-1855, 1873-1925, 1931
+app\modules\produccion\__init__.py                                             1      0 100.00%
+app\modules\produccion\interface\__init__.py                                   0      0 100.00%
+app\modules\produccion\interface\http\__init__.py                              0      0 100.00%
+app\modules\produccion\interface\http\tenant.py                              456    447   1.97%   31-971
+app\modules\productos\__init__.py                                              0      0 100.00%
+app\modules\productos\application\__init__.py                                  0      0 100.00%
+app\modules\productos\application\dto.py                                      13     13   0.00%   1-18
+app\modules\productos\application\ports.py                                     5      5   0.00%   1-9
+app\modules\productos\application\use_cases.py                                16     16   0.00%   1-33
+app\modules\productos\domain\__init__.py                                       0      0 100.00%
+app\modules\productos\domain\entities.py                                      14     14   0.00%   1-18
+app\modules\productos\infrastructure\__init__.py                               0      0 100.00%
+app\modules\productos\infrastructure\repositories.py                          50     50   0.00%   1-88
+app\modules\productos\interface\http\__init__.py                               0      0 100.00%
+app\modules\productos\interface\http\admin.py                                  9      1  88.89%   18
+app\modules\productos\interface\http\public.py                                13      2  84.62%   23, 41
+app\modules\productos\interface\http\tenant.py                               327    233  28.75%   28-47, 101-117, 130, 140-155, 165-179, 201-222, 227-230, 235-265, 270-293, 301-336, 346-355, 366-386, 414-446, 451-536, 553-568, 586-620
+app\modules\proveedores\infrastructure\repositories.py                        52     37  28.85%   15, 19, 27, 34-43, 46-63, 66-70, 74-76, 79-81
+app\modules\proveedores\interface\http\schemas.py                             63      0 100.00%
+app\modules\proveedores\interface\http\tenant.py                              77     52  32.47%   27-34, 38-39, 43, 52-64, 69-70, 75-79, 88-95, 105-112, 117-122
+app\modules\reconciliation\interface\http\tenant.py                           40     16  60.00%   32-70, 94-112
+app\modules\registry\__init__.py                                               0      0 100.00%
+app\modules\registry\interface\http\admin.py                                   9      2  77.78%   13-14
+app\modules\registry\interface\http\tenant.py                                  9      2  77.78%   14-15
+app\modules\registry\models.py                                                32      0 100.00%
+app\modules\registry\service.py                                               33     26  21.21%   12-16, 24-51
+app\modules\rrhh\interface\http\tenant.py                                    372    312  16.13%   79-100, 108-118, 129-158, 165-198, 238-259, 279-315, 329-338, 353-371, 385-399, 421-434, 454-489, 503-515, 530-557, 572-599, 613-632, 666-693, 720-798, 812-820, 835-863, 877-892, 907-932, 947-971, 990-1014, 1055-1108
+app\modules\schemas.py                                                        72      0 100.00%
+app\modules\services.py                                                       54     44  18.52%   22-37, 48-81, 95-160
+app\modules\settings\__init__.py                                               4      0 100.00%
+app\modules\settings\application\__init__.py                                   0      0 100.00%
+app\modules\settings\application\defaults.py                                   8      3  62.50%   290-292
+app\modules\settings\application\modules_catalog.py                           25     17  32.00%   200-202, 207, 212, 217, 227-240
+app\modules\settings\application\use_cases.py                                103     84  18.45%   20, 32-40, 61-69, 92-115, 132-156, 175-213, 231-250, 264-277, 299-327
+app\modules\settings\infrastructure\repositories.py                           44     36  18.18%   9, 12-27, 30-59
+app\modules\settings\interface\http\tenant.py                                192    135  29.69%   24, 29-30, 35, 40-41, 46, 51-55, 64-66, 79-81, 86, 91-92, 97, 102-103, 107-113, 126-152, 164-219, 250-312, 326-346, 353-375, 380-404, 409-438, 447-464, 470, 484-511
+app\modules\shared\application\base.py                                         6      1  83.33%   16
+app\modules\shared\infrastructure\sqlalchemy_repo.py                           5      1  80.00%   13
+app\modules\shared\services\__init__.py                                        3      0 100.00%
+app\modules\shared\services\document_converter.py                             64     54  15.62%   23, 53-139, 174-236, 256, 285
+app\modules\shared\services\numbering.py                                      56     47  16.07%   43-78, 94-103, 116-168, 186-217
+app\modules\templates\interface\http\admin.py                                 43     16  62.79%   21-24, 35-47, 60-85, 90-95
+app\modules\templates\interface\http\tenant.py                                20      8  60.00%   26-54
+app\modules\templates\services.py                                             41     34  17.07%   8-11, 15-19, 23-47, 51-57
+app\modules\usuarios\__init__.py                                               2      0 100.00%
+app\modules\usuarios\application\__init__.py                                   2      0 100.00%
+app\modules\usuarios\application\permissions.py                               54     38  29.63%   13-15, 21-24, 34-43, 48-77, 81-83, 90, 97, 104, 111
+app\modules\usuarios\application\services.py                                  89     72  19.10%   20, 36, 54-61, 71-105, 114-164, 170-171, 175, 179-180, 184-185
+app\modules\usuarios\application\validators.py                                28     21  25.00%   7-9, 15-19, 23-28, 35-45
+app\modules\usuarios\domain\__init__.py                                        2      0 100.00%
+app\modules\usuarios\domain\models.py                                         15      0 100.00%
+app\modules\usuarios\infrastructure\__init__.py                                2      0 100.00%
+app\modules\usuarios\infrastructure\repositories.py                           66     46  30.30%   16-21, 25, 36, 40, 50-62, 68-73, 83-88, 99-107, 111-120, 124-132, 136, 148, 162-190, 194-213, 217-223
+app\modules\usuarios\infrastructure\schemas.py                                45      0 100.00%
+app\modules\usuarios\interface\http\__init__.py                                2      0 100.00%
+app\modules\usuarios\interface\http\admin.py                                  26     11  57.69%   31-43
+app\modules\usuarios\interface\http\tenant.py                                 60     29  51.67%   33-42, 55-56, 66-67, 83-84, 99-102, 112-114, 123-124, 133-134, 139-140
+app\modules\ventas\interface\http\conversions.py                              53     29  45.28%   34-38, 94-135, 153-176
+app\modules\ventas\interface\http\tenant.py                                  134     87  35.07%   26-31, 66-78, 84-93, 98-121, 132-159, 179-188, 202-249
+app\modules\webhooks\interface\http\tenant.py                                 44     17  61.36%   37-44, 49-52, 63-84
+app\platform\http\__init__.py                                                  0      0 100.00%
+app\platform\http\router.py                                                  153     50  67.32%   21-25, 30-48, 53-61, 86, 88, 92, 115, 123-142, 300-311, 426-455
+app\routers\__init__.py                                                        1      0 100.00%
+app\routers\admin\__init__.py                                                  1      0 100.00%
+app\routers\admin\ops.py                                                     277    243  12.27%   37-47, 59-117, 123-141, 146-256, 262-344, 350-354, 370-428, 445-459, 464-485, 490-554, 562-593
+app\routers\admin\usuarios.py                                                 61     40  34.43%   23-45, 56-64, 69-77, 82-90, 95-104
+app\routers\admin_scripts.py                                                 105     88  16.19%   32-41, 55-74, 79-222
+app\routers\admin_stats.py                                                    26     14  46.15%   26-77
+app\routers\categorias.py                                                     36     36   0.00%   5-56
+app\routers\configuracionincial.py                                            25     25   0.00%   7-65
+app\routers\dashboard_kpis.py                                                 47     34  27.66%   31-385
+app\routers\home.py                                                           23     23   0.00%   5-39
+app\routers\incidents.py                                                     171    129  24.56%   47-59, 69-86, 96-107, 118-141, 151-165, 181-201, 211-226, 236-251, 269-279, 293-309, 319-359, 369-386, 399-408, 422-437, 448-471, 482-493
+app\routers\listadosgenerales.py                                               0      0 100.00%
+app\routers\migrations.py                                                    128     74  42.19%   62-82, 95-135, 156-291, 305-320, 349-391
+app\routers\notifications.py                                                 151    111  26.49%   30-32, 45-56, 72-80, 102-128, 138-150, 161-188, 198-213, 228-264, 283-306, 338-356, 366-392, 413-432, 459-474, 484-520
+app\routers\payments.py                                                      122    122   0.00%   5-429
+app\routers\protected.py                                                      26     15  42.31%   18-35, 50, 56
+app\routers\roles.py                                                          64     45  29.69%   30, 37-54, 60-89, 95-100, 106
+app\routers\router_admins.py                                                  42     42   0.00%   5-71
+app\routers\sector_plantillas.py                                              78     47  39.74%   34-35, 40-56, 74-88, 107-118, 137-142, 157-163, 180-200
+app\routers\settings_router.py                                                82     60  26.83%   35-49, 65-80, 95-123, 138-164, 178-200, 213-229
+app\routers\tenant\__init__.py                                                 1      0 100.00%
+app\routers\tenant\roles.py                                                   74     69   6.76%   8-192
+app\routers\tenant\usuarios.py                                                 6      6   0.00%   1-10
+app\routers\tenant_config.py                                                  52     42  19.23%   19-62, 82-135
+app\routers\tenant_settings_public.py                                         41     29  29.27%   26-130
+app\schemas\__init__.py                                                        0      0 100.00%
+app\schemas\accounting.py                                                    190     20  89.47%   37-40, 45, 114-119, 152-155, 168-174
+app\schemas\auth.py                                                           11      0 100.00%
+app\schemas\base.py                                                           10     10   0.00%   5-26
+app\schemas\configuracion.py                                                  36      0 100.00%
+app\schemas\configuracionempresasinicial.py                                    8      8   0.00%   9-23
+app\schemas\einvoicing.py                                                     13      0 100.00%
+app\schemas\empresa.py                                                         7      7   0.00%   7-18
+app\schemas\expenses.py                                                       44     44   0.00%   3-74
+app\schemas\finance.py                                                        68     68   0.00%   3-134
+app\schemas\finance_caja.py                                                  151     28  81.46%   45-47, 51-54, 59-61, 65, 125-141
+app\schemas\hr.py                                                             80      0 100.00%
+app\schemas\hr_nomina.py                                                     176     17  90.34%   34-36, 40, 76-78, 150-152, 234-236, 296-299
+app\schemas\incidents.py                                                     133     14  89.47%   116-129
+app\schemas\notifications.py                                                  97      3  96.91%   124-126
+app\schemas\pos.py                                                            97     97   0.00%   3-154
+app\schemas\production.py                                                    110    110   0.00%   5-200
+app\schemas\purchases.py                                                      51     51   0.00%   3-97
+app\schemas\recipes.py                                                       139    139   0.00%   5-260
+app\schemas\rol_empresa.py                                                    18     18   0.00%   3-37
+app\schemas\sales.py                                                          36     36   0.00%   3-66
+app\schemas\schemas.py                                                        28     28   0.00%   5-44
+app\schemas\sector_plantilla.py                                               63      6  90.48%   118-140
+app\schemas\settings.py                                                       66      0 100.00%
+app\schemas\suppliers.py                                                      62     62   0.00%   3-105
+app\services\excel_analyzer.py                                                76     67  11.84%   17-62, 67-83, 92-106, 114-207, 224-245, 266-279
+app\services\field_config.py                                                  61     53  13.11%   12-27, 31-44, 69-157
+app\services\sector_defaults.py                                               13      8  38.46%   1863-1870, 1884-1887
+app\services\sector_templates.py                                             116    104  10.34%   45-257, 267-302, 312-332
+app\setup.py                                                                   2      2   0.00%   5-7
+app\shared\utils.py                                                           28     16  42.86%   12, 16-20, 29, 38-77
+app\telemetry\otel.py                                                         40     30  25.00%   10, 23-50, 54-61
+app\utils\__init__.py                                                          0      0 100.00%
+app\utils\csp_debug.py                                                        18     18   0.00%   2-41
+app\utils\email_renderer.py                                                    8      2  75.00%   29-30
+app\utils\time.py                                                              3      3   0.00%   2-7
+app\utils\unit_converter.py                                                  114    114   0.00%   6-298
+app\workers\einvoicing_tasks.py                                              266    245   7.89%   49-115, 123-193, 204-222, 227-242, 250-272, 277-297, 308, 320-327, 332-654
+app\workers\notifications.py                                                 163    141  13.50%   46-115, 130-161, 179-224, 235-257, 270-357, 369-411, 420-436
+---------------------------------------------------------------------------------------------------------
+TOTAL                                                                      23390  14235  39.14%
+Coverage HTML written to dir htmlcov
+FAIL Required test coverage of 40% not reached. Total coverage: 39.14%
+=========================== short test summary info ===========================
+FAILED app/tests/test_imports_dedupe.py::test_promote_skips_duplicates - sqla...
+======================= 1 failed, 54 warnings in 29.03s =======================

@@ -35,6 +35,7 @@ COOLDOWN_SECONDS = getattr(settings, "LOGIN_COOLDOWN_SECONDS", 900)  # 15 min co
 BACKOFF_BASE = getattr(settings, "LOGIN_BACKOFF_BASE", 2)  # 2^n
 BACKOFF_STEP = getattr(settings, "LOGIN_BACKOFF_STEP", 2)  # cada 2 fallos
 KEY_PREFIX = getattr(settings, "LOGIN_RL_PREFIX", "rl:login")
+RL_ENABLED = str(os.getenv("LOGIN_RATE_LIMIT_ENABLED", "1")).lower() not in ("0", "false")
 
 
 # ---------- Redis client (optional) ----------
@@ -97,6 +98,8 @@ def _calc_backoff(failures: int) -> int:
 
 # ---------- Public API ----------
 def check(request: Request, ident: str) -> RLStatus:
+    if not RL_ENABLED:
+        return RLStatus(True, retry_after=0, remaining=MAX_ATTEMPTS, reason="disabled")
     ip = request.client.host if request.client else "unknown"
     k = _key(ip, ident)
 
@@ -145,6 +148,8 @@ def check(request: Request, ident: str) -> RLStatus:
 
 
 def incr_fail(request: Request, ident: str) -> RLStatus:
+    if not RL_ENABLED:
+        return RLStatus(True, retry_after=0, remaining=MAX_ATTEMPTS, reason="disabled")
     ip = request.client.host if request.client else "unknown"
     k = _key(ip, ident)
 
@@ -194,6 +199,8 @@ def incr_fail(request: Request, ident: str) -> RLStatus:
 
 
 def reset(request: Request, ident: str) -> None:
+    if not RL_ENABLED:
+        return
     ip = request.client.host if request.client else "unknown"
     k = _key(ip, ident)
     if r:

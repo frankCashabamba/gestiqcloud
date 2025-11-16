@@ -17,7 +17,7 @@ def get_usuarios_by_empresa(
     if not include_admins:
         query = query.filter(UsuarioEmpresa.es_admin_empresa.is_(False))
     if not include_inactivos:
-        query = query.filter(UsuarioEmpresa.active.isnot(False))
+        query = query.filter(UsuarioEmpresa.activo.isnot(False))
     return query.all()
 
 
@@ -63,7 +63,7 @@ def insert_usuario_empresa(
 
 
 def set_modulos_usuario(
-    db: Session, usuario_id: int, tenant_id: int, modulos: Iterable[int]
+    db: Session, usuario_id, tenant_id, modulos: Iterable
 ) -> None:
     db.query(ModuloAsignado).filter(
         ModuloAsignado.usuario_id == usuario_id,
@@ -79,7 +79,7 @@ def set_modulos_usuario(
         )
 
 
-def set_roles_usuario(db: Session, usuario_id: int, tenant_id: int, roles: Iterable[int]) -> None:
+def set_roles_usuario(db: Session, usuario_id, tenant_id, roles: Iterable) -> None:
     db.query(UsuarioRolempresa).filter(
         UsuarioRolempresa.usuario_id == usuario_id,
         UsuarioRolempresa.tenant_id == tenant_id,
@@ -95,7 +95,7 @@ def set_roles_usuario(db: Session, usuario_id: int, tenant_id: int, roles: Itera
         )
 
 
-def get_modulos_usuario_ids(db: Session, usuario_id: int, tenant_id: int) -> list[int]:
+def get_modulos_usuario_ids(db: Session, usuario_id, tenant_id):
     rows = (
         db.query(ModuloAsignado.modulo_id)
         .filter(
@@ -107,20 +107,20 @@ def get_modulos_usuario_ids(db: Session, usuario_id: int, tenant_id: int) -> lis
     return [row[0] for row in rows]
 
 
-def get_roles_usuario_ids(db: Session, usuario_id: int, tenant_id: int) -> list[int]:
+def get_roles_usuario_ids(db: Session, usuario_id, tenant_id):
     rows = (
         db.query(UsuarioRolempresa.rol_id)
         .filter(
             UsuarioRolempresa.usuario_id == usuario_id,
             UsuarioRolempresa.tenant_id == tenant_id,
-            UsuarioRolempresa.active.is_(True),
+            UsuarioRolempresa.activo.is_(True),
         )
         .all()
     )
     return [row[0] for row in rows]
 
 
-def get_modulos_contratados_ids(db: Session, tenant_id: int) -> list[int]:
+def get_modulos_contratados_ids(db: Session, tenant_id: int):
     rows = (
         db.query(EmpresaModulo.modulo_id)
         .filter(
@@ -138,13 +138,13 @@ def count_admins_empresa(db: Session, tenant_id: int) -> int:
         .filter(
             UsuarioEmpresa.tenant_id == tenant_id,
             UsuarioEmpresa.es_admin_empresa.is_(True),
-            UsuarioEmpresa.active.isnot(False),
+            UsuarioEmpresa.activo.isnot(False),
         )
         .count()
     )
 
 
-def find_super_admin_role_id(db: Session, tenant_id: int) -> int | None:
+def find_super_admin_role_id(db: Session, tenant_id: int):
     return (
         db.query(RolEmpresa.id)
         .filter(
@@ -181,7 +181,7 @@ def load_detalle_usuarios(
         .filter(
             UsuarioRolempresa.tenant_id == tenant_id,
             UsuarioRolempresa.usuario_id.in_(usuario_ids),
-            UsuarioRolempresa.active.is_(True),
+            UsuarioRolempresa.activo.is_(True),
         )
         .all()
     ):
@@ -205,7 +205,7 @@ def get_modulos_contratados(db: Session, tenant_id: int) -> list[dict]:
         result.append(
             dict(
                 id=row.modulo_id,
-                nombre=getattr(modulo, "nombre", None),
+                name=getattr(modulo, "name", None),
                 categoria=getattr(modulo, "categoria", None),
                 icono=getattr(modulo, "icono", None),
             )
@@ -220,4 +220,4 @@ def get_roles_empresa(db: Session, tenant_id: int) -> list[dict]:
         .order_by(RolEmpresa.name.asc())
         .all()
     )
-    return [dict(id=row.id, nombre=row.name, descripcion=row.description) for row in rows]
+    return [dict(id=row.id, name=row.name, description=row.description) for row in rows]

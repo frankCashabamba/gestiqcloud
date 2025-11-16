@@ -35,11 +35,11 @@ class CRUDBase(_BaseCRUD[ModelT, CreateDTO, UpdateDTO], Generic[ModelT, CreateDT
         obj = self.get(db, id)
         if not obj:
             return None
-        return self.update(db, obj, dto)
+        return super().update(db, obj, dto)
 
     # Backwards name maintained
     def update(self, db: Session, id_or_obj, dto: UpdateDTO):  # type: ignore[override]
-        if isinstance(id_or_obj, int):
+        if isinstance(id_or_obj, (int, str)):
             return self.update_by_id(db, id_or_obj, dto)
         # Fallback to BaseCRUD signature (db_obj provided)
         return super().update(db, id_or_obj, dto)

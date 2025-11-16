@@ -2,6 +2,7 @@
 
 Auto-generated module docstring."""
 
+from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
 
@@ -64,10 +65,10 @@ class PermisoAccionGlobalpermiso(BaseModel):
 class AuthenticatedUser(BaseModel):
     """Class AuthenticatedUser - auto-generated docstring."""
 
-    user_id: int
+    user_id: UUID
     is_superadmin: bool
     user_type: str
-    tenant_id: int | None = None
+    tenant_id: UUID | None = None
     empresa_slug: str | None = None
     plantilla: str | None = None
     es_admin_empresa: bool | None = None

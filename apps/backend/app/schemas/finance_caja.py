@@ -12,7 +12,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, validator
 
 # ============================================================================
 # MOVIMIENTOS DE CAJA
@@ -23,12 +23,19 @@ class CajaMovimientoBase(BaseModel):
     """Base para movimientos de caja"""
 
     tipo: str = Field(..., description="INGRESO, EGRESO, AJUSTE")
-    categoria: str = Field(..., description="VENTA, COMPRA, GASTO, NOMINA, BANCO, etc.")
+    categoria: str = Field(
+        default="OTRO", description="VENTA, COMPRA, GASTO, NOMINA, BANCO, etc."
+    )
     importe: Decimal = Field(..., description="Importe del movimiento")
     moneda: str = Field(default="EUR", max_length=3, description="Código moneda")
-    concepto: str = Field(..., max_length=255, description="Descripción")
+    concepto: str = Field(
+        ...,
+        max_length=255,
+        description="Descripción",
+        alias="descripcion",
+    )
     notas: str | None = Field(None, description="Notas adicionales")
-    fecha: date = Field(..., description="Fecha del movimiento")
+    fecha: date = Field(default_factory=date.today, description="Fecha del movimiento")
     ref_doc_type: str | None = Field(None, description="Tipo documento origen")
     ref_doc_id: UUID | None = Field(None, description="ID documento origen")
     caja_id: UUID | None = Field(None, description="ID de caja (multi-caja)")
@@ -47,16 +54,17 @@ class CajaMovimientoBase(BaseModel):
         return v
 
     @validator("importe")
-    def validate_importe(cls, v, values):
-        """Validar signo del importe según tipo"""
-        if "tipo" in values:
-            if values["tipo"] == "EGRESO" and v > 0:
-                # Auto-convertir a negativo
-                return -abs(v)
-            elif values["tipo"] == "INGRESO" and v < 0:
-                # Auto-convertir a positivo
-                return abs(v)
+    def validate_importe(cls, v):
+        """El importe debe ser positivo."""
+        if v <= Decimal("0"):
+            raise ValueError("El importe debe ser mayor a cero")
         return v
+
+    @property
+    def descripcion(self) -> str:
+        return self.concepto
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class CajaMovimientoCreate(CajaMovimientoBase):
@@ -145,6 +153,9 @@ class CierreCajaBase(BaseModel):
 
 class CierreCajaCreate(CierreCajaBase):
     """Schema para crear cierre (apertura de caja)"""
+
+    total_ingresos: Decimal = Field(default=Decimal("0"), description="Total de ingresos registrados")
+    total_egresos: Decimal = Field(default=Decimal("0"), description="Total de egresos registrados")
 
     pass
 

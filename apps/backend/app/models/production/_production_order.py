@@ -23,7 +23,7 @@ from decimal import Decimal
 from app.config.database import Base, schema_table_args
 from sqlalchemy import TIMESTAMP
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import ForeignKey, Numeric, String, Text
+from sqlalchemy import ForeignKey, JSON, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -134,7 +134,9 @@ class ProductionOrder(Base):
         Text, nullable=True, comment="Notas internas de producción"
     )
     metadata_json: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True, comment="Datos adicionales (temperatura, humedad, etc.)"
+        JSONB().with_variant(JSON(), "sqlite"),
+        nullable=True,
+        comment="Datos adicionales (temperatura, humedad, etc.)",
     )
 
     # Auditoría

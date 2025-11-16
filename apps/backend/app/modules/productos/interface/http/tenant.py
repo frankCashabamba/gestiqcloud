@@ -202,7 +202,7 @@ def list_products(
     if tenant_id is None:
         return []
 
-    query = select(Product).where(Product.tenant_id == tenant_id)
+    query = select(Product).where(Product.tenant_id == UUID(tenant_id))
 
     # Filtro por estado activo (opcional)
     if activo is not None:

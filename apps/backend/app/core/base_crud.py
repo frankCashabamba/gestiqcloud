@@ -6,6 +6,7 @@ Auto-generated module docstring.
 # app/core/base_crud.py
 from dataclasses import asdict, is_dataclass
 from typing import Generic, TypeVar
+from uuid import UUID
 
 from app.core.types import HasID, IDType
 from pydantic import BaseModel
@@ -49,6 +50,10 @@ class BaseCRUD(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     def get(self, db: Session, id: IDType) -> ModelType | None:
         """Function get - auto-generated docstring."""
         model_id = self.model.id  # ayuda a MyPy
+        # Convert string to UUID if needed
+        if isinstance(id, str) and hasattr(self.model.id.type, 'python_type'):
+            if self.model.id.type.python_type is UUID:
+                id = UUID(id)
         return db.query(self.model).filter(model_id == id).first()
 
     def get_multi(self, db: Session, skip: int = 0, limit: int = 100) -> list[ModelType]:
@@ -94,6 +99,10 @@ class BaseCRUD(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 
     def remove(self, db: Session, id: IDType) -> ModelType | None:
         """Delete instance by id with safe transaction handling."""
+        # Convert string to UUID if needed
+        if isinstance(id, str) and hasattr(self.model.id.type, 'python_type'):
+            if self.model.id.type.python_type is UUID:
+                id = UUID(id)
         obj = db.get(self.model, id)
         if not obj:
             return None

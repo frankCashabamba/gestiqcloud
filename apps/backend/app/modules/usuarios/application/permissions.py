@@ -58,7 +58,7 @@ def _has_perm(db: Session, user: AuthenticatedUser, perm_key: str) -> bool:
             .filter(
                 UsuarioRolempresa.tenant_id == tenant_id,
                 UsuarioRolempresa.usuario_id == int(user_id),
-                UsuarioRolempresa.active.is_(True),
+                UsuarioRolempresa.activo.is_(True),
             )
             .all()
         )

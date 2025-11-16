@@ -10,7 +10,7 @@ from app.models.empresa.empresa import RolBase
 from sqlalchemy import JSON, Boolean, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.mutable import MutableDict
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 
 class RolEmpresa(Base):
@@ -24,6 +24,8 @@ class RolEmpresa(Base):
     )
     nombre: Mapped[str] = mapped_column(String(100), nullable=False)
     descripcion: Mapped[str | None] = mapped_column(Text)
+    name: Mapped[str] = synonym("nombre")
+    description: Mapped[str | None] = synonym("descripcion")
     permisos: Mapped[dict] = mapped_column(
         MutableDict.as_mutable(JSON),
         nullable=False,

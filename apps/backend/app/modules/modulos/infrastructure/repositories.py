@@ -26,9 +26,9 @@ class SqlModuloRepo(SqlAlchemyRepo):
     def _to_dto(self, m: Modulo) -> dict:
         return dict(
             id=m.id,
-            nombre=m.name,
+            name=m.name,
             url=m.url,
             icono=m.icono,
             categoria=m.categoria,
-            activo=m.active,
+            active=m.active,
         )

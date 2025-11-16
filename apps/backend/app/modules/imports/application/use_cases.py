@@ -387,9 +387,8 @@ def ingest_rows(
     rows_list = list(rows)
     # batch.tenant_id is already UUID, use directly
     tenant_id = batch.tenant_id
-    print(
-        f"🔍 DEBUG ingest_rows: batch_id={batch.id}, rows count={len(rows_list)}, tenant_id={tenant_id}"
-    )
+    # Debug logging (emoji removed to avoid console encoding issues)
+    # print(f"DEBUG ingest_rows: batch_id={batch.id}, rows count={len(rows_list)}, tenant_id={tenant_id}")
 
     repo = ImportsRepository()
     created: list[dict[str, Any]] = []
@@ -414,17 +413,18 @@ def ingest_rows(
                 "dedupe_hash": dedupe,
             }
         )
-    print(f"🔍 DEBUG: created items count={len(created)}")
+    # Debug logging
+    # print(f"DEBUG: created items count={len(created)}")
     if created:
-        print(f"🔍 DEBUG: Calling bulk_add_items with {len(created)} items")
+        # print(f"DEBUG: Calling bulk_add_items with {len(created)} items")
         repo.bulk_add_items(db, tenant_id, batch.id, created)  # tenant_id UUID
         batch.status = ImportBatchStatus.READY
         db.add(batch)
         db.commit()
         db.refresh(batch)
-        print(f"🔍 DEBUG: Items committed, batch status={batch.status}")
+        # print(f"DEBUG: Items committed, batch status={batch.status}")
     else:
-        print("🔍 DEBUG: No items created!")
+        pass  # No items created
     t1 = datetime.utcnow()
     try:
         logging.getLogger("imports").info(
@@ -633,9 +633,23 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
             db.add(lineage)
             created += 1
         except Exception:
+            # If session is in pending rollback state, rollback first before making changes
+            if db.is_active:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
             it.status = ImportItemStatus.ERROR_PROMOTION
             db.add(it)
             failed += 1
+    
+    # Flush pending changes to catch any remaining errors before final commit
+    try:
+        db.flush()
+    except Exception:
+        db.rollback()
+        raise
+    
     db.commit()
     t1 = datetime.utcnow()
     try:

@@ -214,19 +214,20 @@ except Exception:
 try:
     from app.middleware.endpoint_rate_limit import EndpointRateLimiter
 
-    app.add_middleware(
-        EndpointRateLimiter,
-        limits={
-            "/api/v1/tenant/auth/login": (10, 60),  # 10 intentos/min por IP
-            "/api/v1/admin/auth/login": (10, 60),
-            "/api/v1/auth/login": (10, 60),
-            "/api/v1/tenant/auth/password-reset": (5, 300),  # 5 req/5min
-            "/api/v1/tenant/auth/password-reset-confirm": (5, 300),
-            "/api/v1/admin/usuarios": (30, 60),
-            "/api/v1/admin/empresas": (20, 60),
-        },
-    )
-    logging.getLogger("app.startup").info("Endpoint-specific rate limiting enabled")
+    if str(os.getenv("ENDPOINT_RATE_LIMIT_ENABLED", "1")).lower() in ("1", "true"):
+        app.add_middleware(
+            EndpointRateLimiter,
+            limits={
+                "/api/v1/tenant/auth/login": (10, 60),  # 10 intentos/min por IP
+                "/api/v1/admin/auth/login": (10, 60),
+                "/api/v1/auth/login": (10, 60),
+                "/api/v1/tenant/auth/password-reset": (5, 300),  # 5 req/5min
+                "/api/v1/tenant/auth/password-reset-confirm": (5, 300),
+                "/api/v1/admin/usuarios": (30, 60),
+                "/api/v1/admin/empresas": (20, 60),
+            },
+        )
+        logging.getLogger("app.startup").info("Endpoint-specific rate limiting enabled")
 except Exception as e:
     logging.getLogger("app.startup").warning(f"Could not enable endpoint rate limiting: {e}")
     pass

@@ -4,11 +4,17 @@ Tests de Módulo de Producción
 Valida órdenes de producción, consumo de stock y generación de productos.
 """
 
+from __future__ import annotations
+
+import os
 from datetime import datetime
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+
+os.environ.setdefault("ENABLE_PRODUCTION_MODULE", "true")
+
 from app.models.production import ProductionOrder, ProductionOrderLine
 from app.schemas.production import ProductionOrderCreate, ProductionOrderUpdate
 from app.services.sector_defaults import get_sector_defaults

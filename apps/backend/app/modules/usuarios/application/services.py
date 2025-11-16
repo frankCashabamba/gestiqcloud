@@ -25,7 +25,7 @@ def _aggregate(
         apellido_encargado=usuario.apellido_encargado,
         username=usuario.username,
         es_admin_empresa=usuario.es_admin_empresa,
-        activo=usuario.active,
+        activo=usuario.activo,
         modulos=modulos,
         roles=roles,
         ultimo_login_at=usuario.last_login_at,
@@ -41,7 +41,7 @@ def _to_schema(agg: UsuarioEmpresaAggregate) -> UsuarioEmpresaOut:
         apellido_encargado=agg.apellido_encargado,
         username=agg.username,
         es_admin_empresa=agg.es_admin_empresa,
-        activo=agg.active,
+        active=agg.activo,
         modulos=agg.modulos,
         roles=agg.roles,
         ultimo_login_at=agg.ultimo_login_at,
@@ -54,7 +54,7 @@ def listar_usuarios_empresa(
     detalles = repo.load_detalle_usuarios(db, tenant_id)
     result: list[UsuarioEmpresaOut] = []
     for usuario, modulos, roles in detalles:
-        if not include_inactivos and not usuario.active:
+        if not include_inactivos and not usuario.activo:
             continue
         agg = _aggregate(usuario, modulos, roles)
         result.append(_to_schema(agg))
@@ -133,9 +133,9 @@ def actualizar_usuario_empresa(
 
     if data.active is not None and data.active is False:
         val.ensure_not_last_admin(db, tenant_id, usuario_id=usuario.id)
-        usuario.active = False
+        usuario.activo = False
     elif data.active is not None:
-        usuario.active = data.active
+        usuario.activo = data.active
 
     if data.es_admin_empresa is not None:
         if not data.es_admin_empresa and usuario.es_admin_empresa:

@@ -142,7 +142,11 @@ def _impl_promote_item(
             if not is_valid:
                 item.status = "ERROR_VALIDATION"
                 item.errors = errors
-                db.commit()
+                try:
+                    db.commit()
+                except Exception as commit_error:
+                    db.rollback()
+                    logger.error(f"Failed to commit validation error for {item_id}: {commit_error}")
                 logger.warning(
                     f"Canonical doc failed revalidation: {errors}",
                     extra={"item_id": item_id},
@@ -179,7 +183,12 @@ def _impl_promote_item(
                 item.promoted_to = promoted_to
                 item.promoted_id = UUID(promoted_id) if promoted_id else None
                 item.promoted_at = datetime.utcnow()
-                db.commit()
+                try:
+                    db.commit()
+                except Exception as commit_error:
+                    db.rollback()
+                    logger.error(f"Failed to commit promotion for {item_id}: {commit_error}")
+                    raise
 
                 logger.info(
                     f"Item {item_id} promoted successfully",
@@ -207,7 +216,11 @@ def _impl_promote_item(
                         "message": str(handler_error),
                     }
                 )
-                db.commit()
+                try:
+                    db.commit()
+                except Exception as commit_error:
+                    db.rollback()
+                    logger.error(f"Failed to commit error status for {item_id}: {commit_error}")
                 logger.error(
                     f"Promotion failed for {item_id}: {handler_error}",
                     extra={"item_id": item_id},
@@ -215,6 +228,10 @@ def _impl_promote_item(
                 raise
 
         except Exception as e:
+            try:
+                db.rollback()
+            except Exception:
+                pass
             logger.error(
                 f"Promote task failed: {e}",
                 extra={
@@ -280,7 +297,12 @@ def _impl_promote_batch(
                 }
 
             batch.status = "PROMOTING"
-            db.commit()
+            try:
+                db.commit()
+            except Exception as commit_error:
+                db.rollback()
+                logger.error(f"Failed to commit batch status update: {commit_error}")
+                raise
 
             # Obtener items para promover
             items = (
@@ -334,10 +356,20 @@ def _impl_promote_batch(
                     failed += 1
                     logger.warning(f"Failed to promote item {item.id}: {e}")
 
-            db.commit()
+            try:
+                db.commit()
+            except Exception as commit_error:
+                db.rollback()
+                logger.error(f"Failed to commit items promotion: {commit_error}")
+                raise
 
             batch.status = "PROMOTED"
-            db.commit()
+            try:
+                db.commit()
+            except Exception as commit_error:
+                db.rollback()
+                logger.error(f"Failed to commit batch status to PROMOTED: {commit_error}")
+                raise
 
             return {
                 "ok": True,
@@ -348,8 +380,13 @@ def _impl_promote_batch(
             }
 
         except Exception as e:
-            batch.status = "ERROR"
-            db.commit()
+            if batch:
+                batch.status = "ERROR"
+                try:
+                    db.commit()
+                except Exception as commit_error:
+                    db.rollback()
+                    logger.error(f"Failed to commit batch error status: {commit_error}")
             logger.error(f"Batch promotion failed: {e}")
             raise
 

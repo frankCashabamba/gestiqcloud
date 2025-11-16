@@ -24,10 +24,9 @@ def decode_token(token: str) -> AuthenticatedUser:
 
     # Derive required fields
     uid = payload.get("user_id")
-    if isinstance(uid, str) and uid.isdigit():
-        uid = int(uid)
-    if not isinstance(uid, (int,)):
+    if not uid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
+    # Accept both int and string (UUID) formats
 
     kind = payload.get("kind") or payload.get("scope") or "tenant"
     user_type = "admin" if kind == "admin" else "tenant"
@@ -42,7 +41,7 @@ def decode_token(token: str) -> AuthenticatedUser:
         plantilla=payload.get("plantilla"),
         es_admin_empresa=payload.get("es_admin_empresa"),
         permisos=payload.get("permisos") or {},
-        nombre=payload.get("nombre"),
+        name=payload.get("nombre"),
     )
 
 

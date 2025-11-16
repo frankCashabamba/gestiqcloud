@@ -8,6 +8,9 @@ from sqlalchemy.orm import relationship
 
 JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
 
+# UUID type that works with both PostgreSQL and SQLite
+PG_UUID = UUID().with_variant(String(36), "sqlite")
+
 
 class Incident(Base):
     __tablename__ = "incidents"
@@ -18,9 +21,9 @@ class Incident(Base):
         {"extend_existing": True},
     )
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(PG_UUID, primary_key=True, default=uuid.uuid4)
     tenant_id = Column(
-        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+        PG_UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     tipo = Column(String(50), nullable=False)  # error, warning, bug, feature_request, stock_alert
     severidad = Column(String(20), nullable=False)  # low, medium, high, critical
@@ -33,7 +36,7 @@ class Incident(Base):
     )  # open, in_progress, resolved, closed
     # Fix FK to company users table
     assigned_to = Column(
-        UUID(as_uuid=True),
+        PG_UUID,
         ForeignKey("usuarios_usuarioempresa.id", ondelete="SET NULL"),
     )
     auto_detected = Column(Boolean, default=False)
@@ -56,16 +59,16 @@ class StockAlert(Base):
         {"extend_existing": True},
     )
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(PG_UUID, primary_key=True, default=uuid.uuid4)
     tenant_id = Column(
-        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+        PG_UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     product_id = Column(
-        UUID(as_uuid=True),
+        PG_UUID,
         ForeignKey("products.id", ondelete="CASCADE"),
         nullable=False,
     )
-    warehouse_id = Column(UUID(as_uuid=True), ForeignKey("warehouses.id", ondelete="SET NULL"))
+    warehouse_id = Column(PG_UUID, ForeignKey("warehouses.id", ondelete="SET NULL"))
     alert_type = Column(
         String(50), nullable=False
     )  # low_stock, out_of_stock, expiring, expired, overstock
@@ -73,7 +76,7 @@ class StockAlert(Base):
     current_qty = Column(Integer)
     threshold_qty = Column(Integer)
     status = Column(String(20), default="active", nullable=False)  # active, acknowledged, resolved
-    incident_id = Column(UUID(as_uuid=True), ForeignKey("incidents.id", ondelete="SET NULL"))
+    incident_id = Column(PG_UUID, ForeignKey("incidents.id", ondelete="SET NULL"))
     ia_recommendation = Column(Text)
     notified_at = Column(DateTime(timezone=True))
     resolved_at = Column(DateTime(timezone=True))
@@ -92,9 +95,9 @@ class NotificationChannel(Base):
         {"extend_existing": True},
     )
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(PG_UUID, primary_key=True, default=uuid.uuid4)
     tenant_id = Column(
-        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+        PG_UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     tipo = Column(String(50), nullable=False)  # email, whatsapp, telegram, slack
     name = Column(String(100), nullable=False)
@@ -117,15 +120,15 @@ class NotificationLog(Base):
         {"extend_existing": True},
     )
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(PG_UUID, primary_key=True, default=uuid.uuid4)
     tenant_id = Column(
-        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+        PG_UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     channel_id = Column(
-        UUID(as_uuid=True), ForeignKey("notification_channels.id", ondelete="SET NULL")
+        PG_UUID, ForeignKey("notification_channels.id", ondelete="SET NULL")
     )
-    incident_id = Column(UUID(as_uuid=True), ForeignKey("incidents.id", ondelete="CASCADE"))
-    stock_alert_id = Column(UUID(as_uuid=True), ForeignKey("stock_alerts.id", ondelete="CASCADE"))
+    incident_id = Column(PG_UUID, ForeignKey("incidents.id", ondelete="CASCADE"))
+    stock_alert_id = Column(PG_UUID, ForeignKey("stock_alerts.id", ondelete="CASCADE"))
     tipo = Column(String(50), nullable=False)
     recipient = Column(String(255), nullable=False)
     subject = Column(String(255))

@@ -1,0 +1,783 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-8.4.1, pluggy-1.6.0 -- C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\python.exe
+cachedir: .pytest_cache
+rootdir: c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend
+configfile: pytest.ini
+plugins: anyio-4.9.0, asyncio-1.0.0, cov-7.0.0
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates [settings] ENV= development ENV_FILE_USED= <none> SECRET_KEY_PRESENT= True SEARCH_DIRS= ['C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app\\config', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend', 'c:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend']
+[settings] ENV= development ENV_FILE_USED= <none> SECRET_KEY_PRESENT= True SEARCH_DIRS= ['C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app\\config', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend', 'c:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend']
+[INFO] Preview router mounted at /api/v1/imports/preview
+DEBUG ingest_endpoint: batch_id=7acdeb4b-0217-4da2-a666-651f53a4717c, payload.rows count=2
+FAILED
+
+================================== FAILURES ===================================
+________________________ test_promote_skips_duplicates ________________________
+  + Exception Group Traceback (most recent call last):
+  |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 76, in collapse_excgroups
+  |     yield
+  |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 177, in __call__
+  |     async with anyio.create_task_group() as task_group:
+  |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\_backends\_asyncio.py", line 772, in __aexit__
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\_pytest\runner.py", line 344, in from_call
+    |     result: TResult | None = func()
+    |                              ^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\_pytest\runner.py", line 246, in <lambda>
+    |     lambda: runtest_hook(item=item, **kwds), when=when, reraise=reraise
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\_pytest\logging.py", line 850, in pytest_runtest_call
+    |     yield
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\_pytest\capture.py", line 900, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\_pytest\skipping.py", line 263, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\_pytest\runner.py", line 178, in pytest_runtest_call
+    |     item.runtest()
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\_pytest\python.py", line 1671, in runtest
+    |     self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pluggy\_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\_pytest\python.py", line 157, in pytest_pyfunc_call
+    |     result = testfunction(**testargs)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\tests\test_imports_dedupe.py", line 44, in test_promote_skips_duplicates
+    |     r2 = client.post(
+    |          ^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py", line 538, in post
+    |     return super().post(
+    |            ^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 1144, in post
+    |     return self.request(
+    |            ^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py", line 437, in request
+    |     return super().request(
+    |            ^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 825, in request
+    |     return self.send(request, auth=auth, follow_redirects=follow_redirects)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 914, in send
+    |     response = self._send_handling_auth(
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 942, in _send_handling_auth
+    |     response = self._send_handling_redirects(
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 979, in _send_handling_redirects
+    |     response = self._send_single_request(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 1014, in _send_single_request
+    |     response = transport.handle_request(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py", line 340, in handle_request
+    |     raise exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py", line 337, in handle_request
+    |     portal.call(self.app, scope, receive, send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\from_thread.py", line 290, in call
+    |     return cast(T_Retval, self.start_task_soon(func, *args).result())
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py", line 456, in result
+    |     return self.__get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py", line 401, in __get_result
+    |     raise self._exception
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\from_thread.py", line 221, in _call_func
+    |     retval = await retval_or_awaitable
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\applications.py", line 1054, in __call__
+    |     await super().__call__(scope, receive, send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\applications.py", line 112, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\errors.py", line 187, in __call__
+    |     raise exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    |     await self.app(scope, receive, _send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(typ, value, traceback)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    |     raise exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\middleware\security_headers.py", line 65, in security_headers_middleware
+    |     resp: Response = await call_next(request)
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    |     raise app_exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(typ, value, traceback)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    |     raise exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\middleware\request_log.py", line 35, in dispatch
+    |     resp: Response = await call_next(request)
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    |     raise app_exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(typ, value, traceback)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    |     raise exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\core\sessions.py", line 193, in dispatch
+    |     response: Response = await call_next(request)
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    |     raise app_exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    |     await self.app(scope, receive, send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(typ, value, traceback)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    |     raise exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\main.py", line 146, in force_utf8_response
+    |     response = await call_next(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    |     raise app_exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(typ, value, traceback)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    |     raise exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\main.py", line 139, in _rewrite_v1_to_api_v1
+    |     response = await call_next(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    |     raise app_exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    |     raise exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 714, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 734, in app
+    |     await route.handle(scope, receive, send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 288, in handle
+    |     await self.app(scope, receive, send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 76, in app
+    |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    |     raise exc
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 73, in app
+    |     response = await f(request)
+    |                ^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\routing.py", line 301, in app
+    |     raw_response = await run_endpoint_function(
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\routing.py", line 214, in run_endpoint_function
+    |     return await run_in_threadpool(dependant.call, **values)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\concurrency.py", line 37, in run_in_threadpool
+    |     return await anyio.to_thread.run_sync(func)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\to_thread.py", line 56, in run_sync
+    |     return await get_async_backend().run_sync_in_worker_thread(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\_backends\_asyncio.py", line 2470, in run_sync_in_worker_thread
+    |     return await future
+    |            ^^^^^^^^^^^^
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\_backends\_asyncio.py", line 967, in run
+    |     result = context.run(func, *args)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\imports\interface\http\tenant.py", line 1015, in ingest_rows_endpoint
+    |     items = use_cases.ingest_rows(
+    |             ^^^^^^^^^^^^^^^^^^^^^^
+    |   File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\imports\application\use_cases.py", line 420, in ingest_rows
+    |     repo.bulk_add_items(db, tenant_id, batch.id, created)  # tenant_id UUID
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\imports\infrastructure\tenant_middleware.py", line 91, in wrapper
+    |     return func(*args, **kwargs)
+    |            ^^^^^^^^^^^^^^^^^^^^^
+    |   File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\imports\infrastructure\repositories.py", line 75, in bulk_add_items
+    |     print(
+    |   File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\encodings\cp1252.py", line 19, in encode
+    |     return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    | UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f50d' in position 0: character maps to <undefined>
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\tests\test_imports_dedupe.py", line 44, in test_promote_skips_duplicates
+    r2 = client.post(
+         ^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py", line 538, in post
+    return super().post(
+           ^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 1144, in post
+    return self.request(
+           ^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py", line 437, in request
+    return super().request(
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 825, in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 914, in send
+    response = self._send_handling_auth(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 942, in _send_handling_auth
+    response = self._send_handling_redirects(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 979, in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py", line 1014, in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py", line 340, in handle_request
+    raise exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py", line 337, in handle_request
+    portal.call(self.app, scope, receive, send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\from_thread.py", line 290, in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py", line 456, in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py", line 401, in __get_result
+    raise self._exception
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\from_thread.py", line 221, in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\applications.py", line 1054, in __call__
+    await super().__call__(scope, receive, send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\applications.py", line 112, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\errors.py", line 187, in __call__
+    raise exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\middleware\security_headers.py", line 65, in security_headers_middleware
+    resp: Response = await call_next(request)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    raise app_exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\middleware\request_log.py", line 35, in dispatch
+    resp: Response = await call_next(request)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    raise app_exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\core\sessions.py", line 193, in dispatch
+    response: Response = await call_next(request)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    raise app_exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\main.py", line 146, in force_utf8_response
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    raise app_exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 176, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 178, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\main.py", line 139, in _rewrite_v1_to_api_v1
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 156, in call_next
+    raise app_exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py", line 141, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 714, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 734, in app
+    await route.handle(scope, receive, send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\routing.py", line 214, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\concurrency.py", line 37, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\to_thread.py", line 56, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\_backends\_asyncio.py", line 2470, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\_backends\_asyncio.py", line 967, in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\imports\interface\http\tenant.py", line 1015, in ingest_rows_endpoint
+    items = use_cases.ingest_rows(
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\imports\application\use_cases.py", line 420, in ingest_rows
+    repo.bulk_add_items(db, tenant_id, batch.id, created)  # tenant_id UUID
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\imports\infrastructure\tenant_middleware.py", line 91, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\imports\infrastructure\repositories.py", line 75, in bulk_add_items
+    print(
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f50d' in position 0: character maps to <undefined>
+
+During handling of the above exception, another exception occurred:
+app\tests\test_imports_dedupe.py:44: in test_promote_skips_duplicates
+    r2 = client.post(
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py:538: in post
+    return super().post(
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py:1144: in post
+    return self.request(
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py:437: in request
+    return super().request(
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py:825: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py:914: in send
+    response = self._send_handling_auth(
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\httpx\_client.py:1014: in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py:340: in handle_request
+    raise exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\testclient.py:337: in handle_request
+    portal.call(self.app, scope, receive, send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\from_thread.py:290: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\from_thread.py:221: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\applications.py:1054: in __call__
+    await super().__call__(scope, receive, send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\applications.py:112: in __call__
+    await self.middleware_stack(scope, receive, send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\errors.py:187: in __call__
+    raise exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\errors.py:165: in __call__
+    await self.app(scope, receive, _send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:176: in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\contextlib.py:158: in __exit__
+    self.gen.throw(typ, value, traceback)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py:82: in collapse_excgroups
+    raise exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:178: in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\middleware\security_headers.py:65: in security_headers_middleware
+    resp: Response = await call_next(request)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:156: in call_next
+    raise app_exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:141: in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:176: in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\contextlib.py:158: in __exit__
+    self.gen.throw(typ, value, traceback)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py:82: in collapse_excgroups
+    raise exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:178: in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\middleware\request_log.py:35: in dispatch
+    resp: Response = await call_next(request)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:156: in call_next
+    raise app_exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:141: in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:176: in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\contextlib.py:158: in __exit__
+    self.gen.throw(typ, value, traceback)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py:82: in collapse_excgroups
+    raise exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:178: in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\core\sessions.py:193: in dispatch
+    response: Response = await call_next(request)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:156: in call_next
+    raise app_exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:141: in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\cors.py:85: in __call__
+    await self.app(scope, receive, send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:176: in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\contextlib.py:158: in __exit__
+    self.gen.throw(typ, value, traceback)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py:82: in collapse_excgroups
+    raise exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:178: in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\main.py:146: in force_utf8_response
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:156: in call_next
+    raise app_exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:141: in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:176: in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\contextlib.py:158: in __exit__
+    self.gen.throw(typ, value, traceback)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_utils.py:82: in collapse_excgroups
+    raise exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:178: in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\main.py:139: in _rewrite_v1_to_api_v1
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:156: in call_next
+    raise app_exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\base.py:141: in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\middleware\exceptions.py:62: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py:714: in __call__
+    await self.middleware_stack(scope, receive, send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py:734: in app
+    await route.handle(scope, receive, send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py:288: in handle
+    await self.app(scope, receive, send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py:76: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\routing.py:73: in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\routing.py:301: in app
+    raw_response = await run_endpoint_function(
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\routing.py:214: in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\starlette\concurrency.py:37: in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\to_thread.py:56: in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\_backends\_asyncio.py:2470: in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\anyio\_backends\_asyncio.py:967: in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+app\modules\imports\interface\http\tenant.py:1015: in ingest_rows_endpoint
+    items = use_cases.ingest_rows(
+app\modules\imports\application\use_cases.py:420: in ingest_rows
+    repo.bulk_add_items(db, tenant_id, batch.id, created)  # tenant_id UUID
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\modules\imports\infrastructure\tenant_middleware.py:91: in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+app\modules\imports\infrastructure\repositories.py:75: in bulk_add_items
+    print(
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f50d' in position 0: character maps to <undefined>
+------------------------------ Captured log call ------------------------------
+WARNING  app.modules.imports.application.photo_utils:photo_utils.py:62 pyzbar unavailable or libzbar missing - QR code detection disabled
+============================== warnings summary ===============================
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\fields.py:1093: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'env'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    warn(
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\main.py:87: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\applications.py:4495: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+app/tests/test_imports_dedupe.py: 26 warnings
+  C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\_internal\_config.py:323: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\accounting.py:35: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\accounting.py:42: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("codigo")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\accounting.py:111: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("haber")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\accounting.py:150: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\fields.py:1062: PydanticDeprecatedSince20: `min_items` is deprecated and will be removed, use `min_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    warn('`min_items` is deprecated and will be removed, use `min_length` instead', DeprecationWarning)
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\accounting.py:165: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("lineas")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\contabilidad\interface\http\tenant.py:98: DeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    tipo: str | None = Query(None, regex="^(ACTIVO|PASIVO|PATRIMONIO|INGRESO|GASTO)$"),
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\contabilidad\interface\http\tenant.py:234: DeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    status: str | None = Query(None, regex="^(BORRADOR|CONTABILIZADO)$"),
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\hr_nomina.py:32: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\hr_nomina.py:38: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("codigo")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\hr_nomina.py:74: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\hr_nomina.py:148: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\hr_nomina.py:232: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\hr_nomina.py:294: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("metodo_pago")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\rrhh\interface\http\tenant.py:651: DeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    status: str | None = Query(None, regex="^(DRAFT|APPROVED|PAID|CANCELLED)$"),
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\rrhh\interface\http\tenant.py:652: DeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    tipo: str | None = Query(None, regex="^(MENSUAL|EXTRA|FINIQUITO|ESPECIAL)$"),
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\finance_caja.py:43: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\finance_caja.py:49: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("categoria")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\finance_caja.py:56: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("importe")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\finanzas\interface\http\tenant.py:117: DeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    tipo: str | None = Query(None, regex="^(INGRESO|EGRESO|AJUSTE)$"),
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\finanzas\interface\http\tenant.py:436: DeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    status: str | None = Query(None, regex="^(ABIERTO|CERRADO|PENDIENTE)$"),
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\sector_plantilla.py:115: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("modules", pre=True)
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\incidents.py:114: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("config")
+
+app/tests/test_imports_dedupe.py::test_promote_skips_duplicates
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\notifications.py:122: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED app/tests/test_imports_dedupe.py::test_promote_skips_duplicates - Unic...
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+======================= 1 failed, 54 warnings in 20.51s =======================

@@ -6,13 +6,17 @@ from pydantic import BaseModel, ConfigDict, Field
 class IdiomaCreate(BaseModel):
     codigo: str
     name: str
-    active: bool
+    active: bool = Field(True, alias="activo")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class IdiomaUpdate(BaseModel):
     codigo: str | None = None
     name: str | None = None
-    active: bool | None = None
+    active: bool | None = Field(None, alias="activo")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class IdiomaRead(BaseModel):

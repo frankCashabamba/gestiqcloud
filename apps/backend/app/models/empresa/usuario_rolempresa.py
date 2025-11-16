@@ -19,8 +19,14 @@ class UsuarioRolempresa(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios_usuarioempresa.id"))
-    rol_id: Mapped[int] = mapped_column(ForeignKey("core_rolempresa.id"))
+    usuario_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("usuarios_usuarioempresa.id"),
+    )
+    rol_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("core_rolempresa.id"),
+    )
     tenant_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("tenants.id"), index=True, nullable=True
     )
@@ -28,8 +34,8 @@ class UsuarioRolempresa(Base):
         DateTime, server_default=text("CURRENT_TIMESTAMP")
     )
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
-    asignado_por_id: Mapped[int | None] = mapped_column(
-        ForeignKey("usuarios_usuarioempresa.id"), nullable=True
+    asignado_por_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("usuarios_usuarioempresa.id"), nullable=True
     )
 
     # Relaciones opcionales (puedes activarlas si las necesitas)

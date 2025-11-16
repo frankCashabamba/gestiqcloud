@@ -13,7 +13,7 @@ def seeded_modulos(db, usuario_empresa_factory):
     from app.models.core.modulo import EmpresaModulo, Modulo, ModuloAsignado
 
     usuario, tenant_from_factory = usuario_empresa_factory(
-        empresa_nombre="Empresa Test Mods",
+        empresa_name="Empresa Test Mods",
         username="mods_user",
         email="mods_user@example.com",
     )
@@ -25,7 +25,7 @@ def seeded_modulos(db, usuario_empresa_factory):
     m1 = db.query(Modulo).filter(Modulo.name == "Ventas").first()
     if not m1:
         m1 = Modulo(
-            nombre="Ventas",
+            name="Ventas",
             descripcion="Ventas",
             activo=True,
             plantilla_inicial="default",
@@ -35,7 +35,7 @@ def seeded_modulos(db, usuario_empresa_factory):
     m2 = db.query(Modulo).filter(Modulo.name == "Facturacion").first()
     if not m2:
         m2 = Modulo(
-            nombre="Facturacion",
+            name="Facturacion",
             descripcion="Facturación",
             activo=True,
             plantilla_inicial="default",
@@ -90,7 +90,7 @@ def test_public_modulos_por_empresa_returns_array(client: TestClient, seeded_mod
     assert len(data) >= 1
     # Estructura mínima esperada por el frontend
     first = data[0]
-    assert set(["id", "nombre", "activo"]).issubset(first.keys())
+    assert set(["id", "name", "active"]).issubset(first.keys())
 
 
 def test_tenant_modulos_list_returns_array(client: TestClient, seeded_modulos):
@@ -110,4 +110,4 @@ def test_tenant_modulos_list_returns_array(client: TestClient, seeded_modulos):
     assert isinstance(data, list)
     # Debe traer al menos el módulo asignado al usuario
     assert len(data) >= 1
-    assert set(["id", "nombre"]).issubset(data[0].keys())
+    assert set(["id", "name"]).issubset(data[0].keys())

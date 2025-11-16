@@ -1,0 +1,235 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-8.4.1, pluggy-1.6.0 -- C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\python.exe
+cachedir: .pytest_cache
+rootdir: c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend
+configfile: pytest.ini
+plugins: anyio-4.9.0, asyncio-1.0.0, cov-7.0.0
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+app/tests/test_usuarios_module.py::test_listar_modulos [settings] ENV= development ENV_FILE_USED= <none> SECRET_KEY_PRESENT= True SEARCH_DIRS= ['C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app\\config', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend', 'c:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend']
+[settings] ENV= development ENV_FILE_USED= <none> SECRET_KEY_PRESENT= True SEARCH_DIRS= ['C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app\\config', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend', 'c:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend']
+
+------------------------------- live log setup --------------------------------
+INFO     app.cors:main.py:169 CORS configured: allow_origins=['http://localhost:8081', 'http://localhost:8082'] allow_origin_regex=
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:39 JWT secret loaded from environment variables, secret_len=60
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:96 JwtService created with secret_len=60, algorithm=HS256
+DEBUG    app.core.jwt_provider:jwt_provider.py:22 Created new token service instance: 2362696852752
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:39 JWT secret loaded from environment variables, secret_len=60
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:96 JwtService created with secret_len=60, algorithm=HS256
+DEBUG    app.core.jwt_provider:jwt_provider.py:24 Returning existing token service instance: 2362696852752
+[INFO] Preview router mounted at /api/v1/imports/preview
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:39 JWT secret loaded from environment variables, secret_len=60
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:96 JwtService created with secret_len=60, algorithm=HS256
+DEBUG    asyncio:proactor_events.py:633 Using proactor: IocpProactor
+INFO     app.auth.tenant:auth.py:52 tenant.login.attempt origin=None ua=testclient ip=testclient ident=tenant_admin@example.com
+INFO     app.request:request_log.py:56 {"level":"info","req_id":"86bb33c622cd4d1cb7ce49b0cd39f3fa","method":"POST","path":"/api/v1/tenant/auth/login","status":200,"dur_ms":286,"ip":"testclient","ua":"testclient","client_rev":null,"client_ver":null,"tenant_id":null,"user_id":null}
+INFO     httpx:_client.py:1025 HTTP Request: POST http://testserver/api/v1/tenant/auth/login "HTTP/1.1 200 OK"
+
+[DEBUG] Token payload: {
+  "user_id": "8c391280-b59d-4497-89ff-c6e1d8778025",
+  "tenant_user_id": "8c391280-b59d-4497-89ff-c6e1d8778025",
+  "tenant_id": "388fb3ae-8bd7-478b-abaa-742408da02ab",
+  "empresa_slug": "acme-6b083153",
+  "plantilla": "DefaultPlantilla",
+  "es_admin_empresa": true,
+  "nombre": "Test",
+  "roles": [],
+  "permisos": {
+    "admin": true,
+    "write": true,
+    "read": true,
+    "delete": true,
+    "manage_users": true,
+    "manage_settings": true,
+    "manage_roles": true,
+    "manage_modules": true,
+    "view_reports": true,
+    "export_data": true
+  },
+  "kind": "tenant",
+  "sub": "tenant_admin@example.com",
+  "iat": 1763157845,
+  "nbf": 1763157845,
+  "exp": 1763158745,
+  "type": "access"
+}
+-------------------------------- live log call --------------------------------
+DEBUG    asyncio:proactor_events.py:633 Using proactor: IocpProactor
+DEBUG    app.core.access_guard:access_guard.py:26 Attempting to decode token, token_service_id=2362696852752
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:142 Token kind validation: expected=access, got=access
+DEBUG    app.core.access_guard:access_guard.py:28 Token decoded successfully, claims_keys=['user_id', 'tenant_user_id', 'tenant_id', 'empresa_slug', 'plantilla', 'es_admin_empresa', 'nombre', 'roles', 'permisos', 'kind', 'sub', 'iat', 'nbf', 'exp', 'type']
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:39 JWT secret loaded from environment variables, secret_len=60
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:96 JwtService created with secret_len=60, algorithm=HS256
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:142 Token kind validation: expected=access, got=access
+INFO     app.request:request_log.py:56 {"level":"info","req_id":"5af1c5ac86df493fa8e9ad38ad07bd40","method":"GET","path":"/api/v1/tenant/usuarios/modulos","status":401,"dur_ms":7,"ip":"testclient","ua":"testclient","client_rev":null,"client_ver":null,"tenant_id":"388fb3ae-8bd7-478b-abaa-742408da02ab","user_id":"8c391280-b59d-4497-89ff-c6e1d8778025"}
+INFO     httpx:_client.py:1025 HTTP Request: GET http://testserver/api/v1/tenant/usuarios/modulos "HTTP/1.1 401 Unauthorized"
+FAILED
+
+================================== FAILURES ===================================
+_____________________________ test_listar_modulos _____________________________
+
+client = <starlette.testclient.TestClient object at 0x0000022618EEFD50>
+tenant_headers = {'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiOGMzOTEyODAtYjU5ZC00NDk3LTg5ZmYtYzZlMWQ...c4NDUsIm5iZiI6MTc2MzE1Nzg0NSwiZXhwIjoxNzYzMTU4NzQ1LCJ0eXBlIjoiYWNjZXNzIn0.OxQmbeP1jOianFNbLZWxPJoMUOJydzbrkF35C2e8Lec'}
+
+    def test_listar_modulos(client: TestClient, tenant_headers):
+        r = client.get("/api/v1/tenant/usuarios/modulos", headers=tenant_headers)
+>       assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
+E       AssertionError: Expected 200, got 401: {"detail":"Token inválido"}
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+app\tests\test_usuarios_module.py:179: AssertionError
+----------------------------- Captured log setup ------------------------------
+INFO     app.cors:main.py:169 CORS configured: allow_origins=['http://localhost:8081', 'http://localhost:8082'] allow_origin_regex=
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:39 JWT secret loaded from environment variables, secret_len=60
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:96 JwtService created with secret_len=60, algorithm=HS256
+DEBUG    app.core.jwt_provider:jwt_provider.py:22 Created new token service instance: 2362696852752
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:39 JWT secret loaded from environment variables, secret_len=60
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:96 JwtService created with secret_len=60, algorithm=HS256
+DEBUG    app.core.jwt_provider:jwt_provider.py:24 Returning existing token service instance: 2362696852752
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:39 JWT secret loaded from environment variables, secret_len=60
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:96 JwtService created with secret_len=60, algorithm=HS256
+DEBUG    asyncio:proactor_events.py:633 Using proactor: IocpProactor
+INFO     app.auth.tenant:auth.py:52 tenant.login.attempt origin=None ua=testclient ip=testclient ident=tenant_admin@example.com
+INFO     app.request:request_log.py:56 {"level":"info","req_id":"86bb33c622cd4d1cb7ce49b0cd39f3fa","method":"POST","path":"/api/v1/tenant/auth/login","status":200,"dur_ms":286,"ip":"testclient","ua":"testclient","client_rev":null,"client_ver":null,"tenant_id":null,"user_id":null}
+INFO     httpx:_client.py:1025 HTTP Request: POST http://testserver/api/v1/tenant/auth/login "HTTP/1.1 200 OK"
+------------------------------ Captured log call ------------------------------
+DEBUG    asyncio:proactor_events.py:633 Using proactor: IocpProactor
+DEBUG    app.core.access_guard:access_guard.py:26 Attempting to decode token, token_service_id=2362696852752
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:142 Token kind validation: expected=access, got=access
+DEBUG    app.core.access_guard:access_guard.py:28 Token decoded successfully, claims_keys=['user_id', 'tenant_user_id', 'tenant_id', 'empresa_slug', 'plantilla', 'es_admin_empresa', 'nombre', 'roles', 'permisos', 'kind', 'sub', 'iat', 'nbf', 'exp', 'type']
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:39 JWT secret loaded from environment variables, secret_len=60
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:96 JwtService created with secret_len=60, algorithm=HS256
+DEBUG    app.modules.identity.infrastructure.jwt_service:jwt_service.py:142 Token kind validation: expected=access, got=access
+INFO     app.request:request_log.py:56 {"level":"info","req_id":"5af1c5ac86df493fa8e9ad38ad07bd40","method":"GET","path":"/api/v1/tenant/usuarios/modulos","status":401,"dur_ms":7,"ip":"testclient","ua":"testclient","client_rev":null,"client_ver":null,"tenant_id":"388fb3ae-8bd7-478b-abaa-742408da02ab","user_id":"8c391280-b59d-4497-89ff-c6e1d8778025"}
+INFO     httpx:_client.py:1025 HTTP Request: GET http://testserver/api/v1/tenant/usuarios/modulos "HTTP/1.1 401 Unauthorized"
+============================== warnings summary ===============================
+app/tests/test_usuarios_module.py::test_listar_modulos
+app/tests/test_usuarios_module.py::test_listar_modulos
+  C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\fields.py:1093: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'env'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    warn(
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\main.py:87: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\applications.py:4495: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+app/tests/test_usuarios_module.py: 29 warnings
+  C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\_internal\_config.py:323: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\accounting.py:35: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\accounting.py:42: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("codigo")
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\accounting.py:111: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("haber")
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\accounting.py:150: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\fields.py:1062: PydanticDeprecatedSince20: `min_items` is deprecated and will be removed, use `min_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    warn('`min_items` is deprecated and will be removed, use `min_length` instead', DeprecationWarning)
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\accounting.py:165: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("lineas")
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\contabilidad\interface\http\tenant.py:98: DeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    tipo: str | None = Query(None, regex="^(ACTIVO|PASIVO|PATRIMONIO|INGRESO|GASTO)$"),
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\contabilidad\interface\http\tenant.py:234: DeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    status: str | None = Query(None, regex="^(BORRADOR|CONTABILIZADO)$"),
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\hr_nomina.py:32: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\hr_nomina.py:38: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("codigo")
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\hr_nomina.py:74: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\hr_nomina.py:148: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\hr_nomina.py:232: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\hr_nomina.py:294: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("metodo_pago")
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\rrhh\interface\http\tenant.py:651: DeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    status: str | None = Query(None, regex="^(DRAFT|APPROVED|PAID|CANCELLED)$"),
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\rrhh\interface\http\tenant.py:652: DeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    tipo: str | None = Query(None, regex="^(MENSUAL|EXTRA|FINIQUITO|ESPECIAL)$"),
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\finance_caja.py:43: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\finance_caja.py:49: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("categoria")
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\finance_caja.py:56: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("importe")
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\finanzas\interface\http\tenant.py:117: DeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    tipo: str | None = Query(None, regex="^(INGRESO|EGRESO|AJUSTE)$"),
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\finanzas\interface\http\tenant.py:436: DeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    status: str | None = Query(None, regex="^(ABIERTO|CERRADO|PENDIENTE)$"),
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\sector_plantilla.py:115: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("modules", pre=True)
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\incidents.py:114: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("config")
+
+app/tests/test_usuarios_module.py::test_listar_modulos
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\notifications.py:122: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    @validator("tipo")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED app/tests/test_usuarios_module.py::test_listar_modulos - AssertionErro...
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+======================= 1 failed, 57 warnings in 10.12s =======================

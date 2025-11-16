@@ -33,7 +33,7 @@ class ModuloCreate(ModuloBase):
 class ModuloOut(ModuloBase):
     """Class ModuloOut - auto-generated docstring."""
 
-    id: int
+    id: UUID
     name: str
     active: bool
 
@@ -59,7 +59,7 @@ class EmpresaModuloCreate(EmpresaModuloBase):
 class EmpresaModuloOut(EmpresaModuloBase):
     """Class EmpresaModuloOut - auto-generated docstring."""
 
-    id: int
+    id: UUID
     tenant_id: UUID
     empresa_slug: str | None
     active: bool
@@ -88,7 +88,7 @@ class ModuloAsignadoCreate(ModuloAsignadoBase):
 class ModuloAsignadoOut(BaseModel):
     """Class ModuloAsignadoOut - auto-generated docstring."""
 
-    id: int
+    id: UUID
     tenant_id: UUID
     usuario_id: int
     modulo_id: int
@@ -101,7 +101,7 @@ class ModuloAsignadoOut(BaseModel):
 class EmpresaModuloOutAdmin(BaseModel):
     """Class EmpresaModuloOutAdmin - auto-generated docstring."""
 
-    id: int
+    id: UUID
     tenant_id: UUID
     modulo_id: int
     active: bool

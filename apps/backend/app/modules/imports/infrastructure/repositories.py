@@ -63,7 +63,6 @@ class ImportsRepository:
         return query.order_by(ImportItem.idx.asc()).all()
 
     @with_tenant_context
-    @with_tenant_context
     def bulk_add_items(
         self,
         db: Session,
@@ -72,11 +71,9 @@ class ImportsRepository:
         items: Iterable[dict[str, Any]],
     ) -> int:
         """Insert items skipping duplicates by (batch_id, idempotency_key)."""
-        from sqlalchemy.dialects.postgresql import insert
-
         items_list = list(items)
         print(
-            f"🔍 DEBUG bulk_add_items: tenant_id={tenant_id}, batch_id={batch_id}, items count={len(items_list)}"
+            f"DEBUG bulk_add_items: tenant_id={tenant_id}, batch_id={batch_id}, items count={len(items_list)}"
         )
         if not items_list:
             return 0
@@ -88,12 +85,25 @@ class ImportsRepository:
             if "id" not in item:
                 item["id"] = uuid.uuid4()
 
-        print(f"🔍 DEBUG: First item sample: {items_list[0]}")
-        # Batch insert without ON CONFLICT (let DB handle uniqueness)
-        stmt = insert(ImportItem).values(items_list)
+        print(f"DEBUG: First item sample: {items_list[0]}")
+        bind = db.get_bind()
+        dialect = getattr(bind, "dialect", None)
+        dialect_name = getattr(dialect, "name", "")
+        dialect_name = dialect_name.lower() if isinstance(dialect_name, str) else ""
+        if dialect_name == "sqlite":
+            from sqlalchemy import insert as sa_insert
+
+            stmt = sa_insert(ImportItem).values(items_list).prefix_with("OR IGNORE")
+        else:
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+            stmt = pg_insert(ImportItem).values(items_list)
+            stmt = stmt.on_conflict_do_nothing(
+                index_elements=[ImportItem.tenant_id, ImportItem.idempotency_key]
+            )
 
         result = db.execute(stmt)
-        print(f"🔍 DEBUG: Execute result rowcount={result.rowcount}")
+        print(f"DEBUG: Execute result rowcount={result.rowcount}")
         db.flush()  # Flush instead of commit, let caller commit
 
         # Return number of rows actually inserted

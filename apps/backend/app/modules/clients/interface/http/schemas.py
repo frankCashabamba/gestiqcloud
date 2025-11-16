@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 
@@ -16,7 +18,7 @@ class ClienteInSchema(BaseModel):
 
 
 class ClienteOutSchema(BaseModel):
-    id: str
+    id: UUID
     name: str
     identificacion: str | None = None
     email: str | None = None

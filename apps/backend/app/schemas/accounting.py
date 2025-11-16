@@ -158,6 +158,8 @@ class AsientoContableBase(BaseModel):
 class AsientoContableCreate(AsientoContableBase):
     """Schema para crear asiento"""
 
+    number: str | None = Field(None, description="Legacy alias for asiento number")
+
     lineas: list[AsientoLineaCreate] = Field(..., min_items=2, description="Mínimo 2 líneas")
 
     @validator("lineas")

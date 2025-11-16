@@ -2,19 +2,25 @@ import importlib
 import os
 import uuid
 
-import pytest
-from fastapi.testclient import TestClient
-
-
+# MUST run this before any other imports that might load settings
 def _ensure_test_env():
     os.environ.setdefault("ENV", "development")
+    os.environ.setdefault("ENVIRONMENT", "development")
     os.environ.setdefault("FRONTEND_URL", "http://localhost:5173")
     os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
     os.environ.setdefault("TENANT_NAMESPACE_UUID", str(uuid.uuid4()))
     os.environ.setdefault("IMPORTS_ENABLED", "1")
+    os.environ.setdefault("RATE_LIMIT_ENABLED", "0")
+    os.environ.setdefault("ENDPOINT_RATE_LIMIT_ENABLED", "0")
+    os.environ.setdefault("LOGIN_RATE_LIMIT_ENABLED", "0")
     # Disable Redis for tests (use in-memory fallback)
     os.environ.setdefault("REDIS_URL", "")
     os.environ.setdefault("DISABLE_REDIS", "1")
+    # Set consistent JWT secrets for tests
+    # Must use the same secret for both to ensure tokens signed with one can be verified with the other
+    test_secret = "test-secret-key-test-secret-key-test-secret-key-1234567890"
+    os.environ.setdefault("SECRET_KEY", test_secret)
+    os.environ.setdefault("JWT_SECRET_KEY", test_secret)
 
 
 def _recreate_sqlite_db_if_needed():
@@ -46,6 +52,12 @@ def _load_all_models():
         # Imports pipeline models (UUID/JSON fields are SQLite-friendly in tests)
         "app.models.core.modelsimport",
         "app.models.inventory.warehouse",
+        # POS models
+        "app.models.pos.receipt",
+        "app.models.pos.register",
+        "app.models.pos.doc_series",
+        # Import models
+        "app.models.imports",
     ]
     for m in modules:
         importlib.import_module(m)
@@ -73,7 +85,27 @@ def _prune_pg_only_tables(metadata):
             metadata.remove(tbl)
 
 
+def _register_sqlite_uuid_handlers(engine):
+    """Register event listeners to convert UUID objects to strings for SQLite."""
+    from sqlalchemy.pool import Pool
+    from sqlalchemy.engine import Engine
+    from uuid import UUID
+    import sqlite3
+
+    if str(engine.url).startswith("sqlite"):
+        # Register UUID adapter for SQLite
+        def adapt_uuid(val):
+            """Adapter to convert UUID to string for SQLite."""
+            return str(val)
+
+        # Make SQLite handle UUID by converting to string
+        sqlite3.register_adapter(UUID, adapt_uuid)
+
+
 _ensure_test_env()
+
+import pytest
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture(scope="session")
@@ -83,8 +115,10 @@ def client() -> TestClient:
     _recreate_sqlite_db_if_needed()
     _load_all_models()
     _prune_pg_only_tables(Base.metadata)
+    _register_sqlite_uuid_handlers(engine)
     Base.metadata.create_all(bind=engine)
     _ensure_sqlite_stub_tables(engine)
+    _ensure_default_tenant(engine)
 
     # Import the app only after DB is prepared to avoid importing PG-only models
     from app.main import app
@@ -123,11 +157,15 @@ def db():
 
     _load_all_models()
     _prune_pg_only_tables(Base.metadata)
+    _register_sqlite_uuid_handlers(engine)
+    Base.metadata.drop_all(bind=engine)  # Clean slate before each test
     Base.metadata.create_all(bind=engine)
     _ensure_sqlite_stub_tables(engine)
+    _ensure_default_tenant(engine)
     # Sanity: ensure critical tables are present
     required = {
         "auth_user",
+        "usuarios_usuarioempresa",
         "usuarios_usuariorolempresa",
         "auth_refresh_family",
         "auth_refresh_token",
@@ -136,6 +174,7 @@ def db():
     if missing:
         # Try direct imports of critical modules, then create_all again
         importlib.import_module("app.models.auth.useradmis")
+        importlib.import_module("app.models.empresa.usuarioempresa")
         importlib.import_module("app.models.empresa.usuario_rolempresa")
         importlib.import_module("app.models.auth.refresh_family")
         Base.metadata.create_all(bind=engine)
@@ -144,8 +183,12 @@ def db():
     session = SessionLocal()
     try:
         yield session
+    except Exception:
+        session.rollback()
+        raise
     finally:
         session.close()
+        Base.metadata.drop_all(bind=engine)  # Cleanup after test
 
 
 @pytest.fixture
@@ -193,11 +236,14 @@ def usuario_empresa_factory(db):
     def _create(
         empresa_nombre: str = "Acme SA",
         empresa_slug: str | None = None,
+        empresa_name: str | None = None,
         username: str = "tenantuser",
         email: str = "tenant@example.com",
         password: str = "tenant123",
         es_admin_empresa: bool = True,
     ):
+        if empresa_name:
+            empresa_nombre = empresa_name
         import uuid as _uuid
 
         from app.models.empresa.usuarioempresa import UsuarioEmpresa
@@ -235,7 +281,7 @@ def usuario_empresa_factory(db):
             if password:
                 existing.password_hash = hasher.hash(password)
             existing.es_admin_empresa = es_admin_empresa
-            existing.active = True
+            existing.activo = True
 
             db.commit()
             db.refresh(existing)
@@ -285,7 +331,7 @@ def _ensure_sqlite_stub_tables(engine):
                 text(
                     """
                     CREATE TABLE IF NOT EXISTS modulos_modulo (
-                        id INTEGER PRIMARY KEY,
+                        id TEXT PRIMARY KEY,
                         name TEXT,
                         description TEXT,
                         active BOOLEAN,
@@ -304,9 +350,9 @@ def _ensure_sqlite_stub_tables(engine):
                 text(
                     """
                     CREATE TABLE IF NOT EXISTS modulos_empresamodulo (
-                        id INTEGER PRIMARY KEY,
+                        id TEXT PRIMARY KEY,
                         tenant_id TEXT,
-                        modulo_id INTEGER,
+                        modulo_id TEXT,
                         activo BOOLEAN,
                         fecha_activacion TEXT,
                         fecha_expiracion TEXT,
@@ -319,7 +365,7 @@ def _ensure_sqlite_stub_tables(engine):
                 text(
                     """
                     CREATE TABLE IF NOT EXISTS modulos_moduloasignado (
-                        id INTEGER PRIMARY KEY,
+                        id TEXT PRIMARY KEY,
                         tenant_id TEXT,
                         usuario_id TEXT,
                         modulo_id TEXT,
@@ -333,7 +379,7 @@ def _ensure_sqlite_stub_tables(engine):
                 text(
                     """
                     CREATE TABLE IF NOT EXISTS core_rolempresa (
-                        id INTEGER PRIMARY KEY,
+                        id TEXT PRIMARY KEY,
                         tenant_id TEXT,
                         nombre TEXT,
                         descripcion TEXT,
@@ -344,4 +390,53 @@ def _ensure_sqlite_stub_tables(engine):
                     """
                 )
             )
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS pos_shifts (
+                        id TEXT PRIMARY KEY,
+                        register_id TEXT,
+                        opened_by TEXT,
+                        opened_at TEXT,
+                        closed_at TEXT,
+                        opening_float REAL,
+                        closing_total REAL,
+                        status TEXT
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS pos_receipt_lines (
+                        id TEXT PRIMARY KEY,
+                        receipt_id TEXT,
+                        product_id TEXT,
+                        qty REAL,
+                        uom TEXT,
+                        unit_price REAL,
+                        tax_rate REAL,
+                        discount_pct REAL,
+                        line_total REAL
+                    )
+                    """
+                )
+            )
             conn.commit()
+
+
+def _ensure_default_tenant(engine):
+    """Ensure at least one tenant row exists for dev/test fallbacks."""
+    from sqlalchemy import select
+    from sqlalchemy.orm import Session
+
+    from app.models.tenant import Tenant
+
+    with Session(engine) as session:
+        if session.scalar(select(Tenant.id).limit(1)):
+            return
+        slug = f"fixture-{uuid.uuid4().hex[:8]}"
+        tenant = Tenant(name="Fixture Tenant", slug=slug)
+        session.add(tenant)
+        session.commit()

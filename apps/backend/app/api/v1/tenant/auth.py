@@ -15,9 +15,9 @@ from app.core.auth_shared import ensure_session, issue_csrf_and_cookie, rotate_r
 from app.core.csrf import issue_csrf_token
 from app.core.deps import set_tenant_scope
 from app.core.i18n import t
+from app.core.jwt_provider import get_token_service as get_shared_token_service
 from app.core.perm_loader import build_tenant_claims
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
-from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
 from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
 from app.modules.identity.infrastructure.rate_limit import SimpleRateLimiter
 from app.modules.identity.infrastructure.refresh_repo import SqlRefreshTokenRepo
@@ -318,7 +318,7 @@ def tenant_logout(request: Request, response: Response):
     return {"ok": True}
 
 
-token_service = PyJWTTokenService()
+token_service = get_shared_token_service()
 hasher = PasslibPasswordHasher()
 limiter = SimpleRateLimiter()
 

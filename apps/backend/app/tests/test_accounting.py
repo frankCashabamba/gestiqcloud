@@ -63,7 +63,7 @@ class TestAsientoContableSchema:
         cuenta2 = uuid4()
 
         data = AsientoContableCreate(
-            numero="A-001",
+            number="A-001",
             fecha=date(2025, 11, 3),
             descripcion="Asiento de apertura",
             lineas=[
@@ -80,7 +80,7 @@ class TestAsientoContableSchema:
             ],
         )
 
-        assert data.numero == "A-001"
+        assert data.number == "A-001"
         assert len(data.lineas) == 2
         assert data.lineas[0].debe == Decimal("1000.00")
         assert data.lineas[1].haber == Decimal("1000.00")

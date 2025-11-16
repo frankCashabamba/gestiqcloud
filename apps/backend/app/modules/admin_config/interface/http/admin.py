@@ -161,19 +161,30 @@ def _idioma_repo(db: Session) -> SqlAlchemyIdiomaRepo:
 
 
 def _idioma_schema(out) -> IdiomaRead:
-    return IdiomaRead.model_validate(out.__dict__)
+    return IdiomaRead.model_validate(
+        {
+            "id": out.id,
+            "codigo": out.codigo,
+            "name": out.nombre,
+            "active": out.active,
+        }
+    )
 
 
 def _idioma_in_from_create(payload: IdiomaCreate) -> IdiomaIn:
     data = payload.model_dump()
-    return IdiomaIn(**data)
+    return IdiomaIn(
+        codigo=data["codigo"],
+        nombre=data["name"],
+        active=data.get("active", True),
+    )
 
 
 def _idioma_in_from_update(payload: IdiomaUpdate, current) -> IdiomaIn:
     data = payload.model_dump(exclude_unset=True)
     return IdiomaIn(
         codigo=data.get("codigo", current.codigo),
-        nombre=data.get("nombre", current.nombre),
+        nombre=data.get("name", current.nombre),
         active=data.get("active", current.active),
     )
 

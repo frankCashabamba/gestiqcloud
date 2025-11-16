@@ -3,6 +3,7 @@
 Auto-generated module docstring."""
 
 from typing import Annotated, Any, Literal, Union
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -58,7 +59,7 @@ LineaFacturaOut = Annotated[LineaPanaderiaOut | LineaTallerOut, Field(discrimina
 class ClienteSchema(BaseModel):
     """Class ClienteSchema - auto-generated docstring."""
 
-    id: str
+    id: UUID
     name: str
     email: str
     identificacion: str
@@ -83,7 +84,7 @@ class InvoiceCreate(BaseModel):
 class InvoiceOut(BaseModel):
     """Class InvoiceOut - auto-generated docstring."""
 
-    id: str
+    id: UUID
     numero: str
     fecha_emision: str
     estado: str
@@ -119,7 +120,7 @@ class FacturaTempCreate(BaseModel):
 class FacturaOut(BaseModel):
     """Class FacturaOut - auto-generated docstring."""
 
-    id: str
+    id: UUID
     numero: str
     proveedor: str
     fecha_emision: str
