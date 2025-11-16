@@ -23,9 +23,7 @@ class CajaMovimientoBase(BaseModel):
     """Base para movimientos de caja"""
 
     tipo: str = Field(..., description="INGRESO, EGRESO, AJUSTE")
-    categoria: str = Field(
-        default="OTRO", description="VENTA, COMPRA, GASTO, NOMINA, BANCO, etc."
-    )
+    categoria: str = Field(default="OTRO", description="VENTA, COMPRA, GASTO, NOMINA, BANCO, etc.")
     importe: Decimal = Field(..., description="Importe del movimiento")
     moneda: str = Field(default="EUR", max_length=3, description="Código moneda")
     concepto: str = Field(
@@ -154,7 +152,9 @@ class CierreCajaBase(BaseModel):
 class CierreCajaCreate(CierreCajaBase):
     """Schema para crear cierre (apertura de caja)"""
 
-    total_ingresos: Decimal = Field(default=Decimal("0"), description="Total de ingresos registrados")
+    total_ingresos: Decimal = Field(
+        default=Decimal("0"), description="Total de ingresos registrados"
+    )
     total_egresos: Decimal = Field(default=Decimal("0"), description="Total de egresos registrados")
 
     pass

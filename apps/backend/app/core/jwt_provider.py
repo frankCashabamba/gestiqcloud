@@ -18,6 +18,7 @@ def get_token_service() -> "PyJWTTokenService":
     global _token_service_instance
     if _token_service_instance is None:
         from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
+
         _token_service_instance = PyJWTTokenService()
         logger.debug(f"Created new token service instance: {id(_token_service_instance)}")
     else:

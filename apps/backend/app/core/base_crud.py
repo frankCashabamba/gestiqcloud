@@ -51,7 +51,7 @@ class BaseCRUD(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         """Function get - auto-generated docstring."""
         model_id = self.model.id  # ayuda a MyPy
         # Convert string to UUID if needed
-        if isinstance(id, str) and hasattr(self.model.id.type, 'python_type'):
+        if isinstance(id, str) and hasattr(self.model.id.type, "python_type"):
             if self.model.id.type.python_type is UUID:
                 id = UUID(id)
         return db.query(self.model).filter(model_id == id).first()
@@ -100,7 +100,7 @@ class BaseCRUD(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     def remove(self, db: Session, id: IDType) -> ModelType | None:
         """Delete instance by id with safe transaction handling."""
         # Convert string to UUID if needed
-        if isinstance(id, str) and hasattr(self.model.id.type, 'python_type'):
+        if isinstance(id, str) and hasattr(self.model.id.type, "python_type"):
             if self.model.id.type.python_type is UUID:
                 id = UUID(id)
         obj = db.get(self.model, id)

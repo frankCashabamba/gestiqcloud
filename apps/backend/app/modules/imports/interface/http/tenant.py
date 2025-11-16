@@ -1505,7 +1505,9 @@ def analyze_file_endpoint(
     # Load saved mappings for this tenant
     mappings = (
         db.query(ImportColumnMapping)
-        .filter(ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active == True)  # noqa: E712
+        .filter(
+            ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active == True
+        )  # noqa: E712
         .order_by(
             ImportColumnMapping.last_used_at.desc().nullslast(),
             ImportColumnMapping.created_at.desc(),
@@ -1541,7 +1543,9 @@ def list_column_mappings_endpoint(request: Request, db: Session = Depends(get_db
 
     mappings = (
         db.query(ImportColumnMapping)
-        .filter(ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active == True)  # noqa: E712
+        .filter(
+            ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active == True
+        )  # noqa: E712
         .order_by(ImportColumnMapping.name.asc())
         .all()
     )

@@ -642,14 +642,14 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
             it.status = ImportItemStatus.ERROR_PROMOTION
             db.add(it)
             failed += 1
-    
+
     # Flush pending changes to catch any remaining errors before final commit
     try:
         db.flush()
     except Exception:
         db.rollback()
         raise
-    
+
     db.commit()
     t1 = datetime.utcnow()
     try:

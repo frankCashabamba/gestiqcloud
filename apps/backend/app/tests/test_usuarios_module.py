@@ -11,7 +11,7 @@ TENANT_LOGIN = {
 def tenant_headers(client: TestClient, usuario_empresa_factory, seed_tenant_context):
     import json
     import base64
-    
+
     usuario, tenant = seed_tenant_context
     # login
     r = client.post(
@@ -25,7 +25,7 @@ def tenant_headers(client: TestClient, usuario_empresa_factory, seed_tenant_cont
     data = r.json()
     token = data.get("access_token")
     assert token, f"No token in response: {data}"
-    
+
     # Debug: decode and print token payload
     try:
         parts = token.split(".")
@@ -45,7 +45,7 @@ def tenant_headers(client: TestClient, usuario_empresa_factory, seed_tenant_cont
             print(f"[DEBUG] has 'permisos': {'permisos' in payload_data}")
     except Exception as e:
         print(f"\n[DEBUG] Could not decode token: {e}")
-    
+
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -139,9 +139,7 @@ def seed_tenant_context(db, usuario_empresa_factory):
 
     # Assign admin role to the main user
     existing_rel = (
-        db.query(UsuarioRolempresa)
-        .filter_by(usuario_id=usuario.id, tenant_id=tenant.id)
-        .first()
+        db.query(UsuarioRolempresa).filter_by(usuario_id=usuario.id, tenant_id=tenant.id).first()
     )
     if not existing_rel:
         db.add(
@@ -201,10 +199,10 @@ def test_check_username_public(client: TestClient, db):
 def test_crear_usuario_estandar(client: TestClient, tenant_headers):
     modules = client.get("/api/v1/tenant/usuarios/modulos", headers=tenant_headers).json()
     roles = client.get("/api/v1/tenant/usuarios/roles", headers=tenant_headers).json()
-    
+
     assert len(modules) > 0, "No modules available"
     assert len(roles) > 0, "No roles available"
-    
+
     payload = {
         "nombre_encargado": "Juan",
         "apellido_encargado": "Perez",
@@ -278,7 +276,7 @@ def test_no_permite_eliminar_ultimo_admin(client: TestClient, tenant_headers):
     usuarios = client.get("/api/v1/tenant/usuarios", headers=tenant_headers).json()
     admin = next((u for u in usuarios if u["es_admin_empresa"]), None)
     assert admin is not None, "No admin user found"
-    
+
     r = client.patch(
         f"/api/v1/tenant/usuarios/{admin['id']}",
         json={"es_admin_empresa": False},

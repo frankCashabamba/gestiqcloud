@@ -79,7 +79,7 @@ def ensure_rls(
         # Pero solo en PostgreSQL (SQLite no lo soporta)
         try:
             from app.config.database import IS_SQLITE
-            
+
             if not IS_SQLITE:
                 db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(t_id)})
                 db.execute(text("SET LOCAL app.user_id = :uid"), {"uid": str(u_id)})

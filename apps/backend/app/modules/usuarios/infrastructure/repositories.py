@@ -62,9 +62,7 @@ def insert_usuario_empresa(
     return model
 
 
-def set_modulos_usuario(
-    db: Session, usuario_id, tenant_id, modulos: Iterable
-) -> None:
+def set_modulos_usuario(db: Session, usuario_id, tenant_id, modulos: Iterable) -> None:
     db.query(ModuloAsignado).filter(
         ModuloAsignado.usuario_id == usuario_id,
         ModuloAsignado.tenant_id == tenant_id,

@@ -22,9 +22,7 @@ class Incident(Base):
     )
 
     id = Column(PG_UUID, primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(
-        PG_UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
-    )
+    tenant_id = Column(PG_UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
     tipo = Column(String(50), nullable=False)  # error, warning, bug, feature_request, stock_alert
     severidad = Column(String(20), nullable=False)  # low, medium, high, critical
     titulo = Column(String(255), nullable=False)
@@ -60,9 +58,7 @@ class StockAlert(Base):
     )
 
     id = Column(PG_UUID, primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(
-        PG_UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
-    )
+    tenant_id = Column(PG_UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
     product_id = Column(
         PG_UUID,
         ForeignKey("products.id", ondelete="CASCADE"),
@@ -96,9 +92,7 @@ class NotificationChannel(Base):
     )
 
     id = Column(PG_UUID, primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(
-        PG_UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
-    )
+    tenant_id = Column(PG_UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
     tipo = Column(String(50), nullable=False)  # email, whatsapp, telegram, slack
     name = Column(String(100), nullable=False)
     config = Column(JSON_TYPE, nullable=False)  # {api_key, phone, chat_id, webhook_url, etc}
@@ -121,12 +115,8 @@ class NotificationLog(Base):
     )
 
     id = Column(PG_UUID, primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(
-        PG_UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
-    )
-    channel_id = Column(
-        PG_UUID, ForeignKey("notification_channels.id", ondelete="SET NULL")
-    )
+    tenant_id = Column(PG_UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    channel_id = Column(PG_UUID, ForeignKey("notification_channels.id", ondelete="SET NULL"))
     incident_id = Column(PG_UUID, ForeignKey("incidents.id", ondelete="CASCADE"))
     stock_alert_id = Column(PG_UUID, ForeignKey("stock_alerts.id", ondelete="CASCADE"))
     tipo = Column(String(50), nullable=False)

@@ -302,7 +302,9 @@ def trigger_migrations(background_tasks: BackgroundTasks, db: Session = Depends(
             "configured": False,
             "pending": True,
             "pending_count": _pending_count if "_pending_count" in globals() else -1,  # noqa: F821
-            "pending_revisions": (_pending_revs if "_pending_revs" in globals() else []),  # noqa: F821
+            "pending_revisions": (
+                _pending_revs if "_pending_revs" in globals() else []
+            ),  # noqa: F821
         }
 
     try:
@@ -339,7 +341,9 @@ def trigger_migrations(background_tasks: BackgroundTasks, db: Session = Depends(
             "run_id": rid,
             "pending": True,
             "pending_count": _pending_count if "_pending_count" in globals() else -1,  # noqa: F821
-            "pending_revisions": (_pending_revs if "_pending_revs" in globals() else []),  # noqa: F821
+            "pending_revisions": (
+                _pending_revs if "_pending_revs" in globals() else []
+            ),  # noqa: F821
         }
     raise HTTPException(status_code=502, detail=f"render_api_error:{resp.status_code}")
 

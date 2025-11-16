@@ -5,6 +5,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.config.database import Base
 
+
 class Venta(Base):
     """Pedido de venta (pre-factura)"""
 
@@ -55,9 +56,7 @@ class Venta(Base):
         default=uuid.uuid4,
     )
 
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow
-    )
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )

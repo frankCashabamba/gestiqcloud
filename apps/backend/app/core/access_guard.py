@@ -14,8 +14,9 @@ token_service = get_token_service()
 
 def with_access_claims(request: Request) -> dict[str, Any]:
     import logging
+
     logger = logging.getLogger(__name__)
-    
+
     # 1) extrae Authorization
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
