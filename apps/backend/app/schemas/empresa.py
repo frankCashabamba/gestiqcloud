@@ -2,11 +2,11 @@
 
 Auto-generated module docstring."""
 
+from app.schemas.schemas import EmpresaCreate  # noqa: F401
+
 # Single source of truth for EmpresaCreate lives in `schemas.py`.
 # Re-export here to keep public import path `app.schemas.empresa.EmpresaCreate` stable.
 from pydantic import BaseModel, ConfigDict
-
-from app.schemas.schemas import EmpresaCreate  # noqa: F401
 
 
 class EmpresaOut(BaseModel):

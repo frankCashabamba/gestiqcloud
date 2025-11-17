@@ -7,20 +7,26 @@ Ejecutar después de aplicar migración de warehouses.
 import sys
 from pathlib import Path
 
-# Add project root to path
-backend_path = Path(__file__).resolve().parent.parent / "apps" / "backend"
-sys.path.insert(0, str(backend_path))
-
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-from app.config.database import get_db_url
+
+def _ensure_backend_path() -> None:
+    backend_path = Path(__file__).resolve().parent.parent / "apps" / "backend"
+    sys.path.insert(0, str(backend_path))
+
+
+def _get_db_url() -> str:
+    _ensure_backend_path()
+    from app.config.database import get_db_url as _imported_get_db_url
+
+    return _imported_get_db_url()
 
 
 def create_default_warehouses():
     """Crear almacén por defecto para cada tenant que no tenga ninguno"""
 
-    engine = create_engine(get_db_url())
+    engine = create_engine(_get_db_url())
     SessionLocal = sessionmaker(bind=engine)
     db = SessionLocal()
 

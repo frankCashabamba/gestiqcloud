@@ -4,10 +4,6 @@ import json
 import os
 from pathlib import Path
 
-from apps.backend.app.shared.utils import ping_ok
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-
 from app.config.database import get_db
 from app.config.settings import settings
 from app.core.access_guard import with_access_claims
@@ -19,6 +15,10 @@ from app.modules import services as mod_services
 from app.modules.modulos.application.use_cases import ListarModulosAdmin
 from app.modules.modulos.infrastructure.repositories import SqlModuloRepo
 from app.modules.modulos.interface.http.schemas import ModuloOutSchema
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from apps.backend.app.shared.utils import ping_ok
 
 router = APIRouter(
     prefix="/admin/modulos",

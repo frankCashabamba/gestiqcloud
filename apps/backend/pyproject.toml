@@ -30,10 +30,10 @@ select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings
     "F",   # pyflakes
-    "I",   # isort
     "C",   # flake8-comprehensions
     "UP",  # pyupgrade
 ]
+# NOTE: Import sorting (rule "I") is handled exclusively by the standalone isort hook.
 ignore = [
     "E501",  # line too long (handled by black)
     "C901",  # too complex

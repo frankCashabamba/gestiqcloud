@@ -10,25 +10,19 @@ repos:
       - id: check-json
       - id: check-toml
 
-  - repo: https://github.com/psf/black
-    rev: 24.8.0
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
     hooks:
-      - id: black
-        args: ["--line-length=100"]
+      - id: isort
+        args: ["--profile=black", "--line-length=100"]
 
-
+  # Ruff runs after isort so that both tools settle on the same import order.
   - repo: https://github.com/charliermarsh/ruff-pre-commit
     rev: v0.5.7
     hooks:
       - id: ruff
         args: ["--line-length=100", "--fix"]
       - id: ruff-format
-
-  - repo: https://github.com/PyCQA/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
-        args: ["--profile=black", "--line-length=100"]
 
   # Disabled temporarily - too many type errors to resolve at once
   # Run manually with: pre-commit run --hook-stage manual mypy
