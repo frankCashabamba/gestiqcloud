@@ -43,7 +43,9 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # unused imports in __init__ are OK
 "alembic/env.py" = ["E402"]
-"scripts/**/*.py" = ["E402"]  # sys.path manipulation in scripts
+"scripts/*.py" = ["E402"]  # sys.path manipulation in scripts
+"ops/scripts/*.py" = ["E402"]
+"create_default_warehouses.py" = ["E402"]
 
 [tool.isort]
 profile = "black"
