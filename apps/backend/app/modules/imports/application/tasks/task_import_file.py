@@ -42,7 +42,7 @@ def _file_path_from_key(file_key: str) -> str:
 def _to_serializable(val):
     """Convert values to JSON-serializable primitives."""
     try:
-        if isinstance(val, (datetime, date, time)):
+        if isinstance(val, datetime | date | time):
             return val.isoformat()
         if isinstance(val, Decimal):
             return float(val)
@@ -50,11 +50,11 @@ def _to_serializable(val):
         try:
             import numpy as np  # type: ignore
 
-            if isinstance(val, (np.integer,)):
+            if isinstance(val, np.integer):
                 return int(val)
-            if isinstance(val, (np.floating,)):
+            if isinstance(val, np.floating):
                 return float(val)
-            if isinstance(val, (np.bool_,)):
+            if isinstance(val, np.bool_):
                 return bool(val)
         except Exception:
             pass
@@ -190,7 +190,6 @@ def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id
     # Progress tracking
     processed = 0
     created = 0
-    failed = 0
     BATCH_SIZE = 1000
 
     with session_scope() as db:

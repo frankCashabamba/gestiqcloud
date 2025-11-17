@@ -5,6 +5,8 @@ CRM Pydantic Schemas
 from datetime import datetime
 from uuid import UUID
 
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
 from app.modules.crm.domain.entities import (
     ActivityStatus,
     ActivityType,
@@ -12,7 +14,6 @@ from app.modules.crm.domain.entities import (
     LeadStatus,
     OpportunityStage,
 )
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class LeadBase(BaseModel):

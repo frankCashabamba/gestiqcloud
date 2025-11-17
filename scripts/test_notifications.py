@@ -272,8 +272,8 @@ def main():
     try:
         # Crear canales
         email_channel_id = test_create_email_channel()
-        whatsapp_channel_id = test_create_whatsapp_channel()
-        telegram_channel_id = test_create_telegram_channel()
+        test_create_whatsapp_channel()
+        test_create_telegram_channel()
 
         # Listar canales
         test_list_channels()

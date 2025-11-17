@@ -48,7 +48,7 @@ class CajaMovimientoBase(BaseModel):
     def validate_categoria(cls, v):
         valid = ["VENTA", "COMPRA", "GASTO", "NOMINA", "BANCO", "CAMBIO", "AJUSTE", "OTRO"]
         if v not in valid:
-            raise ValueError(f'Categoría debe ser una de: {", ".join(valid)}')
+            raise ValueError(f"Categoría debe ser una de: {', '.join(valid)}")
         return v
 
     @validator("importe")

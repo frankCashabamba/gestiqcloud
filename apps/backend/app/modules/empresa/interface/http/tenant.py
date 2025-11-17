@@ -2,14 +2,16 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
 from app.modules.empresa.application.use_cases import ListarEmpresasTenant
 from app.modules.empresa.infrastructure.repositories import SqlEmpresaRepo
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
+from app.modules.empresa.interface.http.schemas import EmpresaOutSchema
 
 router = APIRouter(
     prefix="/empresa",
@@ -20,9 +22,6 @@ router = APIRouter(
         Depends(ensure_rls),
     ],
 )
-
-
-from app.modules.empresa.interface.http.schemas import EmpresaOutSchema
 
 
 def _tenant_uuid(request: Request) -> UUID:

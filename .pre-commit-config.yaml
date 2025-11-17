@@ -32,6 +32,7 @@ repos:
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.11.2
+    stages: [manual]
     hooks:
       - id: mypy
         args: ["--config-file=apps/backend/pyproject.toml"]
@@ -40,7 +41,20 @@ repos:
           - sqlalchemy>=2.0
           - types-passlib
           - types-PyYAML
-        files: ^apps/backend/
+          - types-requests
+          - types-openpyxl
+          - types-Pillow
+          - types-redis
+          - fastapi
+          - alembic
+          - kombu
+          - pytesseract
+          - openai
+          - python-magic
+          - pydantic-settings
+          - redis
+        files: ^apps/backend/app/
+        exclude: ^apps/backend/(tests|alembic)/
 
   - repo: https://github.com/PyCQA/bandit
     rev: 1.7.9

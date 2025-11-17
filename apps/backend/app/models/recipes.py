@@ -2,7 +2,6 @@
 SQLAlchemy Models - Sistema de Recetas
 """
 
-from app.config.database import Base as BaseModel
 from sqlalchemy import (
     Boolean,
     Column,
@@ -19,6 +18,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+
+from app.config.database import Base as BaseModel
 
 
 class Recipe(BaseModel):

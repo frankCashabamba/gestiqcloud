@@ -1,5 +1,9 @@
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import and_, desc
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.middleware.tenant import get_current_user
 from app.models.ai.incident import Incident, NotificationChannel, NotificationLog, StockAlert
@@ -21,9 +25,6 @@ from app.schemas.incidents import (
     StockAlertCreate,
     StockAlertResponse,
 )
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_, desc
-from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/incidents", tags=["Incidents & IA"])
 

@@ -5,10 +5,11 @@ E-invoicing models for SRI (Ecuador) and SII (Spain)
 import uuid
 from datetime import datetime
 
-from app.config.database import Base
 from sqlalchemy import TIMESTAMP, Enum, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.config.database import Base
 
 
 class EinvoicingCredentials(Base):

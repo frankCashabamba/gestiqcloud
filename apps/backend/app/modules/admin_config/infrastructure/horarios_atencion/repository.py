@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from sqlalchemy.orm import Session
+
 from app.models.empresa.empresa import HorarioAtencion as HorarioAtencionORM
 from app.modules.admin_config.application.horarios_atencion.dto import (
     HorarioAtencionIn,
     HorarioAtencionOut,
 )
 from app.modules.admin_config.application.horarios_atencion.ports import HorarioAtencionRepo
-from sqlalchemy.orm import Session
 
 
 class SqlAlchemyHorarioAtencionRepo(HorarioAtencionRepo):

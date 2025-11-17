@@ -6,9 +6,10 @@ import json
 from typing import Any
 
 import requests
-from app.config.database import SessionLocal
 from celery import shared_task
 from sqlalchemy import text
+
+from app.config.database import SessionLocal
 
 
 def _sign(secret: str, payload: dict[str, Any]) -> str:

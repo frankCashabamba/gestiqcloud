@@ -36,7 +36,7 @@ class PlanCuentasBase(BaseModel):
     def validate_tipo(cls, v):
         valid = ["ACTIVO", "PASIVO", "PATRIMONIO", "INGRESO", "GASTO"]
         if v not in valid:
-            raise ValueError(f'Tipo debe ser uno de: {", ".join(valid)}')
+            raise ValueError(f"Tipo debe ser uno de: {', '.join(valid)}")
         return v
 
     @validator("codigo")
@@ -151,7 +151,7 @@ class AsientoContableBase(BaseModel):
     def validate_tipo(cls, v):
         valid = ["APERTURA", "OPERACIONES", "REGULARIZACION", "CIERRE"]
         if v not in valid:
-            raise ValueError(f'Tipo debe ser uno de: {", ".join(valid)}')
+            raise ValueError(f"Tipo debe ser uno de: {', '.join(valid)}")
         return v
 
 
@@ -165,8 +165,8 @@ class AsientoContableCreate(AsientoContableBase):
     @validator("lineas")
     def validate_cuadrado(cls, v):
         """Validar que debe = haber"""
-        total_debe = sum(l.debe for l in v)
-        total_haber = sum(l.haber for l in v)
+        total_debe = sum(linea.debe for linea in v)
+        total_haber = sum(linea.haber for linea in v)
 
         if abs(total_debe - total_haber) > Decimal("0.01"):
             raise ValueError(f"El asiento no está cuadrado: Debe={total_debe}, Haber={total_haber}")

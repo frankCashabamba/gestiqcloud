@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from app.config.database import get_db
 from fastapi import Depends, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import literal_column
+
+from app.config.database import get_db
 
 __all__ = [
     "ensure_rls",

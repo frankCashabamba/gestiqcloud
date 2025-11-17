@@ -1,9 +1,45 @@
-from app.core.crud_base import CRUDBase
-from app.models.expenses import Gasto
+from dataclasses import dataclass
+
 from sqlalchemy.orm import Session
 
+from app.core.crud_base import CRUDBase
+from app.models.expenses import Gasto
 
-class GastoCRUD(CRUDBase[Gasto, "GastoCreateDTO", "GastoUpdateDTO"]):
+
+@dataclass
+class GastoCreateDTO:
+    fecha: str | None = None
+    proveedor_id: int | None = None
+    monto: float | None = None
+    concepto: str | None = None
+
+    def model_dump(self) -> dict:
+        return {
+            "fecha": self.fecha,
+            "proveedor_id": self.proveedor_id,
+            "monto": self.monto,
+            "concepto": self.concepto,
+        }
+
+
+@dataclass
+class GastoUpdateDTO:
+    fecha: str | None = None
+    proveedor_id: int | None = None
+    monto: float | None = None
+    concepto: str | None = None
+
+    def model_dump(self, exclude_unset: bool = False) -> dict:
+        d = {
+            "fecha": self.fecha,
+            "proveedor_id": self.proveedor_id,
+            "monto": self.monto,
+            "concepto": self.concepto,
+        }
+        return {k: v for k, v in d.items() if not exclude_unset or v is not None}
+
+
+class GastoCRUD(CRUDBase[Gasto, GastoCreateDTO, GastoUpdateDTO]):
     pass
 
 
@@ -21,21 +57,6 @@ class GastoRepo:
     def create(
         self, *, fecha, proveedor_id: int | None, monto: float, concepto: str | None
     ) -> Gasto:
-        class GastoCreateDTO:
-            def __init__(self, **kw):
-                self.fecha = kw.get("fecha")
-                self.proveedor_id = kw.get("proveedor_id")
-                self.monto = kw.get("monto")
-                self.concepto = kw.get("concepto")
-
-            def model_dump(self):
-                return {
-                    "fecha": self.fecha,
-                    "proveedor_id": self.proveedor_id,
-                    "monto": self.monto,
-                    "concepto": self.concepto,
-                }
-
         dto = GastoCreateDTO(fecha=fecha, proveedor_id=proveedor_id, monto=monto, concepto=concepto)
         return self.crud.create(self.db, dto)
 
@@ -48,22 +69,6 @@ class GastoRepo:
         monto: float,
         concepto: str | None,
     ) -> Gasto:
-        class GastoUpdateDTO:
-            def __init__(self, **kw):
-                self.fecha = kw.get("fecha")
-                self.proveedor_id = kw.get("proveedor_id")
-                self.monto = kw.get("monto")
-                self.concepto = kw.get("concepto")
-
-            def model_dump(self, exclude_unset: bool = False):
-                d = {
-                    "fecha": self.fecha,
-                    "proveedor_id": self.proveedor_id,
-                    "monto": self.monto,
-                    "concepto": self.concepto,
-                }
-                return {k: v for k, v in d.items() if not exclude_unset or v is not None}
-
         dto = GastoUpdateDTO(fecha=fecha, proveedor_id=proveedor_id, monto=monto, concepto=concepto)
         obj = self.crud.update(self.db, gid, dto)
         if not obj:

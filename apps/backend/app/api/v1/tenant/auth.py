@@ -1,5 +1,10 @@
 import logging
 
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from pydantic import BaseModel
+from sqlalchemy import func, or_
+from sqlalchemy.orm import Session, joinedload
+
 from app.api.email.email_utils import verificar_token_email
 from app.config.database import get_db
 from app.config.settings import settings
@@ -21,10 +26,6 @@ from app.models.empresa.usuarioempresa import UsuarioEmpresa
 from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
 from app.modules.identity.infrastructure.rate_limit import SimpleRateLimiter
 from app.modules.identity.infrastructure.refresh_repo import SqlRefreshTokenRepo
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel
-from sqlalchemy import func, or_
-from sqlalchemy.orm import Session, joinedload
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 log = logging.getLogger("app.auth.tenant")

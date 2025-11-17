@@ -1,7 +1,8 @@
 # app/core/audit.py
-from app.models.security.auth_audit import AuthAudit
 from fastapi import Request
 from sqlalchemy.orm import Session
+
+from app.models.security.auth_audit import AuthAudit
 
 
 def audit(

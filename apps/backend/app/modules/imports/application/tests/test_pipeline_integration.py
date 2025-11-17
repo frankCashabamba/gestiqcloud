@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
+
 from app.modules.imports.domain.pipeline import RUNNER_MODE, enqueue_item_pipeline
 
 

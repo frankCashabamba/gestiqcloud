@@ -1,10 +1,11 @@
 import uuid
 from datetime import datetime
 
-from app.config.database import Base
 from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
+
+from app.config.database import Base
 
 JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
 

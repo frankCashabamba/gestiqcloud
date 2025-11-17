@@ -5,8 +5,9 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from app.models.ai.incident import Incident
 from sqlalchemy.orm import Session
+
+from app.models.ai.incident import Incident
 
 
 async def analyze_incident_with_ia(

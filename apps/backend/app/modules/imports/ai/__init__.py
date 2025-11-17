@@ -32,7 +32,7 @@ async def get_ai_provider() -> AIProvider:
     elif provider_type == "openai":
         if not OpenAIProvider:
             raise RuntimeError(
-                "OpenAI provider requires 'openai' package. " "Install with: pip install openai"
+                "OpenAI provider requires 'openai' package. Install with: pip install openai"
             )
         if not settings.OPENAI_API_KEY:
             raise ValueError("OPENAI_API_KEY not configured")
@@ -44,7 +44,7 @@ async def get_ai_provider() -> AIProvider:
     elif provider_type == "azure":
         if not AzureOpenAIProvider:
             raise RuntimeError(
-                "Azure provider requires 'openai' package. " "Install with: pip install openai"
+                "Azure provider requires 'openai' package. Install with: pip install openai"
             )
         if not settings.AZURE_OPENAI_KEY:
             raise ValueError("AZURE_OPENAI_KEY not configured")

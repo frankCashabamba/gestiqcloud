@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from sqlalchemy.orm import Session
+
 from app.models.empresa.empresa import Moneda as MonedaORM
 from app.modules.admin_config.application.monedas.dto import MonedaIn, MonedaOut
 from app.modules.admin_config.application.monedas.ports import MonedaRepo
-from sqlalchemy.orm import Session
 
 
 class SqlAlchemyMonedaRepo(MonedaRepo):

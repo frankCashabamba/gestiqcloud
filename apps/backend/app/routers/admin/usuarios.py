@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlalchemy.orm import Session
+
 from app.api.email.email_utils import reenviar_correo_reset
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
 from app.models.tenant import Tenant as Empresa
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="",

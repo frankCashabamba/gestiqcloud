@@ -68,7 +68,7 @@ class LocalAIProvider(AIProvider):
         )
         self.request_count = 0
         self.cache_hits = 0
-        logger.info("LocalAIProvider initialized " f"(cache: {settings.IMPORT_AI_CACHE_ENABLED})")
+        logger.info(f"LocalAIProvider initialized (cache: {settings.IMPORT_AI_CACHE_ENABLED})")
 
     async def classify_document(
         self,

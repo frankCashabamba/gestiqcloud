@@ -15,12 +15,13 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from app.config.database import Base, schema_column, schema_table_args
 from sqlalchemy import TIMESTAMP, Boolean, Date
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.config.database import Base, schema_column, schema_table_args
 
 # Enums
 cuenta_tipo = SQLEnum(

@@ -90,7 +90,7 @@ def test_public_modulos_por_empresa_returns_array(client: TestClient, seeded_mod
     assert len(data) >= 1
     # Estructura mínima esperada por el frontend
     first = data[0]
-    assert set(["id", "name", "active"]).issubset(first.keys())
+    assert {"id", "name", "active"}.issubset(first.keys())
 
 
 def test_tenant_modulos_list_returns_array(client: TestClient, seeded_modulos):
@@ -110,4 +110,4 @@ def test_tenant_modulos_list_returns_array(client: TestClient, seeded_modulos):
     assert isinstance(data, list)
     # Debe traer al menos el módulo asignado al usuario
     assert len(data) >= 1
-    assert set(["id", "name"]).issubset(data[0].keys())
+    assert {"id", "name"}.issubset(data[0].keys())

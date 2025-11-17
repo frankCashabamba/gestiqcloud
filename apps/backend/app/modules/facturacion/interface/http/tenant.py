@@ -4,6 +4,10 @@ import os
 from pathlib import Path
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import Response
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -11,9 +15,6 @@ from app.db.rls import ensure_rls
 from app.models.core.facturacion import Invoice
 from app.modules.facturacion import schemas
 from app.modules.facturacion.crud import factura_crud
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import Response
-from sqlalchemy.orm import Session
 
 
 def _tenant_uuid(request: Request) -> UUID:

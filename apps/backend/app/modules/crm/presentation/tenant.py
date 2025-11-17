@@ -4,6 +4,9 @@ CRM Tenant API Endpoints
 
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -23,8 +26,6 @@ from app.modules.crm.application.schemas import (
 )
 from app.modules.crm.application.services import CRMService
 from app.modules.crm.domain.entities import ActivityStatus, LeadStatus, OpportunityStage
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/crm",

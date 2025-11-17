@@ -4,12 +4,13 @@ Auto-generated module docstring."""
 
 # crud/configuracion_empresa.py
 
+from sqlalchemy.orm import Session
+
 from app.models import ConfiguracionEmpresa
 from app.settings.schemas.configuracion_empresa import (
     ConfiguracionEmpresaCreate,
     ConfiguracionEmpresaUpdate,
 )
-from sqlalchemy.orm import Session
 
 
 def get_by_empresa(db: Session, tenant_id: int):

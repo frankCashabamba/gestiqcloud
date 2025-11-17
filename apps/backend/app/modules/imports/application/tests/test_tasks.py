@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
+
 from app.modules.imports.application.tasks.task_classify import _classify_document
 from app.modules.imports.application.tasks.task_preprocess import preprocess_item
 

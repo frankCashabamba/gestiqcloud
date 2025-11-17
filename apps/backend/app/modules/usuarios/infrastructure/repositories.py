@@ -1,9 +1,10 @@
 from collections import defaultdict
 from collections.abc import Iterable
 
+from sqlalchemy.orm import Session
+
 from app.models import EmpresaModulo, ModuloAsignado, RolEmpresa, UsuarioEmpresa, UsuarioRolempresa
 from app.modules.usuarios.infrastructure.schemas import UsuarioEmpresaCreate
-from sqlalchemy.orm import Session
 
 
 def get_usuarios_by_empresa(
@@ -201,12 +202,12 @@ def get_modulos_contratados(db: Session, tenant_id: int) -> list[dict]:
     for row in rows:
         modulo = row.modulo
         result.append(
-            dict(
-                id=row.modulo_id,
-                name=getattr(modulo, "name", None),
-                categoria=getattr(modulo, "categoria", None),
-                icono=getattr(modulo, "icono", None),
-            )
+            {
+                "id": row.modulo_id,
+                "name": getattr(modulo, "name", None),
+                "categoria": getattr(modulo, "categoria", None),
+                "icono": getattr(modulo, "icono", None),
+            }
         )
     return result
 
@@ -218,4 +219,4 @@ def get_roles_empresa(db: Session, tenant_id: int) -> list[dict]:
         .order_by(RolEmpresa.name.asc())
         .all()
     )
-    return [dict(id=row.id, name=row.name, description=row.description) for row in rows]
+    return [{"id": row.id, "name": row.name, "description": row.description} for row in rows]

@@ -8,9 +8,10 @@ from collections.abc import Callable
 from functools import wraps
 from typing import Any, TypeVar
 
-from app.db.rls import tenant_id_sql_expr
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
+
+from app.db.rls import tenant_id_sql_expr
 
 logger = logging.getLogger(__name__)
 

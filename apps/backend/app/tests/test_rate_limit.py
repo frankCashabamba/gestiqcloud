@@ -4,9 +4,10 @@ Coverage: middleware/endpoint_rate_limit.py
 """
 
 import pytest
-from app.middleware.endpoint_rate_limit import EndpointRateLimiter
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+from app.middleware.endpoint_rate_limit import EndpointRateLimiter
 
 
 @pytest.fixture

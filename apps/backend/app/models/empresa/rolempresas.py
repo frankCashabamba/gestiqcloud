@@ -5,12 +5,13 @@ Auto-generated module docstring."""
 from typing import Optional
 from uuid import UUID, uuid4
 
-from app.config.database import Base
-from app.models.empresa.empresa import RolBase
 from sqlalchemy import JSON, Boolean, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
+
+from app.config.database import Base
+from app.models.empresa.empresa import RolBase
 
 
 class RolEmpresa(Base):

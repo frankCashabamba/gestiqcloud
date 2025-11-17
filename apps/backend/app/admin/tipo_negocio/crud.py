@@ -1,1 +1,1 @@
-from app.legacy.admin.tipo_negocio.crud import *  # shim to legacy
+from app.legacy.admin.tipo_negocio.crud import *  # noqa: F403  # shim to legacy

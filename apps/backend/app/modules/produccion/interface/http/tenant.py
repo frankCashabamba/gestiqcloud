@@ -22,6 +22,10 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -66,9 +70,6 @@ from app.services.recipe_calculator import (
     create_purchase_order_from_recipe,
     get_recipe_profitability,
 )
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/production",

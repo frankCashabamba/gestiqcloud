@@ -20,6 +20,10 @@ from decimal import Decimal
 from math import ceil
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -35,9 +39,6 @@ from app.schemas.accounting import (
     PlanCuentasResponse,
     PlanCuentasUpdate,
 )
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/accounting",
@@ -287,8 +288,8 @@ async def create_asiento(
     numero = _generate_numero_asiento(db, tenant_id, data.fecha.year)
 
     # Calculate totals
-    debe_total = sum(l.debe for l in data.lineas)
-    haber_total = sum(l.haber for l in data.lineas)
+    debe_total = sum(linea.debe for linea in data.lineas)
+    haber_total = sum(linea.haber for linea in data.lineas)
 
     asiento = AsientoContable(
         tenant_id=tenant_id,

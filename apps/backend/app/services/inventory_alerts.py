@@ -8,12 +8,13 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
+from sqlalchemy import and_, or_, select
+from sqlalchemy.orm import Session
+
 from app.models.core.products import Product
 from app.models.inventory.alerts import AlertConfig, AlertHistory
 from app.models.inventory.stock import StockItem
 from app.models.inventory.warehouse import Warehouse
-from sqlalchemy import and_, or_, select
-from sqlalchemy.orm import Session
 
 
 class InventoryAlertService:
@@ -31,7 +32,7 @@ class InventoryAlertService:
         # Get active alert configs that need checking
         query = select(AlertConfig).where(
             and_(
-                AlertConfig.is_active == True,
+                AlertConfig.is_active,
                 or_(
                     AlertConfig.next_check_at <= datetime.utcnow(),
                     AlertConfig.next_check_at.is_(None),
@@ -109,7 +110,7 @@ class InventoryAlertService:
             .join(Product, Product.id == StockItem.product_id)
             .join(Warehouse, Warehouse.id == StockItem.warehouse_id)
             .where(StockItem.tenant_id == config.tenant_id)
-            .where(Product.active == True)
+            .where(Product.active)
         )
 
         # Apply warehouse filter
@@ -215,14 +216,14 @@ class InventoryAlertService:
         message = f"""🔔 ALERTA DE INVENTARIO - {alert_type_text}
 
 Producto: {product_name}
-SKU: {sku or 'N/A'}
+SKU: {sku or "N/A"}
 Almacén: {warehouse_name}
 Stock Actual: {current_stock}
 Umbral: {threshold}
 
 Configuración: {config.name}
 
-Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"""
+Fecha: {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")}"""
 
         return message
 

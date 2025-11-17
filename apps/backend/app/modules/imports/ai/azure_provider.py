@@ -39,7 +39,7 @@ class AzureOpenAIProvider(AIProvider):
             self.openai = openai
         except ImportError:
             raise RuntimeError(
-                "Azure provider requires 'openai' package. " "Install with: pip install openai"
+                "Azure provider requires 'openai' package. Install with: pip install openai"
             )
 
         # Cache

@@ -5,11 +5,6 @@ from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
-from app.config.database import get_db
-from app.core.access_guard import with_access_claims
-from app.core.authz import require_scope
-from app.db.rls import ensure_guc_from_request, ensure_rls
-from app.modules.settings.infrastructure.repositories import SettingsRepo
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from psycopg2.extras import Json
@@ -17,6 +12,12 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import bindparam, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Session
+
+from app.config.database import get_db
+from app.core.access_guard import with_access_claims
+from app.core.authz import require_scope
+from app.db.rls import ensure_guc_from_request, ensure_rls
+from app.modules.settings.infrastructure.repositories import SettingsRepo
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +196,7 @@ def _is_tax_enabled(db: Session) -> bool:
             try:
                 if isinstance(val, bool):
                     return val
-                if isinstance(val, (int, float)):
+                if isinstance(val, int | float):
                     return bool(int(val))
                 if isinstance(val, str):
                     v = val.strip().lower()
@@ -378,9 +379,7 @@ def open_shift(payload: OpenShiftIn, request: Request, db: Session = Depends(get
         # Verificar que no hay un turno abierto
         existing = db.execute(
             text(
-                "SELECT id FROM pos_shifts "
-                "WHERE register_id = :rid AND status = 'open' "
-                "FOR UPDATE"
+                "SELECT id FROM pos_shifts WHERE register_id = :rid AND status = 'open' FOR UPDATE"
             ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
             {"rid": register_uuid},
         ).first()
@@ -1054,7 +1053,7 @@ def checkout(
 
         payments_total = db.execute(
             text(
-                "SELECT COALESCE(SUM(amount), 0) " "FROM pos_payments " "WHERE receipt_id = :rid"
+                "SELECT COALESCE(SUM(amount), 0) FROM pos_payments WHERE receipt_id = :rid"
             ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
             {"rid": receipt_uuid},
         ).first()
@@ -1312,9 +1311,7 @@ def print_receipt(
         # Obtener pagos
         payments = db.execute(
             text(
-                "SELECT method, amount FROM pos_payments "
-                "WHERE receipt_id = :rid "
-                "ORDER BY paid_at"
+                "SELECT method, amount FROM pos_payments WHERE receipt_id = :rid ORDER BY paid_at"
             ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
             {"rid": receipt_uuid},
         ).fetchall()
@@ -1633,7 +1630,7 @@ def take_payment(
         # Marcar como pagado (sin validaciÃ³n de monto)
         db.execute(
             text(
-                "UPDATE pos_receipts SET status = 'paid', paid_at = NOW() " "WHERE id = :id"
+                "UPDATE pos_receipts SET status = 'paid', paid_at = NOW() WHERE id = :id"
             ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
             {"id": receipt_uuid},
         )
@@ -1713,7 +1710,7 @@ def post_receipt(
 
         pay_row = db.execute(
             text(
-                "SELECT COALESCE(SUM(amount), 0) " "FROM pos_payments " "WHERE receipt_id = :rid"
+                "SELECT COALESCE(SUM(amount), 0) FROM pos_payments WHERE receipt_id = :rid"
             ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
             {"rid": receipt_uuid},
         ).first()
@@ -1796,7 +1793,7 @@ def post_receipt(
         # Actualizar recibo
         db.execute(
             text(
-                "UPDATE pos_receipts SET status = 'posted', totals = :tot " "WHERE id = :rid"
+                "UPDATE pos_receipts SET status = 'posted', totals = :tot WHERE id = :rid"
             ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
             {
                 "rid": receipt_uuid,

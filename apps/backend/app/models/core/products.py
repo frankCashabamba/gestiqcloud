@@ -6,12 +6,13 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from app.config.database import Base
-from app.models.tenant import Tenant
 from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
+
+from app.config.database import Base
+from app.models.tenant import Tenant
 
 
 class Product(Base):

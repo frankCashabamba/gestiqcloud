@@ -7,7 +7,16 @@ import time
 import unicodedata
 from datetime import datetime
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from pydantic import BaseModel
+
+# Avoid importing heavy domain models at import time to keep router mountable in test envs
+# (domain handlers perform promotion separately)
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
@@ -40,13 +49,6 @@ from app.modules.imports.schemas import (
     UpdateClassificationRequest,
 )
 from app.services.excel_analyzer import analyze_excel_stream
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
-
-# Avoid importing heavy domain models at import time to keep router mountable in test envs
-# (domain handlers perform promotion separately)
-from sqlalchemy import inspect as sa_inspect
-from sqlalchemy import text
-from sqlalchemy.orm import Session
 
 
 def _get_claims(request: Request) -> dict:
@@ -100,10 +102,6 @@ def _throttle_ingest(tenant_id: str | int):
 # Large file uploads (local chunked)
 # ------------------------------
 
-from uuid import uuid4
-
-from pydantic import BaseModel
-
 
 class InitChunkUploadDTO(BaseModel):
     filename: str
@@ -148,7 +146,7 @@ def init_chunk_upload(dto: InitChunkUploadDTO, request: Request):
     try:
         os.makedirs(base_tmp, exist_ok=True)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"init_failed: {e}")
+        raise HTTPException(status_code=500, detail=f"init_failed: {e}") from e
 
     # Save minimal metadata
     try:
@@ -162,7 +160,7 @@ def init_chunk_upload(dto: InitChunkUploadDTO, request: Request):
 
             json.dump(meta, f)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"meta_write_failed: {e}")
+        raise HTTPException(status_code=500, detail=f"meta_write_failed: {e}") from e
 
     return {
         "provider": "local",
@@ -201,7 +199,7 @@ async def upload_chunk_part(upload_id: str, part_number: int, request: Request):
         with open(part_path, "wb") as f:
             f.write(body)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"write_failed: {e}")
+        raise HTTPException(status_code=500, detail=f"write_failed: {e}") from e
 
     return {"ok": True, "bytes": len(body)}
 
@@ -241,7 +239,7 @@ def complete_chunk_upload(upload_id: str, dto: CompleteChunkUploadDTO, request: 
     try:
         os.makedirs(dest_dir, exist_ok=True)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"dest_init_failed: {e}")
+        raise HTTPException(status_code=500, detail=f"dest_init_failed: {e}") from e
 
     # Create unique filename with original extension if available
     meta_path = os.path.join(base_tmp, "meta.json")
@@ -276,7 +274,7 @@ def complete_chunk_upload(upload_id: str, dto: CompleteChunkUploadDTO, request: 
         # Re-raise validation errors
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"merge_failed: {e}")
+        raise HTTPException(status_code=500, detail=f"merge_failed: {e}") from e
     finally:
         # Best-effort cleanup of tmp parts
         try:
@@ -329,7 +327,7 @@ def create_batch_from_upload(
                 db.query(ImportColumnMapping)
                 .filter(
                     ImportColumnMapping.tenant_id == tenant_id,
-                    ImportColumnMapping.is_active == True,  # noqa: E712
+                    ImportColumnMapping.is_active,
                     ImportColumnMapping.file_pattern.isnot(None),
                 )
                 .all()
@@ -517,7 +515,7 @@ def cancel_batch_import(batch_id: UUID, request: Request):
                 pass
         return OkResponse()
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"cancel_failed: {e}")
+        raise HTTPException(status_code=400, detail=f"cancel_failed: {e}") from e
 
 
 @router.post(
@@ -621,15 +619,15 @@ async def parse_excel(
             {str(col): str(val) for col, val in row.items()} for row in df.to_dict(orient="records")
         ]
         return {"headers": headers, "rows": rows}
-    except ImportError:
+    except ImportError as e:
         raise HTTPException(
             status_code=501,
             detail="Soporte XLSX no disponible en el servidor. Instala openpyxl para habilitarlo.",
-        )
+        ) from e
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"No se pudo leer el Excel: {e}")
+        raise HTTPException(status_code=400, detail=f"No se pudo leer el Excel: {e}") from e
 
 
 @router.get("/jobs/{job_id}", response_model=OCRJobStatusResponse)
@@ -899,7 +897,9 @@ async def classify_and_persist_to_batch(
         return batch
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al clasificar y persistir: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error al clasificar y persistir: {str(e)}"
+        ) from e
     finally:
         # Limpiar
         if tmp_path and os.path.exists(tmp_path):
@@ -1189,8 +1189,8 @@ def set_batch_mapping_endpoint(
         raise HTTPException(status_code=404, detail="batch_not_found")
     try:
         batch.mapping_id = UUID(str(dto.mapping_id))
-    except Exception:
-        raise HTTPException(status_code=400, detail="invalid_mapping_id")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="invalid_mapping_id") from e
     db.add(batch)
     db.commit()
     return OkResponse()
@@ -1505,9 +1505,7 @@ def analyze_file_endpoint(
     # Load saved mappings for this tenant
     mappings = (
         db.query(ImportColumnMapping)
-        .filter(
-            ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active == True
-        )  # noqa: E712
+        .filter(ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active)  # noqa: E712
         .order_by(
             ImportColumnMapping.last_used_at.desc().nullslast(),
             ImportColumnMapping.created_at.desc(),
@@ -1543,9 +1541,7 @@ def list_column_mappings_endpoint(request: Request, db: Session = Depends(get_db
 
     mappings = (
         db.query(ImportColumnMapping)
-        .filter(
-            ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active == True
-        )  # noqa: E712
+        .filter(ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active)  # noqa: E712
         .order_by(ImportColumnMapping.name.asc())
         .all()
     )
@@ -1562,9 +1558,6 @@ def list_column_mappings_endpoint(request: Request, db: Session = Depends(get_db
         }
         for m in mappings
     ]
-
-
-from pydantic import BaseModel
 
 
 class CreateColumnMappingDTO(BaseModel):
@@ -1709,8 +1702,8 @@ def delete_multiple_items_endpoint(
     # Convertir a UUID
     try:
         uuid_ids = [UUID(str(id)) for id in item_ids]
-    except Exception:
-        raise HTTPException(status_code=400, detail="IDs invÃ¡lidos")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="IDs invÃ¡lidos") from e
 
     # Eliminar items
     deleted = (
@@ -2074,7 +2067,7 @@ async def analyze_import_file(
             ],
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error analizando archivo: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error analizando archivo: {str(e)}") from e
 
 
 # ------------------------------
@@ -2506,7 +2499,7 @@ def _first(nmap: dict, keys: list[str]):
 def _parse_num(val):
     if val is None:
         return None
-    if isinstance(val, (int, float)):
+    if isinstance(val, int | float):
         return float(val)
     try:
         s = str(val).strip()

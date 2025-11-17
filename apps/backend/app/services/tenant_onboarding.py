@@ -49,9 +49,7 @@ def auto_setup_tenant(
 
             existing = db.execute(
                 text(
-                    "SELECT id FROM pos_registers "
-                    "WHERE tenant_id = :tid AND name = :name "
-                    "LIMIT 1"
+                    "SELECT id FROM pos_registers WHERE tenant_id = :tid AND name = :name LIMIT 1"
                 ),
                 {"tid": tenant_id, "name": default_register_name},
             ).scalar()

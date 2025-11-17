@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from sqlalchemy.orm import Session
+
 from app.models.suppliers import Proveedor
 from app.models.suppliers import ProveedorContacto as ProveedorContact
 from app.models.suppliers import ProveedorDireccion as ProveedorAddress
-from sqlalchemy.orm import Session
 
 
 class ProveedorRepo:

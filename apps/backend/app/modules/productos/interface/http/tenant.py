@@ -2,16 +2,17 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.middleware.tenant import ensure_tenant
 from app.models.core.product_category import ProductCategory
 from app.models.core.products import Product
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/products",
@@ -34,8 +35,9 @@ def _empresa_id_from_request(request: Request) -> str | None:
             # DEV MODE fallback
             dev_mode = os.getenv("ENVIRONMENT", "production") != "production"
             if dev_mode:
-                from app.config.database import SessionLocal
                 from sqlalchemy import text
+
+                from app.config.database import SessionLocal
 
                 with SessionLocal() as db_temp:
                     result = db_temp.execute(text("SELECT id FROM tenants LIMIT 1")).fetchone()
@@ -427,13 +429,13 @@ def _is_owner_or_manager(request: Request) -> bool:
             return True
         # list of roles
         roles = claims.get("roles") or claims.get("perfiles") or []
-        roles = [str(r).lower() for r in (roles if isinstance(roles, (list, tuple)) else [roles])]
+        roles = [str(r).lower() for r in (roles if isinstance(roles, list | tuple) else [roles])]
         if any(r in {"owner", "manager", "admin"} for r in roles):
             return True
         # permissions/scopes
         scopes = claims.get("scopes") or claims.get("permissions") or []
         scopes = [
-            str(s).lower() for s in (scopes if isinstance(scopes, (list, tuple)) else [scopes])
+            str(s).lower() for s in (scopes if isinstance(scopes, list | tuple) else [scopes])
         ]
         if any(s in {"admin", "products:purge"} for s in scopes):
             return True
@@ -474,13 +476,13 @@ def purge_products_pro(request: Request, payload: PurgeRequest, db: Session = De
     }
 
     if payload.dry_run:
-        return PurgeResponse(dry_run=True, counts=counts, deleted={k: 0 for k in counts})
+        return PurgeResponse(dry_run=True, counts=counts, deleted=dict.fromkeys(counts, 0))
 
     if (payload.confirm or "").strip().upper() != "PURGE":
         raise HTTPException(status_code=400, detail="confirmation_required")
 
     # Perform purge in transaction order
-    deleted = {k: 0 for k in counts}
+    deleted = dict.fromkeys(counts, 0)
     if payload.include_stock:
         deleted["stock_moves"] = (
             db.execute(

@@ -110,7 +110,7 @@ def assign_doc_number(
         formatted_number = f"{series_name}-{next_no:04d}"
 
         logger.info(
-            f"Número asignado: {formatted_number} " f"(tenant={tenant_id[:8]}, doc_type={doc_type})"
+            f"Número asignado: {formatted_number} (tenant={tenant_id[:8]}, doc_type={doc_type})"
         )
 
         return formatted_number, UUID(str(series_id))

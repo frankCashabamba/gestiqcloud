@@ -5,6 +5,13 @@ CRM Database Models
 import uuid
 from datetime import datetime
 
+from sqlalchemy import JSON
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy import ForeignKey, Numeric, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.config.database import Base
 from app.modules.crm.domain.entities import (
     ActivityStatus,
@@ -13,12 +20,6 @@ from app.modules.crm.domain.entities import (
     LeadStatus,
     OpportunityStage,
 )
-from sqlalchemy import JSON
-from sqlalchemy import Enum as SAEnum
-from sqlalchemy import ForeignKey, Numeric, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
 

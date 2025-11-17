@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from app.config.database import get_db
-from app.core.access_guard import with_access_claims
-from app.core.authz import require_scope
-from app.db.rls import ensure_rls, tenant_id_from_request
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from app.config.database import get_db
+from app.core.access_guard import with_access_claims
+from app.core.authz import require_scope
+from app.db.rls import ensure_rls, tenant_id_from_request
 
 try:
     from apps.backend.celery_app import celery_app

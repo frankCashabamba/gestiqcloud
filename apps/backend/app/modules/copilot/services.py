@@ -41,7 +41,7 @@ def pii_mask_row(row: dict[str, Any]) -> dict[str, Any]:
 
 def _fetch_all(db: Session, sql: str, params: dict[str, Any]) -> list[dict[str, Any]]:
     res = db.execute(text(sql), params)
-    cols = [c for c in res.keys()]
+    cols = list(res.keys())
     rows = [dict(zip(cols, r, strict=False)) for r in res.fetchall()]
     return rows
 

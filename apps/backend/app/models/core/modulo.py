@@ -6,12 +6,13 @@ Auto-generated module docstring."""
 import uuid
 from datetime import datetime
 
-from app.config.database import Base
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.config.database import Base
 
 # UUID column type (Postgres UUID or String for SQLite)
 try:

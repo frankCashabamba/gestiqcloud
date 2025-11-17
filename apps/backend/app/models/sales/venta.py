@@ -1,8 +1,10 @@
 import uuid
 from datetime import date, datetime
-from sqlalchemy import String, Text, Date, Numeric, ForeignKey
+
+from sqlalchemy import Date, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.config.database import Base
 
 

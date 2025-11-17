@@ -5,10 +5,11 @@ Auto-generated module docstring."""
 # app/core/empresa_crud.py
 from typing import TypeVar
 
-from app.core.base_crud import BaseCRUD
-from app.core.types import HasEmpresaID, IDType
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
+from app.core.base_crud import BaseCRUD
+from app.core.types import HasEmpresaID, IDType
 
 # Declarar los genéricos con restricciones adecuadas
 ModelType = TypeVar("ModelType", bound=HasEmpresaID)

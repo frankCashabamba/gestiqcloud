@@ -4,10 +4,11 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from app.models.core.settings import TenantSettings
-from app.models.tenant import Tenant
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+
+from app.models.core.settings import TenantSettings
+from app.models.tenant import Tenant
 
 from .defaults import get_default_settings
 from .modules_catalog import get_available_modules, get_module_by_id, validate_module_dependencies

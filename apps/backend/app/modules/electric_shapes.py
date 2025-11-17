@@ -7,9 +7,10 @@ Based on tenant_id for multi-tenant isolation.
 
 from typing import Any
 
-from app.config.database import get_db
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
+
+from app.config.database import get_db
 
 from .electric_conflicts import handle_sync_conflicts
 

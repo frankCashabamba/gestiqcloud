@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.models.tenant import Tenant as Empresa
 from app.modules import crud as mod_crud
 from app.modules.modulos.interface.http.schemas import ModuloOutSchema
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/modulos",

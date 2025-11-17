@@ -370,8 +370,7 @@ def validate_file_security(
                 )
 
         logger.info(
-            f"Security validation passed: {len(results['checks_passed'])} checks, "
-            f"file: {file_path}"
+            f"Security validation passed: {len(results['checks_passed'])} checks, file: {file_path}"
         )
 
         return results

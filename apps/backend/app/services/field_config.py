@@ -3,9 +3,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from sqlalchemy.orm import Session
+
 # Importar defaults por sector
 from app.services.sector_defaults import get_sector_defaults
-from sqlalchemy.orm import Session
 
 
 def _normalize(items: list[dict]) -> list[dict]:

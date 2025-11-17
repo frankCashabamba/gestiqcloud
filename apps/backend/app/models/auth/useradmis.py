@@ -2,10 +2,11 @@
 import uuid
 from datetime import datetime
 
-from app.config.database import IS_SQLITE, Base
 from sqlalchemy import Boolean, DateTime, Integer, String, func, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
+
+from app.config.database import IS_SQLITE, Base
 
 
 class SuperUser(Base):

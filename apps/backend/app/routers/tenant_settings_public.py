@@ -7,13 +7,14 @@ GET /api/v1/settings/tenant-config -> composite config used by frontend TenantCo
 from typing import Any
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.middleware.tenant import get_current_user
 from app.models.core.product_category import ProductCategory
 from app.models.core.settings import TenantSettings
 from app.models.tenant import Tenant
-from fastapi import APIRouter, Depends, status
-from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/settings", tags=["Settings (public)"])
 

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from sqlalchemy.orm import Session
+
 from app.models.empresa.empresa import TipoEmpresa as TipoEmpresaORM
 from app.modules.admin_config.application.tipos_empresa.dto import TipoEmpresaIn, TipoEmpresaOut
 from app.modules.admin_config.application.tipos_empresa.ports import TipoEmpresaRepo
-from sqlalchemy.orm import Session
 
 
 class SqlAlchemyTipoEmpresaRepo(TipoEmpresaRepo):

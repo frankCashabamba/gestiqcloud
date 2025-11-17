@@ -8,11 +8,12 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from app.config.database import Base
 from sqlalchemy import JSON, Boolean, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.config.database import Base
 
 
 class Tenant(Base):

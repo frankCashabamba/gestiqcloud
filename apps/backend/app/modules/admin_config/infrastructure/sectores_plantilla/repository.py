@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from sqlalchemy.orm import Session
+
 from app.models.empresa.empresa import SectorPlantilla as SectorPlantillaORM
 from app.modules.admin_config.application.sectores_plantilla.dto import (
     SectorPlantillaIn,
     SectorPlantillaOut,
 )
 from app.modules.admin_config.application.sectores_plantilla.ports import SectorPlantillaRepo
-from sqlalchemy.orm import Session
 
 
 class SqlAlchemySectorPlantillaRepo(SectorPlantillaRepo):

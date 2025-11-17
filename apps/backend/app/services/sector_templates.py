@@ -7,11 +7,12 @@ import json
 import logging
 from typing import Any
 
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.models.empresa.empresa import SectorPlantilla
 from app.models.tenant import Tenant
 from app.schemas.sector_plantilla import SectorConfigJSON
-from sqlalchemy import text
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 

@@ -2,6 +2,10 @@
 Router para gestión de plantillas de sector
 """
 
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -12,9 +16,6 @@ from app.services.sector_templates import (
     get_available_templates,
     get_template_preview,
 )
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 # Old URL: /api/v1/sectores (deprecated, kept for backward compatibility reference)
 router = APIRouter(prefix="/api/v1/sectors", tags=["Plantillas de Sector"])

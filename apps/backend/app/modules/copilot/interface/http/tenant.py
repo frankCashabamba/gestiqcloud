@@ -3,6 +3,10 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -14,9 +18,6 @@ from app.modules.copilot.services import (
     query_readonly,
     suggest_overlay_fields,
 )
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/ai",

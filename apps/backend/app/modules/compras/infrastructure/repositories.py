@@ -1,9 +1,47 @@
-from app.core.crud_base import CRUDBase
-from app.models.purchases import Compra
+from dataclasses import dataclass
+
 from sqlalchemy.orm import Session
 
+from app.core.crud_base import CRUDBase
+from app.models.purchases import Compra
 
-class CompraCRUD(CRUDBase[Compra, "CompraCreateDTO", "CompraUpdateDTO"]):
+
+@dataclass
+class CompraCreateDTO:
+    tenant_id: int | None = None
+    fecha: str | None = None
+    proveedor_id: int | None = None
+    total: float | None = None
+    estado: str | None = None
+
+    def model_dump(self) -> dict:
+        return {
+            "tenant_id": self.tenant_id,
+            "fecha": self.fecha,
+            "proveedor_id": self.proveedor_id,
+            "total": self.total,
+            "estado": self.estado,
+        }
+
+
+@dataclass
+class CompraUpdateDTO:
+    fecha: str | None = None
+    proveedor_id: int | None = None
+    total: float | None = None
+    estado: str | None = None
+
+    def model_dump(self, exclude_unset: bool = False) -> dict:
+        d = {
+            "fecha": self.fecha,
+            "proveedor_id": self.proveedor_id,
+            "total": self.total,
+            "estado": self.estado,
+        }
+        return {k: v for k, v in d.items() if not exclude_unset or v is not None}
+
+
+class CompraCRUD(CRUDBase[Compra, CompraCreateDTO, CompraUpdateDTO]):
     pass
 
 
@@ -32,23 +70,6 @@ class CompraRepo:
         total: float,
         estado: str | None,
     ) -> Compra:
-        class CompraCreateDTO:
-            def __init__(self, **kw):
-                self.tenant_id = kw.get("tenant_id")
-                self.fecha = kw.get("fecha")
-                self.proveedor_id = kw.get("proveedor_id")
-                self.total = kw.get("total")
-                self.estado = kw.get("estado")
-
-            def model_dump(self):
-                return {
-                    "tenant_id": self.tenant_id,
-                    "fecha": self.fecha,
-                    "proveedor_id": self.proveedor_id,
-                    "total": self.total,
-                    "estado": self.estado,
-                }
-
         dto = CompraCreateDTO(
             tenant_id=tenant_id,
             fecha=fecha,
@@ -68,22 +89,6 @@ class CompraRepo:
         total: float,
         estado: str | None,
     ) -> Compra:
-        class CompraUpdateDTO:
-            def __init__(self, **kw):
-                self.fecha = kw.get("fecha")
-                self.proveedor_id = kw.get("proveedor_id")
-                self.total = kw.get("total")
-                self.estado = kw.get("estado")
-
-            def model_dump(self, exclude_unset: bool = False):
-                d = {
-                    "fecha": self.fecha,
-                    "proveedor_id": self.proveedor_id,
-                    "total": self.total,
-                    "estado": self.estado,
-                }
-                return {k: v for k, v in d.items() if not exclude_unset or v is not None}
-
         dto = CompraUpdateDTO(fecha=fecha, proveedor_id=proveedor_id, total=total, estado=estado)
         obj = self.get(tenant_id, cid)
         if not obj:

@@ -1,18 +1,52 @@
-from typing import Union
+from dataclasses import dataclass
 from uuid import UUID, uuid4
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.core.crud_base import CRUDBase
 from app.models.sales import Venta
 from app.models.tenant import Tenant
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 
-class VentaCRUD(CRUDBase[Venta, "VentaCreateDTO", "VentaUpdateDTO"]):
+@dataclass
+class VentaCreateDTO:
+    fecha: str | None = None
+    cliente_id: str | None = None
+    total: float | None = None
+    estado: str | None = None
+
+    def model_dump(self) -> dict:
+        return {
+            "fecha": self.fecha,
+            "cliente_id": self.cliente_id,
+            "total": self.total,
+            "estado": self.estado,
+        }
+
+
+@dataclass
+class VentaUpdateDTO:
+    fecha: str | None = None
+    cliente_id: str | None = None
+    total: float | None = None
+    estado: str | None = None
+
+    def model_dump(self, exclude_unset: bool = False) -> dict:
+        d = {
+            "fecha": self.fecha,
+            "cliente_id": self.cliente_id,
+            "total": self.total,
+            "estado": self.estado,
+        }
+        return {k: v for k, v in d.items() if not exclude_unset or v is not None}
+
+
+class VentaCRUD(CRUDBase[Venta, VentaCreateDTO, VentaUpdateDTO]):
     pass
 
 
-UUIDLike = Union[str, UUID]
+UUIDLike = str | UUID
 
 
 def _uuid_str(value: UUIDLike | None) -> str | None:
@@ -44,21 +78,6 @@ class VentaRepo:
     def create(
         self, *, fecha, cliente_id: UUIDLike | None, total: float, estado: str | None
     ) -> Venta:
-        class VentaCreateDTO:
-            def __init__(self, **kw):
-                self.fecha = kw.get("fecha")
-                self.cliente_id = kw.get("cliente_id")
-                self.total = kw.get("total")
-                self.estado = kw.get("estado")
-
-            def model_dump(self):
-                return {
-                    "fecha": self.fecha,
-                    "cliente_id": self.cliente_id,
-                    "total": self.total,
-                    "estado": self.estado,
-                }
-
         tenant_id = self._resolve_tenant_id()
         user_id = self._resolve_user_id()
         dto = VentaCreateDTO(
@@ -79,22 +98,6 @@ class VentaRepo:
         total: float,
         estado: str | None,
     ) -> Venta:
-        class VentaUpdateDTO:
-            def __init__(self, **kw):
-                self.fecha = kw.get("fecha")
-                self.cliente_id = kw.get("cliente_id")
-                self.total = kw.get("total")
-                self.estado = kw.get("estado")
-
-            def model_dump(self, exclude_unset: bool = False):
-                d = {
-                    "fecha": self.fecha,
-                    "cliente_id": self.cliente_id,
-                    "total": self.total,
-                    "estado": self.estado,
-                }
-                return {k: v for k, v in d.items() if not exclude_unset or v is not None}
-
         dto = VentaUpdateDTO(
             fecha=fecha, cliente_id=_uuid_str(cliente_id), total=total, estado=estado
         )

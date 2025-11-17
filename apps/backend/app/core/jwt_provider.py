@@ -5,15 +5,20 @@ Ensures a single, consistent instance is used throughout the application
 to avoid secret key mismatches between token generation and validation.
 """
 
-from typing import Optional
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
 
 logger = logging.getLogger(__name__)
 
-_token_service_instance: Optional["PyJWTTokenService"] = None
+_token_service_instance: PyJWTTokenService | None = None
 
 
-def get_token_service() -> "PyJWTTokenService":
+def get_token_service() -> PyJWTTokenService:
     """Get or create the singleton token service instance."""
     global _token_service_instance
     if _token_service_instance is None:

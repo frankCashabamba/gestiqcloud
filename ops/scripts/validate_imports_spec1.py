@@ -123,7 +123,7 @@ def check_benchmarks() -> ValidationResult:
 
     # Ejecutar bench_validation (más rápido)
     try:
-        result = subprocess.run(
+        subprocess.run(
             ["python", str(bench_dir / "bench_validation.py")],
             capture_output=True,
             text=True,

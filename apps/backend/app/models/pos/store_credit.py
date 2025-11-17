@@ -3,10 +3,11 @@
 import uuid
 from datetime import date, datetime
 
-from app.config.database import Base
 from sqlalchemy import Date, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.config.database import Base
 
 
 class StoreCredit(Base):

@@ -1,7 +1,8 @@
-from app.models.core.settings import TenantSettings
 from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session
+
+from app.models.core.settings import TenantSettings
 
 
 class SettingsRepo:

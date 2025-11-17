@@ -38,8 +38,6 @@ check_dependency("Pyzbar (QR)", "pyzbar")
 # Verificar configuración de Tesseract
 print("\n🔧 Configuración de Tesseract:")
 try:
-    import io
-
     import pytesseract
     from PIL import Image
 

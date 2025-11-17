@@ -1,10 +1,11 @@
+from fastapi import Depends, HTTPException
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.models.empresa.rolempresas import RolEmpresa
 from app.models.empresa.usuario_rolempresa import UsuarioRolempresa
 from app.routers.protected import get_current_user
 from app.schemas.configuracion import AuthenticatedUser
-from fastapi import Depends, HTTPException
-from sqlalchemy.orm import Session
 
 
 def require_empresa_admin(

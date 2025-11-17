@@ -3,10 +3,11 @@
 import uuid
 from datetime import datetime
 
-from app.config.database import Base
 from sqlalchemy import Boolean, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.config.database import Base
 
 
 class POSRegister(Base):

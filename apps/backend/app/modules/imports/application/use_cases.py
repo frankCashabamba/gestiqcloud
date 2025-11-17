@@ -8,6 +8,10 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+from fastapi import UploadFile
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
 from app.models.ai.incident import Incident
 from app.models.core.modelsimport import (
     ImportAttachment,
@@ -35,9 +39,6 @@ from app.modules.imports.domain.handlers import (
 from app.modules.imports.infrastructure.repositories import ImportsRepository
 from app.modules.imports.validators import validate_bank, validate_expenses, validate_invoices
 from app.modules.imports.validators.products import validate_product
-from fastapi import UploadFile
-from sqlalchemy import func
-from sqlalchemy.orm import Session
 
 # --- helpers -----------------------------------------------------------------
 

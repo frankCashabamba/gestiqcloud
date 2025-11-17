@@ -9,8 +9,7 @@ from typing import Any
 from uuid import uuid4
 
 import jwt
-from app.config.database import SessionLocal
-from app.config.settings import settings
+from apps.backend.app.shared.utils import now_ts
 from fastapi import HTTPException
 from jwt import (
     ExpiredSignatureError,
@@ -23,7 +22,8 @@ from jwt import (
 from pydantic import SecretStr
 from sqlalchemy import text
 
-from apps.backend.app.shared.utils import now_ts
+from app.config.database import SessionLocal
+from app.config.settings import settings
 
 # ---------------------------
 # Helpers
@@ -255,12 +255,12 @@ def _signing_key() -> str | bytes:
     alg = settings.JWT_ALGORITHM.upper()
     if alg.startswith("HS"):
         key = _unwrap_secret(getattr(settings, "JWT_SECRET_KEY", None))
-        if not isinstance(key, (str, bytes)) or not key:
+        if not isinstance(key, str | bytes) or not key:
             raise RuntimeError("JWT_SECRET_KEY no está configurada")
         return key
     # Algoritmos asimétricos (RS*/ES*)
     priv = _unwrap_secret(getattr(settings, "JWT_PRIVATE_KEY", None))
-    if not isinstance(priv, (str, bytes)) or not priv:
+    if not isinstance(priv, str | bytes) or not priv:
         raise RuntimeError("JWT_PRIVATE_KEY no está configurada para algoritmo asimétrico")
     return priv
 
@@ -273,12 +273,12 @@ def _verification_keys() -> Sequence[str | bytes]:
     # RS*/ES*: pública(s) para verificar (rotación opcional)
     keys: list[str | bytes] = []
     pub = _unwrap_secret(getattr(settings, "JWT_PUBLIC_KEY", None))
-    if isinstance(pub, (str, bytes)) and pub:
+    if isinstance(pub, str | bytes) and pub:
         keys.append(pub)
     extras = getattr(settings, "JWT_ADDITIONAL_PUBLIC_KEYS", None) or []
     for k in extras:
         k = _unwrap_secret(k)
-        if isinstance(k, (str, bytes)) and k:
+        if isinstance(k, str | bytes) and k:
             keys.append(k)
     if not keys:
         raise RuntimeError("No hay claves públicas para verificar JWT")

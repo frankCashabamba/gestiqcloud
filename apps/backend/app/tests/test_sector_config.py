@@ -43,10 +43,9 @@ class TestSectorDefaults:
         assert "stock_minimo" in field_names
 
         # NO debe tener campos de panadería
-        assert (
-            "peso_unitario" not in field_names
-            or fields[[f["field"] for f in fields].index("peso_unitario")].get("visible") == False
-        )
+        assert "peso_unitario" not in field_names or not fields[
+            [f["field"] for f in fields].index("peso_unitario")
+        ].get("visible")
 
     def test_get_restaurante_productos(self):
         """Restaurante debe tener campos específicos"""

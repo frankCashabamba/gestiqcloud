@@ -1,3 +1,6 @@
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
 from app.core.security import get_password_hash
 from app.models import UsuarioEmpresa
 from app.modules.usuarios.application import validators as val
@@ -10,8 +13,6 @@ from app.modules.usuarios.infrastructure.schemas import (
     UsuarioEmpresaOut,
     UsuarioEmpresaUpdate,
 )
-from fastapi import HTTPException
-from sqlalchemy.orm import Session
 
 
 def _aggregate(

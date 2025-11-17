@@ -198,7 +198,7 @@ class TestCountryValidatorsSpain:
     def test_es_validator_valid_cif(self):
         """CIF español válido."""
         validator = ESValidator()
-        errors = validator.validate_tax_id("A12345674")
+        validator.validate_tax_id("A12345674")
         # Puede ser válido dependiendo de la implementación
         # assert len(errors) == 0
 
@@ -237,7 +237,7 @@ class TestCountryValidatorFactory:
         """Factory es case-insensitive."""
         validator1 = get_validator_for_country("EC")
         validator2 = get_validator_for_country("ec")
-        assert type(validator1) == type(validator2)
+        assert type(validator1) is type(validator2)
 
 
 class TestHandlersRouterMapping:

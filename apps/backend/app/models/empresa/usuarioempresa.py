@@ -4,9 +4,10 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
-from app.config.database import IS_SQLITE, Base
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.config.database import IS_SQLITE, Base
 
 if TYPE_CHECKING:
     from app.models.tenant import Tenant

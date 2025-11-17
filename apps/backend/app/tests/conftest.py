@@ -2,6 +2,9 @@ import importlib
 import os
 import uuid
 
+import pytest
+from fastapi.testclient import TestClient
+
 
 # MUST run this before any other imports that might load settings
 def _ensure_test_env():
@@ -88,10 +91,8 @@ def _prune_pg_only_tables(metadata):
 
 def _register_sqlite_uuid_handlers(engine):
     """Register event listeners to convert UUID objects to strings for SQLite."""
-    from sqlalchemy.pool import Pool
-    from sqlalchemy.engine import Engine
-    from uuid import UUID
     import sqlite3
+    from uuid import UUID
 
     if str(engine.url).startswith("sqlite"):
         # Register UUID adapter for SQLite
@@ -104,9 +105,6 @@ def _register_sqlite_uuid_handlers(engine):
 
 
 _ensure_test_env()
-
-import pytest
-from fastapi.testclient import TestClient
 
 
 @pytest.fixture(scope="session")
@@ -247,10 +245,11 @@ def usuario_empresa_factory(db):
             empresa_nombre = empresa_name
         import uuid as _uuid
 
+        from sqlalchemy import or_
+
         from app.models.empresa.usuarioempresa import UsuarioEmpresa
         from app.models.tenant import Tenant
         from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
-        from sqlalchemy import or_
 
         hasher = PasslibPasswordHasher()
 

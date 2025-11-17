@@ -93,8 +93,8 @@ class TestAsientoContableSchema:
             {"debe": Decimal("0"), "haber": Decimal("800")},
         ]
 
-        total_debe = sum(l["debe"] for l in lineas)
-        total_haber = sum(l["haber"] for l in lineas)
+        total_debe = sum(linea["debe"] for linea in lineas)
+        total_haber = sum(linea["haber"] for linea in lineas)
 
         assert total_debe == Decimal("800")
         assert total_haber == Decimal("800")
@@ -107,8 +107,8 @@ class TestAsientoContableSchema:
             {"debe": Decimal("0"), "haber": Decimal("300")},  # Descuadrado
         ]
 
-        total_debe = sum(l["debe"] for l in lineas)
-        total_haber = sum(l["haber"] for l in lineas)
+        total_debe = sum(linea["debe"] for linea in lineas)
+        total_haber = sum(linea["haber"] for linea in lineas)
 
         diferencia = total_debe - total_haber
 

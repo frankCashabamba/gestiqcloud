@@ -6,10 +6,11 @@ Auto-generated module docstring."""
 
 # Única fuente de verdad migrada a settings/schemas/configuracion_empresa.py
 # Mantiene compatibilidad pública re-exportando el nombre aquí.
+from pydantic import BaseModel, ConfigDict
+
 from app.settings.schemas.configuracion_empresa import (  # noqa: F401
     ConfiguracionEmpresaCreate as ConfiguracionEmpresaCreate,
 )
-from pydantic import BaseModel, ConfigDict
 
 
 class EmpresaConfiguracionOut(BaseModel):

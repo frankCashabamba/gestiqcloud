@@ -290,7 +290,6 @@ def main() -> int:
                 if not statements:
                     print(f"Skip (empty up.sql): {mig.name}")
                     continue
-                applied_any = False
                 hard_error = None
                 for idx, stmt in enumerate(statements, start=1):
                     try:
@@ -303,7 +302,6 @@ def main() -> int:
                         if s_low in ("begin", "commit", "rollback", "end"):
                             continue
                         cur.execute(stripped)
-                        applied_any = True
                     except Exception as e:
                         if _is_idempotent_error(e, stmt):
                             # Skip benign duplicates and proceed; if we were inside a tx, ensure cleanup

@@ -111,21 +111,21 @@ app/tests/test_usuarios_module.py::test_listar_modulos
     warn(
 
 app/tests/test_usuarios_module.py::test_listar_modulos
-  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\main.py:87: DeprecationWarning: 
+  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\main.py:87: DeprecationWarning:
           on_event is deprecated, use lifespan event handlers instead.
-  
+
           Read more about it in the
           [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
-          
+
     @app.on_event("startup")
 
 app/tests/test_usuarios_module.py::test_listar_modulos
-  C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\applications.py:4495: DeprecationWarning: 
+  C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\applications.py:4495: DeprecationWarning:
           on_event is deprecated, use lifespan event handlers instead.
-  
+
           Read more about it in the
           [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
-          
+
     return self.router.on_event(event_type)
 
 app/tests/test_usuarios_module.py: 29 warnings

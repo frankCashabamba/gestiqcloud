@@ -3,10 +3,11 @@
 import logging
 from typing import Any
 
-from app.config.settings import settings
-from app.modules.imports.ai import get_ai_provider_singleton
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
+
+from app.config.settings import settings
+from app.modules.imports.ai import get_ai_provider_singleton
 
 from .telemetry import telemetry
 
@@ -228,9 +229,7 @@ async def validate_metric(
     try:
         telemetry.mark_correct(request.metric_index, request.correct)
 
-        logger.info(
-            f"Metric validated: index={request.metric_index}, " f"correct={request.correct}"
-        )
+        logger.info(f"Metric validated: index={request.metric_index}, correct={request.correct}")
 
         return {
             "status": "ok",

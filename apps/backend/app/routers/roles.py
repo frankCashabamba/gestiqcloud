@@ -2,6 +2,10 @@
 
 Auto-generated module docstring."""
 
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.models import PermisoAccionGlobal
 from app.models import RolBase as RolModel
@@ -11,9 +15,6 @@ from app.schemas.configuracion import (
     RolBaseCreate,
     RolBaseUpdate,
 )
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
 
 from .protected import get_current_user
 

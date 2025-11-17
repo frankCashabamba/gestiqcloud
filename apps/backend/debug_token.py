@@ -2,14 +2,17 @@
 """Debug script to test token generation and validation."""
 
 import os
+
 os.environ.setdefault("SECRET_KEY", "test-secret-key-test-secret-key-test-secret-key-1234567890")
-os.environ.setdefault("JWT_SECRET_KEY", "jwt-test-secret-key-jwt-test-secret-key-jwt-test-secret-1234")
+os.environ.setdefault(
+    "JWT_SECRET_KEY", "jwt-test-secret-key-jwt-test-secret-key-jwt-test-secret-1234"
+)
 os.environ.setdefault("ENV", "development")
 
 import base64
 import json
 
-from app.modules.identity.infrastructure.jwt_service import JwtService, JwtSettings
+from app.modules.identity.infrastructure.jwt_service import JwtService
 
 # Create token service
 svc = JwtService()
@@ -36,7 +39,7 @@ if len(parts) == 3:
         header_b64 += "=" * padding
     header = json.loads(base64.urlsafe_b64decode(header_b64))
     print(f"Header: {json.dumps(header, indent=2)}")
-    
+
     # Decode payload
     payload_b64 = parts[1]
     padding = 4 - (len(payload_b64) % 4)
@@ -52,4 +55,5 @@ try:
 except Exception as e:
     print(f"Decode failed: {type(e).__name__}: {e}")
     import traceback
+
     traceback.print_exc()

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from sqlalchemy.orm import Session
+
 from app.models.empresa.empresa import DiaSemana as DiaSemanaORM
 from app.modules.admin_config.application.dias_semana.dto import DiaSemanaIn, DiaSemanaOut
 from app.modules.admin_config.application.dias_semana.ports import DiaSemanaRepo
-from sqlalchemy.orm import Session
 
 
 class SqlAlchemyDiaSemanaRepo(DiaSemanaRepo):

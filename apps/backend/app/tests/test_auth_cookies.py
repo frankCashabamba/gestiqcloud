@@ -3,6 +3,8 @@ Tests para autenticación con cookies HttpOnly.
 Coverage: auth_cookies.py + security_cookies.py
 """
 
+from fastapi.responses import Response
+
 from app.core.auth_cookies import (
     clear_auth_cookies,
     get_token_from_cookie,
@@ -10,7 +12,6 @@ from app.core.auth_cookies import (
     set_access_token_cookie,
     set_refresh_token_cookie,
 )
-from fastapi.responses import Response
 
 
 class TestSetCookies:

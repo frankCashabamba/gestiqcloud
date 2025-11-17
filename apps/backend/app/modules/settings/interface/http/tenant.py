@@ -3,6 +3,9 @@ from __future__ import annotations
 import re
 import unicodedata
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.models.core.ui_field_config import TenantFieldConfig
@@ -10,8 +13,6 @@ from app.models.core.ui_template import UiTemplate
 from app.models.empresa.settings import ConfiguracionEmpresa
 from app.models.tenant import Tenant as Empresa
 from app.services.field_config import resolve_fields
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy.orm import Session
 
 from ...infrastructure.repositories import SettingsRepo
 

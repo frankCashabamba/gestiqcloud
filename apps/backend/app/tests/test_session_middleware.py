@@ -4,10 +4,11 @@ import os
 from typing import Any
 
 import pytest
-from app.core.sessions import SessionMiddlewareServerSide, SessionStore
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
+
+from app.core.sessions import SessionMiddlewareServerSide, SessionStore
 
 
 class ExplodingStore(SessionStore):

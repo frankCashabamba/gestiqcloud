@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -16,8 +19,6 @@ from app.modules.clients.application.use_cases import (
 )
 from app.modules.clients.infrastructure.repositories import SqlAlchemyClienteRepo
 from app.modules.clients.interface.http.schemas import ClienteInSchema, ClienteOutSchema
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
 
 
 def _schema_to_dto(payload: ClienteInSchema) -> ClienteIn:

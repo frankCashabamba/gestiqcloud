@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.core.refresh import _hash as _hash
 from app.core.refresh import _utcnow as _utcnow  # reuse proven helper
 from app.modules.identity.application.ports import RefreshTokenRepo
-from sqlalchemy import text
-from sqlalchemy.orm import Session
 
 
 class SqlRefreshTokenRepo(RefreshTokenRepo):

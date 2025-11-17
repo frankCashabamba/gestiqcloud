@@ -6,8 +6,9 @@ Create Date: 2025-11-13 10:00:00.000000
 """
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "import_items_canonical_doc"
 down_revision = "import_batches_parser_metadata"

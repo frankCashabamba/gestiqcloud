@@ -5,12 +5,13 @@ Service layer helpers for module assignment to companies and users.
 
 import uuid
 
-from app.db.rls import set_tenant_guc
-from app.models.core.modulo import EmpresaModulo, ModuloAsignado
-from app.modules import crud, schemas
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from app.db.rls import set_tenant_guc
+from app.models.core.modulo import EmpresaModulo, ModuloAsignado
+from app.modules import crud, schemas
 
 
 # ---------- EMPRESA-MODULO ----------

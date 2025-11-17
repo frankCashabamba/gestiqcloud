@@ -3,6 +3,7 @@ Base schemas and common types for consistent UUID usage across the application.
 """
 
 from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict
 
 

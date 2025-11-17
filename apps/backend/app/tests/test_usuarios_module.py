@@ -9,8 +9,8 @@ TENANT_LOGIN = {
 
 @pytest.fixture
 def tenant_headers(client: TestClient, usuario_empresa_factory, seed_tenant_context):
-    import json
     import base64
+    import json
 
     usuario, tenant = seed_tenant_context
     # login
@@ -53,8 +53,8 @@ def tenant_headers(client: TestClient, usuario_empresa_factory, seed_tenant_cont
 def seed_tenant_context(db, usuario_empresa_factory):
     from app.models.core.modulo import EmpresaModulo, Modulo
     from app.models.empresa.rolempresas import RolEmpresa
-    from app.models.empresa.usuarioempresa import UsuarioEmpresa
     from app.models.empresa.usuario_rolempresa import UsuarioRolempresa
+    from app.models.empresa.usuarioempresa import UsuarioEmpresa
 
     usuario, tenant = usuario_empresa_factory(
         email="tenant_admin@example.com", username="tenantadmin"

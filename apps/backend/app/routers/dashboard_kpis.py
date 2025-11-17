@@ -7,12 +7,13 @@ import logging
 from datetime import date, timedelta
 from typing import Any
 
-from app.config.database import get_db
-from app.core.access_guard import with_access_claims
-from app.db.rls import set_tenant_guc
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from app.config.database import get_db
+from app.core.access_guard import with_access_claims
+from app.db.rls import set_tenant_guc
 
 router = APIRouter(prefix="/dashboard/kpis", tags=["Dashboard KPIs"])
 logger = logging.getLogger("app.dashboard_kpis")

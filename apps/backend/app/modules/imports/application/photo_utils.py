@@ -131,8 +131,7 @@ def detect_native_text_in_pdf(pdf_path: str, min_chars: int = 30) -> str | None:
 
         if len(full_text) >= min_chars:
             logger.info(
-                f"PDF native text extracted: {len(full_text)} chars in {elapsed:.2f}s, "
-                f"skipping OCR"
+                f"PDF native text extracted: {len(full_text)} chars in {elapsed:.2f}s, skipping OCR"
             )
             return full_text
 

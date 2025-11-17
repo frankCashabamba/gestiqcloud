@@ -295,7 +295,7 @@ class NominaPayRequest(BaseModel):
     def validate_metodo(cls, v):
         valid_methods = ["efectivo", "transferencia", "cheque", "otro"]
         if v.lower() not in valid_methods:
-            raise ValueError(f'Método debe ser uno de: {", ".join(valid_methods)}')
+            raise ValueError(f"Método debe ser uno de: {', '.join(valid_methods)}")
         return v.lower()
 
 

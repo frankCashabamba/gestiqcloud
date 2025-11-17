@@ -36,7 +36,7 @@ class OpenAIProvider(AIProvider):
             self.openai = openai
         except ImportError:
             raise RuntimeError(
-                "OpenAI provider requires 'openai' package. " "Install with: pip install openai"
+                "OpenAI provider requires 'openai' package. Install with: pip install openai"
             )
 
         # Cache

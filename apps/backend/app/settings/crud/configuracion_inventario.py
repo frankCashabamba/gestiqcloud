@@ -4,12 +4,13 @@ Auto-generated module docstring."""
 
 # crud/configuracion_inventario.py
 
+from sqlalchemy.orm import Session
+
 from app.models import ConfiguracionInventarioEmpresa
 from app.settings.schemas.configuracion_inventario import (
     ConfiguracionInventarioCreate,
     ConfiguracionInventarioUpdate,
 )
-from sqlalchemy.orm import Session
 
 
 def get_by_empresa(db: Session, tenant_id: int):

@@ -5,11 +5,12 @@ Auto-generated module docstring."""
 from datetime import datetime
 from uuid import UUID
 
-from app.config.database import Base
-from app.models.empresa.rolempresas import RolEmpresa
 from sqlalchemy import Boolean, DateTime, ForeignKey, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.config.database import Base
+from app.models.empresa.rolempresas import RolEmpresa
 
 
 class UsuarioRolempresa(Base):

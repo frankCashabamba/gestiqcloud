@@ -4,13 +4,14 @@ Auto-generated module docstring."""
 
 # routers/roles.py
 
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.models import RolEmpresa
 from app.routers.protected import get_current_user
 from app.schemas.configuracion import AuthenticatedUser
 from app.settings.schemas.roles.roleempresas import RolCreate, RolEmpresaOut, RolResponse, RolUpdate
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/roles", tags=["Roles"])
 
@@ -40,7 +41,7 @@ def crear_rol(
         tenant_id=tenant_id,
         nombre=data.name,
         descripcion=data.description,
-        permisos={perm: True for perm in data.permisos},
+        permisos=dict.fromkeys(data.permisos, True),
         rol_base_id=data.copiar_desde_id,
         creado_por_empresa=True,
     )

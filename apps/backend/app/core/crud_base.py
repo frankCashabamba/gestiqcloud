@@ -1,11 +1,12 @@
 from collections.abc import Sequence
 from typing import Generic, TypeVar
 
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
 # Keep public name CRUDBase but delegate to the more robust BaseCRUD implementation
 from app.core.base_crud import BaseCRUD as _BaseCRUD
 from app.core.types import HasID
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 ModelT = TypeVar("ModelT", bound=HasID)
 CreateDTO = TypeVar("CreateDTO", bound=BaseModel)
@@ -39,7 +40,7 @@ class CRUDBase(_BaseCRUD[ModelT, CreateDTO, UpdateDTO], Generic[ModelT, CreateDT
 
     # Backwards name maintained
     def update(self, db: Session, id_or_obj, dto: UpdateDTO):  # type: ignore[override]
-        if isinstance(id_or_obj, (int, str)):
+        if isinstance(id_or_obj, int | str):
             return self.update_by_id(db, id_or_obj, dto)
         # Fallback to BaseCRUD signature (db_obj provided)
         return super().update(db, id_or_obj, dto)

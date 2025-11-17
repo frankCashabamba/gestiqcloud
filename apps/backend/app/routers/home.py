@@ -4,12 +4,13 @@ Auto-generated module docstring."""
 
 from datetime import datetime
 
-from app.config.database import get_db
-from app.models.tenant import Tenant
-from app.routers.protected import get_current_user
 from fastapi import APIRouter, Depends, Request
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+
+from app.config.database import get_db
+from app.models.tenant import Tenant
+from app.routers.protected import get_current_user
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")

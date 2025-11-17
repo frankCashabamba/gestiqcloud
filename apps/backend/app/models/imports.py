@@ -5,10 +5,11 @@ Models for Import system - Column Mappings
 from datetime import datetime
 from uuid import UUID
 
-from app.config.database import Base
 from sqlalchemy import JSON, Boolean, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
+
+from app.config.database import Base
 
 
 class ImportColumnMapping(Base):

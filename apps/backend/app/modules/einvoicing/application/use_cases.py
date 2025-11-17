@@ -1,9 +1,10 @@
 import inspect
 from uuid import UUID
 
-from app.config.database import get_db_session
 from fastapi import HTTPException, status
 from sqlalchemy.future import select
+
+from app.config.database import get_db_session
 
 # Tasks may require Celery in environments where it's not installed during unit tests.
 # Provide resilient imports so tests can patch these symbols without importing Celery.

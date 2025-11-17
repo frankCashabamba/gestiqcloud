@@ -7,14 +7,15 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from fastapi import HTTPException
+from sqlalchemy import or_, text
+from sqlalchemy.orm import Session, joinedload
+
 from app.core.empresa_crud import EmpresaCRUD
 from app.models.core.clients import Cliente
 from app.models.core.facturacion import Invoice, InvoiceTemp
 from app.models.core.invoiceLine import LineaPanaderia, LineaTaller
 from app.modules.facturacion import schemas
-from fastapi import HTTPException
-from sqlalchemy import or_, text
-from sqlalchemy.orm import Session, joinedload
 
 # asegúrate de tener esta función creada
 

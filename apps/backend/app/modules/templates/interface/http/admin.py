@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from app.config.database import get_db
-from app.core.access_guard import with_access_claims
-from app.core.authz import require_scope
-from app.modules.templates.services import validate_overlay
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from app.config.database import get_db
+from app.core.access_guard import with_access_claims
+from app.core.authz import require_scope
+from app.modules.templates.services import validate_overlay
 
 router = APIRouter(
     prefix="/admin/templates",

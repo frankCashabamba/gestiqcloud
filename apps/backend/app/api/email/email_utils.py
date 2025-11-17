@@ -8,10 +8,11 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formataddr, formatdate, make_msgid, parseaddr
 
-from app.config.settings import settings
-from app.utils.email_renderer import render_template
 from fastapi import BackgroundTasks
 from itsdangerous import URLSafeTimedSerializer
+
+from app.config.settings import settings
+from app.utils.email_renderer import render_template
 
 logger = logging.getLogger("app.email")
 

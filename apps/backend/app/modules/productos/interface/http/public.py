@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.modules.productos.interface.http.tenant import (
     CategoryOut,
@@ -8,8 +11,6 @@ from app.modules.productos.interface.http.tenant import (
     list_products,
     protected,
 )
-from fastapi import APIRouter, Depends, Request, Query
-from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/products", tags=["Products"])
 

@@ -6,10 +6,11 @@ import os
 import re
 import shutil
 
+from sqlalchemy.orm import Session, joinedload
+
 from app.models.core.modulo import EmpresaModulo, Modulo, ModuloAsignado
 from app.models.tenant import Tenant
 from app.modules import schemas
-from sqlalchemy.orm import Session, joinedload
 
 
 # ---------- MODULOS ----------
@@ -136,7 +137,7 @@ def desactivar_modulo(db: Session, modulo_id: int):
 
 def listar_modulos(db: Session) -> list[Modulo]:
     """Function listar_modulos - auto-generated docstring."""
-    return db.query(Modulo).filter(Modulo.active == True).all()
+    return db.query(Modulo).filter(Modulo.active).all()
 
 
 # ---------- EMPRESA-MODULO ----------
@@ -198,7 +199,7 @@ def obtener_modulos_de_usuario(db: Session, tenant_id: int, usuario_id: int):
 
 def listar_modulos_publicos(db: Session) -> list[Modulo]:
     """Function listar_modulos_publicos - auto-generated docstring."""
-    return db.query(Modulo).filter(Modulo.active == True).all()
+    return db.query(Modulo).filter(Modulo.active).all()
 
 
 def listar_modulo_admins(db: Session) -> list[Modulo]:

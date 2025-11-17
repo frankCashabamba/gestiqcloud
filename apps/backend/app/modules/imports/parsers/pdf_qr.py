@@ -28,7 +28,7 @@ def parse_pdf_qr(file_path: str) -> dict[str, Any]:
             import pyzbar.pyzbar as pyzbar
         except ImportError as e:
             errors.append(
-                f"Missing required library: {e}. " "Install with: pip install pdf2image pyzbar"
+                f"Missing required library: {e}. Install with: pip install pdf2image pyzbar"
             )
             return {
                 "documents": [],

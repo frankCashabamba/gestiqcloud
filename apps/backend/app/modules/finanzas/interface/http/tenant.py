@@ -22,6 +22,10 @@ from decimal import Decimal
 from math import ceil
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import and_, func, select
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -43,9 +47,6 @@ from app.schemas.finance_caja import (
     CierreCajaList,
     CierreCajaResponse,
 )
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_, func, select
-from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/finance",
@@ -543,7 +544,7 @@ async def get_caja_stats(
     ).scalar_one()
 
     cierres_cuadrados = db.execute(
-        select(func.count()).select_from(stmt_cierres.where(CierreCaja.cuadrado == True).subquery())
+        select(func.count()).select_from(stmt_cierres.where(CierreCaja.cuadrado).subquery())
     ).scalar_one()
 
     total_diferencias = db.execute(

@@ -3,7 +3,7 @@ Payments Service - Payment providers integration
 """
 
 from decimal import Decimal
-from typing import Any, Dict, Protocol
+from typing import Any, Protocol
 
 
 class PaymentProvider(Protocol):

@@ -1,8 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, ConfigDict, BeforeValidator
-from typing import Annotated
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class UsuarioEmpresaBase(BaseModel):

@@ -1,5 +1,9 @@
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -12,9 +16,6 @@ from app.modules.usuarios.infrastructure.schemas import (
     UsuarioEmpresaOut,
     UsuarioEmpresaUpdate,
 )
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/tenant/usuarios",

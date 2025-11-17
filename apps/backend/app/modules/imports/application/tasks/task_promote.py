@@ -78,7 +78,7 @@ def _impl_promote_item(
     """
     item_uuid = UUID(item_id)
     tenant_uuid = UUID(tenant_id)
-    batch_uuid = UUID(batch_id)
+    UUID(batch_id)
 
     logger.info(
         "Promoting item to destination",

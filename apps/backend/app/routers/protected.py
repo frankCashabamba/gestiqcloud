@@ -2,11 +2,12 @@
 
 Auto-generated module docstring."""
 
-from app.modules.identity.infrastructure.jwt_service import JwtService
-from app.schemas.configuracion import AuthenticatedUser
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jwt import ExpiredSignatureError, InvalidTokenError
+
+from app.modules.identity.infrastructure.jwt_service import JwtService
+from app.schemas.configuracion import AuthenticatedUser
 
 router = APIRouter(prefix="/protected", tags=["protected"])
 

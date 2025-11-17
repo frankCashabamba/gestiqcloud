@@ -20,6 +20,7 @@ from decimal import Decimal
 from app.config.database import session_scope
 from app.db.rls import set_tenant_guc
 from app.models.core.modelsimport import ImportBatch, ImportItem
+from app.modules.imports.application.tasks.task_import_file import _to_number
 from app.modules.imports.application.transform_dsl import apply_mapping_pipeline
 from app.services.excel_analyzer import detect_header_row, extract_headers
 
@@ -43,7 +44,7 @@ def _file_path_from_key(file_key: str) -> str:
 def _to_serializable(val):
     """Convert Excel cell values to JSON-serializable primitives."""
     try:
-        if isinstance(val, (datetime, date, time)):
+        if isinstance(val, datetime | date | time):
             # Keep full precision for datetimes; date/time isoformat as well
             return val.isoformat()
         if isinstance(val, Decimal):
@@ -52,11 +53,11 @@ def _to_serializable(val):
         try:
             import numpy as np  # type: ignore
 
-            if isinstance(val, (np.integer,)):
+            if isinstance(val, np.integer):
                 return int(val)
-            if isinstance(val, (np.floating,)):
+            if isinstance(val, np.floating):
                 return float(val)
-            if isinstance(val, (np.bool_,)):
+            if isinstance(val, np.bool_):
                 return bool(val)
         except Exception:
             pass
@@ -84,7 +85,6 @@ def import_products_excel(
     # Progress tracking
     processed = 0
     created = 0
-    failed = 0
     BATCH_SIZE = 1000
 
     with session_scope() as db:

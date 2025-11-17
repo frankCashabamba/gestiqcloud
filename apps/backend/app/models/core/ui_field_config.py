@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import uuid
 
-from app.config.database import Base
 from sqlalchemy import Boolean, ForeignKey, SmallInteger, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
+
+from app.config.database import Base
 
 
 class TenantFieldConfig(Base):

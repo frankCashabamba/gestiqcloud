@@ -1,8 +1,9 @@
 from datetime import datetime
 from typing import Any
 
-from app.models.ai.incident import Incident, NotificationChannel, NotificationLog, StockAlert
 from sqlalchemy.orm import Session
+
+from app.models.ai.incident import Incident, NotificationChannel, NotificationLog, StockAlert
 
 
 async def send_notification(

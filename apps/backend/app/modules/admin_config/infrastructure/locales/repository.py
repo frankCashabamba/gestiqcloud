@@ -2,21 +2,22 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from sqlalchemy.orm import Session
+
 from app.models.empresa.empresa import RefLocale as LocaleORM
 from app.modules.admin_config.application.locales.dto import LocaleIn, LocaleOut
 from app.modules.admin_config.application.locales.ports import LocaleRepo
-from sqlalchemy.orm import Session
 
 
 class SqlAlchemyLocaleRepo(LocaleRepo):
     def __init__(self, db: Session):
         self.db = db
 
-    def _to_dto(self, l: LocaleORM) -> LocaleOut:
+    def _to_dto(self, locale: LocaleORM) -> LocaleOut:
         return LocaleOut(
-            code=l.code,
-            name=l.name,
-            active=l.active,
+            code=locale.code,
+            name=locale.name,
+            active=locale.active,
         )
 
     def list(self) -> Sequence[LocaleOut]:

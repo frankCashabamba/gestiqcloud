@@ -2,11 +2,12 @@
 
 Auto-generated module docstring."""
 
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.models import CategoriaEmpresa as CategoriaModel
 from app.schemas.configuracion import CategoriaEmpresa, CategoriaEmpresaCreate
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 
 # Old URL: /api/categorias-empresa (deprecated, use new endpoint for backward compatibility if needed)
 router = APIRouter(prefix="/api/v1/categories", tags=["categorias"])

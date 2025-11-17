@@ -2,4 +2,3 @@ ERROR: usage: __main__.py [options] [file_or_dir] [file_or_dir] [...]
 __main__.py: error: unrecognized arguments: ; powershell -Command Get-Content test_output2.txt | findstr 'UnicodeDecodeError\|UnicodeError' -Context 0,5
   inifile: c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\pytest.ini
   rootdir: c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend
-

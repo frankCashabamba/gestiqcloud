@@ -2,14 +2,15 @@
 from collections.abc import Mapping
 from typing import Any
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.config.settings import settings
 from app.core.deps import require_tenant
 from app.core.refresh import decode_and_validate
 from app.db.rls import ensure_rls
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/me", tags=["Me"], dependencies=[Depends(ensure_rls)])
 
@@ -54,9 +55,7 @@ def me_tenant(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="invalid_access_token")
 
     kind = (payload.get("kind") or "tenant") if isinstance(payload, dict) else "tenant"
-    user_id = (
-        str(payload.get("user_id")) if isinstance(payload.get("user_id"), (str, int)) else None
-    )
+    user_id = str(payload.get("user_id")) if isinstance(payload.get("user_id"), str | int) else None
 
     if kind == "admin":
         # Admin: devolvemos el tenant del sistema
@@ -133,9 +132,7 @@ def me_admin(request: Request):
     if kind != "admin":
         raise HTTPException(status_code=403, detail="not_admin")
 
-    user_id = (
-        str(payload.get("user_id")) if isinstance(payload.get("user_id"), (str, int)) else None
-    )
+    user_id = str(payload.get("user_id")) if isinstance(payload.get("user_id"), str | int) else None
     is_super = bool(payload.get("is_superadmin") or False)
 
     return {

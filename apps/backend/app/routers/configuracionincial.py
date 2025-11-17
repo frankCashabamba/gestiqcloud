@@ -4,6 +4,9 @@ Auto-generated module docstring."""
 
 # routers/configuracioninicial.py
 
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.models import ConfiguracionEmpresa
 from app.routers.protected import get_current_user
@@ -12,8 +15,6 @@ from app.schemas.configuracionempresasinicial import (
     ConfiguracionEmpresaCreate,
     EmpresaConfiguracionOut,
 )
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 
 router = APIRouter()
 

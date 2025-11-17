@@ -23,8 +23,8 @@ class JwtSettings:
 
     @classmethod
     def from_app(cls) -> JwtSettings:
-        import os
         import logging
+        import os
 
         logger = logging.getLogger(__name__)
 

@@ -20,13 +20,14 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from app.config.database import Base, schema_table_args
-from sqlalchemy import TIMESTAMP
+from sqlalchemy import JSON, TIMESTAMP
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import ForeignKey, JSON, Numeric, String, Text
+from sqlalchemy import ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.config.database import Base, schema_table_args
 
 # Enum de estados
 production_order_status = SQLEnum(

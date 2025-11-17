@@ -8,7 +8,7 @@ Standardized all Pydantic schemas to use **UUID** consistently instead of `int |
 ### Core Schemas
 - ✅ **app/schemas/base.py** (NEW)
   - Created reusable base classes: `UUIDBase`, `TenantMixin`, `BaseEntity`
-  
+
 - ✅ **app/schemas/configuracion.py**
   - `AuthenticatedUser`: `user_id: int | str` → `user_id: UUID`
   - `AuthenticatedUser`: `tenant_id: int | str | None` → `tenant_id: UUID | None`

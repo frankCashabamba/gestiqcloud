@@ -4,10 +4,11 @@ import logging
 from collections.abc import Mapping
 from typing import Any, Literal
 
+from fastapi import Request, Response
+
 from app.config.settings import settings
 from app.core.csrf import issue_csrf_token
 from app.modules.identity.application.ports import RefreshTokenRepo, TokenService
-from fastapi import Request, Response
 
 
 def ensure_session(request: Request) -> dict[str, Any]:
@@ -63,8 +64,9 @@ def rotate_refresh(
             )
         except Exception:
             pass
-        from app.core.i18n import t
         from fastapi import HTTPException
+
+        from app.core.i18n import t
 
         raise HTTPException(status_code=401, detail=t(request, "invalid_refresh_token"))
 
@@ -77,8 +79,9 @@ def rotate_refresh(
             logger.debug("refresh.invalid_token")
         except Exception:
             pass
-        from app.core.i18n import t
         from fastapi import HTTPException
+
+        from app.core.i18n import t
 
         raise HTTPException(status_code=401, detail=t(request, "invalid_refresh_token"))
 
@@ -89,8 +92,9 @@ def rotate_refresh(
             logger.debug("refresh.missing_jti")
         except Exception:
             pass
-        from app.core.i18n import t
         from fastapi import HTTPException
+
+        from app.core.i18n import t
 
         raise HTTPException(status_code=401, detail=t(request, "invalid_refresh_token"))
     jti: str = jti_obj
@@ -105,8 +109,9 @@ def rotate_refresh(
             logger.debug("refresh.family_not_found")
         except Exception:
             pass
-        from app.core.i18n import t
         from fastapi import HTTPException
+
+        from app.core.i18n import t
 
         raise HTTPException(status_code=401, detail=t(request, "invalid_refresh_token"))
 
@@ -122,8 +127,9 @@ def rotate_refresh(
                 logger.warning("refresh.fingerprint_mismatch family=%s", (family_id or "")[:8])
             except Exception:
                 pass
-            from app.core.i18n import t
             from fastapi import HTTPException
+
+            from app.core.i18n import t
 
             raise HTTPException(status_code=401, detail=t(request, "compromised_refresh_token"))
 
@@ -134,8 +140,9 @@ def rotate_refresh(
             logger.warning("refresh.reuse_or_revoked family=%s", (family_id or "")[:8])
         except Exception:
             pass
-        from app.core.i18n import t
         from fastapi import HTTPException
+
+        from app.core.i18n import t
 
         raise HTTPException(status_code=401, detail=t(request, "compromised_refresh_token"))
 

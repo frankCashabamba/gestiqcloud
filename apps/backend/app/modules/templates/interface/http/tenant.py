@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+from fastapi import APIRouter, Depends, Request
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls, tenant_id_from_request, tenant_id_sql_expr
 from app.modules.templates.services import deep_merge
-from fastapi import APIRouter, Depends, Request
-from sqlalchemy import text
-from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/templates",

@@ -15,13 +15,14 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-from app.config.database import get_db
-from app.models.core.einvoicing import EinvoicingCredentials
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import pkcs12
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+from app.config.database import get_db
+from app.models.core.einvoicing import EinvoicingCredentials
 
 
 class CertificateManager:
@@ -131,7 +132,7 @@ class CertificateManager:
             HTTPException: Si hay error al almacenar
         """
         # Validar certificado primero
-        cert_info = await self.validate_certificate(cert_data, password)
+        await self.validate_certificate(cert_data, password)
 
         # Guardar archivo físico
         cert_path = self._get_cert_path(tenant_id, country)

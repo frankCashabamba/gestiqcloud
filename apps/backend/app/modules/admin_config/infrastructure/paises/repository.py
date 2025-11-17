@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from sqlalchemy.orm import Session
+
 from app.models.empresa.empresa import Pais as PaisORM
 from app.modules.admin_config.application.paises.dto import PaisIn, PaisOut
 from app.modules.admin_config.application.paises.ports import PaisRepo
-from sqlalchemy.orm import Session
 
 
 class SqlAlchemyPaisRepo(PaisRepo):

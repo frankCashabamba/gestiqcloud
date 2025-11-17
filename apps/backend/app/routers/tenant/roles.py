@@ -1,14 +1,15 @@
 """Router para gestión de roles de empresa (tenant)."""
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.deps import require_tenant as require_current_user
 from app.db.rls import ensure_rls
 from app.models.empresa.rolempresas import RolEmpresa
 from app.models.empresa.tenant import Empresa
 from app.schemas.rol_empresa import RolEmpresaCreate, RolEmpresaOut, RolEmpresaUpdate
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/tenant/roles", tags=["tenant-roles"])
 

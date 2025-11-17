@@ -1,12 +1,13 @@
 # app/core/perm_loader.py
 from typing import Any
 
+from sqlalchemy.orm import Session
+
 from app.models.core.modulo import Modulo, ModuloAsignado
 from app.models.empresa.rolempresas import RolEmpresa
 from app.models.empresa.usuario_rolempresa import UsuarioRolempresa
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
 from app.models.tenant import Tenant
-from sqlalchemy.orm import Session
 
 
 def build_tenant_claims(db: Session, user: UsuarioEmpresa) -> dict[str, Any]:

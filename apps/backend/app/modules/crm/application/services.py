@@ -5,6 +5,9 @@ CRM Application Services
 from datetime import datetime
 from uuid import UUID
 
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
 from app.modules.crm.application.schemas import (
     ActivityCreate,
     ActivityOut,
@@ -19,8 +22,6 @@ from app.modules.crm.application.schemas import (
 )
 from app.modules.crm.domain.entities import ActivityStatus, LeadStatus, OpportunityStage
 from app.modules.crm.domain.models import Activity, Lead, Opportunity
-from sqlalchemy import func
-from sqlalchemy.orm import Session
 
 
 class CRMService:

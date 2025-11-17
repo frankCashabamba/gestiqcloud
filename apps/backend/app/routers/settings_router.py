@@ -5,12 +5,13 @@ Settings Router - Gestión de Configuración del Sistema
 from typing import Any
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.middleware.tenant import get_current_user
 from app.models.core.settings import TenantSettings
 from app.schemas.settings import ModuleInfo, ModuleListResponse, ModuleSettingsUpdate
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/v1/settings", tags=["Settings"])
 

@@ -18,9 +18,9 @@ except Exception:  # pragma: no cover
     if _MINIMAL:
 
         class Task:  # minimal base class to satisfy attribute access
-            autoretry_for = tuple()
-            retry_kwargs = {}
-            retry_backoff = False
+            autoretry_for: tuple[Any, ...] = ()
+            retry_kwargs: dict[str, Any] = {}
+            retry_backoff: bool = False
 
     else:
         raise

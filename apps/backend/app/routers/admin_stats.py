@@ -6,13 +6,14 @@ Endpoint: GET /api/v1/admin/stats
 from datetime import datetime, timedelta
 from typing import Any
 
+from fastapi import APIRouter, Depends
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.models.auth.useradmis import SuperUser
 from app.models.core.modulo import EmpresaModulo
 from app.models.tenant import Tenant
-from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 

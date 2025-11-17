@@ -5,12 +5,13 @@ Endpoints para ejecutar scripts seguros por tenant y, opcionalmente, SQL
 para superusuarios. Usar con extremo cuidado.
 """
 
-from app.config.database import get_db
-from app.core.access_guard import with_access_claims
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from app.config.database import get_db
+from app.core.access_guard import with_access_claims
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-scripts"])
 
@@ -86,14 +87,14 @@ def _seed_pan_tapado(db: Session, tenant_id: str) -> None:
         if row:
             return str(row[0])
         # Descubrir columnas y construir insert mínimo compatible
-        cols = set(
+        cols = {
             r[0]
             for r in db.execute(
                 text(
                     "SELECT column_name FROM information_schema.columns WHERE table_name = 'products'"
                 )
             ).fetchall()
-        )
+        }
         fields = ["tenant_id", "name", "price"]
         params = {"tid": tenant_id, "name": name}
         if "unit" in cols:

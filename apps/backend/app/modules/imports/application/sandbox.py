@@ -84,7 +84,7 @@ def sandbox_pdf(pdf_path: str, output_path: str | None = None) -> str:
                     # We'd need to work with the PDF structure directly
                     # For now, log warning
                     logger.warning(
-                        f"Page {page_num} has embedded files - " "cannot remove automatically"
+                        f"Page {page_num} has embedded files - cannot remove automatically"
                     )
                     removed_count["embeds"] += 1
             except Exception as e:

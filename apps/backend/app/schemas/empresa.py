@@ -4,8 +4,9 @@ Auto-generated module docstring."""
 
 # Single source of truth for EmpresaCreate lives in `schemas.py`.
 # Re-export here to keep public import path `app.schemas.empresa.EmpresaCreate` stable.
-from app.schemas.schemas import EmpresaCreate  # noqa: F401
 from pydantic import BaseModel, ConfigDict
+
+from app.schemas.schemas import EmpresaCreate  # noqa: F401
 
 
 class EmpresaOut(BaseModel):

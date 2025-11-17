@@ -7,9 +7,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from app.config.settings import settings
 from fastapi import HTTPException, Request, Response, status
 from pydantic import BaseModel
+
+from app.config.settings import settings
 
 
 class TokenCookieConfig(BaseModel):

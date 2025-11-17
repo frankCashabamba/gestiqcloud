@@ -6,6 +6,10 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any
 
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import desc, text
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.middleware.rls import get_current_tenant_id
 from app.models.ai.incident import NotificationChannel, NotificationLog, StockAlert
@@ -18,9 +22,6 @@ from app.schemas.notifications import (
     NotificationTestRequest,
     StockAlertResponse,
 )
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import desc, text
-from sqlalchemy.orm import Session
 
 send_notification_task: Any
 _celery_import_exception: Exception | None
@@ -425,7 +426,7 @@ def list_stock_alerts(
     if estado:
         base_sql += " AND status = :st"
         params["st"] = estado
-    base_sql += " ORDER BY (threshold_qty - current_qty) ASC, created_at DESC " " LIMIT :lim"
+    base_sql += " ORDER BY (threshold_qty - current_qty) ASC, created_at DESC  LIMIT :lim"
 
     rows = db.execute(text(base_sql), params).mappings().all()
     # Retornar dicts compatibles con StockAlertResponse

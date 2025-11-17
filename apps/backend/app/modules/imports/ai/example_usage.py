@@ -119,11 +119,11 @@ async def example_cache():
 
     # Primera clasificación (miss)
     print("First classification (cache miss)...")
-    result1 = await provider.classify_document(text, parsers)
+    await provider.classify_document(text, parsers)
 
     # Segunda clasificación (hit)
     print("Second classification (should be cache hit)...")
-    result2 = await provider.classify_document(text, parsers)
+    await provider.classify_document(text, parsers)
 
     # Ver stats de caché
     stats = provider.get_telemetry()

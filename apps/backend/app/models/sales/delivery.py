@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from app.config.database import Base
 from sqlalchemy import JSON, Integer, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
+
+from app.config.database import Base
 
 
 def _uuid_col():

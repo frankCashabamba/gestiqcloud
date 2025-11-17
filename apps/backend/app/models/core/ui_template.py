@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from app.config.database import Base
 from sqlalchemy import Boolean, DateTime, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
+
+from app.config.database import Base
 
 
 class UiTemplate(Base):

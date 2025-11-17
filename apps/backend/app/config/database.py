@@ -4,10 +4,11 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import asynccontextmanager, contextmanager
 
-from app.config.settings import settings
 from fastapi import Request
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
+
+from app.config.settings import settings
 
 Base = declarative_base()
 

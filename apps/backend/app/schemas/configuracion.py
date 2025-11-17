@@ -3,6 +3,7 @@
 Auto-generated module docstring."""
 
 from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict
 
 

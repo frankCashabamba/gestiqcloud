@@ -6,14 +6,15 @@ import uuid
 from datetime import date
 from enum import Enum
 
-from app.config.database import Base
-from app.models.core.clients import Cliente
-from app.models.core.invoiceLine import LineaFactura
-from app.models.tenant import Tenant
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy import ForeignKey, String, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID  # Asumiendo PostgreSQL
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.config.database import Base
+from app.models.core.clients import Cliente
+from app.models.core.invoiceLine import LineaFactura
+from app.models.tenant import Tenant
 
 
 class InvoiceTemp(Base):

@@ -4,10 +4,11 @@ Auto-generated module docstring."""
 
 # app/middleware/tenant_middleware.py
 
-from app.modules.identity.infrastructure.jwt_service import JwtService
 from fastapi import Request
 from jwt import ExpiredSignatureError, InvalidTokenError
 from starlette.responses import JSONResponse
+
+from app.modules.identity.infrastructure.jwt_service import JwtService
 
 
 class TenantMiddleware:

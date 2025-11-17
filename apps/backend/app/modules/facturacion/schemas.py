@@ -2,7 +2,7 @@
 
 Auto-generated module docstring."""
 
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -51,7 +51,7 @@ class LineaTallerOut(LineaTaller):
 
 
 # 🎯 Unión de tipos posibles
-LineaFacturaIn = Union[LineaPanaderia, LineaTaller]
+LineaFacturaIn = LineaPanaderia | LineaTaller
 LineaFacturaOut = Annotated[LineaPanaderiaOut | LineaTallerOut, Field(discriminator="sector")]
 
 

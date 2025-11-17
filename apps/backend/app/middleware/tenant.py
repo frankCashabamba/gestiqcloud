@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import logging
 
+from fastapi import Depends, HTTPException, Request
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.db.rls import set_tenant_guc
-from fastapi import Depends, HTTPException, Request
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 

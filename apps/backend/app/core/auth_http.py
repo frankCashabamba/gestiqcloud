@@ -1,9 +1,10 @@
 from collections.abc import Mapping
 
+from fastapi import Response
+
 from app.config.database import SessionLocal
 from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
 from app.modules.identity.infrastructure.refresh_repo import SqlRefreshTokenRepo
-from fastapi import Response
 
 # Cookie paths (alineados con app.main)
 ADMIN_REFRESH_COOKIE_PATH = "/api/v1/admin/auth"
@@ -46,13 +47,13 @@ def refresh_cookie_kwargs(*, path: str) -> dict:
         samesite = "None"
     elif low == "strict":
         samesite = "Strict"
-    return dict(
-        httponly=True,
-        secure=secure,
-        samesite=samesite,
-        path=path,
-        domain=cookie_domain(),
-    )
+    return {
+        "httponly": True,
+        "secure": secure,
+        "samesite": samesite,
+        "path": path,
+        "domain": cookie_domain(),
+    }
 
 
 def set_refresh_cookie(response: Response, token_str: str, *, path: str) -> None:

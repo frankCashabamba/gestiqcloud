@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlalchemy.orm import Session
 
 from ...infrastructure.repositories import ProveedorRepo
 from .schemas import ProveedorCreate, ProveedorOut, ProveedorUpdate

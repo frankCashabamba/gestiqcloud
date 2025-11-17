@@ -1,10 +1,11 @@
 # app/core/access_guard.py
 from typing import Any
 
-from app.config.database import SessionLocal
 from fastapi import HTTPException, Request
 from jwt import ExpiredSignatureError, InvalidTokenError
 from sqlalchemy import text
+
+from app.config.database import SessionLocal
 
 # Import shared token service from common location
 from app.core.jwt_provider import get_token_service

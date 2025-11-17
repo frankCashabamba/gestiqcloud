@@ -1,13 +1,54 @@
-from app.core.crud_base import CRUDBase
-from app.models.finance import BancoMovimiento, CajaMovimiento
+from dataclasses import dataclass
+
 from sqlalchemy.orm import Session
 
+from app.core.crud_base import CRUDBase
+from app.models.finance import BancoMovimiento, CajaMovimiento
 
-class CajaCRUD(CRUDBase[CajaMovimiento, "CajaCreateDTO", "CajaUpdateDTO"]):
+
+@dataclass
+class CajaCreateDTO:
+    monto: float | None = None
+    concepto: str | None = None
+
+    def model_dump(self) -> dict:
+        return {"monto": self.monto, "concepto": self.concepto}
+
+
+@dataclass
+class CajaUpdateDTO:
+    monto: float | None = None
+    concepto: str | None = None
+
+    def model_dump(self, exclude_unset: bool = False) -> dict:
+        d = {"monto": self.monto, "concepto": self.concepto}
+        return {k: v for k, v in d.items() if not exclude_unset or v is not None}
+
+
+@dataclass
+class BancoCreateDTO:
+    monto: float | None = None
+    concepto: str | None = None
+
+    def model_dump(self) -> dict:
+        return {"monto": self.monto, "concepto": self.concepto}
+
+
+@dataclass
+class BancoUpdateDTO:
+    monto: float | None = None
+    concepto: str | None = None
+
+    def model_dump(self, exclude_unset: bool = False) -> dict:
+        d = {"monto": self.monto, "concepto": self.concepto}
+        return {k: v for k, v in d.items() if not exclude_unset or v is not None}
+
+
+class CajaCRUD(CRUDBase[CajaMovimiento, CajaCreateDTO, CajaUpdateDTO]):
     pass
 
 
-class BancoCRUD(CRUDBase[BancoMovimiento, "BancoCreateDTO", "BancoUpdateDTO"]):
+class BancoCRUD(CRUDBase[BancoMovimiento, BancoCreateDTO, BancoUpdateDTO]):
     pass
 
 

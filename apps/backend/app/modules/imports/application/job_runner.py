@@ -6,11 +6,12 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+from sqlalchemy.exc import TimeoutError as SATimeoutError
+from sqlalchemy.orm import Session
+
 from app.config.database import session_scope
 from app.db.rls import set_tenant_guc
 from app.models.core.modelsimport import ImportOCRJob
-from sqlalchemy.exc import TimeoutError as SATimeoutError
-from sqlalchemy.orm import Session
 
 _LOGGER = logging.getLogger("imports.ocr_jobs")
 

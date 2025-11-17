@@ -2,11 +2,12 @@
 Tenant Configuration Router - Configuración por tenant
 """
 
-from app.config.database import get_db
-from app.middleware.tenant import ensure_tenant
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from app.config.database import get_db
+from app.middleware.tenant import ensure_tenant
 
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
 

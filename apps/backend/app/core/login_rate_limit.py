@@ -4,8 +4,9 @@ import os
 import time
 from dataclasses import dataclass
 
-from app.config.settings import settings
 from fastapi import Request
+
+from app.config.settings import settings
 
 _logger = logging.getLogger(__name__)
 

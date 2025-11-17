@@ -7,15 +7,16 @@ import tempfile
 from io import BytesIO
 from typing import Any
 
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.modules.imports.parsers.products_excel import normalize_product_row, parse_products_excel
 from app.modules.imports.services.classifier import classifier
 from app.modules.imports.validators.products import validate_product
 from app.services.excel_analyzer import analyze_excel_stream
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/preview", tags=["Imports Preview"], dependencies=[Depends(with_access_claims)]
@@ -143,7 +144,7 @@ async def validate_column_mapping(
     Valida un mapeo de columnas contra una fila de muestra
     Devuelve errores de validación si los hay
     """
-    claims = _get_claims(request)
+    _get_claims(request)
 
     # Aplicar mapeo a la fila de muestra
     mapped_row = {}
@@ -246,7 +247,7 @@ async def classify_file(
     Usa análisis básico de contenido para determinar si es productos, banco, etc.
     En el futuro se integrará IA local/pago.
     """
-    claims = _get_claims(request)
+    _get_claims(request)
 
     # Validar tipo básico de archivo
     if not file.filename:
@@ -299,7 +300,7 @@ async def classify_file_with_ai(
     - enhanced_by_ai: Si fue mejorado por IA
     - ai_provider: Proveedor de IA usado (si aplica)
     """
-    claims = _get_claims(request)
+    _get_claims(request)
 
     # Validar tipo básico de archivo
     if not file.filename:
