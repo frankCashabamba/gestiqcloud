@@ -5,7 +5,7 @@ from datetime import date
 from enum import Enum
 
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import ForeignKey, String, text
+from sqlalchemy import Date, ForeignKey, String, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -114,7 +114,7 @@ class BankTransaction(Base):
     account_id: Mapped[uuid.UUID] = mapped_column(
         "account_id", UUID(as_uuid=True), ForeignKey("bank_accounts.id"), index=True
     )
-    date: Mapped[date] = mapped_column("date", index=True)
+    date: Mapped[date] = mapped_column(Date(), index=True)
     amount: Mapped[float] = mapped_column("amount")
     currency: Mapped[str] = mapped_column("currency", String, default="EUR")
     type: Mapped[MovimientoTipo] = mapped_column("type", SAEnum(MovimientoTipo))
@@ -167,7 +167,7 @@ class Payment(Base):
     invoice_id: Mapped[uuid.UUID] = mapped_column(
         "invoice_id", UUID(as_uuid=True), ForeignKey("invoices.id"), index=True
     )
-    date: Mapped[date] = mapped_column("date")
+    date: Mapped[date] = mapped_column(Date())
     applied_amount: Mapped[float] = mapped_column("applied_amount")
     notes: Mapped[str] = mapped_column("notes", String, nullable=True)
 
