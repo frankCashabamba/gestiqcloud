@@ -36,7 +36,7 @@ class Incident(Base):
     # Fix FK to company users table
     assigned_to = Column(
         PG_UUID,
-        ForeignKey("usuarios_usuarioempresa.id", ondelete="SET NULL"),
+        ForeignKey("company_users.id", ondelete="SET NULL"),
     )
     auto_detected = Column(Boolean, default=False)
     auto_resolved = Column(Boolean, default=False)
@@ -47,7 +47,7 @@ class Incident(Base):
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
     tenant = relationship("Tenant", back_populates="incidents")
-    assigned_user = relationship("UsuarioEmpresa", foreign_keys=[assigned_to])
+    assigned_user = relationship("CompanyUser", foreign_keys=[assigned_to])
 
 
 class StockAlert(Base):

@@ -23,7 +23,7 @@ class InvoiceTemp(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
     )
-    user_id: Mapped[int] = mapped_column("user_id", ForeignKey("usuarios_usuarioempresa.id"))
+    user_id: Mapped[int] = mapped_column("user_id", ForeignKey("company_users.id"))
     file_name: Mapped[str] = mapped_column("file_name")
     data: Mapped[dict] = mapped_column("data", JSONB)
     status: Mapped[str] = mapped_column("status", default="pending")

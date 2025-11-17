@@ -20,39 +20,45 @@ class LineaBase(BaseModel):
 
 
 # 🥖 Línea panadería
-class LineaPanaderia(LineaBase):
-    """Class LineaPanaderia - auto-generated docstring."""
+class BakeryLine(LineaBase):
+    """Class BakeryLine - auto-generated docstring."""
 
-    sector: Literal["panaderia"]
-    tipo_pan: str
-    gramos: float
+    sector: Literal["bakery"]
+    bread_type: str
+    grams: float
 
 
-class LineaPanaderiaOut(LineaPanaderia):
-    """Class LineaPanaderiaOut - auto-generated docstring."""
+class BakeryLineOut(BakeryLine):
+    """Class BakeryLineOut - auto-generated docstring."""
 
     model_config = ConfigDict(from_attributes=True)
 
 
 # 🔧 Línea taller
-class LineaTaller(LineaBase):
-    """Class LineaTaller - auto-generated docstring."""
+class WorkshopLine(LineaBase):
+    """Class WorkshopLine - auto-generated docstring."""
 
-    sector: Literal["taller"]
-    repuesto: str
-    horas_mano_obra: float
-    tarifa: float
+    sector: Literal["workshop"]
+    spare_part: str
+    labor_hours: float
+    rate: float
 
 
-class LineaTallerOut(LineaTaller):
-    """Class LineaTallerOut - auto-generated docstring."""
+class WorkshopLineOut(WorkshopLine):
+    """Class WorkshopLineOut - auto-generated docstring."""
 
     model_config = ConfigDict(from_attributes=True)
 
 
 # 🎯 Unión de tipos posibles
-LineaFacturaIn = LineaPanaderia | LineaTaller
-LineaFacturaOut = Annotated[LineaPanaderiaOut | LineaTallerOut, Field(discriminator="sector")]
+LineaFacturaIn = BakeryLine | WorkshopLine
+LineaFacturaOut = Annotated[BakeryLineOut | WorkshopLineOut, Field(discriminator="sector")]
+
+# Backward compatibility aliases
+LineaPanaderia = BakeryLine
+LineaPanaderiaOut = BakeryLineOut
+LineaTaller = WorkshopLine
+LineaTallerOut = WorkshopLineOut
 
 
 # facturas

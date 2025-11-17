@@ -3,6 +3,7 @@
 Auto-generated module docstring."""
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text, func
@@ -11,7 +12,9 @@ from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
-from app.models.empresa.usuarioempresa import UsuarioEmpresa
+
+if TYPE_CHECKING:
+    from app.models.empresa.usuarioempresa import CompanyUser
 
 
 class BusinessType(Base):
@@ -78,14 +81,12 @@ class UserProfile(Base):
     __tablename__ = "user_profiles"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("usuarios_usuarioempresa.id")
-    )
+    user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("company_users.id"))
     language: Mapped[str] = mapped_column(String(10), default="es")
     timezone: Mapped[str] = mapped_column(String(50), default="UTC")
     tenant_id = mapped_column(ForeignKey("tenants.id"))
 
-    user: Mapped["UsuarioEmpresa"] = relationship("UsuarioEmpresa")
+    user: Mapped["CompanyUser"] = relationship("CompanyUser")
     tenant: Mapped["Tenant"] = relationship("Tenant")  # noqa: F821
 
 
@@ -110,18 +111,6 @@ class Currency(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     symbol: Mapped[str] = mapped_column(String(5), nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
-
-
-class CoreMoneda(Base):
-    """Legacy core_moneda catalog used by configuraciones."""
-
-    __tablename__ = "core_moneda"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False, name="codigo")
-    name: Mapped[str] = mapped_column(String(100), nullable=False, name="nombre")
-    symbol: Mapped[str] = mapped_column(String(5), nullable=False, name="simbolo")
-    active: Mapped[bool] = mapped_column(Boolean, default=True, name="activo")
 
 
 class Country(Base):
@@ -173,14 +162,14 @@ class BusinessHours(Base):
 
 
 class SectorPlantilla(Base):
-    __tablename__ = "core_sectorplantilla"
+    __tablename__ = "sector_templates"
     id: Mapped[int] = mapped_column(primary_key=True)
     sector_name: Mapped[str] = mapped_column(String(100), unique=True, name="sector_name")
     business_type_id: Mapped[int | None] = mapped_column(
-        ForeignKey("core_tipoempresa.id"), name="business_type_id"
+        ForeignKey("business_types.id"), name="business_type_id"
     )
     business_category_id: Mapped[int | None] = mapped_column(
-        ForeignKey("core_tiponegocio.id"), name="business_category_id"
+        ForeignKey("business_categories.id"), name="business_category_id"
     )
     template_config: Mapped[dict] = mapped_column(JSON, default=dict, name="template_config")
     active: Mapped[bool] = mapped_column(default=True)
