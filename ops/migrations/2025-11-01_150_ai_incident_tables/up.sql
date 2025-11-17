@@ -27,8 +27,7 @@ CREATE TABLE IF NOT EXISTS incidents (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE,
     PRIMARY KEY (id),
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-    FOREIGN KEY (assigned_to) REFERENCES usuarios_usuarioempresa(id) ON DELETE SET NULL
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_incidents_tenant_estado ON incidents(tenant_id, estado);

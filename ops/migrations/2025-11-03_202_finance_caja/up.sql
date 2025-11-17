@@ -1,11 +1,10 @@
 -- ============================================================================
 -- Migration: 2025-11-03_202_finance_caja
--- Descripción: Sistema completo de gestión de caja con movimientos y cierres diarios
--- Autor: GestiQCloud Team
--- Fecha: 2025-11-03
+-- Description: Complete cash management system with movements and daily closings
+-- Updated: 2025-11-17 - Spanish to English names
 -- ============================================================================
 
--- Crear función helper si no existe
+-- Create helper function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -14,173 +13,173 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Crear tipos ENUM para caja
+-- Create ENUM types for cash
 DO $$ BEGIN
-  CREATE TYPE caja_movimiento_tipo AS ENUM ('INGRESO', 'EGRESO', 'AJUSTE');
+  CREATE TYPE cash_movement_type AS ENUM ('INCOME', 'EXPENSE', 'ADJUSTMENT');
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 DO $$ BEGIN
-  CREATE TYPE caja_movimiento_categoria AS ENUM (
-    'VENTA',
-    'COMPRA',
-    'GASTO',
-    'NOMINA',
-    'BANCO',
-    'CAMBIO',
-    'AJUSTE',
-    'OTRO'
+  CREATE TYPE cash_movement_category AS ENUM (
+    'SALES',
+    'PURCHASES',
+    'EXPENSE',
+    'PAYROLL',
+    'BANK',
+    'CHANGE',
+    'ADJUSTMENT',
+    'OTHER'
   );
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 DO $$ BEGIN
-  CREATE TYPE cierre_caja_status AS ENUM ('ABIERTO', 'CERRADO', 'PENDIENTE');
+  CREATE TYPE cash_closing_status AS ENUM ('OPEN', 'CLOSED', 'PENDING');
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
-COMMENT ON TYPE caja_movimiento_tipo IS 'Tipo de movimiento: INGRESO=Entrada efectivo, EGRESO=Salida efectivo, AJUSTE=Ajuste de cuadre';
-COMMENT ON TYPE caja_movimiento_categoria IS 'Categoría del movimiento: VENTA, COMPRA, GASTO, NOMINA, BANCO, CAMBIO, AJUSTE, OTRO';
-COMMENT ON TYPE cierre_caja_status IS 'Estado de cierre: ABIERTO=En curso, CERRADO=Cuadrado, PENDIENTE=Con descuadre';
+COMMENT ON TYPE cash_movement_type IS 'Movement type: INCOME=Cash in, EXPENSE=Cash out, ADJUSTMENT=Reconciliation adjustment';
+COMMENT ON TYPE cash_movement_category IS 'Movement category: SALES, PURCHASES, EXPENSE, PAYROLL, BANK, CHANGE, ADJUSTMENT, OTHER';
+COMMENT ON TYPE cash_closing_status IS 'Closing status: OPEN=In progress, CLOSED=Reconciled, PENDING=With discrepancy';
 
 -- ============================================================================
--- Tabla: caja_movimientos
+-- Table: cash_movements
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS caja_movimientos (
+CREATE TABLE IF NOT EXISTS cash_movements (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
 
-    -- Tipo y categoría
-    tipo caja_movimiento_tipo NOT NULL,
-    categoria caja_movimiento_categoria NOT NULL,
+    -- Type and category
+    type cash_movement_type NOT NULL,
+    category cash_movement_category NOT NULL,
 
-    -- Importe
-    importe NUMERIC(12, 2) NOT NULL,
-    moneda CHAR(3) NOT NULL DEFAULT 'EUR',
+    -- Amount
+    amount NUMERIC(12, 2) NOT NULL,
+    currency CHAR(3) NOT NULL DEFAULT 'EUR',
 
-    -- Descripción
-    concepto VARCHAR(255) NOT NULL,
-    notas TEXT,
+    -- Description
+    description VARCHAR(255) NOT NULL,
+    notes TEXT,
 
-    -- Referencia a documento origen
+    -- Reference to source document
     ref_doc_type VARCHAR(50),
     ref_doc_id UUID,
 
-    -- Multi-caja (opcional)
-    caja_id UUID,
+    -- Multi-cash (optional)
+    cash_box_id UUID,
 
-    -- Usuario responsable
-    usuario_id UUID,
+    -- Responsible user
+    user_id UUID,
 
-    -- Fecha
-    fecha DATE NOT NULL,
+    -- Date
+    date DATE NOT NULL,
 
-    -- Relación con cierre
-    cierre_id UUID,
+    -- Relation to closing
+    closing_id UUID,
 
-    -- Auditoría
+    -- Audit
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Índices
-CREATE INDEX IF NOT EXISTS idx_caja_movimientos_tenant_id ON caja_movimientos(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_caja_movimientos_fecha ON caja_movimientos(fecha);
-CREATE INDEX IF NOT EXISTS idx_caja_movimientos_tipo ON caja_movimientos(tipo);
-CREATE INDEX IF NOT EXISTS idx_caja_movimientos_categoria ON caja_movimientos(categoria);
-CREATE INDEX IF NOT EXISTS idx_caja_movimientos_caja_id ON caja_movimientos(caja_id) WHERE caja_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_caja_movimientos_cierre_id ON caja_movimientos(cierre_id) WHERE cierre_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_caja_movimientos_ref_doc ON caja_movimientos(ref_doc_type, ref_doc_id) WHERE ref_doc_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_caja_movimientos_fecha_tenant ON caja_movimientos(fecha, tenant_id);
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_cash_movements_tenant_id ON cash_movements(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cash_movements_date ON cash_movements(date);
+CREATE INDEX IF NOT EXISTS idx_cash_movements_type ON cash_movements(type);
+CREATE INDEX IF NOT EXISTS idx_cash_movements_category ON cash_movements(category);
+CREATE INDEX IF NOT EXISTS idx_cash_movements_cash_box_id ON cash_movements(cash_box_id) WHERE cash_box_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_cash_movements_closing_id ON cash_movements(closing_id) WHERE closing_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_cash_movements_ref_doc ON cash_movements(ref_doc_type, ref_doc_id) WHERE ref_doc_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_cash_movements_date_tenant ON cash_movements(date, tenant_id);
 
--- Comentarios
-COMMENT ON TABLE caja_movimientos IS 'Movimientos de caja (ingresos, egresos, ajustes)';
-COMMENT ON COLUMN caja_movimientos.tipo IS 'INGRESO (positivo), EGRESO (negativo), AJUSTE';
-COMMENT ON COLUMN caja_movimientos.categoria IS 'Categoría del movimiento (VENTA, COMPRA, GASTO, etc.)';
-COMMENT ON COLUMN caja_movimientos.importe IS 'Importe (positivo para ingresos, negativo para egresos)';
-COMMENT ON COLUMN caja_movimientos.moneda IS 'Código moneda ISO 4217 (EUR, USD, etc.)';
-COMMENT ON COLUMN caja_movimientos.concepto IS 'Descripción del movimiento';
-COMMENT ON COLUMN caja_movimientos.ref_doc_type IS 'Tipo de documento origen (invoice, receipt, expense, payroll)';
-COMMENT ON COLUMN caja_movimientos.ref_doc_id IS 'ID del documento origen';
-COMMENT ON COLUMN caja_movimientos.caja_id IS 'ID de caja (para multi-caja/multi-punto)';
-COMMENT ON COLUMN caja_movimientos.usuario_id IS 'Usuario que registró el movimiento';
-COMMENT ON COLUMN caja_movimientos.cierre_id IS 'ID del cierre al que pertenece';
+-- Comments
+COMMENT ON TABLE cash_movements IS 'Cash movements (income, expenses, adjustments)';
+COMMENT ON COLUMN cash_movements.type IS 'INCOME (positive), EXPENSE (negative), ADJUSTMENT';
+COMMENT ON COLUMN cash_movements.category IS 'Movement category (SALES, PURCHASES, EXPENSE, etc.)';
+COMMENT ON COLUMN cash_movements.amount IS 'Amount (positive for income, negative for expenses)';
+COMMENT ON COLUMN cash_movements.currency IS 'Currency code ISO 4217 (EUR, USD, etc.)';
+COMMENT ON COLUMN cash_movements.description IS 'Movement description';
+COMMENT ON COLUMN cash_movements.ref_doc_type IS 'Source document type (invoice, receipt, expense, payroll)';
+COMMENT ON COLUMN cash_movements.ref_doc_id IS 'ID of source document';
+COMMENT ON COLUMN cash_movements.cash_box_id IS 'ID of cash box (for multi-cash/multi-point)';
+COMMENT ON COLUMN cash_movements.user_id IS 'User who recorded the movement';
+COMMENT ON COLUMN cash_movements.closing_id IS 'ID of the closing this belongs to';
 
 -- ============================================================================
--- Tabla: cierres_caja
+-- Table: cash_closings
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS cierres_caja (
+CREATE TABLE IF NOT EXISTS cash_closings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
 
-    -- Fecha y caja
-    fecha DATE NOT NULL,
-    caja_id UUID,
-    moneda CHAR(3) NOT NULL DEFAULT 'EUR',
+    -- Date and cash box
+    date DATE NOT NULL,
+    cash_box_id UUID,
+    currency CHAR(3) NOT NULL DEFAULT 'EUR',
 
-    -- === SALDOS ===
-    saldo_inicial NUMERIC(12, 2) NOT NULL DEFAULT 0,
-    total_ingresos NUMERIC(12, 2) NOT NULL DEFAULT 0,
-    total_egresos NUMERIC(12, 2) NOT NULL DEFAULT 0,
-    saldo_teorico NUMERIC(12, 2) NOT NULL DEFAULT 0,
-    saldo_real NUMERIC(12, 2) NOT NULL DEFAULT 0,
-    diferencia NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    -- === BALANCES ===
+    opening_balance NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    total_income NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    total_expenses NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    theoretical_balance NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    actual_balance NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    difference NUMERIC(12, 2) NOT NULL DEFAULT 0,
 
-    -- === ESTADO ===
-    status cierre_caja_status NOT NULL DEFAULT 'ABIERTO',
-    cuadrado BOOLEAN NOT NULL DEFAULT FALSE,
+    -- === STATUS ===
+    status cash_closing_status NOT NULL DEFAULT 'OPEN',
+    is_balanced BOOLEAN NOT NULL DEFAULT FALSE,
 
-    -- === DETALLES ===
-    detalles_billetes JSONB,
-    notas TEXT,
+    -- === DETAILS ===
+    bills_details JSONB,
+    notes TEXT,
 
-    -- === USUARIOS ===
-    abierto_por UUID,
-    abierto_at TIMESTAMPTZ,
-    cerrado_por UUID,
-    cerrado_at TIMESTAMPTZ,
+    -- === USERS ===
+    opened_by UUID,
+    opened_at TIMESTAMPTZ,
+    closed_by UUID,
+    closed_at TIMESTAMPTZ,
 
-    -- Auditoría
+    -- Audit
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     -- === CONSTRAINTS ===
-    CONSTRAINT cierres_caja_fecha_caja_unique
-        UNIQUE (tenant_id, fecha, caja_id),
-    CONSTRAINT cierres_caja_saldos_check
-        CHECK (saldo_teorico = saldo_inicial + total_ingresos - total_egresos),
-    CONSTRAINT cierres_caja_diferencia_check
-        CHECK (diferencia = saldo_real - saldo_teorico)
+    CONSTRAINT cash_closings_date_cash_box_unique
+        UNIQUE (tenant_id, date, cash_box_id),
+    CONSTRAINT cash_closings_balances_check
+        CHECK (theoretical_balance = opening_balance + total_income - total_expenses),
+    CONSTRAINT cash_closings_difference_check
+        CHECK (difference = actual_balance - theoretical_balance)
 );
 
--- Índices
-CREATE INDEX IF NOT EXISTS idx_cierres_caja_tenant_id ON cierres_caja(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_cierres_caja_fecha ON cierres_caja(fecha);
-CREATE INDEX IF NOT EXISTS idx_cierres_caja_status ON cierres_caja(status);
-CREATE INDEX IF NOT EXISTS idx_cierres_caja_caja_id ON cierres_caja(caja_id) WHERE caja_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_cierres_caja_cuadrado ON cierres_caja(cuadrado) WHERE cuadrado = FALSE;
-CREATE INDEX IF NOT EXISTS idx_cierres_caja_fecha_tenant ON cierres_caja(fecha, tenant_id);
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_cash_closings_tenant_id ON cash_closings(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cash_closings_date ON cash_closings(date);
+CREATE INDEX IF NOT EXISTS idx_cash_closings_status ON cash_closings(status);
+CREATE INDEX IF NOT EXISTS idx_cash_closings_cash_box_id ON cash_closings(cash_box_id) WHERE cash_box_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_cash_closings_is_balanced ON cash_closings(is_balanced) WHERE is_balanced = FALSE;
+CREATE INDEX IF NOT EXISTS idx_cash_closings_date_tenant ON cash_closings(date, tenant_id);
 
--- Comentarios
-COMMENT ON TABLE cierres_caja IS 'Cierres diarios de caja con conciliación';
-COMMENT ON COLUMN cierres_caja.fecha IS 'Fecha del cierre';
-COMMENT ON COLUMN cierres_caja.caja_id IS 'ID de caja (para multi-caja)';
-COMMENT ON COLUMN cierres_caja.saldo_inicial IS 'Saldo al inicio del día';
-COMMENT ON COLUMN cierres_caja.total_ingresos IS 'Suma de ingresos del día';
-COMMENT ON COLUMN cierres_caja.total_egresos IS 'Suma de egresos del día (valor absoluto)';
-COMMENT ON COLUMN cierres_caja.saldo_teorico IS 'Saldo teórico (inicial + ingresos - egresos)';
-COMMENT ON COLUMN cierres_caja.saldo_real IS 'Efectivo contado físicamente';
-COMMENT ON COLUMN cierres_caja.diferencia IS 'Diferencia (real - teórico)';
-COMMENT ON COLUMN cierres_caja.status IS 'Estado: ABIERTO, CERRADO, PENDIENTE';
-COMMENT ON COLUMN cierres_caja.cuadrado IS 'True si diferencia = 0';
-COMMENT ON COLUMN cierres_caja.detalles_billetes IS 'Desglose de billetes y monedas contadas (JSON)';
+-- Comments
+COMMENT ON TABLE cash_closings IS 'Daily cash closings with reconciliation';
+COMMENT ON COLUMN cash_closings.date IS 'Date of closing';
+COMMENT ON COLUMN cash_closings.cash_box_id IS 'ID of cash box (for multi-cash)';
+COMMENT ON COLUMN cash_closings.opening_balance IS 'Balance at start of day';
+COMMENT ON COLUMN cash_closings.total_income IS 'Sum of income for the day';
+COMMENT ON COLUMN cash_closings.total_expenses IS 'Sum of expenses for the day (absolute value)';
+COMMENT ON COLUMN cash_closings.theoretical_balance IS 'Theoretical balance (opening + income - expenses)';
+COMMENT ON COLUMN cash_closings.actual_balance IS 'Cash physically counted';
+COMMENT ON COLUMN cash_closings.difference IS 'Difference (actual - theoretical)';
+COMMENT ON COLUMN cash_closings.status IS 'Status: OPEN, CLOSED, PENDING';
+COMMENT ON COLUMN cash_closings.is_balanced IS 'True if difference = 0';
+COMMENT ON COLUMN cash_closings.bills_details IS 'Breakdown of bills and coins counted (JSON)';
 
--- Agregar constraint de FK para cierre_id después de crear ambas tablas
+-- Add FK constraint for closing_id after both tables are created
 DO $$ BEGIN
-    ALTER TABLE caja_movimientos
-    ADD CONSTRAINT fk_caja_movimientos_cierre
-    FOREIGN KEY (cierre_id) REFERENCES cierres_caja(id) ON DELETE SET NULL;
+    ALTER TABLE cash_movements
+    ADD CONSTRAINT fk_cash_movements_closing
+    FOREIGN KEY (closing_id) REFERENCES cash_closings(id) ON DELETE SET NULL;
 EXCEPTION WHEN OTHERS THEN
     NULL; -- Constraint already exists
 END $$;
@@ -189,135 +188,41 @@ END $$;
 -- RLS (Row Level Security)
 -- ============================================================================
 
-ALTER TABLE caja_movimientos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE cierres_caja ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cash_movements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cash_closings ENABLE ROW LEVEL SECURITY;
 
--- Políticas RLS para caja_movimientos
-DROP POLICY IF EXISTS caja_movimientos_tenant_isolation ON caja_movimientos;
-CREATE POLICY caja_movimientos_tenant_isolation ON caja_movimientos
+-- RLS policies for cash_movements
+DROP POLICY IF EXISTS cash_movements_tenant_isolation ON cash_movements;
+CREATE POLICY cash_movements_tenant_isolation ON cash_movements
     USING (tenant_id::text = current_setting('app.tenant_id', TRUE));
 
--- Políticas RLS para cierres_caja
-DROP POLICY IF EXISTS cierres_caja_tenant_isolation ON cierres_caja;
-CREATE POLICY cierres_caja_tenant_isolation ON cierres_caja
+-- RLS policies for cash_closings
+DROP POLICY IF EXISTS cash_closings_tenant_isolation ON cash_closings;
+CREATE POLICY cash_closings_tenant_isolation ON cash_closings
     USING (tenant_id::text = current_setting('app.tenant_id', TRUE));
 
 -- ============================================================================
--- TRIGGERS
+-- Triggers
 -- ============================================================================
 
--- Trigger para actualizar updated_at en cierres_caja
-DROP TRIGGER IF EXISTS cierres_caja_updated_at ON cierres_caja;
-CREATE TRIGGER cierres_caja_updated_at
-    BEFORE UPDATE ON cierres_caja
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
--- ============================================================================
--- FUNCIONES
--- ============================================================================
-
--- Función para auto-calcular totales de cierre
-CREATE OR REPLACE FUNCTION recalcular_totales_cierre(p_cierre_id UUID)
-RETURNS void AS $$
-DECLARE
-    v_tenant_id UUID;
-    v_fecha DATE;
-    v_caja_id UUID;
-    v_total_ingresos NUMERIC(12, 2);
-    v_total_egresos NUMERIC(12, 2);
-BEGIN
-    -- Obtener datos del cierre
-    SELECT tenant_id, fecha, caja_id
-    INTO v_tenant_id, v_fecha, v_caja_id
-    FROM cierres_caja
-    WHERE id = p_cierre_id;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'Cierre no encontrado: %', p_cierre_id;
-    END IF;
-
-    -- Calcular totales de movimientos
-    SELECT
-        COALESCE(SUM(importe) FILTER (WHERE importe > 0), 0),
-        COALESCE(ABS(SUM(importe) FILTER (WHERE importe < 0)), 0)
-    INTO v_total_ingresos, v_total_egresos
-    FROM caja_movimientos
-    WHERE tenant_id = v_tenant_id
-      AND fecha = v_fecha
-      AND (caja_id = v_caja_id OR (caja_id IS NULL AND v_caja_id IS NULL));
-
-    -- Actualizar cierre
-    UPDATE cierres_caja
-    SET total_ingresos = v_total_ingresos,
-        total_egresos = v_total_egresos,
-        saldo_teorico = saldo_inicial + v_total_ingresos - v_total_egresos,
-        diferencia = saldo_real - (saldo_inicial + v_total_ingresos - v_total_egresos),
-        cuadrado = (saldo_real = saldo_inicial + v_total_ingresos - v_total_egresos)
-    WHERE id = p_cierre_id;
-END;
-$$ LANGUAGE plpgsql;
-
-COMMENT ON FUNCTION recalcular_totales_cierre IS 'Recalcula totales de un cierre basándose en movimientos';
-
--- Trigger para actualizar cierre cuando se agrega/modifica movimiento
-CREATE OR REPLACE FUNCTION trigger_actualizar_cierre_movimiento()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- Si el movimiento está vinculado a un cierre, recalcular
-    IF NEW.cierre_id IS NOT NULL THEN
-        PERFORM recalcular_totales_cierre(NEW.cierre_id);
-    END IF;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS caja_movimientos_actualizar_cierre ON caja_movimientos;
-CREATE TRIGGER caja_movimientos_actualizar_cierre
-    AFTER INSERT OR UPDATE ON caja_movimientos
-    FOR EACH ROW
-    WHEN (NEW.cierre_id IS NOT NULL)
-    EXECUTE FUNCTION trigger_actualizar_cierre_movimiento();
-
--- ============================================================================
--- VISTAS
--- ============================================================================
-
--- Vista: Resumen diario de caja por tenant
-CREATE OR REPLACE VIEW v_caja_resumen_diario AS
-SELECT
-    tenant_id,
-    fecha,
-    caja_id,
-    moneda,
-    COUNT(*) as total_movimientos,
-    SUM(CASE WHEN tipo = 'INGRESO' THEN importe ELSE 0 END) as total_ingresos,
-    ABS(SUM(CASE WHEN tipo = 'EGRESO' THEN importe ELSE 0 END)) as total_egresos,
-    SUM(importe) as saldo_neto
-FROM caja_movimientos
-GROUP BY tenant_id, fecha, caja_id, moneda
-ORDER BY fecha DESC, tenant_id;
-
-COMMENT ON VIEW v_caja_resumen_diario IS 'Resumen diario de movimientos de caja por tenant';
-
--- ============================================================================
--- DATOS INICIALES (Opcional)
--- ============================================================================
-
--- No se requieren datos iniciales para este módulo
-
--- ============================================================================
--- FIN DE MIGRACIÓN
--- ============================================================================
-
--- Log de migración
 DO $$
 BEGIN
-    RAISE NOTICE 'Migración 2025-11-03_202_finance_caja aplicada exitosamente';
-    RAISE NOTICE '- Tablas creadas: caja_movimientos, cierres_caja';
-    RAISE NOTICE '- RLS habilitado en todas las tablas';
-    RAISE NOTICE '- Índices de performance aplicados';
-    RAISE NOTICE '- Función recalcular_totales_cierre() creada';
-    RAISE NOTICE '- Vista v_caja_resumen_diario creada';
-END $$;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger WHERE tgname = 'cash_movements_updated_at'
+    ) THEN
+        CREATE TRIGGER cash_movements_updated_at
+            BEFORE UPDATE ON cash_movements
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger WHERE tgname = 'cash_closings_updated_at'
+    ) THEN
+        CREATE TRIGGER cash_closings_updated_at
+            BEFORE UPDATE ON cash_closings
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+END;
+$$;

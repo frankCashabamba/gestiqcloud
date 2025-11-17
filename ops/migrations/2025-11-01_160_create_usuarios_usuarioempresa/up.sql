@@ -1,9 +1,10 @@
--- Create table usuarios_usuarioempresa for multi-tenant (English columns)
+-- Create table company_users for multi-tenant
 -- Migration: 2025-11-01_160_create_usuarios_usuarioempresa
+-- Updated: 2025-11-17 - Spanish to English names
 
 BEGIN;
 
-CREATE TABLE IF NOT EXISTS usuarios_usuarioempresa (
+CREATE TABLE IF NOT EXISTS company_users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     first_name VARCHAR(100) NOT NULL,
@@ -21,12 +22,12 @@ CREATE TABLE IF NOT EXISTS usuarios_usuarioempresa (
     last_password_change_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_usuarioempresa_tenant_email UNIQUE (tenant_id, email),
-    CONSTRAINT uq_usuarioempresa_tenant_username UNIQUE (tenant_id, username)
+    CONSTRAINT uq_company_users_tenant_email UNIQUE (tenant_id, email),
+    CONSTRAINT uq_company_users_tenant_username UNIQUE (tenant_id, username)
 );
 
-CREATE INDEX IF NOT EXISTS idx_usuarios_usuarioempresa_tenant_id ON usuarios_usuarioempresa(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_usuarios_usuarioempresa_email ON usuarios_usuarioempresa(email);
-CREATE INDEX IF NOT EXISTS idx_usuarios_usuarioempresa_username ON usuarios_usuarioempresa(username);
+CREATE INDEX IF NOT EXISTS idx_company_users_tenant_id ON company_users(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_company_users_email ON company_users(email);
+CREATE INDEX IF NOT EXISTS idx_company_users_username ON company_users(username);
 
 COMMIT;
