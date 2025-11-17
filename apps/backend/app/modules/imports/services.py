@@ -11,11 +11,6 @@ import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
-_SERVICES_EXTRA_PATH = Path(__file__).parent / "services"
-# Allow `app.modules.imports.services.classifier` to load from the sibling directory.
-if _SERVICES_EXTRA_PATH.is_dir():
-    __path__ = [str(_SERVICES_EXTRA_PATH)]
-
 from app.config.settings import settings
 from app.modules.imports.extractores.extractor_desconocido import extraer_por_tipos_combinados
 from app.modules.imports.extractores.extractor_factura import extraer_factura
@@ -23,6 +18,11 @@ from app.modules.imports.extractores.extractor_recibo import extraer_recibo
 from app.modules.imports.extractores.extractor_transferencia import extraer_transferencias
 from app.modules.imports.extractores.utilidades import detectar_tipo_documento
 from app.modules.imports.schemas import DocumentoProcesado
+
+_SERVICES_EXTRA_PATH = Path(__file__).parent / "services"
+# Allow `app.modules.imports.services.classifier` to load from the sibling directory.
+if _SERVICES_EXTRA_PATH.is_dir():
+    __path__ = [str(_SERVICES_EXTRA_PATH)]
 
 fitz = None  # type: ignore
 easyocr = None  # type: ignore
@@ -36,7 +36,7 @@ _easyocr_reader: object | None = None
 try:  # eager warm-up (desactivado por defecto en prod)
     if bool(getattr(settings, "IMPORTS_EASYOCR_WARM_ON_START", False)):
         _get_easyocr_reader()  # noqa: F821
-except Exception:
+except Exception:  # nosec B110
     # best-effort; on failure the reader will be lazily retried later
     pass
 
@@ -65,7 +65,7 @@ def limpiar_texto_ocr(texto: str) -> str:
     # Quita caracteres no imprimibles, pero conserva acentos y ñ
     texto = re.sub(r"[^\x09\x0A\x0D\x20-\x7EáéíóúÁÉÍÓÚñÑüÜ.,;:¡!¿?()\[\]{}]", "", texto)
     # Reemplaza caracteres de error típicos
-    texto = texto.replace("�", "").replace("·", ".").replace("“", '"').replace("”", '"')
+    texto = texto.replace("�", "").replace("·", ".").replace(""", '"').replace(""", '"')
     return texto
 
 
@@ -82,7 +82,7 @@ def extraer_texto_ocr_hibrido_paginas(file_bytes: bytes) -> list[str]:
         try:
             fitz_mod = importlib.import_module("fitz")  # type: ignore
             globals()["fitz"] = fitz_mod
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
     if fitz is None:  # no PDF rasterizer available
@@ -99,7 +99,7 @@ def extraer_texto_ocr_hibrido_paginas(file_bytes: bytes) -> list[str]:
                 pix = page.get_pixmap(dpi=300)
                 img_path = f"{tmp_path}_p{page.number}.png"
                 pix.save(img_path)
-            except Exception:
+            except Exception:  # nosec B112
                 continue
 
             text_page = ""
@@ -134,7 +134,7 @@ def extraer_texto_ocr_hibrido_paginas(file_bytes: bytes) -> list[str]:
             Path(img_path).unlink(missing_ok=True)
         try:
             doc.close()
-        except Exception:
+        except Exception:  # nosec B110
             pass
     finally:
         Path(tmp_path).unlink(missing_ok=True)
@@ -179,7 +179,7 @@ def procesar_documento(file_bytes: bytes, filename: str) -> list[DocumentoProces
         try:
             documentos = extractor(pagina_texto)
             resultados.extend(documentos)
-        except Exception:
+        except Exception:  # nosec B112
             continue
 
     # Normalización de tipo
