@@ -78,3 +78,4 @@ python-magic-bin>=0.4.14; platform_system == "Windows"
 clamd==1.0.2
 cryptography>=41.0.0
 signxml>=3.2.0
+ruff==0.14.4
