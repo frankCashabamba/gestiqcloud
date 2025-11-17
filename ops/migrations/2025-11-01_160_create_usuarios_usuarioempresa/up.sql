@@ -1,4 +1,4 @@
--- Crear tabla usuarios_usuarioempresa para multi-tenant
+-- Create table usuarios_usuarioempresa for multi-tenant (English columns)
 -- Migration: 2025-11-01_160_create_usuarios_usuarioempresa
 
 BEGIN;
@@ -6,12 +6,12 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS usuarios_usuarioempresa (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    nombre_encargado VARCHAR(100) NOT NULL,
-    apellido_encargado VARCHAR(100) NOT NULL,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
     email VARCHAR(254) NOT NULL,
     username VARCHAR(100) NOT NULL,
-    activo BOOLEAN NOT NULL DEFAULT true,
-    es_admin_empresa BOOLEAN NOT NULL DEFAULT false,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    is_company_admin BOOLEAN NOT NULL DEFAULT false,
     password_hash VARCHAR(255) NOT NULL,
     password_token_created TIMESTAMPTZ,
     is_verified BOOLEAN NOT NULL DEFAULT false,

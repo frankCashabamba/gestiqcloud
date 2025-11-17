@@ -1,21 +1,42 @@
 # 📊 Resumen de Migración: Español → Inglés
 
-## Estado Actual ✅
+## Estado Actual ⚠️
 
-**Toda la infraestructura de migraciones está completada y lista para ejecutar.**
+**La infraestructura de migraciones está **parcialmente completada**. Faltan ~10-15 tablas.**
 
 | Componente | Estado | Detalles |
 |-----------|--------|---------|
-| Scripts SQL Base | ✅ | 28 migraciones con CREATE/ALTER TABLE |
+| Scripts SQL Base | ⚠️ | 28 migraciones existentes + 5 por crear |
+| Auth Tables | ✅ | `2025-11-01_100_auth_tables` creada |
+| Tablas Críticas | ❌ | clients, invoices, invoice_lines FALTA |
 | Renombre Tablas | ✅ | `2025-11-17_001_spanish_to_english_names` completada |
 | Renombre Columnas | ✅ | Expenses, Bank, Payroll, Suppliers, etc. |
 | Scripts Python | ✅ | `ops/scripts/migrate_all_migrations.py` disponible |
 | Modelos ORM | ✅ | Ya en inglés en `/app/models/` |
-| Documentación | ✅ | Plans y status disponibles |
+| Documentación | ✅ | Plans, status, y missing migrations documentados |
 
 ---
 
-## 🚀 Ejecutar Ahora
+## ⚠️ Tablas Que Faltan (Críticas)
+
+**Necesarias ANTES de ejecutar migraciones completas:**
+
+- ❌ `clients` - Base para ventas (CRÍTICA)
+- ❌ `invoices` - Facturas (CRÍTICA)
+- ❌ `invoice_lines` - Líneas de facturas (CRÍTICA)
+- ❌ `doc_series` - Numeración de documentos
+- ❌ `base_roles` - Roles globales
+- ❌ `store_credits` - Crédito de tienda (POS)
+- ❌ `store_credit_events` - Eventos de crédito
+- ❌ `einv_credentials` - E-invoicing
+- ❌ `incidents` - Reportes/alertas
+- ❌ `notification_channels` - Canales de notificación
+
+**Ver:** `ops/MISSING_MIGRATIONS.md` para detalles completos
+
+---
+
+## 🚀 Antes de Ejecutar
 
 ```bash
 # Opción 1: Comando directo (recomendado)

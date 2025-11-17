@@ -1,6 +1,4 @@
-"""Module: invoiceLine.py
-
-Auto-generated module docstring."""
+"""Module: invoiceLine.py - Invoice line item models."""
 
 from uuid import UUID
 
@@ -12,9 +10,9 @@ from app.config.database import Base
 
 
 class LineaFactura(Base):
-    """Class LineaFactura - auto-generated docstring."""
+    """Invoice line item base model."""
 
-    __tablename__ = "invoice_lines"  # ✅ CORREGIDO: tabla real en DB
+    __tablename__ = "invoice_lines"
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[UUID] = mapped_column(
@@ -22,43 +20,42 @@ class LineaFactura(Base):
         primary_key=True,
         default=lambda: __import__("uuid").uuid4(),
     )
-    factura_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("invoices.id")
-    )  # ✅ CORREGIDO
-    sector: Mapped[str] = mapped_column(String(50))  # "panaderia", "taller", etc
-
-    descripcion: Mapped[str]
-    cantidad: Mapped[float]
-    precio_unitario: Mapped[float]
-    iva: Mapped[float] = mapped_column(default=0)
+    invoice_id: Mapped[UUID] = mapped_column(
+        "invoice_id", PGUUID(as_uuid=True), ForeignKey("invoices.id")
+    )
+    sector: Mapped[str] = mapped_column("sector", String(50))
+    description: Mapped[str] = mapped_column("description", String)
+    quantity: Mapped[float] = mapped_column("quantity")
+    unit_price: Mapped[float] = mapped_column("unit_price")
+    vat: Mapped[float] = mapped_column("vat", default=0)
 
     __mapper_args__ = {"polymorphic_identity": "base", "polymorphic_on": sector}
 
 
 class LineaPanaderia(LineaFactura):
-    """Class LineaPanaderia - auto-generated docstring."""
+    """Bakery line item model."""
 
     __tablename__ = "lineas_panaderia"
 
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("invoice_lines.id"), primary_key=True
-    )  # ✅ CORREGIDO
-    tipo_pan: Mapped[str]
-    gramos: Mapped[float]
+    )
+    tipo_pan: Mapped[str] = mapped_column("tipo_pan", String)
+    gramos: Mapped[float] = mapped_column("gramos")
 
     __mapper_args__ = {"polymorphic_identity": "panaderia"}
 
 
 class LineaTaller(LineaFactura):
-    """Class LineaTaller - auto-generated docstring."""
+    """Workshop line item model."""
 
     __tablename__ = "lineas_taller"
 
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("invoice_lines.id"), primary_key=True
-    )  # ✅ CORREGIDO
-    repuesto: Mapped[str]
-    horas_mano_obra: Mapped[float]
-    tarifa: Mapped[float]
+    )
+    repuesto: Mapped[str] = mapped_column("repuesto", String)
+    horas_mano_obra: Mapped[float] = mapped_column("horas_mano_obra")
+    tarifa: Mapped[float] = mapped_column("tarifa")
 
     __mapper_args__ = {"polymorphic_identity": "taller"}

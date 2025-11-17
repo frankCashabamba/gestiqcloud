@@ -9,7 +9,7 @@ BEGIN;
 -- AUTH_USER: Superadmin/System Users
 -- =====================================================
 CREATE TABLE IF NOT EXISTS auth_user (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID DEFAULT gen_random_uuid(),
     username VARCHAR(150) NOT NULL UNIQUE,
     email VARCHAR(254) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS auth_user (
     last_password_change_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    CONSTRAINT auth_user_pkey PRIMARY KEY (id)
+    PRIMARY KEY (id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_auth_user_username ON auth_user(username);
@@ -34,12 +34,12 @@ CREATE INDEX IF NOT EXISTS idx_auth_user_is_active ON auth_user(is_active);
 -- AUTH_REFRESH_FAMILY: Token Family Management
 -- =====================================================
 CREATE TABLE IF NOT EXISTS auth_refresh_family (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID DEFAULT gen_random_uuid(),
     user_id INTEGER,
     tenant_id UUID,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
     revoked_at TIMESTAMP WITH TIME ZONE,
-    CONSTRAINT auth_refresh_family_pkey PRIMARY KEY (id)
+    PRIMARY KEY (id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_auth_refresh_family_user_id ON auth_refresh_family(user_id);
@@ -50,7 +50,7 @@ CREATE INDEX IF NOT EXISTS idx_auth_refresh_family_revoked_at ON auth_refresh_fa
 -- AUTH_REFRESH_TOKEN: Individual Refresh Tokens
 -- =====================================================
 CREATE TABLE IF NOT EXISTS auth_refresh_token (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID DEFAULT gen_random_uuid(),
     family_id UUID NOT NULL REFERENCES auth_refresh_family(id) ON DELETE CASCADE,
     jti UUID NOT NULL UNIQUE,
     prev_jti UUID,
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS auth_refresh_token (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
     used_at TIMESTAMP WITH TIME ZONE,
     revoked_at TIMESTAMP WITH TIME ZONE,
-    CONSTRAINT auth_refresh_token_pkey PRIMARY KEY (id)
+    PRIMARY KEY (id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_auth_refresh_token_family_id ON auth_refresh_token(family_id);
