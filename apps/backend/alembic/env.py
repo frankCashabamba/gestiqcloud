@@ -6,6 +6,7 @@ import sys
 from logging.config import fileConfig
 from pathlib import Path
 
+import sqlalchemy as sa
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
@@ -84,6 +85,16 @@ def run_migrations_online() -> None:
 
         with context.begin_transaction():
             context.run_migrations()
+
+        # If no migrations were applied and database is empty, create schema from models
+        # This handles the case where migrations directory has only placeholder migrations
+        with connectable.connect() as conn:
+            inspector = sa.inspect(conn)
+            existing_tables = inspector.get_table_names()
+
+            # If database is empty (no tables), create all from metadata
+            if not existing_tables:
+                target_metadata.create_all(connectable)
 
 
 if context.is_offline_mode():
