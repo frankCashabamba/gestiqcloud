@@ -666,8 +666,6 @@ HEALTHCHECK CMD curl -f http://127.0.0.1:8000/ready || exit 1
 # .github/workflows/ci.yml
 - name: Lint (Black + Ruff)
   run: |
-    pip install black ruff
-    black --check apps/backend
     ruff check apps/backend
 
 - name: Validate Alembic migrations

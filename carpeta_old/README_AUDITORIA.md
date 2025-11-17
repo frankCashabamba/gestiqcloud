@@ -206,7 +206,6 @@ mypy app/ --config-file=pyproject.toml
 bandit -r app/ -c pyproject.toml
 pytest --cov=app --cov-report=html
 ruff check app/
-black --check app/
 
 # Frontend
 cd apps/tenant

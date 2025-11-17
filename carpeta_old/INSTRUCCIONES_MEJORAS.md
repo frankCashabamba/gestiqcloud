@@ -107,7 +107,6 @@ cd apps/backend
 
 # 1. Ejecutar linters
 ruff check app/
-black --check app/
 isort --check app/
 
 # 2. Type checking
