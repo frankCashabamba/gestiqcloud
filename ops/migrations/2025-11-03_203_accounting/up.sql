@@ -5,9 +5,25 @@
 -- Fecha: 2025-11-03
 -- ============================================================================
 
+-- Crear función helper si no existe
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Crear tipos ENUM para contabilidad
-CREATE TYPE cuenta_tipo AS ENUM ('ACTIVO', 'PASIVO', 'PATRIMONIO', 'INGRESO', 'GASTO');
-CREATE TYPE asiento_status AS ENUM ('BORRADOR', 'VALIDADO', 'CONTABILIZADO', 'ANULADO');
+DO $$ BEGIN
+  CREATE TYPE cuenta_tipo AS ENUM ('ACTIVO', 'PASIVO', 'PATRIMONIO', 'INGRESO', 'GASTO');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE asiento_status AS ENUM ('BORRADOR', 'VALIDADO', 'CONTABILIZADO', 'ANULADO');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 COMMENT ON TYPE cuenta_tipo IS 'Tipo de cuenta: ACTIVO, PASIVO, PATRIMONIO, INGRESO, GASTO';
 COMMENT ON TYPE asiento_status IS 'Estado de asiento: BORRADOR=Sin validar, VALIDADO=Cuadrado, CONTABILIZADO=Posted, ANULADO=Cancelado';
@@ -16,7 +32,7 @@ COMMENT ON TYPE asiento_status IS 'Estado de asiento: BORRADOR=Sin validar, VALI
 -- Tabla: plan_cuentas
 -- ============================================================================
 
-CREATE TABLE plan_cuentas (
+CREATE TABLE IF NOT EXISTS plan_cuentas (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
 
@@ -50,12 +66,12 @@ CREATE TABLE plan_cuentas (
 );
 
 -- Índices
-CREATE INDEX idx_plan_cuentas_tenant_id ON plan_cuentas(tenant_id);
-CREATE INDEX idx_plan_cuentas_codigo ON plan_cuentas(codigo);
-CREATE INDEX idx_plan_cuentas_tipo ON plan_cuentas(tipo);
-CREATE INDEX idx_plan_cuentas_padre_id ON plan_cuentas(padre_id) WHERE padre_id IS NOT NULL;
-CREATE INDEX idx_plan_cuentas_activo ON plan_cuentas(activo) WHERE activo = TRUE;
-CREATE INDEX idx_plan_cuentas_imputable ON plan_cuentas(imputable) WHERE imputable = TRUE;
+CREATE INDEX IF NOT EXISTS idx_plan_cuentas_tenant_id ON plan_cuentas(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_plan_cuentas_codigo ON plan_cuentas(codigo);
+CREATE INDEX IF NOT EXISTS idx_plan_cuentas_tipo ON plan_cuentas(tipo);
+CREATE INDEX IF NOT EXISTS idx_plan_cuentas_padre_id ON plan_cuentas(padre_id) WHERE padre_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_plan_cuentas_activo ON plan_cuentas(activo) WHERE activo = TRUE;
+CREATE INDEX IF NOT EXISTS idx_plan_cuentas_imputable ON plan_cuentas(imputable) WHERE imputable = TRUE;
 
 -- Comentarios
 COMMENT ON TABLE plan_cuentas IS 'Plan de cuentas contable jerárquico';
@@ -72,7 +88,7 @@ COMMENT ON COLUMN plan_cuentas.saldo IS 'Saldo neto (debe - haber)';
 -- Tabla: asientos_contables
 -- ============================================================================
 
-CREATE TABLE asientos_contables (
+CREATE TABLE IF NOT EXISTS asientos_contables (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
 
@@ -107,13 +123,13 @@ CREATE TABLE asientos_contables (
 );
 
 -- Índices
-CREATE INDEX idx_asientos_contables_tenant_id ON asientos_contables(tenant_id);
-CREATE INDEX idx_asientos_contables_numero ON asientos_contables(numero);
-CREATE INDEX idx_asientos_contables_fecha ON asientos_contables(fecha);
-CREATE INDEX idx_asientos_contables_status ON asientos_contables(status);
-CREATE INDEX idx_asientos_contables_tipo ON asientos_contables(tipo);
-CREATE INDEX idx_asientos_contables_ref_doc ON asientos_contables(ref_doc_type, ref_doc_id) WHERE ref_doc_id IS NOT NULL;
-CREATE INDEX idx_asientos_contables_fecha_tenant ON asientos_contables(fecha, tenant_id);
+CREATE INDEX IF NOT EXISTS idx_asientos_contables_tenant_id ON asientos_contables(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_asientos_contables_numero ON asientos_contables(numero);
+CREATE INDEX IF NOT EXISTS idx_asientos_contables_fecha ON asientos_contables(fecha);
+CREATE INDEX IF NOT EXISTS idx_asientos_contables_status ON asientos_contables(status);
+CREATE INDEX IF NOT EXISTS idx_asientos_contables_tipo ON asientos_contables(tipo);
+CREATE INDEX IF NOT EXISTS idx_asientos_contables_ref_doc ON asientos_contables(ref_doc_type, ref_doc_id) WHERE ref_doc_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_asientos_contables_fecha_tenant ON asientos_contables(fecha, tenant_id);
 
 -- Comentarios
 COMMENT ON TABLE asientos_contables IS 'Asientos contables (libro diario)';
@@ -129,7 +145,7 @@ COMMENT ON COLUMN asientos_contables.ref_doc_type IS 'Tipo de documento origen (
 -- Tabla: asiento_lineas
 -- ============================================================================
 
-CREATE TABLE asiento_lineas (
+CREATE TABLE IF NOT EXISTS asiento_lineas (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     -- Referencias
@@ -155,9 +171,9 @@ CREATE TABLE asiento_lineas (
 );
 
 -- Índices
-CREATE INDEX idx_asiento_lineas_asiento_id ON asiento_lineas(asiento_id);
-CREATE INDEX idx_asiento_lineas_cuenta_id ON asiento_lineas(cuenta_id);
-CREATE INDEX idx_asiento_lineas_orden ON asiento_lineas(orden);
+CREATE INDEX IF NOT EXISTS idx_asiento_lineas_asiento_id ON asiento_lineas(asiento_id);
+CREATE INDEX IF NOT EXISTS idx_asiento_lineas_cuenta_id ON asiento_lineas(cuenta_id);
+CREATE INDEX IF NOT EXISTS idx_asiento_lineas_orden ON asiento_lineas(orden);
 
 -- Comentarios
 COMMENT ON TABLE asiento_lineas IS 'Líneas de asientos contables (movimientos)';
@@ -173,10 +189,12 @@ ALTER TABLE plan_cuentas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE asientos_contables ENABLE ROW LEVEL SECURITY;
 
 -- RLS para plan_cuentas
+DROP POLICY IF EXISTS plan_cuentas_tenant_isolation ON plan_cuentas;
 CREATE POLICY plan_cuentas_tenant_isolation ON plan_cuentas
     USING (tenant_id::text = current_setting('app.tenant_id', TRUE));
 
 -- RLS para asientos_contables
+DROP POLICY IF EXISTS asientos_contables_tenant_isolation ON asientos_contables;
 CREATE POLICY asientos_contables_tenant_isolation ON asientos_contables
     USING (tenant_id::text = current_setting('app.tenant_id', TRUE));
 
@@ -188,11 +206,13 @@ CREATE POLICY asientos_contables_tenant_isolation ON asientos_contables
 -- ============================================================================
 
 -- Trigger para updated_at
+DROP TRIGGER IF EXISTS plan_cuentas_updated_at ON plan_cuentas;
 CREATE TRIGGER plan_cuentas_updated_at
     BEFORE UPDATE ON plan_cuentas
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS asientos_contables_updated_at ON asientos_contables;
 CREATE TRIGGER asientos_contables_updated_at
     BEFORE UPDATE ON asientos_contables
     FOR EACH ROW
@@ -260,6 +280,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger para validar asiento tras insertar/actualizar líneas
+DROP TRIGGER IF EXISTS asiento_lineas_validar_cuadre ON asiento_lineas;
 CREATE TRIGGER asiento_lineas_validar_cuadre
     AFTER INSERT OR UPDATE OR DELETE ON asiento_lineas
     FOR EACH ROW

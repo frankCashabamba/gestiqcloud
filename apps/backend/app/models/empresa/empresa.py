@@ -39,65 +39,65 @@ class TipoNegocio(Base):
 
 
 class RolBase(Base):
-    """Class RolBase - auto-generated docstring."""
+    """Base Role model"""
 
-    __tablename__ = "core_rolbase"
+    __tablename__ = "base_roles"
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    nombre: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    descripcion: Mapped[str | None] = mapped_column(Text)
-    permisos: Mapped[dict] = mapped_column(
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    permissions: Mapped[dict] = mapped_column(
         MutableDict.as_mutable(JSON),
         nullable=False,
         default=dict,
     )
 
 
-class CategoriaEmpresa(Base):
-    """Class CategoriaEmpresa - auto-generated docstring."""
+class CompanyCategory(Base):
+    """Company Category model"""
 
-    __tablename__ = "core_categoriaempresa"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    nombre: Mapped[str] = mapped_column(String(100), nullable=False)
-
-
-class PermisoAccionGlobal(Base):
-    """Class PermisoAccionGlobal - auto-generated docstring."""
-
-    __tablename__ = "core_permisoaccionglobal"
+    __tablename__ = "company_categories"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    clave: Mapped[str] = mapped_column(String(100), unique=True)
-    descripcion: Mapped[str] = mapped_column(String(100))
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
 
 
-class PerfilUsuario(Base):
-    """Class PerfilUsuario - auto-generated docstring."""
+class GlobalActionPermission(Base):
+    """Global Action Permission model"""
 
-    __tablename__ = "core_perfilusuario"
+    __tablename__ = "global_action_permissions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    usuario_id: Mapped[UUID] = mapped_column(
+    key: Mapped[str] = mapped_column(String(100), unique=True)
+    description: Mapped[str] = mapped_column(String(100))
+
+
+class UserProfile(Base):
+    """User Profile model"""
+
+    __tablename__ = "user_profiles"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("usuarios_usuarioempresa.id")
     )
-    idioma: Mapped[str] = mapped_column(String(10), default="es")
-    zona_horaria: Mapped[str] = mapped_column(String(50), default="UTC")
+    language: Mapped[str] = mapped_column(String(10), default="es")
+    timezone: Mapped[str] = mapped_column(String(50), default="UTC")
     tenant_id = mapped_column(ForeignKey("tenants.id"))
 
-    usuario: Mapped["UsuarioEmpresa"] = relationship("UsuarioEmpresa")
+    user: Mapped["UsuarioEmpresa"] = relationship("UsuarioEmpresa")
     tenant: Mapped["Tenant"] = relationship("Tenant")  # noqa: F821
 
 
-class Idioma(Base):
-    """Class Idioma - auto-generated docstring."""
+class Language(Base):
+    """Language catalog model"""
 
-    __tablename__ = "core_idioma"
+    __tablename__ = "languages"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    codigo: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
-    nombre: Mapped[str] = mapped_column(String(100), nullable=False)
-    activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class Moneda(Base):
@@ -118,10 +118,10 @@ class CoreMoneda(Base):
     __tablename__ = "core_moneda"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    codigo: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
-    nombre: Mapped[str] = mapped_column(String(100), nullable=False)
-    simbolo: Mapped[str] = mapped_column(String(5), nullable=False)
-    activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False, name="codigo")
+    name: Mapped[str] = mapped_column(String(100), nullable=False, name="nombre")
+    symbol: Mapped[str] = mapped_column(String(5), nullable=False, name="simbolo")
+    active: Mapped[bool] = mapped_column(Boolean, default=True, name="activo")
 
 
 class Pais(Base):

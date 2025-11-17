@@ -64,22 +64,22 @@ def apply_migration(
 
     try:
         cursor = conn.cursor()
-        print(f"\n▶ {migration_name}")
+        print(f"\n> {migration_name}")
 
         try:
             # Execute entire SQL file as-is (PostgreSQL handles multiple statements)
             cursor.execute(sql_content)
             conn.commit()
-            print("  ✅ Migration applied")
+            print("  [OK] Migration applied")
             return True
 
         except Exception as e:
             conn.rollback()
-            print(f"  ❌ Error: {e}")
+            print(f"  [ERROR] Error: {e}")
             return False
 
     except Exception as e:
-        print(f"  ❌ Connection error: {e}")
+        print(f"  [ERROR] Connection error: {e}")
         return False
 
 
@@ -130,9 +130,9 @@ def main():
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
         cursor.close()
-        print("✅ Database connection successful")
+        print("[OK] Database connection successful")
     except Exception as e:
-        print(f"❌ Database connection failed: {e}")
+        print(f"[ERROR] Database connection failed: {e}")
         sys.exit(1)
 
     # Apply migrations
@@ -161,12 +161,12 @@ def main():
     # Summary
     print(f"\n{'=' * 60}")
     if failed:
-        print(f"❌ {len(failed)} migration(s) failed:")
+        print(f"[FAILED] {len(failed)} migration(s) failed:")
         for name in failed:
             print(f"  - {name}")
         sys.exit(1)
     else:
-        print(f"✅ All {len(migrations)} migration(s) applied successfully!")
+        print(f"[SUCCESS] All {len(migrations)} migration(s) applied successfully!")
         if not args.dry_run:
             print("\nNext steps:")
             print("  - Run tests: pytest app/tests/")

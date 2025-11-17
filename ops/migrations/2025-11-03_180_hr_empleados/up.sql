@@ -18,7 +18,7 @@ $$ LANGUAGE plpgsql;
 CREATE TABLE IF NOT EXISTS empleados (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    usuario_id UUID REFERENCES auth_user(id) ON DELETE SET NULL,
+    usuario_id UUID,
     codigo VARCHAR(50),
     nombre VARCHAR(255) NOT NULL,
     apellidos VARCHAR(255),

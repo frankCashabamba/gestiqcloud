@@ -92,10 +92,10 @@ async def create_rol(
     # Crear rol
     nuevo_rol = RolEmpresa(
         tenant_id=tenant_id,
-        nombre=payload.name,
-        descripcion=payload.description,
-        permisos=payload.permisos or {},
-        creado_por_empresa=True,
+        name=payload.name,
+        description=payload.description,
+        permissions=payload.permisos or {},
+        created_by_company=True,
     )
 
     db.add(nuevo_rol)
@@ -130,11 +130,11 @@ async def update_rol(
     update_data = payload.model_dump(exclude_unset=True)
 
     # Si se actualiza el nombre, verificar unicidad
-    if "nombre" in update_data:
+    if "name" in update_data:
         existing = db.execute(
             select(RolEmpresa).where(
                 RolEmpresa.tenant_id == rol.tenant_id,
-                RolEmpresa.name == update_data["nombre"],
+                RolEmpresa.name == update_data["name"],
                 RolEmpresa.id != rol_id,
             )
         ).scalar_one_or_none()
@@ -142,7 +142,7 @@ async def update_rol(
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Ya existe un rol con el nombre '{update_data['nombre']}'",
+                detail=f"Ya existe un rol con el nombre '{update_data['name']}'",
             )
 
     for field, value in update_data.items():

@@ -33,17 +33,17 @@ def crear_rol(
 ):
     tenant_id = current_user.tenant_id
 
-    existe = db.query(RolEmpresa).filter_by(tenant_id=tenant_id, nombre=data.name).first()
+    existe = db.query(RolEmpresa).filter_by(tenant_id=tenant_id, name=data.name).first()
     if existe:
         raise HTTPException(status_code=400, detail="Ya existe un rol con ese nombre")
 
     nuevo_rol = RolEmpresa(
         tenant_id=tenant_id,
-        nombre=data.name,
-        descripcion=data.description,
-        permisos=dict.fromkeys(data.permisos, True),
-        rol_base_id=data.copiar_desde_id,
-        creado_por_empresa=True,
+        name=data.name,
+        description=data.description,
+        permissions=dict.fromkeys(data.permissions, True),
+        rol_base_id=data.copy_from_id,
+        created_by_company=True,
     )
 
     db.add(nuevo_rol)

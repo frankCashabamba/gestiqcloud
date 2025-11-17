@@ -67,7 +67,7 @@ def _has_perm(db: Session, user: AuthenticatedUser, perm_key: str) -> bool:
     if not role_ids:
         return False
     rows = (
-        db.query(RolEmpresa.permisos)
+        db.query(RolEmpresa.permissions)
         .filter(RolEmpresa.id.in_(role_ids), RolEmpresa.tenant_id == tenant_id)
         .all()
     )

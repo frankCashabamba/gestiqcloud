@@ -12,7 +12,7 @@ from app.models import RolEmpresa, UsuarioRolempresa
 
 async def get_user_permisos(usuario_id: int, tenant_id: int, db: AsyncSession) -> list[str]:
     query = (
-        select(RolEmpresa.permisos)
+        select(RolEmpresa.permissions)
         .join(UsuarioRolempresa, RolEmpresa.id == UsuarioRolempresa.rol_id)
         .where(
             UsuarioRolempresa.usuario_id == usuario_id,

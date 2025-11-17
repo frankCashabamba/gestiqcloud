@@ -45,8 +45,8 @@ def build_tenant_claims(db: Session, user: UsuarioEmpresa) -> dict[str, Any]:
 
             if relacion_rol:
                 rol = db.query(RolEmpresa).filter_by(id=relacion_rol.rol_id).first()
-                if rol and isinstance(rol.permisos, dict):
-                    permisos = dict(rol.permisos)  # copy defensivo
+                if rol and isinstance(rol.permissions, dict):
+                    permisos = dict(rol.permissions)  # copy defensivo
         except Exception:
             # Si la tabla no existe o hay error, usuario sin permisos de rol
             pass

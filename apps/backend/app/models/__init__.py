@@ -46,8 +46,8 @@ from app.models.empresa.rolempresas import RolEmpresa
 from app.models.empresa.settings import ConfiguracionEmpresa, ConfiguracionInventarioEmpresa
 from app.models.empresa.usuario_rolempresa import UsuarioRolempresa
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
-from app.models.expenses import Gasto
-from app.models.finance import BancoMovimiento, CajaMovimiento, CierreCaja
+from app.models.expenses import Expense, Gasto
+from app.models.finance import BancoMovimiento, BankMovement, CajaMovimiento, CierreCaja
 from app.models.hr import Empleado, Vacacion
 
 # Imports system
@@ -62,13 +62,20 @@ from app.models.pos import (
     StoreCredit,
     StoreCreditEvent,
 )
-from app.models.purchases import Compra, CompraLinea
+from app.models.purchases import Compra, CompraLinea, Purchase, PurchaseLine
 from app.models.recipes import Recipe, RecipeIngredient
 
 # Nuevos módulos profesionales
-from app.models.sales import Venta
+from app.models.sales import Sale, Venta
 from app.models.security.auth_audit import AuthAudit
-from app.models.suppliers import Proveedor, ProveedorContacto, ProveedorDireccion
+from app.models.suppliers import (
+    Proveedor,
+    ProveedorContacto,
+    ProveedorDireccion,
+    Supplier,
+    SupplierAddress,
+    SupplierContact,
+)
 from app.models.tenant import Tenant
 
 __all__ = [
@@ -122,6 +129,19 @@ __all__ = [
     "AuthAudit",
     "Tenant",
     # Módulos profesionales
+    "Sale",
+    "Supplier",
+    "SupplierContact",
+    "SupplierAddress",
+    "Purchase",
+    "PurchaseLine",
+    "Expense",
+    "CajaMovimiento",
+    "CierreCaja",
+    "BankMovement",
+    "Empleado",
+    "Vacacion",
+    # Backward compatibility aliases
     "Venta",
     "Proveedor",
     "ProveedorContacto",
@@ -129,11 +149,7 @@ __all__ = [
     "Compra",
     "CompraLinea",
     "Gasto",
-    "CajaMovimiento",
-    "CierreCaja",
     "BancoMovimiento",
-    "Empleado",
-    "Vacacion",
     # POS
     "POSRegister",
     "POSShift",

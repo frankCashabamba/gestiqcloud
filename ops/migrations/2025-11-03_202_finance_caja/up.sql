@@ -5,9 +5,23 @@
 -- Fecha: 2025-11-03
 -- ============================================================================
 
+-- Crear función helper si no existe
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Crear tipos ENUM para caja
-CREATE TYPE caja_movimiento_tipo AS ENUM ('INGRESO', 'EGRESO', 'AJUSTE');
-CREATE TYPE caja_movimiento_categoria AS ENUM (
+DO $$ BEGIN
+  CREATE TYPE caja_movimiento_tipo AS ENUM ('INGRESO', 'EGRESO', 'AJUSTE');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE caja_movimiento_categoria AS ENUM (
     'VENTA',
     'COMPRA',
     'GASTO',
@@ -16,8 +30,14 @@ CREATE TYPE caja_movimiento_categoria AS ENUM (
     'CAMBIO',
     'AJUSTE',
     'OTRO'
-);
-CREATE TYPE cierre_caja_status AS ENUM ('ABIERTO', 'CERRADO', 'PENDIENTE');
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE cierre_caja_status AS ENUM ('ABIERTO', 'CERRADO', 'PENDIENTE');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 COMMENT ON TYPE caja_movimiento_tipo IS 'Tipo de movimiento: INGRESO=Entrada efectivo, EGRESO=Salida efectivo, AJUSTE=Ajuste de cuadre';
 COMMENT ON TYPE caja_movimiento_categoria IS 'Categoría del movimiento: VENTA, COMPRA, GASTO, NOMINA, BANCO, CAMBIO, AJUSTE, OTRO';
@@ -27,7 +47,7 @@ COMMENT ON TYPE cierre_caja_status IS 'Estado de cierre: ABIERTO=En curso, CERRA
 -- Tabla: caja_movimientos
 -- ============================================================================
 
-CREATE TABLE caja_movimientos (
+CREATE TABLE IF NOT EXISTS caja_movimientos (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
 
@@ -57,21 +77,21 @@ CREATE TABLE caja_movimientos (
     fecha DATE NOT NULL,
 
     -- Relación con cierre
-    cierre_id UUID REFERENCES cierres_caja(id) ON DELETE SET NULL,
+    cierre_id UUID,
 
     -- Auditoría
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Índices
-CREATE INDEX idx_caja_movimientos_tenant_id ON caja_movimientos(tenant_id);
-CREATE INDEX idx_caja_movimientos_fecha ON caja_movimientos(fecha);
-CREATE INDEX idx_caja_movimientos_tipo ON caja_movimientos(tipo);
-CREATE INDEX idx_caja_movimientos_categoria ON caja_movimientos(categoria);
-CREATE INDEX idx_caja_movimientos_caja_id ON caja_movimientos(caja_id) WHERE caja_id IS NOT NULL;
-CREATE INDEX idx_caja_movimientos_cierre_id ON caja_movimientos(cierre_id) WHERE cierre_id IS NOT NULL;
-CREATE INDEX idx_caja_movimientos_ref_doc ON caja_movimientos(ref_doc_type, ref_doc_id) WHERE ref_doc_id IS NOT NULL;
-CREATE INDEX idx_caja_movimientos_fecha_tenant ON caja_movimientos(fecha, tenant_id);
+CREATE INDEX IF NOT EXISTS idx_caja_movimientos_tenant_id ON caja_movimientos(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_caja_movimientos_fecha ON caja_movimientos(fecha);
+CREATE INDEX IF NOT EXISTS idx_caja_movimientos_tipo ON caja_movimientos(tipo);
+CREATE INDEX IF NOT EXISTS idx_caja_movimientos_categoria ON caja_movimientos(categoria);
+CREATE INDEX IF NOT EXISTS idx_caja_movimientos_caja_id ON caja_movimientos(caja_id) WHERE caja_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_caja_movimientos_cierre_id ON caja_movimientos(cierre_id) WHERE cierre_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_caja_movimientos_ref_doc ON caja_movimientos(ref_doc_type, ref_doc_id) WHERE ref_doc_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_caja_movimientos_fecha_tenant ON caja_movimientos(fecha, tenant_id);
 
 -- Comentarios
 COMMENT ON TABLE caja_movimientos IS 'Movimientos de caja (ingresos, egresos, ajustes)';
@@ -90,7 +110,7 @@ COMMENT ON COLUMN caja_movimientos.cierre_id IS 'ID del cierre al que pertenece'
 -- Tabla: cierres_caja
 -- ============================================================================
 
-CREATE TABLE cierres_caja (
+CREATE TABLE IF NOT EXISTS cierres_caja (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
 
@@ -135,12 +155,12 @@ CREATE TABLE cierres_caja (
 );
 
 -- Índices
-CREATE INDEX idx_cierres_caja_tenant_id ON cierres_caja(tenant_id);
-CREATE INDEX idx_cierres_caja_fecha ON cierres_caja(fecha);
-CREATE INDEX idx_cierres_caja_status ON cierres_caja(status);
-CREATE INDEX idx_cierres_caja_caja_id ON cierres_caja(caja_id) WHERE caja_id IS NOT NULL;
-CREATE INDEX idx_cierres_caja_cuadrado ON cierres_caja(cuadrado) WHERE cuadrado = FALSE;
-CREATE INDEX idx_cierres_caja_fecha_tenant ON cierres_caja(fecha, tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cierres_caja_tenant_id ON cierres_caja(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cierres_caja_fecha ON cierres_caja(fecha);
+CREATE INDEX IF NOT EXISTS idx_cierres_caja_status ON cierres_caja(status);
+CREATE INDEX IF NOT EXISTS idx_cierres_caja_caja_id ON cierres_caja(caja_id) WHERE caja_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_cierres_caja_cuadrado ON cierres_caja(cuadrado) WHERE cuadrado = FALSE;
+CREATE INDEX IF NOT EXISTS idx_cierres_caja_fecha_tenant ON cierres_caja(fecha, tenant_id);
 
 -- Comentarios
 COMMENT ON TABLE cierres_caja IS 'Cierres diarios de caja con conciliación';
@@ -156,6 +176,15 @@ COMMENT ON COLUMN cierres_caja.status IS 'Estado: ABIERTO, CERRADO, PENDIENTE';
 COMMENT ON COLUMN cierres_caja.cuadrado IS 'True si diferencia = 0';
 COMMENT ON COLUMN cierres_caja.detalles_billetes IS 'Desglose de billetes y monedas contadas (JSON)';
 
+-- Agregar constraint de FK para cierre_id después de crear ambas tablas
+DO $$ BEGIN
+    ALTER TABLE caja_movimientos
+    ADD CONSTRAINT fk_caja_movimientos_cierre
+    FOREIGN KEY (cierre_id) REFERENCES cierres_caja(id) ON DELETE SET NULL;
+EXCEPTION WHEN OTHERS THEN
+    NULL; -- Constraint already exists
+END $$;
+
 -- ============================================================================
 -- RLS (Row Level Security)
 -- ============================================================================
@@ -164,10 +193,12 @@ ALTER TABLE caja_movimientos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cierres_caja ENABLE ROW LEVEL SECURITY;
 
 -- Políticas RLS para caja_movimientos
+DROP POLICY IF EXISTS caja_movimientos_tenant_isolation ON caja_movimientos;
 CREATE POLICY caja_movimientos_tenant_isolation ON caja_movimientos
     USING (tenant_id::text = current_setting('app.tenant_id', TRUE));
 
 -- Políticas RLS para cierres_caja
+DROP POLICY IF EXISTS cierres_caja_tenant_isolation ON cierres_caja;
 CREATE POLICY cierres_caja_tenant_isolation ON cierres_caja
     USING (tenant_id::text = current_setting('app.tenant_id', TRUE));
 
@@ -176,6 +207,7 @@ CREATE POLICY cierres_caja_tenant_isolation ON cierres_caja
 -- ============================================================================
 
 -- Trigger para actualizar updated_at en cierres_caja
+DROP TRIGGER IF EXISTS cierres_caja_updated_at ON cierres_caja;
 CREATE TRIGGER cierres_caja_updated_at
     BEFORE UPDATE ON cierres_caja
     FOR EACH ROW
@@ -241,6 +273,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS caja_movimientos_actualizar_cierre ON caja_movimientos;
 CREATE TRIGGER caja_movimientos_actualizar_cierre
     AFTER INSERT OR UPDATE ON caja_movimientos
     FOR EACH ROW

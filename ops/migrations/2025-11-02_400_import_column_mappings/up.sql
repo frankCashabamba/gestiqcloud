@@ -24,6 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_column_mappings_last_used ON import_column_mappin
 -- RLS Policy
 ALTER TABLE import_column_mappings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS tenant_isolation_column_mappings ON import_column_mappings;
 CREATE POLICY tenant_isolation_column_mappings ON import_column_mappings
     USING (tenant_id::text = current_setting('app.tenant_id', TRUE));
 

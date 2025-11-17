@@ -8,7 +8,7 @@ class RolEmpresaBase(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=100, description="Nombre del rol")
     description: str | None = Field(None, description="Descripción del rol")
-    permisos: dict = Field(default_factory=dict, description="Permisos del rol en formato JSON")
+    permissions: dict = Field(default_factory=dict, description="Permisos del rol en formato JSON")
 
 
 class RolEmpresaCreate(RolEmpresaBase):
@@ -22,7 +22,7 @@ class RolEmpresaUpdate(BaseModel):
 
     name: str | None = Field(None, min_length=1, max_length=100)
     description: str | None = None
-    permisos: dict | None = None
+    permissions: dict | None = None
 
 
 class RolEmpresaOut(RolEmpresaBase):
@@ -31,7 +31,7 @@ class RolEmpresaOut(RolEmpresaBase):
     id: int
     tenant_id: int
     rol_base_id: int | None = None
-    creado_por_empresa: bool
+    created_by_company: bool
 
     class Config:
         from_attributes = True

@@ -1,5 +1,17 @@
 """Suppliers module models"""
 
-from .proveedor import Proveedor, ProveedorContacto, ProveedorDireccion
+from .proveedor import Supplier, SupplierAddress, SupplierContact
 
-__all__ = ["Proveedor", "ProveedorContacto", "ProveedorDireccion"]
+# Keep old names for backward compatibility during migration
+Proveedor = Supplier
+ProveedorContacto = SupplierContact
+ProveedorDireccion = SupplierAddress
+
+__all__ = [
+    "Supplier",
+    "SupplierContact",
+    "SupplierAddress",
+    "Proveedor",
+    "ProveedorContacto",
+    "ProveedorDireccion",
+]

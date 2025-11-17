@@ -24,47 +24,47 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.config.database import Base, schema_column, schema_table_args
 
 # Enums
-cuenta_tipo = SQLEnum(
-    "ACTIVO",  # Activos
-    "PASIVO",  # Pasivos
-    "PATRIMONIO",  # Patrimonio neto
-    "INGRESO",  # Ingresos
-    "GASTO",  # Gastos
-    name="cuenta_tipo",
+account_type = SQLEnum(
+    "ASSET",  # Assets
+    "LIABILITY",  # Liabilities
+    "EQUITY",  # Equity
+    "INCOME",  # Income
+    "EXPENSE",  # Expenses
+    name="account_type",
     create_type=False,
 )
 
-asiento_status = SQLEnum(
-    "BORRADOR",  # Sin validar
-    "VALIDADO",  # Validado (debe = haber)
-    "CONTABILIZADO",  # Contabilizado (posted)
-    "ANULADO",  # Anulado
-    name="asiento_status",
+entry_status = SQLEnum(
+    "DRAFT",  # Not validated
+    "VALIDATED",  # Validated (debit = credit)
+    "POSTED",  # Posted
+    "CANCELLED",  # Cancelled
+    name="entry_status",
     create_type=False,
 )
 
 
-class PlanCuentas(Base):
+class ChartOfAccounts(Base):
     """
-    Plan de Cuentas - Catálogo de cuentas contables.
+    Chart of Accounts - Catalog of ledger accounts.
 
-    Estructura jerárquica:
-    - Nivel 1: Grupos (1, 2, 3, 4, 5, 6, 7)
-    - Nivel 2: Subgrupos (10, 11, 12, ...)
-    - Nivel 3: Cuentas (100, 101, 102, ...)
-    - Nivel 4: Subcuentas (1000, 1001, ...)
+    Hierarchical structure:
+    - Level 1: Groups (1, 2, 3, 4, 5, 6, 7)
+    - Level 2: Subgroups (10, 11, 12, ...)
+    - Level 3: Accounts (100, 101, 102, ...)
+    - Level 4: Sub-accounts (1000, 1001, ...)
 
     Attributes:
-        codigo: Código de la cuenta (ej: 5700001)
-        nombre: Nombre de la cuenta
-        tipo: ACTIVO, PASIVO, PATRIMONIO, INGRESO, GASTO
-        nivel: Nivel jerárquico (1-4)
-        padre_id: ID de la cuenta padre (para jerarquía)
-        imputable: Si permite movimientos directos (subcuentas)
-        activo: Si la cuenta está activa
+        code: Account code (e.g., 5700001)
+        name: Account name
+        type: ASSET, LIABILITY, EQUITY, INCOME, EXPENSE
+        level: Hierarchical level (1-4)
+        parent_id: ID of parent account (for hierarchy)
+        can_post: If allows direct movements (sub-accounts)
+        active: If the account is active
     """
 
-    __tablename__ = "plan_cuentas"
+    __tablename__ = "chart_of_accounts"
     __table_args__ = schema_table_args()
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -77,52 +77,52 @@ class PlanCuentas(Base):
         index=True,
     )
 
-    # Código y nombre
-    codigo: Mapped[str] = mapped_column(
-        String(20), nullable=False, index=True, comment="Código de la cuenta (ej: 5700001)"
+    # Code and name
+    code: Mapped[str] = mapped_column(
+        String(20), nullable=False, index=True, comment="Account code (e.g., 5700001)"
     )
-    nombre: Mapped[str] = mapped_column(String(255), nullable=False, comment="Nombre de la cuenta")
-    descripcion: Mapped[str | None] = mapped_column(Text, nullable=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, comment="Account name")
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Clasificación
-    tipo: Mapped[str] = mapped_column(
-        cuenta_tipo,
+    # Classification
+    type: Mapped[str] = mapped_column(
+        account_type,
         nullable=False,
         index=True,
-        comment="ACTIVO, PASIVO, PATRIMONIO, INGRESO, GASTO",
+        comment="ASSET, LIABILITY, EQUITY, INCOME, EXPENSE",
     )
-    nivel: Mapped[int] = mapped_column(Integer, nullable=False, comment="Nivel jerárquico (1-4)")
+    level: Mapped[int] = mapped_column(Integer, nullable=False, comment="Hierarchical level (1-4)")
 
-    # Jerarquía
-    padre_id: Mapped[uuid.UUID | None] = mapped_column(
+    # Hierarchy
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey(schema_column("plan_cuentas"), ondelete="CASCADE"),
+        ForeignKey(schema_column("chart_of_accounts"), ondelete="CASCADE"),
         nullable=True,
         index=True,
-        comment="ID de la cuenta padre",
+        comment="ID of parent account",
     )
 
-    # Configuración
-    imputable: Mapped[bool] = mapped_column(
+    # Configuration
+    can_post: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
         default=True,
-        comment="Si permite movimientos directos (True para subcuentas)",
+        comment="If allows direct movements (True for sub-accounts)",
     )
-    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
 
-    # Saldos (calculados)
-    saldo_debe: Mapped[Decimal] = mapped_column(
-        Numeric(14, 2), nullable=False, default=0, comment="Saldo acumulado debe"
+    # Balances (calculated)
+    debit_balance: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), nullable=False, default=0, comment="Accumulated debit balance"
     )
-    saldo_haber: Mapped[Decimal] = mapped_column(
-        Numeric(14, 2), nullable=False, default=0, comment="Saldo acumulado haber"
+    credit_balance: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), nullable=False, default=0, comment="Accumulated credit balance"
     )
-    saldo: Mapped[Decimal] = mapped_column(
-        Numeric(14, 2), nullable=False, default=0, comment="Saldo neto (debe - haber)"
+    balance: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), nullable=False, default=0, comment="Net balance (debit - credit)"
     )
 
-    # Auditoría
+    # Audit
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"
     )
@@ -130,39 +130,39 @@ class PlanCuentas(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default="now()", onupdate=datetime.utcnow
     )
 
-    # Relaciones (self-referential)
-    hijos: Mapped[list["PlanCuentas"]] = relationship(
-        "PlanCuentas",
-        back_populates="padre",
+    # Relations (self-referential)
+    children: Mapped[list["ChartOfAccounts"]] = relationship(
+        "ChartOfAccounts",
+        back_populates="parent",
         cascade="all, delete-orphan",
-        foreign_keys="PlanCuentas.padre_id",
+        foreign_keys="ChartOfAccounts.parent_id",
         lazy="selectin",
     )
-    padre: Mapped[Optional["PlanCuentas"]] = relationship(
-        "PlanCuentas",
-        back_populates="hijos",
-        foreign_keys=[padre_id],
+    parent: Mapped[Optional["ChartOfAccounts"]] = relationship(
+        "ChartOfAccounts",
+        back_populates="children",
+        foreign_keys=[parent_id],
         remote_side=[id],
         lazy="select",
     )
 
 
-class AsientoContable(Base):
+class JournalEntry(Base):
     """
-    Asiento Contable - Registro en el libro diario.
+    Journal Entry - Daily journal record.
 
     Attributes:
-        numero: Número único del asiento (ej: ASI-2025-0001)
-        fecha: Fecha del asiento
-        tipo: APERTURA, OPERACIONES, REGULARIZACION, CIERRE
-        descripcion: Descripción del asiento
-        status: BORRADOR, VALIDADO, CONTABILIZADO, ANULADO
-        debe_total: Suma total del debe
-        haber_total: Suma total del haber
-        cuadrado: True si debe = haber
+        number: Unique entry number (e.g., JE-2025-0001)
+        date: Entry date
+        type: OPENING, OPERATIONS, REGULARIZATION, CLOSING
+        description: Entry description
+        status: DRAFT, VALIDATED, POSTED, CANCELLED
+        debit_total: Total debit sum
+        credit_total: Total credit sum
+        is_balanced: True if debit = credit
     """
 
-    __tablename__ = "asientos_contables"
+    __tablename__ = "journal_entries"
     __table_args__ = schema_table_args()
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -175,55 +175,47 @@ class AsientoContable(Base):
         index=True,
     )
 
-    # Numeración
-    numero: Mapped[str] = mapped_column(
-        String(50), nullable=False, unique=True, index=True, comment="Número único (ASI-YYYY-NNNN)"
+    # Numbering
+    number: Mapped[str] = mapped_column(
+        String(50), nullable=False, unique=True, index=True, comment="Unique number (JE-YYYY-NNNN)"
     )
 
-    # Fecha y tipo
-    fecha: Mapped[date] = mapped_column(
-        Date, nullable=False, index=True, comment="Fecha del asiento"
-    )
-    tipo: Mapped[str] = mapped_column(
+    # Date and type
+    date: Mapped[date] = mapped_column(Date, nullable=False, index=True, comment="Entry date")
+    type: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
-        default="OPERACIONES",
-        comment="APERTURA, OPERACIONES, REGULARIZACION, CIERRE",
+        default="OPERATIONS",
+        comment="OPENING, OPERATIONS, REGULARIZATION, CLOSING",
     )
 
-    # Descripción
-    descripcion: Mapped[str] = mapped_column(
-        Text, nullable=False, comment="Descripción del asiento"
+    # Description
+    description: Mapped[str] = mapped_column(Text, nullable=False, comment="Entry description")
+
+    # Totals
+    debit_total: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), nullable=False, default=0, comment="Total debit sum"
+    )
+    credit_total: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), nullable=False, default=0, comment="Total credit sum"
+    )
+    is_balanced: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, comment="True if debit = credit"
     )
 
-    # Totales
-    debe_total: Mapped[Decimal] = mapped_column(
-        Numeric(14, 2), nullable=False, default=0, comment="Suma total del debe"
-    )
-    haber_total: Mapped[Decimal] = mapped_column(
-        Numeric(14, 2), nullable=False, default=0, comment="Suma total del haber"
-    )
-    cuadrado: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, comment="True si debe = haber"
-    )
+    # Status
+    status: Mapped[str] = mapped_column(entry_status, nullable=False, default="DRAFT", index=True)
 
-    # Estado
-    status: Mapped[str] = mapped_column(
-        asiento_status, nullable=False, default="BORRADOR", index=True
-    )
-
-    # Referencia a documento origen
+    # Reference to source document
     ref_doc_type: Mapped[str | None] = mapped_column(
-        String(50), nullable=True, comment="Tipo de documento origen (invoice, payment, etc.)"
+        String(50), nullable=True, comment="Source document type (invoice, payment, etc.)"
     )
     ref_doc_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
 
-    # Auditoría
+    # Audit
     created_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
-    contabilizado_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
-    contabilizado_at: Mapped[datetime | None] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=True
-    )
+    posted_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    posted_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"
     )
@@ -231,71 +223,71 @@ class AsientoContable(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default="now()", onupdate=datetime.utcnow
     )
 
-    # Relaciones
-    lineas: Mapped[list["AsientoLinea"]] = relationship(
-        "AsientoLinea", back_populates="asiento", cascade="all, delete-orphan", lazy="selectin"
+    # Relations
+    lines: Mapped[list["JournalEntryLine"]] = relationship(
+        "JournalEntryLine", back_populates="entry", cascade="all, delete-orphan", lazy="selectin"
     )
 
 
-class AsientoLinea(Base):
+class JournalEntryLine(Base):
     """
-    Línea de Asiento Contable - Movimiento individual (debe o haber).
+    Journal Entry Line - Individual movement (debit or credit).
 
     Attributes:
-        asiento_id: ID del asiento padre
-        cuenta_id: ID de la cuenta contable
-        debe: Importe al debe
-        haber: Importe al haber
-        descripcion: Descripción de la línea
-        orden: Orden dentro del asiento
+        entry_id: ID of parent entry
+        account_id: ID of ledger account
+        debit: Debit amount
+        credit: Credit amount
+        description: Line description
+        line_number: Order within the entry
     """
 
-    __tablename__ = "asiento_lineas"
+    __tablename__ = "journal_entry_lines"
     __table_args__ = schema_table_args()
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
 
-    # Referencias
-    asiento_id: Mapped[uuid.UUID] = mapped_column(
+    # References
+    entry_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey(schema_column("asientos_contables"), ondelete="CASCADE"),
+        ForeignKey(schema_column("journal_entries"), ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    cuenta_id: Mapped[uuid.UUID] = mapped_column(
+    account_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey(schema_column("plan_cuentas"), ondelete="RESTRICT"),
+        ForeignKey(schema_column("chart_of_accounts"), ondelete="RESTRICT"),
         nullable=False,
         index=True,
     )
 
-    # Importes (solo uno debe tener valor, el otro en 0)
-    debe: Mapped[Decimal] = mapped_column(
-        Numeric(14, 2), nullable=False, default=0, comment="Importe al debe"
+    # Amounts (only one should have value, the other at 0)
+    debit: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), nullable=False, default=0, comment="Debit amount"
     )
-    haber: Mapped[Decimal] = mapped_column(
-        Numeric(14, 2), nullable=False, default=0, comment="Importe al haber"
-    )
-
-    # Descripción
-    descripcion: Mapped[str | None] = mapped_column(String(255), nullable=True)
-
-    # Orden
-    orden: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, comment="Orden dentro del asiento"
+    credit: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), nullable=False, default=0, comment="Credit amount"
     )
 
-    # Auditoría
+    # Description
+    description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # Order
+    line_number: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, comment="Order within the entry"
+    )
+
+    # Audit
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"
     )
 
-    # Relaciones
-    asiento: Mapped["AsientoContable"] = relationship(
-        "AsientoContable", back_populates="lineas", lazy="select"
+    # Relations
+    entry: Mapped["JournalEntry"] = relationship(
+        "JournalEntry", back_populates="lines", lazy="select"
     )
-    cuenta: Mapped["PlanCuentas"] = relationship(
-        "PlanCuentas", foreign_keys=[cuenta_id], lazy="select"
+    account: Mapped["ChartOfAccounts"] = relationship(
+        "ChartOfAccounts", foreign_keys=[account_id], lazy="select"
     )

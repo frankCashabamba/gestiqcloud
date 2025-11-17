@@ -1,3 +1,5 @@
+"""Sales Models"""
+
 import uuid
 from datetime import date, datetime
 
@@ -8,10 +10,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.config.database import Base
 
 
-class Venta(Base):
-    """Pedido de venta (pre-factura)"""
+class Sale(Base):
+    """Sales Order (pre-invoice)"""
 
-    __tablename__ = "ventas"
+    __tablename__ = "sales"
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -28,31 +30,31 @@ class Venta(Base):
     )
 
     # 👇 DEFAULT sencillo para que no sea NULL
-    numero: Mapped[str] = mapped_column(
+    number: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
         default="",  # o default=lambda: str(uuid.uuid4())[:8]
     )
 
-    cliente_id: Mapped[uuid.UUID | None] = mapped_column(
+    customer_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("clients.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
-    fecha: Mapped[date] = mapped_column(Date, nullable=False, default=date.today)
+    date: Mapped[date] = mapped_column(Date, nullable=False, default=date.today)
     subtotal: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
-    impuestos: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    taxes: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
-    estado: Mapped[str] = mapped_column(
+    status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
         default="draft",
     )
-    notas: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # 👇 Igual que tenant_id: default para compat
-    usuario_id: Mapped[uuid.UUID] = mapped_column(
+    user_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         nullable=False,
         default=uuid.uuid4,
@@ -64,7 +66,7 @@ class Venta(Base):
     )
 
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
-    cliente = relationship("Cliente", foreign_keys=[cliente_id])
+    customer = relationship("Client", foreign_keys=[customer_id])
 
     def __repr__(self):
-        return f"<Venta {self.numero} - {self.total}>"
+        return f"<Sale {self.number} - {self.total}>"

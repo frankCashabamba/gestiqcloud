@@ -115,8 +115,8 @@ def seed_tenant_context(db, usuario_empresa_factory):
         db.add(rol_admin)
     else:
         rol_admin.description = "Acceso total"
-        if not rol_admin.permisos:
-            rol_admin.permisos = {}
+        if not rol_admin.permissions:
+            rol_admin.permissions = {}
 
     rol_editor = db.query(RolEmpresa).filter_by(tenant_id=tenant.id, name="Editor").first()
     if not rol_editor:
@@ -124,7 +124,7 @@ def seed_tenant_context(db, usuario_empresa_factory):
             tenant_id=tenant.id,
             name="Editor",
             description="Puede editar",
-            permisos={
+            permissions={
                 "read": True,
                 "write": True,
             },
@@ -132,8 +132,8 @@ def seed_tenant_context(db, usuario_empresa_factory):
         db.add(rol_editor)
     else:
         rol_editor.description = "Puede editar"
-        if not rol_editor.permisos:
-            rol_editor.permisos = {}
+        if not rol_editor.permissions:
+            rol_editor.permissions = {}
 
     db.flush()
 

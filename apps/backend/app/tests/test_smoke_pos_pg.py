@@ -53,7 +53,9 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session):
         state = _State()
 
     # Create register
-    reg = create_register(RegisterIn(code="R1", name="Caja 1", default_warehouse_id=1), _Req(), db)
+    reg = create_register(
+        RegisterIn(code="R1", name="Caja 1", default_warehouse_id="1"), _Req(), db
+    )
     assert reg["id"]
 
     # Open shift

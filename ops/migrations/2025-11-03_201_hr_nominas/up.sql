@@ -6,8 +6,15 @@
 -- ============================================================================
 
 -- Crear tipos ENUM para nóminas
-CREATE TYPE nomina_status AS ENUM ('DRAFT', 'APPROVED', 'PAID', 'CANCELLED');
-CREATE TYPE nomina_tipo AS ENUM ('MENSUAL', 'EXTRA', 'FINIQUITO', 'ESPECIAL');
+DO $$ BEGIN
+  CREATE TYPE nomina_status AS ENUM ('DRAFT', 'APPROVED', 'PAID', 'CANCELLED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE nomina_tipo AS ENUM ('MENSUAL', 'EXTRA', 'FINIQUITO', 'ESPECIAL');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 COMMENT ON TYPE nomina_status IS 'Estados de una nómina: DRAFT=Borrador, APPROVED=Aprobada, PAID=Pagada, CANCELLED=Cancelada';
 COMMENT ON TYPE nomina_tipo IS 'Tipos de nómina: MENSUAL=Ordinaria, EXTRA=Paga extra, FINIQUITO=Liquidación, ESPECIAL=Pagos especiales';
@@ -16,7 +23,7 @@ COMMENT ON TYPE nomina_tipo IS 'Tipos de nómina: MENSUAL=Ordinaria, EXTRA=Paga 
 -- Tabla: nominas
 -- ============================================================================
 
-CREATE TABLE nominas (
+CREATE TABLE IF NOT EXISTS nominas (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
 
@@ -69,12 +76,12 @@ CREATE TABLE nominas (
 );
 
 -- Índices
-CREATE INDEX idx_nominas_tenant_id ON nominas(tenant_id);
-CREATE INDEX idx_nominas_empleado_id ON nominas(empleado_id);
-CREATE INDEX idx_nominas_periodo ON nominas(periodo_ano, periodo_mes);
-CREATE INDEX idx_nominas_status ON nominas(status);
-CREATE INDEX idx_nominas_numero ON nominas(numero);
-CREATE INDEX idx_nominas_fecha_pago ON nominas(fecha_pago) WHERE fecha_pago IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_nominas_tenant_id ON nominas(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_nominas_empleado_id ON nominas(empleado_id);
+CREATE INDEX IF NOT EXISTS idx_nominas_periodo ON nominas(periodo_ano, periodo_mes);
+CREATE INDEX IF NOT EXISTS idx_nominas_status ON nominas(status);
+CREATE INDEX IF NOT EXISTS idx_nominas_numero ON nominas(numero);
+CREATE INDEX IF NOT EXISTS idx_nominas_fecha_pago ON nominas(fecha_pago) WHERE fecha_pago IS NOT NULL;
 
 -- Comentarios
 COMMENT ON TABLE nominas IS 'Nóminas mensuales de empleados con devengos, deducciones y totales';
@@ -95,7 +102,7 @@ COMMENT ON COLUMN nominas.conceptos_json IS 'Detalle de conceptos en formato JSO
 -- Tabla: nomina_conceptos
 -- ============================================================================
 
-CREATE TABLE nomina_conceptos (
+CREATE TABLE IF NOT EXISTS nomina_conceptos (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nomina_id UUID NOT NULL REFERENCES nominas(id) ON DELETE CASCADE,
 
@@ -115,9 +122,9 @@ CREATE TABLE nomina_conceptos (
 );
 
 -- Índices
-CREATE INDEX idx_nomina_conceptos_nomina_id ON nomina_conceptos(nomina_id);
-CREATE INDEX idx_nomina_conceptos_tipo ON nomina_conceptos(tipo);
-CREATE INDEX idx_nomina_conceptos_codigo ON nomina_conceptos(codigo);
+CREATE INDEX IF NOT EXISTS idx_nomina_conceptos_nomina_id ON nomina_conceptos(nomina_id);
+CREATE INDEX IF NOT EXISTS idx_nomina_conceptos_tipo ON nomina_conceptos(tipo);
+CREATE INDEX IF NOT EXISTS idx_nomina_conceptos_codigo ON nomina_conceptos(codigo);
 
 -- Comentarios
 COMMENT ON TABLE nomina_conceptos IS 'Conceptos individuales de nómina (devengos y deducciones)';
@@ -130,7 +137,7 @@ COMMENT ON COLUMN nomina_conceptos.es_base IS 'Si computa para base de cotizaci�
 -- Tabla: nomina_plantillas
 -- ============================================================================
 
-CREATE TABLE nomina_plantillas (
+CREATE TABLE IF NOT EXISTS nomina_plantillas (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     empleado_id UUID NOT NULL REFERENCES empleados(id) ON DELETE CASCADE,
@@ -151,9 +158,9 @@ CREATE TABLE nomina_plantillas (
 );
 
 -- Índices
-CREATE INDEX idx_nomina_plantillas_tenant_id ON nomina_plantillas(tenant_id);
-CREATE INDEX idx_nomina_plantillas_empleado_id ON nomina_plantillas(empleado_id);
-CREATE INDEX idx_nomina_plantillas_activo ON nomina_plantillas(activo) WHERE activo = TRUE;
+CREATE INDEX IF NOT EXISTS idx_nomina_plantillas_tenant_id ON nomina_plantillas(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_nomina_plantillas_empleado_id ON nomina_plantillas(empleado_id);
+CREATE INDEX IF NOT EXISTS idx_nomina_plantillas_activo ON nomina_plantillas(activo) WHERE activo = TRUE;
 
 -- Comentarios
 COMMENT ON TABLE nomina_plantillas IS 'Plantillas de conceptos estándar para generar nóminas automáticamente';
@@ -170,10 +177,12 @@ ALTER TABLE nomina_conceptos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE nomina_plantillas ENABLE ROW LEVEL SECURITY;
 
 -- Políticas RLS para nominas
+DROP POLICY IF EXISTS nominas_tenant_isolation ON nominas;
 CREATE POLICY nominas_tenant_isolation ON nominas
     USING (tenant_id::text = current_setting('app.tenant_id', TRUE));
 
 -- Políticas RLS para nomina_conceptos (via nominas)
+DROP POLICY IF EXISTS nomina_conceptos_tenant_isolation ON nomina_conceptos;
 CREATE POLICY nomina_conceptos_tenant_isolation ON nomina_conceptos
     USING (
         EXISTS (
@@ -184,6 +193,7 @@ CREATE POLICY nomina_conceptos_tenant_isolation ON nomina_conceptos
     );
 
 -- Políticas RLS para nomina_plantillas
+DROP POLICY IF EXISTS nomina_plantillas_tenant_isolation ON nomina_plantillas;
 CREATE POLICY nomina_plantillas_tenant_isolation ON nomina_plantillas
     USING (tenant_id::text = current_setting('app.tenant_id', TRUE));
 
@@ -192,12 +202,14 @@ CREATE POLICY nomina_plantillas_tenant_isolation ON nomina_plantillas
 -- ============================================================================
 
 -- Trigger para actualizar updated_at en nominas
+DROP TRIGGER IF EXISTS nominas_updated_at ON nominas;
 CREATE TRIGGER nominas_updated_at
     BEFORE UPDATE ON nominas
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
 -- Trigger para actualizar updated_at en nomina_plantillas
+DROP TRIGGER IF EXISTS nomina_plantillas_updated_at ON nomina_plantillas;
 CREATE TRIGGER nomina_plantillas_updated_at
     BEFORE UPDATE ON nomina_plantillas
     FOR EACH ROW

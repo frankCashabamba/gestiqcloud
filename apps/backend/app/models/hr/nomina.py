@@ -80,7 +80,7 @@ class Nomina(Base):
         - metodo_pago: efectivo, transferencia, etc.
     """
 
-    __tablename__ = "nominas"
+    __tablename__ = "payrolls"
     __table_args__ = schema_table_args()
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -94,7 +94,7 @@ class Nomina(Base):
     )
 
     # Numeración
-    numero: Mapped[str] = mapped_column(
+    number: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
         unique=True,
@@ -103,51 +103,51 @@ class Nomina(Base):
     )
 
     # Referencias
-    empleado_id: Mapped[uuid.UUID] = mapped_column(
+    employee_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("empleados.id", ondelete="RESTRICT"),
+        ForeignKey("employees.id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
     )
 
     # Período
-    periodo_mes: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Mes del período (1-12)"
+    period_month: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Period month (1-12)"
     )
-    periodo_ano: Mapped[int] = mapped_column(Integer, nullable=False, comment="Año del período")
-    tipo: Mapped[str] = mapped_column(
-        nomina_tipo, nullable=False, default="MENSUAL", comment="Tipo de nómina"
-    )
-
-    # === DEVENGOS (positivos) ===
-    salario_base: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2), nullable=False, default=0, comment="Salario base del período"
-    )
-    complementos: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2), nullable=False, default=0, comment="Suma de complementos salariales"
-    )
-    horas_extra: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2), nullable=False, default=0, comment="Pago por horas extraordinarias"
-    )
-    otros_devengos: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2), nullable=False, default=0, comment="Otros devengos"
-    )
-    total_devengado: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2), nullable=False, default=0, comment="Total devengado (suma de devengos)"
+    period_year: Mapped[int] = mapped_column(Integer, nullable=False, comment="Period year")
+    type: Mapped[str] = mapped_column(
+        nomina_tipo, nullable=False, default="MENSUAL", comment="Payroll type"
     )
 
-    # === DEDUCCIONES (negativas) ===
-    seg_social: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2), nullable=False, default=0, comment="Seguridad Social (ES) o IESS (EC)"
+    # === EARNINGS (positive) ===
+    base_salary: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=0, comment="Base salary for period"
     )
-    irpf: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2), nullable=False, default=0, comment="IRPF (ES) o Impuesto Renta (EC)"
+    allowances: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=0, comment="Sum of salary allowances"
     )
-    otras_deducciones: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2), nullable=False, default=0, comment="Otras deducciones"
+    overtime: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=0, comment="Overtime payment"
     )
-    total_deducido: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2), nullable=False, default=0, comment="Total deducido (suma de deducciones)"
+    other_earnings: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=0, comment="Other earnings"
+    )
+    total_earnings: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=0, comment="Total earnings (sum of earnings)"
+    )
+
+    # === DEDUCTIONS (negative) ===
+    social_security: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=0, comment="Social Security (ES) or IESS (EC)"
+    )
+    income_tax: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=0, comment="Income Tax (ES) or IR (EC)"
+    )
+    other_deductions: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=0, comment="Other deductions"
+    )
+    total_deductions: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=0, comment="Total deductions (sum of deductions)"
     )
 
     # === TOTALES ===
