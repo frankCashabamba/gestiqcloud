@@ -47,16 +47,16 @@ nomina_tipo = SQLEnum(
 )
 
 
-class Nomina(Base):
+class Payroll(Base):
     """
-    Nómina - Recibo salarial de un empleado por un período.
+    Payroll - Employee salary receipt for a period.
 
     Attributes:
-        numero: Número único de nómina (ej: NOM-2025-11-0001)
-        empleado_id: Empleado al que pertenece
-        periodo_mes: Mes del período (1-12)
-        periodo_ano: Año del período
-        tipo: Tipo de nómina (MENSUAL, EXTRA, FINIQUITO, ESPECIAL)
+        number: Unique payroll number (e.g.: PAY-2025-11-0001)
+        employee_id: Employee it belongs to
+        period_month: Period month (1-12)
+        period_year: Period year
+        type: Payroll type (MONTHLY, EXTRA, FINAL, SPECIAL)
 
         Devengos (positivos):
         - salario_base: Salario base del período
@@ -151,28 +151,28 @@ class Nomina(Base):
     )
 
     # === TOTALES ===
-    liquido_total: Mapped[Decimal] = mapped_column(
+    net_total: Mapped[Decimal] = mapped_column(
         Numeric(12, 2),
         nullable=False,
         default=0,
-        comment="Líquido a pagar (devengos - deducciones)",
+        comment="Net amount to pay (earnings - deductions)",
     )
 
     # === PAGO ===
-    fecha_pago: Mapped[date | None] = mapped_column(
-        Date, nullable=True, comment="Fecha real de pago"
+    payment_date: Mapped[date | None] = mapped_column(
+        Date, nullable=True, comment="Actual payment date"
     )
-    metodo_pago: Mapped[str | None] = mapped_column(
-        String(50), nullable=True, comment="efectivo, transferencia, etc."
+    payment_method: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, comment="cash, transfer, etc."
     )
 
     # === ESTADO ===
     status: Mapped[str] = mapped_column(nomina_status, nullable=False, default="DRAFT", index=True)
 
     # === INFORMACIÓN ADICIONAL ===
-    notas: Mapped[str | None] = mapped_column(Text, nullable=True)
-    conceptos_json: Mapped[dict | None] = mapped_column(
-        JSON_TYPE, nullable=True, comment="Detalle de conceptos (complementos, deducciones)"
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    concepts_json: Mapped[dict | None] = mapped_column(
+        JSON_TYPE, nullable=True, comment="Detail of concepts (allowances, deductions)"
     )
 
     # === AUDITORÍA ===
@@ -187,104 +187,102 @@ class Nomina(Base):
     )
 
     # === RELACIONES ===
-    conceptos: Mapped[list["NominaConcepto"]] = relationship(
-        "NominaConcepto", back_populates="nomina", cascade="all, delete-orphan", lazy="selectin"
+    concepts: Mapped[list["PayrollConcept"]] = relationship(
+        "PayrollConcept", back_populates="payroll", cascade="all, delete-orphan", lazy="selectin"
     )
 
 
-class NominaConcepto(Base):
+class PayrollConcept(Base):
     """
-    Concepto de Nómina - Línea individual de devengo o deducción.
+    Payroll Concept - Individual line for earning or deduction.
 
-    Permite desglosar los importes en conceptos específicos:
-    - Devengos: plus transporte, plus nocturnidad, antigüedad, etc.
-    - Deducciones: anticipos, embargos, préstamos, etc.
+    Allows breaking down amounts into specific concepts:
+    - Earnings: transport allowance, night shift bonus, seniority, etc.
+    - Deductions: advances, garnishments, loans, etc.
 
     Attributes:
-        tipo: 'DEVENGO' o 'DEDUCCION'
-        codigo: Código del concepto (ej: PLUS_TRANS, ANTICIPO)
-        descripcion: Descripción legible
-        importe: Cantidad del concepto (positivo)
-        es_base: Si computa para base de cotización
+        type: 'EARNING' or 'DEDUCTION'
+        code: Concept code (e.g.: PLUS_TRANS, ADVANCE)
+        description: Readable description
+        amount: Concept amount (always positive)
+        is_base: Whether it counts towards contribution base
     """
 
-    __tablename__ = "nomina_conceptos"
+    __tablename__ = "payroll_concepts"
     __table_args__ = schema_table_args()
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
 
-    # Referencias
-    nomina_id: Mapped[uuid.UUID] = mapped_column(
+    # References
+    payroll_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey(schema_column("nominas"), ondelete="CASCADE"),
+        ForeignKey(schema_column("payrolls"), ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
 
-    # Tipo
-    tipo: Mapped[str] = mapped_column(String(20), nullable=False, comment="DEVENGO o DEDUCCION")
-    codigo: Mapped[str] = mapped_column(String(50), nullable=False, comment="Código del concepto")
-    descripcion: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Type
+    type: Mapped[str] = mapped_column(String(20), nullable=False, comment="EARNING or DEDUCTION")
+    code: Mapped[str] = mapped_column(String(50), nullable=False, comment="Concept code")
+    description: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    # Importe
-    importe: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2), nullable=False, comment="Cantidad del concepto (siempre positivo)"
+    # Amount
+    amount: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, comment="Concept amount (always positive)"
     )
 
-    # Configuración
-    es_base: Mapped[bool] = mapped_column(
-        nullable=False, default=True, comment="Si computa para base de cotización"
+    # Configuration
+    is_base: Mapped[bool] = mapped_column(
+        nullable=False, default=True, comment="Whether it counts towards contribution base"
     )
 
-    # Auditoría
+    # Audit
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"
     )
 
-    # Relaciones
-    nomina: Mapped["Nomina"] = relationship("Nomina", back_populates="conceptos", lazy="select")
+    # Relations
+    payroll: Mapped["Payroll"] = relationship("Payroll", back_populates="concepts", lazy="select")
 
 
-class NominaPlantilla(Base):
+class PayrollTemplate(Base):
     """
-    Plantilla de Nómina - Configuración de conceptos estándar por empleado.
+    Payroll Template - Configuration of standard concepts per employee.
 
-    Permite definir conceptos fijos que se aplican automáticamente
-    cada mes (ej: plus transporte, plus nocturnidad, etc.)
+    Allows defining fixed concepts that are automatically applied
+    each month (e.g.: transport allowance, night shift bonus, etc.)
 
     Attributes:
-        empleado_id: Empleado al que aplica
-        conceptos_json: Lista de conceptos con tipo, código, descripcion, importe
-        activo: Si la plantilla está activa
+        employee_id: Employee it applies to
+        concepts_json: List of concepts with type, code, description, amount
+        active: Whether the template is active
     """
 
-    __tablename__ = "nomina_plantillas"
+    __tablename__ = "payroll_templates"
     __table_args__ = schema_table_args()
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
-    empleado_id: Mapped[uuid.UUID] = mapped_column(
+    employee_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("empleados.id", ondelete="CASCADE"),
+        ForeignKey("employees.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
 
-    nombre: Mapped[str] = mapped_column(
-        String(100), nullable=False, comment="Nombre de la plantilla"
-    )
-    descripcion: Mapped[str | None] = mapped_column(Text, nullable=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Template name")
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Conceptos configurados
-    conceptos_json: Mapped[dict] = mapped_column(
-        JSON_TYPE, nullable=False, comment="Lista de conceptos estándar"
+    # Configured concepts
+    concepts_json: Mapped[dict] = mapped_column(
+        JSON_TYPE, nullable=False, comment="List of standard concepts"
     )
 
-    activo: Mapped[bool] = mapped_column(nullable=False, default=True)
+    active: Mapped[bool] = mapped_column(nullable=False, default=True)
 
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"

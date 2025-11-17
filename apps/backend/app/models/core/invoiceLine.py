@@ -32,30 +32,30 @@ class LineaFactura(Base):
     __mapper_args__ = {"polymorphic_identity": "base", "polymorphic_on": sector}
 
 
-class LineaPanaderia(LineaFactura):
+class BakeryLine(LineaFactura):
     """Bakery line item model."""
 
-    __tablename__ = "lineas_panaderia"
+    __tablename__ = "bakery_lines"
 
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("invoice_lines.id"), primary_key=True
     )
-    tipo_pan: Mapped[str] = mapped_column("tipo_pan", String)
-    gramos: Mapped[float] = mapped_column("gramos")
+    bread_type: Mapped[str] = mapped_column("bread_type", String)
+    grams: Mapped[float] = mapped_column("grams")
 
-    __mapper_args__ = {"polymorphic_identity": "panaderia"}
+    __mapper_args__ = {"polymorphic_identity": "bakery"}
 
 
-class LineaTaller(LineaFactura):
+class WorkshopLine(LineaFactura):
     """Workshop line item model."""
 
-    __tablename__ = "lineas_taller"
+    __tablename__ = "workshop_lines"
 
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("invoice_lines.id"), primary_key=True
     )
-    repuesto: Mapped[str] = mapped_column("repuesto", String)
-    horas_mano_obra: Mapped[float] = mapped_column("horas_mano_obra")
-    tarifa: Mapped[float] = mapped_column("tarifa")
+    spare_part: Mapped[str] = mapped_column("spare_part", String)
+    labor_hours: Mapped[float] = mapped_column("labor_hours")
+    rate: Mapped[float] = mapped_column("rate")
 
-    __mapper_args__ = {"polymorphic_identity": "taller"}
+    __mapper_args__ = {"polymorphic_identity": "workshop"}

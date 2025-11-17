@@ -14,10 +14,10 @@ from app.config.database import Base
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
 
 
-class TipoEmpresa(Base):
+class BusinessType(Base):
     """Business Type model - MODERN schema (English)"""
 
-    __tablename__ = "core_tipoempresa"
+    __tablename__ = "business_types"
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -26,10 +26,10 @@ class TipoEmpresa(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
-class TipoNegocio(Base):
+class BusinessCategory(Base):
     """Business Category model - MODERN schema (English)"""
 
-    __tablename__ = "core_tiponegocio"
+    __tablename__ = "business_categories"
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -100,8 +100,8 @@ class Language(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
-class Moneda(Base):
-    """Class Moneda - auto-generated docstring."""
+class Currency(Base):
+    """Class Currency - auto-generated docstring."""
 
     __tablename__ = "currencies"
 
@@ -124,7 +124,7 @@ class CoreMoneda(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True, name="activo")
 
 
-class Pais(Base):
+class Country(Base):
     """Country catalog (ISO 3166-1 alpha-2)."""
 
     __tablename__ = "countries"
@@ -150,26 +150,26 @@ class RefLocale(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
-class DiaSemana(Base):
-    """Class DiaSemana - auto-generated docstring."""
+class Weekday(Base):
+    """Class Weekday - auto-generated docstring."""
 
-    __tablename__ = "core_dia"
+    __tablename__ = "weekdays"
     id: Mapped[int] = mapped_column(primary_key=True)
-    clave: Mapped[str] = mapped_column(String(20), unique=True)
-    nombre: Mapped[str] = mapped_column(String(50))
-    orden: Mapped[int] = mapped_column(Integer)
+    key: Mapped[str] = mapped_column(String(20), unique=True)
+    name: Mapped[str] = mapped_column(String(50))
+    order: Mapped[int] = mapped_column(Integer)
 
 
-class HorarioAtencion(Base):
-    """Class HorarioAtencion - auto-generated docstring."""
+class BusinessHours(Base):
+    """Class BusinessHours - auto-generated docstring."""
 
-    __tablename__ = "core_horarioatencion"
+    __tablename__ = "business_hours"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    dia_id: Mapped[int] = mapped_column(ForeignKey("core_dia.id"))
-    inicio: Mapped[str] = mapped_column(String(5), nullable=False)
-    fin: Mapped[str] = mapped_column(String(5), nullable=False)
-    dia: Mapped["DiaSemana"] = relationship("DiaSemana")
+    weekday_id: Mapped[int] = mapped_column(ForeignKey("weekdays.id"))
+    start_time: Mapped[str] = mapped_column(String(5), nullable=False)
+    end_time: Mapped[str] = mapped_column(String(5), nullable=False)
+    weekday: Mapped["Weekday"] = relationship("Weekday")
 
 
 class SectorPlantilla(Base):
