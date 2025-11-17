@@ -104,6 +104,42 @@ def _register_sqlite_uuid_handlers(engine):
         sqlite3.register_adapter(UUID, adapt_uuid)
 
 
+def _create_tables_in_order(engine, metadata):
+    """Create tables in dependency order to avoid FK constraint violations."""
+
+    # Get all tables
+    tables = list(metadata.sorted_tables)
+
+    # Create tables one by one, retrying if there are FK violations
+    created = set()
+    max_retries = len(tables) + 1
+    attempts = 0
+
+    while len(created) < len(tables) and attempts < max_retries:
+        attempts += 1
+        progress = False
+
+        for table in tables:
+            if table.name in created:
+                continue
+
+            try:
+                table.create(bind=engine, checkfirst=True)
+                created.add(table.name)
+                progress = True
+            except Exception as e:
+                # Log but continue - will retry on next iteration
+                if "does not exist" in str(e) or "foreign key" in str(e).lower():
+                    continue
+                # Re-raise other errors
+                raise
+
+        if not progress and len(created) < len(tables):
+            # No progress made, something is wrong
+            remaining = [t.name for t in tables if t.name not in created]
+            raise RuntimeError(f"Could not create tables in dependency order: {remaining}")
+
+
 _ensure_test_env()
 
 
@@ -115,7 +151,7 @@ def client() -> TestClient:
     _load_all_models()
     _prune_pg_only_tables(Base.metadata)
     _register_sqlite_uuid_handlers(engine)
-    Base.metadata.create_all(bind=engine)
+    _create_tables_in_order(engine, Base.metadata)
     _ensure_sqlite_stub_tables(engine)
     _ensure_default_tenant(engine)
 
@@ -158,7 +194,8 @@ def db():
     _prune_pg_only_tables(Base.metadata)
     _register_sqlite_uuid_handlers(engine)
     Base.metadata.drop_all(bind=engine)  # Clean slate before each test
-    Base.metadata.create_all(bind=engine)
+    # Create tables in dependency order to avoid FK violations
+    _create_tables_in_order(engine, Base.metadata)
     _ensure_sqlite_stub_tables(engine)
     _ensure_default_tenant(engine)
     # Sanity: ensure critical tables are present
