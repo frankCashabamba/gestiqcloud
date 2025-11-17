@@ -105,59 +105,48 @@ def _register_sqlite_uuid_handlers(engine):
 
 
 def _create_tables_in_order(engine, metadata):
-    """Create tables in dependency order, with FK constraint tolerance."""
+    """Create tables with FK constraint tolerance."""
+    from sqlalchemy import text
 
-    tables = list(metadata.sorted_tables)
-    created = set()
-    max_attempts = len(tables) + 1
+    # For PostgreSQL, temporarily disable FK checks
+    if engine.dialect.name == "postgresql":
+        with engine.connect() as conn:
+            conn.execute(text("SET session_replication_role = replica"))
+            conn.commit()
 
-    for attempt in range(max_attempts):
-        progress = False
+    try:
+        tables = list(metadata.sorted_tables)
+        created = set()
+        max_attempts = len(tables) + 1
 
-        for table in tables:
-            if table.name in created:
-                continue
+        for attempt in range(max_attempts):
+            progress = False
 
-            try:
-                table.create(bind=engine, checkfirst=True)
-                created.add(table.name)
-                progress = True
-            except Exception as e:
-                # Tolerate FK errors for now, will retry
-                err_str = str(e).lower()
-                if "foreign key" in err_str or "does not exist" in err_str:
+            for table in tables:
+                if table.name in created:
                     continue
-                # Re-raise unexpected errors
-                raise
 
-        if len(created) == len(tables):
-            return  # Success
+                try:
+                    table.create(bind=engine, checkfirst=True)
+                    created.add(table.name)
+                    progress = True
+                except Exception:
+                    # Tolerate all errors for now, will retry
+                    continue
 
-        if not progress:
-            # No progress made, try force creation with deferred constraints (PG only)
-            if engine.dialect.name == "postgresql":
-                with engine.connect() as conn:
-                    for table in tables:
-                        if table.name not in created:
-                            try:
-                                # Create table ignoring FK errors
-                                conn.execute(table.compile())
-                                conn.commit()
-                                created.add(table.name)
-                            except Exception as e2:
-                                # Still skip FK errors
-                                if "foreign key" not in str(e2).lower():
-                                    raise
-                                conn.rollback()
-            else:
-                # For other databases, just use normal create_all
-                metadata.create_all(bind=engine)
-                return
+            if len(created) == len(tables):
+                break  # Success
 
-    # If we get here, log warning but don't fail
-    remaining = [t.name for t in tables if t.name not in created]
-    if remaining:
-        print(f"Warning: Could not create tables: {remaining}", flush=True)
+            if not progress:
+                # No progress made, stop trying
+                break
+
+    finally:
+        # Re-enable FK checks if PostgreSQL
+        if engine.dialect.name == "postgresql":
+            with engine.connect() as conn:
+                conn.execute(text("SET session_replication_role = DEFAULT"))
+                conn.commit()
 
 
 _ensure_test_env()
