@@ -60,6 +60,7 @@ def get_tenant_settings(db: Session = Depends(get_db), tenant_id: str = Depends(
         result = db.execute(insert_query, {"tenant_id": tenant_id}).first()
         db.commit()
 
+    assert result is not None, "Failed to create/retrieve tenant settings"
     return {
         "currency": result[0],
         "locale": result[1],
@@ -128,7 +129,7 @@ def update_tenant_settings(
         UPDATE tenant_settings
         SET {", ".join(updates)}, updated_at = NOW()
         WHERE tenant_id = :tenant_id
-    """
+    """  # nosec B608 - updates are from known enum fields, not user input
 
     db.execute(text(update_sql), params)
     db.commit()

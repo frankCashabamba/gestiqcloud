@@ -224,7 +224,7 @@ def validate_module_dependencies(enabled_modules: list[str]) -> dict[str, list[s
     Returns:
         Dict con módulos y sus dependencias faltantes
     """
-    missing_deps = {}
+    missing_deps: dict[str, list[str]] = {}
 
     for module_id in enabled_modules:
         module = get_module_by_id(module_id)

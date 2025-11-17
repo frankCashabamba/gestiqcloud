@@ -137,6 +137,7 @@ def create_invoice_draft(
             "tot": total,
         },
     ).first()
+    assert row is not None
     return {"id": int(row[0]), "status": "draft"}
 
 
@@ -150,6 +151,7 @@ def create_order_draft(
         {"cid": payload.get("customer_id")},
     )
     oid = cur.scalar()
+    assert oid is not None
     items = payload.get("items") or []
     for it in items:
         db.execute(
@@ -170,9 +172,9 @@ def create_transfer_draft(
     db: Session, payload: dict[str, Any], tenant_id: str | None = None
 ) -> dict[str, Any]:
     # Draft transfer: two stock_move tentative rows (no stock_items update)
-    src = int(payload.get("from_warehouse_id"))
-    dst = int(payload.get("to_warehouse_id"))
-    prod = int(payload.get("product_id"))
+    src = int(payload.get("from_warehouse_id") or 0)
+    dst = int(payload.get("to_warehouse_id") or 0)
+    prod = int(payload.get("product_id") or 0)
     qty = float(payload.get("qty") or 0)
     for wh, kind in ((src, "issue"), (dst, "receipt")):
         db.execute(

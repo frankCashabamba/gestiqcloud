@@ -1,5 +1,7 @@
 """PDF parser with QR code extraction for invoices and receipts."""
 
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Any
 
@@ -94,7 +96,7 @@ def _parse_qr_data(qr_data: str, page: int, qr_index: int) -> dict[str, Any] | N
     if not qr_data or not qr_data.strip():
         return None
 
-    doc = {
+    doc: dict[str, Any] = {
         "doc_type": "invoice",  # Assume invoice unless detected otherwise
         "qr_data": qr_data,
         "source": "pdf_qr",
@@ -112,19 +114,15 @@ def _parse_qr_data(qr_data: str, page: int, qr_index: int) -> dict[str, Any] | N
 
         # Common pattern: RUC|BusinessName|Invoice#|Date|Amount|...
         if len(parts) >= 5:
-            doc.update(
-                {
-                    "vendor": {
-                        "tax_id": parts[0],
-                        "name": parts[1] if len(parts) > 1 else None,
-                    },
-                    "invoice_number": parts[2] if len(parts) > 2 else None,
-                    "issue_date": parts[3] if len(parts) > 3 else None,
-                    "totals": {
-                        "total": _to_float(parts[4]) if len(parts) > 4 else None,
-                    },
-                }
-            )
+            doc["vendor"] = {
+                "tax_id": parts[0],
+                "name": parts[1] if len(parts) > 1 else None,
+            }
+            doc["invoice_number"] = str(parts[2]) if len(parts) > 2 else None
+            doc["issue_date"] = str(parts[3]) if len(parts) > 3 else None
+            doc["totals"] = {
+                "total": _to_float(parts[4]) if len(parts) > 4 else None,
+            }
 
     # Try key=value format
     elif "=" in qr_data:

@@ -8,16 +8,20 @@ from .base import AIProvider
 from .local_provider import LocalAIProvider
 
 # Lazy imports para evitar dependencias innecesarias
-_openai_provider = None
-_azure_provider = None
+_openai_provider: type | None = None
+_azure_provider: type | None = None
 
 try:
-    from .openai_provider import OpenAIProvider
+    from .openai_provider import OpenAIProvider as _OpenAIProvider
+
+    OpenAIProvider: type | None = _OpenAIProvider
 except ImportError:
     OpenAIProvider = None
 
 try:
-    from .azure_provider import AzureOpenAIProvider
+    from .azure_provider import AzureOpenAIProvider as _AzureOpenAIProvider
+
+    AzureOpenAIProvider: type | None = _AzureOpenAIProvider
 except ImportError:
     AzureOpenAIProvider = None
 

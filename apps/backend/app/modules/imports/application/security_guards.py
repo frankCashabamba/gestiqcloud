@@ -6,6 +6,7 @@ import hashlib
 import logging
 import os
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -263,14 +264,14 @@ def check_pdf_security(pdf_path: str) -> dict:
                     try:
                         if annot.info.get("JavaScript"):
                             threats["has_js"] = True
-                    except Exception:
+                    except Exception:  # nosec B110
                         pass
 
             # Check for embedded files
             try:
                 if page.get_text("dict").get("embeds"):
                     threats["has_embeds"] = True
-            except Exception:
+            except Exception:  # nosec B110
                 pass
 
         doc.close()
@@ -325,28 +326,29 @@ def validate_file_security(
     file_hash = hashlib.sha256(Path(file_path).read_bytes()).hexdigest()
     logger.info(f"Validating file security: {file_path} (SHA256: {file_hash[:16]}...)")
 
-    results = {
+    checks_passed: list[str] = []
+    results: dict[str, Any] = {
         "file_hash": file_hash,
         "file_path": file_path,
-        "checks_passed": [],
+        "checks_passed": checks_passed,
     }
 
     try:
         # Check 1: File size
         check_file_size(file_path, max_mb=max_mb)
-        results["checks_passed"].append("file_size")
+        checks_passed.append("file_size")
 
         # Check 2: MIME type
         detected_mime = None
         if allowed_mimes:
             detected_mime = check_file_mime(file_path, allowed_mimes)
             results["mime_type"] = detected_mime
-            results["checks_passed"].append("mime_type")
+            checks_passed.append("mime_type")
 
         # Check 3: Antivirus scan
         if enable_av_scan:
             scan_virus(file_path)
-            results["checks_passed"].append("antivirus")
+            checks_passed.append("antivirus")
 
         # Check 4: PDF-specific checks
         is_pdf = detected_mime == "application/pdf" or file_path.lower().endswith(".pdf")
@@ -354,12 +356,12 @@ def validate_file_security(
             # Page count
             page_count = count_pdf_pages(file_path, max_pages=max_pdf_pages)
             results["pdf_pages"] = page_count
-            results["checks_passed"].append("pdf_pages")
+            checks_passed.append("pdf_pages")
 
             # Security threats
             threats = check_pdf_security(file_path)
             results["pdf_threats"] = threats
-            results["checks_passed"].append("pdf_security")
+            checks_passed.append("pdf_security")
 
             # Reject if JS and configured to do so
             if reject_pdf_with_js and threats.get("has_js"):
