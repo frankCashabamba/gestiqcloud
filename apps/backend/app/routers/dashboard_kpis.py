@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
-from app.db.rls import set_tenant_guc
+from app.db.rls import set_tenant_guc, tenant_id_sql_expr_text
 
 router = APIRouter(prefix="/dashboard/kpis", tags=["Dashboard KPIs"])
 logger = logging.getLogger("app.dashboard_kpis")
@@ -35,6 +35,16 @@ def get_sector_kpis(
 
     # Activar RLS
     set_tenant_guc(db, tenant_id)
+    tenant_id = str(tenant_id)
+    tenant_expr = tenant_id_sql_expr_text()
+
+    def tenant_clause(field: str = "tenant_id") -> str:
+        return f"{field} = {tenant_expr}"
+
+    def tenant_params(**extra: Any) -> dict[str, Any]:
+        params = {"tid": tenant_id}
+        params.update(extra)
+        return params
 
     # Fechas para filtros
     today = date.today()
@@ -47,15 +57,15 @@ def get_sector_kpis(
         ventas_hoy = (
             db.execute(
                 text(
-                    """
+                    f"""
             SELECT COALESCE(SUM(gross_total), 0) as total
             FROM pos_receipts
-            WHERE tenant_id::text = current_setting('app.tenant_id', TRUE)
+            WHERE {tenant_clause('tenant_id::text')}
             AND DATE(created_at) = :today
             AND status IN ('paid', 'invoiced')
         """
                 ),
-                {"today": today},
+                tenant_params(today=today),
             ).scalar()
             or 0.0
         )
@@ -63,15 +73,15 @@ def get_sector_kpis(
         ventas_ayer = (
             db.execute(
                 text(
-                    """
+                    f"""
             SELECT COALESCE(SUM(gross_total), 0) as total
             FROM pos_receipts
-            WHERE tenant_id::text = current_setting('app.tenant_id', TRUE)
+            WHERE {tenant_clause('tenant_id::text')}
             AND DATE(created_at) = :yesterday
             AND status IN ('paid', 'invoiced')
         """
                 ),
-                {"yesterday": yesterday},
+                tenant_params(yesterday=yesterday),
             ).scalar()
             or 0.0
         )
@@ -81,40 +91,41 @@ def get_sector_kpis(
         # STOCK CRÍTICO (productos con stock bajo)
         stock_critico = db.execute(
             text(
-                """
+                f"""
             SELECT
                 COUNT(DISTINCT p.id) as items,
                 ARRAY_AGG(DISTINCT p.name) FILTER (WHERE p.name IS NOT NULL) as nombres
             FROM products p
             LEFT JOIN stock_items si ON si.product_id = p.id
-            WHERE p.tenant_id::text = current_setting('app.tenant_id', TRUE)
+            WHERE {tenant_clause('p.tenant_id::text')}
             AND COALESCE(si.qty, 0) < 10
             LIMIT 10
         """
-            )
+            ),
+            tenant_params(),
         ).first()
 
         # MERMAS (stock_moves con tipo 'adjustment' negativo del día)
         mermas = db.execute(
             text(
-                """
+                f"""
             SELECT
                 COALESCE(SUM(ABS(qty)), 0) as total_qty,
                 COUNT(*) as count
             FROM stock_moves
-            WHERE tenant_id::text = current_setting('app.tenant_id', TRUE)
+            WHERE {tenant_clause('tenant_id::text')}
             AND kind = 'adjustment'
             AND qty < 0
             AND DATE(created_at) = :today
         """
             ),
-            {"today": today},
+            tenant_params(today=today),
         ).first()
 
         # TOP PRODUCTOS (más vendidos del mes)
         top_productos = db.execute(
             text(
-                """
+                f"""
             SELECT
                 p.name as nombre,
                 SUM(prl.qty) as unidades,
@@ -122,7 +133,7 @@ def get_sector_kpis(
             FROM pos_receipt_lines prl
             JOIN pos_receipts pr ON prl.receipt_id = pr.id
             JOIN products p ON prl.product_id = p.id
-            WHERE pr.tenant_id::text = current_setting('app.tenant_id', TRUE)
+            WHERE {tenant_clause('pr.tenant_id::text')}
             AND pr.status IN ('paid', 'invoiced')
             AND DATE(pr.created_at) >= :month_start
             GROUP BY p.id, p.name
@@ -130,7 +141,7 @@ def get_sector_kpis(
             LIMIT 3
         """
             ),
-            {"month_start": month_start},
+            tenant_params(month_start=month_start),
         ).fetchall()
 
         return {
@@ -176,15 +187,15 @@ def get_sector_kpis(
         ingresos_mes = (
             db.execute(
                 text(
-                    """
+                    f"""
             SELECT COALESCE(SUM(total), 0) as total
             FROM invoices
-            WHERE tenant_id::text = current_setting('app.tenant_id', TRUE)
+            WHERE {tenant_clause('tenant_id::text')}
             AND DATE(fecha) >= :month_start
             AND estado IN ('posted', 'einvoice_sent', 'paid')
         """
                 ),
-                {"month_start": month_start},
+                tenant_params(month_start=month_start),
             ).scalar()
             or 0.0
         )
@@ -193,14 +204,14 @@ def get_sector_kpis(
         trabajos_hoy = (
             db.execute(
                 text(
-                    """
+                    f"""
             SELECT COUNT(*) FROM invoices
-            WHERE tenant_id::text = current_setting('app.tenant_id', TRUE)
+            WHERE {tenant_clause('tenant_id::text')}
             AND DATE(fecha) = :today
             AND estado IN ('posted', 'einvoice_sent', 'paid')
         """
                 ),
-                {"today": today},
+                tenant_params(today=today),
             ).scalar()
             or 0
         )
@@ -208,14 +219,14 @@ def get_sector_kpis(
         trabajos_mes = (
             db.execute(
                 text(
-                    """
+                    f"""
             SELECT COUNT(*) FROM invoices
-            WHERE tenant_id::text = current_setting('app.tenant_id', TRUE)
+            WHERE {tenant_clause('tenant_id::text')}
             AND DATE(fecha) >= :month_start
             AND estado IN ('posted', 'einvoice_sent', 'paid')
         """
                 ),
-                {"month_start": month_start},
+                tenant_params(month_start=month_start),
             ).scalar()
             or 0
         )
@@ -223,17 +234,18 @@ def get_sector_kpis(
         # REPUESTOS BAJO STOCK
         repuestos = db.execute(
             text(
-                """
+                f"""
             SELECT
                 COUNT(DISTINCT p.id) as items,
                 ARRAY_AGG(DISTINCT p.name) FILTER (WHERE p.name IS NOT NULL) as nombres
             FROM products p
             LEFT JOIN stock_items si ON si.product_id = p.id
-            WHERE p.tenant_id::text = current_setting('app.tenant_id', TRUE)
+            WHERE {tenant_clause('p.tenant_id::text')}
             AND COALESCE(si.qty_on_hand, 0) < 5
             LIMIT 10
         """
-            )
+            ),
+            tenant_params(),
         ).first()
 
         return {
@@ -265,17 +277,17 @@ def get_sector_kpis(
         # VENTAS DEL DÍA
         ventas_hoy = db.execute(
             text(
-                """
+                f"""
             SELECT
                 COALESCE(SUM(gross_total), 0) as total,
                 COUNT(*) as tickets
             FROM pos_receipts
-            WHERE tenant_id::text = current_setting('app.tenant_id', TRUE)
+            WHERE {tenant_clause('tenant_id::text')}
             AND DATE(created_at) = :today
             AND status IN ('paid', 'invoiced')
         """
             ),
-            {"today": today},
+            tenant_params(today=today),
         ).first()
 
         total_hoy = float(ventas_hoy[0]) if ventas_hoy else 0.0
@@ -286,15 +298,15 @@ def get_sector_kpis(
         ventas_semana = (
             db.execute(
                 text(
-                    """
+                    f"""
             SELECT COALESCE(SUM(gross_total), 0) as total
             FROM pos_receipts
-            WHERE tenant_id::text = current_setting('app.tenant_id', TRUE)
+            WHERE {tenant_clause('tenant_id::text')}
             AND DATE(created_at) >= :week_ago
             AND status IN ('paid', 'invoiced')
         """
                 ),
-                {"week_ago": week_ago},
+                tenant_params(week_ago=week_ago),
             ).scalar()
             or 0.0
         )
@@ -303,10 +315,10 @@ def get_sector_kpis(
         _rotacion = (
             db.execute(
                 text(
-                    """
+                    f"""
             SELECT COUNT(DISTINCT p.id) as total
             FROM products p
-            WHERE p.tenant_id::text = current_setting('app.tenant_id', TRUE)
+            WHERE {tenant_clause('p.tenant_id::text')}
         """
                 )
             ).scalar()
@@ -338,15 +350,15 @@ def get_sector_kpis(
         ventas_pos = (
             db.execute(
                 text(
-                    """
+                    f"""
             SELECT COALESCE(SUM(gross_total), 0)
             FROM pos_receipts
-            WHERE tenant_id::text = current_setting('app.tenant_id', TRUE)
+            WHERE {tenant_clause('tenant_id::text')}
             AND DATE(created_at) = :today
             AND status IN ('paid', 'invoiced')
         """
                 ),
-                {"today": today},
+                tenant_params(today=today),
             ).scalar()
             or 0.0
         )
@@ -354,15 +366,15 @@ def get_sector_kpis(
         ventas_facturas = (
             db.execute(
                 text(
-                    """
+                    f"""
             SELECT COALESCE(SUM(total), 0)
             FROM invoices
-            WHERE tenant_id::text = current_setting('app.tenant_id', TRUE)
+            WHERE {tenant_clause('tenant_id::text')}
             AND DATE(fecha) = :today
             AND estado IN ('posted', 'einvoice_sent', 'paid')
         """
                 ),
-                {"today": today},
+                tenant_params(today=today),
             ).scalar()
             or 0.0
         )
@@ -370,15 +382,15 @@ def get_sector_kpis(
         tickets_count = (
             db.execute(
                 text(
-                    """
+                    f"""
             SELECT COUNT(*)
             FROM pos_receipts
-            WHERE tenant_id::text = current_setting('app.tenant_id', TRUE)
+            WHERE {tenant_clause('tenant_id::text')}
             AND DATE(created_at) = :today
             AND status IN ('paid', 'invoiced')
         """
                 ),
-                {"today": today},
+                tenant_params(today=today),
             ).scalar()
             or 0
         )

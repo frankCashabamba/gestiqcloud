@@ -25,13 +25,13 @@ def stage_paths() -> None:
 
 
 def has_unstaged_changes() -> bool:
-    status = subprocess.run(
-        ["git", "status", "--short", "--untracked-files=no"],
+    """Return True if the working tree has unstaged changes."""
+    result = subprocess.run(
+        ["git", "diff", "--quiet"],
         text=True,
         capture_output=True,
-        check=True,
     )
-    return bool(status.stdout.strip())
+    return result.returncode != 0
 
 
 def main() -> int:

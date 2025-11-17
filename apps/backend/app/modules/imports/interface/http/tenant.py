@@ -15,13 +15,13 @@ from pydantic import BaseModel
 # Avoid importing heavy domain models at import time to keep router mountable in test envs
 # (domain handlers perform promotion separately)
 from sqlalchemy import inspect as sa_inspect
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.db.rls import ensure_rls
+from app.db.rls import ensure_rls, tenant_id_sql_expr
 from app.models.core.modelsimport import (
     ImportAttachment,
     ImportBatch,
@@ -1307,7 +1307,7 @@ def list_all_products_endpoint(
     # Si no viene tenant_id, intentar obtenerlo del RLS context
     if not tenant_id:
         try:
-            tenant_id = db.execute(text("SELECT current_setting('app.tenant_id', true)")).scalar()
+            tenant_id = db.scalar(select(tenant_id_sql_expr()))
         except Exception:
             pass
 
