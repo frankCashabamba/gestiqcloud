@@ -32,7 +32,7 @@ class Purchase(Base):
         nullable=True,
         index=True,
     )
-    date: Mapped[date] = mapped_column(Date, nullable=False, default=date.today)
+    date: Mapped[date] = mapped_column(Date(), nullable=False, default=date.today)
     subtotal: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     taxes: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
@@ -43,7 +43,7 @@ class Purchase(Base):
         # draft, ordered, received, invoiced, cancelled
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    delivery_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    delivery_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
     user_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(

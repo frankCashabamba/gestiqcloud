@@ -69,8 +69,8 @@ class CompanyModule(Base):
     tenant_id: Mapped[object] = mapped_column(_uuid_col, ForeignKey("tenants.id"), nullable=False)  # type: ignore
     module_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("modules.id"), nullable=False)  # type: ignore
     active: Mapped[bool] = mapped_column(Boolean, default=True)  # type: ignore
-    activation_date: Mapped[datetime] = mapped_column(Date, default=datetime.utcnow)  # type: ignore
-    expiration_date: Mapped[datetime | None] = mapped_column(Date)  # type: ignore
+    activation_date: Mapped[datetime] = mapped_column(Date(), default=datetime.utcnow)  # type: ignore
+    expiration_date: Mapped[datetime | None] = mapped_column(Date())  # type: ignore
     initial_template: Mapped[str | None] = mapped_column(String(255))  # type: ignore
 
     module: Mapped["Module"] = relationship("Module")  # type: ignore

@@ -42,7 +42,7 @@ class Sale(Base):
         nullable=True,
         index=True,
     )
-    date: Mapped[date] = mapped_column(Date, nullable=False, default=date.today)
+    date: Mapped[date] = mapped_column(Date(), nullable=False, default=date.today)
     subtotal: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     taxes: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)

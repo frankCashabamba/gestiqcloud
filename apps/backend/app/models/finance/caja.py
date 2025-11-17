@@ -135,7 +135,7 @@ class CashMovement(Base):
     )
 
     # Date
-    date: Mapped[date] = mapped_column(Date, nullable=False, index=True, comment="Movement date")
+    date: Mapped[date] = mapped_column(Date(), nullable=False, index=True, comment="Movement date")
 
     # Audit
     created_at: Mapped[datetime] = mapped_column(
@@ -191,7 +191,7 @@ class CashClosing(Base):
     )
 
     # Date and cash box
-    date: Mapped[date] = mapped_column(Date, nullable=False, index=True, comment="Closing date")
+    date: Mapped[date] = mapped_column(Date(), nullable=False, index=True, comment="Closing date")
     cash_box_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), nullable=True, index=True, comment="Cash box ID (for multi-cash)"
     )

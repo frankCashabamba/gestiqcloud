@@ -34,7 +34,7 @@ class StoreCredit(Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     amount_initial: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     amount_remaining: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
-    expires_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    expires_at: Mapped[date | None] = mapped_column(Date(), nullable=True)
     status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,

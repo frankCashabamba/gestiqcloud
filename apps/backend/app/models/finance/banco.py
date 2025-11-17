@@ -30,7 +30,7 @@ class BankMovement(Base):
         nullable=True,
         # FK a bank_accounts cuando se cree esa tabla
     )
-    date: Mapped[date] = mapped_column(Date, nullable=False, default=date.today, index=True)
+    date: Mapped[date] = mapped_column(Date(), nullable=False, default=date.today, index=True)
     type: Mapped[str] = mapped_column(
         String(10),
         nullable=False,

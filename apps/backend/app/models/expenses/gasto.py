@@ -25,7 +25,7 @@ class Expense(Base):
         nullable=False,
         index=True,
     )
-    date: Mapped[date] = mapped_column(Date, nullable=False, default=date.today, index=True)
+    date: Mapped[date] = mapped_column(Date(), nullable=False, default=date.today, index=True)
     concept: Mapped[str] = mapped_column(String(255), nullable=False)
     category: Mapped[str | None] = mapped_column(
         String(50),

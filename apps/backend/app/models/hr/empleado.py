@@ -36,9 +36,9 @@ class Employee(Base):
     first_name: Mapped[str] = mapped_column(String(255), nullable=False)
     last_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     document: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    hire_date: Mapped[date] = mapped_column(Date, nullable=False, default=date.today)
-    termination_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    birth_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
+    hire_date: Mapped[date] = mapped_column(Date(), nullable=False, default=date.today)
+    termination_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
     position: Mapped[str | None] = mapped_column(String(100), nullable=True)
     department: Mapped[str | None] = mapped_column(String(100), nullable=True)
     base_salary: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
@@ -80,8 +80,8 @@ class Vacation(Base):
         nullable=False,
         index=True,
     )
-    start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    start_date: Mapped[date] = mapped_column(Date(), nullable=False)
+    end_date: Mapped[date] = mapped_column(Date(), nullable=False)
     days: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(
         String(20),
