@@ -210,7 +210,9 @@ def db():
         # Create tables in dependency order to avoid FK violations
         _create_tables_in_order(engine, Base.metadata)
         _ensure_sqlite_stub_tables(engine)
-        _ensure_default_tenant(engine)
+
+    # Ensure at least one tenant exists (for both SQLite and PostgreSQL)
+    _ensure_default_tenant(engine)
     # Sanity: ensure critical tables are present
     required = {
         "auth_user",
@@ -237,7 +239,9 @@ def db():
         raise
     finally:
         session.close()
-        Base.metadata.drop_all(bind=engine)  # Cleanup after test
+        # For SQLite only: cleanup after test (PostgreSQL uses persistent DB from migrate_all_migrations.py)
+        if engine.dialect.name != "postgresql":
+            Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture

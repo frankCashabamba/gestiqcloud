@@ -10,7 +10,6 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session):
     from sqlalchemy import text
 
     from app.models.inventory.stock import StockMove
-    from app.models.sales.order import SalesOrder, SalesOrderItem
     from app.modules.ventas.interface.http.tenant import ConfirmIn, confirm_order
 
     # Skip on non-Postgres (uses SET LOCAL/policy and UUID bindings)
@@ -33,11 +32,39 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session):
         db.rollback()
 
     # Create a sales order with one item for that tenant
-    so = SalesOrder(tenant_id=tid, customer_id=None, status="draft")
-    db.add(so)
-    db.flush()
-    db.add(SalesOrderItem(tenant_id=tid, order_id=so.id, product_id=1, qty=2, unit_price=10))
+    # Use raw SQL since the ORM model doesn't have 'number' field but DB requires it
+    result = db.execute(
+        text(
+            "INSERT INTO sales_orders (tenant_id, number, customer_id, status, order_date) "
+            "VALUES (:tid, :number, :cid, 'draft', NOW()) RETURNING id"
+        ),
+        {"tid": tid, "number": f"SO-{tid.hex[:8]}", "cid": None},
+    )
+    so_id = result.scalar()
     db.commit()
+
+    # Add order items
+    db.execute(
+        text(
+            "INSERT INTO sales_order_items (sales_order_id, product_id, quantity, unit_price, line_total) "
+            "VALUES (:order_id, :product_id, :qty, :price, :total)"
+        ),
+        {
+            "order_id": so_id,
+            "product_id": 1,
+            "qty": 2,
+            "price": 10,
+            "total": 20,
+        },
+    )
+    db.commit()
+
+    # Create a minimal SalesOrder object for the confirm_order call
+    class _SalesOrder:
+        id = so_id
+        status = "draft"
+
+    so = _SalesOrder()
 
     # Build a minimal request with access_claims
     class _State:
