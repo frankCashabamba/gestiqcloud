@@ -1,4 +1,4 @@
-"""Empty migration placeholder.
+"""Placeholder migration.
 
 Revision ID: 007_ai_incident_tables
 Revises: 006_einvoicing_tables
@@ -14,10 +14,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """No-op upgrade."""
+    """No-op."""
     pass
 
 
 def downgrade() -> None:
-    """No-op downgrade."""
+    """No-op."""
     pass
