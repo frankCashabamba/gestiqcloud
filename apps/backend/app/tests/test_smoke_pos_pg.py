@@ -26,6 +26,7 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
         take_payment,
     )
 
+    tid = tenant_minimal["tenant_id"]
     tid_str = tenant_minimal["tenant_id_str"]
 
     # Skip on non-Postgres; SQLite doesn't support SET LOCAL
@@ -53,7 +54,7 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
             ),
             {
                 "id": product_id,
-                "tid": tenant_minimal["tenant_id"],
+                "tid": tid,
                 "name": "POS Product",
                 "sku": "POS-001",
             },
@@ -74,7 +75,11 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
     shift_id = sh["id"]
 
     # Create receipt
-    rc = create_receipt(ReceiptCreateIn(shift_id=shift_id), _Req(), db)
+    rc = create_receipt(
+        ReceiptCreateIn(shift_id=shift_id, register_id=str(reg["id"])),
+        _Req(),
+        db,
+    )
     rid = rc["id"]
 
     # Add item (product_id must exist and be UUID string)

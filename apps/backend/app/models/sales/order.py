@@ -23,7 +23,7 @@ class SalesOrder(Base):
     customer_id: Mapped[int | None]
     status: Mapped[str] = mapped_column(String, default="draft")
     currency: Mapped[str | None]
-    totals: Mapped[dict | None] = mapped_column(JSON)
+    totals: Mapped[dict | None] = mapped_column("total", JSON)
     # Avoid reserved attribute name 'metadata' in SQLAlchemy declarative
     extra_metadata: Mapped[dict | None] = mapped_column("metadata", JSON)
 
