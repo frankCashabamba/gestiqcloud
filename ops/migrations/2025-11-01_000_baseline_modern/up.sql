@@ -152,6 +152,8 @@ CREATE TABLE IF NOT EXISTS stock_moves (
     warehouse_id UUID NOT NULL REFERENCES warehouses(id) ON DELETE CASCADE,
     qty NUMERIC(12, 3) NOT NULL,
     kind VARCHAR(20) NOT NULL,
+    tentative BOOLEAN DEFAULT FALSE,
+    posted BOOLEAN DEFAULT FALSE,
     ref_type VARCHAR(50),
     ref_id UUID,
     notes TEXT,
@@ -164,6 +166,8 @@ CREATE INDEX IF NOT EXISTS idx_stock_moves_product ON stock_moves(product_id);
 CREATE INDEX IF NOT EXISTS idx_stock_moves_warehouse ON stock_moves(warehouse_id);
 CREATE INDEX IF NOT EXISTS idx_stock_moves_kind ON stock_moves(kind);
 CREATE INDEX IF NOT EXISTS idx_stock_moves_posted_at ON stock_moves(posted_at);
+CREATE INDEX IF NOT EXISTS idx_stock_moves_tentative ON stock_moves(tentative);
+CREATE INDEX IF NOT EXISTS idx_stock_moves_posted ON stock_moves(posted);
 
 -- =====================================================
 -- ALERTS: Stock Alerts
