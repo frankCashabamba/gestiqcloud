@@ -151,7 +151,7 @@ jobs:
             docker exec pg pg_isready -U postgres && break || sleep 1;
           done
           alembic upgrade head
-          python ops/scripts/migrate_all_migrations.py --database-url "postgresql://postgres:postgres@localhost:5432/testdb"
+          cd ../.. && python ops/scripts/migrate_all_migrations.py --database-url "postgresql://postgres:postgres@localhost:5432/testdb" && cd apps/backend
       - name: Smoke test against Postgres DB with coverage
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
