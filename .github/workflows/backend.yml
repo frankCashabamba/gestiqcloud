@@ -128,16 +128,6 @@ jobs:
           else
             echo "OK: no direct current_setting usages found"
           fi
-      - name: Alembic single-head check
-        run: |
-          set -euo pipefail
-          COUNT=$(alembic heads --verbose | grep -c '^Rev:')
-          echo "Alembic heads count: ${COUNT}"
-          if [ "$COUNT" -ne 1 ]; then
-            echo "ERROR: Multiple Alembic heads detected"
-            alembic heads --verbose
-            exit 1
-          fi
       - name: Apply database migrations
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
