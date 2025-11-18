@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS sales_orders (
     subtotal NUMERIC(12, 2) NOT NULL DEFAULT 0,
     tax NUMERIC(12, 2) NOT NULL DEFAULT 0,
     total NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    currency CHAR(3) DEFAULT 'EUR',
 
     -- Status
     status sales_order_status NOT NULL DEFAULT 'DRAFT',
