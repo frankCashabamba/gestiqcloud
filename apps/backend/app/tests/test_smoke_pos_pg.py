@@ -33,7 +33,8 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
     if eng.dialect.name != "postgresql":
         pytest.skip("Postgres-specific smoke test (RLS + SET LOCAL)")
 
-    db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": tid_str})
+    # Use SET (not SET LOCAL) to persist RLS context across multiple transactions
+    db.execute(text("SET app.tenant_id = :tid"), {"tid": tid_str})
 
     # Create a valid superuser for the test
     user = superuser_factory(username="pos_tester")
@@ -106,7 +107,9 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
     rid = rc["id"]
 
     # Take payment (cash)
-    take_payment(rid, PaymentIn(method="cash", amount=10.0), _Req(), db)
+    from app.modules.pos.interface.http.tenant import PaymentsIn
+
+    take_payment(rid, PaymentsIn(payments=[PaymentIn(method="cash", amount=10.0)]), _Req(), db)
 
     # Post receipt (consume stock)
     out = post_receipt(rid, PostReceiptIn(warehouse_id=str(warehouse_id)), _Req(), db)
