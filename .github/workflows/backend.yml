@@ -171,13 +171,11 @@ jobs:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: 'apps/admin/package-lock.json'
-      - name: Install deps (npm ci with fallback)
+      - name: Clean node_modules if corrupted
         run: |
-          set -e
-          if ! npm ci; then
-            echo "::warning ::npm ci failed (lock mismatch). Falling back to npm install"
-            npm install --no-audit --no-fund
-          fi
+          rm -rf node_modules package-lock.json 2>/dev/null || true
+      - name: Install deps
+        run: npm ci --no-audit --no-fund
       - name: Build admin
         run: npm run build --if-present
 
@@ -195,12 +193,10 @@ jobs:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: 'apps/tenant/package-lock.json'
-      - name: Install deps (npm ci with fallback)
+      - name: Clean node_modules if corrupted
         run: |
-          set -e
-          if ! npm ci; then
-            echo "::warning ::npm ci failed (lock mismatch). Falling back to npm install"
-            npm install --no-audit --no-fund
-          fi
+          rm -rf node_modules package-lock.json 2>/dev/null || true
+      - name: Install deps
+        run: npm ci --no-audit --no-fund
       - name: Build tenant
         run: npm run build --if-present
