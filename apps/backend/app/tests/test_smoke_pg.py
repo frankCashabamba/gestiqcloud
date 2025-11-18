@@ -17,7 +17,6 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session, tenant_minimal):
     if eng.dialect.name != "postgresql":
         pytest.skip("Postgres-specific smoke test")
 
-    tid = tenant_minimal["tenant_id"]
     tid_str = tenant_minimal["tenant_id_str"]
 
     # Create a product first
@@ -27,7 +26,12 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session, tenant_minimal):
             text(
                 "INSERT INTO products (id, tenant_id, name, sku) " "VALUES (:id, :tid, :name, :sku)"
             ),
-            {"id": product_id, "tid": tid, "name": "Test Product", "sku": "TEST-001"},
+            {
+                "id": product_id,
+                "tid": tenant_minimal["tenant_id"],
+                "name": "Test Product",
+                "sku": "TEST-001",
+            },
         )
         db.commit()
     except Exception:
@@ -35,6 +39,7 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session, tenant_minimal):
 
     # Create a sales order with one item for that tenant
     # Use raw SQL since the ORM model doesn't have 'number' field but DB requires it
+    tid = tenant_minimal["tenant_id"]
     result = db.execute(
         text(
             "INSERT INTO sales_orders (tenant_id, number, customer_id, status, order_date) "
