@@ -198,11 +198,21 @@ def client() -> TestClient:
 @pytest.fixture
 def db():
     from app.config.database import Base, SessionLocal, engine
+    from sqlalchemy import text
 
     _load_all_models()
     _prune_pg_only_tables(Base.metadata)
     _register_sqlite_uuid_handlers(engine)
-    Base.metadata.drop_all(bind=engine)  # Clean slate before each test
+
+    # Clean slate before each test (use CASCADE for PostgreSQL to drop dependent objects)
+    if engine.dialect.name == "postgresql":
+        with engine.connect() as conn:
+            for table in reversed(Base.metadata.sorted_tables):
+                conn.execute(text(f"DROP TABLE IF EXISTS {table.name} CASCADE"))
+            conn.commit()
+    else:
+        Base.metadata.drop_all(bind=engine)
+
     # Create tables in dependency order to avoid FK violations
     _create_tables_in_order(engine, Base.metadata)
     _ensure_sqlite_stub_tables(engine)
