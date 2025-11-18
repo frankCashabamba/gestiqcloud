@@ -4,7 +4,7 @@ import uuid
 from datetime import date
 from enum import Enum
 
-from sqlalchemy import Date
+from sqlalchemy import JSON, Date
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy import ForeignKey, String, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -14,6 +14,9 @@ from app.config.database import Base
 from app.models.core.clients import Client
 from app.models.core.invoiceLine import LineaFactura
 from app.models.tenant import Tenant
+
+# JSONB with SQLite fallback
+JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
 
 
 class InvoiceTemp(Base):
@@ -26,7 +29,7 @@ class InvoiceTemp(Base):
     )
     user_id: Mapped[int] = mapped_column("user_id", ForeignKey("company_users.id"))
     file_name: Mapped[str] = mapped_column("file_name")
-    data: Mapped[dict] = mapped_column("data", JSONB)
+    data: Mapped[dict] = mapped_column("data", JSON_TYPE)
     status: Mapped[str] = mapped_column("status", default="pending")
     import_date: Mapped[str] = mapped_column("import_date", server_default=text("now()"))
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(

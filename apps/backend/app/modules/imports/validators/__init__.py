@@ -1,10 +1,12 @@
+"""Validators for imports module"""
+
 import re
 from datetime import date, datetime
 from typing import Any
 
 try:
-    from .validators.country_validators import get_validator_for_country
-    from .validators.error_catalog import ERROR_CATALOG
+    from .country_validators import get_validator_for_country
+    from .error_catalog import ERROR_CATALOG
 except ImportError:
 
     def get_validator_for_country(country_code: str):
@@ -220,3 +222,19 @@ def validate_tax_breakdown(tax_breakdown: list[dict[str, Any]] | None) -> list[d
             errors.append({"field": f"tax_breakdown[{idx}].rate", "msg": "obligatorio"})
 
     return errors
+
+
+# Import products validator
+from .products import validate_product  # noqa: E402
+
+__all__ = [
+    "validate_invoices",
+    "validate_bank",
+    "validate_expenses",
+    "validate_canonical",
+    "validate_totals",
+    "validate_tax_breakdown",
+    "validate_product",
+    "get_validator_for_country",
+    "ERROR_CATALOG",
+]

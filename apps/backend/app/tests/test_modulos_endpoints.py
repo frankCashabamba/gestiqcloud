@@ -10,7 +10,7 @@ def seeded_modulos(db, usuario_empresa_factory):
 
     Devuelve tuple: (usuario, empresa, [mod1, mod2])
     """
-    from app.models.core.modulo import EmpresaModulo, Modulo, ModuloAsignado
+    from app.models.core.modulo import AssignedModule, CompanyModule, Module
 
     usuario, tenant_from_factory = usuario_empresa_factory(
         empresa_name="Empresa Test Mods",
@@ -22,23 +22,23 @@ def seeded_modulos(db, usuario_empresa_factory):
     tenant = tenant_from_factory
 
     # Crea dos módulos activos si no existen
-    m1 = db.query(Modulo).filter(Modulo.name == "Ventas").first()
+    m1 = db.query(Module).filter(Module.name == "Ventas").first()
     if not m1:
-        m1 = Modulo(
+        m1 = Module(
             name="Ventas",
-            descripcion="Ventas",
-            activo=True,
-            plantilla_inicial="default",
+            description="Ventas",
+            active=True,
+            initial_template="default",
             context_type="none",
         )
         db.add(m1)
-    m2 = db.query(Modulo).filter(Modulo.name == "Facturacion").first()
+    m2 = db.query(Module).filter(Module.name == "Facturacion").first()
     if not m2:
-        m2 = Modulo(
+        m2 = Module(
             name="Facturacion",
-            descripcion="Facturación",
-            activo=True,
-            plantilla_inicial="default",
+            description="Facturación",
+            active=True,
+            initial_template="default",
             context_type="none",
         )
         db.add(m2)
@@ -47,31 +47,31 @@ def seeded_modulos(db, usuario_empresa_factory):
     # Vincula módulos contratados por el tenant
     for m in (m1, m2):
         exists = (
-            db.query(EmpresaModulo)
-            .filter(EmpresaModulo.tenant_id == tenant.id, EmpresaModulo.modulo_id == m.id)
+            db.query(CompanyModule)
+            .filter(CompanyModule.tenant_id == tenant.id, CompanyModule.module_id == m.id)
             .first()
         )
         if not exists:
-            db.add(EmpresaModulo(tenant_id=tenant.id, modulo_id=m.id, activo=True))
+            db.add(CompanyModule(tenant_id=tenant.id, module_id=m.id, active=True))
 
     db.flush()
 
     # Asigna al usuario al menos un módulo para el endpoint /modulos/ (tenant)
     if not (
-        db.query(ModuloAsignado)
+        db.query(AssignedModule)
         .filter(
-            ModuloAsignado.tenant_id == tenant.id,
-            ModuloAsignado.usuario_id == usuario.id,
-            ModuloAsignado.modulo_id == m1.id,
+            AssignedModule.tenant_id == tenant.id,
+            AssignedModule.user_id == usuario.id,
+            AssignedModule.module_id == m1.id,
         )
         .first()
     ):
         db.add(
-            ModuloAsignado(
+            AssignedModule(
                 tenant_id=tenant.id,
-                usuario_id=usuario.id,
-                modulo_id=m1.id,
-                ver_modulo_auto=True,
+                user_id=usuario.id,
+                module_id=m1.id,
+                auto_view_module=True,
             )
         )
 

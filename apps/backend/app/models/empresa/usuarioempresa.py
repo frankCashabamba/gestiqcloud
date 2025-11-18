@@ -47,8 +47,10 @@ class CompanyUser(Base):
     )  # considera CITEXT si quieres case-insensitive
     username: Mapped[str] = mapped_column(sa.String(100), nullable=False)
 
-    active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.text("true"))
-    is_admin: Mapped[bool] = mapped_column(
+    is_active: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("true")
+    )
+    is_company_admin: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("false")
     )
 
@@ -86,19 +88,24 @@ class CompanyUser(Base):
         return f"<CompanyUser email={self.email}>"
 
     @property
-    def is_active(self) -> bool:
-        """Function is_active - auto-generated docstring."""
-        return self.active
+    def es_admin_empresa(self) -> bool:
+        """Alias para is_company_admin."""
+        return self.is_company_admin
+
+    @property
+    def activo(self) -> bool:
+        """Alias para is_active."""
+        return self.is_active
 
     @property
     def is_superuser(self) -> bool:
         """Function is_superuser - auto-generated docstring."""
-        return self.is_admin
+        return self.is_company_admin
 
     @property
     def is_staff(self) -> bool:
         """Function is_staff - auto-generated docstring."""
-        return self.is_admin
+        return self.is_company_admin
 
 
 # Keep old name for backward compatibility during migration

@@ -17,7 +17,7 @@ async def get_user_permisos(usuario_id: int, tenant_id: int, db: AsyncSession) -
         .where(
             UsuarioRolempresa.usuario_id == usuario_id,
             UsuarioRolempresa.tenant_id == tenant_id,
-            UsuarioRolempresa.active,
+            UsuarioRolempresa.activo,
         )
         .limit(1)
     )

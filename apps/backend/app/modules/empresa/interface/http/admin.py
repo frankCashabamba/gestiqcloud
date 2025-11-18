@@ -7,7 +7,6 @@ from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
-from slugify import slugify
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
@@ -24,6 +23,7 @@ from app.modules.empresa.application.use_cases import ListarEmpresasAdmin, crear
 from app.modules.empresa.infrastructure.repositories import SqlEmpresaRepo
 from app.modules.empresa.interface.http.schemas import EmpresaInSchema, EmpresaOutSchema
 from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
+from app.shared.utils import slugify
 
 router = APIRouter(
     prefix="/admin/empresas",
@@ -41,25 +41,18 @@ def listar_empresas_admin(db: Session = Depends(get_db)) -> list[EmpresaOutSchem
     out: list[EmpresaOutSchema] = []
     for i in items:
         tenant_uuid = i.get("id")
-        empresa_id = None
+        mod_names = []
         if tenant_uuid is not None:
             try:
-                row = db.execute(
-                    text("SELECT slug FROM tenants WHERE tenant_id =:id"),
-                    {"id": str(tenant_uuid)},
-                ).first()
-                empresa_id = int(row[0]) if row and row[0] is not None else None
+                registros = mod_crud.obtener_modulos_de_empresa(db, tenant_uuid)
+                for r in registros:
+                    modulo_obj = getattr(r, "modulo", None)
+                    if modulo_obj is not None:
+                        name = getattr(modulo_obj, "name", None)
+                        if name is not None:
+                            mod_names.append(name)
             except Exception:
-                empresa_id = None
-        mod_names: list[str] = []
-        if empresa_id is not None:
-            try:
-                registros = mod_crud.obtener_modulos_de_empresa(db, empresa_id)
-                mod_names = [
-                    getattr(r.modulo, "name", None) for r in registros if getattr(r, "modulo", None)
-                ]
-            except Exception:
-                mod_names = []
+                pass
         enriched = {**i, "modulos": mod_names}
         out.append(EmpresaOutSchema.model_validate(enriched))
     return out
@@ -72,13 +65,17 @@ def obtener_empresa_admin(tenant_id: str, db: Session = Depends(get_db)) -> Empr
     if not item:
         raise HTTPException(status_code=404, detail="empresa_not_found")
     # Enriquecer con modulos como en el listado
+    mod_names = []
     try:
         registros = mod_crud.obtener_modulos_de_empresa(db, tenant_id)
-        mod_names = [
-            getattr(r.modulo, "name", None) for r in registros if getattr(r, "modulo", None)
-        ]
+        for r in registros:
+            modulo_obj = getattr(r, "modulo", None)
+            if modulo_obj is not None:
+                name = getattr(modulo_obj, "name", None)
+                if name is not None:
+                    mod_names.append(name)
     except Exception:
-        mod_names = []
+        pass
     enriched = {**item, "modulos": mod_names}
     return EmpresaOutSchema.model_validate(enriched)
 
@@ -414,8 +411,8 @@ def eliminar_empresa(
 
 
 class AdminUserIn(BaseModel):
-    nombre_encargado: str
-    apellido_encargado: str
+    first_name: str
+    last_name: str
     email: EmailStr
     username: str
     password: str | None = None
@@ -494,8 +491,8 @@ async def crear_empresa_completa_json(
     # Autogenera username si no viene: nombre.apellido (normalizado), garantizando unicidad
     if not username_clean:
         try:
-            first = slugify(payload.admin.nombre_encargado or "", separator="")
-            last = slugify(payload.admin.apellido_encargado or "", separator="")
+            first = slugify(payload.admin.first_name or "", separator="")
+            last = slugify(payload.admin.last_name or "", separator="")
             base = ".".join([p for p in [first, last] if p]).strip(".")
             if not base:
                 base = (email_clean.split("@")[0] or "usuario").strip(".")
@@ -583,8 +580,8 @@ async def crear_empresa_completa_json(
         user = crear_usuario_admin(
             db,
             tenant_id=tenant_uuid,
-            nombre_encargado=payload.admin.nombre_encargado,
-            apellido_encargado=payload.admin.apellido_encargado,
+            first_name=payload.admin.first_name,
+            last_name=payload.admin.last_name,
             email=email_clean,
             username=username_clean,
             password=tmp_password,

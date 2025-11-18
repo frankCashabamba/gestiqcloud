@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.models.auth.useradmis import SuperUser
-from app.models.core.modulo import EmpresaModulo
+from app.models.core.modulo import CompanyModule
 from app.models.tenant import Tenant
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -36,11 +36,11 @@ def get_admin_stats(db: Session = Depends(get_db)) -> dict[str, Any]:
         or 0
     )
 
-    # Módulos por empresa (EmpresaModulo)
-    modulos_total = db.execute(select(func.count(EmpresaModulo.id))).scalar() or 0
+    # Módulos por empresa (CompanyModule)
+    modulos_total = db.execute(select(func.count(CompanyModule.id))).scalar() or 0
     modulos_activos = (
         db.execute(
-            select(func.count(EmpresaModulo.id)).where(EmpresaModulo.activo.is_(True))
+            select(func.count(CompanyModule.id)).where(CompanyModule.active.is_(True))
         ).scalar()
         or 0
     )

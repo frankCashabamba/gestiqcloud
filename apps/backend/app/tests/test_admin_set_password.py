@@ -26,8 +26,8 @@ def test_admin_set_password_updates_usuarioempresa_only(db):
         email="admin@example.com",
         username="admin",
         password_hash="y",
-        is_admin=True,
-        active=True,
+        is_company_admin=True,
+        is_active=True,
     )
     db.add(cu)
     db.commit()

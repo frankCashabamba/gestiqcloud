@@ -16,9 +16,9 @@ def get_usuarios_by_empresa(
 ) -> list[CompanyUser]:
     query = db.query(CompanyUser).filter(CompanyUser.tenant_id == tenant_id)
     if not include_admins:
-        query = query.filter(CompanyUser.es_admin_empresa.is_(False))
+        query = query.filter(CompanyUser.is_company_admin.is_(False))
     if not include_inactivos:
-        query = query.filter(CompanyUser.activo.isnot(False))
+        query = query.filter(CompanyUser.is_active.is_(True))
     return query.all()
 
 
@@ -50,13 +50,13 @@ def insert_usuario_empresa(
 ) -> CompanyUser:
     model = CompanyUser(
         tenant_id=tenant_id,
-        nombre_encargado=data.nombre_encargado,
-        apellido_encargado=data.apellido_encargado,
+        first_name=data.first_name or "",
+        last_name=data.last_name or "",
         email=data.email,
         username=data.username,
         password_hash=hashed_password,
-        activo=data.active,
-        es_admin_empresa=data.es_admin_empresa,
+        is_active=data.active,
+        is_company_admin=data.es_admin_empresa,
     )
     db.add(model)
     db.flush()
@@ -65,15 +65,15 @@ def insert_usuario_empresa(
 
 def set_modulos_usuario(db: Session, usuario_id, tenant_id, modulos: Iterable) -> None:
     db.query(AssignedModule).filter(
-        AssignedModule.usuario_id == usuario_id,
+        AssignedModule.user_id == usuario_id,
         AssignedModule.tenant_id == tenant_id,
     ).delete(synchronize_session=False)
     for modulo_id in modulos:
         db.add(
             AssignedModule(
-                usuario_id=usuario_id,
+                user_id=usuario_id,
                 tenant_id=tenant_id,
-                modulo_id=modulo_id,
+                module_id=modulo_id,
             )
         )
 
@@ -96,14 +96,14 @@ def set_roles_usuario(db: Session, usuario_id, tenant_id, roles: Iterable) -> No
 
 def get_modulos_usuario_ids(db: Session, usuario_id, tenant_id):
     rows = (
-        db.query(AssignedModule.modulo_id)
+        db.query(AssignedModule.module_id)
         .filter(
-            AssignedModule.usuario_id == usuario_id,
+            AssignedModule.user_id == usuario_id,
             AssignedModule.tenant_id == tenant_id,
         )
         .all()
     )
-    return [row[0] for row in rows]
+    return [row[0] for row in rows]  # AssignedModule uses english names
 
 
 def get_roles_usuario_ids(db: Session, usuario_id, tenant_id):
@@ -121,7 +121,7 @@ def get_roles_usuario_ids(db: Session, usuario_id, tenant_id):
 
 def get_modulos_contratados_ids(db: Session, tenant_id: int):
     rows = (
-        db.query(CompanyModule.modulo_id)
+        db.query(CompanyModule.module_id)
         .filter(
             CompanyModule.tenant_id == tenant_id,
             CompanyModule.active.is_(True),
@@ -136,8 +136,8 @@ def count_admins_empresa(db: Session, tenant_id: int) -> int:
         db.query(CompanyUser)
         .filter(
             CompanyUser.tenant_id == tenant_id,
-            CompanyUser.es_admin_empresa.is_(True),
-            CompanyUser.activo.isnot(False),
+            CompanyUser.is_company_admin.is_(True),
+            CompanyUser.is_active.is_(True),
         )
         .count()
     )
@@ -165,10 +165,10 @@ def load_detalle_usuarios(
     usuario_ids = [u.id for u in usuarios]
     mod_map: dict[int, list[int]] = defaultdict(list)
     for usuario_id, modulo_id in (
-        db.query(AssignedModule.usuario_id, AssignedModule.modulo_id)
+        db.query(AssignedModule.user_id, AssignedModule.module_id)
         .filter(
             AssignedModule.tenant_id == tenant_id,
-            AssignedModule.usuario_id.in_(usuario_ids),
+            AssignedModule.user_id.in_(usuario_ids),
         )
         .all()
     ):
@@ -200,13 +200,13 @@ def get_modulos_contratados(db: Session, tenant_id: int) -> list[dict]:
     )
     result: list[dict] = []
     for row in rows:
-        modulo = row.modulo
+        modulo = row.module
         result.append(
             {
-                "id": row.modulo_id,
+                "id": row.module_id,
                 "name": getattr(modulo, "name", None),
-                "categoria": getattr(modulo, "categoria", None),
-                "icono": getattr(modulo, "icono", None),
+                "categoria": getattr(modulo, "category", None),
+                "icono": getattr(modulo, "icon", None),
             }
         )
     return result

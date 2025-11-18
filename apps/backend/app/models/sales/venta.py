@@ -36,25 +36,25 @@ class Sale(Base):
         default="",  # o default=lambda: str(uuid.uuid4())[:8]
     )
 
-    customer_id: Mapped[uuid.UUID | None] = mapped_column(
+    cliente_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("clients.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
-    date: Mapped[date] = mapped_column(Date(), nullable=False, default=date.today)
+    fecha: Mapped[date] = mapped_column(Date(), nullable=False, default=date.today)
     subtotal: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     taxes: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
-    status: Mapped[str] = mapped_column(
+    estado: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
         default="draft",
     )
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notas: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # 👇 Igual que tenant_id: default para compat
-    user_id: Mapped[uuid.UUID] = mapped_column(
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         nullable=False,
         default=uuid.uuid4,
@@ -66,7 +66,7 @@ class Sale(Base):
     )
 
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
-    customer = relationship("Client", foreign_keys=[customer_id])
+    cliente = relationship("Client", foreign_keys=[cliente_id])
 
     def __repr__(self):
         return f"<Sale {self.number} - {self.total}>"

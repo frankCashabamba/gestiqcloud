@@ -16,20 +16,20 @@ class SqlAlchemyIdiomaRepo(IdiomaRepo):
     def _to_dto(self, i: IdiomaORM) -> IdiomaOut:
         return IdiomaOut(
             id=i.id,
-            codigo=i.codigo,
-            nombre=i.nombre,
-            active=i.activo,
+            codigo=i.code,
+            nombre=i.name,
+            active=i.active,
         )
 
     def list(self) -> Sequence[IdiomaOut]:
-        rows = self.db.query(IdiomaORM).order_by(IdiomaORM.codigo.asc()).all()
+        rows = self.db.query(IdiomaORM).order_by(IdiomaORM.code.asc()).all()
         return [self._to_dto(r) for r in rows]
 
     def create(self, data: IdiomaIn) -> IdiomaOut:
         obj = IdiomaORM(
-            codigo=data.codigo,
-            nombre=data.nombre,
-            activo=data.active,
+            code=data.codigo,
+            name=data.nombre,
+            active=data.active,
         )
         self.db.add(obj)
         self.db.commit()
@@ -44,9 +44,9 @@ class SqlAlchemyIdiomaRepo(IdiomaRepo):
         obj = self.db.query(IdiomaORM).filter(IdiomaORM.id == id).first()
         if not obj:
             raise ValueError("idioma_no_encontrado")
-        obj.codigo = data.codigo
-        obj.nombre = data.nombre
-        obj.activo = data.active
+        obj.code = data.codigo
+        obj.name = data.nombre
+        obj.active = data.active
         self.db.add(obj)
         self.db.commit()
         self.db.refresh(obj)

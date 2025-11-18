@@ -210,8 +210,8 @@ def db():
     # Sanity: ensure critical tables are present
     required = {
         "auth_user",
-        "usuarios_usuarioempresa",
-        "usuarios_usuariorolempresa",
+        "company_users",
+        "company_user_roles",
         "auth_refresh_family",
         "auth_refresh_token",
     }
@@ -326,8 +326,8 @@ def usuario_empresa_factory(db):
 
             if password:
                 existing.password_hash = hasher.hash(password)
-            existing.is_admin = es_admin_empresa
-            existing.active = True
+            existing.is_company_admin = es_admin_empresa
+            existing.is_active = True
 
             db.commit()
             db.refresh(existing)
@@ -346,9 +346,9 @@ def usuario_empresa_factory(db):
             last_name="User",
             email=email,
             username=username,
-            is_admin=es_admin_empresa,
+            is_company_admin=es_admin_empresa,
             password_hash=hasher.hash(password),
-            active=True,
+            is_active=True,
         )
         db.add(usuario)
         db.commit()

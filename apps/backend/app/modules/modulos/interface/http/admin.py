@@ -4,21 +4,21 @@ import json
 import os
 from pathlib import Path
 
+from apps.backend.app.shared.utils import ping_ok
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.config.settings import settings
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.models.core.modulo import EmpresaModulo, Modulo
+from app.models.core.modulo import CompanyModule, Module
 from app.modules import crud as mod_crud
 from app.modules import schemas as mod_schemas
 from app.modules import services as mod_services
 from app.modules.modulos.application.use_cases import ListarModulosAdmin
 from app.modules.modulos.infrastructure.repositories import SqlModuloRepo
 from app.modules.modulos.interface.http.schemas import ModuloOutSchema
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-
-from apps.backend.app.shared.utils import ping_ok
 
 router = APIRouter(
     prefix="/admin/modulos",
@@ -274,7 +274,7 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
                 ignorados.append(carpeta)
                 continue
             name = carpeta.lower()
-            existente = db.query(Modulo).filter_by(name=name).first()
+            existente = db.query(Module).filter_by(name=name).first()
             if existente:
                 if reactivate_existing:
                     # Intentar leer manifest (si existe) para actualizar campos básicos
@@ -429,7 +429,7 @@ def upsert_modulo_empresa(
 @router.delete("/empresa/{tenant_id}/modulo/{modulo_id}")
 def eliminar_modulo_de_empresa(tenant_id: str, modulo_id: int, db: Session = Depends(get_db)):
     empresa_modulo = (
-        db.query(EmpresaModulo).filter_by(tenant_id=tenant_id, modulo_id=modulo_id).first()
+        db.query(CompanyModule).filter_by(tenant_id=tenant_id, module_id=modulo_id).first()
     )
     if not empresa_modulo:
         raise HTTPException(status_code=404, detail="Asignación no encontrada")

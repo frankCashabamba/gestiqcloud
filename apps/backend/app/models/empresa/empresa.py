@@ -174,3 +174,13 @@ class SectorPlantilla(Base):
     template_config: Mapped[dict] = mapped_column(JSON, default=dict, name="template_config")
     active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(default=func.now())
+
+
+# Spanish language aliases for backward compatibility (migration in progress)
+Idioma = Language
+Moneda = Currency
+Pais = Country
+DiaSemana = Weekday
+HorarioAtencion = BusinessHours
+TipoEmpresa = BusinessType
+TipoNegocio = BusinessCategory

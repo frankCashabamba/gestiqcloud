@@ -25,16 +25,16 @@ def listar_modulos_activos_por_slug(
     registros = mod_crud.obtener_modulos_de_empresa(db, empresa.id)
     items: list[ModuloOutSchema] = []
     for r in registros:
-        m = getattr(r, "modulo", None)
-        if not r.activo or m is None:
+        m = getattr(r, "module", None)
+        if not r.active or m is None:
             continue
         dto = {
             "id": m.id,
             "name": m.name,
             "nombre": m.name,  # Legacy compatibility
             "url": m.url,
-            "icono": m.icono,
-            "categoria": m.categoria,
+            "icono": m.icon or "",
+            "categoria": m.category or "",
             "active": m.active,
             "activo": m.active,  # Legacy compatibility
         }

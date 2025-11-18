@@ -22,11 +22,11 @@ def _aggregate(
         id=usuario.id,
         tenant_id=usuario.tenant_id,
         email=usuario.email,
-        nombre_encargado=usuario.nombre_encargado,
-        apellido_encargado=usuario.apellido_encargado,
+        nombre_encargado=usuario.first_name,
+        apellido_encargado=usuario.last_name,
         username=usuario.username,
-        es_admin_empresa=usuario.es_admin_empresa,
-        activo=usuario.activo,
+        es_admin_empresa=usuario.is_company_admin,
+        activo=usuario.is_active,
         modulos=modulos,
         roles=roles,
         ultimo_login_at=usuario.last_login_at,
@@ -38,8 +38,8 @@ def _to_schema(agg: UsuarioEmpresaAggregate) -> UsuarioEmpresaOut:
         id=agg.id,
         tenant_id=agg.tenant_id,
         email=agg.email,
-        nombre_encargado=agg.nombre_encargado,
-        apellido_encargado=agg.apellido_encargado,
+        first_name=agg.nombre_encargado,
+        last_name=agg.apellido_encargado,
         username=agg.username,
         es_admin_empresa=agg.es_admin_empresa,
         active=agg.activo,
@@ -55,7 +55,7 @@ def listar_usuarios_empresa(
     detalles = repo.load_detalle_usuarios(db, tenant_id)
     result: list[UsuarioEmpresaOut] = []
     for usuario, modulos, roles in detalles:
-        if not include_inactivos and not usuario.activo:
+        if not include_inactivos and not usuario.is_active:
             continue
         agg = _aggregate(usuario, modulos, roles)
         result.append(_to_schema(agg))
@@ -124,26 +124,26 @@ def actualizar_usuario_empresa(
         val.ensure_username_unique(db, data.username, exclude_usuario_id=usuario.id)
         usuario.username = data.username
 
-    if data.nombre_encargado is not None:
-        usuario.nombre_encargado = data.nombre_encargado
-    if data.apellido_encargado is not None:
-        usuario.apellido_encargado = data.apellido_encargado
+    if data.first_name is not None:
+        usuario.first_name = data.first_name
+    if data.last_name is not None:
+        usuario.last_name = data.last_name
 
     if data.password:
         usuario.password_hash = get_password_hash(data.password)
 
     if data.active is not None and data.active is False:
         val.ensure_not_last_admin(db, tenant_id, usuario_id=usuario.id)
-        usuario.activo = False
+        usuario.is_active = False
     elif data.active is not None:
-        usuario.activo = data.active
+        usuario.is_active = data.active
 
     if data.es_admin_empresa is not None:
-        if not data.es_admin_empresa and usuario.es_admin_empresa:
+        if not data.es_admin_empresa and usuario.is_company_admin:
             val.ensure_not_last_admin(db, tenant_id, usuario_id=usuario.id)
-        usuario.es_admin_empresa = data.es_admin_empresa
+        usuario.is_company_admin = data.es_admin_empresa
 
-    if usuario.es_admin_empresa:
+    if usuario.is_company_admin:
         # Los administradores siempre tienen todos los módulos contratados
         modulos = repo.get_modulos_contratados_ids(db, tenant_id)
         repo.set_modulos_usuario(db, usuario.id, tenant_id, modulos)

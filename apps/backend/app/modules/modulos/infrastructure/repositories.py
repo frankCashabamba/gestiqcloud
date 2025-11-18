@@ -2,33 +2,33 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from app.models.core.modulo import Modulo, ModuloAsignado
+from app.models.core.modulo import AssignedModule, Module
 from app.modules.shared.infrastructure.sqlalchemy_repo import SqlAlchemyRepo
 
 
 class SqlModuloRepo(SqlAlchemyRepo):
     def list_all(self) -> Sequence[dict]:
-        rows = self.db.query(Modulo).filter(Modulo.active).order_by(Modulo.id.asc()).all()  # noqa: E712
+        rows = self.db.query(Module).filter(Module.active).order_by(Module.id.asc()).all()  # noqa: E712
         return [self._to_dto(m) for m in rows]
 
     def list_asignados(self, *, tenant_user_id, tenant_id) -> Sequence[dict]:
         rows = (
-            self.db.query(ModuloAsignado)
+            self.db.query(AssignedModule)
             .filter(
-                ModuloAsignado.usuario_id == tenant_user_id,
-                ModuloAsignado.tenant_id == tenant_id,
-                ModuloAsignado.ver_modulo_auto,  # noqa: E712
+                AssignedModule.user_id == tenant_user_id,
+                AssignedModule.tenant_id == tenant_id,
+                AssignedModule.auto_view_module,  # noqa: E712
             )
             .all()
         )
-        return [self._to_dto(ma.modulo) for ma in rows if ma.modulo]
+        return [self._to_dto(ma.module) for ma in rows if ma.module]
 
-    def _to_dto(self, m: Modulo) -> dict:
+    def _to_dto(self, m: Module) -> dict:
         return {
             "id": m.id,
             "name": m.name,
             "url": m.url,
-            "icono": m.icono,
-            "categoria": m.categoria,
+            "icon": m.icon,
+            "category": m.category,
             "active": m.active,
         }

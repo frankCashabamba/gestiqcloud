@@ -8,7 +8,7 @@ import shutil
 
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.core.modulo import EmpresaModulo, Modulo, ModuloAsignado
+from app.models.core.modulo import AssignedModule, CompanyModule, Module
 from app.models.tenant import Tenant
 from app.modules import schemas
 
@@ -64,17 +64,17 @@ export default Panel;
 
 def obtener_modulo(db: Session, modulo_id: int):
     """Function obtener_modulo - auto-generated docstring."""
-    return db.query(Modulo).filter(Modulo.id == modulo_id).first()
+    return db.query(Module).filter(Module.id == modulo_id).first()
 
 
-def crear_modulo(db: Session, modulo_data: schemas.ModuloCreate) -> Modulo:
+def crear_modulo(db: Session, modulo_data: schemas.ModuloCreate) -> Module:
     """Function crear_modulo - auto-generated docstring."""
-    existente = db.query(Modulo).filter(Modulo.name.ilike(modulo_data.name.strip())).first()
+    existente = db.query(Module).filter(Module.name.ilike(modulo_data.name.strip())).first()
 
     if existente:
         raise ValueError(f"Ya existe un mA3dulo con el nombre '{modulo_data.name}'")
 
-    nuevo_modulo = Modulo(**modulo_data.model_dump())
+    nuevo_modulo = Module(**modulo_data.model_dump())
     db.add(nuevo_modulo)
     db.commit()
     db.refresh(nuevo_modulo)
@@ -135,17 +135,17 @@ def desactivar_modulo(db: Session, modulo_id: int):
     return modulo
 
 
-def listar_modulos(db: Session) -> list[Modulo]:
+def listar_modulos(db: Session) -> list[Module]:
     """Function listar_modulos - auto-generated docstring."""
-    return db.query(Modulo).filter(Modulo.active).all()
+    return db.query(Module).filter(Module.active).all()
 
 
 # ---------- EMPRESA-MODULO ----------
 def asignar_modulo_a_empresa(
     db: Session, tenant_id: int, modulo_in: schemas.EmpresaModuloCreate
-) -> EmpresaModulo:
+) -> CompanyModule:
     # Use tenant_id directly (Tenant is now primary entity)
-    asignacion = EmpresaModulo(
+    asignacion = CompanyModule(
         tenant_id=tenant_id,
         modulo_id=modulo_in.modulo_id,
         fecha_expiracion=modulo_in.fecha_expiracion,
@@ -159,12 +159,12 @@ def asignar_modulo_a_empresa(
 def obtener_modulos_de_empresa(db: Session, tenant_id):
     """Obtiene módulos de empresa (tenant_id puede ser int o UUID)."""
     return (
-        db.query(EmpresaModulo)
-        .join(Tenant, EmpresaModulo.tenant_id == Tenant.id)
-        .options(joinedload(EmpresaModulo.modulo), joinedload(EmpresaModulo.tenant))
+        db.query(CompanyModule)
+        .join(Tenant, CompanyModule.tenant_id == Tenant.id)
+        .options(joinedload(CompanyModule.module), joinedload(CompanyModule.tenant))
         .filter(
-            EmpresaModulo.tenant_id == tenant_id,
-            EmpresaModulo.activo,
+            CompanyModule.tenant_id == tenant_id,
+            CompanyModule.active,
         )
         .all()
     )
@@ -173,8 +173,8 @@ def obtener_modulos_de_empresa(db: Session, tenant_id):
 # ---------- MODULO-ASIGNADO ----------
 def asignar_modulo_a_usuario(
     db: Session, tenant_id: int, usuario_id: int, modulo_id: int
-) -> ModuloAsignado:
-    asignacion = ModuloAsignado(
+) -> AssignedModule:
+    asignacion = AssignedModule(
         tenant_id=tenant_id,
         usuario_id=usuario_id,
         modulo_id=modulo_id,
@@ -189,32 +189,32 @@ def asignar_modulo_a_usuario(
 def obtener_modulos_de_usuario(db: Session, tenant_id: int, usuario_id: int):
     """Function obtener_modulos_de_usuario - auto-generated docstring."""
     return (
-        db.query(ModuloAsignado)
-        .options(joinedload(ModuloAsignado.modulo))  # �o. Esto carga los datos del mA3dulo
-        .filter(ModuloAsignado.tenant_id == tenant_id)
-        .filter(ModuloAsignado.usuario_id == usuario_id)
+        db.query(AssignedModule)
+        .options(joinedload(AssignedModule.module))  # ó. Esto carga los datos del módulo
+        .filter(AssignedModule.tenant_id == tenant_id)
+        .filter(AssignedModule.usuario_id == usuario_id)
         .all()
     )
 
 
-def listar_modulos_publicos(db: Session) -> list[Modulo]:
+def listar_modulos_publicos(db: Session) -> list[Module]:
     """Function listar_modulos_publicos - auto-generated docstring."""
-    return db.query(Modulo).filter(Modulo.active).all()
+    return db.query(Module).filter(Module.active).all()
 
 
-def listar_modulo_admins(db: Session) -> list[Modulo]:
+def listar_modulo_admins(db: Session) -> list[Module]:
     """Function listar_modulo_admins - auto-generated docstring."""
-    return db.query(Modulo).all()
+    return db.query(Module).all()
 
 
-def crear_modulo_db_only(db: Session, modulo_data: schemas.ModuloCreate) -> Modulo:
-    """Crear solo el registro del mA3dulo en BD (sin tocar el filesystem)."""
-    existente = db.query(Modulo).filter(Modulo.name.ilike(modulo_data.name.strip())).first()
+def crear_modulo_db_only(db: Session, modulo_data: schemas.ModuloCreate) -> Module:
+    """Crear solo el registro del módulo en BD (sin tocar el filesystem)."""
+    existente = db.query(Module).filter(Module.name.ilike(modulo_data.name.strip())).first()
 
     if existente:
         raise ValueError(f"Ya existe un mA3dulo con el nombre '{modulo_data.name}'")
 
-    nuevo_modulo = Modulo(**modulo_data.model_dump())
+    nuevo_modulo = Module(**modulo_data.model_dump())
     db.add(nuevo_modulo)
     db.commit()
     db.refresh(nuevo_modulo)

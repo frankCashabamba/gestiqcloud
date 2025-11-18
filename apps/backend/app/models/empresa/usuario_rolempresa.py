@@ -20,11 +20,11 @@ class CompanyUserRole(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[UUID] = mapped_column(
+    usuario_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("company_users.id"),
     )
-    role_id: Mapped[UUID] = mapped_column(
+    rol_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("company_roles.id"),
     )
@@ -34,20 +34,51 @@ class CompanyUserRole(Base):
     assigned_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=text("CURRENT_TIMESTAMP")
     )
-    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    activo: Mapped[bool] = mapped_column(Boolean, default=True)
     assigned_by_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("company_users.id"), nullable=True
     )
 
     # Relaciones opcionales (puedes activarlas si las necesitas)
-    user = relationship("CompanyUser", foreign_keys=[user_id], backref="assigned_roles")
+    usuario = relationship("CompanyUser", foreign_keys=[usuario_id], backref="assigned_roles")
     assigned_by = relationship("CompanyUser", foreign_keys=[assigned_by_id])
     role: Mapped["CompanyRole"] = relationship()
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
 
     def __repr__(self):
         """Function __repr__ - auto-generated docstring."""
-        return f"<CompanyUserRole user_id={self.user_id} role_id={self.role_id}>"
+        return f"<CompanyUserRole usuario_id={self.usuario_id} rol_id={self.rol_id}>"
+
+    # Aliases for compatibility
+    @property
+    def user_id(self) -> UUID:
+        """Alias for usuario_id."""
+        return self.usuario_id
+
+    @user_id.setter
+    def user_id(self, value: UUID) -> None:
+        """Setter for user_id."""
+        self.usuario_id = value
+
+    @property
+    def role_id(self) -> UUID:
+        """Alias for rol_id."""
+        return self.rol_id
+
+    @role_id.setter
+    def role_id(self, value: UUID) -> None:
+        """Setter for role_id."""
+        self.rol_id = value
+
+    @property
+    def active(self) -> bool:
+        """Alias for activo."""
+        return self.activo
+
+    @active.setter
+    def active(self, value: bool) -> None:
+        """Setter for active."""
+        self.activo = value
 
 
 # Keep old name for backward compatibility during migration
