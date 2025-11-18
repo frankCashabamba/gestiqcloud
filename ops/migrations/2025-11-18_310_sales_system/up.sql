@@ -15,7 +15,7 @@ $$ LANGUAGE plpgsql;
 
 -- Create ENUM types
 DO $$ BEGIN
-  CREATE TYPE sales_order_status AS ENUM ('DRAFT', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED');
+  CREATE TYPE sales_order_status AS ENUM ('draft', 'confirmed', 'shipped', 'delivered', 'cancelled');
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS sales_orders (
     currency CHAR(3) DEFAULT 'EUR',
 
     -- Status
-    status sales_order_status NOT NULL DEFAULT 'DRAFT',
+    status sales_order_status NOT NULL DEFAULT 'draft',
 
     -- Notes
     notes TEXT,

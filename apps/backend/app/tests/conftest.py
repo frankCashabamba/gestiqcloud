@@ -148,6 +148,40 @@ def _create_tables_in_order(engine, metadata):
                 conn.execute(text("SET session_replication_role = DEFAULT"))
                 conn.commit()
 
+        # Ensure PostgreSQL UUID columns have proper defaults
+        _ensure_uuid_defaults(engine)
+
+
+def _ensure_uuid_defaults(engine):
+    """Ensure UUID columns that should have gen_random_uuid() defaults do so."""
+    from sqlalchemy import text
+
+    if engine.dialect.name != "postgresql":
+        return
+
+    uuid_defaults = {
+        "pos_registers": ["id"],
+        "sales_orders": ["id"],
+        "sales_order_items": ["id"],
+        "sales": ["id"],
+        "deliveries": ["id"],
+    }
+
+    with engine.connect() as conn:
+        for table_name, columns in uuid_defaults.items():
+            for col_name in columns:
+                try:
+                    conn.execute(
+                        text(
+                            f"ALTER TABLE IF EXISTS {table_name} "
+                            f"ALTER COLUMN {col_name} SET DEFAULT gen_random_uuid()"
+                        )
+                    )
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    # Table may not exist, that's ok
+
 
 _ensure_test_env()
 
