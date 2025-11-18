@@ -17,15 +17,15 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session):
     if eng.dialect.name != "postgresql":
         pytest.skip("Postgres-specific smoke test")
 
-    # Arrange: ensure tenants table has a row mapping tenant_id to a UUID
+    # Arrange: ensure tenants table has a row with id=UUID
     tid = _uuid.uuid4()
     tid_str = str(tid)
     try:
         db.execute(
             text(
-                "INSERT INTO tenants(id, tenant_id, slug) VALUES (:id, :tid, 'acme') ON CONFLICT (tenant_id) DO NOTHING"
+                "INSERT INTO tenants(id, name, slug) VALUES (:id, :name, :slug) ON CONFLICT (id) DO NOTHING"
             ),
-            {"id": tid, "tid": tid},
+            {"id": tid, "name": "Test Tenant", "slug": "acme"},
         )
         db.commit()
     except Exception:
