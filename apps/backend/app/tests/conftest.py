@@ -293,19 +293,19 @@ def usuario_empresa_factory(db):
 
         from sqlalchemy import or_
 
-        from app.models.empresa.usuarioempresa import UsuarioEmpresa
+        from app.models.empresa.usuarioempresa import CompanyUser
         from app.models.tenant import Tenant
         from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
 
         hasher = PasslibPasswordHasher()
 
         existing = (
-            db.query(UsuarioEmpresa)
-            .filter(or_(UsuarioEmpresa.email == email, UsuarioEmpresa.username == username))
+            db.query(CompanyUser)
+            .filter(or_(CompanyUser.email == email, CompanyUser.username == username))
             .first()
         )
         if existing:
-            # Get tenant from existing usuario
+            # Get tenant from existing user
             tenant_obj = db.get(Tenant, existing.tenant_id) if existing.tenant_id else None
 
             if tenant_obj:
@@ -326,8 +326,8 @@ def usuario_empresa_factory(db):
 
             if password:
                 existing.password_hash = hasher.hash(password)
-            existing.es_admin_empresa = es_admin_empresa
-            existing.activo = True
+            existing.is_admin = es_admin_empresa
+            existing.active = True
 
             db.commit()
             db.refresh(existing)
@@ -340,15 +340,15 @@ def usuario_empresa_factory(db):
         db.add(tenant)
         db.flush()
 
-        usuario = UsuarioEmpresa(
+        usuario = CompanyUser(
             tenant_id=tenant.id,
-            nombre_encargado="Test",
-            apellido_encargado="User",
+            first_name="Test",
+            last_name="User",
             email=email,
             username=username,
-            es_admin_empresa=es_admin_empresa,
+            is_admin=es_admin_empresa,
             password_hash=hasher.hash(password),
-            activo=True,
+            active=True,
         )
         db.add(usuario)
         db.commit()

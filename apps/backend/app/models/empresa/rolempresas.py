@@ -40,3 +40,7 @@ class CompanyRole(Base):
         UniqueConstraint("tenant_id", "name", name="uq_empresa_rol"),
         {"extend_existing": True},
     )
+
+
+# Keep old name for backward compatibility during migration
+RolEmpresa = CompanyRole

@@ -48,3 +48,7 @@ class CompanyUserRole(Base):
     def __repr__(self):
         """Function __repr__ - auto-generated docstring."""
         return f"<CompanyUserRole user_id={self.user_id} role_id={self.role_id}>"
+
+
+# Keep old name for backward compatibility during migration
+UsuarioRolEmpresa = CompanyUserRole

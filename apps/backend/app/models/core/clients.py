@@ -11,8 +11,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.config.database import Base
 
 
-class Cliente(Base):
-    """Class Cliente - auto-generated docstring."""
+class Client(Base):
+    """Class Client - auto-generated docstring."""
 
     __tablename__ = "clients"
     __table_args__ = {"extend_existing": True}
@@ -38,3 +38,7 @@ class Cliente(Base):
     )
 
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
+
+
+# Keep old name for backward compatibility during migration
+Cliente = Client

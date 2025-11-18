@@ -99,3 +99,7 @@ class CompanyUser(Base):
     def is_staff(self) -> bool:
         """Function is_staff - auto-generated docstring."""
         return self.is_admin
+
+
+# Keep old name for backward compatibility during migration
+UsuarioEmpresa = CompanyUser

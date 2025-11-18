@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.config.database import Base
 
 
-class LineaFactura(Base):
+class InvoiceLine(Base):
     """Invoice line item base model."""
 
     __tablename__ = "invoice_lines"
@@ -32,7 +32,11 @@ class LineaFactura(Base):
     __mapper_args__ = {"polymorphic_identity": "base", "polymorphic_on": sector}
 
 
-class BakeryLine(LineaFactura):
+# Keep old name for backward compatibility during migration
+LineaFactura = InvoiceLine
+
+
+class BakeryLine(InvoiceLine):
     """Bakery line item model."""
 
     __tablename__ = "bakery_lines"
@@ -46,7 +50,7 @@ class BakeryLine(LineaFactura):
     __mapper_args__ = {"polymorphic_identity": "bakery"}
 
 
-class WorkshopLine(LineaFactura):
+class WorkshopLine(InvoiceLine):
     """Workshop line item model."""
 
     __tablename__ = "workshop_lines"

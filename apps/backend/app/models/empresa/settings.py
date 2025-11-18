@@ -84,3 +84,7 @@ class InventorySettings(Base):
     extra_product_fields: Mapped[dict | None] = mapped_column(JSON)
 
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
+
+
+# Keep old names for backward compatibility during migration
+EmpresaSettings = CompanySettings

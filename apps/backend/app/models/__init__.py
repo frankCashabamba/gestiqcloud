@@ -8,7 +8,7 @@ from app.models.auth.refresh_family import RefreshFamily
 # Auth & Security
 from app.models.auth.useradmis import SuperUser
 from app.models.core.auditoria_importacion import ImportAudit
-from app.models.core.clients import Cliente
+from app.models.core.clients import Client, Cliente
 from app.models.core.facturacion import (
     BankAccount,
     BankTransaction,
@@ -19,7 +19,7 @@ from app.models.core.facturacion import (
     MovimientoTipo,
     Payment,
 )
-from app.models.core.invoiceLine import BakeryLine, LineaFactura, WorkshopLine
+from app.models.core.invoiceLine import BakeryLine, InvoiceLine, LineaFactura, WorkshopLine
 from app.models.core.modulo import AssignedModule, CompanyModule, Module
 from app.models.core.product_category import ProductCategory
 from app.models.core.products import Product
@@ -45,7 +45,7 @@ from app.models.empresa.empresa import (
 from app.models.empresa.rolempresas import CompanyRole
 from app.models.empresa.settings import CompanySettings, InventorySettings
 from app.models.empresa.usuario_rolempresa import CompanyUserRole
-from app.models.empresa.usuarioempresa import CompanyUser
+from app.models.empresa.usuarioempresa import CompanyUser, UsuarioEmpresa
 from app.models.expenses import Expense, Gasto
 from app.models.finance import BancoMovimiento, BankMovement, CajaMovimiento, CierreCaja
 from app.models.hr import Empleado, Vacacion
@@ -90,6 +90,7 @@ __all__ = [
     "MovimientoTipo",
     "Payment",
     # Core Invoice Lines
+    "InvoiceLine",
     "LineaFactura",
     "BakeryLine",
     "WorkshopLine",
@@ -102,6 +103,7 @@ __all__ = [
     "RecipeIngredient",
     "ProductCategory",
     "ImportAudit",
+    "Client",
     "Cliente",
     "TenantSettings",
     # Empresa
@@ -110,6 +112,7 @@ __all__ = [
     "InventorySettings",
     "CompanyUserRole",
     "CompanyUser",
+    "UsuarioEmpresa",
     "CompanyCategory",
     "Weekday",
     "GlobalActionPermission",
