@@ -24,8 +24,6 @@ class SalesOrder(Base):
     status: Mapped[str] = mapped_column(String, default="draft")
     currency: Mapped[str | None]
     totals: Mapped[dict | None] = mapped_column("total", JSON)
-    # Avoid reserved attribute name 'metadata' in SQLAlchemy declarative
-    extra_metadata: Mapped[dict | None] = mapped_column("metadata", JSON)
 
 
 class SalesOrderItem(Base):

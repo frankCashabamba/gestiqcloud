@@ -12,13 +12,12 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
 ):
     from app.models.inventory.stock import StockItem, StockMove
     from app.modules.pos.interface.http.tenant import (
-        ItemIn,
         OpenShiftIn,
         PaymentIn,
         PostReceiptIn,
         ReceiptCreateIn,
+        ReceiptLineIn,
         RegisterIn,
-        add_item,
         create_receipt,
         create_register,
         open_shift,
@@ -74,16 +73,23 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
     assert sh["id"]
     shift_id = sh["id"]
 
-    # Create receipt
+    # Create receipt with one line
     rc = create_receipt(
-        ReceiptCreateIn(shift_id=shift_id, register_id=str(reg["id"])),
+        ReceiptCreateIn(
+            shift_id=shift_id,
+            register_id=str(reg["id"]),
+            lines=[
+                ReceiptLineIn(
+                    product_id=str(product_id),
+                    qty=2,
+                    unit_price=5.0,
+                )
+            ],
+        ),
         _Req(),
         db,
     )
     rid = rc["id"]
-
-    # Add item (product_id must exist and be UUID string)
-    add_item(rid, ItemIn(product_id=str(product_id), qty=2, unit_price=5.0), _Req(), db)
 
     # Take payment (cash)
     take_payment(rid, PaymentIn(method="cash", amount=10.0), _Req(), db)
