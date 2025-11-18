@@ -31,9 +31,9 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session):
     try:
         db.execute(
             text(
-                "INSERT INTO tenants(id, tenant_id, slug) VALUES (:id, 1, 'acme-pos') ON CONFLICT (tenant_id) DO NOTHING"
+                "INSERT INTO tenants(id, tenant_id, slug) VALUES (:id, :tid, 'acme-pos') ON CONFLICT (tenant_id) DO NOTHING"
             ),
-            {"id": tid},
+            {"id": tid, "tid": tid},
         )
         db.commit()
     except Exception:
