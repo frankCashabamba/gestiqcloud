@@ -62,8 +62,21 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
     except Exception:
         db.rollback()
 
-    # Create register
+    # Create warehouse first
     warehouse_id = _uuid.uuid4()
+    try:
+        db.execute(
+            text(
+                "INSERT INTO warehouses (id, tenant_id, name, active) "
+                "VALUES (:id, :tid, :name, TRUE)"
+            ),
+            {"id": warehouse_id, "tid": tid, "name": "Test Warehouse"},
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    # Create register
     reg = create_register(
         RegisterIn(code="R1", name="Caja 1", default_warehouse_id=str(warehouse_id)), _Req(), db
     )

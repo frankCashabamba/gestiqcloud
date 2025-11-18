@@ -80,9 +80,21 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session, tenant_minimal):
     class _Req:
         state = _State()
 
-    # Act: confirm the order to create reserve stock moves
-    # warehouse_id must be a UUID, create one for the test
+    # Create a warehouse first
     warehouse_id = _uuid.uuid4()
+    try:
+        db.execute(
+            text(
+                "INSERT INTO warehouses (id, tenant_id, name, active) "
+                "VALUES (:id, :tid, :name, TRUE)"
+            ),
+            {"id": warehouse_id, "tid": tid, "name": "Test Warehouse"},
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    # Act: confirm the order to create reserve stock moves
     res = confirm_order(so.id, ConfirmIn(warehouse_id=str(warehouse_id)), _Req(), db)
     assert res.status == "confirmed"
 

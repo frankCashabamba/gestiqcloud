@@ -948,7 +948,10 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
         receipt_id = row[0]
 
         # Commit the receipt insertion to make it visible for RLS policies
-        db.flush()
+        db.commit()
+
+        # Restore RLS context after commit
+        ensure_guc_from_request(request, db, persist=True)
 
         # Insertar lÃ­neas
         # Resolver configuración fiscal del tenant
