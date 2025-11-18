@@ -148,40 +148,6 @@ def _create_tables_in_order(engine, metadata):
                 conn.execute(text("SET session_replication_role = DEFAULT"))
                 conn.commit()
 
-        # Ensure PostgreSQL UUID columns have proper defaults
-        _ensure_uuid_defaults(engine)
-
-
-def _ensure_uuid_defaults(engine):
-    """Ensure UUID columns that should have gen_random_uuid() defaults do so."""
-    from sqlalchemy import text
-
-    if engine.dialect.name != "postgresql":
-        return
-
-    uuid_defaults = {
-        "pos_registers": ["id"],
-        "sales_orders": ["id"],
-        "sales_order_items": ["id"],
-        "sales": ["id"],
-        "deliveries": ["id"],
-    }
-
-    with engine.connect() as conn:
-        for table_name, columns in uuid_defaults.items():
-            for col_name in columns:
-                try:
-                    conn.execute(
-                        text(
-                            f"ALTER TABLE IF EXISTS {table_name} "
-                            f"ALTER COLUMN {col_name} SET DEFAULT gen_random_uuid()"
-                        )
-                    )
-                    conn.commit()
-                except Exception:
-                    conn.rollback()
-                    # Table may not exist, that's ok
-
 
 _ensure_test_env()
 
@@ -232,25 +198,19 @@ def client() -> TestClient:
 @pytest.fixture
 def db():
     from app.config.database import Base, SessionLocal, engine
-    from sqlalchemy import text
 
     _load_all_models()
     _prune_pg_only_tables(Base.metadata)
     _register_sqlite_uuid_handlers(engine)
 
-    # Clean slate before each test (use CASCADE for PostgreSQL to drop dependent objects)
-    if engine.dialect.name == "postgresql":
-        with engine.connect() as conn:
-            for table in reversed(Base.metadata.sorted_tables):
-                conn.execute(text(f"DROP TABLE IF EXISTS {table.name} CASCADE"))
-            conn.commit()
-    else:
+    # For PostgreSQL: tables already exist from migrate_all_migrations.py
+    # For SQLite: create tables from metadata
+    if engine.dialect.name != "postgresql":
         Base.metadata.drop_all(bind=engine)
-
-    # Create tables in dependency order to avoid FK violations
-    _create_tables_in_order(engine, Base.metadata)
-    _ensure_sqlite_stub_tables(engine)
-    _ensure_default_tenant(engine)
+        # Create tables in dependency order to avoid FK violations
+        _create_tables_in_order(engine, Base.metadata)
+        _ensure_sqlite_stub_tables(engine)
+        _ensure_default_tenant(engine)
     # Sanity: ensure critical tables are present
     required = {
         "auth_user",
