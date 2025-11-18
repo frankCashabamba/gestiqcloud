@@ -20,6 +20,19 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session, tenant_minimal):
     tid = tenant_minimal["tenant_id"]
     tid_str = tenant_minimal["tenant_id_str"]
 
+    # Create a product first
+    product_id = _uuid.uuid4()
+    try:
+        db.execute(
+            text(
+                "INSERT INTO products (id, tenant_id, name, sku) " "VALUES (:id, :tid, :name, :sku)"
+            ),
+            {"id": product_id, "tid": tid, "name": "Test Product", "sku": "TEST-001"},
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
     # Create a sales order with one item for that tenant
     # Use raw SQL since the ORM model doesn't have 'number' field but DB requires it
     result = db.execute(
@@ -32,8 +45,7 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session, tenant_minimal):
     so_id = result.scalar()
     db.commit()
 
-    # Add order items (product_id is UUID, not integer)
-    product_id = _uuid.uuid4()
+    # Add order items (product_id must exist in products table)
     db.execute(
         text(
             "INSERT INTO sales_order_items (sales_order_id, product_id, quantity, unit_price, line_total) "

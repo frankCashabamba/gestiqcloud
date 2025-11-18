@@ -7,7 +7,9 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 
-def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session, tenant_minimal):
+def test_smoke_pos_post_creates_issue_and_updates_stock(
+    db: Session, tenant_minimal, superuser_factory
+):
     from app.models.inventory.stock import StockItem, StockMove
     from app.modules.pos.interface.http.tenant import (
         ItemIn,
@@ -33,11 +35,32 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session, tenant_mini
 
     db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": tid_str})
 
+    # Create a valid superuser for the test
+    user = superuser_factory(username="pos_tester")
+
     class _State:
-        access_claims = {"tenant_id": tid_str, "user_id": "tester"}
+        access_claims = {"tenant_id": tid_str, "user_id": str(user.id)}
 
     class _Req:
         state = _State()
+
+    # Create a product first
+    product_id = _uuid.uuid4()
+    try:
+        db.execute(
+            text(
+                "INSERT INTO products (id, tenant_id, name, sku) " "VALUES (:id, :tid, :name, :sku)"
+            ),
+            {
+                "id": product_id,
+                "tid": tenant_minimal["tenant_id"],
+                "name": "POS Product",
+                "sku": "POS-001",
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
 
     # Create register
     reg = create_register(
@@ -54,9 +77,8 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session, tenant_mini
     rc = create_receipt(ReceiptCreateIn(shift_id=shift_id), _Req(), db)
     rid = rc["id"]
 
-    # Add item (product_id is UUID string)
-    product_id = str(_uuid.uuid4())
-    add_item(rid, ItemIn(product_id=product_id, qty=2, unit_price=5.0), _Req(), db)
+    # Add item (product_id must exist and be UUID string)
+    add_item(rid, ItemIn(product_id=str(product_id), qty=2, unit_price=5.0), _Req(), db)
 
     # Take payment (cash)
     take_payment(rid, PaymentIn(method="cash", amount=10.0), _Req(), db)
@@ -81,7 +103,7 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session, tenant_mini
     # Verify stock_items decreased (may be negative if starting from zero)
     si = (
         db.query(StockItem)
-        .filter(StockItem.warehouse_id == 1, StockItem.product_id == product_id)
+        .filter(StockItem.warehouse_id == 1, StockItem.product_id == str(product_id))
         .first()
     )
     assert si is not None
