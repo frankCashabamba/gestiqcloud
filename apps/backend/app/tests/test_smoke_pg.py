@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 
-def test_smoke_sales_order_confirm_creates_reserve(db: Session):
+def test_smoke_sales_order_confirm_creates_reserve(db: Session, tenant_minimal):
     from sqlalchemy import text
 
     from app.models.inventory.stock import StockMove
@@ -17,19 +17,8 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session):
     if eng.dialect.name != "postgresql":
         pytest.skip("Postgres-specific smoke test")
 
-    # Arrange: ensure tenants table has a row with id=UUID
-    tid = _uuid.uuid4()
-    tid_str = str(tid)
-    try:
-        db.execute(
-            text(
-                "INSERT INTO tenants(id, name, slug) VALUES (:id, :name, :slug) ON CONFLICT (id) DO NOTHING"
-            ),
-            {"id": tid, "name": "Test Tenant", "slug": "acme"},
-        )
-        db.commit()
-    except Exception:
-        db.rollback()
+    tid = tenant_minimal["tenant_id"]
+    tid_str = tenant_minimal["tenant_id_str"]
 
     # Create a sales order with one item for that tenant
     # Use raw SQL since the ORM model doesn't have 'number' field but DB requires it
@@ -43,7 +32,8 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session):
     so_id = result.scalar()
     db.commit()
 
-    # Add order items
+    # Add order items (product_id is UUID, not integer)
+    product_id = _uuid.uuid4()
     db.execute(
         text(
             "INSERT INTO sales_order_items (sales_order_id, product_id, quantity, unit_price, line_total) "
@@ -51,7 +41,7 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session):
         ),
         {
             "order_id": so_id,
-            "product_id": 1,
+            "product_id": product_id,
             "qty": 2,
             "price": 10,
             "total": 20,

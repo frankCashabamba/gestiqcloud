@@ -494,3 +494,76 @@ def _ensure_default_tenant(engine):
         tenant = Tenant(name="Fixture Tenant", slug=slug)
         session.add(tenant)
         session.commit()
+
+
+@pytest.fixture
+def tenant_with_data(db):
+    """Create a tenant with sample data (products, warehouse) for testing."""
+    from sqlalchemy import text
+
+    from app.models.tenant import Tenant
+    from app.models.inventory.warehouse import Warehouse
+
+    tid = uuid.uuid4()
+
+    # Create tenant
+    tenant = Tenant(
+        id=tid,
+        name="Test Tenant with Data",
+        slug=f"test-{tid.hex[:8]}",
+    )
+    db.add(tenant)
+    db.flush()
+
+    # Create warehouse
+    warehouse = Warehouse(
+        id=1,
+        tenant_id=tid,
+        name="Test Warehouse",
+        code="WH001",
+    )
+    db.add(warehouse)
+    db.flush()
+
+    # Create sample product if using PostgreSQL
+    product_id = uuid.uuid4()
+    if db.get_bind().dialect.name == "postgresql":
+        try:
+            db.execute(
+                text(
+                    "INSERT INTO products (id, tenant_id, name, sku) "
+                    "VALUES (:id, :tid, :name, :sku) ON CONFLICT DO NOTHING"
+                ),
+                {"id": product_id, "tid": tid, "name": "Test Product", "sku": "TEST-001"},
+            )
+        except Exception:
+            pass
+
+    db.commit()
+
+    return {
+        "tenant": tenant,
+        "tenant_id": tid,
+        "warehouse": warehouse,
+        "product_id": product_id,
+    }
+
+
+@pytest.fixture
+def tenant_minimal(db):
+    """Create minimal tenant for smoke tests."""
+    from app.models.tenant import Tenant
+
+    tid = uuid.uuid4()
+    tenant = Tenant(
+        id=tid,
+        name="Smoke Test Tenant",
+        slug=f"smoke-{tid.hex[:8]}",
+    )
+    db.add(tenant)
+    db.commit()
+
+    return {
+        "tenant_id": tid,
+        "tenant_id_str": str(tid),
+    }

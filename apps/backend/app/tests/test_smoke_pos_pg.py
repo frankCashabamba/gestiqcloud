@@ -7,7 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 
-def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session):
+def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session, tenant_minimal):
     from app.models.inventory.stock import StockItem, StockMove
     from app.modules.pos.interface.http.tenant import (
         ItemIn,
@@ -24,20 +24,7 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session):
         take_payment,
     )
 
-    tid = _uuid.uuid4()
-    tid_str = str(tid)
-
-    # Ensure tenant exists and set session GUC for RLS-aware SQL
-    try:
-        db.execute(
-            text(
-                "INSERT INTO tenants(id, name, slug) VALUES (:id, :name, :slug) ON CONFLICT (id) DO NOTHING"
-            ),
-            {"id": tid, "name": "Test Tenant POS", "slug": "acme-pos"},
-        )
-        db.commit()
-    except Exception:
-        db.rollback()
+    tid_str = tenant_minimal["tenant_id_str"]
 
     # Skip on non-Postgres; SQLite doesn't support SET LOCAL
     eng = db.get_bind()
@@ -58,8 +45,8 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session):
     )
     assert reg["id"]
 
-    # Open shift
-    sh = open_shift(OpenShiftIn(register_id=1, opening_cash=100), _Req(), db)
+    # Open shift (register_id must be string, opening_float is required)
+    sh = open_shift(OpenShiftIn(register_id=str(reg["id"]), opening_float=100.0), _Req(), db)
     assert sh["id"]
     shift_id = sh["id"]
 
@@ -67,8 +54,9 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session):
     rc = create_receipt(ReceiptCreateIn(shift_id=shift_id), _Req(), db)
     rid = rc["id"]
 
-    # Add item (product_id=1)
-    add_item(rid, ItemIn(product_id=1, qty=2, unit_price=5.0), _Req(), db)
+    # Add item (product_id is UUID string)
+    product_id = str(_uuid.uuid4())
+    add_item(rid, ItemIn(product_id=product_id, qty=2, unit_price=5.0), _Req(), db)
 
     # Take payment (cash)
     take_payment(rid, PaymentIn(method="cash", amount=10.0), _Req(), db)
@@ -91,5 +79,9 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(db: Session):
     assert mv is not None and mv.kind == "issue" and mv.posted is True
 
     # Verify stock_items decreased (may be negative if starting from zero)
-    si = db.query(StockItem).filter(StockItem.warehouse_id == 1, StockItem.product_id == 1).first()
+    si = (
+        db.query(StockItem)
+        .filter(StockItem.warehouse_id == 1, StockItem.product_id == product_id)
+        .first()
+    )
     assert si is not None
