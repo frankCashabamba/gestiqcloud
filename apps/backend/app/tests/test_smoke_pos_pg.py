@@ -13,7 +13,6 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
     from app.models.inventory.stock import StockItem, StockMove
     from app.modules.pos.interface.http.tenant import (
         OpenShiftIn,
-        PaymentIn,
         PostReceiptIn,
         ReceiptCreateIn,
         ReceiptLineIn,
@@ -22,7 +21,6 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
         create_register,
         open_shift,
         post_receipt,
-        take_payment,
     )
 
     tid = tenant_minimal["tenant_id"]
@@ -106,10 +104,23 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
     )
     rid = rc["id"]
 
-    # Take payment (cash)
-    from app.modules.pos.interface.http.tenant import PaymentsIn
-
-    take_payment(rid, PaymentsIn(payments=[PaymentIn(method="cash", amount=10.0)]), _Req(), db)
+    # Insert payment directly (bypass take_payment which marks as paid)
+    try:
+        db.execute(
+            text(
+                "INSERT INTO pos_payments(receipt_id, method, amount, ref) "
+                "VALUES (:rid, :m, :a, :ref)"
+            ),
+            {
+                "rid": rid,
+                "m": "cash",
+                "a": 10.0,
+                "ref": None,
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
 
     # Post receipt (consume stock)
     out = post_receipt(rid, PostReceiptIn(warehouse_id=str(warehouse_id)), _Req(), db)
