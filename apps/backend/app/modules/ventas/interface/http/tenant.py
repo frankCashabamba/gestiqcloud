@@ -123,7 +123,7 @@ def create_order(payload: OrderCreateIn, request: Request, db: Session = Depends
 
 
 class ConfirmIn(BaseModel):
-    warehouse_id: int
+    warehouse_id: str
 
 
 @router.post("/{order_id}/confirm", response_model=OrderOut)

@@ -63,8 +63,9 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
         db.rollback()
 
     # Create register
+    warehouse_id = _uuid.uuid4()
     reg = create_register(
-        RegisterIn(code="R1", name="Caja 1", default_warehouse_id="1"), _Req(), db
+        RegisterIn(code="R1", name="Caja 1", default_warehouse_id=str(warehouse_id)), _Req(), db
     )
     assert reg["id"]
 
@@ -95,7 +96,7 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
     take_payment(rid, PaymentIn(method="cash", amount=10.0), _Req(), db)
 
     # Post receipt (consume stock)
-    out = post_receipt(rid, PostReceiptIn(warehouse_id=1), _Req(), db)
+    out = post_receipt(rid, PostReceiptIn(warehouse_id=str(warehouse_id)), _Req(), db)
     assert out["status"] == "posted"
     assert out["total"] == 10.0
 
@@ -114,7 +115,9 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
     # Verify stock_items decreased (may be negative if starting from zero)
     si = (
         db.query(StockItem)
-        .filter(StockItem.warehouse_id == 1, StockItem.product_id == str(product_id))
+        .filter(
+            StockItem.warehouse_id == str(warehouse_id), StockItem.product_id == str(product_id)
+        )
         .first()
     )
     assert si is not None

@@ -95,6 +95,13 @@ class RegisterIn(BaseModel):
     default_warehouse_id: str | None = None
     metadata: dict | None = None
 
+    @field_validator("default_warehouse_id")
+    @classmethod
+    def validate_warehouse_id(cls, v):
+        if v is not None:
+            _validate_uuid(v, "Warehouse ID")
+        return v
+
 
 class OpenShiftIn(BaseModel):
     register_id: str
@@ -285,7 +292,14 @@ class PaymentsIn(BaseModel):
 
 
 class PostReceiptIn(BaseModel):
-    warehouse_id: int | None = None
+    warehouse_id: str | None = None
+
+    @field_validator("warehouse_id")
+    @classmethod
+    def validate_warehouse_id(cls, v):
+        if v is not None:
+            _validate_uuid(v, "Warehouse ID")
+        return v
 
 
 # ============================================================================
@@ -932,6 +946,9 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
         ).first()
 
         receipt_id = row[0]
+
+        # Commit the receipt insertion to make it visible for RLS policies
+        db.commit()
 
         # Insertar lÃ­neas
         # Resolver configuración fiscal del tenant
