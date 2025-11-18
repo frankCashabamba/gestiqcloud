@@ -48,7 +48,7 @@ class Lead(Base):
     )
 
     assigned_to: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("usuarios_usuarioempresa.id"), nullable=True
+        PGUUID(as_uuid=True), ForeignKey("company_users.id"), nullable=True
     )
 
     score: Mapped[int | None] = mapped_column(nullable=True)
@@ -66,7 +66,7 @@ class Lead(Base):
     )
 
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
-    assigned_user = relationship("UsuarioEmpresa", foreign_keys=[assigned_to])
+    assigned_user = relationship("CompanyUser", foreign_keys=[assigned_to])
 
 
 class Opportunity(Base):
@@ -102,7 +102,7 @@ class Opportunity(Base):
     actual_close_date: Mapped[datetime | None] = mapped_column(nullable=True)
 
     assigned_to: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("usuarios_usuarioempresa.id"), nullable=True
+        PGUUID(as_uuid=True), ForeignKey("company_users.id"), nullable=True
     )
     lost_reason: Mapped[str | None] = mapped_column(Text)
     custom_fields: Mapped[dict | None] = mapped_column(JSON_TYPE, nullable=True)
@@ -116,8 +116,8 @@ class Opportunity(Base):
 
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
     lead = relationship("Lead", foreign_keys=[lead_id])
-    customer = relationship("Cliente", foreign_keys=[customer_id])
-    assigned_user = relationship("UsuarioEmpresa", foreign_keys=[assigned_to])
+    customer = relationship("Client", foreign_keys=[customer_id])
+    assigned_user = relationship("CompanyUser", foreign_keys=[assigned_to])
 
 
 class Activity(Base):
@@ -155,10 +155,10 @@ class Activity(Base):
     completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     assigned_to: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("usuarios_usuarioempresa.id"), nullable=True
+        PGUUID(as_uuid=True), ForeignKey("company_users.id"), nullable=True
     )
     created_by: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("usuarios_usuarioempresa.id"), nullable=False
+        PGUUID(as_uuid=True), ForeignKey("company_users.id"), nullable=False
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -171,6 +171,6 @@ class Activity(Base):
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
     lead = relationship("Lead", foreign_keys=[lead_id])
     opportunity = relationship("Opportunity", foreign_keys=[opportunity_id])
-    customer = relationship("Cliente", foreign_keys=[customer_id])
-    assigned_user = relationship("UsuarioEmpresa", foreign_keys=[assigned_to])
-    creator = relationship("UsuarioEmpresa", foreign_keys=[created_by])
+    customer = relationship("Client", foreign_keys=[customer_id])
+    assigned_user = relationship("CompanyUser", foreign_keys=[assigned_to])
+    creator = relationship("CompanyUser", foreign_keys=[created_by])

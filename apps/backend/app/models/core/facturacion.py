@@ -4,13 +4,14 @@ import uuid
 from datetime import date
 from enum import Enum
 
+from sqlalchemy import Date
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import Date, ForeignKey, String, text
+from sqlalchemy import ForeignKey, String, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
-from app.models.core.clients import Cliente
+from app.models.core.clients import Client
 from app.models.core.invoiceLine import LineaFactura
 from app.models.tenant import Tenant
 
@@ -59,7 +60,7 @@ class Invoice(Base):
 
     # Relationships
     tenant: Mapped[Tenant] = relationship(Tenant)
-    customer: Mapped[Cliente] = relationship(Cliente, foreign_keys=[customer_id])
+    customer: Mapped[Client] = relationship(Client, foreign_keys=[customer_id])
     lines: Mapped[list[LineaFactura]] = relationship(LineaFactura, cascade="all, delete-orphan")
 
 
@@ -80,7 +81,7 @@ class BankAccount(Base):
         "customer_id", UUID(as_uuid=True), ForeignKey("clients.id")
     )
 
-    customer: Mapped[Cliente] = relationship(Cliente)
+    customer: Mapped[Client] = relationship(Client)
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
 
 
@@ -149,7 +150,7 @@ class BankTransaction(Base):
 
     # Relationships
     account: Mapped[BankAccount] = relationship(BankAccount)
-    customer: Mapped[Cliente | None] = relationship(Cliente)
+    customer: Mapped[Client | None] = relationship(Client)
 
 
 class Payment(Base):

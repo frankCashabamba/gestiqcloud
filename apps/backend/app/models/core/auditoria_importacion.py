@@ -2,7 +2,7 @@
 from datetime import datetime
 from uuid import UUID as PyUUID
 
-from sqlalchemy import ForeignKey, text
+from sqlalchemy import JSON, ForeignKey, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -11,6 +11,9 @@ from app.config.database import Base
 
 # Column type for Postgres UUID
 PG_UUID = PGUUID(as_uuid=True)
+
+# JSONB with SQLite fallback
+JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
 
 
 class ImportAudit(Base):
@@ -27,7 +30,7 @@ class ImportAudit(Base):
     )
     user_id: Mapped[int] = mapped_column(ForeignKey("company_users.id"))
 
-    changes: Mapped[dict] = mapped_column(JSONB)  # aquí guardamos el diff completo
+    changes: Mapped[dict] = mapped_column(JSON_TYPE)  # aquí guardamos el diff completo
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
     user = relationship("CompanyUser")  # si quieres acceder a info usuario

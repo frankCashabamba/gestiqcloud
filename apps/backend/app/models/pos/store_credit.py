@@ -45,7 +45,7 @@ class StoreCredit(Base):
 
     # Relationships
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
-    customer = relationship("Cliente", foreign_keys=[customer_id])
+    customer = relationship("Client", foreign_keys=[customer_id])
     events: Mapped[list["StoreCreditEvent"]] = relationship(
         "StoreCreditEvent", back_populates="credit", cascade="all, delete-orphan"
     )

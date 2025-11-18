@@ -6,9 +6,8 @@ Auto-generated module docstring."""
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
@@ -18,6 +17,9 @@ try:
     _uuid_col = PGUUID(as_uuid=True)
 except Exception:  # pragma: no cover (SQLite/tests)
     _uuid_col = String  # type: ignore
+
+# JSONB with SQLite fallback
+JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
 
 
 class Module(Base):
@@ -37,7 +39,7 @@ class Module(Base):
     initial_template: Mapped[str] = mapped_column(String(255), nullable=False)  # type: ignore
     context_type: Mapped[str] = mapped_column(String(10), default="none")  # type: ignore
     target_model: Mapped[str | None] = mapped_column(String(255))  # type: ignore
-    context_filters: Mapped[dict | None] = mapped_column(JSONB)  # type: ignore
+    context_filters: Mapped[dict | None] = mapped_column(JSON_TYPE)  # type: ignore
     category: Mapped[str | None] = mapped_column(String(50))  # type: ignore
 
     @property

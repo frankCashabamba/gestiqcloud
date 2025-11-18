@@ -6,12 +6,15 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import TIMESTAMP, ForeignKey, String, Text
+from sqlalchemy import JSON, TIMESTAMP, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
 from app.models.tenant import Tenant
+
+# JSONB with SQLite fallback
+JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
 
 
 class ProductCategory(Base):
@@ -31,7 +34,7 @@ class ProductCategory(Base):
         ForeignKey("product_categories.id", ondelete="SET NULL"),
         nullable=True,
     )
-    category_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    category_metadata: Mapped[dict | None] = mapped_column(JSON_TYPE, nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
