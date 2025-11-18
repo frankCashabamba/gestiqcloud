@@ -20,7 +20,7 @@ Convert all Spanish field names in the `RolEmpresa` model to English, removing S
 #### Constraint Updates
 - Updated unique constraint from `("tenant_id", "nombre")` to `("tenant_id", "name")`
 
-### 2. Database Migration (`alembic/versions/002_rename_rolempresas_to_english.py`)
+### 2. Database Migration (`alembic/versions/002_rolempresas_english.py`)
 
 Created new migration that:
 - Renames all columns in `core_rolempresa` table to English
@@ -80,7 +80,7 @@ alembic upgrade 002
 1. `app/models/empresa/rolempresas.py`
 
 ### Migration Files
-1. `alembic/versions/002_rename_rolempresas_to_english.py` (NEW)
+1. `alembic/versions/002_rolempresas_english.py` (NEW)
 
 ### Schema Files
 1. `app/schemas/rol_empresa.py`
@@ -104,7 +104,7 @@ alembic upgrade 002
    - All model, schema, route, service, and test files have been updated
 
 2. **Create database migration** (COMPLETED)
-   - Migration file created at `alembic/versions/002_rename_rolempresas_to_english.py`
+   - Migration file created at `alembic/versions/002_rolempresas_english.py`
 
 3. **Apply migration**
    ```bash

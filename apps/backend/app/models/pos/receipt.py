@@ -58,7 +58,7 @@ class POSReceipt(Base):
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
     register = relationship("POSRegister")
     shift: Mapped["POSShift"] = relationship("POSShift", back_populates="receipts")  # noqa: F821
-    customer = relationship("Cliente", foreign_keys=[customer_id])
+    customer = relationship("Client", foreign_keys=[customer_id])
     invoice = relationship("Invoice", foreign_keys=[invoice_id])
     lines: Mapped[list["POSReceiptLine"]] = relationship(
         "POSReceiptLine", back_populates="receipt", cascade="all, delete-orphan"

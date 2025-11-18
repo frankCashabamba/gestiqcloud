@@ -2,8 +2,8 @@ from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.models.empresa.rolempresas import RolEmpresa
-from app.models.empresa.usuario_rolempresa import UsuarioRolempresa
+from app.models.empresa.rolempresas import CompanyRole
+from app.models.empresa.usuario_rolempresa import CompanyUserRole
 from app.routers.protected import get_current_user
 from app.schemas.configuracion import AuthenticatedUser
 
@@ -55,11 +55,11 @@ def _has_perm(db: Session, user: AuthenticatedUser, perm_key: str) -> bool:
     role_ids = [
         rid
         for (rid,) in (
-            db.query(UsuarioRolempresa.rol_id)
+            db.query(CompanyUserRole.role_id)
             .filter(
-                UsuarioRolempresa.tenant_id == tenant_id,
-                UsuarioRolempresa.usuario_id == int(user_id),
-                UsuarioRolempresa.activo.is_(True),
+                CompanyUserRole.tenant_id == tenant_id,
+                CompanyUserRole.user_id == int(user_id),
+                CompanyUserRole.active.is_(True),
             )
             .all()
         )
@@ -67,8 +67,8 @@ def _has_perm(db: Session, user: AuthenticatedUser, perm_key: str) -> bool:
     if not role_ids:
         return False
     rows = (
-        db.query(RolEmpresa.permissions)
-        .filter(RolEmpresa.id.in_(role_ids), RolEmpresa.tenant_id == tenant_id)
+        db.query(CompanyRole.permissions)
+        .filter(CompanyRole.id.in_(role_ids), CompanyRole.tenant_id == tenant_id)
         .all()
     )
     acc: set[str] = set()
