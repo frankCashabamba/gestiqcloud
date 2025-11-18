@@ -83,7 +83,7 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session, tenant_minimal):
     # Act: confirm the order to create reserve stock moves
     # warehouse_id must be a UUID, create one for the test
     warehouse_id = _uuid.uuid4()
-    res = confirm_order(so.id, ConfirmIn(warehouse_id=warehouse_id), _Req(), db)
+    res = confirm_order(so.id, ConfirmIn(warehouse_id=str(warehouse_id)), _Req(), db)
     assert res.status == "confirmed"
 
     # Assert: there is at least one tentative reserve move for this tenant/order
