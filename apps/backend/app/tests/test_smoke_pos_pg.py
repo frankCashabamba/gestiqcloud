@@ -32,7 +32,7 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
         pytest.skip("Postgres-specific smoke test (RLS + SET LOCAL)")
 
     # Use SET (not SET LOCAL) to persist RLS context across multiple transactions
-    db.execute(text("SET app.tenant_id = :tid"), {"tid": tid_str})
+    db.execute(text(f"SET app.tenant_id = '{tid_str}'"))
 
     # Create a valid superuser for the test
     user = superuser_factory(username="pos_tester")

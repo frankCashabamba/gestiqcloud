@@ -19,8 +19,8 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session, tenant_minimal):
 
     tid_str = tenant_minimal["tenant_id_str"]
 
-    # Set RLS context to persist across transactions
-    db.execute(text("SET app.tenant_id = :tid"), {"tid": tid_str})
+    # Set RLS context using SET (not SET LOCAL) to persist across transactions
+    db.execute(text(f"SET app.tenant_id = '{tid_str}'"))
 
     # Create a product first
     product_id = _uuid.uuid4()
