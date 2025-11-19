@@ -81,6 +81,8 @@ def _prune_pg_only_tables(metadata):
         "auditoria_importacion",
         "product_categories",  # Uses JSONB
         "core_rolempresa",  # Uses tenant_id UUID
+        "production_orders",  # Migrated separately, no SQLite support in tests
+        "production_order_lines",  # Migrated separately, no SQLite support in tests
     }
     # Copy keys to list to avoid runtime dict-change issues
     for name in list(metadata.tables.keys()):
