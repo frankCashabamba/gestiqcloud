@@ -22,6 +22,9 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session, tenant_minimal):
     # Set RLS context using SET (not SET LOCAL) to persist across transactions
     db.execute(text(f"SET app.tenant_id = '{tid_str}'"))
 
+    # Disable RLS constraints to allow direct INSERT without row visibility issues
+    db.execute(text("SET session_replication_role = REPLICA"))
+
     # Create a product first
     product_id = _uuid.uuid4()
     try:

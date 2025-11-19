@@ -1810,10 +1810,10 @@ def post_receipt(
                 {"q": new_qty, "wid": wh_id, "pid": it[0]},
             )
 
-        # Actualizar recibo
+        # Actualizar recibo (use 'paid' not 'posted' - valid statuses: draft, paid, voided, invoiced)
         db.execute(
             text(
-                "UPDATE pos_receipts SET status = 'posted', totals = :tot WHERE id = :rid"
+                "UPDATE pos_receipts SET status = 'paid', totals = :tot WHERE id = :rid"
             ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
             {
                 "rid": receipt_uuid,

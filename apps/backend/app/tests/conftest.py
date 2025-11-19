@@ -553,7 +553,6 @@ def tenant_with_data(db):
 def tenant_minimal(db):
     """Create minimal tenant for smoke tests."""
     from app.models.tenant import Tenant
-    from sqlalchemy import text
 
     tid = uuid.uuid4()
     tenant = Tenant(
@@ -563,17 +562,6 @@ def tenant_minimal(db):
     )
     db.add(tenant)
     db.commit()
-
-    # Disable RLS for smoke tests (tests use INSERT directly, not ORM)
-    if db.get_bind().dialect.name == "postgresql":
-        try:
-            db.execute(text("ALTER TABLE warehouses DISABLE ROW LEVEL SECURITY"))
-            db.execute(text("ALTER TABLE stock_moves DISABLE ROW LEVEL SECURITY"))
-            db.execute(text("ALTER TABLE products DISABLE ROW LEVEL SECURITY"))
-            db.execute(text("ALTER TABLE pos_items DISABLE ROW LEVEL SECURITY"))
-            db.commit()
-        except Exception:
-            pass
 
     return {
         "tenant_id": tid,
