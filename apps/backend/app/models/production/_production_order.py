@@ -182,7 +182,10 @@ class ProductionOrderLine(Base):
     # Referencer
     order_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("production_orders.id", ondelete="CASCADE"),
+        ForeignKey(
+            ProductionOrder.__table__.c.id,
+            ondelete="CASCADE",
+        ),
         nullable=False,
         index=True,
     )
