@@ -145,29 +145,16 @@ CREATE POLICY tenant_isolation_stock_items ON stock_items
 -- =====================================================
 -- INVENTORY: Stock Moves
 -- =====================================================
-CREATE TABLE IF NOT EXISTS stock_moves (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    warehouse_id UUID NOT NULL REFERENCES warehouses(id) ON DELETE CASCADE,
-    qty NUMERIC(12, 3) NOT NULL,
-    kind VARCHAR(20) NOT NULL,
-    tentative BOOLEAN DEFAULT FALSE,
-    posted BOOLEAN DEFAULT FALSE,
-    ref_type VARCHAR(50),
-    ref_id UUID,
-    notes TEXT,
-    posted_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_stock_moves_tenant ON stock_moves(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_stock_moves_product ON stock_moves(product_id);
-CREATE INDEX IF NOT EXISTS idx_stock_moves_warehouse ON stock_moves(warehouse_id);
-CREATE INDEX IF NOT EXISTS idx_stock_moves_kind ON stock_moves(kind);
-CREATE INDEX IF NOT EXISTS idx_stock_moves_posted_at ON stock_moves(posted_at);
-CREATE INDEX IF NOT EXISTS idx_stock_moves_tentative ON stock_moves(tentative);
-CREATE INDEX IF NOT EXISTS idx_stock_moves_posted ON stock_moves(posted);
+-- Stock moves table creation moved to later migration
+-- Ensure posted column exists if table already exists
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'stock_moves') THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'stock_moves' AND column_name = 'posted') THEN
+      ALTER TABLE stock_moves ADD COLUMN posted BOOLEAN DEFAULT FALSE;
+    END IF;
+  END IF;
+END $$;
 
 -- =====================================================
 -- ALERTS: Stock Alerts
