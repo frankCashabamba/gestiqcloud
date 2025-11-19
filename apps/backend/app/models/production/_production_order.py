@@ -182,7 +182,7 @@ class ProductionOrderLine(Base):
     # Referencias
     order_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("production_orders.id", ondelete="CASCADE"),
+        ForeignKey("production_orders.id", ondelete="CASCADE", validate=False),
         nullable=False,
         index=True,
     )
