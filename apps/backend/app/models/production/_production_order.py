@@ -179,9 +179,10 @@ class ProductionOrderLine(Base):
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
 
-    # Referencer (FK defined in migration, omitted here to avoid validation errors during import)
+    # Referencer
     order_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
+        ForeignKey("production_orders.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
