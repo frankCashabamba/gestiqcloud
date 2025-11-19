@@ -60,26 +60,11 @@ def _load_all_models():
         "app.models.pos.receipt",
         "app.models.pos.register",
         "app.models.pos.doc_series",
-        # Production models (includes ProductionOrder and ProductionOrderLine)
-        "app.models.production._production_order",
         # Import models
         "app.models.imports",
     ]
     for m in modules:
         importlib.import_module(m)
-
-
-def _prune_models_for_sqlite(metadata):
-    """Remove ProductionOrder models from SQLite (no migration for SQLite local tests)."""
-    from app.config.database import engine
-
-    if str(engine.url).startswith("sqlite"):
-        # Production models exist in migrations but not needed for SQLite local tests
-        production_tables = {"production_orders", "production_order_lines"}
-        for table_name in list(metadata.tables.keys()):
-            if table_name in production_tables:
-                tbl = metadata.tables[table_name]
-                metadata.remove(tbl)
 
 
 def _prune_pg_only_tables(metadata):
@@ -174,7 +159,6 @@ def client() -> TestClient:
     _recreate_sqlite_db_if_needed()
     _load_all_models()
     _prune_pg_only_tables(Base.metadata)
-    _prune_models_for_sqlite(Base.metadata)
     _register_sqlite_uuid_handlers(engine)
     _create_tables_in_order(engine, Base.metadata)
     _ensure_sqlite_stub_tables(engine)
@@ -217,7 +201,6 @@ def db():
 
     _load_all_models()
     _prune_pg_only_tables(Base.metadata)
-    _prune_models_for_sqlite(Base.metadata)
     _register_sqlite_uuid_handlers(engine)
 
     # For PostgreSQL: tables already exist from migrate_all_migrations.py
