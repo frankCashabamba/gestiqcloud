@@ -107,6 +107,25 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
     )
     rid = rc["id"]
 
+    # Insert items in pos_items (not pos_receipt_lines) for post_receipt to find them
+    try:
+        db.execute(
+            text(
+                "INSERT INTO pos_items(receipt_id, product_id, qty, unit_price, tax) "
+                "VALUES (:receipt_id, :product_id, :qty, :unit_price, :tax)"
+            ),
+            {
+                "receipt_id": rid,
+                "product_id": product_id,
+                "qty": 2,
+                "unit_price": 5.0,
+                "tax": 0,
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
     # Insert payment directly (bypass take_payment which marks as paid)
     try:
         db.execute(
