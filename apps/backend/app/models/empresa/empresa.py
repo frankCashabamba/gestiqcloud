@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,10 +24,27 @@ class BusinessType(Base):
     __tablename__ = "business_types"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False
+    )
+    code: Mapped[str] = mapped_column(String(50), nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(default=func.now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        default=func.now, onupdate=func.now, nullable=False
+    )
+
+    # Backward compatibility alias for active → is_active
+    @hybrid_property
+    def active(self) -> bool:
+        return self.is_active
+
+    @active.setter
+    def active(self, value: bool) -> None:
+        self.is_active = value
 
 
 class BusinessCategory(Base):
@@ -35,10 +53,27 @@ class BusinessCategory(Base):
     __tablename__ = "business_categories"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False
+    )
+    code: Mapped[str] = mapped_column(String(50), nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(default=func.now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        default=func.now, onupdate=func.now, nullable=False
+    )
+
+    # Backward compatibility alias for active → is_active
+    @hybrid_property
+    def active(self) -> bool:
+        return self.is_active
+
+    @active.setter
+    def active(self, value: bool) -> None:
+        self.is_active = value
 
 
 class RolBase(Base):
@@ -61,8 +96,27 @@ class CompanyCategory(Base):
 
     __tablename__ = "company_categories"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False
+    )
+    code: Mapped[str] = mapped_column(String(50), nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(default=func.now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        default=func.now, onupdate=func.now, nullable=False
+    )
+
+    # Backward compatibility alias for active → is_active
+    @hybrid_property
+    def active(self) -> bool:
+        return self.is_active
+
+    @active.setter
+    def active(self, value: bool) -> None:
+        self.is_active = value
 
 
 class GlobalActionPermission(Base):
@@ -163,17 +217,19 @@ class BusinessHours(Base):
 
 class SectorPlantilla(Base):
     __tablename__ = "sector_templates"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    sector_name: Mapped[str] = mapped_column(String(100), unique=True, name="sector_name")
-    business_type_id: Mapped[int | None] = mapped_column(
-        ForeignKey("business_types.id"), name="business_type_id"
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False
     )
-    business_category_id: Mapped[int | None] = mapped_column(
-        ForeignKey("business_categories.id"), name="business_category_id"
+    code: Mapped[str] = mapped_column(String(50), nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    template_config: Mapped[dict] = mapped_column(JSON, default=dict, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(default=func.now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        default=func.now, onupdate=func.now, nullable=False
     )
-    template_config: Mapped[dict] = mapped_column(JSON, default=dict, name="template_config")
-    active: Mapped[bool] = mapped_column(default=True)
-    created_at: Mapped[datetime] = mapped_column(default=func.now())
 
 
 # Spanish language aliases for backward compatibility (migration in progress)

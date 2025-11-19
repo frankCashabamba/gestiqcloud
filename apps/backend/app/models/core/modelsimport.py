@@ -57,6 +57,9 @@ class ImportBatch(Base):
     # Use String for created_by to keep SQLite-friendly tests; store user UUID string if available
     created_by = mapped_column(String, nullable=False)
     created_at = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
     items = relationship("ImportItem", back_populates="batch", cascade="all, delete-orphan")
 
