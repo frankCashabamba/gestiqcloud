@@ -1684,6 +1684,7 @@ def post_receipt(
     """
     ensure_guc_from_request(request, db, persist=True)
     receipt_uuid = _validate_uuid(receipt_id, "Receipt ID")
+    tenant_id = _get_tenant_id(request)
 
     try:
         # Validar estado
@@ -1755,14 +1756,16 @@ def post_receipt(
             db.execute(
                 text(
                     "INSERT INTO stock_moves("
-                    "product_id, warehouse_id, qty, kind, ref_type, ref_id"
-                    ") VALUES (:pid, :wid, :q, 'issue', 'pos_receipt', :rid)"
+                    "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id"
+                    ") VALUES (:tid, :pid, :wid, :q, 'issue', 'pos_receipt', :rid)"
                 ).bindparams(
+                    bindparam("tid", type_=PGUUID(as_uuid=True)),
                     bindparam("pid", type_=PGUUID(as_uuid=True)),
                     bindparam("wid", type_=PGUUID(as_uuid=True)),
                     bindparam("rid", type_=PGUUID(as_uuid=True)),
                 ),
                 {
+                    "tid": tenant_id,
                     "pid": it[0],
                     "wid": wh_id,
                     "q": float(it[1]),
@@ -1785,13 +1788,14 @@ def post_receipt(
             if row is None:
                 db.execute(
                     text(
-                        "INSERT INTO stock_items(warehouse_id, product_id, qty) "
-                        "VALUES (:wid, :pid, 0)"
+                        "INSERT INTO stock_items(tenant_id, warehouse_id, product_id, qty) "
+                        "VALUES (:tid, :wid, :pid, 0)"
                     ).bindparams(
+                        bindparam("tid", type_=PGUUID(as_uuid=True)),
                         bindparam("wid", type_=PGUUID(as_uuid=True)),
                         bindparam("pid", type_=PGUUID(as_uuid=True)),
                     ),
-                    {"wid": wh_id, "pid": it[0]},
+                    {"tid": tenant_id, "wid": wh_id, "pid": it[0]},
                 )
                 cur_qty = 0.0
             else:
