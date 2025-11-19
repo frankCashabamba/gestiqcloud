@@ -60,6 +60,8 @@ def _load_all_models():
         "app.models.pos.receipt",
         "app.models.pos.register",
         "app.models.pos.doc_series",
+        # Production models (includes ProductionOrder and ProductionOrderLine)
+        "app.models.production._production_order",
         # Import models
         "app.models.imports",
     ]
@@ -501,8 +503,8 @@ def tenant_with_data(db):
     """Create a tenant with sample data (products, warehouse) for testing."""
     from sqlalchemy import text
 
-    from app.models.tenant import Tenant
     from app.models.inventory.warehouse import Warehouse
+    from app.models.tenant import Tenant
 
     tid = uuid.uuid4()
 
