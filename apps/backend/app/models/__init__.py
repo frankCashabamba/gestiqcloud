@@ -63,10 +63,11 @@ from app.models.pos import (
     StoreCredit,
     StoreCreditEvent,
 )
-from app.models.purchases import Compra, CompraLinea, Purchase, PurchaseLine
-from app.models.recipes import Recipe, RecipeIngredient
 
 # Nuevos módulos profesionales
+from app.models.production import ProductionOrder, ProductionOrderLine
+from app.models.purchases import Compra, CompraLinea, Purchase, PurchaseLine
+from app.models.recipes import Recipe, RecipeIngredient
 from app.models.sales import Sale, Venta
 from app.models.security.auth_audit import AuthAudit
 from app.models.suppliers import (
@@ -174,4 +175,7 @@ __all__ = [
     "Payroll",
     "PayrollConcept",
     "PayrollTemplate",
+    # Production
+    "ProductionOrder",
+    "ProductionOrderLine",
 ]

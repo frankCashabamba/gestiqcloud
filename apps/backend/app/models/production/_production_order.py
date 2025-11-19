@@ -219,5 +219,8 @@ class ProductionOrderLine(Base):
 
     # Relaciones
     order: Mapped["ProductionOrder"] = relationship(
-        "ProductionOrder", back_populates="lines", lazy="select"
+        "ProductionOrder",
+        back_populates="lines",
+        lazy="select",
+        foreign_keys=[order_id],
     )
