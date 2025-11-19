@@ -15,11 +15,21 @@ ALTER TABLE IF EXISTS business_types
     ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
     ADD COLUMN IF NOT EXISTS code VARCHAR(50),
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(),
-    ALTER COLUMN IF EXISTS active RENAME TO is_active,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- Rename active column to is_active if it exists
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name='business_types' AND column_name='active') THEN
+        ALTER TABLE business_types RENAME COLUMN active TO is_active;
+    END IF;
+END $$;
+
+ALTER TABLE IF EXISTS business_types
     DROP CONSTRAINT IF EXISTS business_types_tenant_code_unique;
 
-ALTER TABLE business_types
+ALTER TABLE IF EXISTS business_types
     ADD CONSTRAINT business_types_tenant_code_unique UNIQUE (tenant_id, code);
 
 -- business_categories: ensure all columns exist
@@ -27,11 +37,21 @@ ALTER TABLE IF EXISTS business_categories
     ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
     ADD COLUMN IF NOT EXISTS code VARCHAR(50),
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(),
-    ALTER COLUMN IF EXISTS active RENAME TO is_active,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- Rename active column to is_active if it exists
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name='business_categories' AND column_name='active') THEN
+        ALTER TABLE business_categories RENAME COLUMN active TO is_active;
+    END IF;
+END $$;
+
+ALTER TABLE IF EXISTS business_categories
     DROP CONSTRAINT IF EXISTS business_categories_tenant_code_unique;
 
-ALTER TABLE business_categories
+ALTER TABLE IF EXISTS business_categories
     ADD CONSTRAINT business_categories_tenant_code_unique UNIQUE (tenant_id, code);
 
 -- company_categories: ensure all columns exist
@@ -40,11 +60,21 @@ ALTER TABLE IF EXISTS company_categories
     ADD COLUMN IF NOT EXISTS code VARCHAR(50),
     ADD COLUMN IF NOT EXISTS description TEXT,
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(),
-    ALTER COLUMN IF EXISTS active RENAME TO is_active,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- Rename active column to is_active if it exists
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name='company_categories' AND column_name='active') THEN
+        ALTER TABLE company_categories RENAME COLUMN active TO is_active;
+    END IF;
+END $$;
+
+ALTER TABLE IF EXISTS company_categories
     DROP CONSTRAINT IF EXISTS company_categories_tenant_code_unique;
 
-ALTER TABLE company_categories
+ALTER TABLE IF EXISTS company_categories
     ADD CONSTRAINT company_categories_tenant_code_unique UNIQUE (tenant_id, code);
 
 -- import_batches: add missing columns
@@ -73,8 +103,16 @@ ALTER TABLE IF EXISTS user_profiles
 ALTER TABLE IF EXISTS sector_templates
     ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
     ADD COLUMN IF NOT EXISTS code VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(),
-    ALTER COLUMN IF EXISTS active RENAME TO is_active;
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- Rename active column to is_active if it exists
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name='sector_templates' AND column_name='active') THEN
+        ALTER TABLE sector_templates RENAME COLUMN active TO is_active;
+    END IF;
+END $$;
 
 -- =====================================================
 -- Create indexes for all modified tables

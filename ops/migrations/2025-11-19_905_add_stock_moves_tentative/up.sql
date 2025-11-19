@@ -3,7 +3,7 @@
 
 BEGIN;
 
-ALTER TABLE stock_moves
+ALTER TABLE IF EXISTS stock_moves
     ADD COLUMN IF NOT EXISTS tentative BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE INDEX IF NOT EXISTS idx_stock_moves_tentative ON stock_moves(tentative);
