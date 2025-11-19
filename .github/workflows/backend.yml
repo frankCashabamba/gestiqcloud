@@ -149,7 +149,7 @@ jobs:
         run: |
           # working-directory is apps/backend, so test paths are relative to it
           pytest --cov=app --cov-report=term --cov-report=xml --cov-fail-under=40 \
-            -q app/tests/test_smoke_pg.py app/tests/test_smoke_pos_pg.py
+            -q --ignore=tests/modules/imports/ app/tests/
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
