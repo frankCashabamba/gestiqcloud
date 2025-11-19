@@ -1756,8 +1756,8 @@ def post_receipt(
             db.execute(
                 text(
                     "INSERT INTO stock_moves("
-                    "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id"
-                    ") VALUES (:tid, :pid, :wid, :q, 'issue', 'pos_receipt', :rid)"
+                    "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id, posted"
+                    ") VALUES (:tid, :pid, :wid, :q, 'issue', 'pos_receipt', :rid, TRUE)"
                 ).bindparams(
                     bindparam("tid", type_=PGUUID(as_uuid=True)),
                     bindparam("pid", type_=PGUUID(as_uuid=True)),
