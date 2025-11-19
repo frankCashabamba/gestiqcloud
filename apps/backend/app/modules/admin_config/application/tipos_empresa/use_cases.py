@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from uuid import UUID
 
 from app.modules.admin_config.application.tipos_empresa.dto import TipoEmpresaIn, TipoEmpresaOut
 from app.modules.admin_config.application.tipos_empresa.ports import TipoEmpresaRepo
@@ -13,7 +14,7 @@ class ListarTiposEmpresa(BaseUseCase[TipoEmpresaRepo]):
 
 
 class ObtenerTipoEmpresa(BaseUseCase[TipoEmpresaRepo]):
-    def execute(self, id: int) -> TipoEmpresaOut:
+    def execute(self, id: UUID | str) -> TipoEmpresaOut:
         tipo = self.repo.get(id)
         if not tipo:
             raise ValueError("tipo_empresa_no_encontrado")
@@ -26,10 +27,10 @@ class CrearTipoEmpresa(BaseUseCase[TipoEmpresaRepo]):
 
 
 class ActualizarTipoEmpresa(BaseUseCase[TipoEmpresaRepo]):
-    def execute(self, id: int, data: TipoEmpresaIn) -> TipoEmpresaOut:
+    def execute(self, id: UUID | str, data: TipoEmpresaIn) -> TipoEmpresaOut:
         return self.repo.update(id, data)
 
 
 class EliminarTipoEmpresa(BaseUseCase[TipoEmpresaRepo]):
-    def execute(self, id: int) -> None:
+    def execute(self, id: UUID | str) -> None:
         self.repo.delete(id)

@@ -2,7 +2,7 @@
 
 Auto-generated module docstring."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -13,6 +13,12 @@ from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
+
+
+def _get_now():
+    """Get current UTC datetime for Python-side defaults."""
+    return datetime.now(UTC)
+
 
 if TYPE_CHECKING:
     from app.models.empresa.usuarioempresa import CompanyUser
@@ -25,16 +31,18 @@ class BusinessType(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False
+    tenant_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True
     )
-    code: Mapped[str] = mapped_column(String(50), nullable=False)
+    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(default=func.now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        default=_get_now, server_default=func.now(), nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        default=func.now, onupdate=func.now, nullable=False
+        default=_get_now, server_default=func.now(), onupdate=_get_now, nullable=False
     )
 
     # Backward compatibility alias for active → is_active
@@ -54,16 +62,18 @@ class BusinessCategory(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False
+    tenant_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True
     )
-    code: Mapped[str] = mapped_column(String(50), nullable=False)
+    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(default=func.now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        default=_get_now, server_default=func.now(), nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        default=func.now, onupdate=func.now, nullable=False
+        default=_get_now, server_default=func.now(), onupdate=_get_now, nullable=False
     )
 
     # Backward compatibility alias for active → is_active
@@ -97,16 +107,18 @@ class CompanyCategory(Base):
     __tablename__ = "company_categories"
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False
+    tenant_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True
     )
-    code: Mapped[str] = mapped_column(String(50), nullable=False)
+    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(default=func.now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        default=_get_now, server_default=func.now(), nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        default=func.now, onupdate=func.now, nullable=False
+        default=_get_now, server_default=func.now(), onupdate=_get_now, nullable=False
     )
 
     # Backward compatibility alias for active → is_active
@@ -218,17 +230,19 @@ class BusinessHours(Base):
 class SectorPlantilla(Base):
     __tablename__ = "sector_templates"
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False
+    tenant_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True
     )
-    code: Mapped[str] = mapped_column(String(50), nullable=False)
+    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     template_config: Mapped[dict] = mapped_column(JSON, default=dict, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(default=func.now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        default=_get_now, server_default=func.now(), nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        default=func.now, onupdate=func.now, nullable=False
+        default=_get_now, server_default=func.now(), onupdate=_get_now, nullable=False
     )
 
 

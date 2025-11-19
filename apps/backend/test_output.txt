@@ -5,20 +5,221 @@ rootdir: c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend
 configfile: pytest.ini
 plugins: anyio-4.9.0, asyncio-1.0.0, cov-7.0.0
 asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
-collecting ... collected 2 items
+collecting ... collected 1 item
 
-app/tests/test_admin_config_modern.py::test_admin_config_idioma_crud PASSED [ 50%]
-app/tests/test_admin_config_modern.py::test_admin_config_tipo_empresa_crud PASSED [100%]
-ERROR: Coverage failure: total of 36.25 is less than fail-under=40.00
+app/tests/test_admin_config_modern.py::test_admin_config_tipo_empresa_crud [DEBUG] app.router: Mounted router app.modules.identity.interface.http.admin.router at prefix='/admin' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.identity.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.identity.interface.http.profile.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.api.v1.auth.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.api.v1.me.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.api.v1.telemetry.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.api.v1.einvoicing.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.api.v1.email_health.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.identity.interface.http.sessions.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.productos.interface.http.public.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.productos.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.productos.interface.http.admin.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.empresa.interface.http.admin.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.empresa.interface.http.tenant.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.clients.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.proveedores.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.modulos.interface.http.admin.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.modulos.interface.http.tenant.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.modulos.interface.http.public.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.usuarios.interface.http.tenant.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.usuarios.interface.http.tenant.public_router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.usuarios.interface.http.admin.router at prefix='/admin' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.registry.interface.http.admin.router at prefix='/admin' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.registry.interface.http.tenant.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.admin_config.interface.http.admin.router at prefix='/admin' (deprecated=False)
+[DEBUG] app.router: Mounted router app.api.v1.me.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.facturacion.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.facturacion.interface.http.send_email.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.inventario.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.ventas.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.ventas.interface.http.tenant.deliveries_router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.compras.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.gastos.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.imports.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.imports.interface.http.preview.router at prefix='/imports' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.imports.interface.http.preview.files_router at prefix='/imports' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.imports.interface.http.tenant.public_router at prefix='' (deprecated=False)
+[INFO] app.router: imports.public_router mounted=True via IMPORTS_ENABLED
+[DEBUG] app.router: Skip mounting app.modules.contabilidad.interface.http.tenant.router (primary): cannot import name 'AsientoContable' from 'app.models.accounting.plan_cuentas' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\accounting\plan_cuentas.py)
+Traceback (most recent call last):
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 96, in include_router_safe
+    _include(*primary)
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 83, in _include
+    rt = _import_attr(module_path, attr)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 65, in _import_attr
+    mod = import_module(module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\importlib\__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\contabilidad\interface\http\tenant.py", line 31, in <module>
+    from app.models.accounting.plan_cuentas import AsientoContable, AsientoLinea, PlanCuentas
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\accounting\__init__.py", line 7, in <module>
+    from app.models.accounting.plan_cuentas import (  # noqa: E402
+ImportError: cannot import name 'AsientoContable' from 'app.models.accounting.plan_cuentas' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\accounting\plan_cuentas.py)
+[DEBUG] app.router: Skip mounting app.modules.rrhh.interface.http.tenant.router (primary): cannot import name 'Nomina' from 'app.models.hr.nomina' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\hr\nomina.py)
+Traceback (most recent call last):
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 96, in include_router_safe
+    _include(*primary)
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 83, in _include
+    rt = _import_attr(module_path, attr)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 65, in _import_attr
+    mod = import_module(module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\importlib\__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\rrhh\interface\http\tenant.py", line 35, in <module>
+    from app.models.hr.nomina import Nomina, NominaConcepto
+ImportError: cannot import name 'Nomina' from 'app.models.hr.nomina' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\hr\nomina.py)
+[DEBUG] app.router: Skip mounting app.modules.finanzas.interface.http.tenant.router (primary): cannot import name 'CajaMovimiento' from 'app.models.finance.caja' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\finance\caja.py)
+Traceback (most recent call last):
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 96, in include_router_safe
+    _include(*primary)
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 83, in _include
+    rt = _import_attr(module_path, attr)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 65, in _import_attr
+    mod = import_module(module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\importlib\__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\finanzas\interface\http\tenant.py", line 36, in <module>
+    from app.models.finance.caja import CajaMovimiento, CierreCaja
+ImportError: cannot import name 'CajaMovimiento' from 'app.models.finance.caja' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\finance\caja.py)
+[DEBUG] app.router: Skip mounting app.modules.produccion.interface.http.tenant.router (primary): module not found: app.models.production.production_order
+[DEBUG] app.router: Mounted router app.modules.imports.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.ventas.interface.http.conversions.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.pos.interface.http.conversions.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.crm.presentation.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Skip mounting app.modules.settings.interface.http.tenant.router (primary): cannot import name 'ConfiguracionEmpresa' from 'app.models.empresa.settings' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\empresa\settings.py)
+Traceback (most recent call last):
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 96, in include_router_safe
+    _include(*primary)
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 83, in _include
+    rt = _import_attr(module_path, attr)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 65, in _import_attr
+    mod = import_module(module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\importlib\__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\settings\interface\http\tenant.py", line 13, in <module>
+    from app.models.empresa.settings import ConfiguracionEmpresa
+ImportError: cannot import name 'ConfiguracionEmpresa' from 'app.models.empresa.settings' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\empresa\settings.py)
+[DEBUG] app.router: Skip mounting app.modules.settings.interface.http.tenant.admin_router (primary): cannot import name 'ConfiguracionEmpresa' from 'app.models.empresa.settings' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\empresa\settings.py)
+Traceback (most recent call last):
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 96, in include_router_safe
+    _include(*primary)
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 83, in _include
+    rt = _import_attr(module_path, attr)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 65, in _import_attr
+    mod = import_module(module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\importlib\__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\settings\interface\http\tenant.py", line 13, in <module>
+    from app.models.empresa.settings import ConfiguracionEmpresa
+ImportError: cannot import name 'ConfiguracionEmpresa' from 'app.models.empresa.settings' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\empresa\settings.py)
+[DEBUG] app.router: Skip mounting app.routers.dashboard_stats.router (primary): module not found: app.routers.dashboard_stats
+[DEBUG] app.router: Skip mounting app.routers.tenant.roles.router (primary): module not found: app.models.empresa.tenant
+[DEBUG] app.router: Mounted router app.routers.migrations.router at prefix='' (deprecated=False)
+[DEBUG] app.router: Mounted router app.routers.admin.usuarios.router at prefix='/admin/usuarios' (deprecated=False)
+[DEBUG] app.router: Skip mounting app.routers.roles.router (primary): cannot import name 'PermisoAccionGlobal' from 'app.models' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\__init__.py)
+Traceback (most recent call last):
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 96, in include_router_safe
+    _include(*primary)
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 83, in _include
+    rt = _import_attr(module_path, attr)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 65, in _import_attr
+    mod = import_module(module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\importlib\__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\routers\roles.py", line 10, in <module>
+    from app.models import PermisoAccionGlobal
+ImportError: cannot import name 'PermisoAccionGlobal' from 'app.models' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\__init__.py)
+[DEBUG] app.router: Mounted router app.modules.einvoicing.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.templates.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.templates.interface.http.admin.router at prefix='/admin' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.copilot.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.pos.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.reconciliation.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.export.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[DEBUG] app.router: Mounted router app.modules.webhooks.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
+[INFO] app.router: Sector Templates router mounted at /api/v1/sectores
+[INFO] app.router: Tenant Config router mounted at /api/v1/settings
+[INFO] app.router: Dashboard KPIs router mounted at /api/v1/dashboard/kpis
+[INFO] app.router: Admin Stats router mounted at /api/v1/admin/stats
+[INFO] app.router: Settings router mounted at /api/v1/settings
+[INFO] app.router: Tenant Settings (public) mounted at /api/v1/settings/tenant
+[INFO] app.router: Incidents router mounted at /api/v1/incidents
+[INFO] app.router: Notifications router mounted at /api/v1/notifications
+[INFO] app.router: ElectricSQL shapes router mounted at /api/v1/electric
+[INFO] app.router: IA Classification router mounted at /api/v1/imports/ai
+[settings] ENV= development ENV_FILE_USED= <none> SECRET_KEY_PRESENT= True SEARCH_DIRS= ['C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app\\config', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend', 'c:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend']
+[settings] ENV= development ENV_FILE_USED= <none> SECRET_KEY_PRESENT= True SEARCH_DIRS= ['C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app\\config', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend', 'c:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend']
+[INFO] Preview router mounted at /api/v1/imports/preview
+PASSED
+ERROR: Coverage failure: total of 36.16 is less than fail-under=40.00
 
 
 ============================== warnings summary ===============================
-app/tests/test_admin_config_modern.py::test_admin_config_idioma_crud
-app/tests/test_admin_config_modern.py::test_admin_config_idioma_crud
+app/tests/test_admin_config_modern.py::test_admin_config_tipo_empresa_crud
+app/tests/test_admin_config_modern.py::test_admin_config_tipo_empresa_crud
   C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\fields.py:1093: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'env'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
     warn(
 
-app/tests/test_admin_config_modern.py::test_admin_config_idioma_crud
+app/tests/test_admin_config_modern.py::test_admin_config_tipo_empresa_crud
   c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\main.py:87: DeprecationWarning:
           on_event is deprecated, use lifespan event handlers instead.
 
@@ -27,7 +228,7 @@ app/tests/test_admin_config_modern.py::test_admin_config_idioma_crud
 
     @app.on_event("startup")
 
-app/tests/test_admin_config_modern.py::test_admin_config_idioma_crud
+app/tests/test_admin_config_modern.py::test_admin_config_tipo_empresa_crud
   C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\applications.py:4495: DeprecationWarning:
           on_event is deprecated, use lifespan event handlers instead.
 
@@ -40,15 +241,15 @@ app/tests/test_admin_config_modern.py: 18 warnings
   C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\_internal\_config.py:323: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
     warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
 
-app/tests/test_admin_config_modern.py::test_admin_config_idioma_crud
+app/tests/test_admin_config_modern.py::test_admin_config_tipo_empresa_crud
   c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\sector_plantilla.py:115: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
     @validator("modules", pre=True)
 
-app/tests/test_admin_config_modern.py::test_admin_config_idioma_crud
+app/tests/test_admin_config_modern.py::test_admin_config_tipo_empresa_crud
   c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\incidents.py:114: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
     @validator("config")
 
-app/tests/test_admin_config_modern.py::test_admin_config_idioma_crud
+app/tests/test_admin_config_modern.py::test_admin_config_tipo_empresa_crud
   c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\notifications.py:122: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
     @validator("tipo")
 
@@ -202,7 +403,7 @@ app\modules\admin_config\application\horarios_atencion\use_cases.py           23
 app\modules\admin_config\application\idiomas\__init__.py                       0      0 100.00%
 app\modules\admin_config\application\idiomas\dto.py                           13      0 100.00%
 app\modules\admin_config\application\idiomas\ports.py                          5      0 100.00%
-app\modules\admin_config\application\idiomas\use_cases.py                     23      6  73.91%   17-20, 30, 35
+app\modules\admin_config\application\idiomas\use_cases.py                     23      8  65.22%   12, 17-20, 25, 30, 35
 app\modules\admin_config\application\locales\__init__.py                       0      0 100.00%
 app\modules\admin_config\application\locales\dto.py                           12      0 100.00%
 app\modules\admin_config\application\locales\ports.py                          5      0 100.00%
@@ -237,7 +438,7 @@ app\modules\admin_config\infrastructure\dias_semana\repository.py             40
 app\modules\admin_config\infrastructure\horarios_atencion\__init__.py          0      0 100.00%
 app\modules\admin_config\infrastructure\horarios_atencion\repository.py       40     26  35.00%   17, 20, 28-33, 36-44, 47-48, 51-60, 63-67
 app\modules\admin_config\infrastructure\idiomas\__init__.py                    0      0 100.00%
-app\modules\admin_config\infrastructure\idiomas\repository.py                 40     17  57.50%   40-41, 44-53, 56-60
+app\modules\admin_config\infrastructure\idiomas\repository.py                 40     26  35.00%   14, 17, 25-26, 29-37, 40-41, 44-53, 56-60
 app\modules\admin_config\infrastructure\locales\__init__.py                    0      0 100.00%
 app\modules\admin_config\infrastructure\locales\repository.py                 40     26  35.00%   14, 17, 24-25, 28-36, 39-40, 43-52, 55-59
 app\modules\admin_config\infrastructure\monedas\__init__.py                    0      0 100.00%
@@ -252,7 +453,7 @@ app\modules\admin_config\infrastructure\tipos_empresa\__init__.py              0
 app\modules\admin_config\infrastructure\tipos_empresa\repository.py           41      8  80.49%   26-27, 47, 57-61
 app\modules\admin_config\infrastructure\tipos_negocio\__init__.py              0      0 100.00%
 app\modules\admin_config\infrastructure\tipos_negocio\repository.py           40     26  35.00%   14, 17, 25-26, 29-37, 40-41, 44-53, 56-60
-app\modules\admin_config\interface\http\admin.py                             430    244  43.26%   138, 142, 146-147, 151-152, 185-186, 194, 198, 202-203, 207-208, 216, 220, 224-225, 229-230, 238, 242, 246-247, 251-252, 260, 264, 268-269, 273-274, 306, 310, 314-315, 319-320, 328, 332, 336, 340, 349, 353, 357, 361, 385-392, 397-402, 408-410, 415-417, 422-429, 434-439, 445-447, 452-454, 459-466, 471-476, 482-484, 489-491, 496-503, 508-513, 519-521, 526-528, 533-540, 545-550, 556-558, 563-565, 570-577, 582-587, 593-595, 600-602, 607-614, 619-624, 630-632, 637-639, 644-649, 654-661, 666-671, 677-679, 694-695, 702-703, 708-718, 724-726, 731-733, 738-745, 750-755
+app\modules\admin_config\interface\http\admin.py                             430    254  40.93%   138, 142, 146-147, 151-152, 161, 165, 176-177, 185-186, 194, 198, 202-203, 207-208, 216, 220, 224-225, 229-230, 238, 242, 246-247, 251-252, 260, 264, 268-269, 273-274, 306, 310, 314-315, 319-320, 328, 332, 336, 340, 349, 353, 357, 361, 371-373, 378-380, 385-392, 397-402, 408-410, 415-417, 422-429, 434-439, 445-447, 452-454, 459-466, 471-476, 482-484, 489-491, 496-503, 508-513, 519-521, 526-528, 533-540, 545-550, 556-558, 563-565, 570-577, 582-587, 593-595, 600-602, 607-614, 619-624, 630-632, 637-639, 644-649, 654-661, 666-671, 677-679, 694-695, 702-703, 708-718, 724-726, 731-733, 738-745, 750-755
 app\modules\admin_config\schemas.py                                          122      0 100.00%
 app\modules\ai_agent\__init__.py                                               3      0 100.00%
 app\modules\ai_agent\analyzer.py                                              73     58  20.55%   31-66, 82-106, 122-141, 156-181, 186-220, 225-238, 243-259
@@ -517,7 +718,7 @@ app\utils\unit_converter.py                                                  114
 app\workers\einvoicing_tasks.py                                              266    245   7.89%   49-115, 123-193, 204-222, 227-242, 250-272, 277-297, 308, 320-327, 332-654
 app\workers\notifications.py                                                 163    141  13.50%   46-115, 130-161, 179-224, 235-257, 270-357, 369-411, 420-436
 ---------------------------------------------------------------------------------------------------------
-TOTAL                                                                      21975  14008  36.25%
+TOTAL                                                                      21975  14029  36.16%
 Coverage HTML written to dir htmlcov
-FAIL Required test coverage of 40% not reached. Total coverage: 36.25%
-======================= 2 passed, 25 warnings in 16.17s =======================
+FAIL Required test coverage of 40% not reached. Total coverage: 36.16%
+======================= 1 passed, 25 warnings in 21.72s =======================

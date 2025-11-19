@@ -687,22 +687,34 @@ def create_tipo_empresa(data: TipoEmpresaCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/tipo-empresa/{id}", response_model=TipoEmpresaRead)
-def update_tipo_empresa(id: int, data: TipoEmpresaUpdate, db: Session = Depends(get_db)):
+def update_tipo_empresa(id: str, data: TipoEmpresaUpdate, db: Session = Depends(get_db)):
+    from uuid import UUID as _UUID
+
+    try:
+        uid = _UUID(id)
+    except ValueError:
+        uid = id
     repo = _tipos_empresa_repo(db)
     try:
-        current = ObtenerTipoEmpresa(repo).execute(id)
+        current = ObtenerTipoEmpresa(repo).execute(uid)
         payload = _tipos_empresa_in_from_update(data, current)
-        updated = ActualizarTipoEmpresa(repo).execute(id, payload)
+        updated = ActualizarTipoEmpresa(repo).execute(uid, payload)
         return _tipos_empresa_schema(updated)
     except ValueError:
         raise HTTPException(status_code=404, detail="Tipo de empresa no encontrado")
 
 
 @router.delete("/tipo-empresa/{id}")
-def delete_tipo_empresa(id: int, db: Session = Depends(get_db)):
+def delete_tipo_empresa(id: str, db: Session = Depends(get_db)):
+    from uuid import UUID as _UUID
+
+    try:
+        uid = _UUID(id)
+    except ValueError:
+        uid = id
     repo = _tipos_empresa_repo(db)
     try:
-        EliminarTipoEmpresa(repo).execute(id)
+        EliminarTipoEmpresa(repo).execute(uid)
     except ValueError:
         raise HTTPException(status_code=404, detail="Tipo de empresa no encontrado")
     return {"ok": True}
