@@ -1862,7 +1862,7 @@ def post_receipt(
         except Exception:
             db.rollback()
 
-        return {"id": str(receipt_uuid), "status": "posted", "total": total}
+        return {"id": str(receipt_uuid), "status": "paid", "total": total}
 
     except HTTPException:
         db.rollback()
