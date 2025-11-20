@@ -51,7 +51,7 @@ export default function Usuarios() {
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-10">
       <div className="flex items-center justify-between">
-        <h1 className="flex items-center gap-2 text-3xl font-bold text-gray-800">        
+        <h1 className="flex items-center gap-2 text-3xl font-bold text-gray-800">
           Usuarios Principales
         </h1>
       </div>
@@ -216,6 +216,3 @@ export default function Usuarios() {
     </div>
   )
 }
-
-
-

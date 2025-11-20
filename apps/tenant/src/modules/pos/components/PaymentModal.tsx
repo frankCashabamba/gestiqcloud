@@ -40,7 +40,7 @@ export default function PaymentModal({ receiptId, totalAmount, onSuccess, onCanc
                 if (warehouseId) {
                     setSelectedWarehouse(warehouseId)
                 } else if (actives.length === 1) {
-                    setSelectedWarehouse(actives[0].id)
+                    setSelectedWarehouse(String(actives[0].id))
                 }
             } catch (e) {
                 // ignorar en POS si inventario no responde; backend hará fallback

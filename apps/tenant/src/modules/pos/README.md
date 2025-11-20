@@ -82,12 +82,12 @@ apps/backend/app/modules/pos/interface/http/tenant.py (900+ líneas)
    - Seleccionar caja/registro
    - Fondo inicial (opening_float)
    - Usuario asignado
-   
+
 ✅ Durante turno:
    - Ventas normales
    - Ver total acumulado
    - No se puede vender sin turno abierto
-   
+
 ✅ Cerrar turno:
    - Arqueo de caja (contar efectivo)
    - Total esperado vs real
@@ -113,7 +113,7 @@ GET  /api/v1/pos/shifts/current/:register_id
    - Nombre (strong)
    - Precio (small)
    - Tags opcionales (popular, rápido, ahorro)
-   
+
 ✅ Click = añadir al carrito
 ✅ Hover animado (elevación + shadow)
 ✅ Adaptable a 3 sectores:
@@ -225,10 +225,10 @@ TOTAL = Base final + IVA
    )
 
 2. Actualiza stock_items:
-   UPDATE stock_items 
-   SET qty = qty - vendido 
+   UPDATE stock_items
+   SET qty = qty - vendido
    WHERE product_id = ? AND warehouse_id = ?
-   
+
 3. Si no existe stock_item, lo crea con qty=0
 ```
 
@@ -276,12 +276,12 @@ Contenido:
    - NIF/RUC/Cédula
    - Nombre cliente
    - Dirección (opcional)
-   
+
 ✅ Backend crea:
    - Invoice vinculada
    - pos_receipts.invoice_id = invoice.id
    - Numeración automática (doc_series)
-   
+
 ✅ Envío e-factura (opcional):
    - España: Facturae
    - Ecuador: SRI XML
@@ -299,7 +299,7 @@ Contenido:
    - Efectivo
    - Tarjeta (mismo método original)
    - Vale/Store Credit
-   
+
 ✅ Backend:
    - Crea invoice negativa (abono)
    - Genera stock_move con qty positivo (devuelto a stock)
@@ -509,38 +509,38 @@ El diseño es **universal**. Solo cambian:
 ```
 1. ABRIR TURNO
    Cajera abre turno → Fondo inicial 100€
-   
+
 2. BUSCAR PRODUCTO
    Cliente: "Quiero 3 panes"
    Cajera: Busca "pan" o escanea EAN
-   
+
 3. AÑADIR A CARRITO
    Click en "Pan integral 400g"
    Incrementa qty a 3
-   
+
 4. APLICAR DESCUENTO (opcional)
    Cliente habitual: -10% en esa línea
-   
+
 5. COBRAR
    Click "Cobrar 7.50€"
    Modal se abre
-   
+
 6. SELECCIONAR MÉTODO
    "Efectivo"
    Input: 10€
    Cambio: 2.50€
-   
+
 7. CONFIRMAR
    Backend:
    - Crea pos_receipt
    - Crea stock_move (qty: -3)
    - Actualiza stock_items (100 → 97)
    - Genera número de ticket
-   
+
 8. IMPRIMIR
    Ventana se abre con HTML 58mm
    Cajera: Ctrl+P
-   
+
 9. SIGUIENTE CLIENTE
    Carrito limpio
    Proceso reinicia
@@ -561,7 +561,7 @@ El diseño es **universal**. Solo cambian:
 
 ---
 
-**Versión:** 1.0.0  
-**Estado:** ✅ 100% Production Ready  
-**Última actualización:** Octubre 2025  
+**Versión:** 1.0.0
+**Estado:** ✅ 100% Production Ready
+**Última actualización:** Octubre 2025
 **Sectores soportados:** Panadería, Retail/Bazar

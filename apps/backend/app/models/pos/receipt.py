@@ -2,9 +2,8 @@
 
 import uuid
 from datetime import datetime
-from typing import Optional, List
 
-from sqlalchemy import String, Numeric, ForeignKey, Text
+from sqlalchemy import ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -39,12 +38,12 @@ class POSReceipt(Base):
         default="draft",
         # draft, paid, voided, invoiced
     )
-    customer_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    customer_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("clients.id", ondelete="SET NULL"),
         nullable=True,
     )
-    invoice_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    invoice_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("invoices.id", ondelete="SET NULL"),
         nullable=True,
@@ -52,21 +51,19 @@ class POSReceipt(Base):
     gross_total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     tax_total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="EUR")
-    paid_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow
-    )
+    paid_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
 
     # Relationships
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
     register = relationship("POSRegister")
     shift: Mapped["POSShift"] = relationship("POSShift", back_populates="receipts")  # noqa: F821
-    customer = relationship("Cliente", foreign_keys=[customer_id])
+    customer = relationship("Client", foreign_keys=[customer_id])
     invoice = relationship("Invoice", foreign_keys=[invoice_id])
-    lines: Mapped[List["POSReceiptLine"]] = relationship(
+    lines: Mapped[list["POSReceiptLine"]] = relationship(
         "POSReceiptLine", back_populates="receipt", cascade="all, delete-orphan"
     )
-    payments: Mapped[List["POSPayment"]] = relationship(
+    payments: Mapped[list["POSPayment"]] = relationship(
         "POSPayment", back_populates="receipt", cascade="all, delete-orphan"
     )
 
@@ -96,9 +93,7 @@ class POSReceiptLine(Base):
     uom: Mapped[str] = mapped_column(String(20), nullable=False, default="unit")
     unit_price: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
     tax_rate: Mapped[float] = mapped_column(Numeric(6, 4), nullable=False)
-    discount_pct: Mapped[float] = mapped_column(
-        Numeric(5, 2), nullable=False, default=0
-    )
+    discount_pct: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0)
     line_total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
 
     # Relationships
@@ -130,13 +125,11 @@ class POSPayment(Base):
         # cash, card, store_credit, link
     )
     amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
-    ref: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ref: Mapped[str | None] = mapped_column(Text, nullable=True)
     paid_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
 
     # Relationships
-    receipt: Mapped["POSReceipt"] = relationship(
-        "POSReceipt", back_populates="payments"
-    )
+    receipt: Mapped["POSReceipt"] = relationship("POSReceipt", back_populates="payments")
 
     def __repr__(self):
         return f"<POSPayment {self.method} - {self.amount}>"

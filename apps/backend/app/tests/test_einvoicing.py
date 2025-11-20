@@ -1,20 +1,19 @@
-import pytest
-from fastapi.testclient import TestClient
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
-from datetime import datetime, timezone
-from contextlib import asynccontextmanager
+
+import pytest
+from fastapi.testclient import TestClient
 
 from app.main import app
-from app.schemas.einvoicing import EinvoicingStatusResponse
 from app.models.core.sri_submissions import SRISubmission
+from app.schemas.einvoicing import EinvoicingStatusResponse
 
 client = TestClient(app)
 
 
-def _assert_task_called_with_uuid_like(
-    task_mock, expected_invoice_id, expected_tenant_id
-):
+def _assert_task_called_with_uuid_like(task_mock, expected_invoice_id, expected_tenant_id):
     """
     Permite que el código pase UUID o str a .delay(), comparando por str().
     """
@@ -54,18 +53,12 @@ def ctx():
     # Registro de override SOLO para el usuario (FastAPI lo respeta)
     from app.core import security as security_module
 
-    app.dependency_overrides[security_module.get_current_active_tenant_user] = (
-        _fake_user
-    )
+    app.dependency_overrides[security_module.get_current_active_tenant_user] = _fake_user
 
     # Parches EN EL MÓDULO DONDE SE USAN los símbolos
-    p_db = patch(
-        "app.modules.einvoicing.application.use_cases.get_db_session", new=_fake_db_ctx
-    )
+    p_db = patch("app.modules.einvoicing.application.use_cases.get_db_session", new=_fake_db_ctx)
     p_sri = patch("app.modules.einvoicing.application.use_cases.sign_and_send_sri_task")
-    p_fact = patch(
-        "app.modules.einvoicing.application.use_cases.sign_and_send_facturae_task"
-    )
+    p_fact = patch("app.modules.einvoicing.application.use_cases.sign_and_send_facturae_task")
 
     p_db.start()
     mock_sri = p_sri.start()
@@ -101,9 +94,7 @@ def test_send_einvoice_ec_success(ctx):
     assert body["message"] == "E-invoice processing initiated"
     assert body["task_id"] == "celery-task-id-sri"
 
-    _assert_task_called_with_uuid_like(
-        ctx["sign_and_send_sri_task"], invoice_id, ctx["tenant_id"]
-    )
+    _assert_task_called_with_uuid_like(ctx["sign_and_send_sri_task"], invoice_id, ctx["tenant_id"])
     ctx["sign_and_send_facturae_task"].delay.assert_not_called()
 
 
@@ -145,8 +136,8 @@ def test_send_einvoice_unsupported_country(ctx):
 
 def test_get_einvoice_status_found(ctx):
     invoice_id = uuid4()
-    mock_created_at = datetime.now(timezone.utc)
-    mock_submitted_at = datetime.now(timezone.utc)
+    mock_created_at = datetime.now(UTC)
+    mock_submitted_at = datetime.now(UTC)
 
     mock_submission = SRISubmission(
         invoice_id=invoice_id,

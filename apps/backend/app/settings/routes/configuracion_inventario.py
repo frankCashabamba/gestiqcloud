@@ -26,12 +26,8 @@ def obtener_config(tenant_id: int, db: Session = Depends(get_db)):
     return config
 
 
-@router.post(
-    "/api/configuracion-inventario", response_model=schemas.ConfiguracionInventarioOut
-)
-def crear_config(
-    config_in: schemas.ConfiguracionInventarioCreate, db: Session = Depends(get_db)
-):
+@router.post("/api/configuracion-inventario", response_model=schemas.ConfiguracionInventarioOut)
+def crear_config(config_in: schemas.ConfiguracionInventarioCreate, db: Session = Depends(get_db)):
     """Function crear_config - auto-generated docstring."""
     return crud.create(db, config_in)
 

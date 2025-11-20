@@ -4,8 +4,8 @@ E-invoicing models for SRI (Ecuador) and SII (Spain)
 
 import uuid
 from datetime import datetime
-from typing import Optional
-from sqlalchemy import String, ForeignKey, Text, TIMESTAMP, Enum
+
+from sqlalchemy import TIMESTAMP, Enum, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -19,24 +19,20 @@ class EinvoicingCredentials(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), nullable=False, index=True
-    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
     country: Mapped[str] = mapped_column(String(2), nullable=False)  # 'EC' or 'ES'
 
     # EC (SRI) fields
-    sri_cert_ref: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    sri_key_ref: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    sri_env: Mapped[Optional[str]] = mapped_column(
+    sri_cert_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sri_key_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sri_env: Mapped[str | None] = mapped_column(
         String(20), nullable=True
     )  # 'staging' or 'production'
 
     # ES (SII) fields
-    sii_agency: Mapped[Optional[str]] = mapped_column(
-        Text, nullable=True
-    )  # e.g., 'AEAT'
-    sii_cert_ref: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    sii_key_ref: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    sii_agency: Mapped[str | None] = mapped_column(Text, nullable=True)  # e.g., 'AEAT'
+    sii_cert_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sii_key_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"
@@ -69,23 +65,17 @@ class SRISubmission(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), nullable=False, index=True
-    )
-    invoice_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), nullable=False, index=True
-    )
-    status: Mapped[str] = mapped_column(
-        sri_status_enum, nullable=False, default="PENDING"
-    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
+    invoice_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(sri_status_enum, nullable=False, default="PENDING")
 
-    error_code: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    receipt_number: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    authorization_number: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    receipt_number: Mapped[str | None] = mapped_column(Text, nullable=True)
+    authorization_number: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    payload: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # XML payload
-    response: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # XML response
+    payload: Mapped[str | None] = mapped_column(Text, nullable=True)  # XML payload
+    response: Mapped[str | None] = mapped_column(Text, nullable=True)  # XML response
 
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"
@@ -103,15 +93,11 @@ class SIIBatch(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), nullable=False, index=True
-    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
     period: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYYQn or YYYYMM
-    status: Mapped[str] = mapped_column(
-        sii_batch_status_enum, nullable=False, default="PENDING"
-    )
+    status: Mapped[str] = mapped_column(sii_batch_status_enum, nullable=False, default="PENDING")
 
-    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"
@@ -132,9 +118,7 @@ class SIIBatchItem(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), nullable=False, index=True
-    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
     batch_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("sii_batches.id", ondelete="CASCADE"),
@@ -142,12 +126,10 @@ class SIIBatchItem(Base):
         index=True,
     )
     invoice_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
-    status: Mapped[str] = mapped_column(
-        sii_item_status_enum, nullable=False, default="PENDING"
-    )
+    status: Mapped[str] = mapped_column(sii_item_status_enum, nullable=False, default="PENDING")
 
-    error_code: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"

@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request, HTTPException
 from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.config.database import get_db
 from app.db.rls import ensure_rls
 from app.modules.modulos.application.use_cases import ListarModulosAsignadosTenant
 from app.modules.modulos.infrastructure.repositories import SqlModuloRepo
 from app.modules.modulos.interface.http.schemas import ModuloOutSchema
-
 
 router = APIRouter(
     prefix="/modulos",
@@ -35,6 +35,12 @@ def listar_modulos_asignados(request: Request, db: Session = Depends(get_db)):
         tenant_user_id = UUID(raw_uid)
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="invalid_user_id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="tenant_id_missing")
+    try:
+        tenant_uuid = UUID(str(tenant_id))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="invalid_tenant_id")
     use = ListarModulosAsignadosTenant(SqlModuloRepo(db))
-    items = use.execute(tenant_user_id=tenant_user_id, tenant_id=tenant_id)
+    items = use.execute(tenant_user_id=tenant_user_id, tenant_id=tenant_uuid)
     return [ModuloOutSchema.model_construct(**i) for i in items]

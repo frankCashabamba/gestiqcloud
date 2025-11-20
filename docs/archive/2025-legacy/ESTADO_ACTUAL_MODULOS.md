@@ -1,7 +1,7 @@
 # 📊 Estado Actual de Módulos - GestiQCloud
 
-**Fecha de actualización:** 30 Octubre 2025  
-**Versión del sistema:** 1.0  
+**Fecha de actualización:** 30 Octubre 2025
+**Versión del sistema:** 1.0
 **Sectores activos:** Panadería, Retail/Bazar, Taller Mecánico
 
 ---
@@ -37,7 +37,7 @@
 | **Producción** | ❌ N/A (no aplicable) | - | - |
 | **TOTAL** | **8,341 líneas (99.4%)** | **~50 líneas** | **0 líneas** |
 
-**Esfuerzo:** 2-3 horas  
+**Esfuerzo:** 2-3 horas
 **Archivos modificados:** 2 (field_config.py + SectorPlantilla)
 
 ---
@@ -54,7 +54,7 @@
 | **Producción** | ✅ 750 líneas (94%) | ⚠️ 50 líneas (labels) | 0 líneas |
 | **TOTAL** | **8,941 líneas (95%)** | **~130 líneas** | **~150 líneas** |
 
-**Esfuerzo:** 5-7 días  
+**Esfuerzo:** 5-7 días
 **Archivos nuevos:** ~6 (gestión de mesas, comandas)
 
 ---
@@ -72,7 +72,7 @@ Razón: Gestión de clientes es universal
 Solo varían campos opcionales via configuración
 ```
 
-#### **2. Importador** - Universal  
+#### **2. Importador** - Universal
 ```
 ✅ Panadería, Retail/Bazar, Taller, Restaurante
 Razón: Carga masiva de datos es universal
@@ -181,7 +181,7 @@ Funcionan solo en sectores específicos pero son portables:
 ```
 
 #### 🎯 Uso Real Verificado
-**Archivo importado:** Stock-30-10-2025.xlsx (Panadería)  
+**Archivo importado:** Stock-30-10-2025.xlsx (Panadería)
 **Resultado:**
 - ✅ 283 filas procesadas
 - ✅ 227 productos promocionados (status=PROMOTED)
@@ -217,8 +217,8 @@ Funcionan solo en sectores específicos pero son portables:
 ```
 
 #### 🎯 Campos por Sector
-**PANADERÍA:** nombre, email, teléfono, dirección  
-**RETAIL:** nombre, email, teléfono, NIF, dirección  
+**PANADERÍA:** nombre, email, teléfono, dirección
+**RETAIL:** nombre, email, teléfono, NIF, dirección
 **TALLER:** nombre, email, teléfono, matrícula vehículo, marca/modelo
 
 ---
@@ -428,38 +428,38 @@ StockItem {
 ```
 1. ABRIR TURNO
    Cajera: "Abrir turno" → Fondo 100€
-   
+
 2. CLIENTE LLEGA
    Cliente: "Quiero 3 panes y 2 croissants"
-   
+
 3. BUSCAR PRODUCTOS
    Opción A: Buscar "pan" → Click en tile
    Opción B: Escanear EAN → Auto-añade
    Opción C: Input barcode + Enter
-   
+
 4. CARRITO
    Pan integral × 3 = 7.50€
    Croissant × 2 = 2.40€
    Subtotal: 9.90€
    IVA 10%: 0.99€
    Total: 10.89€
-   
+
 5. COBRAR
    Click "Cobrar 10.89€"
    Modal → Efectivo → Input 15€
    Cambio: 4.11€
    Confirmar
-   
+
 6. BACKEND AUTOMÁTICO
    - Crea pos_receipt
    - Crea 2 stock_moves (sale, -3 panes, -2 croissants)
    - Actualiza stock_items
    - Genera número ticket: R-2025-0001
-   
+
 7. IMPRIMIR
    Ventana HTML 58mm se abre
    Usuario: Ctrl+P → Impresora térmica
-   
+
 8. SIGUIENTE
    Carrito limpio, listo para siguiente cliente
 ```
@@ -495,7 +495,7 @@ DÍA 1 - OPERACIÓN NORMAL
 
 4. VENTAS POS (Día)
    Cajera abre turno (8:00 AM)
-   
+
    Cliente 1:
    - 3 panes integrales
    - POS: Buscar "pan" → Click tile
@@ -503,7 +503,7 @@ DÍA 1 - OPERACIÓN NORMAL
    - Cobro efectivo 10€
    - Cambio: 2.50€
    → Inventario: qty -= 3 (stock_move automático)
-   
+
    Cliente 2:
    - 5 croissants
    - 2 cafés
@@ -512,7 +512,7 @@ DÍA 1 - OPERACIÓN NORMAL
    - Total: 8.55€
    - Cobro tarjeta
    → Inventario: qty -= 5 croissants, -= 2 cafés
-   
+
    [... 40 ventas más ...]
 
 5. MERMAS (Tarde)
@@ -520,7 +520,7 @@ DÍA 1 - OPERACIÓN NORMAL
    → Inventario → Ajustes
    → Marca 15 panes caducados
    → stock_move (kind='loss', qty=-15)
-   
+
 6. FACTURA
    Cliente empresa solicita factura
    → POS → Convertir a factura
@@ -623,7 +623,7 @@ Invoice (factura con NIF)
    - Categoría "Bollería" → Prefijo BOL
    - Busca último: BOL-0018
    - Genera: BOL-0019
-   
+
 4. Inserta producto con SKU auto-generado
 ```
 
@@ -848,6 +848,6 @@ El análisis demuestra que la arquitectura de **configuración dinámica** está
 
 ---
 
-**Última actualización:** 03 Noviembre 2025  
-**Autor:** Equipo GestiQCloud  
+**Última actualización:** 03 Noviembre 2025
+**Autor:** Equipo GestiQCloud
 **Próxima revisión:** Implementación RETAIL/BAZAR (config only)

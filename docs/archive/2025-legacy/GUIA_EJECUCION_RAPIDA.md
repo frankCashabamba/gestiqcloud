@@ -1,6 +1,6 @@
 # 🚀 GUÍA DE EJECUCIÓN RÁPIDA - GESTIQCLOUD MVP
 
-**Fecha:** Noviembre 2025  
+**Fecha:** Noviembre 2025
 **Objetivo:** Levantar y probar el sistema en 30 minutos
 
 ---
@@ -481,6 +481,6 @@ docker compose restart backend
 
 ---
 
-**Guía creada:** Noviembre 2025  
-**Versión:** 2.0.0  
+**Guía creada:** Noviembre 2025
+**Versión:** 2.0.0
 **Tiempo estimado:** 30 minutos

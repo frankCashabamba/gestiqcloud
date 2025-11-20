@@ -22,4 +22,3 @@ INSERT INTO ui_templates (slug, label, description, pro, ord) VALUES
   ('taller_pro', 'Taller Pro', 'Versión avanzada Taller', TRUE, 41),
   ('todoa100', 'Todo a 100 (Retail)', 'Alias de Retail', FALSE, 22)
 ON CONFLICT (slug) DO NOTHING;
-

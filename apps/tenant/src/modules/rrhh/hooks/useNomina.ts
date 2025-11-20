@@ -13,4 +13,3 @@ export function useNomina() {
 
   return { recibos, loading }
 }
-

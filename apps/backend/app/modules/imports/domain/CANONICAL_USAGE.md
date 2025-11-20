@@ -272,7 +272,7 @@ else:
     # 3. Enrutamiento (usar routing_proposal)
     proposal = doc["routing_proposal"]
     target = proposal["target"]  # "expenses"|"income"|"bank_movements"
-    
+
     # 4. Publicar a tabla destino
     if target == "expenses":
         expense = create_expense_from_canonical(doc, tenant_id)

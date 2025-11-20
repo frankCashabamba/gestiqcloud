@@ -3,27 +3,19 @@ Test de integración: CSV bancario → bank_movements.
 Verifica parseo, normalización CAMT.053 y promoción.
 """
 
-from pathlib import Path
 from io import StringIO
+from pathlib import Path
 
 import pytest
 from sqlalchemy.orm import Session
 
-from app.modules.imports.application.use_cases import (
-    create_batch,
-    ingest_rows,
-)
+from app.modules.imports.application.use_cases import create_batch, ingest_rows
 
 
 @pytest.fixture
 def banco_movimientos_csv() -> Path:
     """Path a extracto bancario CSV."""
-    return (
-        Path(__file__).parent.parent
-        / "fixtures"
-        / "documents"
-        / "banco_movimientos.csv"
-    )
+    return Path(__file__).parent.parent / "fixtures" / "documents" / "banco_movimientos.csv"
 
 
 def test_full_pipeline_bank_csv(
@@ -48,7 +40,7 @@ def test_full_pipeline_bank_csv(
     )
 
     # Leer CSV
-    with open(banco_movimientos_csv, "r", encoding="utf-8") as f:
+    with open(banco_movimientos_csv, encoding="utf-8") as f:
         csv_content = f.read()
 
     # Parse manual (o usar pandas)
@@ -73,8 +65,8 @@ def test_full_pipeline_bank_csv(
     # Procesar cada item
     from app.modules.imports.application.use_cases import (
         extract_item_sync,
-        validate_item_sync,
         promote_batch,
+        validate_item_sync,
     )
 
     for item in items:
@@ -142,10 +134,7 @@ def test_bank_balance_reconciliation(db_session: Session, test_tenant_ec: dict):
     items = ingest_rows(db_session, tenant_id, batch.id, rows, "test_saldos.csv")
 
     # Procesar
-    from app.modules.imports.application.use_cases import (
-        extract_item_sync,
-        validate_item_sync,
-    )
+    from app.modules.imports.application.use_cases import extract_item_sync, validate_item_sync
 
     for item in items:
         extract_item_sync(db_session, tenant_id, str(item.id))

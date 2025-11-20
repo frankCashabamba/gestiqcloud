@@ -1,10 +1,9 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, EmailStr, Field, constr
-
+from pydantic import BaseModel, EmailStr, Field, StringConstraints
 
 ContactoTipo = Literal[
     "facturacion",
@@ -21,12 +20,20 @@ DireccionTipo = Literal[
     "otros",
 ]
 
+# Type aliases for constrained strings
+StrStripped = Annotated[str, StringConstraints(strip_whitespace=True)]
+StrNIF = Annotated[str, StringConstraints(strip_whitespace=True, max_length=32)]
+StrCountry = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=3)]
+StrLang = Annotated[str, StringConstraints(strip_whitespace=True, max_length=8)]
+StrCurrency = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=3)]
+StrIBAN = Annotated[str, StringConstraints(strip_whitespace=True, max_length=34)]
+
 
 class ProveedorContactoIn(BaseModel):
     tipo: ContactoTipo
     name: str | None = None
     email: EmailStr | None = None
-    phone: constr(strip_whitespace=True) | None = None
+    phone: StrStripped | None = None
     notas: str | None = Field(default=None, max_length=255)
 
 
@@ -37,16 +44,16 @@ class ProveedorDireccionIn(BaseModel):
     city: str | None = None
     region: str | None = None
     codigo_postal: str | None = None
-    pais: constr(strip_whitespace=True, min_length=2, max_length=3) | None = None
+    pais: StrCountry | None = None
     notas: str | None = Field(default=None, max_length=255)
 
 
 class ProveedorBase(BaseModel):
     name: str
     nombre_comercial: str | None = None
-    nif: constr(strip_whitespace=True, max_length=32) | None = None
-    pais: constr(strip_whitespace=True, min_length=2, max_length=3) | None = None
-    idioma: constr(strip_whitespace=True, max_length=8) | None = None
+    nif: StrNIF | None = None
+    pais: StrCountry | None = None
+    idioma: StrLang | None = None
 
     tipo_impuesto: str | None = None
     retencion_irpf: float | None = Field(default=None, ge=0, le=100)
@@ -56,9 +63,9 @@ class ProveedorBase(BaseModel):
     condiciones_pago: str | None = None
     plazo_pago_dias: int | None = Field(default=None, ge=0, le=365)
     descuento_pronto_pago: float | None = Field(default=None, ge=0, le=100)
-    divisa: constr(strip_whitespace=True, min_length=3, max_length=3) | None = None
+    divisa: StrCurrency | None = None
     metodo_pago: str | None = None
-    iban: constr(strip_whitespace=True, max_length=34) | None = None
+    iban: StrIBAN | None = None
     iban_confirmacion: str | None = Field(default=None, exclude=True)
 
     contactos: list[ProveedorContactoIn] = Field(default_factory=list)

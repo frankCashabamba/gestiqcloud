@@ -25,4 +25,3 @@ lint:
 
 test:
 	pytest -q || true
-

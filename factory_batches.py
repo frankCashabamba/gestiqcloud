@@ -93,14 +93,6 @@ class RuffErrorFixer:
         """Elimina o marca variables no usadas"""
         print("\n🗑️  Corrigiendo variables no usadas...")
 
-        patterns = [
-            # Variables en tests que se crean pero no se usan
-            (
-                r"^\s*(su|u)\s*=\s*\w+_factory\(.*\)$",
-                r"    _ = \1_factory(...)  # noqa: F841",
-            ),
-        ]
-
         test_files = list(self.root.glob("**/tests/**/*.py"))
 
         for test_file in test_files:
@@ -334,7 +326,6 @@ class RuffErrorFixer:
                 lines = f.readlines()
 
             # Buscar y eliminar la segunda definición de generate_facturae_xml
-            in_duplicate = False
             new_lines = []
             skip_until_next_def = False
 

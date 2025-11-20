@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import List, Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -10,10 +8,9 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
-from app.models.sales.order import SalesOrder, SalesOrderItem
+from app.models.inventory.stock import StockItem, StockMove
 from app.models.sales.delivery import Delivery
-from app.models.inventory.stock import StockMove, StockItem
-
+from app.models.sales.order import SalesOrder, SalesOrderItem
 
 router = APIRouter(
     prefix="/sales_orders",
@@ -42,27 +39,27 @@ class OrderItemIn(BaseModel):
 
 
 class OrderCreateIn(BaseModel):
-    customer_id: Optional[int] = None
-    currency: Optional[str] = None
-    items: List[OrderItemIn]
+    customer_id: int | None = None
+    currency: str | None = None
+    items: list[OrderItemIn]
 
 
 class OrderOut(BaseModel):
     id: int
     status: str
-    customer_id: Optional[int]
-    currency: Optional[str]
+    customer_id: int | None
+    currency: str | None
 
     class Config:
         from_attributes = True
 
 
-@router.get("", response_model=List[OrderOut])
+@router.get("", response_model=list[OrderOut])
 def list_orders(
     request: Request,
     db: Session = Depends(get_db),
-    status: Optional[str] = None,
-    customer_id: Optional[int] = None,
+    status: str | None = None,
+    customer_id: int | None = None,
     limit: int = 100,
     offset: int = 0,
 ):
@@ -77,9 +74,7 @@ def list_orders(
     if customer_id:
         query = query.filter(SalesOrder.customer_id == customer_id)
 
-    orders = (
-        query.order_by(SalesOrder.created_at.desc()).offset(offset).limit(limit).all()
-    )
+    orders = query.order_by(SalesOrder.created_at.desc()).offset(offset).limit(limit).all()
 
     return orders
 
@@ -90,9 +85,7 @@ def get_order(order_id: int, request: Request, db: Session = Depends(get_db)):
     tid = _tenant_id_str(request)
 
     order = (
-        db.query(SalesOrder)
-        .filter(SalesOrder.id == order_id, SalesOrder.tenant_id == tid)
-        .first()
+        db.query(SalesOrder).filter(SalesOrder.id == order_id, SalesOrder.tenant_id == tid).first()
     )
 
     if not order:
@@ -102,9 +95,7 @@ def get_order(order_id: int, request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=OrderOut, status_code=201)
-def create_order(
-    payload: OrderCreateIn, request: Request, db: Session = Depends(get_db)
-):
+def create_order(payload: OrderCreateIn, request: Request, db: Session = Depends(get_db)):
     if not payload.items:
         raise HTTPException(status_code=400, detail="items_required")
     tid = _tenant_id_str(request)
@@ -132,7 +123,7 @@ def create_order(
 
 
 class ConfirmIn(BaseModel):
-    warehouse_id: int
+    warehouse_id: str
 
 
 @router.post("/{order_id}/confirm", response_model=OrderOut)
@@ -185,9 +176,7 @@ class DeliveryCreateIn(BaseModel):
 
 
 @deliveries_router.post("/", response_model=dict, status_code=201)
-def create_delivery(
-    payload: DeliveryCreateIn, request: Request, db: Session = Depends(get_db)
-):
+def create_delivery(payload: DeliveryCreateIn, request: Request, db: Session = Depends(get_db)):
     tid = _tenant_id_str(request)
     so = db.get(SalesOrder, payload.order_id)
     if not so or so.status != "confirmed":
@@ -247,9 +236,7 @@ def do_delivery(
             .first()
         )
         if not row:
-            row = StockItem(
-                warehouse_id=payload.warehouse_id, product_id=it.product_id, qty=0
-            )
+            row = StockItem(warehouse_id=payload.warehouse_id, product_id=it.product_id, qty=0)
             db.add(row)
             db.flush()
         row.qty = (row.qty or 0) - it.qty

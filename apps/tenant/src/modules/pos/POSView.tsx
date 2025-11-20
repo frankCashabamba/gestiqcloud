@@ -76,7 +76,7 @@ export default function POSView() {
                     const items = await listWarehouses()
                     const actives = items.filter((w) => w.is_active)
                     setWarehouses(actives)
-                    if (actives.length === 1) setHeaderWarehouseId(actives[0].id)
+                    if (actives.length === 1) setHeaderWarehouseId(String(actives[0].id))
                 } catch (e) {
                     // silencioso: si inventario no está disponible, POS sigue funcionando
                 }

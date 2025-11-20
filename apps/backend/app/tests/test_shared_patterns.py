@@ -24,4 +24,4 @@ def test_sqlalchemy_repo_stores_db_reference():
         pass
 
     r = _Repo(sentinel)  # type: ignore[arg-type]
-    assert getattr(r, "db") is sentinel
+    assert r.db is sentinel

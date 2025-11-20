@@ -123,7 +123,7 @@ export default function UsuariosList() {
         </div>
         {isAdminEmpresa && (
           <div className="flex gap-2">
-            <button 
+            <button
               className="rounded-md border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50"
               onClick={() => {
                 loadRoles()
@@ -265,13 +265,13 @@ export default function UsuariosList() {
       {/* Modal Gestión de Roles */}
       {showRolesModal && !selectedRol && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowRolesModal(false)}>
-          <div 
+          <div
             className="w-full max-w-3xl max-h-[80vh] overflow-y-auto rounded-xl bg-white p-6 shadow-lg"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-slate-900">Gestión de Roles</h2>
-              <button 
+              <button
                 className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
                 onClick={() => setSelectedRol({} as Rol)}
               >
@@ -297,7 +297,7 @@ export default function UsuariosList() {
                         {Object.entries(rol.permisos || {})
                           .filter(([_, enabled]) => enabled)
                           .map(([key]) => (
-                            <span 
+                            <span
                               key={key}
                               className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700"
                             >
@@ -327,7 +327,7 @@ export default function UsuariosList() {
             </div>
 
             <div className="flex justify-end pt-4 mt-4 border-t">
-              <button 
+              <button
                 className="px-4 py-2 text-sm text-slate-600 hover:text-slate-900"
                 onClick={() => setShowRolesModal(false)}
               >

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
-from uuid import UUID
 from datetime import datetime
+from uuid import UUID
 
 try:
     from celery import Task  # type: ignore
@@ -35,9 +35,7 @@ class OCRTask(Task):
     retry_jitter = True
 
 
-def _impl(
-    item_id: str, tenant_id: str, batch_id: str, task_id: str | None = None
-) -> dict:
+def _impl(item_id: str, tenant_id: str, batch_id: str, task_id: str | None = None) -> dict:
     """
     Extrae texto del documento via OCR.
 
@@ -130,9 +128,8 @@ if _celery_available and celery_app is not None:  # pragma: no cover
 
     @celery_app.task(base=OCRTask, bind=True, name="imports.ocr")
     def ocr_item(self, item_id: str, tenant_id: str, batch_id: str) -> dict:
-        return _impl(
-            item_id, tenant_id, batch_id, task_id=getattr(self.request, "id", None)
-        )
+        return _impl(item_id, tenant_id, batch_id, task_id=getattr(self.request, "id", None))
+
 else:
 
     def ocr_item(item_id: str, tenant_id: str, batch_id: str) -> dict:  # type: ignore

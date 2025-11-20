@@ -17,20 +17,20 @@ Busca la clase `ESValidator` y agrega después:
 ```python
 class ARValidator(CountryValidator):
     """Validador para Argentina (AFIP)."""
-    
+
     # Tasas IVA válidas en Argentina
     VALID_IVA_RATES = [0.0, 10.5, 21.0, 27.0]
-    
+
     def validate_tax_id(self, tax_id: str) -> List[ValidationError]:
         """
         Valida CUIT de Argentina (11 dígitos).
         Formato: XX.XXX.XXX-X
         """
         errors = []
-        
+
         # Limpiar formato (puede venir con o sin puntos)
         cleaned = tax_id.replace(".", "").replace("-", "")
-        
+
         # Validar que sean 11 dígitos
         if not re.match(r'^\d{11}$', cleaned):
             errors.append(
@@ -41,7 +41,7 @@ class ARValidator(CountryValidator):
                 )
             )
             return errors
-        
+
         # Validar dígito verificador AFIP
         if not self._validate_cuit_dv(cleaned):
             errors.append(
@@ -51,13 +51,13 @@ class ARValidator(CountryValidator):
                     {"tax_id": tax_id, "country": "AR"}
                 )
             )
-        
+
         return errors
-    
+
     def validate_tax_rates(self, rates: List[float]) -> List[ValidationError]:
         """Valida tasas IVA para Argentina."""
         errors = []
-        
+
         for rate in rates:
             if rate not in self.VALID_IVA_RATES:
                 errors.append(
@@ -71,16 +71,16 @@ class ARValidator(CountryValidator):
                         }
                     )
                 )
-        
+
         return errors
-    
+
     def validate_invoice_number(self, number: str) -> List[ValidationError]:
         """
         Valida número de comprobante AFIP.
         Formato: XXX-XX-XXXXXXXX (punto-sucursal-número)
         """
         errors = []
-        
+
         # Formato flexible: XXX-XX-XXXXXXXX o similar
         if not re.match(r'^\d{1,3}-\d{1,2}-\d{1,8}$', number):
             errors.append(
@@ -90,14 +90,14 @@ class ARValidator(CountryValidator):
                     {"number": number, "country": "AR"}
                 )
             )
-        
+
         return errors
-    
+
     @staticmethod
     def _validate_cuit_dv(cuit: str) -> bool:
         """
         Valida dígito verificador del CUIT usando algoritmo AFIP.
-        
+
         Algoritmo:
         1. Multiplicar cada dígito (izq a der) por [5,4,3,2,7,6,5,4,3,2]
         2. Sumar resultados
@@ -106,19 +106,19 @@ class ARValidator(CountryValidator):
         5. Si DV = 10, es inválido
         """
         multiplicadores = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2]
-        
+
         suma = sum(
             int(digit) * mult
             for digit, mult in zip(cuit[:10], multiplicadores)
         )
-        
+
         dv_calculado = 11 - (suma % 11)
-        
+
         if dv_calculado == 11:
             dv_calculado = 0
         elif dv_calculado == 10:
             return False  # Inválido
-        
+
         return int(cuit[10]) == dv_calculado
 ```
 
@@ -153,7 +153,7 @@ Busca el diccionario `ERROR_CATALOG` y agrega estos errores:
 ```python
 ERROR_CATALOG = {
     # ... errores existentes ...
-    
+
     # Errores Argentina (agregar estos)
     "INVALID_TAX_ID_FORMAT": {
         "severity": "error",
@@ -205,34 +205,34 @@ from app.modules.imports.validators.country_validators import (
 
 class TestARValidatorTaxId:
     """Tests de validación CUIT."""
-    
+
     def test_valid_cuit(self):
         """CUIT válido según AFIP."""
         validator = ARValidator()
         # CUIT real: 20-12345678-1 (formato con formato de ejemplo válido)
         errors = validator.validate_tax_id("20123456789")  # Ajustar con CUIT real válido
         assert len(errors) == 0, f"CUIT válido fue rechazado: {errors}"
-    
+
     def test_valid_cuit_with_format(self):
         """CUIT válido con puntos y guiones."""
         validator = ARValidator()
         errors = validator.validate_tax_id("20.12345678-9")
         assert len(errors) == 0, f"CUIT formateado fue rechazado: {errors}"
-    
+
     def test_invalid_cuit_too_short(self):
         """CUIT con menos de 11 dígitos."""
         validator = ARValidator()
         errors = validator.validate_tax_id("1234567")
         assert len(errors) > 0
         assert any("formato" in e.message.lower() for e in errors)
-    
+
     def test_invalid_cuit_check_digit(self):
         """CUIT con dígito verificador incorrecto."""
         validator = ARValidator()
         errors = validator.validate_tax_id("20123456780")  # Último dígito incorrecto
         assert len(errors) > 0
         assert any("dígito verificador" in e.message.lower() for e in errors)
-    
+
     def test_invalid_cuit_non_numeric(self):
         """CUIT con caracteres no numéricos (sin puntos/guiones)."""
         validator = ARValidator()
@@ -242,44 +242,44 @@ class TestARValidatorTaxId:
 
 class TestARValidatorTaxRates:
     """Tests de validación tasas IVA."""
-    
+
     def test_valid_iva_0(self):
         """IVA 0% es válido."""
         validator = ARValidator()
         errors = validator.validate_tax_rates([0.0])
         assert len(errors) == 0
-    
+
     def test_valid_iva_10_5(self):
         """IVA 10.5% es válido."""
         validator = ARValidator()
         errors = validator.validate_tax_rates([10.5])
         assert len(errors) == 0
-    
+
     def test_valid_iva_21(self):
         """IVA 21% es válido (estándar Argentina)."""
         validator = ARValidator()
         errors = validator.validate_tax_rates([21.0])
         assert len(errors) == 0
-    
+
     def test_valid_iva_27(self):
         """IVA 27% es válido (aumentado)."""
         validator = ARValidator()
         errors = validator.validate_tax_rates([27.0])
         assert len(errors) == 0
-    
+
     def test_valid_multiple_rates(self):
         """Múltiples tasas válidas."""
         validator = ARValidator()
         errors = validator.validate_tax_rates([0.0, 10.5, 21.0, 27.0])
         assert len(errors) == 0
-    
+
     def test_invalid_iva_12(self):
         """IVA 12% no es válido en Argentina."""
         validator = ARValidator()
         errors = validator.validate_tax_rates([12.0])
         assert len(errors) > 0
         assert any("no válida" in e.message.lower() for e in errors)
-    
+
     def test_invalid_iva_15(self):
         """IVA 15% no es válido en Argentina."""
         validator = ARValidator()
@@ -289,25 +289,25 @@ class TestARValidatorTaxRates:
 
 class TestARValidatorInvoiceNumber:
     """Tests de validación número comprobante."""
-    
+
     def test_valid_invoice_number_standard(self):
         """Número de comprobante estándar."""
         validator = ARValidator()
         errors = validator.validate_invoice_number("001-01-00000001")
         assert len(errors) == 0
-    
+
     def test_valid_invoice_number_other_format(self):
         """Otro número válido."""
         validator = ARValidator()
         errors = validator.validate_invoice_number("002-15-99999999")
         assert len(errors) == 0
-    
+
     def test_invalid_invoice_number_no_format(self):
         """Sin formato de comprobante."""
         validator = ARValidator()
         errors = validator.validate_invoice_number("123456789")
         assert len(errors) > 0
-    
+
     def test_invalid_invoice_number_wrong_separators(self):
         """Separadores incorrectos."""
         validator = ARValidator()
@@ -317,17 +317,17 @@ class TestARValidatorInvoiceNumber:
 
 class TestARValidatorFactory:
     """Tests del factory de validadores."""
-    
+
     def test_get_ar_validator(self):
         """Obtener validador Argentina del factory."""
         validator = get_validator_for_country("AR")
         assert isinstance(validator, ARValidator)
-    
+
     def test_get_ar_validator_lowercase(self):
         """Factory es case-insensitive."""
         validator = get_validator_for_country("ar")
         assert isinstance(validator, ARValidator)
-    
+
     def test_get_ar_validator_uppercase(self):
         """Factory es case-insensitive (mayúsculas)."""
         validator = get_validator_for_country("AR")
@@ -336,11 +336,11 @@ class TestARValidatorFactory:
 
 class TestARValidatorIntegration:
     """Tests de integración con documentos completos."""
-    
+
     def test_validate_complete_invoice_argentina(self):
         """Validar factura completa Argentina."""
         from app.modules.imports.domain.canonical_schema import validate_canonical
-        
+
         doc = {
             "doc_type": "invoice",
             "country": "AR",
@@ -361,16 +361,16 @@ class TestARValidatorIntegration:
                 ],
             },
         }
-        
+
         # Validar estructura canónica
         is_valid, errors = validate_canonical(doc)
         assert is_valid, f"Falla validación canónica: {errors}"
-        
+
         # Validar con country validator
         validator = get_validator_for_country("AR")
         cuit_errors = validator.validate_tax_id(doc["vendor"]["tax_id"])
         assert len(cuit_errors) == 0, f"CUIT inválido: {cuit_errors}"
-        
+
         rate_errors = validator.validate_tax_rates([21.0])
         assert len(rate_errors) == 0, f"Tasa inválida: {rate_errors}"
 
@@ -527,7 +527,7 @@ Una vez completado Argentina:
 2. Repetir para **Colombia (NIT)**
 3. Repetir para **Perú (RUC)**
 
-**Tiempo total por país:** 2-3 horas  
+**Tiempo total por país:** 2-3 horas
 **Tiempo acumulado 5 países:** ~12-15 horas
 
 ---

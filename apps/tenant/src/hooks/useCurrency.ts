@@ -35,9 +35,9 @@ export function useCurrency() {
         const tenant = await apiFetch<TenantInfo>('/api/v1/me/tenant')
         const curr = tenant?.base_currency || 'USD'
         const sym = CURRENCY_SYMBOLS[curr] || '$'
-        
+
         console.log('[useCurrency] Tenant currency:', curr, 'Symbol:', sym)
-        
+
         setCurrency(curr)
         setSymbol(sym)
       } catch (e) {

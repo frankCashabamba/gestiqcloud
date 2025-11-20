@@ -28,7 +28,7 @@
 ```python
 class ImportBatch(Base):
     # ... campos existentes ...
-    
+
     # CAMPOS DE FASE A (CONFIRMADO):
     suggested_parser = mapped_column(String, nullable=True)  # ✅ Existe (línea 50)
     classification_confidence = mapped_column(Float, nullable=True)  # ✅ Existe (línea 51)
@@ -40,8 +40,8 @@ class ImportBatch(Base):
 ```python
 # Líneas 50-53: Campos presentes
 # Líneas 72-73: Índices para búsquedas rápidas CONFIRMADOS
-Index("ix_import_batches_ai_provider", "ai_provider"),  # ✅ 
-Index("ix_import_batches_ai_enhanced", "ai_enhanced"),  # ✅ 
+Index("ix_import_batches_ai_provider", "ai_provider"),  # ✅
+Index("ix_import_batches_ai_enhanced", "ai_enhanced"),  # ✅
 ```
 
 **Conclusión**: ✅ COMPLETADO. Modelo 100% funcional.
@@ -61,10 +61,10 @@ class BatchCreate(BaseModel):
     origin: str
     file_key: Optional[str] = None
     mapping_id: Optional[UUID] = None
-    suggested_parser: Optional[str] = None  # ✅ 
-    classification_confidence: Optional[float] = None  # ✅ 
-    ai_enhanced: Optional[bool] = False  # ✅ 
-    ai_provider: Optional[str] = None  # ✅ 
+    suggested_parser: Optional[str] = None  # ✅
+    classification_confidence: Optional[float] = None  # ✅
+    ai_enhanced: Optional[bool] = False  # ✅
+    ai_provider: Optional[str] = None  # ✅
 ```
 
 2. **BatchOut (líneas 77-92)** - Response Schema:
@@ -77,10 +77,10 @@ class BatchOut(BaseModel):
     file_key: Optional[str] = None
     mapping_id: Optional[UUID] = None
     created_at: datetime
-    suggested_parser: Optional[str] = None  # ✅ 
-    classification_confidence: Optional[float] = None  # ✅ 
-    ai_enhanced: bool = False  # ✅ 
-    ai_provider: Optional[str] = None  # ✅ 
+    suggested_parser: Optional[str] = None  # ✅
+    classification_confidence: Optional[float] = None  # ✅
+    ai_enhanced: bool = False  # ✅
+    ai_provider: Optional[str] = None  # ✅
 ```
 
 3. **UpdateClassificationRequest (líneas 94-99)** - YA EXISTE:
@@ -132,7 +132,7 @@ def update_classification(
     tenant_id = claims.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
-    
+
     batch = (
         db.query(ImportBatch)
         .filter(
@@ -141,10 +141,10 @@ def update_classification(
         )
         .first()
     )
-    
+
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
-    
+
     # Actualizar solo los campos que se proporcionen
     if req.suggested_parser is not None:
         batch.suggested_parser = req.suggested_parser
@@ -154,7 +154,7 @@ def update_classification(
         batch.ai_enhanced = req.ai_enhanced
     if req.ai_provider is not None:
         batch.ai_provider = req.ai_provider
-    
+
     db.commit()
     db.refresh(batch)
     return batch
@@ -185,7 +185,7 @@ async def classify_and_persist_to_batch(
     """
     Clasificar archivo Y persistir resultado en el batch.
     Integra clasificación (heurística + IA) con persistencia automática.
-    
+
     Pasos:
     1. Recibe archivo para clasificar
     2. Ejecuta clasificación heurística + IA
@@ -215,7 +215,7 @@ async def classify_and_persist_to_batch(
 
 ### 6. ❌ Migración de Base de Datos - NO EXISTE (pero no es crítica)
 
-**Estado**: 
+**Estado**:
 - ✅ El modelo SQLAlchemy tiene los campos definidos (líneas 50-53, 72-73)
 - ❌ No hay migraciones Alembic en `alembic/versions/`
 - ℹ️ Alembic está configurado pero vacío (solo `env.py`)
@@ -238,14 +238,14 @@ def upgrade():
     op.add_column('import_batches', sa.Column('classification_confidence', sa.Float(), nullable=True))
     op.add_column('import_batches', sa.Column('ai_enhanced', sa.Boolean(), server_default=sa.false(), nullable=False))
     op.add_column('import_batches', sa.Column('ai_provider', sa.String(), nullable=True))
-    
+
     op.create_index('ix_import_batches_ai_provider', 'import_batches', ['ai_provider'])
     op.create_index('ix_import_batches_ai_enhanced', 'import_batches', ['ai_enhanced'])
 
 def downgrade():
     op.drop_index('ix_import_batches_ai_enhanced', table_name='import_batches')
     op.drop_index('ix_import_batches_ai_provider', table_name='import_batches')
-    
+
     op.drop_column('import_batches', 'ai_provider')
     op.drop_column('import_batches', 'ai_enhanced')
     op.drop_column('import_batches', 'classification_confidence')
@@ -258,7 +258,7 @@ def downgrade():
 
 ### 7. ❌ Tests de Integración - NO EXISTEN AÚN
 
-**Estado**: 
+**Estado**:
 - ❌ No hay `test_phase_a_classification.py`
 - ❌ No hay tests específicos para endpoints PATCH y classify-and-persist
 
@@ -273,7 +273,7 @@ from app.models.core.modelsimport import ImportBatch
 
 class TestPhaseAClassification:
     """Tests para Fase A: Clasificación persistida"""
-    
+
     def test_create_batch_with_classification(self, db, test_tenant_id):
         """Verificar que POST /batches persiste clasificación"""
         payload = {
@@ -285,7 +285,7 @@ class TestPhaseAClassification:
             "ai_enhanced": True,
             "ai_provider": "openai",
         }
-        
+
         batch = ImportBatch(
             id=uuid4(),
             tenant_id=test_tenant_id,
@@ -294,14 +294,14 @@ class TestPhaseAClassification:
         )
         db.add(batch)
         db.commit()
-        
+
         # Verificar persistencia
         updated = db.query(ImportBatch).filter(ImportBatch.id == batch.id).first()
         assert updated.suggested_parser == "excel_invoices"
         assert updated.classification_confidence == 0.92
         assert updated.ai_enhanced is True
         assert updated.ai_provider == "openai"
-    
+
     def test_patch_classification_endpoint(self, client, db, test_tenant_id, batch_id):
         """Verificar PATCH /batches/{id}/classification"""
         payload = {
@@ -310,18 +310,18 @@ class TestPhaseAClassification:
             "ai_enhanced": False,
             "ai_provider": "azure",
         }
-        
+
         response = client.patch(
             f"/api/v1/imports/batches/{batch_id}/classification",
             json=payload,
             headers={"X-Tenant": str(test_tenant_id)},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["suggested_parser"] == "updated_parser"
         assert data["classification_confidence"] == 0.85
-    
+
     def test_classify_and_persist(self, client, test_tenant_id, batch_id, sample_excel):
         """Verificar POST /batches/{id}/classify-and-persist"""
         response = client.post(
@@ -329,24 +329,24 @@ class TestPhaseAClassification:
             files={"file": sample_excel},
             headers={"X-Tenant": str(test_tenant_id)},
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "suggested_parser" in data
         assert "classification_confidence" in data
         assert "ai_enhanced" in data
         assert "ai_provider" in data
-    
+
     def test_rls_isolation_update_classification(self, client, db, tenant1_id, tenant2_id, batch_id_tenant1):
         """Verificar que RLS previene acceso cross-tenant"""
         payload = {"suggested_parser": "malicious"}
-        
+
         response = client.patch(
             f"/api/v1/imports/batches/{batch_id_tenant1}/classification",
             json=payload,
             headers={"X-Tenant": str(tenant2_id)},
         )
-        
+
         assert response.status_code == 404  # Batch not found (RLS)
 ```
 
@@ -448,4 +448,3 @@ class TestPhaseAClassification:
 2. Crear migración Alembic (si BD requiere)
 3. Documentar ejemplos de uso en OpenAPI
 4. Validar en ambiente de staging/producción
-

@@ -31,4 +31,3 @@ export async function updatePais(id: number | string, payload: Omit<Pais, 'id'>)
 export async function removePais(id: number | string): Promise<void> {
   await api.delete(ADMIN_CONFIG.paises.byId(id))
 }
-

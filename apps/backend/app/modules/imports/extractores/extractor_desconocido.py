@@ -1,17 +1,11 @@
-from typing import List
-from app.modules.imports.schemas import DocumentoProcesado
-from app.modules.imports.extractores.utilidades import (
-    buscar_multiple,
-    es_concepto_valido,
-)
 from app.modules.imports.extractores.extractor_factura import extraer_factura
 from app.modules.imports.extractores.extractor_recibo import extraer_recibo
-from app.modules.imports.extractores.extractor_transferencia import (
-    extraer_transferencias,
-)
+from app.modules.imports.extractores.extractor_transferencia import extraer_transferencias
+from app.modules.imports.extractores.utilidades import buscar_multiple, es_concepto_valido
+from app.modules.imports.schemas import DocumentoProcesado
 
 
-def extraer_desconocido(texto: str) -> List[DocumentoProcesado]:
+def extraer_desconocido(texto: str) -> list[DocumentoProcesado]:
     # Buscar fecha en múltiples formatos comunes
     fecha = buscar_multiple(
         [
@@ -29,9 +23,7 @@ def extraer_desconocido(texto: str) -> List[DocumentoProcesado]:
     # Buscar importe más alto (número con coma o punto)
     importe_str = (
         buscar_multiple(
-            [
-                r"-?[\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})"  # e.g., 1.234,56 or 1234.56
-            ],
+            [r"-?[\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})"],  # e.g., 1.234,56 or 1234.56
             texto,
         )
         or "0.00"
@@ -74,14 +66,14 @@ def extraer_desconocido(texto: str) -> List[DocumentoProcesado]:
     ]
 
 
-def extraer_por_tipos_combinados(texto: str) -> List[DocumentoProcesado]:
+def extraer_por_tipos_combinados(texto: str) -> list[DocumentoProcesado]:
     extractores = [
         extraer_factura,
         extraer_recibo,
         extraer_transferencias,
     ]
 
-    candidatos: List[DocumentoProcesado] = []
+    candidatos: list[DocumentoProcesado] = []
 
     for extractor in extractores:
         try:

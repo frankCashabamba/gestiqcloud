@@ -12,7 +12,7 @@ BEGIN
     IF LOWER(unit_from) = LOWER(unit_to) THEN
         RETURN qty;
     END IF;
-    
+
     -- Convertir desde unidad_from a gramos (peso) o ml (volumen)
     CASE LOWER(unit_from)
         -- Peso
@@ -22,7 +22,7 @@ BEGIN
         WHEN 'oz' THEN qty_in_grams := qty * 28.3495;
         WHEN 'mg' THEN qty_in_grams := qty / 1000;
         WHEN 'ton' THEN qty_in_grams := qty * 1000000;
-        
+
         -- Volumen (usar ml como base)
         WHEN 'l' THEN qty_in_grams := qty * 1000;
         WHEN 'ml' THEN qty_in_grams := qty;
@@ -33,13 +33,13 @@ BEGIN
         WHEN 'fl_oz' THEN qty_in_grams := qty * 29.5735;
         WHEN 'tbsp' THEN qty_in_grams := qty * 14.7868;
         WHEN 'tsp' THEN qty_in_grams := qty * 4.92892;
-        
+
         -- Unidades (sin conversión)
         WHEN 'unit', 'unidades', 'uds', 'pcs' THEN qty_in_grams := qty;
-        
+
         ELSE qty_in_grams := qty; -- Si no se reconoce, asumir misma unidad
     END CASE;
-    
+
     -- Convertir de gramos/ml a unidad_to
     CASE LOWER(unit_to)
         -- Peso
@@ -49,7 +49,7 @@ BEGIN
         WHEN 'oz' THEN result := qty_in_grams / 28.3495;
         WHEN 'mg' THEN result := qty_in_grams * 1000;
         WHEN 'ton' THEN result := qty_in_grams / 1000000;
-        
+
         -- Volumen
         WHEN 'l' THEN result := qty_in_grams / 1000;
         WHEN 'ml' THEN result := qty_in_grams;
@@ -60,13 +60,13 @@ BEGIN
         WHEN 'fl_oz' THEN result := qty_in_grams / 29.5735;
         WHEN 'tbsp' THEN result := qty_in_grams / 14.7868;
         WHEN 'tsp' THEN result := qty_in_grams / 4.92892;
-        
+
         -- Unidades
         WHEN 'unit', 'unidades', 'uds', 'pcs' THEN result := qty_in_grams;
-        
+
         ELSE result := qty_in_grams; -- Si no se reconoce, retornar base
     END CASE;
-    
+
     RETURN result;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
@@ -75,13 +75,13 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 ALTER TABLE recipe_ingredients DROP COLUMN IF EXISTS costo_ingrediente;
 
 -- Recrear columna con conversión de unidades
-ALTER TABLE recipe_ingredients 
-ADD COLUMN costo_ingrediente NUMERIC(12,4) 
+ALTER TABLE recipe_ingredients
+ADD COLUMN costo_ingrediente NUMERIC(12,4)
 GENERATED ALWAYS AS (
-    CASE 
-        WHEN qty_presentacion > 0 THEN 
+    CASE
+        WHEN qty_presentacion > 0 THEN
             (convert_to_base_unit(qty, unidad_medida, unidad_presentacion) / qty_presentacion) * costo_presentacion
-        ELSE 0 
+        ELSE 0
     END
 ) STORED;
 

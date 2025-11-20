@@ -1,34 +1,24 @@
 -- ============================================================================
 -- Migration Rollback: 2025-11-03_202_finance_caja
--- Descripción: Rollback del sistema de gestión de caja
+-- Description: Rollback of cash management system
 -- ============================================================================
 
--- Eliminar vistas
-DROP VIEW IF EXISTS v_caja_resumen_diario CASCADE;
+-- Drop triggers
+DROP TRIGGER IF EXISTS cash_movements_updated_at ON cash_movements;
+DROP TRIGGER IF EXISTS cash_closings_updated_at ON cash_closings;
 
--- Eliminar triggers
-DROP TRIGGER IF EXISTS caja_movimientos_actualizar_cierre ON caja_movimientos;
-DROP TRIGGER IF EXISTS cierres_caja_updated_at ON cierres_caja;
+-- Drop RLS policies
+DROP POLICY IF EXISTS cash_movements_tenant_isolation ON cash_movements;
+DROP POLICY IF EXISTS cash_closings_tenant_isolation ON cash_closings;
 
--- Eliminar funciones
-DROP FUNCTION IF EXISTS trigger_actualizar_cierre_movimiento();
-DROP FUNCTION IF EXISTS recalcular_totales_cierre(UUID);
+-- Drop tables (in reverse order of dependencies)
+DROP TABLE IF EXISTS cash_movements CASCADE;
+DROP TABLE IF EXISTS cash_closings CASCADE;
 
--- Eliminar políticas RLS
-DROP POLICY IF EXISTS caja_movimientos_tenant_isolation ON caja_movimientos;
-DROP POLICY IF EXISTS cierres_caja_tenant_isolation ON cierres_caja;
+-- Drop ENUM types
+DROP TYPE IF EXISTS cash_movement_type CASCADE;
+DROP TYPE IF EXISTS cash_movement_category CASCADE;
+DROP TYPE IF EXISTS cash_closing_status CASCADE;
 
--- Eliminar tablas (en orden inverso por dependencias)
-DROP TABLE IF EXISTS caja_movimientos CASCADE;
-DROP TABLE IF EXISTS cierres_caja CASCADE;
-
--- Eliminar tipos ENUM
-DROP TYPE IF EXISTS cierre_caja_status CASCADE;
-DROP TYPE IF EXISTS caja_movimiento_categoria CASCADE;
-DROP TYPE IF EXISTS caja_movimiento_tipo CASCADE;
-
--- Log de rollback
-DO $$
-BEGIN
-    RAISE NOTICE 'Rollback de migración 2025-11-03_202_finance_caja completado';
-END $$;
+-- Drop functions
+DROP FUNCTION IF EXISTS update_updated_at_column();

@@ -13,7 +13,6 @@ def fix_model_file(filepath: Path) -> bool:
     original_content = content
 
     # Buscar clases que heredan de Base
-    class_pattern = r"class\s+(\w+)\(Base\):"
 
     # Verificar si tiene __table_args__
     has_table_args = "__table_args__" in content

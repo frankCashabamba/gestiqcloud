@@ -1,7 +1,9 @@
 # app/utils/csp_debug.py
 import logging
+
 from fastapi import APIRouter, Request
 from starlette.requests import Request as StarRequest
+
 from app.config.settings import settings
 from app.middleware.security_headers import _csp_for_request
 

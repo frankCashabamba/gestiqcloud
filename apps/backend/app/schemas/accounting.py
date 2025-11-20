@@ -9,36 +9,37 @@ Sistema completo de contabilidad general:
 - Cuenta de pérdidas y ganancias
 """
 
-from pydantic import BaseModel, Field, validator
-from typing import Optional, List, Dict, Any
-from uuid import UUID
-from datetime import datetime, date
+from datetime import date, datetime
 from decimal import Decimal
+from uuid import UUID
 
+from pydantic import BaseModel, Field, validator
 
 # ============================================================================
 # PLAN DE CUENTAS
 # ============================================================================
 
+
 class PlanCuentasBase(BaseModel):
     """Base para plan de cuentas"""
+
     codigo: str = Field(..., max_length=20, description="Código de la cuenta")
     nombre: str = Field(..., max_length=255, description="Nombre de la cuenta")
-    descripcion: Optional[str] = Field(None, description="Descripción")
+    descripcion: str | None = Field(None, description="Descripción")
     tipo: str = Field(..., description="ACTIVO, PASIVO, PATRIMONIO, INGRESO, GASTO")
     nivel: int = Field(..., ge=1, le=4, description="Nivel jerárquico")
-    padre_id: Optional[UUID] = Field(None, description="ID cuenta padre")
+    padre_id: UUID | None = Field(None, description="ID cuenta padre")
     imputable: bool = Field(default=True, description="Permite movimientos directos")
     activo: bool = Field(default=True, description="Cuenta activa")
-    
-    @validator('tipo')
+
+    @validator("tipo")
     def validate_tipo(cls, v):
-        valid = ['ACTIVO', 'PASIVO', 'PATRIMONIO', 'INGRESO', 'GASTO']
+        valid = ["ACTIVO", "PASIVO", "PATRIMONIO", "INGRESO", "GASTO"]
         if v not in valid:
-            raise ValueError(f'Tipo debe ser uno de: {", ".join(valid)}')
+            raise ValueError(f"Tipo debe ser uno de: {', '.join(valid)}")
         return v
-    
-    @validator('codigo')
+
+    @validator("codigo")
     def validate_codigo(cls, v):
         # Eliminar espacios y convertir a mayúsculas
         return v.strip().upper()
@@ -46,19 +47,22 @@ class PlanCuentasBase(BaseModel):
 
 class PlanCuentasCreate(PlanCuentasBase):
     """Schema para crear cuenta"""
+
     pass
 
 
 class PlanCuentasUpdate(BaseModel):
     """Schema para actualizar cuenta"""
-    nombre: Optional[str] = Field(None, max_length=255)
-    descripcion: Optional[str] = None
-    activo: Optional[bool] = None
-    imputable: Optional[bool] = None
+
+    nombre: str | None = Field(None, max_length=255)
+    descripcion: str | None = None
+    activo: bool | None = None
+    imputable: bool | None = None
 
 
 class PlanCuentasResponse(PlanCuentasBase):
     """Schema de respuesta para cuenta"""
+
     id: UUID
     tenant_id: UUID
     saldo_debe: Decimal
@@ -66,109 +70,121 @@ class PlanCuentasResponse(PlanCuentasBase):
     saldo: Decimal
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 
 
 class PlanCuentasList(BaseModel):
     """Lista de cuentas"""
-    items: List[PlanCuentasResponse]
+
+    items: list[PlanCuentasResponse]
     total: int
 
 
 class PlanCuentasTree(BaseModel):
     """Cuenta con jerarquía (árbol)"""
+
     id: UUID
     codigo: str
     nombre: str
     tipo: str
     nivel: int
     saldo: Decimal
-    hijos: List['PlanCuentasTree'] = Field(default_factory=list)
+    hijos: list["PlanCuentasTree"] = Field(default_factory=list)
 
 
 # ============================================================================
 # ASIENTOS CONTABLES
 # ============================================================================
 
+
 class AsientoLineaBase(BaseModel):
     """Base para línea de asiento"""
+
     cuenta_id: UUID = Field(..., description="ID de la cuenta")
     debe: Decimal = Field(default=Decimal("0"), ge=0, description="Importe al debe")
     haber: Decimal = Field(default=Decimal("0"), ge=0, description="Importe al haber")
-    descripcion: Optional[str] = Field(None, max_length=255)
+    descripcion: str | None = Field(None, max_length=255)
     orden: int = Field(default=0, ge=0, description="Orden en el asiento")
-    
-    @validator('haber')
+
+    @validator("haber")
     def validate_debe_o_haber(cls, v, values):
         """Solo puede tener debe O haber, no ambos"""
-        if 'debe' in values:
-            if values['debe'] > 0 and v > 0:
-                raise ValueError('Una línea solo puede tener debe O haber, no ambos')
-            if values['debe'] == 0 and v == 0:
-                raise ValueError('Una línea debe tener debe O haber mayor a 0')
+        if "debe" in values:
+            if values["debe"] > 0 and v > 0:
+                raise ValueError("Una línea solo puede tener debe O haber, no ambos")
+            if values["debe"] == 0 and v == 0:
+                raise ValueError("Una línea debe tener debe O haber mayor a 0")
         return v
 
 
 class AsientoLineaCreate(AsientoLineaBase):
     """Schema para crear línea"""
+
     pass
 
 
 class AsientoLineaResponse(AsientoLineaBase):
     """Schema de respuesta para línea"""
+
     id: UUID
     asiento_id: UUID
     created_at: datetime
-    cuenta_codigo: Optional[str] = None
-    cuenta_nombre: Optional[str] = None
-    
+    cuenta_codigo: str | None = None
+    cuenta_nombre: str | None = None
+
     class Config:
         from_attributes = True
 
 
 class AsientoContableBase(BaseModel):
     """Base para asiento contable"""
+
     fecha: date = Field(..., description="Fecha del asiento")
     tipo: str = Field(default="OPERACIONES", description="APERTURA, OPERACIONES, etc.")
     descripcion: str = Field(..., description="Descripción del asiento")
-    ref_doc_type: Optional[str] = Field(None, description="Tipo documento origen")
-    ref_doc_id: Optional[UUID] = Field(None, description="ID documento origen")
-    
-    @validator('tipo')
+    ref_doc_type: str | None = Field(None, description="Tipo documento origen")
+    ref_doc_id: UUID | None = Field(None, description="ID documento origen")
+
+    @validator("tipo")
     def validate_tipo(cls, v):
-        valid = ['APERTURA', 'OPERACIONES', 'REGULARIZACION', 'CIERRE']
+        valid = ["APERTURA", "OPERACIONES", "REGULARIZACION", "CIERRE"]
         if v not in valid:
-            raise ValueError(f'Tipo debe ser uno de: {", ".join(valid)}')
+            raise ValueError(f"Tipo debe ser uno de: {', '.join(valid)}")
         return v
 
 
 class AsientoContableCreate(AsientoContableBase):
     """Schema para crear asiento"""
-    lineas: List[AsientoLineaCreate] = Field(..., min_items=2, description="Mínimo 2 líneas")
-    
-    @validator('lineas')
+
+    number: str | None = Field(None, description="Legacy alias for asiento number")
+
+    lineas: list[AsientoLineaCreate] = Field(..., min_items=2, description="Mínimo 2 líneas")
+
+    @validator("lineas")
     def validate_cuadrado(cls, v):
         """Validar que debe = haber"""
-        total_debe = sum(l.debe for l in v)
-        total_haber = sum(l.haber for l in v)
-        
+        total_debe = sum(linea.debe for linea in v)
+        total_haber = sum(linea.haber for linea in v)
+
         if abs(total_debe - total_haber) > Decimal("0.01"):
-            raise ValueError(f'El asiento no está cuadrado: Debe={total_debe}, Haber={total_haber}')
-        
+            raise ValueError(f"El asiento no está cuadrado: Debe={total_debe}, Haber={total_haber}")
+
         return v
 
 
 class AsientoContableUpdate(BaseModel):
     """Schema para actualizar asiento (solo borrador)"""
-    fecha: Optional[date] = None
-    tipo: Optional[str] = None
-    descripcion: Optional[str] = None
+
+    fecha: date | None = None
+    tipo: str | None = None
+    descripcion: str | None = None
 
 
 class AsientoContableResponse(AsientoContableBase):
     """Schema de respuesta para asiento"""
+
     id: UUID
     tenant_id: UUID
     numero: str
@@ -176,20 +192,21 @@ class AsientoContableResponse(AsientoContableBase):
     haber_total: Decimal
     cuadrado: bool
     status: str
-    created_by: Optional[UUID]
-    contabilizado_by: Optional[UUID]
-    contabilizado_at: Optional[datetime]
+    created_by: UUID | None
+    contabilizado_by: UUID | None
+    contabilizado_at: datetime | None
     created_at: datetime
     updated_at: datetime
-    lineas: List[AsientoLineaResponse] = []
-    
+    lineas: list[AsientoLineaResponse] = []
+
     class Config:
         from_attributes = True
 
 
 class AsientoContableList(BaseModel):
     """Lista paginada de asientos"""
-    items: List[AsientoContableResponse]
+
+    items: list[AsientoContableResponse]
     total: int
     page: int
     page_size: int
@@ -200,8 +217,10 @@ class AsientoContableList(BaseModel):
 # REPORTES
 # ============================================================================
 
+
 class CuentaMayorItem(BaseModel):
     """Item del libro mayor"""
+
     fecha: date
     asiento_numero: str
     descripcion: str
@@ -212,13 +231,14 @@ class CuentaMayorItem(BaseModel):
 
 class CuentaMayorResponse(BaseModel):
     """Libro mayor de una cuenta"""
+
     cuenta_id: UUID
     cuenta_codigo: str
     cuenta_nombre: str
     fecha_desde: date
     fecha_hasta: date
     saldo_inicial: Decimal
-    movimientos: List[CuentaMayorItem]
+    movimientos: list[CuentaMayorItem]
     total_debe: Decimal
     total_haber: Decimal
     saldo_final: Decimal
@@ -226,6 +246,7 @@ class CuentaMayorResponse(BaseModel):
 
 class BalanceItem(BaseModel):
     """Item del balance"""
+
     cuenta_id: UUID
     codigo: str
     nombre: str
@@ -237,10 +258,11 @@ class BalanceItem(BaseModel):
 
 class BalanceResponse(BaseModel):
     """Balance de situación"""
+
     fecha: date
-    activos: List[BalanceItem]
-    pasivos: List[BalanceItem]
-    patrimonio: List[BalanceItem]
+    activos: list[BalanceItem]
+    pasivos: list[BalanceItem]
+    patrimonio: list[BalanceItem]
     total_activo: Decimal
     total_pasivo: Decimal
     total_patrimonio: Decimal
@@ -249,6 +271,7 @@ class BalanceResponse(BaseModel):
 
 class PyGItem(BaseModel):
     """Item de pérdidas y ganancias"""
+
     cuenta_id: UUID
     codigo: str
     nombre: str
@@ -258,10 +281,11 @@ class PyGItem(BaseModel):
 
 class PerdidasGananciasResponse(BaseModel):
     """Cuenta de pérdidas y ganancias"""
+
     fecha_desde: date
     fecha_hasta: date
-    ingresos: List[PyGItem]
-    gastos: List[PyGItem]
+    ingresos: list[PyGItem]
+    gastos: list[PyGItem]
     total_ingresos: Decimal
     total_gastos: Decimal
     resultado: Decimal = Field(description="Beneficio (positivo) o Pérdida (negativo)")
@@ -272,32 +296,34 @@ class PerdidasGananciasResponse(BaseModel):
 # ESTADÍSTICAS
 # ============================================================================
 
+
 class AccountingStats(BaseModel):
     """Estadísticas contables"""
+
     # Período
     fecha_desde: date
     fecha_hasta: date
-    
+
     # Asientos
     total_asientos: int
     asientos_borrador: int
     asientos_validados: int
     asientos_contabilizados: int
-    
+
     # Cuentas
     total_cuentas: int
     cuentas_activas: int
     cuentas_con_movimientos: int
-    
+
     # Totales período
     total_debe: Decimal
     total_haber: Decimal
-    
+
     # Balance
     total_activo: Decimal
     total_pasivo: Decimal
     total_patrimonio: Decimal
-    
+
     # Resultado
     total_ingresos: Decimal
     total_gastos: Decimal

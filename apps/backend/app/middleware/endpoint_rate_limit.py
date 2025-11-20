@@ -2,15 +2,17 @@
 Middleware de rate limiting por endpoint.
 Implementa protección específica para endpoints críticos (login, reset password, etc.)
 """
+
 from __future__ import annotations
 
+import logging
 import time
 from collections import defaultdict
-from typing import Callable, Dict, Tuple
-from fastapi import Request, Response, status
+from collections.abc import Callable
+
+from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-import logging
 
 logger = logging.getLogger("app.rate_limit")
 
@@ -18,7 +20,7 @@ logger = logging.getLogger("app.rate_limit")
 class EndpointRateLimiter(BaseHTTPMiddleware):
     """
     Rate limiter configurable por endpoint.
-    
+
     Uso:
         app.add_middleware(
             EndpointRateLimiter,
@@ -32,7 +34,7 @@ class EndpointRateLimiter(BaseHTTPMiddleware):
     def __init__(
         self,
         app,
-        limits: Dict[str, Tuple[int, int]] | None = None,
+        limits: dict[str, tuple[int, int]] | None = None,
         key_func: Callable[[Request], str] | None = None,
     ):
         super().__init__(app)
@@ -40,10 +42,10 @@ class EndpointRateLimiter(BaseHTTPMiddleware):
         self.limits = limits or self._default_limits()
         self.key_func = key_func or self._default_key_func
         # Storage: {key: [(timestamp, endpoint), ...]}
-        self._store: Dict[str, list[Tuple[float, str]]] = defaultdict(list)
+        self._store: dict[str, list[tuple[float, str]]] = defaultdict(list)
 
     @staticmethod
-    def _default_limits() -> Dict[str, Tuple[int, int]]:
+    def _default_limits() -> dict[str, tuple[int, int]]:
         """Límites por defecto para endpoints críticos"""
         return {
             "/api/v1/tenant/auth/login": (10, 60),  # 10 intentos/min
@@ -67,9 +69,7 @@ class EndpointRateLimiter(BaseHTTPMiddleware):
         """Elimina requests fuera de la ventana de tiempo"""
         now = time.time()
         if key in self._store:
-            self._store[key] = [
-                (ts, ep) for ts, ep in self._store[key] if now - ts < window
-            ]
+            self._store[key] = [(ts, ep) for ts, ep in self._store[key] if now - ts < window]
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
@@ -120,7 +120,7 @@ class EndpointRateLimiter(BaseHTTPMiddleware):
 
         # Continuar con la request
         response = await call_next(request)
-        
+
         # Agregar headers informativos
         remaining = max_requests - len(current_requests) - 1
         response.headers["X-RateLimit-Limit"] = str(max_requests)
@@ -134,7 +134,7 @@ class EndpointRateLimiter(BaseHTTPMiddleware):
 def rate_limit(max_requests: int, window: int):
     """
     Decorador para aplicar rate limit a un endpoint específico.
-    
+
     Uso:
         @router.post("/login")
         @rate_limit(10, 60)  # 10 req/min
@@ -142,20 +142,22 @@ def rate_limit(max_requests: int, window: int):
             ...
     """
     # Store local por endpoint
-    _store: Dict[str, list[float]] = defaultdict(list)
+    _store: dict[str, list[float]] = defaultdict(list)
 
     def decorator(func):
         async def wrapper(request: Request, *args, **kwargs):
             # Extraer IP
             forwarded = request.headers.get("X-Forwarded-For")
-            ip = forwarded.split(",")[0].strip() if forwarded else (
-                request.client.host if request.client else "unknown"
+            ip = (
+                forwarded.split(",")[0].strip()
+                if forwarded
+                else (request.client.host if request.client else "unknown")
             )
-            
+
             # Limpiar requests viejos
             now = time.time()
             _store[ip] = [ts for ts in _store[ip] if now - ts < window]
-            
+
             # Verificar límite
             if len(_store[ip]) >= max_requests:
                 retry_after = int(window - (now - _store[ip][0])) + 1
@@ -168,10 +170,11 @@ def rate_limit(max_requests: int, window: int):
                     },
                     headers={"Retry-After": str(retry_after)},
                 )
-            
+
             # Registrar y ejecutar
             _store[ip].append(now)
             return await func(request, *args, **kwargs)
-        
+
         return wrapper
+
     return decorator

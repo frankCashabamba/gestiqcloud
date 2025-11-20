@@ -107,7 +107,6 @@ cd apps/backend
 
 # 1. Ejecutar linters
 ruff check app/
-black --check app/
 isort --check app/
 
 # 2. Type checking
@@ -201,7 +200,7 @@ npm run build
 Las siguientes tareas requieren implementación manual:
 
 ### **1. Mover JWT a cookies HttpOnly** 🔴 CRÍTICO
-**Esfuerzo**: M (4 días)  
+**Esfuerzo**: M (4 días)
 **Archivos a modificar**:
 - Backend: `app/modules/identity/application/auth.py`
 - Backend: `app/api/v1/tenant/auth.py`
@@ -213,7 +212,7 @@ Las siguientes tareas requieren implementación manual:
 3. Backend: Leer token desde cookie en middleware
 
 ### **2. Eliminar routers legacy duplicados** 🔴 ALTO
-**Esfuerzo**: M (4 días)  
+**Esfuerzo**: M (4 días)
 **Archivos a modificar**:
 - `apps/backend/app/main.py` (líneas 198-428)
 - Validar cobertura de tests antes de eliminar
@@ -225,7 +224,7 @@ Las siguientes tareas requieren implementación manual:
 4. Eliminar archivos en `app/routers/` (excepto admin/, tenant/)
 
 ### **3. Tests con coverage mínimo 60%** ⚠️ ALTO
-**Esfuerzo**: L (15 días)  
+**Esfuerzo**: L (15 días)
 **Archivos a crear**:
 - `apps/backend/app/modules/*/tests/test_*.py`
 - `apps/tenant/src/modules/*/*.test.tsx`
@@ -235,7 +234,7 @@ Las siguientes tareas requieren implementación manual:
 - Frontend: auth, ventas, importador
 
 ### **4. Migrar a Alembic único** ⚠️ MEDIO
-**Esfuerzo**: M (4 días)  
+**Esfuerzo**: M (4 días)
 **Pasos**:
 1. Archivar `ops/migrations/` → `ops/_archive_legacy/`
 2. Generar migración Alembic consolidada
@@ -277,5 +276,5 @@ Si encuentras problemas:
 
 ---
 
-**Última actualización**: 2025-11-06  
+**Última actualización**: 2025-11-06
 **Autor**: Auditoría Técnica Automatizada

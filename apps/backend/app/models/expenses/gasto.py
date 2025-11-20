@@ -1,20 +1,19 @@
-"""Modelo de Gastos"""
+"""Expense Models"""
 
 import uuid
 from datetime import date, datetime
-from typing import Optional
 
-from sqlalchemy import Date, String, Numeric, ForeignKey, Text
+from sqlalchemy import Date, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
 
 
-class Gasto(Base):
-    """Gasto operativo"""
+class Expense(Base):
+    """Operational Expense"""
 
-    __tablename__ = "gastos"
+    __tablename__ = "expenses"
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -26,47 +25,43 @@ class Gasto(Base):
         nullable=False,
         index=True,
     )
-    fecha: Mapped[date] = mapped_column(
-        Date, nullable=False, default=date.today, index=True
-    )
-    concepto: Mapped[str] = mapped_column(String(255), nullable=False)
-    categoria: Mapped[Optional[str]] = mapped_column(
+    date: Mapped[date] = mapped_column(Date(), nullable=False, default=date.today, index=True)
+    concept: Mapped[str] = mapped_column(String(255), nullable=False)
+    category: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
         index=True,
-        # nomina, alquiler, suministros, marketing, servicios, otros
+        # payroll, rent, supplies, marketing, services, other
     )
-    subcategoria: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    importe: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
-    iva: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    subcategory: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    vat: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
-    proveedor_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    supplier_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("proveedores.id", ondelete="SET NULL"),
+        ForeignKey("suppliers.id", ondelete="SET NULL"),
         nullable=True,
     )
-    forma_pago: Mapped[Optional[str]] = mapped_column(
+    payment_method: Mapped[str | None] = mapped_column(
         String(20),
         nullable=True,
-        # efectivo, transferencia, tarjeta, domiciliacion
+        # cash, transfer, card, direct_debit
     )
-    factura_numero: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    estado: Mapped[str] = mapped_column(
+    invoice_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default="pendiente",
+        default="pending",
         index=True,
-        # pendiente, pagado, cancelado
+        # pending, paid, cancelled
     )
-    usuario_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
-    notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow
-    )
+    user_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
 
     # Relationships
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
-    proveedor = relationship("Proveedor", foreign_keys=[proveedor_id])
+    supplier = relationship("Supplier", foreign_keys=[supplier_id])
 
     def __repr__(self):
-        return f"<Gasto {self.concepto} - {self.total}>"
+        return f"<Expense {self.concept} - {self.total}>"

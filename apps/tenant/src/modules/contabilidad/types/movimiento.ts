@@ -11,4 +11,3 @@ export type Asiento = {
   concepto: string
   apuntes: Apunte[]
 }
-

@@ -1,6 +1,6 @@
 # Fase C - Quick Start
 
-**Tiempo de lectura**: 5 minutos  
+**Tiempo de lectura**: 5 minutos
 **Prerequisitos**: Python 3.9+, database connection
 
 ---
@@ -11,7 +11,7 @@ Fase C agrega **validación + promoción** al importador:
 
 ```
 Archivo Excel → Parser → Validación Canónica → Vista Previa → Promoción → BD
-                         ↑ NUEVO              ↑ NUEVO                   
+                         ↑ NUEVO              ↑ NUEVO
 ```
 
 ---
@@ -77,7 +77,7 @@ with session_scope() as db:
         tenant_id=UUID("12345678-..."),
         canonical_doc=doc,
     )
-    
+
 print(f"Promovido a: {result['target']}")
 print(f"ID: {result['domain_id']}")
 ```
@@ -270,6 +270,6 @@ pytest tests/modules/imports/test_promotion.py::TestHandlersRouter::test_router_
 
 ---
 
-**Status**: 🟢 LISTO  
-**Última actualización**: 11 Nov 2025  
+**Status**: 🟢 LISTO
+**Última actualización**: 11 Nov 2025
 **Autor**: Fase C Implementation

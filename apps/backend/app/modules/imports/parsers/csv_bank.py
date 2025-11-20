@@ -8,42 +8,42 @@ Salida: lista de CanonicalDocument con doc_type='bank_tx'
 """
 
 import csv
-from typing import Dict, Any, List
+from typing import Any
 
 
-def parse_csv_bank(file_path: str) -> Dict[str, Any]:
+def parse_csv_bank(file_path: str) -> dict[str, Any]:
     """
     Parse CSV file with bank transaction data.
-    
+
     Args:
         file_path: Path to CSV file
-        
+
     Returns:
         Dict with 'bank_transactions' list and metadata
     """
     transactions = []
     rows_processed = 0
     errors = []
-    
+
     try:
-        with open(file_path, 'r', encoding='utf-8-sig') as f:
+        with open(file_path, encoding="utf-8-sig") as f:
             reader = csv.DictReader(f)
             if not reader.fieldnames:
                 raise ValueError("CSV file is empty or has no headers")
-            
+
             for idx, row in enumerate(reader, start=1):
                 rows_processed += 1
-                
+
                 # Normalizar nombres de columna
                 normalized_row = {k.strip().lower(): v for k, v in row.items()}
-                
+
                 # Extraer amount y dirección
                 amount_raw = _to_float(
                     normalized_row.get("amount")
                     or normalized_row.get("importe")
                     or normalized_row.get("monto")
                 )
-                
+
                 # Si amount es negativo, es debit; sino, credit
                 direction_raw = (
                     normalized_row.get("direction")
@@ -53,10 +53,10 @@ def parse_csv_bank(file_path: str) -> Dict[str, Any]:
                 direction = direction_raw.lower().strip()
                 if direction not in ("debit", "credit"):
                     direction = "credit"
-                
+
                 # Convertir a valor positivo si es negativo
                 amount = abs(amount_raw) if amount_raw else 0.0
-                
+
                 # Construir documento canónico
                 transaction = {
                     "doc_type": "bank_tx",
@@ -66,9 +66,7 @@ def parse_csv_bank(file_path: str) -> Dict[str, Any]:
                         or normalized_row.get("fecha")
                     ),
                     "currency": (
-                        normalized_row.get("currency")
-                        or normalized_row.get("moneda")
-                        or "USD"
+                        normalized_row.get("currency") or normalized_row.get("moneda") or "USD"
                     ),
                     "bank_tx": {
                         "amount": amount,
@@ -99,8 +97,7 @@ def parse_csv_bank(file_path: str) -> Dict[str, Any]:
                     },
                     "payment": {
                         "iban": (
-                            normalized_row.get("iban")
-                            or normalized_row.get("account_number")
+                            normalized_row.get("iban") or normalized_row.get("account_number")
                         ),
                     },
                     "source": "csv",
@@ -108,16 +105,16 @@ def parse_csv_bank(file_path: str) -> Dict[str, Any]:
                     "_metadata": {
                         "parser": "csv_bank",
                         "row_index": idx,
-                    }
+                    },
                 }
-                
+
                 # Limpiar nulos
                 transaction = _clean_dict(transaction)
                 transactions.append(transaction)
-                
+
     except Exception as e:
         errors.append(str(e))
-    
+
     return {
         "bank_transactions": transactions,
         "rows_processed": rows_processed,
@@ -138,7 +135,7 @@ def _to_float(val) -> float | None:
         return None
 
 
-def _clean_dict(d: Dict) -> Dict:
+def _clean_dict(d: dict) -> dict:
     """Remover keys con valores None o strings vacíos."""
     if not isinstance(d, dict):
         return d

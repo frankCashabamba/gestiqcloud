@@ -4,9 +4,7 @@ from sqlalchemy.orm import Session
 from app.modules.usuarios.infrastructure import repositories as repo
 
 
-def ensure_email_unique(
-    db: Session, email: str, *, exclude_usuario_id: int | None = None
-) -> None:
+def ensure_email_unique(db: Session, email: str, *, exclude_usuario_id: int | None = None) -> None:
     usuario = repo.get_usuario_by_email(db, email)
     if usuario and usuario.id != exclude_usuario_id:
         raise HTTPException(status_code=400, detail="El correo ya está registrado.")
@@ -19,14 +17,10 @@ def ensure_username_unique(
         return
     usuario = repo.get_usuario_by_username(db, username)
     if usuario and usuario.id != exclude_usuario_id:
-        raise HTTPException(
-            status_code=400, detail="El nombre de usuario ya está en uso."
-        )
+        raise HTTPException(status_code=400, detail="El nombre de usuario ya está en uso.")
 
 
-def validate_modulos_contratados(
-    db: Session, tenant_id: int, modulos: list[int]
-) -> None:
+def validate_modulos_contratados(db: Session, tenant_id: int, modulos: list[int]) -> None:
     if not modulos:
         return
     contratados = set(repo.get_modulos_contratados_ids(db, tenant_id))
@@ -38,9 +32,7 @@ def validate_modulos_contratados(
         )
 
 
-def ensure_not_last_admin(
-    db: Session, tenant_id: int, *, usuario_id: int | None = None
-) -> None:
+def ensure_not_last_admin(db: Session, tenant_id: int, *, usuario_id: int | None = None) -> None:
     admins = repo.count_admins_empresa(db, tenant_id)
     if admins <= 1 and usuario_id is not None:
         # Si el único admin es el que estamos modificando / desactivando

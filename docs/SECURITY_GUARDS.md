@@ -129,14 +129,14 @@ try:
         enable_av_scan=True,
         reject_pdf_with_js=True,
     )
-    
+
     print(f"✓ Validation passed: {result['checks_passed']}")
     print(f"  File hash: {result['file_hash']}")
-    
+
 except SecurityViolationError as e:
     print(f"✗ Security violation: {e.code}")
     print(f"  Detail: {e.detail}")
-    
+
     # Structured error for API response
     error_dict = e.to_dict()
     # {
@@ -157,7 +157,7 @@ from app.modules.imports.application.photo_utils import ocr_texto
 try:
     text = ocr_texto(file_bytes, filename="invoice.pdf")
     print(f"Extracted: {len(text)} chars")
-    
+
 except SecurityViolationError as e:
     # Handle security rejection
     return {"error": e.to_dict()}

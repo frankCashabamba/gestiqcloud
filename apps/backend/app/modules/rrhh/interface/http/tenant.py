@@ -16,15 +16,14 @@ MIGRADO DE:
 - app/routers/hr_complete.py (nóminas)
 """
 
-from typing import Optional, List
-from uuid import UUID
-from datetime import datetime, date
+from datetime import datetime
 from decimal import Decimal
 from math import ceil
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func, and_, or_, extract
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
@@ -33,37 +32,32 @@ from app.db.rls import ensure_rls
 
 # Models
 from app.models.hr import Empleado, Vacacion
-from app.models.hr.nomina import Nomina, NominaConcepto, NominaPlantilla
+from app.models.hr.nomina import Nomina, NominaConcepto
 
 # Schemas - Empleados y Vacaciones
 from app.schemas.hr import (
     EmpleadoCreate,
-    EmpleadoUpdate,
-    EmpleadoResponse,
     EmpleadoList,
+    EmpleadoResponse,
+    EmpleadoUpdate,
     VacacionCreate,
-    VacacionResponse,
     VacacionList,
+    VacacionResponse,
 )
 
 # Schemas - Nóminas
 from app.schemas.hr_nomina import (
-    NominaCreate,
-    NominaUpdate,
-    NominaResponse,
-    NominaList,
+    NominaApproveRequest,
     NominaCalculateRequest,
     NominaCalculateResponse,
-    NominaApproveRequest,
-    NominaPayRequest,
-    NominaStats,
-    NominaPlantillaCreate,
-    NominaPlantillaUpdate,
-    NominaPlantillaResponse,
     NominaConceptoCreate,
-    NominaConceptoResponse,
+    NominaCreate,
+    NominaList,
+    NominaPayRequest,
+    NominaResponse,
+    NominaStats,
+    NominaUpdate,
 )
-
 
 router = APIRouter(
     prefix="/hr",
@@ -80,27 +74,30 @@ router = APIRouter(
 # HELPERS - Funciones auxiliares de nóminas
 # ============================================================================
 
+
 def _generate_numero_nomina(db: Session, tenant_id: UUID, mes: int, ano: int) -> str:
     """Genera número único de nómina: NOM-YYYY-MM-NNNN"""
     prefix = f"NOM-{ano}-{mes:02d}-"
-    
-    stmt = select(Nomina).where(
-        Nomina.tenant_id == tenant_id,
-        Nomina.numero.like(f"{prefix}%")
-    ).order_by(Nomina.numero.desc()).limit(1)
-    
+
+    stmt = (
+        select(Nomina)
+        .where(Nomina.tenant_id == tenant_id, Nomina.numero.like(f"{prefix}%"))
+        .order_by(Nomina.numero.desc())
+        .limit(1)
+    )
+
     result = db.execute(stmt)
     last_nomina = result.scalar_one_or_none()
-    
+
     if last_nomina and last_nomina.numero:
         try:
-            last_num = int(last_nomina.numero.split('-')[-1])
+            last_num = int(last_nomina.numero.split("-")[-1])
             next_num = last_num + 1
         except (ValueError, IndexError):
             next_num = 1
     else:
         next_num = 1
-    
+
     return f"{prefix}{next_num:04d}"
 
 
@@ -117,7 +114,7 @@ def _calculate_seg_social(base_cotizacion: Decimal, country: str) -> tuple[Decim
         rate = Decimal("0.0945")
     else:
         rate = Decimal("0")
-    
+
     importe = (base_cotizacion * rate).quantize(Decimal("0.01"))
     return importe, rate
 
@@ -126,7 +123,7 @@ def _calculate_irpf(base_irpf: Decimal, country: str) -> tuple[Decimal, Decimal]
     """
     Calcula retención IRPF/IR según país.
     Retorna (importe, tasa)
-    
+
     NOTA: Implementación simplificada. En producción debe usar
     tablas de tramos fiscales actualizadas.
     """
@@ -142,7 +139,7 @@ def _calculate_irpf(base_irpf: Decimal, country: str) -> tuple[Decimal, Decimal]
             rate = Decimal("0.37")
         else:
             rate = Decimal("0.45")
-    
+
     elif country == "EC":
         # Ecuador: Tabla simplificada IR 2024
         if base_irpf <= 11722:
@@ -157,53 +154,57 @@ def _calculate_irpf(base_irpf: Decimal, country: str) -> tuple[Decimal, Decimal]
             rate = Decimal("0.15")
     else:
         rate = Decimal("0")
-    
+
     importe = (base_irpf * rate).quantize(Decimal("0.01"))
     return importe, rate
 
 
-def _calculate_totals(nomina_data: dict, conceptos: List[NominaConceptoCreate], country: str) -> dict:
+def _calculate_totals(
+    nomina_data: dict, conceptos: list[NominaConceptoCreate], country: str
+) -> dict:
     """Calcula todos los totales de la nómina"""
-    salario_base = nomina_data.get('salario_base', Decimal("0"))
-    complementos = nomina_data.get('complementos', Decimal("0"))
-    horas_extra = nomina_data.get('horas_extra', Decimal("0"))
-    otros_devengos = nomina_data.get('otros_devengos', Decimal("0"))
-    
-    devengos_conceptos = sum(
-        c.importe for c in conceptos if c.tipo == 'DEVENGO'
-    ) if conceptos else Decimal("0")
-    
+    salario_base = nomina_data.get("salario_base", Decimal("0"))
+    complementos = nomina_data.get("complementos", Decimal("0"))
+    horas_extra = nomina_data.get("horas_extra", Decimal("0"))
+    otros_devengos = nomina_data.get("otros_devengos", Decimal("0"))
+
+    devengos_conceptos = (
+        sum(c.importe for c in conceptos if c.tipo == "DEVENGO") if conceptos else Decimal("0")
+    )
+
     total_devengado = (
-        salario_base + complementos + horas_extra + 
-        otros_devengos + devengos_conceptos
+        salario_base + complementos + horas_extra + otros_devengos + devengos_conceptos
     )
-    
+
     base_cotizacion = (
-        salario_base + complementos + horas_extra +
-        sum(c.importe for c in conceptos if c.tipo == 'DEVENGO' and c.es_base)
-        if conceptos else salario_base + complementos + horas_extra
+        salario_base
+        + complementos
+        + horas_extra
+        + sum(c.importe for c in conceptos if c.tipo == "DEVENGO" and c.es_base)
+        if conceptos
+        else salario_base + complementos + horas_extra
     )
-    
+
     seg_social, seg_social_rate = _calculate_seg_social(base_cotizacion, country)
     irpf, irpf_rate = _calculate_irpf(base_cotizacion, country)
-    
-    otras_deducciones = nomina_data.get('otras_deducciones', Decimal("0"))
-    deducciones_conceptos = sum(
-        c.importe for c in conceptos if c.tipo == 'DEDUCCION'
-    ) if conceptos else Decimal("0")
-    
+
+    otras_deducciones = nomina_data.get("otras_deducciones", Decimal("0"))
+    deducciones_conceptos = (
+        sum(c.importe for c in conceptos if c.tipo == "DEDUCCION") if conceptos else Decimal("0")
+    )
+
     total_deducido = seg_social + irpf + otras_deducciones + deducciones_conceptos
     liquido_total = total_devengado - total_deducido
-    
+
     return {
-        'total_devengado': total_devengado,
-        'base_cotizacion': base_cotizacion,
-        'seg_social': seg_social,
-        'seg_social_rate': seg_social_rate,
-        'irpf': irpf,
-        'irpf_rate': irpf_rate,
-        'total_deducido': total_deducido,
-        'liquido_total': liquido_total,
+        "total_devengado": total_devengado,
+        "base_cotizacion": base_cotizacion,
+        "seg_social": seg_social,
+        "seg_social_rate": seg_social_rate,
+        "irpf": irpf,
+        "irpf_rate": irpf_rate,
+        "total_deducido": total_deducido,
+        "liquido_total": liquido_total,
     }
 
 
@@ -211,24 +212,25 @@ def _calculate_totals(nomina_data: dict, conceptos: List[NominaConceptoCreate], 
 # ENDPOINTS - EMPLEADOS
 # ============================================================================
 
+
 @router.get(
     "/empleados",
     response_model=EmpleadoList,
     summary="Listar empleados",
-    description="Lista paginada de empleados con filtros opcionales"
+    description="Lista paginada de empleados con filtros opcionales",
 )
 def list_empleados(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    search: Optional[str] = None,
-    activo: Optional[bool] = None,
-    departamento: Optional[str] = None,
+    search: str | None = None,
+    activo: bool | None = None,
+    departamento: str | None = None,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
     """
     Lista paginada de empleados con filtros.
-    
+
     **Filtros:**
     - search: Buscar por nombre, apellido, email o cédula
     - activo: Filtrar por estado activo/inactivo
@@ -253,12 +255,7 @@ def list_empleados(
         query = query.filter(Empleado.departamento == departamento)
 
     total = query.count()
-    empleados = (
-        query.order_by(Empleado.apellido, Empleado.name)
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
+    empleados = query.order_by(Empleado.apellido, Empleado.name).offset(skip).limit(limit).all()
 
     return EmpleadoList(
         items=empleados,
@@ -286,9 +283,7 @@ def create_empleado(
     # Verificar duplicado por cédula
     existing = (
         db.query(Empleado)
-        .filter(
-            and_(Empleado.tenant_id == tenant_id, Empleado.cedula == empleado_in.cedula)
-        )
+        .filter(and_(Empleado.tenant_id == tenant_id, Empleado.cedula == empleado_in.cedula))
         .first()
     )
 
@@ -335,15 +330,11 @@ def get_empleado(
     tenant_id = UUID(claims["tenant_id"])
 
     empleado = (
-        db.query(Empleado)
-        .filter(and_(Empleado.id == id, Empleado.tenant_id == tenant_id))
-        .first()
+        db.query(Empleado).filter(and_(Empleado.id == id, Empleado.tenant_id == tenant_id)).first()
     )
 
     if not empleado:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Empleado no encontrado"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empleado no encontrado")
 
     return empleado
 
@@ -364,15 +355,11 @@ def update_empleado(
     user_id = UUID(claims["user_id"])
 
     empleado = (
-        db.query(Empleado)
-        .filter(and_(Empleado.id == id, Empleado.tenant_id == tenant_id))
-        .first()
+        db.query(Empleado).filter(and_(Empleado.id == id, Empleado.tenant_id == tenant_id)).first()
     )
 
     if not empleado:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Empleado no encontrado"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empleado no encontrado")
 
     update_data = empleado_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
@@ -400,15 +387,11 @@ def delete_empleado(
     user_id = UUID(claims["user_id"])
 
     empleado = (
-        db.query(Empleado)
-        .filter(and_(Empleado.id == id, Empleado.tenant_id == tenant_id))
-        .first()
+        db.query(Empleado).filter(and_(Empleado.id == id, Empleado.tenant_id == tenant_id)).first()
     )
 
     if not empleado:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Empleado no encontrado"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empleado no encontrado")
 
     empleado.active = False
     empleado.fecha_salida = datetime.utcnow().date()
@@ -421,6 +404,7 @@ def delete_empleado(
 # ENDPOINTS - VACACIONES
 # ============================================================================
 
+
 @router.get(
     "/vacaciones",
     response_model=VacacionList,
@@ -429,8 +413,8 @@ def delete_empleado(
 def list_vacaciones(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    empleado_id: Optional[UUID] = None,
-    estado: Optional[str] = None,
+    empleado_id: UUID | None = None,
+    estado: str | None = None,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
@@ -446,9 +430,7 @@ def list_vacaciones(
         query = query.filter(Vacacion.estado == estado)
 
     total = query.count()
-    vacaciones = (
-        query.order_by(Vacacion.fecha_inicio.desc()).offset(skip).limit(limit).all()
-    )
+    vacaciones = query.order_by(Vacacion.fecha_inicio.desc()).offset(skip).limit(limit).all()
 
     return VacacionList(
         items=vacaciones,
@@ -476,18 +458,12 @@ def create_vacacion(
     # Validar que empleado existe y está activo
     empleado = (
         db.query(Empleado)
-        .filter(
-            and_(
-                Empleado.id == vacacion_in.empleado_id, Empleado.tenant_id == tenant_id
-            )
-        )
+        .filter(and_(Empleado.id == vacacion_in.empleado_id, Empleado.tenant_id == tenant_id))
         .first()
     )
 
     if not empleado:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Empleado no encontrado"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empleado no encontrado")
 
     if not empleado.active:
         raise HTTPException(
@@ -528,9 +504,7 @@ def get_vacacion(
     tenant_id = UUID(claims["tenant_id"])
 
     vacacion = (
-        db.query(Vacacion)
-        .filter(and_(Vacacion.id == id, Vacacion.tenant_id == tenant_id))
-        .first()
+        db.query(Vacacion).filter(and_(Vacacion.id == id, Vacacion.tenant_id == tenant_id)).first()
     )
 
     if not vacacion:
@@ -549,7 +523,7 @@ def get_vacacion(
 )
 def aprobar_vacacion(
     id: UUID,
-    observaciones: Optional[str] = None,
+    observaciones: str | None = None,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
@@ -558,9 +532,7 @@ def aprobar_vacacion(
     user_id = UUID(claims["user_id"])
 
     vacacion = (
-        db.query(Vacacion)
-        .filter(and_(Vacacion.id == id, Vacacion.tenant_id == tenant_id))
-        .first()
+        db.query(Vacacion).filter(and_(Vacacion.id == id, Vacacion.tenant_id == tenant_id)).first()
     )
 
     if not vacacion:
@@ -602,9 +574,7 @@ def rechazar_vacacion(
     user_id = UUID(claims["user_id"])
 
     vacacion = (
-        db.query(Vacacion)
-        .filter(and_(Vacacion.id == id, Vacacion.tenant_id == tenant_id))
-        .first()
+        db.query(Vacacion).filter(and_(Vacacion.id == id, Vacacion.tenant_id == tenant_id)).first()
     )
 
     if not vacacion:
@@ -644,9 +614,7 @@ def delete_vacacion(
     tenant_id = UUID(claims["tenant_id"])
 
     vacacion = (
-        db.query(Vacacion)
-        .filter(and_(Vacacion.id == id, Vacacion.tenant_id == tenant_id))
-        .first()
+        db.query(Vacacion).filter(and_(Vacacion.id == id, Vacacion.tenant_id == tenant_id)).first()
     )
 
     if not vacacion:
@@ -669,6 +637,7 @@ def delete_vacacion(
 # ENDPOINTS - NÓMINAS
 # ============================================================================
 
+
 @router.get(
     "/nominas",
     response_model=NominaList,
@@ -677,17 +646,17 @@ def delete_vacacion(
 async def list_nominas(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    empleado_id: Optional[UUID] = None,
-    periodo_mes: Optional[int] = Query(None, ge=1, le=12),
-    periodo_ano: Optional[int] = Query(None, ge=2020, le=2100),
-    status: Optional[str] = Query(None, regex="^(DRAFT|APPROVED|PAID|CANCELLED)$"),
-    tipo: Optional[str] = Query(None, regex="^(MENSUAL|EXTRA|FINIQUITO|ESPECIAL)$"),
+    empleado_id: UUID | None = None,
+    periodo_mes: int | None = Query(None, ge=1, le=12),
+    periodo_ano: int | None = Query(None, ge=2020, le=2100),
+    status: str | None = Query(None, regex="^(DRAFT|APPROVED|PAID|CANCELLED)$"),
+    tipo: str | None = Query(None, regex="^(MENSUAL|EXTRA|FINIQUITO|ESPECIAL)$"),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
     """
     Lista todas las nóminas con filtros opcionales.
-    
+
     **Filtros:**
     - empleado_id: Filtrar por empleado
     - periodo_mes: Mes del período
@@ -696,9 +665,9 @@ async def list_nominas(
     - tipo: Tipo de nómina (MENSUAL, EXTRA, FINIQUITO, ESPECIAL)
     """
     tenant_id = claims["tenant_id"]
-    
+
     stmt = select(Nomina).where(Nomina.tenant_id == tenant_id)
-    
+
     if empleado_id:
         stmt = stmt.where(Nomina.empleado_id == empleado_id)
     if periodo_mes:
@@ -709,19 +678,19 @@ async def list_nominas(
         stmt = stmt.where(Nomina.status == status)
     if tipo:
         stmt = stmt.where(Nomina.tipo == tipo)
-    
+
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = db.execute(count_stmt).scalar_one()
-    
-    stmt = stmt.order_by(
-        Nomina.periodo_ano.desc(),
-        Nomina.periodo_mes.desc(),
-        Nomina.numero.desc()
-    ).offset(skip).limit(limit)
-    
+
+    stmt = (
+        stmt.order_by(Nomina.periodo_ano.desc(), Nomina.periodo_mes.desc(), Nomina.numero.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+
     result = db.execute(stmt)
     nominas = result.scalars().all()
-    
+
     return NominaList(
         items=[NominaResponse.from_orm(n) for n in nominas],
         total=total,
@@ -744,28 +713,25 @@ async def create_nomina(
 ):
     """
     Crea una nueva nómina.
-    
+
     Si auto_calculate=True (por defecto):
     - Calcula automáticamente Seg. Social e IRPF/IR
     - Calcula totales devengado, deducido y líquido
     """
     tenant_id = claims["tenant_id"]
     user_id = claims["user_id"]
-    
+
     # Validar empleado
     stmt = select(Empleado).where(
-        Empleado.id == data.empleado_id,
-        Empleado.tenant_id == tenant_id,
-        Empleado.activo == True
+        Empleado.id == data.empleado_id, Empleado.tenant_id == tenant_id, Empleado.activo
     )
     empleado = db.execute(stmt).scalar_one_or_none()
-    
+
     if not empleado:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Empleado no encontrado o inactivo"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Empleado no encontrado o inactivo"
         )
-    
+
     # Validar duplicado
     stmt = select(Nomina).where(
         Nomina.tenant_id == tenant_id,
@@ -773,67 +739,63 @@ async def create_nomina(
         Nomina.periodo_mes == data.periodo_mes,
         Nomina.periodo_ano == data.periodo_ano,
         Nomina.tipo == data.tipo,
-        Nomina.status != "CANCELLED"
+        Nomina.status != "CANCELLED",
     )
     existing = db.execute(stmt).scalar_one_or_none()
-    
+
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Ya existe una nómina {data.tipo} para este empleado en {data.periodo_mes}/{data.periodo_ano}"
+            detail=f"Ya existe una nómina {data.tipo} para este empleado en {data.periodo_mes}/{data.periodo_ano}",
         )
-    
+
     numero = _generate_numero_nomina(db, tenant_id, data.periodo_mes, data.periodo_ano)
-    
+
     # TODO: Obtener país del tenant
     country = "ES"
-    
-    nomina_dict = data.dict(exclude={'conceptos', 'auto_calculate'})
-    
+
+    nomina_dict = data.dict(exclude={"conceptos", "auto_calculate"})
+
     if data.auto_calculate:
         calcs = _calculate_totals(nomina_dict, data.conceptos or [], country)
-        nomina_dict.update({
-            'total_devengado': calcs['total_devengado'],
-            'seg_social': calcs['seg_social'],
-            'irpf': calcs['irpf'],
-            'total_deducido': calcs['total_deducido'],
-            'liquido_total': calcs['liquido_total'],
-        })
+        nomina_dict.update(
+            {
+                "total_devengado": calcs["total_devengado"],
+                "seg_social": calcs["seg_social"],
+                "irpf": calcs["irpf"],
+                "total_deducido": calcs["total_deducido"],
+                "liquido_total": calcs["liquido_total"],
+            }
+        )
     else:
-        nomina_dict['total_devengado'] = (
-            nomina_dict['salario_base'] + nomina_dict['complementos'] + 
-            nomina_dict['horas_extra'] + nomina_dict['otros_devengos']
+        nomina_dict["total_devengado"] = (
+            nomina_dict["salario_base"]
+            + nomina_dict["complementos"]
+            + nomina_dict["horas_extra"]
+            + nomina_dict["otros_devengos"]
         )
-        nomina_dict['total_deducido'] = (
-            nomina_dict['seg_social'] + nomina_dict['irpf'] + 
-            nomina_dict['otras_deducciones']
+        nomina_dict["total_deducido"] = (
+            nomina_dict["seg_social"] + nomina_dict["irpf"] + nomina_dict["otras_deducciones"]
         )
-        nomina_dict['liquido_total'] = (
-            nomina_dict['total_devengado'] - nomina_dict['total_deducido']
+        nomina_dict["liquido_total"] = (
+            nomina_dict["total_devengado"] - nomina_dict["total_deducido"]
         )
-    
+
     nomina = Nomina(
-        tenant_id=tenant_id,
-        numero=numero,
-        status="DRAFT",
-        created_by=user_id,
-        **nomina_dict
+        tenant_id=tenant_id, numero=numero, status="DRAFT", created_by=user_id, **nomina_dict
     )
-    
+
     db.add(nomina)
     db.flush()
-    
+
     if data.conceptos:
         for concepto_data in data.conceptos:
-            concepto = NominaConcepto(
-                nomina_id=nomina.id,
-                **concepto_data.dict()
-            )
+            concepto = NominaConcepto(nomina_id=nomina.id, **concepto_data.dict())
             db.add(concepto)
-    
+
     db.commit()
     db.refresh(nomina)
-    
+
     return NominaResponse.from_orm(nomina)
 
 
@@ -849,19 +811,13 @@ async def get_nomina(
 ):
     """Obtiene detalle de una nómina"""
     tenant_id = claims["tenant_id"]
-    
-    stmt = select(Nomina).where(
-        Nomina.id == nomina_id,
-        Nomina.tenant_id == tenant_id
-    )
+
+    stmt = select(Nomina).where(Nomina.id == nomina_id, Nomina.tenant_id == tenant_id)
     nomina = db.execute(stmt).scalar_one_or_none()
-    
+
     if not nomina:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Nómina no encontrada"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nómina no encontrada")
+
     return NominaResponse.from_orm(nomina)
 
 
@@ -878,42 +834,33 @@ async def update_nomina(
 ):
     """Actualiza una nómina (solo si está en DRAFT)"""
     tenant_id = claims["tenant_id"]
-    
-    stmt = select(Nomina).where(
-        Nomina.id == nomina_id,
-        Nomina.tenant_id == tenant_id
-    )
+
+    stmt = select(Nomina).where(Nomina.id == nomina_id, Nomina.tenant_id == tenant_id)
     nomina = db.execute(stmt).scalar_one_or_none()
-    
+
     if not nomina:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Nómina no encontrada"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nómina no encontrada")
+
     if nomina.status != "DRAFT":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Solo se pueden editar nóminas en estado DRAFT"
+            detail="Solo se pueden editar nóminas en estado DRAFT",
         )
-    
+
     update_data = data.dict(exclude_unset=True)
     for key, value in update_data.items():
         setattr(nomina, key, value)
-    
+
     # Recalcular totales
     nomina.total_devengado = (
-        nomina.salario_base + nomina.complementos + 
-        nomina.horas_extra + nomina.otros_devengos
+        nomina.salario_base + nomina.complementos + nomina.horas_extra + nomina.otros_devengos
     )
-    nomina.total_deducido = (
-        nomina.seg_social + nomina.irpf + nomina.otras_deducciones
-    )
+    nomina.total_deducido = nomina.seg_social + nomina.irpf + nomina.otras_deducciones
     nomina.liquido_total = nomina.total_devengado - nomina.total_deducido
-    
+
     db.commit()
     db.refresh(nomina)
-    
+
     return NominaResponse.from_orm(nomina)
 
 
@@ -929,25 +876,19 @@ async def delete_nomina(
 ):
     """Elimina una nómina (solo si está en DRAFT)"""
     tenant_id = claims["tenant_id"]
-    
-    stmt = select(Nomina).where(
-        Nomina.id == nomina_id,
-        Nomina.tenant_id == tenant_id
-    )
+
+    stmt = select(Nomina).where(Nomina.id == nomina_id, Nomina.tenant_id == tenant_id)
     nomina = db.execute(stmt).scalar_one_or_none()
-    
+
     if not nomina:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Nómina no encontrada"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nómina no encontrada")
+
     if nomina.status != "DRAFT":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Solo se pueden eliminar nóminas en estado DRAFT"
+            detail="Solo se pueden eliminar nóminas en estado DRAFT",
         )
-    
+
     db.delete(nomina)
     db.commit()
 
@@ -966,35 +907,29 @@ async def approve_nomina(
     """Aprueba una nómina (DRAFT → APPROVED)"""
     tenant_id = claims["tenant_id"]
     user_id = claims["user_id"]
-    
-    stmt = select(Nomina).where(
-        Nomina.id == nomina_id,
-        Nomina.tenant_id == tenant_id
-    )
+
+    stmt = select(Nomina).where(Nomina.id == nomina_id, Nomina.tenant_id == tenant_id)
     nomina = db.execute(stmt).scalar_one_or_none()
-    
+
     if not nomina:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Nómina no encontrada"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nómina no encontrada")
+
     if nomina.status != "DRAFT":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Solo se pueden aprobar nóminas en estado DRAFT"
+            detail="Solo se pueden aprobar nóminas en estado DRAFT",
         )
-    
+
     nomina.status = "APPROVED"
     nomina.approved_by = user_id
     nomina.approved_at = datetime.utcnow()
-    
+
     if data.notas:
         nomina.notas = (nomina.notas or "") + f"\n[APROBACIÓN] {data.notas}"
-    
+
     db.commit()
     db.refresh(nomina)
-    
+
     return NominaResponse.from_orm(nomina)
 
 
@@ -1011,35 +946,29 @@ async def pay_nomina(
 ):
     """Marca una nómina como pagada (APPROVED → PAID)"""
     tenant_id = claims["tenant_id"]
-    
-    stmt = select(Nomina).where(
-        Nomina.id == nomina_id,
-        Nomina.tenant_id == tenant_id
-    )
+
+    stmt = select(Nomina).where(Nomina.id == nomina_id, Nomina.tenant_id == tenant_id)
     nomina = db.execute(stmt).scalar_one_or_none()
-    
+
     if not nomina:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Nómina no encontrada"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nómina no encontrada")
+
     if nomina.status != "APPROVED":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Solo se pueden pagar nóminas en estado APPROVED"
+            detail="Solo se pueden pagar nóminas en estado APPROVED",
         )
-    
+
     nomina.status = "PAID"
     nomina.fecha_pago = data.fecha_pago
     nomina.metodo_pago = data.metodo_pago
-    
+
     if data.referencia_pago:
         nomina.notas = (nomina.notas or "") + f"\n[PAGO] Ref: {data.referencia_pago}"
-    
+
     db.commit()
     db.refresh(nomina)
-    
+
     return NominaResponse.from_orm(nomina)
 
 
@@ -1055,40 +984,34 @@ async def calculate_nomina(
 ):
     """
     Calculadora de nómina.
-    
+
     Calcula automáticamente devengos, deducciones y líquido total
     sin crear la nómina. Útil para planificación.
     """
     tenant_id = claims["tenant_id"]
-    
-    stmt = select(Empleado).where(
-        Empleado.id == data.empleado_id,
-        Empleado.tenant_id == tenant_id
-    )
+
+    stmt = select(Empleado).where(Empleado.id == data.empleado_id, Empleado.tenant_id == tenant_id)
     empleado = db.execute(stmt).scalar_one_or_none()
-    
+
     if not empleado:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Empleado no encontrado"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empleado no encontrado")
+
     salario_base = data.salario_base or empleado.salario_base or Decimal("0")
     complementos = data.complementos or Decimal("0")
     horas_extra = data.horas_extra or Decimal("0")
     otros_devengos = data.otros_devengos or Decimal("0")
-    
+
     nomina_dict = {
-        'salario_base': salario_base,
-        'complementos': complementos,
-        'horas_extra': horas_extra,
-        'otros_devengos': otros_devengos,
-        'otras_deducciones': Decimal("0"),
+        "salario_base": salario_base,
+        "complementos": complementos,
+        "horas_extra": horas_extra,
+        "otros_devengos": otros_devengos,
+        "otras_deducciones": Decimal("0"),
     }
-    
+
     country = "ES"  # TODO: obtener del tenant
     calcs = _calculate_totals(nomina_dict, data.conceptos or [], country)
-    
+
     return NominaCalculateResponse(
         empleado_id=data.empleado_id,
         periodo_mes=data.periodo_mes,
@@ -1098,16 +1021,16 @@ async def calculate_nomina(
         complementos=complementos,
         horas_extra=horas_extra,
         otros_devengos=otros_devengos,
-        total_devengado=calcs['total_devengado'],
-        seg_social=calcs['seg_social'],
-        seg_social_rate=calcs['seg_social_rate'],
-        irpf=calcs['irpf'],
-        irpf_rate=calcs['irpf_rate'],
+        total_devengado=calcs["total_devengado"],
+        seg_social=calcs["seg_social"],
+        seg_social_rate=calcs["seg_social_rate"],
+        irpf=calcs["irpf"],
+        irpf_rate=calcs["irpf_rate"],
         otras_deducciones=Decimal("0"),
-        total_deducido=calcs['total_deducido'],
-        liquido_total=calcs['liquido_total'],
-        base_cotizacion=calcs['base_cotizacion'],
-        base_irpf=calcs['base_cotizacion'],
+        total_deducido=calcs["total_deducido"],
+        liquido_total=calcs["liquido_total"],
+        base_cotizacion=calcs["base_cotizacion"],
+        base_irpf=calcs["base_cotizacion"],
         conceptos_detalle=[c.dict() for c in (data.conceptos or [])],
         empleado_nombre=f"{empleado.nombre} {empleado.apellidos or ''}".strip(),
         empleado_cargo=empleado.cargo,
@@ -1120,83 +1043,69 @@ async def calculate_nomina(
     summary="Estadísticas de nóminas",
 )
 async def get_nominas_stats(
-    periodo_mes: Optional[int] = Query(None, ge=1, le=12),
-    periodo_ano: Optional[int] = Query(None, ge=2020, le=2100),
+    periodo_mes: int | None = Query(None, ge=1, le=12),
+    periodo_ano: int | None = Query(None, ge=2020, le=2100),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
     """
     Estadísticas de nóminas.
-    
+
     Si no se especifica período, usa el mes/año actual.
     """
     tenant_id = claims["tenant_id"]
-    
+
     now = datetime.utcnow()
     mes = periodo_mes or now.month
     ano = periodo_ano or now.year
-    
+
     stmt = select(Nomina).where(
-        Nomina.tenant_id == tenant_id,
-        Nomina.periodo_mes == mes,
-        Nomina.periodo_ano == ano
+        Nomina.tenant_id == tenant_id, Nomina.periodo_mes == mes, Nomina.periodo_ano == ano
     )
-    
+
     total_draft = db.execute(
-        select(func.count()).select_from(
-            stmt.where(Nomina.status == "DRAFT").subquery()
-        )
+        select(func.count()).select_from(stmt.where(Nomina.status == "DRAFT").subquery())
     ).scalar_one()
-    
+
     total_approved = db.execute(
-        select(func.count()).select_from(
-            stmt.where(Nomina.status == "APPROVED").subquery()
-        )
+        select(func.count()).select_from(stmt.where(Nomina.status == "APPROVED").subquery())
     ).scalar_one()
-    
+
     total_paid = db.execute(
-        select(func.count()).select_from(
-            stmt.where(Nomina.status == "PAID").subquery()
-        )
+        select(func.count()).select_from(stmt.where(Nomina.status == "PAID").subquery())
     ).scalar_one()
-    
+
     total_cancelled = db.execute(
-        select(func.count()).select_from(
-            stmt.where(Nomina.status == "CANCELLED").subquery()
-        )
+        select(func.count()).select_from(stmt.where(Nomina.status == "CANCELLED").subquery())
     ).scalar_one()
-    
+
     result = db.execute(
         select(
             func.sum(Nomina.total_devengado),
             func.sum(Nomina.total_deducido),
             func.sum(Nomina.liquido_total),
-            func.avg(Nomina.liquido_total)
+            func.avg(Nomina.liquido_total),
         ).select_from(stmt.subquery())
     ).one()
-    
+
     total_devengado_mes = result[0] or Decimal("0")
     total_deducido_mes = result[1] or Decimal("0")
     total_liquido_mes = result[2] or Decimal("0")
     promedio_liquido = result[3] or Decimal("0")
-    
-    total_nominas = db.execute(
-        select(func.count()).select_from(stmt.subquery())
-    ).scalar_one()
-    
+
+    total_nominas = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+
     total_empleados = db.execute(
         select(func.count(func.distinct(Nomina.empleado_id))).select_from(stmt.subquery())
     ).scalar_one()
-    
+
     nominas_por_tipo = {}
-    for tipo in ['MENSUAL', 'EXTRA', 'FINIQUITO', 'ESPECIAL']:
+    for tipo in ["MENSUAL", "EXTRA", "FINIQUITO", "ESPECIAL"]:
         count = db.execute(
-            select(func.count()).select_from(
-                stmt.where(Nomina.tipo == tipo).subquery()
-            )
+            select(func.count()).select_from(stmt.where(Nomina.tipo == tipo).subquery())
         ).scalar_one()
         nominas_por_tipo[tipo] = count
-    
+
     return NominaStats(
         total_draft=total_draft,
         total_approved=total_approved,

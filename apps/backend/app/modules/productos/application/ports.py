@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import Protocol, Optional, Sequence
+from collections.abc import Sequence
+from typing import Protocol
 
 from app.modules.productos.domain.entities import Producto
 
 
 class ProductoRepo(Protocol):
-    def get(self, id: int) -> Optional[Producto]: ...
+    def get(self, id: int) -> Producto | None: ...
 
     def list(self, *, tenant_id: int) -> Sequence[Producto]: ...
 

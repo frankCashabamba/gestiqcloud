@@ -1,5 +1,6 @@
 # app/api/v1e/profile.py
 from fastapi import APIRouter, Depends, Request
+
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls

@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from uuid import UUID
 
 
 @dataclass
 class TipoEmpresaIn:
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     active: bool = True
 
 
 @dataclass
 class TipoEmpresaOut:
-    id: int
+    id: UUID
     name: str
-    description: Optional[str]
+    description: str | None
     active: bool

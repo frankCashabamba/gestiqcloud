@@ -4,14 +4,21 @@ CRM Database Models
 
 import uuid
 from datetime import datetime
-from typing import Optional
-from sqlalchemy import String, Numeric, Text, ForeignKey, Enum as SAEnum, JSON
-from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
+
+from sqlalchemy import JSON
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy import ForeignKey, Numeric, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
 from app.modules.crm.domain.entities import (
-    LeadStatus, LeadSource, OpportunityStage, ActivityType, ActivityStatus
+    ActivityStatus,
+    ActivityType,
+    LeadSource,
+    LeadStatus,
+    OpportunityStage,
 )
 
 JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
@@ -27,41 +34,39 @@ class Lead(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True
     )
-    
+
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    company: Mapped[Optional[str]] = mapped_column(String(200))
+    company: Mapped[str | None] = mapped_column(String(200))
     email: Mapped[str] = mapped_column(String(200), nullable=False)
-    phone: Mapped[Optional[str]] = mapped_column(String(50))
-    
+    phone: Mapped[str | None] = mapped_column(String(50))
+
     status: Mapped[LeadStatus] = mapped_column(
         SAEnum(LeadStatus), nullable=False, default=LeadStatus.NEW, index=True
     )
     source: Mapped[LeadSource] = mapped_column(
         SAEnum(LeadSource), nullable=False, default=LeadSource.OTHER
     )
-    
-    assigned_to: Mapped[Optional[uuid.UUID]] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("usuarios_usuarioempresa.id"), nullable=True
+
+    assigned_to: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("company_users.id"), nullable=True
     )
-    
-    score: Mapped[Optional[int]] = mapped_column(nullable=True)
-    notes: Mapped[Optional[str]] = mapped_column(Text)
-    custom_fields: Mapped[Optional[dict]] = mapped_column(JSON_TYPE, nullable=True)
-    
-    converted_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    opportunity_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        PGUUID(as_uuid=True), nullable=True
-    )
-    
+
+    score: Mapped[int | None] = mapped_column(nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text)
+    custom_fields: Mapped[dict | None] = mapped_column(JSON_TYPE, nullable=True)
+
+    converted_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    opportunity_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         nullable=False, default=datetime.utcnow, index=True
     )
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
-    
+
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
-    assigned_user = relationship("UsuarioEmpresa", foreign_keys=[assigned_to])
+    assigned_user = relationship("CompanyUser", foreign_keys=[assigned_to])
 
 
 class Opportunity(Base):
@@ -74,45 +79,45 @@ class Opportunity(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True
     )
-    
-    lead_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+
+    lead_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("crm_leads.id"), nullable=True
     )
-    customer_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    customer_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("clients.id"), nullable=True
     )
-    
+
     title: Mapped[str] = mapped_column(String(300), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text)
-    
+    description: Mapped[str | None] = mapped_column(Text)
+
     value: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="EUR")
     probability: Mapped[int] = mapped_column(nullable=False, default=50)
-    
+
     stage: Mapped[OpportunityStage] = mapped_column(
         SAEnum(OpportunityStage), nullable=False, default=OpportunityStage.QUALIFICATION, index=True
     )
-    
-    expected_close_date: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    actual_close_date: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    
-    assigned_to: Mapped[Optional[uuid.UUID]] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("usuarios_usuarioempresa.id"), nullable=True
+
+    expected_close_date: Mapped[datetime | None] = mapped_column(nullable=True)
+    actual_close_date: Mapped[datetime | None] = mapped_column(nullable=True)
+
+    assigned_to: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("company_users.id"), nullable=True
     )
-    lost_reason: Mapped[Optional[str]] = mapped_column(Text)
-    custom_fields: Mapped[Optional[dict]] = mapped_column(JSON_TYPE, nullable=True)
-    
+    lost_reason: Mapped[str | None] = mapped_column(Text)
+    custom_fields: Mapped[dict | None] = mapped_column(JSON_TYPE, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         nullable=False, default=datetime.utcnow, index=True
     )
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
-    
+
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
     lead = relationship("Lead", foreign_keys=[lead_id])
-    customer = relationship("Cliente", foreign_keys=[customer_id])
-    assigned_user = relationship("UsuarioEmpresa", foreign_keys=[assigned_to])
+    customer = relationship("Client", foreign_keys=[customer_id])
+    assigned_user = relationship("CompanyUser", foreign_keys=[assigned_to])
 
 
 class Activity(Base):
@@ -125,47 +130,47 @@ class Activity(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True
     )
-    
-    lead_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+
+    lead_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("crm_leads.id"), nullable=True, index=True
     )
-    opportunity_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    opportunity_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("crm_opportunities.id"), nullable=True, index=True
     )
-    customer_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    customer_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("clients.id"), nullable=True, index=True
     )
-    
+
     type: Mapped[ActivityType] = mapped_column(
         SAEnum(ActivityType), nullable=False, default=ActivityType.NOTE
     )
     subject: Mapped[str] = mapped_column(String(300), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text)
-    
+    description: Mapped[str | None] = mapped_column(Text)
+
     status: Mapped[ActivityStatus] = mapped_column(
         SAEnum(ActivityStatus), nullable=False, default=ActivityStatus.PENDING
     )
-    
-    due_date: Mapped[Optional[datetime]] = mapped_column(nullable=True, index=True)
-    completed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    
-    assigned_to: Mapped[Optional[uuid.UUID]] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("usuarios_usuarioempresa.id"), nullable=True
+
+    due_date: Mapped[datetime | None] = mapped_column(nullable=True, index=True)
+    completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+    assigned_to: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("company_users.id"), nullable=True
     )
     created_by: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("usuarios_usuarioempresa.id"), nullable=False
+        PGUUID(as_uuid=True), ForeignKey("company_users.id"), nullable=False
     )
-    
+
     created_at: Mapped[datetime] = mapped_column(
         nullable=False, default=datetime.utcnow, index=True
     )
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
-    
+
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
     lead = relationship("Lead", foreign_keys=[lead_id])
     opportunity = relationship("Opportunity", foreign_keys=[opportunity_id])
-    customer = relationship("Cliente", foreign_keys=[customer_id])
-    assigned_user = relationship("UsuarioEmpresa", foreign_keys=[assigned_to])
-    creator = relationship("UsuarioEmpresa", foreign_keys=[created_by])
+    customer = relationship("Client", foreign_keys=[customer_id])
+    assigned_user = relationship("CompanyUser", foreign_keys=[assigned_to])
+    creator = relationship("CompanyUser", foreign_keys=[created_by])

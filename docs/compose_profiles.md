@@ -24,4 +24,3 @@ Usage
 Env
 - Root .env (for compose interpolation): see .env.example
 - Backend specific env: apps/backend/.env.example
-

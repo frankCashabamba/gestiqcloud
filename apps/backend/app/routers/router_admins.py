@@ -1,8 +1,6 @@
-﻿"""Module: router_admins.py
+"""Module: router_admins.py
 
 Auto-generated module docstring."""
-
-from typing import List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -15,12 +13,10 @@ from app.modules.usuarios.infrastructure.schemas import UsuarioEmpresaOut
 router = APIRouter()
 
 
-@router.get("/api/admins-empresa", response_model=List[UsuarioEmpresaOut])
+@router.get("/api/admins-empresa", response_model=list[UsuarioEmpresaOut])
 def listar_admins_empresa(db: Session = Depends(get_db)):
     """Function listar_admins_empresa - auto-generated docstring."""
-    return (
-        db.query(UsuarioEmpresa).filter(UsuarioEmpresa.es_admin_empresa).all()
-    )
+    return db.query(UsuarioEmpresa).filter(UsuarioEmpresa.es_admin_empresa).all()
 
 
 @router.post("/api/usuarios/{usuario_id}/activar")
@@ -64,9 +60,7 @@ def reenviar_reset(
 @router.post("/api/empresas/{tenant_id}/reasignar-admin")
 def reasignar_admin(tenant_id: str, nuevo_admin_id: int, db: Session = Depends(get_db)):
     """Function reasignar_admin - auto-generated docstring."""
-    usuarios = (
-        db.query(UsuarioEmpresa).filter(UsuarioEmpresa.tenant_id == tenant_id).all()
-    )
+    usuarios = db.query(UsuarioEmpresa).filter(UsuarioEmpresa.tenant_id == tenant_id).all()
 
     if not usuarios:
         raise HTTPException(status_code=404, detail="No hay usuarios en esta empresa")

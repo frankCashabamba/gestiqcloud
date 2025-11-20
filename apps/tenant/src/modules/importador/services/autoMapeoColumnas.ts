@@ -12,4 +12,3 @@ export function autoMapeoColumnas(headers: string[], alias: Record<string, strin
   }
   return result
 }
-

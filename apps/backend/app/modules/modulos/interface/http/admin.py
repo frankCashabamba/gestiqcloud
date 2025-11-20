@@ -12,7 +12,7 @@ from app.config.database import get_db
 from app.config.settings import settings
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.models.core.modulo import EmpresaModulo, Modulo
+from app.models.core.modulo import CompanyModule, Module
 from app.modules import crud as mod_crud
 from app.modules import schemas as mod_schemas
 from app.modules import services as mod_services
@@ -274,7 +274,7 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
                 ignorados.append(carpeta)
                 continue
             name = carpeta.lower()
-            existente = db.query(Modulo).filter_by(name=name).first()
+            existente = db.query(Module).filter_by(name=name).first()
             if existente:
                 if reactivate_existing:
                     # Intentar leer manifest (si existe) para actualizar campos básicos
@@ -282,7 +282,7 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
                     manifest: dict | None = None
                     if os.path.exists(manifest_path):
                         try:
-                            with open(manifest_path, "r", encoding="utf-8") as fh:
+                            with open(manifest_path, encoding="utf-8") as fh:
                                 manifest = json.load(fh)
                         except Exception as me:
                             errores.append({"modulo": name, "error": f"manifest invalido: {me}"})
@@ -333,7 +333,7 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
             manifest: dict | None = None
             if os.path.exists(manifest_path):
                 try:
-                    with open(manifest_path, "r", encoding="utf-8") as fh:
+                    with open(manifest_path, encoding="utf-8") as fh:
                         manifest = json.load(fh)
                 except Exception as me:
                     errores.append({"modulo": name, "error": f"manifest invalido: {me}"})
@@ -355,9 +355,7 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
                 "icono": (manifest.get("icono") if manifest else None),
                 # Mantener compatibilidad con manifests antiguos (activo) y nuevos (active)
                 "active": (
-                    manifest.get("active", manifest.get("activo", True))
-                    if manifest
-                    else True
+                    manifest.get("active", manifest.get("activo", True)) if manifest else True
                 ),
                 "plantilla_inicial": (
                     manifest.get("plantilla_inicial", plantilla_detectada or name)
@@ -431,7 +429,7 @@ def upsert_modulo_empresa(
 @router.delete("/empresa/{tenant_id}/modulo/{modulo_id}")
 def eliminar_modulo_de_empresa(tenant_id: str, modulo_id: int, db: Session = Depends(get_db)):
     empresa_modulo = (
-        db.query(EmpresaModulo).filter_by(tenant_id=tenant_id, modulo_id=modulo_id).first()
+        db.query(CompanyModule).filter_by(tenant_id=tenant_id, module_id=modulo_id).first()
     )
     if not empresa_modulo:
         raise HTTPException(status_code=404, detail="Asignación no encontrada")

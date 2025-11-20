@@ -1,13 +1,9 @@
-﻿from datetime import datetime
-from typing import Dict, Any
+from datetime import datetime
+from typing import Any
+
 from sqlalchemy.orm import Session
 
-from app.models.ai.incident import (
-    NotificationChannel,
-    NotificationLog,
-    StockAlert,
-    Incident,
-)
+from app.models.ai.incident import Incident, NotificationChannel, NotificationLog, StockAlert
 
 
 async def send_notification(
@@ -15,7 +11,7 @@ async def send_notification(
     alert: StockAlert = None,
     incident: Incident = None,
     db: Session = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Envía notificación a través del canal configurado
 
@@ -104,7 +100,7 @@ async def send_notification(
 
 async def _send_email(
     channel: NotificationChannel, recipient: str, subject: str, body: str
-) -> Dict:
+) -> dict:
     """Envía email via SMTP"""
     config = channel.config
     smtp_host = config.get("smtp_host")
@@ -119,8 +115,9 @@ async def _send_email(
 
     # Implementación real con aiosmtplib
     try:
-        import aiosmtplib
         from email.message import EmailMessage
+
+        import aiosmtplib
 
         message = EmailMessage()
         message["From"] = from_email
@@ -149,9 +146,7 @@ async def _send_email(
         }
 
 
-async def _send_whatsapp(
-    channel: NotificationChannel, recipient: str, body: str
-) -> Dict:
+async def _send_whatsapp(channel: NotificationChannel, recipient: str, body: str) -> dict:
     """Envía WhatsApp via API (ej. Twilio, WhatsApp Business API)"""
     config = channel.config
     api_key = config.get("api_key")
@@ -169,9 +164,7 @@ async def _send_whatsapp(
     }
 
 
-async def _send_telegram(
-    channel: NotificationChannel, recipient: str, body: str
-) -> Dict:
+async def _send_telegram(channel: NotificationChannel, recipient: str, body: str) -> dict:
     """Envía mensaje a Telegram via Bot API"""
     config = channel.config
     bot_token = config.get("bot_token")
@@ -201,7 +194,7 @@ async def _send_telegram(
         raise Exception(f"Error enviando Telegram: {str(e)}")
 
 
-async def _send_slack(channel: NotificationChannel, subject: str, body: str) -> Dict:
+async def _send_slack(channel: NotificationChannel, subject: str, body: str) -> dict:
     """Envía mensaje a Slack via Webhook"""
     config = channel.config
     webhook_url = config.get("webhook_url")

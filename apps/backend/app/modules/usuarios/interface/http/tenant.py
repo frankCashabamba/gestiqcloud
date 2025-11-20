@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlalchemy.orm import Session
-from typing import List
 from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
@@ -15,7 +16,6 @@ from app.modules.usuarios.infrastructure.schemas import (
     UsuarioEmpresaOut,
     UsuarioEmpresaUpdate,
 )
-from pydantic import BaseModel, Field
 
 router = APIRouter(
     prefix="/tenant/usuarios",
@@ -47,7 +47,7 @@ class SetPasswordIn(BaseModel):
     password: str = Field(min_length=8)
 
 
-@router.get("", response_model=List[UsuarioEmpresaOut])
+@router.get("", response_model=list[UsuarioEmpresaOut])
 def listar_usuarios(
     request: Request,
     db: Session = Depends(get_db),
@@ -115,7 +115,7 @@ def desactivar_usuario(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/modulos", response_model=List[ModuloOption])
+@router.get("/modulos", response_model=list[ModuloOption])
 def listar_modulos_empresa(
     request: Request,
     db: Session = Depends(get_db),
@@ -125,7 +125,7 @@ def listar_modulos_empresa(
     return services.listar_modulos_empresa(db, tenant_id)
 
 
-@router.get("/roles", response_model=List[RolEmpresaOption])
+@router.get("/roles", response_model=list[RolEmpresaOption])
 def listar_roles_empresa(
     request: Request,
     db: Session = Depends(get_db),

@@ -77,7 +77,7 @@ export function ProductosImportPage() {
     if (!file) return;
 
     setSelectedFile(file);
-    
+
     try {
       // 🔍 ANÁLISIS AUTOMÁTICO
       await analyzeFile(file);
@@ -95,7 +95,7 @@ export function ProductosImportPage() {
       // 💾 CREAR BATCH E INGERIR CON MAPEO
       const formData = new FormData();
       formData.append('file', selectedFile);
-      
+
       const createResp = await fetch('/api/v1/imports/batches', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -118,10 +118,10 @@ export function ProductosImportPage() {
       toast.success(`✅ ${preview?.stats.total || 0} productos importados`);
       clearPreview();
       setSelectedFile(null);
-      
+
       // Refrescar lista de productos
       // ... tu lógica de refresh ...
-      
+
     } catch (err) {
       toast.error('Error al importar productos');
       console.error(err);

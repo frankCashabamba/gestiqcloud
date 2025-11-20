@@ -354,4 +354,3 @@ function CanalesNotificacion() {
     </div>
   )
 }
-

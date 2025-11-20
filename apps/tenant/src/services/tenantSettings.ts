@@ -80,7 +80,7 @@ export function clearSettingsCache() {
 export function formatCurrency(amount: number, settings?: TenantSettings): string {
   const currency = settings?.currency || 'USD'
   const locale = settings?.locale || 'es-EC'
-  
+
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: currency,
@@ -92,7 +92,7 @@ export function formatCurrency(amount: number, settings?: TenantSettings): strin
 // Helper para obtener símbolo de moneda
 export function getCurrencySymbol(settings?: TenantSettings): string {
   const currency = settings?.currency || 'USD'
-  
+
   const symbols: Record<string, string> = {
     'USD': '$',
     'EUR': '€',
@@ -100,7 +100,7 @@ export function getCurrencySymbol(settings?: TenantSettings): string {
     'PEN': 'S/',
     'MXN': '$'
   }
-  
+
   return symbols[currency] || currency
 }
 

@@ -1,8 +1,8 @@
 # 📊 RESUMEN EJECUTIVO - AUDITORÍA TÉCNICA GESTIQCLOUD
 
-**Fecha**: 2025-11-06  
-**Proyecto**: GestiQCloud (ERP/CRM Multi-Tenant)  
-**Stack**: FastAPI + React + PostgreSQL  
+**Fecha**: 2025-11-06
+**Proyecto**: GestiQCloud (ERP/CRM Multi-Tenant)
+**Stack**: FastAPI + React + PostgreSQL
 **Alcance**: Backend, Frontend (Tenant + Admin), Infraestructura
 
 ---
@@ -225,18 +225,18 @@ npm run build
 
 ## 🎉 CONCLUSIÓN
 
-**Estado actual**: Proyecto funcional en producción con deuda técnica moderada.  
-**Riesgo principal**: Seguridad (XSS via localStorage, brute-force en login).  
-**Oportunidad**: Quick wins implementados hoy reducen riesgo inmediatamente.  
+**Estado actual**: Proyecto funcional en producción con deuda técnica moderada.
+**Riesgo principal**: Seguridad (XSS via localStorage, brute-force en login).
+**Oportunidad**: Quick wins implementados hoy reducen riesgo inmediatamente.
 
 **Recomendación**: Priorizar tareas críticas (JWT + tests) en próximo sprint.
 
-**Puntuación actual** (tras mejoras implementadas):  
+**Puntuación actual** (tras mejoras implementadas):
 - Backend: 70 → **78/100** ⬆️ (+8 puntos)
 - Frontend: 65 → **72/100** ⬆️ (+7 puntos)
 - Global: 67 → **75/100** ⬆️ (+8 puntos)
 
-**Puntuación proyectada** (tras completar tareas pendientes):  
+**Puntuación proyectada** (tras completar tareas pendientes):
 - Backend: 78 → **85/100** ✅
 - Frontend: 72 → **82/100** ✅
 - Global: 75 → **84/100** ✅
@@ -273,7 +273,7 @@ npm run build
 
 ---
 
-**Auditoría realizada**: 2025-11-06  
-**Implementación completada**: 2025-11-06  
-**Auditor**: Sistema Automatizado de Análisis Técnico  
+**Auditoría realizada**: 2025-11-06
+**Implementación completada**: 2025-11-06
+**Auditor**: Sistema Automatizado de Análisis Técnico
 **Versión**: 2.0 (con mejoras implementadas)

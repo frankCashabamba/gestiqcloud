@@ -11,4 +11,3 @@ export function PermisoGuard({ permiso, permisos, fallback = null, children }: P
   if (!permisos?.[permiso]) return <>{fallback}</>
   return <>{children}</>
 }
-

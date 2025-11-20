@@ -1,10 +1,9 @@
-﻿"""Modelos de RRHH"""
+"""Modelos de RRHH"""
 
 import uuid
 from datetime import date, datetime
-from typing import Optional, List
 
-from sqlalchemy import Date, String, Numeric, ForeignKey, Boolean, Integer
+from sqlalchemy import Boolean, Date, ForeignKey, Integer, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -12,10 +11,10 @@ from app.config.database import Base
 from app.models.auth.useradmis import SuperUser
 
 
-class Empleado(Base):
-    """Empleado"""
+class Employee(Base):
+    """Employee model"""
 
-    __tablename__ = "empleados"
+    __tablename__ = "employees"
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -27,48 +26,43 @@ class Empleado(Base):
         nullable=False,
         index=True,
     )
-    usuario_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("auth_user.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
-    codigo: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    nombre: Mapped[str] = mapped_column(String(255), nullable=False)
-    apellidos: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    documento: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    fecha_nacimiento: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    fecha_alta: Mapped[date] = mapped_column(Date, nullable=False, default=date.today)
-    fecha_baja: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    cargo: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    departamento: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    salario_base: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
-    activo: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, index=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow
-    )
+    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    first_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    last_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    document: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    birth_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
+    hire_date: Mapped[date] = mapped_column(Date(), nullable=False, default=date.today)
+    termination_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
+    position: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    department: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    base_salary: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
     # Relationships
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
-    # Vincular al modelo de usuario administrativo correcto
-    usuario = relationship(SuperUser, foreign_keys=[usuario_id])
-    vacaciones: Mapped[List["Vacacion"]] = relationship(
-        "Vacacion", back_populates="empleado", cascade="all, delete-orphan"
+    user = relationship(SuperUser, foreign_keys=[user_id])
+    vacations: Mapped[list["Vacation"]] = relationship(
+        "Vacation", back_populates="employee", cascade="all, delete-orphan"
     )
 
     def __repr__(self):
-        return f"<Empleado {self.name} {self.apellidos}>"
+        return f"<Employee {self.first_name} {self.last_name}>"
 
 
-class Vacacion(Base):
-    """Solicitud de vacaciones"""
+class Vacation(Base):
+    """Vacation request model"""
 
-    __tablename__ = "vacaciones"
+    __tablename__ = "vacations"
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -80,36 +74,31 @@ class Vacacion(Base):
         nullable=False,
         index=True,
     )
-    empleado_id: Mapped[uuid.UUID] = mapped_column(
+    employee_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("empleados.id", ondelete="CASCADE"),
+        ForeignKey("employees.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    fecha_inicio: Mapped[date] = mapped_column(Date, nullable=False)
-    fecha_fin: Mapped[date] = mapped_column(Date, nullable=False)
-    dias: Mapped[int] = mapped_column(Integer, nullable=False)
-    estado: Mapped[str] = mapped_column(
+    start_date: Mapped[date] = mapped_column(Date(), nullable=False)
+    end_date: Mapped[date] = mapped_column(Date(), nullable=False)
+    days: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default="solicitada",
+        default="requested",
         index=True,
-        # solicitada, aprobada, rechazada
     )
-    aprobado_por: Mapped[Optional[uuid.UUID]] = mapped_column(
-        PGUUID(as_uuid=True), nullable=True
-    )
-    notas: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow
-    )
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    notes: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
     # Relationships
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
-    empleado: Mapped["Empleado"] = relationship("Empleado", back_populates="vacaciones")
+    employee: Mapped["Employee"] = relationship("Employee", back_populates="vacations")
 
     def __repr__(self):
-        return f"<Vacacion {self.empleado_id} - {self.dias} días>"
+        return f"<Vacation {self.employee_id} - {self.days} days>"

@@ -15,41 +15,30 @@ MIGRADO DE:
 - app/routers/accounting.py
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from uuid import UUID
-from typing import List, Optional
-from datetime import datetime, date
+from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy.orm import Session
-from sqlalchemy import select, func, and_, or_
 from math import ceil
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
-
-from app.models.accounting.plan_cuentas import PlanCuentas, AsientoContable, AsientoLinea
+from app.models.accounting.plan_cuentas import AsientoContable, AsientoLinea, PlanCuentas
 from app.schemas.accounting import (
-    PlanCuentasCreate,
-    PlanCuentasUpdate,
-    PlanCuentasResponse,
-    PlanCuentasList,
-    PlanCuentasTree,
     AsientoContableCreate,
-    AsientoContableUpdate,
-    AsientoContableResponse,
     AsientoContableList,
-    AsientoLineaResponse,
-    CuentaMayorResponse,
-    CuentaMayorItem,
-    BalanceResponse,
-    BalanceItem,
-    PerdidasGananciasResponse,
-    PyGItem,
-    AccountingStats,
+    AsientoContableResponse,
+    AsientoContableUpdate,
+    PlanCuentasCreate,
+    PlanCuentasList,
+    PlanCuentasResponse,
+    PlanCuentasUpdate,
 )
-
 
 router = APIRouter(
     prefix="/accounting",
@@ -66,15 +55,17 @@ router = APIRouter(
 def _generate_numero_asiento(db: Session, tenant_id: UUID, ano: int) -> str:
     """Genera número único de asiento: ASI-YYYY-NNNN"""
     prefix = f"ASI-{ano}-"
-    stmt = select(AsientoContable).where(
-        AsientoContable.tenant_id == tenant_id,
-        AsientoContable.numero.like(f"{prefix}%")
-    ).order_by(AsientoContable.numero.desc()).limit(1)
+    stmt = (
+        select(AsientoContable)
+        .where(AsientoContable.tenant_id == tenant_id, AsientoContable.numero.like(f"{prefix}%"))
+        .order_by(AsientoContable.numero.desc())
+        .limit(1)
+    )
     result = db.execute(stmt)
     last_asiento = result.scalar_one_or_none()
     if last_asiento and last_asiento.numero:
         try:
-            last_num = int(last_asiento.numero.split('-')[-1])
+            last_num = int(last_asiento.numero.split("-")[-1])
             next_num = last_num + 1
         except (ValueError, IndexError):
             next_num = 1
@@ -89,12 +80,10 @@ def _recalcular_saldos_cuenta(db: Session, cuenta_id: UUID):
     cuenta = db.execute(stmt).scalar_one_or_none()
     if not cuenta:
         return
-    stmt = select(
-        func.sum(AsientoLinea.debe),
-        func.sum(AsientoLinea.haber)
-    ).join(AsientoContable).where(
-        AsientoLinea.cuenta_id == cuenta_id,
-        AsientoContable.status == "CONTABILIZADO"
+    stmt = (
+        select(func.sum(AsientoLinea.debe), func.sum(AsientoLinea.haber))
+        .join(AsientoContable)
+        .where(AsientoLinea.cuenta_id == cuenta_id, AsientoContable.status == "CONTABILIZADO")
     )
     result = db.execute(stmt).one()
     debe = result[0] or Decimal("0")
@@ -106,11 +95,11 @@ def _recalcular_saldos_cuenta(db: Session, cuenta_id: UUID):
 
 @router.get("/plan-cuentas", response_model=PlanCuentasList)
 async def list_cuentas(
-    nivel: Optional[int] = Query(None, ge=1, le=4),
-    tipo: Optional[str] = Query(None, regex="^(ACTIVO|PASIVO|PATRIMONIO|INGRESO|GASTO)$"),
-    activo: Optional[bool] = None,
-    imputable: Optional[bool] = None,
-    buscar: Optional[str] = Query(None, description="Buscar en código o nombre"),
+    nivel: int | None = Query(None, ge=1, le=4),
+    tipo: str | None = Query(None, regex="^(ACTIVO|PASIVO|PATRIMONIO|INGRESO|GASTO)$"),
+    activo: bool | None = None,
+    imputable: bool | None = None,
+    buscar: str | None = Query(None, description="Buscar en código o nombre"),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
@@ -126,23 +115,19 @@ async def list_cuentas(
         stmt = stmt.where(PlanCuentas.imputable == imputable)
     if buscar:
         stmt = stmt.where(
-            or_(
-                PlanCuentas.codigo.ilike(f"%{buscar}%"),
-                PlanCuentas.nombre.ilike(f"%{buscar}%")
-            )
+            or_(PlanCuentas.codigo.ilike(f"%{buscar}%"), PlanCuentas.nombre.ilike(f"%{buscar}%"))
         )
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = db.execute(count_stmt).scalar_one()
     stmt = stmt.order_by(PlanCuentas.codigo)
     result = db.execute(stmt)
     cuentas = result.scalars().all()
-    return PlanCuentasList(
-        items=[PlanCuentasResponse.from_orm(c) for c in cuentas],
-        total=total
-    )
+    return PlanCuentasList(items=[PlanCuentasResponse.from_orm(c) for c in cuentas], total=total)
 
 
-@router.post("/plan-cuentas", response_model=PlanCuentasResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/plan-cuentas", response_model=PlanCuentasResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_cuenta(
     data: PlanCuentasCreate,
     db: Session = Depends(get_db),
@@ -150,25 +135,22 @@ async def create_cuenta(
 ):
     tenant_id = claims["tenant_id"]
     stmt = select(PlanCuentas).where(
-        PlanCuentas.tenant_id == tenant_id,
-        PlanCuentas.codigo == data.codigo
+        PlanCuentas.tenant_id == tenant_id, PlanCuentas.codigo == data.codigo
     )
     existing = db.execute(stmt).scalar_one_or_none()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Ya existe una cuenta con código {data.codigo}"
+            detail=f"Ya existe una cuenta con código {data.codigo}",
         )
     if data.padre_id:
         stmt = select(PlanCuentas).where(
-            PlanCuentas.id == data.padre_id,
-            PlanCuentas.tenant_id == tenant_id
+            PlanCuentas.id == data.padre_id, PlanCuentas.tenant_id == tenant_id
         )
         padre = db.execute(stmt).scalar_one_or_none()
         if not padre:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Cuenta padre no encontrada"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Cuenta padre no encontrada"
             )
     cuenta = PlanCuentas(tenant_id=tenant_id, **data.dict())
     db.add(cuenta)
@@ -185,8 +167,7 @@ async def get_cuenta(
 ):
     tenant_id = claims["tenant_id"]
     stmt = select(PlanCuentas).where(
-        PlanCuentas.id == cuenta_id,
-        PlanCuentas.tenant_id == tenant_id
+        PlanCuentas.id == cuenta_id, PlanCuentas.tenant_id == tenant_id
     )
     cuenta = db.execute(stmt).scalar_one_or_none()
     if not cuenta:
@@ -203,8 +184,7 @@ async def update_cuenta(
 ):
     tenant_id = claims["tenant_id"]
     stmt = select(PlanCuentas).where(
-        PlanCuentas.id == cuenta_id,
-        PlanCuentas.tenant_id == tenant_id
+        PlanCuentas.id == cuenta_id, PlanCuentas.tenant_id == tenant_id
     )
     cuenta = db.execute(stmt).scalar_one_or_none()
     if not cuenta:
@@ -225,8 +205,7 @@ async def delete_cuenta(
 ):
     tenant_id = claims["tenant_id"]
     stmt = select(PlanCuentas).where(
-        PlanCuentas.id == cuenta_id,
-        PlanCuentas.tenant_id == tenant_id
+        PlanCuentas.id == cuenta_id, PlanCuentas.tenant_id == tenant_id
     )
     cuenta = db.execute(stmt).scalar_one_or_none()
     if not cuenta:
@@ -236,7 +215,7 @@ async def delete_cuenta(
     if count > 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No se puede eliminar la cuenta porque tiene {count} movimientos"
+            detail=f"No se puede eliminar la cuenta porque tiene {count} movimientos",
         )
     db.delete(cuenta)
     db.commit()
@@ -246,13 +225,14 @@ async def delete_cuenta(
 # ASIENTOS CONTABLES
 # ============================================================================
 
+
 @router.get("/asientos", response_model=AsientoContableList)
 async def list_asientos(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
-    fecha_desde: Optional[date] = None,
-    fecha_hasta: Optional[date] = None,
-    status: Optional[str] = Query(None, regex="^(BORRADOR|CONTABILIZADO)$"),
+    fecha_desde: date | None = None,
+    fecha_hasta: date | None = None,
+    status: str | None = Query(None, regex="^(BORRADOR|CONTABILIZADO)$"),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
@@ -278,9 +258,11 @@ async def list_asientos(
 
     # Load lineas for each asiento
     for asiento in asientos:
-        asiento.lineas = db.execute(
-            select(AsientoLinea).where(AsientoLinea.asiento_id == asiento.id)
-        ).scalars().all()
+        asiento.lineas = (
+            db.execute(select(AsientoLinea).where(AsientoLinea.asiento_id == asiento.id))
+            .scalars()
+            .all()
+        )
 
     return AsientoContableList(
         items=[AsientoContableResponse.from_orm(a) for a in asientos],
@@ -291,7 +273,9 @@ async def list_asientos(
     )
 
 
-@router.post("/asientos", response_model=AsientoContableResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/asientos", response_model=AsientoContableResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_asiento(
     data: AsientoContableCreate,
     db: Session = Depends(get_db),
@@ -304,8 +288,8 @@ async def create_asiento(
     numero = _generate_numero_asiento(db, tenant_id, data.fecha.year)
 
     # Calculate totals
-    debe_total = sum(l.debe for l in data.lineas)
-    haber_total = sum(l.haber for l in data.lineas)
+    debe_total = sum(linea.debe for linea in data.lineas)
+    haber_total = sum(linea.haber for linea in data.lineas)
 
     asiento = AsientoContable(
         tenant_id=tenant_id,
@@ -338,9 +322,11 @@ async def create_asiento(
 
     db.commit()
     db.refresh(asiento)
-    asiento.lineas = db.execute(
-        select(AsientoLinea).where(AsientoLinea.asiento_id == asiento.id)
-    ).scalars().all()
+    asiento.lineas = (
+        db.execute(select(AsientoLinea).where(AsientoLinea.asiento_id == asiento.id))
+        .scalars()
+        .all()
+    )
 
     return AsientoContableResponse.from_orm(asiento)
 
@@ -353,16 +339,17 @@ async def get_asiento(
 ):
     tenant_id = claims["tenant_id"]
     stmt = select(AsientoContable).where(
-        AsientoContable.id == asiento_id,
-        AsientoContable.tenant_id == tenant_id
+        AsientoContable.id == asiento_id, AsientoContable.tenant_id == tenant_id
     )
     asiento = db.execute(stmt).scalar_one_or_none()
     if not asiento:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asiento no encontrado")
 
-    asiento.lineas = db.execute(
-        select(AsientoLinea).where(AsientoLinea.asiento_id == asiento.id)
-    ).scalars().all()
+    asiento.lineas = (
+        db.execute(select(AsientoLinea).where(AsientoLinea.asiento_id == asiento.id))
+        .scalars()
+        .all()
+    )
 
     return AsientoContableResponse.from_orm(asiento)
 
@@ -376,8 +363,7 @@ async def update_asiento(
 ):
     tenant_id = claims["tenant_id"]
     stmt = select(AsientoContable).where(
-        AsientoContable.id == asiento_id,
-        AsientoContable.tenant_id == tenant_id
+        AsientoContable.id == asiento_id, AsientoContable.tenant_id == tenant_id
     )
     asiento = db.execute(stmt).scalar_one_or_none()
     if not asiento:
@@ -386,7 +372,7 @@ async def update_asiento(
     if asiento.status == "CONTABILIZADO":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No se puede modificar un asiento contabilizado"
+            detail="No se puede modificar un asiento contabilizado",
         )
 
     update_data = data.dict(exclude_unset=True)
@@ -395,9 +381,11 @@ async def update_asiento(
 
     db.commit()
     db.refresh(asiento)
-    asiento.lineas = db.execute(
-        select(AsientoLinea).where(AsientoLinea.asiento_id == asiento.id)
-    ).scalars().all()
+    asiento.lineas = (
+        db.execute(select(AsientoLinea).where(AsientoLinea.asiento_id == asiento.id))
+        .scalars()
+        .all()
+    )
 
     return AsientoContableResponse.from_orm(asiento)
 
@@ -412,15 +400,16 @@ async def contabilizar_asiento(
     user_id = claims.get("user_id")
 
     stmt = select(AsientoContable).where(
-        AsientoContable.id == asiento_id,
-        AsientoContable.tenant_id == tenant_id
+        AsientoContable.id == asiento_id, AsientoContable.tenant_id == tenant_id
     )
     asiento = db.execute(stmt).scalar_one_or_none()
     if not asiento:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asiento no encontrado")
 
     if asiento.status == "CONTABILIZADO":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Asiento ya contabilizado")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Asiento ya contabilizado"
+        )
 
     if not asiento.cuadrado:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Asiento no cuadrado")
@@ -430,9 +419,11 @@ async def contabilizar_asiento(
     asiento.contabilizado_at = datetime.now()
 
     # Update saldos de cuentas
-    lineas = db.execute(
-        select(AsientoLinea).where(AsientoLinea.asiento_id == asiento.id)
-    ).scalars().all()
+    lineas = (
+        db.execute(select(AsientoLinea).where(AsientoLinea.asiento_id == asiento.id))
+        .scalars()
+        .all()
+    )
 
     for linea in lineas:
         _recalcular_saldos_cuenta(db, linea.cuenta_id)
@@ -449,8 +440,8 @@ async def contabilizar_asiento(
 async def list_movimientos(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
-    fecha_desde: Optional[date] = None,
-    fecha_hasta: Optional[date] = None,
+    fecha_desde: date | None = None,
+    fecha_hasta: date | None = None,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):

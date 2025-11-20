@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
-import hashlib
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Any
 
 import openpyxl
 from celery import states
@@ -14,19 +14,18 @@ try:
 except Exception:  # pragma: no cover
     celery_app = None  # type: ignore
 
+from datetime import date, time
+from decimal import Decimal
+
 from app.config.database import session_scope
 from app.db.rls import set_tenant_guc
 from app.models.core.modelsimport import ImportBatch, ImportItem
-from app.services.excel_analyzer import (
-    detect_header_row,
-    extract_headers,
-)
+from app.modules.imports.application.tasks.task_import_file import _to_number
 from app.modules.imports.application.transform_dsl import apply_mapping_pipeline
-from decimal import Decimal
-from datetime import datetime, date, time
+from app.services.excel_analyzer import detect_header_row, extract_headers
 
 
-def _dedupe_hash(obj: Dict[str, Any]) -> str:
+def _dedupe_hash(obj: dict[str, Any]) -> str:
     s = json.dumps(obj, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(s).hexdigest()
 
@@ -45,7 +44,7 @@ def _file_path_from_key(file_key: str) -> str:
 def _to_serializable(val):
     """Convert Excel cell values to JSON-serializable primitives."""
     try:
-        if isinstance(val, (datetime, date, time)):
+        if isinstance(val, datetime | date | time):
             # Keep full precision for datetimes; date/time isoformat as well
             return val.isoformat()
         if isinstance(val, Decimal):
@@ -54,11 +53,11 @@ def _to_serializable(val):
         try:
             import numpy as np  # type: ignore
 
-            if isinstance(val, (np.integer,)):
+            if isinstance(val, np.integer):
                 return int(val)
-            if isinstance(val, (np.floating,)):
+            if isinstance(val, np.floating):
                 return float(val)
-            if isinstance(val, (np.bool_,)):
+            if isinstance(val, np.bool_):
                 return bool(val)
         except Exception:
             pass
@@ -72,7 +71,9 @@ def _to_serializable(val):
 
 
 @celery_app.task(name="imports.import_products_excel", bind=True)
-def import_products_excel(self, *, tenant_id: str, batch_id: str, file_key: str, source_type: str = "products"):
+def import_products_excel(
+    self, *, tenant_id: str, batch_id: str, file_key: str, source_type: str = "products"
+):
     """Stream-parse a large Excel and create ImportItems in batches.
 
     - Uses read_only openpyxl
@@ -84,7 +85,6 @@ def import_products_excel(self, *, tenant_id: str, batch_id: str, file_key: str,
     # Progress tracking
     processed = 0
     created = 0
-    failed = 0
     BATCH_SIZE = 1000
 
     with session_scope() as db:
@@ -116,7 +116,7 @@ def import_products_excel(self, *, tenant_id: str, batch_id: str, file_key: str,
 
         try:
             header_row = detect_header_row(ws)
-            headers: List[str] = extract_headers(ws, header_row)
+            headers: list[str] = extract_headers(ws, header_row)
             # Optional mapping for this batch
             map_cfg = None
             tf_cfg = None
@@ -139,16 +139,14 @@ def import_products_excel(self, *, tenant_id: str, batch_id: str, file_key: str,
             # Iterate rows after header
             row_iter = ws.iter_rows(min_row=header_row + 1, values_only=True)
 
-            idx_base = (
-                db.query(ImportItem).filter(ImportItem.batch_id == batch_id).count() or 0
-            )
+            idx_base = db.query(ImportItem).filter(ImportItem.batch_id == batch_id).count() or 0
             idx = idx_base
-            buffer: List[ImportItem] = []
+            buffer: list[ImportItem] = []
 
             for values in row_iter:
                 processed += 1
                 # Build dict row (raw)
-                row: Dict[str, Any] = {}
+                row: dict[str, Any] = {}
                 for i, header in enumerate(headers):
                     if i < len(values):
                         row[header] = _to_serializable(values[i])
@@ -156,7 +154,7 @@ def import_products_excel(self, *, tenant_id: str, batch_id: str, file_key: str,
                 if not any(v is not None and str(v).strip() != "" for v in row.values()):
                     continue
                 # Apply mapping/transforms/defaults if available
-                mapped: Dict[str, Any] | None = None
+                mapped: dict[str, Any] | None = None
                 if map_cfg or tf_cfg or df_cfg:
                     mapped = apply_mapping_pipeline(
                         headers,
@@ -167,12 +165,7 @@ def import_products_excel(self, *, tenant_id: str, batch_id: str, file_key: str,
                     )
                 # Normalization using mapped (preferred) or raw heuristics
                 if mapped is None:
-                    nombre = (
-                        row.get("nombre")
-                        or row.get("producto")
-                        or row.get("name")
-                        or ""
-                    )
+                    nombre = row.get("nombre") or row.get("producto") or row.get("name") or ""
                     precio = row.get("precio") or row.get("price") or 0
                     cantidad = row.get("cantidad") or row.get("qty") or row.get("stock") or 0
                     categoria = row.get("categoria") or row.get("category") or "SIN_CATEGORIA"
@@ -199,20 +192,16 @@ def import_products_excel(self, *, tenant_id: str, batch_id: str, file_key: str,
                 else:
                     # Build normalized from mapped with synonyms
                     nombre = (
-                        mapped.get("name")
-                        or mapped.get("nombre")
-                        or mapped.get("producto")
-                        or ""
+                        mapped.get("name") or mapped.get("nombre") or mapped.get("producto") or ""
                     )
                     precio_f = _to_number(mapped.get("price") or mapped.get("precio")) or 0.0
-                    cantidad_f = _to_number(
-                        mapped.get("stock")
-                        or mapped.get("cantidad")
-                        or mapped.get("quantity")
-                    ) or 0.0
-                    categoria = (
-                        mapped.get("category") or mapped.get("categoria") or "SIN_CATEGORIA"
+                    cantidad_f = (
+                        _to_number(
+                            mapped.get("stock") or mapped.get("cantidad") or mapped.get("quantity")
+                        )
+                        or 0.0
                     )
+                    categoria = mapped.get("category") or mapped.get("categoria") or "SIN_CATEGORIA"
                     normalized = {
                         "nombre": str(nombre).strip(),
                         "name": str(nombre).strip(),

@@ -19,16 +19,16 @@ $migrations = @(
 
 foreach ($migration in $migrations) {
     Write-Host "`n[INFO] Aplicando migracion: $migration" -ForegroundColor Yellow
-    
+
     $upFile = "ops\migrations\$migration\up.sql"
-    
+
     if (Test-Path $upFile) {
         # Ejecutar migración
         Get-Content $upFile | docker exec -i db psql -U postgres -d gestiqclouddb_dev
-        
+
         if ($LASTEXITCODE -eq 0) {
             Write-Host "[OK] $migration aplicada exitosamente" -ForegroundColor Green
-            
+
             # Registrar en schema_migrations
             $name = $migration.Split('_')[-1]
             $insertSql = "INSERT INTO schema_migrations (version, name, status, applied_at) VALUES ('$migration', '$name', 'success', NOW()) ON CONFLICT (version) DO NOTHING;"

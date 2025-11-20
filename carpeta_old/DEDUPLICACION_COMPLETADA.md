@@ -1,7 +1,7 @@
 # ✅ DEDUPLICACIÓN COMPLETADA
 
-**Fecha**: 2025-11-06  
-**Archivos duplicados eliminados**: 490 líneas  
+**Fecha**: 2025-11-06
+**Archivos duplicados eliminados**: 490 líneas
 **Código compartido creado**: 3 packages
 
 ---
@@ -11,7 +11,7 @@
 ### 🎯 Alta prioridad - COMPLETADO
 
 #### ✅ G-01: Service Workers PWA
-**Antes**: 490 líneas duplicadas (231 en admin + 259 en tenant)  
+**Antes**: 490 líneas duplicadas (231 en admin + 259 en tenant)
 **Después**: 276 líneas en package compartido
 
 - **Creado**: [`packages/shared/workers/sw-core.js`](file:///c:/Users/pc_cashabamba/Documents/GitHub/proyecto/packages/shared/workers/sw-core.js)
@@ -22,7 +22,7 @@
 - **Funcionalidad**: Versión completa (telemetry skip + MAX_ATTEMPTS de tenant)
 
 #### ✅ G-02: HTTP Client Helpers
-**Antes**: 264 líneas duplicadas (166 en admin + 98 en tenant)  
+**Antes**: 264 líneas duplicadas (166 en admin + 98 en tenant)
 **Después**: 171 líneas en package compartido
 
 - **Creado**: [`packages/shared/lib/http-client.ts`](file:///c:/Users/pc_cashabamba/Documents/GitHub/proyecto/packages/shared/lib/http-client.ts)
@@ -33,7 +33,7 @@
 - **Funcionalidad**: HttpClient con refresh token (de admin) + auto-token storage (de tenant)
 
 #### ✅ G-05: Toast Notifications UI
-**Antes**: 100 líneas duplicadas (56 en admin + 44 en tenant)  
+**Antes**: 100 líneas duplicadas (56 en admin + 44 en tenant)
 **Después**: 56 líneas en package compartido
 
 - **Creado**: [`packages/ui/toast.tsx`](file:///c:/Users/pc_cashabamba/Documents/GitHub/proyecto/packages/ui/toast.tsx)
@@ -48,20 +48,20 @@
 ### 📋 Prioridad media - IDENTIFICADO (refactor futuro)
 
 #### 📌 G-03: CRUD Repositories (Backend)
-**Estado**: Ya existe [`apps/backend/app/core/base_crud.py`](file:///c:/Users/pc_cashabamba/Documents/GitHub/proyecto/apps/backend/app/core/base_crud.py)  
-**Acción pendiente**: Migrar repositorios de módulos (ventas, compras, productos, rrhh...) para heredar de `BaseCRUD`  
+**Estado**: Ya existe [`apps/backend/app/core/base_crud.py`](file:///c:/Users/pc_cashabamba/Documents/GitHub/proyecto/apps/backend/app/core/base_crud.py)
+**Acción pendiente**: Migrar repositorios de módulos (ventas, compras, productos, rrhh...) para heredar de `BaseCRUD`
 **Ahorro estimado**: ~600 líneas de boilerplate
 
 #### 📌 G-04: HTTP Router CRUD (Backend)
-**Estado**: Detectado patrón repetitivo en routers tenant  
-**Acción pendiente**: Crear factory `create_crud_router(entity, repo, schema)` para generar endpoints estándar  
+**Estado**: Detectado patrón repetitivo en routers tenant
+**Acción pendiente**: Crear factory `create_crud_router(entity, repo, schema)` para generar endpoints estándar
 **Ahorro estimado**: ~300 líneas
 
 ---
 
 ### ✅ G-06: Validators
-**Estado**: Ya bien estructurado con `CountryValidator` base  
-**Archivos**: [apps/backend/app/modules/imports/validators/country_validators.py](file:///c:/Users/pc_cashabamba/Documents/GitHub/proyecto/apps/backend/app/modules/imports/validators/country_validators.py)  
+**Estado**: Ya bien estructurado con `CountryValidator` base
+**Archivos**: [apps/backend/app/modules/imports/validators/country_validators.py](file:///c:/Users/pc_cashabamba/Documents/GitHub/proyecto/apps/backend/app/modules/imports/validators/country_validators.py)
 **No requiere cambios**: Código ya sigue buenas prácticas (herencia, factory pattern)
 
 ---
@@ -98,7 +98,7 @@ packages/
 - Cambios en SW/HTTP/Toast: **1 archivo** en lugar de 2
 - Fixes/mejoras: se propagan automáticamente a ambas apps
 
-### 📦 Escalabilidad  
+### 📦 Escalabilidad
 - Próximas apps pueden reutilizar los mismos packages
 - Base sólida para monorepo compartido
 
@@ -114,7 +114,7 @@ packages/
 1. ✅ Ejecutar build de frontend para verificar imports
 2. ✅ Ejecutar tests de integración
 
-### Media prioridad  
+### Media prioridad
 3. 📌 Refactorizar repositorios para usar `BaseCRUD` (G-03)
 4. 📌 Crear factory de routers CRUD (G-04)
 
@@ -150,7 +150,7 @@ Para verificar que todo funciona:
 cd apps/admin
 npm run build
 
-# Frontend tenant  
+# Frontend tenant
 cd apps/tenant
 npm run build
 

@@ -1,11 +1,12 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-from typing import Sequence, Any
+from collections.abc import Sequence
+from typing import Any
 
 from app.modules.clients.application.dto import ClienteIn, ClienteOut
 from app.modules.clients.application.ports import ClienteRepo
-from app.modules.shared.application.base import BaseUseCase
 from app.modules.clients.domain.entities import Cliente
+from app.modules.shared.application.base import BaseUseCase
 
 
 class CrearCliente(BaseUseCase[ClienteRepo]):

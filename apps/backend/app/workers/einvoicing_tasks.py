@@ -1,12 +1,12 @@
-﻿"""
+"""
 E-invoicing Celery Tasks - SRI Ecuador & Facturae España
 """
 
-from typing import Dict, Any
-import logging
 import base64
-from decimal import Decimal
+import logging
 import os
+from decimal import Decimal
+from typing import Any
 
 # Celery is optional in the minimal test environment. Provide light shims so
 # importing this module doesn't fail when celery isn't installed.
@@ -18,9 +18,10 @@ except Exception:  # pragma: no cover
     if _MINIMAL:
 
         class Task:  # minimal base class to satisfy attribute access
-            autoretry_for = tuple()
-            retry_kwargs = {}
-            retry_backoff = False
+            autoretry_for: tuple[Any, ...] = ()
+            retry_kwargs: dict[str, Any] = {}
+            retry_backoff: bool = False
+
     else:
         raise
 
@@ -40,7 +41,7 @@ class EInvoicingTask(Task):
 # ============================================================================
 
 
-def generate_facturae_xml(invoice_data: Dict[str, Any]) -> str:
+def generate_facturae_xml(invoice_data: dict[str, Any]) -> str:
     """
     Generar XML Facturae conforme a especificación española.
     Versión simplificada para MVP.
@@ -71,18 +72,14 @@ def generate_facturae_xml(invoice_data: Dict[str, Any]) -> str:
     tax_id_seller = etree.SubElement(seller, "TaxIdentification")
     etree.SubElement(tax_id_seller, "PersonTypeCode").text = "J"  # Jurídica
     etree.SubElement(tax_id_seller, "ResidenceTypeCode").text = "R"  # Residente
-    etree.SubElement(tax_id_seller, "TaxIdentificationNumber").text = invoice_data[
-        "empresa"
-    ]["ruc"]
+    etree.SubElement(tax_id_seller, "TaxIdentificationNumber").text = invoice_data["empresa"]["ruc"]
 
     # Buyer
     buyer = etree.SubElement(parties, "BuyerParty")
     tax_id_buyer = etree.SubElement(buyer, "TaxIdentification")
     etree.SubElement(tax_id_buyer, "PersonTypeCode").text = "J"
     etree.SubElement(tax_id_buyer, "ResidenceTypeCode").text = "R"
-    etree.SubElement(tax_id_buyer, "TaxIdentificationNumber").text = invoice_data[
-        "cliente"
-    ]["ruc"]
+    etree.SubElement(tax_id_buyer, "TaxIdentificationNumber").text = invoice_data["cliente"]["ruc"]
 
     # Invoices
     invoices = etree.SubElement(root, "Invoices")
@@ -97,9 +94,7 @@ def generate_facturae_xml(invoice_data: Dict[str, Any]) -> str:
 
     # InvoiceIssueData
     issue_data = etree.SubElement(invoice, "InvoiceIssueData")
-    etree.SubElement(issue_data, "IssueDate").text = invoice_data["fecha"].strftime(
-        "%Y-%m-%d"
-    )
+    etree.SubElement(issue_data, "IssueDate").text = invoice_data["fecha"].strftime("%Y-%m-%d")
 
     # TaxesOutputs
     taxes = etree.SubElement(invoice, "TaxesOutputs")
@@ -113,18 +108,14 @@ def generate_facturae_xml(invoice_data: Dict[str, Any]) -> str:
     totals = etree.SubElement(invoice, "InvoiceTotals")
     etree.SubElement(totals, "TaxOutputsTotal").text = f"{invoice_data['iva']:.2f}"
     etree.SubElement(totals, "TotalGrossAmount").text = f"{invoice_data['total']:.2f}"
-    etree.SubElement(
-        totals, "TotalGrossAmountBeforeTaxes"
-    ).text = f"{invoice_data['subtotal']:.2f}"
+    etree.SubElement(totals, "TotalGrossAmountBeforeTaxes").text = f"{invoice_data['subtotal']:.2f}"
     etree.SubElement(totals, "TotalTaxesOutputs").text = f"{invoice_data['iva']:.2f}"
-    etree.SubElement(
-        totals, "TotalExecutableAmount"
-    ).text = f"{invoice_data['total']:.2f}"
+    etree.SubElement(totals, "TotalExecutableAmount").text = f"{invoice_data['total']:.2f}"
 
     return etree.tostring(root, encoding="unicode", pretty_print=True)
 
 
-def generate_sri_xml(invoice_data: Dict[str, Any]) -> str:
+def generate_sri_xml(invoice_data: dict[str, Any]) -> str:
     """
     Generar XML RIDE conforme a XSD SRI Ecuador.
     Versión simplificada para MVP - expandir según especificación completa.
@@ -139,42 +130,26 @@ def generate_sri_xml(invoice_data: Dict[str, Any]) -> str:
     etree.SubElement(info_trib, "ambiente").text = "1"  # 1=Pruebas, 2=Producción
     etree.SubElement(info_trib, "tipoEmision").text = "1"  # Normal
     etree.SubElement(info_trib, "razonSocial").text = invoice_data["empresa"]["nombre"]
-    etree.SubElement(info_trib, "nombreComercial").text = invoice_data["empresa"][
-        "nombre"
-    ]
+    etree.SubElement(info_trib, "nombreComercial").text = invoice_data["empresa"]["nombre"]
     etree.SubElement(info_trib, "ruc").text = invoice_data["empresa"]["ruc"]
-    etree.SubElement(info_trib, "claveAcceso").text = generate_clave_acceso(
-        invoice_data
-    )
+    etree.SubElement(info_trib, "claveAcceso").text = generate_clave_acceso(invoice_data)
     etree.SubElement(info_trib, "codDoc").text = "01"  # 01=Factura
     etree.SubElement(info_trib, "estab").text = "001"  # Establecimiento
     etree.SubElement(info_trib, "ptoEmi").text = "001"  # Punto emisión
-    etree.SubElement(info_trib, "secuencial").text = (
-        invoice_data["numero"].split("-")[-1].zfill(9)
-    )
-    etree.SubElement(info_trib, "dirMatriz").text = invoice_data["empresa"].get(
-        "direccion", "N/A"
-    )
+    etree.SubElement(info_trib, "secuencial").text = invoice_data["numero"].split("-")[-1].zfill(9)
+    etree.SubElement(info_trib, "dirMatriz").text = invoice_data["empresa"].get("direccion", "N/A")
 
     # Info factura
     info_fact = etree.SubElement(root, "infoFactura")
-    etree.SubElement(info_fact, "fechaEmision").text = invoice_data["fecha"].strftime(
-        "%d/%m/%Y"
+    etree.SubElement(info_fact, "fechaEmision").text = invoice_data["fecha"].strftime("%d/%m/%Y")
+    etree.SubElement(info_fact, "dirEstablecimiento").text = invoice_data["empresa"].get(
+        "direccion", "N/A"
     )
-    etree.SubElement(info_fact, "dirEstablecimiento").text = invoice_data[
-        "empresa"
-    ].get("direccion", "N/A")
     etree.SubElement(info_fact, "obligadoContabilidad").text = "SI"
     etree.SubElement(info_fact, "tipoIdentificacionComprador").text = "05"  # RUC
-    etree.SubElement(info_fact, "razonSocialComprador").text = invoice_data["cliente"][
-        "nombre"
-    ]
-    etree.SubElement(info_fact, "identificacionComprador").text = invoice_data[
-        "cliente"
-    ]["ruc"]
-    etree.SubElement(
-        info_fact, "totalSinImpuestos"
-    ).text = f"{invoice_data['subtotal']:.2f}"
+    etree.SubElement(info_fact, "razonSocialComprador").text = invoice_data["cliente"]["nombre"]
+    etree.SubElement(info_fact, "identificacionComprador").text = invoice_data["cliente"]["ruc"]
+    etree.SubElement(info_fact, "totalSinImpuestos").text = f"{invoice_data['subtotal']:.2f}"
     etree.SubElement(info_fact, "totalDescuento").text = "0.00"
 
     # Total con impuestos
@@ -182,9 +157,7 @@ def generate_sri_xml(invoice_data: Dict[str, Any]) -> str:
     total_imp = etree.SubElement(total_impuestos, "totalImpuesto")
     etree.SubElement(total_imp, "codigo").text = "2"  # IVA
     etree.SubElement(total_imp, "codigoPorcentaje").text = "2"  # 12%
-    etree.SubElement(
-        total_imp, "baseImponible"
-    ).text = f"{invoice_data['subtotal']:.2f}"
+    etree.SubElement(total_imp, "baseImponible").text = f"{invoice_data['subtotal']:.2f}"
     etree.SubElement(total_imp, "valor").text = f"{invoice_data['impuesto']:.2f}"
 
     etree.SubElement(info_fact, "propina").text = "0.00"
@@ -198,13 +171,9 @@ def generate_sri_xml(invoice_data: Dict[str, Any]) -> str:
         etree.SubElement(detalle, "codigoPrincipal").text = line["sku"] or "PROD"
         etree.SubElement(detalle, "descripcion").text = line["descripcion"]
         etree.SubElement(detalle, "cantidad").text = f"{line['cantidad']:.2f}"
-        etree.SubElement(
-            detalle, "precioUnitario"
-        ).text = f"{line['precio_unitario']:.4f}"
+        etree.SubElement(detalle, "precioUnitario").text = f"{line['precio_unitario']:.4f}"
         etree.SubElement(detalle, "descuento").text = "0.00"
-        etree.SubElement(
-            detalle, "precioTotalSinImpuesto"
-        ).text = f"{line['total']:.2f}"
+        etree.SubElement(detalle, "precioTotalSinImpuesto").text = f"{line['total']:.2f}"
 
         # Impuestos del detalle
         impuestos = etree.SubElement(detalle, "impuestos")
@@ -213,22 +182,20 @@ def generate_sri_xml(invoice_data: Dict[str, Any]) -> str:
         etree.SubElement(impuesto, "codigoPorcentaje").text = "2"  # 12%
         etree.SubElement(impuesto, "tarifa").text = "12"
         etree.SubElement(impuesto, "baseImponible").text = f"{line['total']:.2f}"
-        etree.SubElement(
-            impuesto, "valor"
-        ).text = f"{line['total'] * Decimal('0.12'):.2f}"
+        etree.SubElement(impuesto, "valor").text = f"{line['total'] * Decimal('0.12'):.2f}"
 
     # Info adicional
     info_adicional = etree.SubElement(root, "infoAdicional")
-    etree.SubElement(
-        info_adicional, "campoAdicional", nombre="Email"
-    ).text = invoice_data["cliente"].get("email", "N/A")
+    etree.SubElement(info_adicional, "campoAdicional", nombre="Email").text = invoice_data[
+        "cliente"
+    ].get("email", "N/A")
 
-    return etree.tostring(
-        root, xml_declaration=True, encoding="UTF-8", pretty_print=True
-    ).decode("utf-8")
+    return etree.tostring(root, xml_declaration=True, encoding="UTF-8", pretty_print=True).decode(
+        "utf-8"
+    )
 
 
-def generate_clave_acceso(invoice_data: Dict[str, Any]) -> str:
+def generate_clave_acceso(invoice_data: dict[str, Any]) -> str:
     """
     Generar clave de acceso SRI (49 dígitos).
     Formato: DDMMYYYYTTCCCCCCCRRRREEEEPPPSSSSSSSSV
@@ -275,15 +242,16 @@ def calcular_digito_verificador_modulo11(cadena: str) -> int:
         return digito
 
 
-def sign_xml_sri(xml_content: str, cert_data: Dict[str, Any]) -> str:
+def sign_xml_sri(xml_content: str, cert_data: dict[str, Any]) -> str:
     """
     Firmar XML con certificado digital.
     Requiere: signxml, cryptography
     """
-    from signxml import XMLSigner
-    from cryptography.hazmat.primitives.serialization import pkcs12
-    from cryptography.hazmat.backends import default_backend
     import base64
+
+    from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives.serialization import pkcs12
+    from signxml import XMLSigner
 
     # Cargar certificado P12
     p12_data = base64.b64decode(cert_data["p12_base64"])
@@ -304,7 +272,7 @@ def sign_xml_sri(xml_content: str, cert_data: Dict[str, Any]) -> str:
     return signed.decode("utf-8") if isinstance(signed, bytes) else signed
 
 
-def send_to_sri(xml_signed: str, env: str = "sandbox") -> Dict[str, Any]:
+def send_to_sri(xml_signed: str, env: str = "sandbox") -> dict[str, Any]:
     """Enviar XML firmado al SRI"""
     import requests
 
@@ -334,7 +302,7 @@ def send_to_sri(xml_signed: str, env: str = "sandbox") -> Dict[str, Any]:
 # ============================================================================
 
 
-def sign_facturae_xml(xml_content: str, cert_data: Dict[str, Any]) -> str:
+def sign_facturae_xml(xml_content: str, cert_data: dict[str, Any]) -> str:
     """Firmar XML Facturae con XAdES"""
     # Similar a SRI pero con formato XAdES
     return sign_xml_sri(xml_content, cert_data)
@@ -364,13 +332,15 @@ except Exception:  # Provide no-op task decorator in tests when minimal
 @celery_app.task(base=EInvoicingTask, name="einvoicing.sign_and_send_sri")
 def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"):
     """Tarea: Firmar y enviar factura a SRI Ecuador"""
-    from app.config.database import SessionLocal
     from sqlalchemy import text
+
+    from app.config.database import SessionLocal
 
     db = SessionLocal()
     try:
         # 1. Obtener datos de factura
-        query = text("""
+        query = text(
+            """
         SELECT
         f.id, f.numero, f.fecha, f.subtotal, f.iva, f.total,
         t.name as empresa_nombre, t.tax_id as empresa_ruc,
@@ -379,26 +349,27 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
         c.email as cliente_email
         FROM facturas f
         JOIN tenants t ON t.id = f.tenant_id
-        
+
         JOIN clientes c ON c.id = f.cliente_id
             WHERE f.id = :invoice_id AND f.tenant_id = :tenant_id
-        """)
+        """
+        )
 
-        invoice = db.execute(
-            query, {"invoice_id": invoice_id, "tenant_id": tenant_id}
-        ).first()
+        invoice = db.execute(query, {"invoice_id": invoice_id, "tenant_id": tenant_id}).first()
         if not invoice:
             raise ValueError(f"Invoice {invoice_id} not found")
 
         # 2. Obtener líneas
-        lines_query = text("""
+        lines_query = text(
+            """
         SELECT
         fl.cantidad, fl.precio_unitario, fl.total,
         p.name as descripcion, p.sku
         FROM invoice_lines fl
         LEFT JOIN products p ON p.id = fl.producto_id
         WHERE fl.invoice_id = :invoice_id
-        """)
+        """
+        )
 
         lines = db.execute(lines_query, {"invoice_id": invoice_id}).fetchall()
 
@@ -431,13 +402,12 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
         xml_content = generate_sri_xml(invoice_data)
 
         # 5. Cargar certificado desde CertificateManager (bridge async -> sync)
-        from app.services.certificate_manager import certificate_manager
         import asyncio
 
+        from app.services.certificate_manager import certificate_manager
+
         def _get_cert_ec():
-            return loop.run_until_complete(
-                certificate_manager.get_certificate(tenant_id, "EC")
-            )
+            return loop.run_until_complete(certificate_manager.get_certificate(tenant_id, "EC"))
 
         try:
             loop = asyncio.new_event_loop()
@@ -465,7 +435,8 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
         # 8. Guardar resultado
         clave_acceso = generate_clave_acceso(invoice_data)
 
-        insert_submission = text("""
+        insert_submission = text(
+            """
         INSERT INTO sri_submissions (
         tenant_id, invoice_id, payload, receipt_number,
         status, error_message
@@ -474,7 +445,8 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
         :tenant_id, :invoice_id, :payload, :receipt_number,
         :status, :error_message
         )
-        """)
+        """
+        )
 
         db.execute(
             insert_submission,
@@ -490,10 +462,12 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
 
         # 9. Actualizar invoice
         if result["status"] == "authorized":
-            update_invoice = text("""
+            update_invoice = text(
+                """
                 UPDATE invoices SET estado = 'einvoice_sent'
                 WHERE id = :invoice_id
-            """)
+            """
+            )
             db.execute(update_invoice, {"invoice_id": invoice_id})
 
         db.commit()
@@ -518,16 +492,19 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
 @celery_app.task(base=EInvoicingTask, name="einvoicing.sign_and_send_facturae")
 def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "sandbox"):
     """Tarea: Firmar y enviar Facturae España"""
-    from app.config.database import SessionLocal
-    from sqlalchemy import text
     import asyncio
+
+    from sqlalchemy import text
+
+    from app.config.database import SessionLocal
 
     db = SessionLocal()
     try:
         logger.info(f"Facturae task started: {invoice_id} for tenant {tenant_id}")
 
         # 1. Obtener datos de factura
-        query = text("""
+        query = text(
+            """
             SELECT
                 f.id, f.numero, f.fecha, f.subtotal, f.iva, f.total,
                 t.name as empresa_nombre, t.tax_id as empresa_ruc,
@@ -536,14 +513,13 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
                 c.email as cliente_email
             FROM facturas f
             JOIN tenants t ON t.id = f.tenant_id
-            
+
             JOIN clientes c ON c.id = f.cliente_id
             WHERE f.id = :invoice_id AND f.tenant_id = :tenant_id
-        """)
+        """
+        )
 
-        invoice = db.execute(
-            query, {"invoice_id": invoice_id, "tenant_id": tenant_id}
-        ).first()
+        invoice = db.execute(query, {"invoice_id": invoice_id, "tenant_id": tenant_id}).first()
         if not invoice:
             raise ValueError(f"Invoice {invoice_id} not found")
 
@@ -567,9 +543,7 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
         from app.services.certificate_manager import certificate_manager
 
         def _get_cert():
-            return loop.run_until_complete(
-                certificate_manager.get_certificate(tenant_id, "ES")
-            )
+            return loop.run_until_complete(certificate_manager.get_certificate(tenant_id, "ES"))
 
         try:
             loop = asyncio.new_event_loop()
@@ -599,24 +573,26 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
         period = datetime.now().strftime("%Y%m")
 
         # Insertar en batch
-        batch_query = text("""
+        batch_query = text(
+            """
             INSERT INTO sii_batches (tenant_id, period, status)
             VALUES (:tenant_id, :period, 'PENDING')
             ON CONFLICT (tenant_id, period) DO NOTHING
             RETURNING id
-        """)
+        """
+        )
 
-        batch_result = db.execute(
-            batch_query, {"tenant_id": tenant_id, "period": period}
-        ).first()
+        batch_result = db.execute(batch_query, {"tenant_id": tenant_id, "period": period}).first()
 
         # Si no hay retorno, obtener el batch existente
         if not batch_result:
             existing_batch = db.execute(
-                text("""
+                text(
+                    """
                 SELECT id FROM sii_batches
                 WHERE tenant_id = :tenant_id AND period = :period
-            """),
+            """
+                ),
                 {"tenant_id": tenant_id, "period": period},
             ).first()
             batch_id = existing_batch[0] if existing_batch else None
@@ -625,13 +601,15 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
 
         # Insertar item en el batch
         if batch_id:
-            item_query = text("""
+            item_query = text(
+                """
                 INSERT INTO sii_batch_items (
                     tenant_id, batch_id, invoice_id, status
                 ) VALUES (
                     :tenant_id, :batch_id, :invoice_id, :status
                 )
-            """)
+            """
+            )
 
             db.execute(
                 item_query,
@@ -645,11 +623,13 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
 
         # 6. Actualizar factura
         if result["status"] == "ACCEPTED":
-            update_query = text("""
+            update_query = text(
+                """
                 UPDATE facturas
                 SET estado = 'posted'
                 WHERE id = :invoice_id
-            """)
+            """
+            )
             db.execute(update_query, {"invoice_id": invoice_id})
 
         db.commit()

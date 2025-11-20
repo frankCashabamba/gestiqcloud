@@ -10,4 +10,3 @@ export function normalizarDocumento(rows: Row[], mapa: Mapa) {
     return { fecha, concepto, monto }
   })
 }
-

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from sqlalchemy import String, Text, Boolean, SmallInteger, ForeignKey
+import uuid
+
+from sqlalchemy import Boolean, ForeignKey, SmallInteger, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
-import uuid
 
 from app.config.database import Base
 

@@ -26,7 +26,7 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!nombre.trim()) {
       toastError('El nombre del rol es obligatorio')
       return
@@ -47,7 +47,7 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
         await createRol(payload)
         success('Rol creado correctamente')
       }
-      
+
       onSuccess()
       onClose()
     } catch (e: any) {
@@ -86,7 +86,7 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div 
+      <div
         className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 shadow-lg"
         onClick={e => e.stopPropagation()}
       >

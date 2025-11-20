@@ -3,7 +3,6 @@
 Auto-generated module docstring."""
 
 from datetime import date, datetime
-from typing import Dict, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -14,15 +13,15 @@ class ModuloBase(BaseModel):
     """Class ModuloBase - auto-generated docstring."""
 
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     active: bool
-    icono: Optional[str] = "📦"
-    url: Optional[str]
+    icono: str | None = "📦"
+    url: str | None
     plantilla_inicial: str
-    context_type: Optional[str]
-    modelo_objetivo: Optional[str]
-    filtros_contexto: Optional[dict]
-    categoria: Optional[str]
+    context_type: str | None
+    modelo_objetivo: str | None
+    filtros_contexto: dict | None
+    categoria: str | None
 
 
 class ModuloCreate(ModuloBase):
@@ -34,7 +33,7 @@ class ModuloCreate(ModuloBase):
 class ModuloOut(ModuloBase):
     """Class ModuloOut - auto-generated docstring."""
 
-    id: int
+    id: UUID
     name: str
     active: bool
 
@@ -47,8 +46,8 @@ class EmpresaModuloBase(BaseModel):
 
     modulo_id: int
     active: bool = True
-    fecha_expiracion: Optional[date] = None
-    plantilla_inicial: Optional[str] = None
+    fecha_expiracion: date | None = None
+    plantilla_inicial: str | None = None
 
 
 class EmpresaModuloCreate(EmpresaModuloBase):
@@ -60,13 +59,13 @@ class EmpresaModuloCreate(EmpresaModuloBase):
 class EmpresaModuloOut(EmpresaModuloBase):
     """Class EmpresaModuloOut - auto-generated docstring."""
 
-    id: int
+    id: UUID
     tenant_id: UUID
-    empresa_slug: Optional[str]
+    empresa_slug: str | None
     active: bool
-    fecha_expiracion: Optional[date] = None
-    fecha_activacion: Optional[date] = None
-    plantilla_inicial: Optional[str] = None
+    fecha_expiracion: date | None = None
+    fecha_activacion: date | None = None
+    plantilla_inicial: str | None = None
 
     modulo: ModuloOut
 
@@ -89,12 +88,12 @@ class ModuloAsignadoCreate(ModuloAsignadoBase):
 class ModuloAsignadoOut(BaseModel):
     """Class ModuloAsignadoOut - auto-generated docstring."""
 
-    id: int
+    id: UUID
     tenant_id: UUID
     usuario_id: int
     modulo_id: int
     fecha_asignacion: datetime
-    modulo: Optional[ModuloBase]  # ✅ necesario
+    modulo: ModuloBase | None  # ✅ necesario
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -102,14 +101,14 @@ class ModuloAsignadoOut(BaseModel):
 class EmpresaModuloOutAdmin(BaseModel):
     """Class EmpresaModuloOutAdmin - auto-generated docstring."""
 
-    id: int
+    id: UUID
     tenant_id: UUID
     modulo_id: int
     active: bool
     fecha_activacion: date
-    fecha_expiracion: Optional[date]
-    plantilla_inicial: Optional[str]
-    empresa_slug: Optional[str]
+    fecha_expiracion: date | None
+    plantilla_inicial: str | None
+    empresa_slug: str | None
     modulo: ModuloOut
 
     model_config = ConfigDict(from_attributes=True)
@@ -118,13 +117,13 @@ class EmpresaModuloOutAdmin(BaseModel):
 class ModuloUpdate(BaseModel):
     """Class ModuloUpdate - auto-generated docstring."""
 
-    name: Optional[str]
-    description: Optional[str]
-    icono: Optional[str]
-    url: Optional[str]
-    plantilla_inicial: Optional[str]
-    context_type: Optional[str]
-    modelo_objetivo: Optional[str]
-    filtros_contexto: Optional[Dict]
-    categoria: Optional[str]
-    active: Optional[bool]
+    name: str | None
+    description: str | None
+    icono: str | None
+    url: str | None
+    plantilla_inicial: str | None
+    context_type: str | None
+    modelo_objetivo: str | None
+    filtros_contexto: dict | None
+    categoria: str | None
+    active: bool | None

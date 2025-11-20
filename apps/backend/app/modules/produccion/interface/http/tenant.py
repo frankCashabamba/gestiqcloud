@@ -18,60 +18,58 @@ MIGRADO DE:
 - app/routers/recipes.py
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
-from uuid import UUID
-from typing import List, Optional
 from datetime import datetime
 from decimal import Decimal
+from uuid import UUID
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func, and_, or_
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
-
+from app.models.inventory.stock import StockItem, StockMove
 from app.models.production.production_order import ProductionOrder, ProductionOrderLine
 from app.models.recipes import Recipe, RecipeIngredient
-from app.models.inventory.stock import StockItem, StockMove
 from app.schemas.production import (
-    ProductionOrderCreate,
-    ProductionOrderUpdate,
-    ProductionOrderResponse,
-    ProductionOrderList,
-    ProductionOrderStartRequest,
-    ProductionOrderCompleteRequest,
-    ProductionOrderStats,
+    IngredientRequirement,
     ProductionCalculatorRequest,
     ProductionCalculatorResponse,
-    IngredientRequirement,
+    ProductionOrderCompleteRequest,
+    ProductionOrderCreate,
+    ProductionOrderList,
+    ProductionOrderResponse,
+    ProductionOrderStartRequest,
+    ProductionOrderStats,
+    ProductionOrderUpdate,
 )
 from app.schemas.recipes import (
-    RecipeCreate,
-    RecipeUpdate,
-    RecipeResponse,
-    RecipeDetailResponse,
-    RecipeIngredientCreate,
-    RecipeIngredientUpdate,
-    RecipeIngredientResponse,
-    RecipeCostBreakdownResponse,
     ProductionCalculationRequest,
     ProductionCalculationResponse,
     PurchaseOrderRequest,
     PurchaseOrderResponse,
+    RecipeComparisonResponse,
+    RecipeCostBreakdownResponse,
+    RecipeCreate,
+    RecipeDetailResponse,
+    RecipeIngredientCreate,
+    RecipeIngredientResponse,
+    RecipeIngredientUpdate,
     RecipeProfitabilityRequest,
     RecipeProfitabilityResponse,
-    RecipeComparisonResponse,
+    RecipeResponse,
+    RecipeUpdate,
 )
 from app.services.recipe_calculator import (
-    calculate_recipe_cost,
-    calculate_purchase_for_production,
     calculate_production_time,
-    create_purchase_order_from_recipe,
+    calculate_purchase_for_production,
+    calculate_recipe_cost,
     compare_recipe_costs,
+    create_purchase_order_from_recipe,
     get_recipe_profitability,
 )
-
 
 router = APIRouter(
     prefix="/production",
@@ -88,15 +86,17 @@ router = APIRouter(
 def _generate_next_numero(db: Session, tenant_id: UUID) -> str:
     year = datetime.utcnow().year
     prefix = f"OP-{year}-"
-    stmt = select(ProductionOrder).where(
-        ProductionOrder.tenant_id == tenant_id,
-        ProductionOrder.numero.like(f"{prefix}%")
-    ).order_by(ProductionOrder.numero.desc()).limit(1)
+    stmt = (
+        select(ProductionOrder)
+        .where(ProductionOrder.tenant_id == tenant_id, ProductionOrder.numero.like(f"{prefix}%"))
+        .order_by(ProductionOrder.numero.desc())
+        .limit(1)
+    )
     result = db.execute(stmt)
     last_order = result.scalar_one_or_none()
     if last_order and last_order.numero:
         try:
-            last_num = int(last_order.numero.split('-')[-1])
+            last_num = int(last_order.numero.split("-")[-1])
             next_num = last_num + 1
         except (ValueError, IndexError):
             next_num = 1
@@ -109,15 +109,19 @@ def _generate_batch_number(db: Session, tenant_id: UUID) -> str:
     year = datetime.utcnow().year
     month = datetime.utcnow().month
     prefix = f"LOT-{year}{month:02d}-"
-    stmt = select(ProductionOrder).where(
-        ProductionOrder.tenant_id == tenant_id,
-        ProductionOrder.batch_number.like(f"{prefix}%")
-    ).order_by(ProductionOrder.batch_number.desc()).limit(1)
+    stmt = (
+        select(ProductionOrder)
+        .where(
+            ProductionOrder.tenant_id == tenant_id, ProductionOrder.batch_number.like(f"{prefix}%")
+        )
+        .order_by(ProductionOrder.batch_number.desc())
+        .limit(1)
+    )
     result = db.execute(stmt)
     last_order = result.scalar_one_or_none()
     if last_order and last_order.batch_number:
         try:
-            last_num = int(last_order.batch_number.split('-')[-1])
+            last_num = int(last_order.batch_number.split("-")[-1])
             next_num = last_num + 1
         except (ValueError, IndexError):
             next_num = 1
@@ -127,10 +131,8 @@ def _generate_batch_number(db: Session, tenant_id: UUID) -> str:
 
 
 async def _create_stock_moves_for_ingredients(
-    db: Session,
-    order: ProductionOrder,
-    warehouse_id: Optional[UUID] = None
-) -> List[UUID]:
+    db: Session, order: ProductionOrder, warehouse_id: UUID | None = None
+) -> list[UUID]:
     stock_move_ids = []
     for line in order.lines:
         stock_move = StockMove(
@@ -169,9 +171,7 @@ async def _create_stock_moves_for_ingredients(
 
 
 async def _create_stock_move_for_output(
-    db: Session,
-    order: ProductionOrder,
-    warehouse_id: Optional[UUID] = None
+    db: Session, order: ProductionOrder, warehouse_id: UUID | None = None
 ) -> UUID:
     stock_move = StockMove(
         tenant_id=order.tenant_id,
@@ -214,10 +214,10 @@ async def _create_stock_move_for_output(
 async def list_production_orders(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    status: Optional[str] = Query(None),
-    recipe_id: Optional[UUID] = Query(None),
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
+    status: str | None = Query(None),
+    recipe_id: UUID | None = Query(None),
+    date_from: str | None = Query(None),
+    date_to: str | None = Query(None),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
@@ -317,7 +317,9 @@ async def get_production_order(
     result = db.execute(stmt)
     order = result.scalar_one_or_none()
     if not order:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada"
+        )
     return order
 
 
@@ -336,11 +338,13 @@ async def update_production_order(
     result = db.execute(stmt)
     order = result.scalar_one_or_none()
     if not order:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada"
+        )
     if order.status not in ["DRAFT", "SCHEDULED"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No se puede editar orden en estado {order.status}"
+            detail=f"No se puede editar orden en estado {order.status}",
         )
     update_data = order_in.dict(exclude_unset=True)
     for field, value in update_data.items():
@@ -364,11 +368,13 @@ async def delete_production_order(
     result = db.execute(stmt)
     order = result.scalar_one_or_none()
     if not order:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada"
+        )
     if order.status != "DRAFT":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Solo se pueden eliminar órdenes en estado DRAFT"
+            detail="Solo se pueden eliminar órdenes en estado DRAFT",
         )
     db.delete(order)
     db.commit()
@@ -389,11 +395,13 @@ async def start_production(
     result = db.execute(stmt)
     order = result.scalar_one_or_none()
     if not order:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada"
+        )
     if order.status not in ["DRAFT", "SCHEDULED"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No se puede iniciar orden en estado {order.status}"
+            detail=f"No se puede iniciar orden en estado {order.status}",
         )
     order.status = "IN_PROGRESS"
     order.started_at = request.started_at or datetime.utcnow()
@@ -419,11 +427,13 @@ async def complete_production(
     result = db.execute(stmt)
     order = result.scalar_one_or_none()
     if not order:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada"
+        )
     if order.status != "IN_PROGRESS":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Solo se pueden completar órdenes en estado IN_PROGRESS (actual: {order.status})"
+            detail=f"Solo se pueden completar órdenes en estado IN_PROGRESS (actual: {order.status})",
         )
     order.qty_produced = request.qty_produced
     order.waste_qty = request.waste_qty
@@ -447,14 +457,14 @@ async def complete_production(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al crear movimientos de stock: {str(e)}"
+            detail=f"Error al crear movimientos de stock: {str(e)}",
         )
 
 
 @router.post("/orders/{order_id}/cancel", response_model=ProductionOrderResponse)
 async def cancel_production(
     order_id: UUID,
-    reason: Optional[str] = Query(None),
+    reason: str | None = Query(None),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
@@ -466,11 +476,13 @@ async def cancel_production(
     result = db.execute(stmt)
     order = result.scalar_one_or_none()
     if not order:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Orden de producción no encontrada"
+        )
     if order.status == "COMPLETED":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No se puede cancelar una orden completada"
+            detail="No se puede cancelar una orden completada",
         )
     order.status = "CANCELLED"
     if reason:
@@ -528,7 +540,7 @@ async def calculate_production(
             can_produce = False
     qty_producible = request.qty_desired
     if missing_ingredients:
-        min_ratio = float('inf')
+        min_ratio = float("inf")
         for ing_data in ingredients:
             stock_stmt = select(func.sum(StockItem.qty_on_hand)).where(
                 StockItem.tenant_id == tenant_id,
@@ -540,7 +552,7 @@ async def calculate_production(
             if ing_qty_per_unit > 0:
                 ratio = stock_qty / ing_qty_per_unit
                 min_ratio = min(min_ratio, ratio)
-        qty_producible = Decimal(str(min_ratio)) if min_ratio != float('inf') else Decimal("0")
+        qty_producible = Decimal(str(min_ratio)) if min_ratio != float("inf") else Decimal("0")
     return ProductionCalculatorResponse(
         recipe_id=recipe.id,
         recipe_name=recipe.name or "Sin nombre",
@@ -556,8 +568,8 @@ async def calculate_production(
 
 @router.get("/stats", response_model=ProductionOrderStats)
 async def get_production_stats(
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
+    date_from: str | None = Query(None),
+    date_to: str | None = Query(None),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
@@ -594,10 +606,10 @@ async def get_production_stats(
 
 
 # RECETAS
-@router.get("/recipes", response_model=List[RecipeResponse])
+@router.get("/recipes", response_model=list[RecipeResponse])
 def list_recipes(
-    activo: Optional[bool] = None,
-    product_id: Optional[UUID] = None,
+    activo: bool | None = None,
+    product_id: UUID | None = None,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
@@ -877,9 +889,7 @@ def calculate_recipe_production(
     claims: dict = Depends(with_access_claims),
 ):
     try:
-        calculation = calculate_purchase_for_production(
-            db, recipe_id, payload.qty_to_produce
-        )
+        calculation = calculate_purchase_for_production(db, recipe_id, payload.qty_to_produce)
     except ValueError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
 
@@ -949,7 +959,7 @@ def recipe_profitability(
     response_model=RecipeComparisonResponse,
 )
 def compare_recipes_costs(
-    recipe_ids: List[UUID] = Body(..., min_length=1),
+    recipe_ids: list[UUID] = Body(..., min_length=1),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):

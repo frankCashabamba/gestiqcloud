@@ -63,7 +63,7 @@ SELECT convert_to_base_unit(85, 'g', 'lb'); -- 0.187 lb
 SELECT convert_to_base_unit(10, 'lb', 'kg'); -- 4.536 kg
 
 -- Test 3: Verificar costo calculado
-SELECT 
+SELECT
     qty, unidad_medida,
     qty_presentacion, unidad_presentacion,
     costo_presentacion,

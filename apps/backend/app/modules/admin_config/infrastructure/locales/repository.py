@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
 
@@ -13,19 +13,15 @@ class SqlAlchemyLocaleRepo(LocaleRepo):
     def __init__(self, db: Session):
         self.db = db
 
-    def _to_dto(self, l: LocaleORM) -> LocaleOut:
+    def _to_dto(self, locale: LocaleORM) -> LocaleOut:
         return LocaleOut(
-            code=l.code,
-            name=l.name,
-            active=l.active,
+            code=locale.code,
+            name=locale.name,
+            active=locale.active,
         )
 
     def list(self) -> Sequence[LocaleOut]:
-        rows = (
-            self.db.query(LocaleORM)
-            .order_by(LocaleORM.code.asc())
-            .all()
-        )
+        rows = self.db.query(LocaleORM).order_by(LocaleORM.code.asc()).all()
         return [self._to_dto(r) for r in rows]
 
     def create(self, data: LocaleIn) -> LocaleOut:

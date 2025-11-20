@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Dict
-
 import os
+from typing import Any
 
 import pytest
 from fastapi import FastAPI, Request
@@ -14,14 +13,14 @@ from app.core.sessions import SessionMiddlewareServerSide, SessionStore
 
 class ExplodingStore(SessionStore):
     async def create(
-        self, sid: str, data: Dict[str, Any], ttl: int
+        self, sid: str, data: dict[str, Any], ttl: int
     ) -> None:  # pragma: no cover - not used
         raise RuntimeError("boom")
 
-    async def get(self, sid: str) -> Dict[str, Any]:
+    async def get(self, sid: str) -> dict[str, Any]:
         raise RuntimeError("boom")
 
-    async def set(self, sid: str, data: Dict[str, Any], ttl: int) -> None:
+    async def set(self, sid: str, data: dict[str, Any], ttl: int) -> None:
         raise RuntimeError("boom")
 
     async def delete(self, sid: str) -> None:  # pragma: no cover - not used
@@ -31,9 +30,7 @@ class ExplodingStore(SessionStore):
 def _build_app() -> FastAPI:
     os.environ.setdefault("FRONTEND_URL", "http://test.local")
     os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost/db")
-    os.environ.setdefault(
-        "TENANT_NAMESPACE_UUID", "00000000-0000-0000-0000-000000000000"
-    )
+    os.environ.setdefault("TENANT_NAMESPACE_UUID", "00000000-0000-0000-0000-000000000000")
 
     app = FastAPI()
     app.add_middleware(

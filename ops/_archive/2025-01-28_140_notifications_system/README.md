@@ -1,7 +1,7 @@
 # Migration 140: Sistema de Notificaciones Multi-Canal
 
-**Fecha**: 2025-01-28  
-**Autor**: Sistema  
+**Fecha**: 2025-01-28
+**Autor**: Sistema
 **Tipo**: Feature
 
 ## Descripción

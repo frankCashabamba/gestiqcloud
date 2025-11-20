@@ -1,5 +1,6 @@
 # app/middleware/i18n_header.py
 from starlette.middleware.base import BaseHTTPMiddleware
+
 from app.core.i18n import detect_lang
 
 

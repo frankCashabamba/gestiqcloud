@@ -13,7 +13,7 @@
 docker exec db psql -U postgres -d gestiqclouddb_dev -c \
   "SELECT COUNT(*) FROM products WHERE tenant_id = '...'"
 
-# Items promovidos: ✅ 241  
+# Items promovidos: ✅ 241
 docker exec db psql -U postgres -d gestiqclouddb_dev -c \
   "SELECT COUNT(*) FROM import_items WHERE status = 'PROMOTED'"
 
@@ -161,9 +161,9 @@ Inventario:
 ### Productos en tu DB
 
 ```sql
-SELECT id, name, price, stock, categoria 
-FROM products 
-WHERE tenant_id = '5c7bea07-05ca-457f-b321-722b1628b170' 
+SELECT id, name, price, stock, categoria
+FROM products
+WHERE tenant_id = '5c7bea07-05ca-457f-b321-722b1628b170'
 LIMIT 10;
 
                   id                  |       name        | price | stock | categoria
@@ -222,28 +222,28 @@ curl "http://localhost:8000/api/v1/products/by_code/PAN001" \
 ### Categorías Sugeridas
 ```sql
 -- Actualizar categorías de productos
-UPDATE products 
+UPDATE products
 SET categoria = 'Panes'
-WHERE name ILIKE '%pan%' 
+WHERE name ILIKE '%pan%'
   AND tenant_id = '5c7bea07-05ca-457f-b321-722b1628b170';
 
-UPDATE products 
+UPDATE products
 SET categoria = 'Empanadas'
-WHERE name ILIKE '%empanada%' 
+WHERE name ILIKE '%empanada%'
   AND tenant_id = '5c7bea07-05ca-457f-b321-722b1628b170';
 
-UPDATE products 
+UPDATE products
 SET categoria = 'Dulces'
-WHERE name ILIKE '%dulce%' 
+WHERE name ILIKE '%dulce%'
   AND tenant_id = '5c7bea07-05ca-457f-b321-722b1628b170';
 ```
 
 ### Precios Sugeridos
 ```sql
 -- Actualizar precios si están en 0
-UPDATE products 
+UPDATE products
 SET price = 0.15
-WHERE price = 0 
+WHERE price = 0
   AND name ILIKE '%pan%'
   AND tenant_id = '5c7bea07-05ca-457f-b321-722b1628b170';
 ```
@@ -300,8 +300,8 @@ WHERE price = 0
 
 ---
 
-**Fecha:** 28 Octubre 2025  
-**Versión:** 1.0.0  
+**Fecha:** 28 Octubre 2025
+**Versión:** 1.0.0
 **Estado:** ✅ **COMPLETADO**
 
 🎉 **¡TPV e Inventario ahora muestran los 239 productos!**

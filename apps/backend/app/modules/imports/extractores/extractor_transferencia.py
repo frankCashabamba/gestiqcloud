@@ -1,20 +1,20 @@
-from typing import List
 import re
-from app.modules.imports.schemas import DocumentoProcesado
+
 from app.modules.imports.extractores.utilidades import (
     corregir_errores_ocr,
     dividir_bloques_transferencias,
-    limpiar_valor,
     es_concepto_valido,
+    limpiar_valor,
 )
+from app.modules.imports.schemas import DocumentoProcesado
 
 
-def extraer_transferencias(texto: str) -> List[DocumentoProcesado]:
+def extraer_transferencias(texto: str) -> list[DocumentoProcesado]:
     texto = corregir_errores_ocr(texto)
     bloques = dividir_bloques_transferencias(texto)
     print(f"🔍 TOTAL BLOQUES DETECTADOS: {len(bloques)}")
 
-    resultados: List[DocumentoProcesado] = []
+    resultados: list[DocumentoProcesado] = []
 
     for i, bloque in enumerate(bloques):
         print(f"\n--- BLOQUE {i + 1} ---")
@@ -27,9 +27,7 @@ def extraer_transferencias(texto: str) -> List[DocumentoProcesado]:
         # Importe
         importe = 0.0
         for etiqueta in ["a liquidar", "contravalor", "importe ordenado"]:
-            match = re.search(
-                rf"{etiqueta}[^\d]{{0,10}}([\d]+[.,]\d{{2}})", bloque, re.IGNORECASE
-            )
+            match = re.search(rf"{etiqueta}[^\d]{{0,10}}([\d]+[.,]\d{{2}})", bloque, re.IGNORECASE)
             if match:
                 valor_raw = match.group(1).replace(",", ".")
                 try:
@@ -43,9 +41,7 @@ def extraer_transferencias(texto: str) -> List[DocumentoProcesado]:
         # IBAN
         iban_match = re.search(r"\bES\d{2}(?:\s?\d{4}){5}", bloque, re.IGNORECASE)
         cuenta = (
-            limpiar_valor(iban_match.group(0).replace(" ", ""))
-            if iban_match
-            else "desconocida"
+            limpiar_valor(iban_match.group(0).replace(" ", "")) if iban_match else "desconocida"
         )
 
         # Cliente
@@ -54,9 +50,7 @@ def extraer_transferencias(texto: str) -> List[DocumentoProcesado]:
             bloque,
             re.IGNORECASE,
         )
-        cliente = (
-            limpiar_valor(cliente_match.group(1)) if cliente_match else "desconocido"
-        )
+        cliente = limpiar_valor(cliente_match.group(1)) if cliente_match else "desconocido"
 
         # Concepto / descripción
         concepto_final = "Documento sin concepto"

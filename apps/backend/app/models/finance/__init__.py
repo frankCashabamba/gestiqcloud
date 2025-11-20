@@ -1,6 +1,18 @@
 """Finance module models"""
 
-from .caja import CajaMovimiento, CierreCaja
-from .banco import BancoMovimiento
+from .banco import BankMovement
+from .caja import CashClosing, CashMovement
 
-__all__ = ["CajaMovimiento", "CierreCaja", "BancoMovimiento"]
+# Keep old names for backward compatibility during migration
+BancoMovimiento = BankMovement
+CajaMovimiento = CashMovement
+CierreCaja = CashClosing
+
+__all__ = [
+    "CajaMovimiento",
+    "CierreCaja",
+    "BankMovement",
+    "BancoMovimiento",
+    "CashMovement",
+    "CashClosing",
+]

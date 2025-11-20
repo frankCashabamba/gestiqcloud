@@ -1,12 +1,11 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
 class Producto:
-    id: Optional[int]
+    id: int | None
     nombre: str
     precio: float
     activo: bool

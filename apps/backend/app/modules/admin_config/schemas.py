@@ -1,19 +1,23 @@
-from typing import Any, Dict, Optional
+from typing import Any
+from uuid import UUID
 
-from app.schemas.sector_plantilla import SectorConfigJSON
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class IdiomaCreate(BaseModel):
     codigo: str
     name: str
-    active: bool
+    active: bool = Field(True, alias="activo")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class IdiomaUpdate(BaseModel):
-    codigo: Optional[str] = None
-    name: Optional[str] = None
-    active: Optional[bool] = None
+    codigo: str | None = None
+    name: str | None = None
+    active: bool | None = Field(None, alias="activo")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class IdiomaRead(BaseModel):
@@ -33,10 +37,10 @@ class MonedaCreate(BaseModel):
 
 
 class MonedaUpdate(BaseModel):
-    code: Optional[str] = None
-    name: Optional[str] = None
-    symbol: Optional[str] = None
-    active: Optional[bool] = None
+    code: str | None = None
+    name: str | None = None
+    symbol: str | None = None
+    active: bool | None = None
 
 
 class MonedaRead(BaseModel):
@@ -57,9 +61,9 @@ class PaisCreate(BaseModel):
 
 
 class PaisUpdate(BaseModel):
-    code: Optional[str] = None
-    name: Optional[str] = None
-    active: Optional[bool] = None
+    code: str | None = None
+    name: str | None = None
+    active: bool | None = None
 
 
 class PaisRead(BaseModel):
@@ -78,9 +82,9 @@ class DiaSemanaCreate(BaseModel):
 
 
 class DiaSemanaUpdate(BaseModel):
-    clave: Optional[str] = None
-    name: Optional[str] = None
-    orden: Optional[int] = None
+    clave: str | None = None
+    name: str | None = None
+    orden: int | None = None
 
 
 class DiaSemanaRead(BaseModel):
@@ -99,9 +103,9 @@ class HorarioAtencionCreate(BaseModel):
 
 
 class HorarioAtencionUpdate(BaseModel):
-    dia_id: Optional[int] = None
-    inicio: Optional[str] = None
-    fin: Optional[str] = None
+    dia_id: int | None = None
+    inicio: str | None = None
+    fin: str | None = None
 
 
 class HorarioAtencionRead(BaseModel):
@@ -115,24 +119,24 @@ class HorarioAtencionRead(BaseModel):
 
 class SectorPlantillaCreate(BaseModel):
     sector_name: str
-    business_type_id: Optional[int] = None
-    business_category_id: Optional[int] = None
-    template_config: Dict[str, Any] = Field(default_factory=dict)
+    business_type_id: int | None = None
+    business_category_id: int | None = None
+    template_config: dict[str, Any] = Field(default_factory=dict)
 
 
 class SectorPlantillaUpdate(BaseModel):
-    sector_name: Optional[str] = None
-    business_type_id: Optional[int] = None
-    business_category_id: Optional[int] = None
-    template_config: Optional[Dict[str, Any]] = None
+    sector_name: str | None = None
+    business_type_id: int | None = None
+    business_category_id: int | None = None
+    template_config: dict[str, Any] | None = None
 
 
 class SectorPlantillaRead(BaseModel):
     id: int
     sector_name: str
-    business_type_id: Optional[int] = None
-    business_category_id: Optional[int] = None
-    template_config: Dict[str, Any] = Field(default_factory=dict)
+    business_type_id: int | None = None
+    business_category_id: int | None = None
+    template_config: dict[str, Any] = Field(default_factory=dict)
     active: bool = True
 
     model_config = ConfigDict(from_attributes=True)
@@ -140,20 +144,20 @@ class SectorPlantillaRead(BaseModel):
 
 class TipoEmpresaCreate(BaseModel):
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     active: bool = True
 
 
 class TipoEmpresaUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    active: Optional[bool] = None
+    name: str | None = None
+    description: str | None = None
+    active: bool | None = None
 
 
 class TipoEmpresaRead(BaseModel):
-    id: int
+    id: UUID
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     active: bool = True
 
     model_config = ConfigDict(from_attributes=True)
@@ -161,18 +165,18 @@ class TipoEmpresaRead(BaseModel):
 
 class TipoNegocioCreate(BaseModel):
     name: str
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class TipoNegocioUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
 
 
 class TipoNegocioRead(BaseModel):
     id: int
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     active: bool = True
 
     model_config = ConfigDict(from_attributes=True)

@@ -1,6 +1,6 @@
 # ANÁLISIS DE DUPLICACIONES - MÓDULOS CRÍTICOS
 
-**Fecha:** 2025-11-05  
+**Fecha:** 2025-11-05
 **Objetivo:** Identificar funcionalidades duplicadas entre backend (Python) y frontend (TypeScript) para eliminar lógica de negocio del cliente.
 
 ---
@@ -107,8 +107,8 @@ export function getEinvoiceStatusColor(status: string): string {
 | **Generación de números** | ✅ SQL atómico | ❌ No existe | ✅ OK |
 
 ### Recomendación
-✅ **Mantener:** Backend tiene toda la lógica de negocio  
-✅ **Frontend correcto:** Solo UI y llamadas API  
+✅ **Mantener:** Backend tiene toda la lógica de negocio
+✅ **Frontend correcto:** Solo UI y llamadas API
 ⚠️ **Considerar migrar:** Los enums de estados y colores podrían venir desde un endpoint `/api/v1/config/invoice_statuses` para centralizar
 
 ---
@@ -190,8 +190,8 @@ export type StockMove = {
 }
 ```
 
-❌ **NO hay cálculos de stock en frontend** - ✅ BIEN  
-❌ **NO hay validaciones de negocio** - ✅ BIEN  
+❌ **NO hay cálculos de stock en frontend** - ✅ BIEN
+❌ **NO hay validaciones de negocio** - ✅ BIEN
 
 ⚠️ **Normalización de datos del backend:**
 ```typescript
@@ -213,9 +213,9 @@ const normProduct = {
 | **Normalización ES/EN** | ❌ No existe | ⚠️ En frontend | 🔄 Backend debería devolver schema consistente |
 
 ### Recomendación
-✅ **Mantener:** Backend tiene toda la lógica crítica  
-⚠️ **Migrar a backend:** Normalización de nombres de campos (decidir un idioma único)  
-🗑️ **Eliminar del frontend:** Ninguna lógica crítica detectada  
+✅ **Mantener:** Backend tiene toda la lógica crítica
+⚠️ **Migrar a backend:** Normalización de nombres de campos (decidir un idioma único)
+🗑️ **Eliminar del frontend:** Ninguna lógica crítica detectada
 ⚠️ **Estandarizar:** Los enums de `StockMove.kind` deberían venir de un schema compartido
 
 ---
@@ -289,8 +289,8 @@ export type Venta = {
 }
 ```
 
-❌ **NO hay cálculos** - ✅ BIEN  
-❌ **NO hay validaciones** - ✅ BIEN  
+❌ **NO hay cálculos** - ✅ BIEN
+❌ **NO hay validaciones** - ✅ BIEN
 ✅ **Solo llamadas API** - ✅ CORRECTO
 
 ### Duplicaciones Detectadas
@@ -303,8 +303,8 @@ export type Venta = {
 | **Cálculo de totales** | ✅ Backend | ❌ Frontend | ✅ OK |
 
 ### Recomendación
-✅ **Mantener:** Backend  
-✅ **Frontend correcto:** Solo UI  
+✅ **Mantener:** Backend
+✅ **Frontend correcto:** Solo UI
 🎯 **Estado ideal:** Este módulo está bien diseñado
 
 ---
@@ -331,7 +331,7 @@ class Producto:
     precio: float
     activo: bool
     tenant_id: int
-    
+
     def validate(self) -> None:
         if not self.name or not self.name.strip():
             raise ValueError("nombre requerido")
@@ -380,7 +380,7 @@ const norm = (p: any): Producto => {
 }
 ```
 
-❌ **NO hay validaciones de negocio** - ✅ BIEN (las hace el backend)  
+❌ **NO hay validaciones de negocio** - ✅ BIEN (las hace el backend)
 ❌ **NO hay cálculos** - ✅ BIEN
 
 ### Duplicaciones Detectadas
@@ -393,9 +393,9 @@ const norm = (p: any): Producto => {
 | **Mapeo de campos legados** | ❌ No existe | ⚠️ Frontend maneja múltiples formatos | 🔄 Migrar datos legados en DB |
 
 ### Recomendación
-✅ **Mantener:** Backend con validaciones de dominio  
-⚠️ **Migrar a backend:** Normalización de schemas (decidir nombres finales)  
-⚠️ **Agregar en frontend:** Validación básica de formularios (UX) pero sin lógica de negocio  
+✅ **Mantener:** Backend con validaciones de dominio
+⚠️ **Migrar a backend:** Normalización de schemas (decidir nombres finales)
+⚠️ **Agregar en frontend:** Validación básica de formularios (UX) pero sin lógica de negocio
 🗑️ **Eliminar del frontend:** La normalización compleja - backend debe devolver datos limpios
 
 ---
@@ -433,7 +433,7 @@ class ReceiptLineIn(BaseModel):
     unit_price: float = Field(ge=0)
     tax_rate: float = Field(ge=0, le=1, default=0)
     discount_pct: float = Field(ge=0, le=100, default=0)
-    
+
     @property
     def line_total(self) -> float:
         subtotal = self.qty * self.unit_price
@@ -767,5 +767,5 @@ const PAYMENT_METHODS = ['cash', 'card', 'store_credit', 'link']
 
 ---
 
-**Generado:** 2025-11-05  
+**Generado:** 2025-11-05
 **Próxima revisión:** Después de implementar correcciones en POS

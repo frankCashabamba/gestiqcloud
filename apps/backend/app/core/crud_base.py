@@ -1,4 +1,5 @@
-from typing import Generic, Optional, Sequence, Type, TypeVar
+from collections.abc import Sequence
+from typing import Generic, TypeVar
 
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -12,9 +13,7 @@ CreateDTO = TypeVar("CreateDTO", bound=BaseModel)
 UpdateDTO = TypeVar("UpdateDTO", bound=BaseModel)
 
 
-class CRUDBase(
-    _BaseCRUD[ModelT, CreateDTO, UpdateDTO], Generic[ModelT, CreateDTO, UpdateDTO]
-):
+class CRUDBase(_BaseCRUD[ModelT, CreateDTO, UpdateDTO], Generic[ModelT, CreateDTO, UpdateDTO]):
     """
     Compatibility layer that preserves the legacy CRUDBase API while
     reusing the centralized BaseCRUD implementation underneath.
@@ -25,25 +24,23 @@ class CRUDBase(
     - `update(id, dto)` legacy variant supported in addition to `update(db_obj, dto)`.
     """
 
-    def __init__(self, model: Type[ModelT]):
+    def __init__(self, model: type[ModelT]):
         super().__init__(model)
 
     # Legacy alias preserving return type Sequence
-    def list(
-        self, db: Session, *, offset: int = 0, limit: int = 50
-    ) -> Sequence[ModelT]:
+    def list(self, db: Session, *, offset: int = 0, limit: int = 50) -> Sequence[ModelT]:
         return self.get_multi(db, skip=offset, limit=limit)
 
     # Legacy variant: update by id
-    def update_by_id(self, db: Session, id: int, dto: UpdateDTO) -> Optional[ModelT]:
+    def update_by_id(self, db: Session, id: int, dto: UpdateDTO) -> ModelT | None:
         obj = self.get(db, id)
         if not obj:
             return None
-        return self.update(db, obj, dto)
+        return super().update(db, obj, dto)
 
     # Backwards name maintained
     def update(self, db: Session, id_or_obj, dto: UpdateDTO):  # type: ignore[override]
-        if isinstance(id_or_obj, int):
+        if isinstance(id_or_obj, int | str):
             return self.update_by_id(db, id_or_obj, dto)
         # Fallback to BaseCRUD signature (db_obj provided)
         return super().update(db, id_or_obj, dto)

@@ -1,10 +1,11 @@
-﻿"""Module: schemas.py
+"""Module: schemas.py
 
 Auto-generated module docstring."""
 
-from typing import Annotated, Any, List, Literal, Optional, Union
+from typing import Annotated, Any, Literal
+from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # Esquema para lineas
@@ -15,52 +16,56 @@ class LineaBase(BaseModel):
     description: str
     cantidad: float
     precio_unitario: float
-    iva: Optional[float] = 0
+    iva: float | None = 0
 
 
 # 🥖 Línea panadería
-class LineaPanaderia(LineaBase):
-    """Class LineaPanaderia - auto-generated docstring."""
+class BakeryLine(LineaBase):
+    """Class BakeryLine - auto-generated docstring."""
 
-    sector: Literal["panaderia"]
-    tipo_pan: str
-    gramos: float
+    sector: Literal["bakery"]
+    bread_type: str
+    grams: float
 
 
-class LineaPanaderiaOut(LineaPanaderia):
-    """Class LineaPanaderiaOut - auto-generated docstring."""
+class BakeryLineOut(BakeryLine):
+    """Class BakeryLineOut - auto-generated docstring."""
 
     model_config = ConfigDict(from_attributes=True)
 
 
 # 🔧 Línea taller
-class LineaTaller(LineaBase):
-    """Class LineaTaller - auto-generated docstring."""
+class WorkshopLine(LineaBase):
+    """Class WorkshopLine - auto-generated docstring."""
 
-    sector: Literal["taller"]
-    repuesto: str
-    horas_mano_obra: float
-    tarifa: float
+    sector: Literal["workshop"]
+    spare_part: str
+    labor_hours: float
+    rate: float
 
 
-class LineaTallerOut(LineaTaller):
-    """Class LineaTallerOut - auto-generated docstring."""
+class WorkshopLineOut(WorkshopLine):
+    """Class WorkshopLineOut - auto-generated docstring."""
 
     model_config = ConfigDict(from_attributes=True)
 
 
 # 🎯 Unión de tipos posibles
-LineaFacturaIn = Union[LineaPanaderia, LineaTaller]
-LineaFacturaOut = Annotated[
-    Union[LineaPanaderiaOut, LineaTallerOut], Field(discriminator="sector")
-]
+LineaFacturaIn = BakeryLine | WorkshopLine
+LineaFacturaOut = Annotated[BakeryLineOut | WorkshopLineOut, Field(discriminator="sector")]
+
+# Backward compatibility aliases
+LineaPanaderia = BakeryLine
+LineaPanaderiaOut = BakeryLineOut
+LineaTaller = WorkshopLine
+LineaTallerOut = WorkshopLineOut
 
 
 # facturas
 class ClienteSchema(BaseModel):
     """Class ClienteSchema - auto-generated docstring."""
 
-    id: str
+    id: UUID
     name: str
     email: str
     identificacion: str
@@ -71,21 +76,21 @@ class InvoiceCreate(BaseModel):
     """Class InvoiceCreate - auto-generated docstring."""
 
     numero: str
-    proveedor: Optional[str] = None
+    proveedor: str | None = None
     fecha_emision: str
     estado: str
     subtotal: float
     iva: float
     total: float
     cliente_id: str
-    lineas: List[LineaFacturaIn]
+    lineas: list[LineaFacturaIn]
     model_config = ConfigDict(from_attributes=True)
 
 
 class InvoiceOut(BaseModel):
     """Class InvoiceOut - auto-generated docstring."""
 
-    id: str
+    id: UUID
     numero: str
     fecha_emision: str
     estado: str
@@ -93,7 +98,7 @@ class InvoiceOut(BaseModel):
     iva: float
     total: float
     cliente: ClienteSchema
-    lineas: List[LineaFacturaOut]  # polimórficas
+    lineas: list[LineaFacturaOut]  # polimórficas
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -101,10 +106,10 @@ class InvoiceOut(BaseModel):
 class InvoiceUpdate(BaseModel):
     """Class InvoiceUpdate - auto-generated docstring."""
 
-    estado: Optional[str]
-    proveedor: Optional[str]
-    fecha_emision: Optional[str]
-    lineas: Optional[List[LineaFacturaIn]]
+    estado: str | None
+    proveedor: str | None
+    fecha_emision: str | None
+    lineas: list[LineaFacturaIn] | None
 
 
 # fiiin
@@ -121,7 +126,7 @@ class FacturaTempCreate(BaseModel):
 class FacturaOut(BaseModel):
     """Class FacturaOut - auto-generated docstring."""
 
-    id: str
+    id: UUID
     numero: str
     proveedor: str
     fecha_emision: str

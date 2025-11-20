@@ -3,9 +3,10 @@
 Script de testing para sistema de notificaciones
 """
 
-import requests
 import sys
 from uuid import uuid4
+
+import requests
 
 BASE_URL = "http://localhost:8000/api/v1/notifications"
 
@@ -271,8 +272,8 @@ def main():
     try:
         # Crear canales
         email_channel_id = test_create_email_channel()
-        whatsapp_channel_id = test_create_whatsapp_channel()
-        telegram_channel_id = test_create_telegram_channel()
+        test_create_whatsapp_channel()
+        test_create_telegram_channel()
 
         # Listar canales
         test_list_channels()

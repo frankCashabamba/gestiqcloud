@@ -8,26 +8,21 @@
 import importlib
 import re
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List, Optional
 
+from app.config.settings import settings
+from app.modules.imports.extractores.extractor_desconocido import extraer_por_tipos_combinados
+from app.modules.imports.extractores.extractor_factura import extraer_factura
+from app.modules.imports.extractores.extractor_recibo import extraer_recibo
+from app.modules.imports.extractores.extractor_transferencia import extraer_transferencias
+from app.modules.imports.extractores.utilidades import detectar_tipo_documento
+from app.modules.imports.schemas import DocumentoProcesado
 
 _SERVICES_EXTRA_PATH = Path(__file__).parent / "services"
 # Allow `app.modules.imports.services.classifier` to load from the sibling directory.
 if _SERVICES_EXTRA_PATH.is_dir():
     __path__ = [str(_SERVICES_EXTRA_PATH)]
-
-from app.modules.imports.schemas import DocumentoProcesado
-from app.config.settings import settings
-from app.modules.imports.extractores.extractor_desconocido import (
-    extraer_por_tipos_combinados,
-)
-from app.modules.imports.extractores.extractor_factura import extraer_factura
-from app.modules.imports.extractores.extractor_recibo import extraer_recibo
-from app.modules.imports.extractores.extractor_transferencia import (
-    extraer_transferencias,
-)
-from app.modules.imports.extractores.utilidades import detectar_tipo_documento
 
 fitz = None  # type: ignore
 easyocr = None  # type: ignore
@@ -35,18 +30,18 @@ Image = None  # type: ignore
 pytesseract = None  # type: ignore
 
 
-_easyocr_reader: Optional[object] = None
+_easyocr_reader: object | None = None
 
 
 try:  # eager warm-up (desactivado por defecto en prod)
     if bool(getattr(settings, "IMPORTS_EASYOCR_WARM_ON_START", False)):
         _get_easyocr_reader()  # noqa: F821
-except Exception:
+except Exception:  # nosec B110
     # best-effort; on failure the reader will be lazily retried later
     pass
 
 
-def _get_easyocr_reader() -> Optional[object]:
+def _get_easyocr_reader() -> object | None:
     global _easyocr_reader
     if _easyocr_reader is not None:
         return _easyocr_reader
@@ -70,24 +65,24 @@ def limpiar_texto_ocr(texto: str) -> str:
     # Quita caracteres no imprimibles, pero conserva acentos y ñ
     texto = re.sub(r"[^\x09\x0A\x0D\x20-\x7EáéíóúÁÉÍÓÚñÑüÜ.,;:¡!¿?()\[\]{}]", "", texto)
     # Reemplaza caracteres de error típicos
-    texto = texto.replace("�", "").replace("·", ".").replace("“", '"').replace("”", '"')
+    texto = texto.replace("�", "").replace("·", ".").replace(""", '"').replace(""", '"')
     return texto
 
 
-def extraer_texto_ocr_hibrido_paginas(file_bytes: bytes) -> List[str]:
+def extraer_texto_ocr_hibrido_paginas(file_bytes: bytes) -> list[str]:
     """Extrae texto por página intentando Tesseract y fallback a EasyOCR.
 
     - Si falta PyMuPDF/Pillow/Tesseract/EasyOCR, se degrada sin romper.
     - Devuelve lista de strings (una por página) ya limpiados.
     """
-    paginas: List[str] = []
+    paginas: list[str] = []
 
     # Lazy import fitz (PyMuPDF) to avoid heavy import at startup
     if fitz is None:
         try:
             fitz_mod = importlib.import_module("fitz")  # type: ignore
             globals()["fitz"] = fitz_mod
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
     if fitz is None:  # no PDF rasterizer available
@@ -104,7 +99,7 @@ def extraer_texto_ocr_hibrido_paginas(file_bytes: bytes) -> List[str]:
                 pix = page.get_pixmap(dpi=300)
                 img_path = f"{tmp_path}_p{page.number}.png"
                 pix.save(img_path)
-            except Exception:
+            except Exception:  # nosec B112
                 continue
 
             text_page = ""
@@ -119,9 +114,7 @@ def extraer_texto_ocr_hibrido_paginas(file_bytes: bytes) -> List[str]:
                 if _Image is not None and _pytesseract is not None:
                     try:
                         image = _Image.open(img_path)  # type: ignore[attr-defined]
-                        text_page = (
-                            _pytesseract.image_to_string(image, lang="eng") or ""
-                        )  # type: ignore[attr-defined]
+                        text_page = _pytesseract.image_to_string(image, lang="eng") or ""  # type: ignore[attr-defined]
                     except Exception:
                         text_page = ""
 
@@ -141,7 +134,7 @@ def extraer_texto_ocr_hibrido_paginas(file_bytes: bytes) -> List[str]:
             Path(img_path).unlink(missing_ok=True)
         try:
             doc.close()
-        except Exception:
+        except Exception:  # nosec B110
             pass
     finally:
         Path(tmp_path).unlink(missing_ok=True)
@@ -157,14 +150,12 @@ def _normalizar_tipo_por_importe(doc: DocumentoProcesado) -> DocumentoProcesado:
     if getattr(doc, "tipo", None) in ("ingreso", "gasto"):
         return doc
     try:
-        return doc.copy(
-            update={"tipo": "gasto" if float(doc.importe or 0) >= 0 else "ingreso"}
-        )
+        return doc.copy(update={"tipo": "gasto" if float(doc.importe or 0) >= 0 else "ingreso"})
     except Exception:
         return doc
 
 
-def procesar_documento(file_bytes: bytes, filename: str) -> List[DocumentoProcesado]:
+def procesar_documento(file_bytes: bytes, filename: str) -> list[DocumentoProcesado]:
     paginas_ocr = extraer_texto_ocr_hibrido_paginas(file_bytes)
     if not paginas_ocr:  # fallback si no pudimos rasterizar el PDF
         return []
@@ -174,7 +165,7 @@ def procesar_documento(file_bytes: bytes, filename: str) -> List[DocumentoProces
     # Debug opcional: dejar descomentado solo en desarrollo
     # print("📄 Tipo detectado:", tipo)
 
-    extractor_map: dict[str, Callable[[str], List[DocumentoProcesado]]] = {
+    extractor_map: dict[str, Callable[[str], list[DocumentoProcesado]]] = {
         "factura": extraer_factura,
         "recibo": extraer_recibo,
         "transferencia": extraer_transferencias,
@@ -183,12 +174,12 @@ def procesar_documento(file_bytes: bytes, filename: str) -> List[DocumentoProces
     }
 
     extractor = extractor_map.get(tipo, extraer_por_tipos_combinados)
-    resultados: List[DocumentoProcesado] = []
+    resultados: list[DocumentoProcesado] = []
     for pagina_texto in paginas_ocr:
         try:
             documentos = extractor(pagina_texto)
             resultados.extend(documentos)
-        except Exception:
+        except Exception:  # nosec B112
             continue
 
     # Normalización de tipo

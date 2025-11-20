@@ -19,4 +19,3 @@ Columns
 
 Post-apply
 - Existing rows (if any) will have status NULL; we coerce NULL→'success' when applied_at is present.
-

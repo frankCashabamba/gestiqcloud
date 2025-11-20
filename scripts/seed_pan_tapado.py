@@ -4,8 +4,8 @@ Seed Script - Receta Pan Tapado
 Crea receta completa con 10 ingredientes exactos con conversiones correctas
 """
 
-import sys
 import os
+import sys
 from uuid import uuid4
 
 # Agregar path del backend
@@ -13,8 +13,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "apps", "backen
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from app.models.core.products import Recipe, RecipeIngredient, Product
 
+from app.models.core.products import Product, Recipe, RecipeIngredient
 
 # ============================================================================
 # CONFIGURACIÓN

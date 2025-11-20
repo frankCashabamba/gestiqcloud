@@ -8,4 +8,3 @@ Cambios clave:
 - Elimina columnas legacy: `nivel_actual`, `nivel_minimo`, `estado`, `diferencia`.
 - Reemplaza `check_low_stock()` para insertar usando las columnas modernas.
 - Crea índices en `(tenant_id, status)` y `product_id`.
-

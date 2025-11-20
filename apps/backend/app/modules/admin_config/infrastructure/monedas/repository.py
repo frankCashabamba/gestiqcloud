@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
 
@@ -23,11 +23,7 @@ class SqlAlchemyMonedaRepo(MonedaRepo):
         )
 
     def list(self) -> Sequence[MonedaOut]:
-        rows = (
-            self.db.query(MonedaORM)
-            .order_by(MonedaORM.code.asc())
-            .all()
-        )
+        rows = self.db.query(MonedaORM).order_by(MonedaORM.code.asc()).all()
         return [self._to_dto(r) for r in rows]
 
     def create(self, data: MonedaIn) -> MonedaOut:

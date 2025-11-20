@@ -1,26 +1,24 @@
-﻿# app/models/usuarioempresa.py
+# app/models/usuarioempresa.py
 import uuid
-import sqlalchemy as sa
 from datetime import datetime
 from typing import TYPE_CHECKING
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from app.config.database import Base, IS_SQLITE
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.config.database import IS_SQLITE, Base
 
 if TYPE_CHECKING:
     from app.models.tenant import Tenant
 
 
-class UsuarioEmpresa(Base):
-    __tablename__ = "usuarios_usuarioempresa"
+class CompanyUser(Base):
+    __tablename__ = "company_users"
     __table_args__ = (
         # Unicidad por tenant (elige esto o uniques globales en columnas)
-        sa.UniqueConstraint(
-            "tenant_id", "email", name="uq_usuarioempresa_tenant_email"
-        ),
-        sa.UniqueConstraint(
-            "tenant_id", "username", name="uq_usuarioempresa_tenant_username"
-        ),
+        sa.UniqueConstraint("tenant_id", "email", name="uq_company_user_tenant_email"),
+        sa.UniqueConstraint("tenant_id", "username", name="uq_company_user_tenant_username"),
         {"extend_existing": True},
     )
 
@@ -42,32 +40,28 @@ class UsuarioEmpresa(Base):
         index=True,
     )
 
-    nombre_encargado: Mapped[str] = mapped_column(sa.String(100), nullable=False)
-    apellido_encargado: Mapped[str] = mapped_column(sa.String(100), nullable=False)
+    first_name: Mapped[str] = mapped_column(sa.String(100), nullable=False)
+    last_name: Mapped[str] = mapped_column(sa.String(100), nullable=False)
     email: Mapped[str] = mapped_column(
         sa.String(254), nullable=False
     )  # considera CITEXT si quieres case-insensitive
     username: Mapped[str] = mapped_column(sa.String(100), nullable=False)
 
-    activo: Mapped[bool] = mapped_column(
+    is_active: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("true")
     )
-    es_admin_empresa: Mapped[bool] = mapped_column(
+    is_company_admin: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("false")
     )
 
     password_hash: Mapped[str] = mapped_column(sa.String, nullable=False)
-    password_token_created: Mapped[datetime | None] = mapped_column(
-        sa.DateTime(timezone=True)
-    )
+    password_token_created: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     is_verified: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("false")
     )
 
     # Relación
-    tenant: Mapped["Tenant"] = relationship(
-        "Tenant"
-    )  # o back_populates si defines el lado inverso
+    tenant: Mapped["Tenant"] = relationship("Tenant")  # o back_populates si defines el lado inverso
 
     # Auditoría
     failed_login_count: Mapped[int] = mapped_column(
@@ -75,9 +69,7 @@ class UsuarioEmpresa(Base):
     )
     locked_until: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     last_login_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
-    last_password_change_at: Mapped[datetime | None] = mapped_column(
-        sa.DateTime(timezone=True)
-    )
+    last_password_change_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
@@ -93,19 +85,28 @@ class UsuarioEmpresa(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<UsuarioEmpresa email={self.email}>"
+        return f"<CompanyUser email={self.email}>"
 
     @property
-    def is_active(self) -> bool:
-        """Function is_active - auto-generated docstring."""
-        return self.active
+    def es_admin_empresa(self) -> bool:
+        """Alias para is_company_admin."""
+        return self.is_company_admin
+
+    @property
+    def activo(self) -> bool:
+        """Alias para is_active."""
+        return self.is_active
 
     @property
     def is_superuser(self) -> bool:
         """Function is_superuser - auto-generated docstring."""
-        return self.es_admin_empresa
+        return self.is_company_admin
 
     @property
     def is_staff(self) -> bool:
         """Function is_staff - auto-generated docstring."""
-        return self.es_admin_empresa
+        return self.is_company_admin
+
+
+# Keep old name for backward compatibility during migration
+UsuarioEmpresa = CompanyUser

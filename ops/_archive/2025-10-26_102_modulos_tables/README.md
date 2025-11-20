@@ -10,4 +10,3 @@ Notes
 - This aligns with SQLAlchemy models in apps/backend/app/models/core/modulo.py
 - Uses UUID tenant_id (references tenants.id)
 - Leaves modulos_modulo without RLS (admin-only) and enables RLS on assignment table if needed in future.
-

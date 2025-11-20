@@ -1,38 +1,38 @@
 """CSV parser for products."""
 
 import csv
-from typing import Dict, Any, List
 from datetime import datetime
+from typing import Any
 
 
-def parse_csv_products(file_path: str) -> Dict[str, Any]:
+def parse_csv_products(file_path: str) -> dict[str, Any]:
     """Parse CSV file with product data.
-    
+
     Expects columns: name/producto/nombre, price/precio, quantity/cantidad,
     sku/codigo, category/categoria, description/descripcion
-    
+
     Args:
         file_path: Path to CSV file
-        
+
     Returns:
         Dict with 'products' list and metadata
     """
     products = []
     rows_processed = 0
     errors = []
-    
+
     try:
-        with open(file_path, 'r', encoding='utf-8-sig') as f:
+        with open(file_path, encoding="utf-8-sig") as f:
             reader = csv.DictReader(f)
             if not reader.fieldnames:
                 raise ValueError("CSV file is empty or has no headers")
-            
+
             for idx, row in enumerate(reader, start=1):
                 rows_processed += 1
-                
+
                 # Normalize column names
                 normalized_row = {k.strip().lower(): v for k, v in row.items()}
-                
+
                 # Extract canonical fields
                 name = (
                     normalized_row.get("name")
@@ -40,10 +40,10 @@ def parse_csv_products(file_path: str) -> Dict[str, Any]:
                     or normalized_row.get("nombre")
                     or normalized_row.get("product")
                 )
-                
+
                 if not name or not str(name).strip():
                     continue
-                
+
                 product = {
                     "doc_type": "product",
                     "nombre": str(name).strip(),
@@ -94,9 +94,9 @@ def parse_csv_products(file_path: str) -> Dict[str, Any]:
                         "parser": "csv_products",
                         "row_index": idx,
                         "imported_at": datetime.utcnow().isoformat(),
-                    }
+                    },
                 }
-                
+
                 # Extract SKU if available
                 sku = (
                     normalized_row.get("sku")
@@ -106,7 +106,7 @@ def parse_csv_products(file_path: str) -> Dict[str, Any]:
                 )
                 if sku:
                     product["sku"] = str(sku).strip()
-                
+
                 # Extract description if available
                 description = (
                     normalized_row.get("description")
@@ -115,14 +115,14 @@ def parse_csv_products(file_path: str) -> Dict[str, Any]:
                 )
                 if description:
                     product["description"] = str(description).strip()
-                
+
                 # Clean nulls
                 product = _clean_dict(product)
                 products.append(product)
-                
+
     except Exception as e:
         errors.append(str(e))
-    
+
     return {
         "products": products,
         "rows_processed": rows_processed,
@@ -143,7 +143,7 @@ def _to_float(val) -> float | None:
         return None
 
 
-def _clean_dict(d: Dict) -> Dict:
+def _clean_dict(d: dict) -> dict:
     """Remove keys with None or empty string values."""
     if not isinstance(d, dict):
         return d

@@ -1,20 +1,19 @@
-﻿"""Modelos de Proveedores"""
+"""Supplier Models"""
 
 import uuid
 from datetime import datetime
-from typing import Optional, List
 
-from sqlalchemy import String, Boolean, Text, ForeignKey
+from sqlalchemy import Boolean, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
 
 
-class Proveedor(Base):
-    """Proveedor (Supplier)"""
+class Supplier(Base):
+    """Supplier (Proveedor)"""
 
-    __tablename__ = "proveedores"
+    __tablename__ = "suppliers"
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -26,98 +25,86 @@ class Proveedor(Base):
         nullable=False,
         index=True,
     )
-    codigo: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    nombre: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    nombre_comercial: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    tax_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    telefono: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    web: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow
-    )
+    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    trade_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tax_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    website: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
     # Relationships
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
-    contactos: Mapped[List["ProveedorContacto"]] = relationship(
-        "ProveedorContacto", back_populates="proveedor", cascade="all, delete-orphan"
+    contacts: Mapped[list["SupplierContact"]] = relationship(
+        "SupplierContact", back_populates="supplier", cascade="all, delete-orphan"
     )
-    direcciones: Mapped[List["ProveedorDireccion"]] = relationship(
-        "ProveedorDireccion", back_populates="proveedor", cascade="all, delete-orphan"
+    addresses: Mapped[list["SupplierAddress"]] = relationship(
+        "SupplierAddress", back_populates="supplier", cascade="all, delete-orphan"
     )
 
     def __repr__(self):
-        return f"<Proveedor {self.name}>"
+        return f"<Supplier {self.name}>"
 
 
-class ProveedorContacto(Base):
-    """Contacto de proveedor"""
+class SupplierContact(Base):
+    """Supplier Contact"""
 
-    __tablename__ = "proveedor_contactos"
+    __tablename__ = "supplier_contacts"
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    proveedor_id: Mapped[uuid.UUID] = mapped_column(
+    supplier_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("proveedores.id", ondelete="CASCADE"),
+        ForeignKey("suppliers.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    nombre: Mapped[str] = mapped_column(String(255), nullable=False)
-    cargo: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    telefono: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow
-    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    position: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
 
     # Relationships
-    proveedor: Mapped["Proveedor"] = relationship(
-        "Proveedor", back_populates="contactos"
-    )
+    supplier: Mapped["Supplier"] = relationship("Supplier", back_populates="contacts")
 
     def __repr__(self):
-        return f"<ProveedorContacto {self.name}>"
+        return f"<SupplierContact {self.name}>"
 
 
-class ProveedorDireccion(Base):
-    """Dirección de proveedor"""
+class SupplierAddress(Base):
+    """Supplier Address"""
 
-    __tablename__ = "proveedor_direcciones"
+    __tablename__ = "supplier_addresses"
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    proveedor_id: Mapped[uuid.UUID] = mapped_column(
+    supplier_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("proveedores.id", ondelete="CASCADE"),
+        ForeignKey("suppliers.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    tipo: Mapped[Optional[str]] = mapped_column(
-        String(20), nullable=True
-    )  # fiscal, envio, otro
-    direccion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    ciudad: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    provincia: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    codigo_postal: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    pais: Mapped[str] = mapped_column(String(2), nullable=False, default="ES")
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow
-    )
+    type: Mapped[str | None] = mapped_column(String(20), nullable=True)  # billing, shipping, other
+    address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    state: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    postal_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    country: Mapped[str] = mapped_column(String(2), nullable=False, default="ES")
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
 
     # Relationships
-    proveedor: Mapped["Proveedor"] = relationship(
-        "Proveedor", back_populates="direcciones"
-    )
+    supplier: Mapped["Supplier"] = relationship("Supplier", back_populates="addresses")
 
     def __repr__(self):
-        return f"<ProveedorDireccion {self.tipo} - {self.city}>"
+        return f"<SupplierAddress {self.type} - {self.city}>"

@@ -132,7 +132,7 @@ else:
     # 3. Usar routing_proposal
     proposal = doc["routing_proposal"]
     target = proposal["target"]  # "expenses"
-    
+
     # 4. Publicar a tabla destino
     # ... crear registro en expenses con totals, lines, vendor
 ```
@@ -204,6 +204,6 @@ VALID_ROUTING_TARGETS = ["expenses", "income", "bank_movements"]
 
 ---
 
-**Implementado por**: Amp (Sourcegraph AI)  
-**Fecha**: 2025-01-17  
+**Implementado por**: Amp (Sourcegraph AI)
+**Fecha**: 2025-01-17
 **Basado en**: SPEC-1 Importador documental GestiqCloud

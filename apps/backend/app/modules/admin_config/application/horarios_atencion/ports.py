@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from typing import Protocol, Sequence, Optional
+from collections.abc import Sequence
+from typing import Protocol
 
-from app.modules.admin_config.application.horarios_atencion.dto import HorarioAtencionIn, HorarioAtencionOut
+from app.modules.admin_config.application.horarios_atencion.dto import (
+    HorarioAtencionIn,
+    HorarioAtencionOut,
+)
 
 
 class HorarioAtencionRepo(Protocol):
@@ -10,7 +14,7 @@ class HorarioAtencionRepo(Protocol):
 
     def create(self, data: HorarioAtencionIn) -> HorarioAtencionOut: ...
 
-    def get(self, id: int) -> Optional[HorarioAtencionOut]: ...
+    def get(self, id: int) -> HorarioAtencionOut | None: ...
 
     def update(self, id: int, data: HorarioAtencionIn) -> HorarioAtencionOut: ...
 

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
 
 from app.models.empresa.empresa import SectorPlantilla as SectorPlantillaORM
-from app.modules.admin_config.application.sectores_plantilla.dto import SectorPlantillaIn, SectorPlantillaOut
+from app.modules.admin_config.application.sectores_plantilla.dto import (
+    SectorPlantillaIn,
+    SectorPlantillaOut,
+)
 from app.modules.admin_config.application.sectores_plantilla.ports import SectorPlantillaRepo
 
 
@@ -26,9 +29,7 @@ class SqlAlchemySectorPlantillaRepo(SectorPlantillaRepo):
 
     def list(self) -> Sequence[SectorPlantillaOut]:
         rows = (
-            self.db.query(SectorPlantillaORM)
-            .order_by(SectorPlantillaORM.sector_name.asc())
-            .all()
+            self.db.query(SectorPlantillaORM).order_by(SectorPlantillaORM.sector_name.asc()).all()
         )
         return [self._to_dto(r) for r in rows]
 

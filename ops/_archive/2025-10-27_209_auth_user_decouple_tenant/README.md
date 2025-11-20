@@ -10,4 +10,3 @@ What it does
 
 Rollback
 - Restores tenant_id column (NULLable) and recreates the index, if needed.
-

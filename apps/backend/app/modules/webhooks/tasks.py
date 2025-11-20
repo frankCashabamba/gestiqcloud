@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import json
-import hmac
 import hashlib
-from typing import Any, Dict
+import hmac
+import json
+from typing import Any
 
 import requests
 from celery import shared_task
@@ -12,10 +12,8 @@ from sqlalchemy import text
 from app.config.database import SessionLocal
 
 
-def _sign(secret: str, payload: Dict[str, Any]) -> str:
-    body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode(
-        "utf-8"
-    )
+def _sign(secret: str, payload: dict[str, Any]) -> str:
+    body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     sig = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
     return sig
 

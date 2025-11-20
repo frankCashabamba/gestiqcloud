@@ -1,11 +1,10 @@
 """Schemas Pydantic para Configuración del Tenant"""
 
-from typing import Optional, Any
-from uuid import UUID
 from datetime import datetime
+from typing import Any
+from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict
-
+from pydantic import BaseModel, ConfigDict, Field
 
 # ============================================================================
 # TENANT SETTINGS
@@ -30,12 +29,10 @@ class TenantSettingsResponse(BaseModel):
     )
 
     # Configuración fiscal
-    tipo_regimen_fiscal: Optional[str] = Field(
+    tipo_regimen_fiscal: str | None = Field(
         None, description="Régimen fiscal (ES: general, EC: RISE, etc)"
     )
-    iva_incluido_precios: bool = Field(
-        default=True, description="Si los precios incluyen IVA"
-    )
+    iva_incluido_precios: bool = Field(default=True, description="Si los precios incluyen IVA")
     tasa_iva_defecto: float = Field(
         default=0.21, ge=0, le=1, description="Tasa de IVA por defecto (0-1)"
     )
@@ -44,7 +41,7 @@ class TenantSettingsResponse(BaseModel):
     einvoicing_enabled: bool = Field(
         default=False, description="Si la e-facturación está habilitada"
     )
-    einvoicing_provider: Optional[str] = Field(None, pattern="^(sri|facturae|none)$")
+    einvoicing_provider: str | None = Field(None, pattern="^(sri|facturae|none)$")
 
     # Configuración de POS
     pos_enabled: bool = Field(default=False)
@@ -52,15 +49,9 @@ class TenantSettingsResponse(BaseModel):
     pos_print_width_mm: int = Field(default=58, pattern="^(58|80)$")
 
     # Configuración de inventario
-    inventory_negative_stock: bool = Field(
-        default=False, description="Permitir stock negativo"
-    )
-    inventory_track_lots: bool = Field(
-        default=False, description="Tracking de lotes/series"
-    )
-    inventory_track_expiry: bool = Field(
-        default=False, description="Tracking de caducidad"
-    )
+    inventory_negative_stock: bool = Field(default=False, description="Permitir stock negativo")
+    inventory_track_lots: bool = Field(default=False, description="Tracking de lotes/series")
+    inventory_track_expiry: bool = Field(default=False, description="Tracking de caducidad")
 
     # Configuración de pagos
     payment_providers: list[str] = Field(
@@ -85,33 +76,33 @@ class ModuleSettingsUpdate(BaseModel):
     """Schema para actualizar configuración de módulos específicos"""
 
     # General
-    moneda_predeterminada: Optional[str] = Field(None, pattern="^(EUR|USD)$")
-    idioma: Optional[str] = Field(None, pattern="^(es|en)$")
+    moneda_predeterminada: str | None = Field(None, pattern="^(EUR|USD)$")
+    idioma: str | None = Field(None, pattern="^(es|en)$")
 
     # Fiscal
-    tipo_regimen_fiscal: Optional[str] = None
-    iva_incluido_precios: Optional[bool] = None
-    tasa_iva_defecto: Optional[float] = Field(None, ge=0, le=1)
+    tipo_regimen_fiscal: str | None = None
+    iva_incluido_precios: bool | None = None
+    tasa_iva_defecto: float | None = Field(None, ge=0, le=1)
 
     # E-invoicing
-    einvoicing_enabled: Optional[bool] = None
-    einvoicing_provider: Optional[str] = Field(None, pattern="^(sri|facturae|none)$")
+    einvoicing_enabled: bool | None = None
+    einvoicing_provider: str | None = Field(None, pattern="^(sri|facturae|none)$")
 
     # POS
-    pos_enabled: Optional[bool] = None
-    pos_offline_mode: Optional[bool] = None
-    pos_print_width_mm: Optional[int] = Field(None, pattern="^(58|80)$")
+    pos_enabled: bool | None = None
+    pos_offline_mode: bool | None = None
+    pos_print_width_mm: int | None = Field(None, pattern="^(58|80)$")
 
     # Inventory
-    inventory_negative_stock: Optional[bool] = None
-    inventory_track_lots: Optional[bool] = None
-    inventory_track_expiry: Optional[bool] = None
+    inventory_negative_stock: bool | None = None
+    inventory_track_lots: bool | None = None
+    inventory_track_expiry: bool | None = None
 
     # Payments
-    payment_providers: Optional[list[str]] = None
+    payment_providers: list[str] | None = None
 
     # Metadata
-    metadata: Optional[dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -128,14 +119,10 @@ class ModuleInfo(BaseModel):
     name: str = Field(..., description="Nombre legible del módulo")
     description: str = Field(..., description="Descripción del módulo")
     category: str = Field(..., pattern="^(core|sales|purchases|finance|hr|config)$")
-    available_countries: list[str] = Field(
-        ..., description="Países donde está disponible"
-    )
-    requires_modules: list[str] = Field(
-        default_factory=list, description="Módulos dependientes"
-    )
+    available_countries: list[str] = Field(..., description="Países donde está disponible")
+    requires_modules: list[str] = Field(default_factory=list, description="Módulos dependientes")
     enabled_by_default: bool = Field(default=False)
-    icon: Optional[str] = Field(None, description="Icono del módulo (nombre o emoji)")
+    icon: str | None = Field(None, description="Icono del módulo (nombre o emoji)")
 
 
 class ModuleListResponse(BaseModel):
@@ -156,7 +143,7 @@ class TenantActivationRequest(BaseModel):
     modulos_activar: list[str] = Field(
         ..., description="Códigos de módulos a activar", min_length=1
     )
-    configuracion_inicial: Optional[ModuleSettingsUpdate] = Field(
+    configuracion_inicial: ModuleSettingsUpdate | None = Field(
         None, description="Configuración inicial opcional"
     )
 

@@ -4,13 +4,13 @@
 BEGIN;
 
 -- Revertir nombres de columnas
-ALTER TABLE modulos_modulo 
+ALTER TABLE modulos_modulo
     RENAME COLUMN name TO nombre;
 
-ALTER TABLE modulos_modulo 
+ALTER TABLE modulos_modulo
     RENAME COLUMN description TO descripcion;
 
-ALTER TABLE modulos_modulo 
+ALTER TABLE modulos_modulo
     RENAME COLUMN active TO activo;
 
 COMMIT;

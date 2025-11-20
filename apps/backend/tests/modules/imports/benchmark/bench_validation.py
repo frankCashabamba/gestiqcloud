@@ -3,14 +3,14 @@ Benchmark validadores: medir latencia de reglas de validación.
 Target: < 10ms por item.
 """
 
-import time
 import json
 import statistics
-from typing import List, Dict, Any
+import time
 from pathlib import Path
+from typing import Any
 
 
-def benchmark_invoice_validation(iterations: int = 100) -> Dict[str, Any]:
+def benchmark_invoice_validation(iterations: int = 100) -> dict[str, Any]:
     """
     Benchmark validación de factura (reglas EC).
     """
@@ -41,7 +41,7 @@ def benchmark_invoice_validation(iterations: int = 100) -> Dict[str, Any]:
         "fecha_emision": "2025-01-15",
     }
 
-    latencies: List[float] = []
+    latencies: list[float] = []
 
     for _ in range(iterations):
         start = time.perf_counter()
@@ -61,7 +61,7 @@ def benchmark_invoice_validation(iterations: int = 100) -> Dict[str, Any]:
     }
 
 
-def benchmark_bank_validation(iterations: int = 100) -> Dict[str, Any]:
+def benchmark_bank_validation(iterations: int = 100) -> dict[str, Any]:
     """
     Benchmark validación de movimientos bancarios.
     """
@@ -75,7 +75,7 @@ def benchmark_bank_validation(iterations: int = 100) -> Dict[str, Any]:
         "saldo": 1500.0,
     }
 
-    latencies: List[float] = []
+    latencies: list[float] = []
 
     for _ in range(iterations):
         start = time.perf_counter()
@@ -95,7 +95,7 @@ def benchmark_bank_validation(iterations: int = 100) -> Dict[str, Any]:
     }
 
 
-def benchmark_batch_validation(batch_size: int = 100) -> Dict[str, Any]:
+def benchmark_batch_validation(batch_size: int = 100) -> dict[str, Any]:
     """
     Benchmark validación de batch completo.
     Target: < 1s para 100 items.
@@ -126,7 +126,7 @@ def benchmark_batch_validation(batch_size: int = 100) -> Dict[str, Any]:
     }
 
 
-def run_all_benchmarks() -> Dict[str, Any]:
+def run_all_benchmarks() -> dict[str, Any]:
     """Ejecuta todos los benchmarks de validación."""
     import datetime
 
@@ -167,9 +167,7 @@ def run_all_benchmarks() -> Dict[str, Any]:
 if __name__ == "__main__":
     results = run_all_benchmarks()
 
-    output_path = (
-        Path(__file__).parent / f"bench_validation_results_{int(time.time())}.json"
-    )
+    output_path = Path(__file__).parent / f"bench_validation_results_{int(time.time())}.json"
     with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
 

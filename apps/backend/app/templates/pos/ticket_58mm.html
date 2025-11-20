@@ -10,13 +10,13 @@
             margin: 0;
             padding: 0;
         }
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             width: 48mm;
             font-family: 'Courier New', Courier, monospace;
@@ -25,50 +25,50 @@
             margin: 5mm auto;
             color: #000;
         }
-        
+
         .header {
             text-align: center;
             margin-bottom: 3mm;
         }
-        
+
         .header h1 {
             font-size: 11pt;
             font-weight: bold;
             margin-bottom: 1mm;
             text-transform: uppercase;
         }
-        
+
         .header .ruc {
             font-size: 8pt;
             margin-bottom: 1mm;
         }
-        
+
         .info {
             font-size: 8pt;
             margin-bottom: 3mm;
             border-bottom: 1px dashed #000;
             padding-bottom: 2mm;
         }
-        
+
         .info-line {
             display: flex;
             justify-content: space-between;
             margin-bottom: 0.5mm;
         }
-        
+
         .info-label {
             font-weight: bold;
         }
-        
+
         .items {
             margin-bottom: 3mm;
         }
-        
+
         .item {
             margin-bottom: 2mm;
             page-break-inside: avoid;
         }
-        
+
         .item-name {
             font-weight: bold;
             white-space: nowrap;
@@ -76,28 +76,28 @@
             text-overflow: ellipsis;
             margin-bottom: 0.5mm;
         }
-        
+
         .item-details {
             display: flex;
             justify-content: space-between;
             font-size: 8pt;
         }
-        
+
         .separator {
             border-top: 1px dashed #000;
             margin: 2mm 0;
         }
-        
+
         .totals {
             font-size: 9pt;
         }
-        
+
         .total-line {
             display: flex;
             justify-content: space-between;
             margin-bottom: 1mm;
         }
-        
+
         .total-line.grand {
             font-size: 11pt;
             font-weight: bold;
@@ -105,7 +105,7 @@
             border-top: 2px solid #000;
             margin-top: 2mm;
         }
-        
+
         .footer {
             text-align: center;
             font-size: 7pt;
@@ -113,21 +113,21 @@
             padding-top: 3mm;
             border-top: 1px dashed #000;
         }
-        
+
         .footer p {
             margin-bottom: 1mm;
         }
-        
+
         .qr-code {
             text-align: center;
             margin: 3mm 0;
         }
-        
+
         @media print {
             body {
                 margin: 0;
             }
-            
+
             .no-print {
                 display: none;
             }
@@ -139,7 +139,7 @@
         <h1>{{ empresa.nombre }}</h1>
         <div class="ruc">RUC/NIF: {{ empresa.ruc }}</div>
     </div>
-    
+
     <div class="info">
         <div class="info-line">
             <span class="info-label">Ticket:</span>
@@ -150,7 +150,7 @@
             <span>{{ ticket.created_at.strftime('%d/%m/%Y %H:%M') }}</span>
         </div>
     </div>
-    
+
     <div class="items">
         {% for line in lines %}
         <div class="item">
@@ -165,9 +165,9 @@
         </div>
         {% endfor %}
     </div>
-    
+
     <div class="separator"></div>
-    
+
     <div class="totals">
         <div class="total-line">
             <span>SUBTOTAL:</span>
@@ -182,7 +182,7 @@
             <span>{{ "%.2f"|format(ticket.gross_total) }} {{ ticket.currency }}</span>
         </div>
     </div>
-    
+
     <div class="footer">
         <p>¡Gracias por su compra!</p>
         <p>{{ ticket.created_at.strftime('%d/%m/%Y %H:%M:%S') }}</p>
@@ -190,7 +190,7 @@
         <p>{{ empresa.web }}</p>
         {% endif %}
     </div>
-    
+
     <div class="no-print" style="margin-top: 10mm; text-align: center;">
         <button onclick="window.print()" style="padding: 10px 20px; font-size: 14pt;">
             🖨️ Imprimir

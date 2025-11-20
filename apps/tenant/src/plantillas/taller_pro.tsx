@@ -29,9 +29,9 @@ interface KPIData {
 
 const TallerDashboard: React.FC = () => {
   const { modules } = useMisModulos()
-  
+
   // Solo cargar KPIs si hay módulos de finanzas/ventas activos
-  const shouldLoadKPIs = modules.some(m => 
+  const shouldLoadKPIs = modules.some(m =>
     ['ventas', 'finanzas', 'facturacion'].includes((m.slug || '').toLowerCase())
   )
   const { data: kpisData, loading: kpisLoading } = useTallerKPIs({ enabled: shouldLoadKPIs })
@@ -43,7 +43,7 @@ const TallerDashboard: React.FC = () => {
   const trabajos = kpis.trabajos_completados || {}
 
   const isModuleEnabled = (moduleName: string) => {
-    return modules.some(m => 
+    return modules.some(m =>
       (m.slug || '').toLowerCase() === moduleName.toLowerCase() ||
       (m.name || '').toLowerCase().includes(moduleName.toLowerCase())
     )
@@ -56,8 +56,8 @@ const TallerDashboard: React.FC = () => {
   ].filter(Boolean) as Array<{ label: string; href: string; icon: string }>
 
   return (
-    <DashboardPro 
-      sectorName="TallerERP" 
+    <DashboardPro
+      sectorName="TallerERP"
       sectorIcon="🔧"
       customLinks={customLinks}
     >
@@ -115,8 +115,8 @@ const TallerDashboard: React.FC = () => {
               <span>{ingresos.progreso?.toFixed(0) || 0}%</span>
             </div>
             <div className="progress-bar">
-              <div 
-                className="progress-bar__fill" 
+              <div
+                className="progress-bar__fill"
                 style={{ width: `${ingresos.progreso || 0}%` }}
               />
             </div>

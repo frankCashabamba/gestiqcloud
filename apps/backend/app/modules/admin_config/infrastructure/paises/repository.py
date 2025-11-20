@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
 
@@ -22,11 +22,7 @@ class SqlAlchemyPaisRepo(PaisRepo):
         )
 
     def list(self) -> Sequence[PaisOut]:
-        rows = (
-            self.db.query(PaisORM)
-            .order_by(PaisORM.code.asc())
-            .all()
-        )
+        rows = self.db.query(PaisORM).order_by(PaisORM.code.asc()).all()
         return [self._to_dto(r) for r in rows]
 
     def create(self, data: PaisIn) -> PaisOut:

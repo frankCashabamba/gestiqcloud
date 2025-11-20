@@ -1,7 +1,6 @@
-import { ModuleManifest } from '../types'
 import { Users, TrendingUp, Target, Calendar } from 'lucide-react'
 
-export const crmManifest: ModuleManifest = {
+export const crmManifest = {
   id: 'crm',
   name: 'CRM',
   description: 'Gestión de relaciones con clientes',

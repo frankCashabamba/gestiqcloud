@@ -74,7 +74,7 @@ export default function AsientoForm() {
 
             if (id) await updateAsiento(id, payload)
             else await createAsiento(payload)
-            
+
             success('Asiento guardado')
             nav('..')
         } catch (e: any) {

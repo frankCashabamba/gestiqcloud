@@ -33,4 +33,3 @@ export async function updateTipoEmpresa(id: number | string, payload: TipoEmpres
 export async function removeTipoEmpresa(id: number | string): Promise<void> {
   await api.delete(ADMIN_CONFIG.tipoEmpresa.byId(id))
 }
-

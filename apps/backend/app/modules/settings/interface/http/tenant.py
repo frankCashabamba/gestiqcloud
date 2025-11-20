@@ -1,19 +1,20 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, HTTPException, Request
+import re
+import unicodedata
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from ...infrastructure.repositories import SettingsRepo
-from app.models.empresa.settings import ConfiguracionEmpresa
-from app.models.tenant import Tenant as Empresa
+from app.core.access_guard import with_access_claims
 from app.models.core.ui_field_config import TenantFieldConfig
 from app.models.core.ui_template import UiTemplate
+from app.models.empresa.settings import ConfiguracionEmpresa
+from app.models.tenant import Tenant as Empresa
 from app.services.field_config import resolve_fields
-from app.core.access_guard import with_access_claims
-import unicodedata
-import re
 
+from ...infrastructure.repositories import SettingsRepo
 
 router = APIRouter()
 admin_router = APIRouter(prefix="/admin/field-config", tags=["admin-field-config"])
@@ -133,7 +134,11 @@ def _canonical_sector_slug(name: str | None) -> str | None:
     tokens = set(s.split())
 
     # Retail family
-    if {"retail", "bazar"} & tokens or "todoa100" in tokens or ("todo" in tokens and "100" in tokens):
+    if (
+        {"retail", "bazar"} & tokens
+        or "todoa100" in tokens
+        or ("todo" in tokens and "100" in tokens)
+    ):
         return "retail"
 
     # Panaderia family
@@ -149,9 +154,7 @@ def _canonical_sector_slug(name: str | None) -> str | None:
 
 
 @router.get("/theme")
-def get_theme_tokens(
-    db: Session = Depends(get_db), empresa: str | None = Query(default=None)
-):
+def get_theme_tokens(db: Session = Depends(get_db), empresa: str | None = Query(default=None)):
     """Return design tokens for theming the tenant UI.
 
     Usa `Tenant.sector_template_name` como fuente del sector (normalizado y
@@ -161,9 +164,7 @@ def get_theme_tokens(
     """
     if empresa:
         emp = (
-            db.query(Empresa)
-            .filter((Empresa.slug == empresa) | (Empresa.name == empresa))
-            .first()
+            db.query(Empresa).filter((Empresa.slug == empresa) | (Empresa.name == empresa)).first()
         )
         cfg = None
         if emp:
@@ -183,9 +184,7 @@ def get_theme_tokens(
             else None
         )
         color_primary = (
-            getattr(cfg, "color_primario", None)
-            or getattr(emp, "primary_color", None)
-            or "#0ea5e9"
+            getattr(cfg, "color_primario", None) or getattr(emp, "primary_color", None) or "#0ea5e9"
         )
 
         raw_sector = getattr(emp, "sector_template_name", None)
@@ -329,15 +328,13 @@ def get_field_config(
     sector = "default"
     if empresa:
         emp = (
-            db.query(Empresa)
-            .filter((Empresa.slug == empresa) | (Empresa.name == empresa))
-            .first()
+            db.query(Empresa).filter((Empresa.slug == empresa) | (Empresa.name == empresa)).first()
         )
         if emp:
             tenant_id = getattr(emp, "id", None)
-            sector = _normalize_sector_slug(
-                getattr(emp, "sector_plantilla_nombre", None)
-            ) or ((getattr(emp, "plantilla_inicio", None) or "default").strip().lower())
+            sector = _normalize_sector_slug(getattr(emp, "sector_plantilla_nombre", None)) or (
+                (getattr(emp, "plantilla_inicio", None) or "default").strip().lower()
+            )
 
     items = resolve_fields(
         db,
@@ -418,9 +415,7 @@ def put_tenant_fields(payload: dict, db: Session = Depends(get_db)):
     tenant_id = None
     if empresa:
         emp = (
-            db.query(Empresa)
-            .filter((Empresa.slug == empresa) | (Empresa.name == empresa))
-            .first()
+            db.query(Empresa).filter((Empresa.slug == empresa) | (Empresa.name == empresa)).first()
         )
         tenant_id = getattr(emp, "id", None)
     if not tenant_id:
@@ -495,9 +490,7 @@ def put_tenant_module_mode(payload: dict, db: Session = Depends(get_db)):
     tenant_id = None
     if empresa:
         emp = (
-            db.query(Empresa)
-            .filter((Empresa.slug == empresa) | (Empresa.name == empresa))
-            .first()
+            db.query(Empresa).filter((Empresa.slug == empresa) | (Empresa.name == empresa)).first()
         )
         tenant_id = getattr(emp, "id", None)
     if not tenant_id:

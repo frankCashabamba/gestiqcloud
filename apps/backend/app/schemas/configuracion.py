@@ -1,8 +1,8 @@
-﻿"""Module: configuracion.py
+"""Module: configuracion.py
 
 Auto-generated module docstring."""
 
-from typing import Dict, List, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
@@ -31,8 +31,8 @@ class RolBaseBase(BaseModel):
     """Class RolBaseBase - auto-generated docstring."""
 
     name: str
-    description: Optional[str] = ""
-    permisos: List[str] = []
+    description: str | None = ""
+    permisos: list[str] = []
 
 
 class RolBaseCreate(RolBaseBase):
@@ -44,7 +44,7 @@ class RolBaseCreate(RolBaseBase):
 class RolBaseUpdate(RolBaseBase):
     """Class RolBaseUpdate - auto-generated docstring."""
 
-    permisos: List[str]
+    permisos: list[str]
 
 
 class RolBase(RolBaseBase):
@@ -59,21 +59,21 @@ class PermisoAccionGlobalpermiso(BaseModel):
 
     id: int
     clave: str
-    description: Optional[str]
+    description: str | None
     model_config = ConfigDict(from_attributes=True)
 
 
 class AuthenticatedUser(BaseModel):
     """Class AuthenticatedUser - auto-generated docstring."""
 
-    user_id: int
+    user_id: UUID
     is_superadmin: bool
     user_type: str
-    tenant_id: Optional[int] = None
-    empresa_slug: Optional[str] = None
-    plantilla: Optional[str] = None
-    es_admin_empresa: Optional[bool] = None
-    permisos: Optional[Dict] = {}
-    name: Optional[str] = None
+    tenant_id: UUID | None = None
+    empresa_slug: str | None = None
+    plantilla: str | None = None
+    es_admin_empresa: bool | None = None
+    permisos: dict | None = {}
+    name: str | None = None
 
     model_config = ConfigDict(extra="ignore")

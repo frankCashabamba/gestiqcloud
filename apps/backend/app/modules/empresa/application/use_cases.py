@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 import uuid
-from typing import Sequence
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from collections.abc import Sequence
 
-from app.modules.empresa.application.ports import EmpresaRepo, EmpresaDTO
-from app.modules.shared.application.base import BaseUseCase
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
 from app.models.empresa.usuarioempresa import UsuarioEmpresa
+from app.modules.empresa.application.ports import EmpresaDTO, EmpresaRepo
 from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
+from app.modules.shared.application.base import BaseUseCase
 
 
 class ListarEmpresasAdmin(BaseUseCase[EmpresaRepo]):
     def execute(self) -> Sequence[EmpresaDTO]:
-        print("entrooooooooooooooo")
         return list(self.repo.list_all())
 
 
@@ -29,8 +29,8 @@ def crear_usuario_admin(
     db: Session,
     *,
     tenant_id: uuid.UUID,
-    nombre_encargado: str,
-    apellido_encargado: str,
+    first_name: str,
+    last_name: str,
     email: str,
     username: str,
     password: str,
@@ -57,13 +57,13 @@ def crear_usuario_admin(
     hasher = PasslibPasswordHasher()
     user = UsuarioEmpresa(
         tenant_id=tenant_id,
-        nombre_encargado=nombre_encargado,
-        apellido_encargado=apellido_encargado,
+        first_name=first_name,
+        last_name=last_name,
         email=email_clean,
         username=username_clean,
         password_hash=hasher.hash(password),
-        es_admin_empresa=True,
-        activo=True,
+        is_company_admin=True,
+        is_active=True,
     )
     db.add(user)
     return user

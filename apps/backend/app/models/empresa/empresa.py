@@ -2,107 +2,173 @@
 
 Auto-generated module docstring."""
 
-from typing import Optional
-from datetime import datetime
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.empresa.usuarioempresa import UsuarioEmpresa
 from app.config.database import Base
-from sqlalchemy.ext.mutable import MutableDict
 
 
-class TipoEmpresa(Base):
+def _get_now():
+    """Get current UTC datetime for Python-side defaults."""
+    return datetime.now(UTC)
+
+
+if TYPE_CHECKING:
+    from app.models.empresa.usuarioempresa import CompanyUser
+
+
+class BusinessType(Base):
     """Business Type model - MODERN schema (English)"""
 
-    __tablename__ = "core_tipoempresa"
+    __tablename__ = "business_types"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False
+    )
+    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        default=_get_now, server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        default=_get_now, server_default=func.now(), onupdate=_get_now, nullable=False
+    )
+
+    # Backward compatibility alias for active → is_active
+    @hybrid_property
+    def active(self) -> bool:
+        return self.is_active
+
+    @active.setter
+    def active(self, value: bool) -> None:
+        self.is_active = value
 
 
-class TipoNegocio(Base):
+class BusinessCategory(Base):
     """Business Category model - MODERN schema (English)"""
 
-    __tablename__ = "core_tiponegocio"
+    __tablename__ = "business_categories"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True
+    )
+    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        default=_get_now, server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        default=_get_now, server_default=func.now(), onupdate=_get_now, nullable=False
+    )
+
+    # Backward compatibility alias for active → is_active
+    @hybrid_property
+    def active(self) -> bool:
+        return self.is_active
+
+    @active.setter
+    def active(self, value: bool) -> None:
+        self.is_active = value
 
 
 class RolBase(Base):
-    """Class RolBase - auto-generated docstring."""
+    """Base Role model"""
 
-    __tablename__ = "core_rolbase"
+    __tablename__ = "base_roles"
 
-    id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid4
-    )
-    nombre: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    descripcion: Mapped[Optional[str]] = mapped_column(Text)
-    permisos: Mapped[dict] = mapped_column(
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    permissions: Mapped[dict] = mapped_column(
         MutableDict.as_mutable(JSON),
         nullable=False,
         default=dict,
     )
 
 
-class CategoriaEmpresa(Base):
-    """Class CategoriaEmpresa - auto-generated docstring."""
+class CompanyCategory(Base):
+    """Company Category model"""
 
-    __tablename__ = "core_categoriaempresa"
+    __tablename__ = "company_categories"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True
+    )
+    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        default=_get_now, server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        default=_get_now, server_default=func.now(), onupdate=_get_now, nullable=False
+    )
+
+    # Backward compatibility alias for active → is_active
+    @hybrid_property
+    def active(self) -> bool:
+        return self.is_active
+
+    @active.setter
+    def active(self, value: bool) -> None:
+        self.is_active = value
+
+
+class GlobalActionPermission(Base):
+    """Global Action Permission model"""
+
+    __tablename__ = "global_action_permissions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    nombre: Mapped[str] = mapped_column(String(100), nullable=False)
+    key: Mapped[str] = mapped_column(String(100), unique=True)
+    description: Mapped[str] = mapped_column(String(100))
 
 
-class PermisoAccionGlobal(Base):
-    """Class PermisoAccionGlobal - auto-generated docstring."""
+class UserProfile(Base):
+    """User Profile model"""
 
-    __tablename__ = "core_permisoaccionglobal"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    clave: Mapped[str] = mapped_column(String(100), unique=True)
-    descripcion: Mapped[str] = mapped_column(String(100))
-
-
-class PerfilUsuario(Base):
-    """Class PerfilUsuario - auto-generated docstring."""
-
-    __tablename__ = "core_perfilusuario"
+    __tablename__ = "user_profiles"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    usuario_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("usuarios_usuarioempresa.id"))
-    idioma: Mapped[str] = mapped_column(String(10), default="es")
-    zona_horaria: Mapped[str] = mapped_column(String(50), default="UTC")
+    user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("company_users.id"))
+    language: Mapped[str] = mapped_column(String(10), default="es")
+    timezone: Mapped[str] = mapped_column(String(50), default="UTC")
     tenant_id = mapped_column(ForeignKey("tenants.id"))
 
-    usuario: Mapped["UsuarioEmpresa"] = relationship("UsuarioEmpresa")
+    user: Mapped["CompanyUser"] = relationship("CompanyUser")
     tenant: Mapped["Tenant"] = relationship("Tenant")  # noqa: F821
 
 
-class Idioma(Base):
-    """Class Idioma - auto-generated docstring."""
+class Language(Base):
+    """Language catalog model"""
 
-    __tablename__ = "core_idioma"
+    __tablename__ = "languages"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    codigo: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
-    nombre: Mapped[str] = mapped_column(String(100), nullable=False)
-    activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
-class Moneda(Base):
-    """Class Moneda - auto-generated docstring."""
+class Currency(Base):
+    """Class Currency - auto-generated docstring."""
 
     __tablename__ = "currencies"
 
@@ -113,19 +179,7 @@ class Moneda(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
-class CoreMoneda(Base):
-    """Legacy core_moneda catalog used by configuraciones."""
-
-    __tablename__ = "core_moneda"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    codigo: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
-    nombre: Mapped[str] = mapped_column(String(100), nullable=False)
-    simbolo: Mapped[str] = mapped_column(String(5), nullable=False)
-    activo: Mapped[bool] = mapped_column(Boolean, default=True)
-
-
-class Pais(Base):
+class Country(Base):
     """Country catalog (ISO 3166-1 alpha-2)."""
 
     __tablename__ = "countries"
@@ -151,34 +205,52 @@ class RefLocale(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
-class DiaSemana(Base):
-    """Class DiaSemana - auto-generated docstring."""
+class Weekday(Base):
+    """Class Weekday - auto-generated docstring."""
 
-    __tablename__ = "core_dia"
+    __tablename__ = "weekdays"
     id: Mapped[int] = mapped_column(primary_key=True)
-    clave: Mapped[str] = mapped_column(String(20), unique=True)
-    nombre: Mapped[str] = mapped_column(String(50))
-    orden: Mapped[int] = mapped_column(Integer)
+    key: Mapped[str] = mapped_column(String(20), unique=True)
+    name: Mapped[str] = mapped_column(String(50))
+    order: Mapped[int] = mapped_column(Integer)
 
 
-class HorarioAtencion(Base):
-    """Class HorarioAtencion - auto-generated docstring."""
+class BusinessHours(Base):
+    """Class BusinessHours - auto-generated docstring."""
 
-    __tablename__ = "core_horarioatencion"
+    __tablename__ = "business_hours"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    dia_id: Mapped[int] = mapped_column(ForeignKey("core_dia.id"))
-    inicio: Mapped[str] = mapped_column(String(5), nullable=False)
-    fin: Mapped[str] = mapped_column(String(5), nullable=False)
-    dia: Mapped["DiaSemana"] = relationship("DiaSemana")
+    weekday_id: Mapped[int] = mapped_column(ForeignKey("weekdays.id"))
+    start_time: Mapped[str] = mapped_column(String(5), nullable=False)
+    end_time: Mapped[str] = mapped_column(String(5), nullable=False)
+    weekday: Mapped["Weekday"] = relationship("Weekday")
 
 
 class SectorPlantilla(Base):
-    __tablename__ = "core_sectorplantilla"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    sector_name: Mapped[str] = mapped_column(String(100), unique=True, name="sector_name")
-    business_type_id: Mapped[Optional[int]] = mapped_column(ForeignKey("core_tipoempresa.id"), name="business_type_id")
-    business_category_id: Mapped[Optional[int]] = mapped_column(ForeignKey("core_tiponegocio.id"), name="business_category_id")
-    template_config: Mapped[dict] = mapped_column(JSON, default=dict, name="template_config")
-    active: Mapped[bool] = mapped_column(default=True)
-    created_at: Mapped[datetime] = mapped_column(default=func.now())
+    __tablename__ = "sector_templates"
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True
+    )
+    code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    template_config: Mapped[dict] = mapped_column(JSON, default=dict, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        default=_get_now, server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        default=_get_now, server_default=func.now(), onupdate=_get_now, nullable=False
+    )
+
+
+# Spanish language aliases for backward compatibility (migration in progress)
+Idioma = Language
+Moneda = Currency
+Pais = Country
+DiaSemana = Weekday
+HorarioAtencion = BusinessHours
+TipoEmpresa = BusinessType
+TipoNegocio = BusinessCategory

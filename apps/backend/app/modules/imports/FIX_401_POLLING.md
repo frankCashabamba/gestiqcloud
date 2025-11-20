@@ -105,7 +105,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 ```
 1. Usuario sube PDF
    ↓
-2. procesarDocumento(file, TOKEN) 
+2. procesarDocumento(file, TOKEN)
    → POST /api/v1/imports/procesar
    → Authorization: Bearer {TOKEN}  ✅
    ↓
@@ -172,8 +172,8 @@ await refreshToken()  // Antes de iniciar polling largo
 
 **Solución**: Verificar que el endpoint `/procesar` creó el job correctamente
 ```sql
-SELECT * FROM import_ocr_jobs 
-WHERE id = 'job-uuid' 
+SELECT * FROM import_ocr_jobs
+WHERE id = 'job-uuid'
   AND tenant_id = 'tenant-uuid';
 ```
 
@@ -222,6 +222,6 @@ Después del fix:
 
 ---
 
-**Fecha**: 2025-11-05  
-**Issue**: Frontend no pasaba token en polling OCR  
+**Fecha**: 2025-11-05
+**Issue**: Frontend no pasaba token en polling OCR
 **Fix**: Agregar parámetro `authToken` a todas las funciones de la cadena

@@ -1,11 +1,9 @@
 """Schemas Pydantic para Finanzas (Cajas y Bancos)"""
 
 from datetime import date, datetime
-from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict
-
+from pydantic import BaseModel, ConfigDict, Field
 
 # ============================================================================
 # CAJA MOVIMIENTOS
@@ -17,20 +15,16 @@ class CajaMovimientoBase(BaseModel):
     """Campos comunes de movimiento de caja"""
 
     caja_id: UUID = Field(..., description="ID de la caja")
-    tipo: str = Field(
-        ..., pattern="^(ingreso|egreso)$", description="Tipo de movimiento"
-    )
+    tipo: str = Field(..., pattern="^(ingreso|egreso)$", description="Tipo de movimiento")
     concepto: str = Field(..., max_length=255, description="Concepto del movimiento")
     monto: float = Field(..., gt=0, description="Monto del movimiento")
     fecha: date = Field(default_factory=date.today)
-    metodo_pago: Optional[str] = Field(None, pattern="^(cash|card|transfer|check)$")
-    referencia: Optional[str] = Field(
+    metodo_pago: str | None = Field(None, pattern="^(cash|card|transfer|check)$")
+    referencia: str | None = Field(
         None, max_length=100, description="Referencia o número de documento"
     )
-    categoria_id: Optional[UUID] = Field(
-        None, description="ID de categoría de gasto/ingreso"
-    )
-    notas: Optional[str] = None
+    categoria_id: UUID | None = Field(None, description="ID de categoría de gasto/ingreso")
+    notas: str | None = None
 
 
 # Create schema
@@ -83,20 +77,12 @@ class BancoMovimientoBase(BaseModel):
     concepto: str = Field(..., max_length=255, description="Concepto del movimiento")
     monto: float = Field(..., gt=0, description="Monto del movimiento")
     fecha: date = Field(default_factory=date.today)
-    fecha_valor: Optional[date] = Field(None, description="Fecha valor del movimiento")
-    referencia: Optional[str] = Field(
-        None, max_length=100, description="Referencia bancaria"
-    )
-    numero_cheque: Optional[str] = Field(
-        None, max_length=50, description="Número de cheque"
-    )
-    categoria_id: Optional[UUID] = Field(
-        None, description="ID de categoría de gasto/ingreso"
-    )
-    estado: str = Field(
-        default="pending", pattern="^(pending|cleared|reconciled|cancelled)$"
-    )
-    notas: Optional[str] = None
+    fecha_valor: date | None = Field(None, description="Fecha valor del movimiento")
+    referencia: str | None = Field(None, max_length=100, description="Referencia bancaria")
+    numero_cheque: str | None = Field(None, max_length=50, description="Número de cheque")
+    categoria_id: UUID | None = Field(None, description="ID de categoría de gasto/ingreso")
+    estado: str = Field(default="pending", pattern="^(pending|cleared|reconciled|cancelled)$")
+    notas: str | None = None
 
 
 # Create schema
@@ -110,17 +96,15 @@ class BancoMovimientoCreate(BancoMovimientoBase):
 class BancoMovimientoUpdate(BaseModel):
     """Schema para actualizar movimiento bancario"""
 
-    concepto: Optional[str] = Field(None, max_length=255)
-    monto: Optional[float] = Field(None, gt=0)
-    fecha: Optional[date] = None
-    fecha_valor: Optional[date] = None
-    referencia: Optional[str] = Field(None, max_length=100)
-    numero_cheque: Optional[str] = Field(None, max_length=50)
-    categoria_id: Optional[UUID] = None
-    estado: Optional[str] = Field(
-        None, pattern="^(pending|cleared|reconciled|cancelled)$"
-    )
-    notas: Optional[str] = None
+    concepto: str | None = Field(None, max_length=255)
+    monto: float | None = Field(None, gt=0)
+    fecha: date | None = None
+    fecha_valor: date | None = None
+    referencia: str | None = Field(None, max_length=100)
+    numero_cheque: str | None = Field(None, max_length=50)
+    categoria_id: UUID | None = None
+    estado: str | None = Field(None, pattern="^(pending|cleared|reconciled|cancelled)$")
+    notas: str | None = None
 
     model_config = ConfigDict(extra="forbid")
 

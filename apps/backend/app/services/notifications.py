@@ -2,9 +2,9 @@
 Notification Service
 Handles sending notifications via email, WhatsApp, and Telegram
 """
+
 from __future__ import annotations
 
-from typing import List
 from sqlalchemy.orm import Session
 
 
@@ -14,7 +14,7 @@ class NotificationService:
     def __init__(self, db: Session):
         self.db = db
 
-    def send_email(self, recipients: List[str], subject: str, body: str) -> bool:
+    def send_email(self, recipients: list[str], subject: str, body: str) -> bool:
         """
         Send email notification
         This is a placeholder - integrate with your email service (SendGrid, AWS SES, etc.)
@@ -111,7 +111,7 @@ class NotificationService:
         results = {
             "email": {"sent": 0, "failed": 0},
             "whatsapp": {"sent": 0, "failed": 0},
-            "telegram": {"sent": 0, "failed": 0}
+            "telegram": {"sent": 0, "failed": 0},
         }
 
         # Email notifications

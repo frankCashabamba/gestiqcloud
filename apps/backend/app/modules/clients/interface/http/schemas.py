@@ -1,29 +1,30 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-from typing import Optional
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 
 class ClienteInSchema(BaseModel):
     name: str = Field(min_length=1)
-    identificacion: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    localidad: Optional[str] = None
-    state: Optional[str] = None
-    pais: Optional[str] = None
-    codigo_postal: Optional[str] = None
+    identificacion: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    localidad: str | None = None
+    state: str | None = None
+    pais: str | None = None
+    codigo_postal: str | None = None
 
 
 class ClienteOutSchema(BaseModel):
-    id: str
+    id: UUID
     name: str
-    identificacion: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    localidad: Optional[str] = None
-    state: Optional[str] = None
-    pais: Optional[str] = None
-    codigo_postal: Optional[str] = None
+    identificacion: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    localidad: str | None = None
+    state: str | None = None
+    pais: str | None = None
+    codigo_postal: str | None = None

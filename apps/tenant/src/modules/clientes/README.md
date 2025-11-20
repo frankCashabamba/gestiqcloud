@@ -78,4 +78,3 @@ Buenas prácticas
 - Usar ‘mixed’ por defecto para heredar mejoras globales sin perder personalización.
 - Dar un ‘ord’ espaciado (10, 20, 30…) para facilitar inserciones posteriores.
 - Rellenar ‘label’ y ‘help’ en campos que no sean autoexplicativos.
-

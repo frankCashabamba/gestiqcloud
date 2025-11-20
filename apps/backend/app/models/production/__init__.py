@@ -1,8 +1,10 @@
-"""Production models"""
-import os
+"""Production models."""
 
-if os.getenv("ENABLE_PRODUCTION_MODULE", "false").lower() == "true":
-    from app.models.production.production_order import ProductionOrder, ProductionOrderLine
-    __all__ = ["ProductionOrder", "ProductionOrderLine"]
-else:
-    __all__ = []
+from __future__ import annotations
+
+from app.models.production import _production_order
+
+ProductionOrder = _production_order.ProductionOrder
+ProductionOrderLine = _production_order.ProductionOrderLine
+
+__all__ = ["ProductionOrder", "ProductionOrderLine"]

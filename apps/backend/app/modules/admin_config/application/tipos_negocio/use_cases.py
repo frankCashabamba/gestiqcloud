@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from app.modules.admin_config.application.tipos_negocio.dto import TipoNegocioIn, TipoNegocioOut
 from app.modules.admin_config.application.tipos_negocio.ports import TipoNegocioRepo

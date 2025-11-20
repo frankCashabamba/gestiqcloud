@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Protocol, Sequence, Optional
+from collections.abc import Sequence
+from typing import Protocol
 
 from app.modules.admin_config.application.idiomas.dto import IdiomaIn, IdiomaOut
 
@@ -10,7 +11,7 @@ class IdiomaRepo(Protocol):
 
     def create(self, data: IdiomaIn) -> IdiomaOut: ...
 
-    def get(self, id: int) -> Optional[IdiomaOut]: ...
+    def get(self, id: int) -> IdiomaOut | None: ...
 
     def update(self, id: int, data: IdiomaIn) -> IdiomaOut: ...
 

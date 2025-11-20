@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+"""
+Apply SQL migrations with idempotent tracking (avoids re-running applied migrations).
+
+Usage:
+    python ops/scripts/migrate_all_migrations_idempotent.py [--dry-run]
+"""
+
+import argparse
+import hashlib
+import os
+import sys
+from pathlib import Path
+from typing import List, Tuple
+
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+try:
+    import psycopg2
+except ImportError:
+    print("ERROR: psycopg2 not installed. Run: pip install psycopg2-binary")
+    sys.exit(1)
+
+
+MIGRATIONS_DIR = project_root / "ops" / "migrations"
+
+
+def setup_migrations_table(conn):
+    """Create migrations tracking table if it doesn't exist."""
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS _migrations (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL UNIQUE,
+                hash VARCHAR(64) NOT NULL,
+                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+        print("[OK] Migrations tracking table ready")
+    except Exception as e:
+        conn.rollback()
+        print(f"[ERROR] Failed to create migrations table: {e}")
+        raise
+
+
+def get_migrations() -> List[Tuple[Path, str]]:
+    """Get all migration directories sorted by name."""
+    migrations = []
+
+    # Skip _archive directory
+    for item in sorted(MIGRATIONS_DIR.iterdir()):
+        if item.is_dir() and not item.name.startswith("_"):
+            up_sql = item / "up.sql"
+            if up_sql.exists():
+                migrations.append((item, up_sql.name))
+
+    return migrations
+
+
+def read_sql_file(filepath: Path) -> str:
+    """Read SQL file content."""
+    if not filepath.exists():
+        raise FileNotFoundError(f"SQL file not found: {filepath}")
+
+    with open(filepath, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+def get_file_hash(content: str) -> str:
+    """Get SHA256 hash of file content."""
+    return hashlib.sha256(content.encode()).hexdigest()
+
+
+def is_migration_applied(conn, migration_name: str) -> bool:
+    """Check if migration was already applied."""
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT 1 FROM _migrations WHERE name = %s", (migration_name,))
+        return cursor.fetchone() is not None
+    except Exception:
+        return False
+
+
+def record_migration(conn, migration_name: str, content_hash: str) -> bool:
+    """Record migration as applied."""
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO _migrations (name, hash) VALUES (%s, %s)",
+            (migration_name, content_hash),
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        print(f"  [WARNING] Could not record migration: {e}")
+        return False
+
+
+def apply_migration(
+    conn, migration_dir: Path, sql_content: str, dry_run: bool = False
+) -> bool:
+    """Apply a single migration."""
+    migration_name = migration_dir.name
+
+    # Check if already applied
+    if is_migration_applied(conn, migration_name):
+        print(f"\n> {migration_name}")
+        print("  [SKIP] Already applied")
+        return True
+
+    if dry_run:
+        print(f"\n[DRY RUN] {migration_name}")
+        print("=" * 60)
+        print(sql_content[:500] + "..." if len(sql_content) > 500 else sql_content)
+        print("=" * 60)
+        return True
+
+    try:
+        cursor = conn.cursor()
+        print(f"\n> {migration_name}")
+
+        try:
+            # Execute entire SQL file as-is (PostgreSQL handles multiple statements)
+            cursor.execute(sql_content)
+            conn.commit()
+
+            # Record migration
+            content_hash = get_file_hash(sql_content)
+            record_migration(conn, migration_name, content_hash)
+
+            print("  [OK] Migration applied")
+            return True
+
+        except Exception as e:
+            conn.rollback()
+            print(f"  [ERROR] Error: {e}")
+            return False
+
+    except Exception as e:
+        print(f"  [ERROR] Connection error: {e}")
+        return False
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Apply SQL migrations with tracking")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Print SQL without executing"
+    )
+    parser.add_argument(
+        "--database-url",
+        default=os.getenv("DATABASE_URL"),
+        help="Database connection URL (default: from DATABASE_URL env var)",
+    )
+
+    args = parser.parse_args()
+
+    # Validate database URL
+    if not args.database_url:
+        print(
+            "ERROR: DATABASE_URL not set. Use --database-url or set DATABASE_URL env var."
+        )
+        sys.exit(1)
+
+    # Get migrations
+    migrations = get_migrations()
+    if not migrations:
+        print("ERROR: No migrations found in ops/migrations/")
+        sys.exit(1)
+
+    print(f"Found {len(migrations)} migration(s)")
+    for migration_dir, _ in migrations:
+        print(f"  - {migration_dir.name}")
+
+    # Parse database URL and connect
+    print("\nConnecting to database...")
+    try:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(args.database_url)
+        conn = psycopg2.connect(
+            host=parsed.hostname or "localhost",
+            port=parsed.port or 5432,
+            database=parsed.path.lstrip("/"),
+            user=parsed.username or "postgres",
+            password=parsed.password,
+        )
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.close()
+        print("[OK] Database connection successful")
+    except Exception as e:
+        print(f"[ERROR] Database connection failed: {e}")
+        sys.exit(1)
+
+    # Setup tracking table
+    setup_migrations_table(conn)
+
+    # Apply migrations
+    print(f"\n{'=' * 60}")
+    if args.dry_run:
+        print("DRY RUN - No changes will be made")
+    else:
+        print("Applying migrations...")
+    print(f"{'=' * 60}")
+
+    failed = []
+    for migration_dir, _ in migrations:
+        try:
+            sql_content = read_sql_file(migration_dir / "up.sql")
+            success = apply_migration(
+                conn, migration_dir, sql_content, dry_run=args.dry_run
+            )
+            if not success:
+                failed.append(migration_dir.name)
+        except Exception as e:
+            print(f"❌ Error reading migration: {e}")
+            failed.append(migration_dir.name)
+
+    conn.close()
+
+    # Summary
+    print(f"\n{'=' * 60}")
+    if failed:
+        print(f"[FAILED] {len(failed)} migration(s) failed:")
+        for name in failed:
+            print(f"  - {name}")
+        sys.exit(1)
+    else:
+        print("[SUCCESS] All applicable migration(s) processed!")
+        if not args.dry_run:
+            print("\nNext steps:")
+            print("  - Run tests: pytest app/tests/")
+            print("  - Verify schema: psql -c '\\dt'")
+
+
+if __name__ == "__main__":
+    main()

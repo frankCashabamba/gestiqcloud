@@ -1,7 +1,7 @@
 -- Down migration for 2025-11-03_180_hr_empleados
 
-DROP POLICY IF EXISTS tenant_isolation_vacaciones ON vacaciones;
-DROP POLICY IF EXISTS tenant_isolation_empleados ON empleados;
+DROP POLICY IF EXISTS tenant_isolation_vacations ON vacations;
+DROP POLICY IF EXISTS tenant_isolation_employees ON employees;
 
-DROP TABLE IF EXISTS vacaciones;
-DROP TABLE IF EXISTS empleados;
+DROP TABLE IF EXISTS vacations;
+DROP TABLE IF EXISTS employees;

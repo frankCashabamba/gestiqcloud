@@ -1,34 +1,29 @@
-﻿from typing import List, Optional
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import and_, desc
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, and_
 
 from app.config.database import get_db
 from app.middleware.tenant import get_current_user
-from app.models.ai.incident import (
-    Incident,
-    StockAlert,
-    NotificationChannel,
-    NotificationLog,
-)
-from app.schemas.incidents import (
-    IncidentCreate,
-    IncidentUpdate,
-    IncidentResponse,
-    IncidentAnalysisRequest,
-    IncidentAnalysisResponse,
-    StockAlertCreate,
-    StockAlertResponse,
-    NotificationChannelCreate,
-    NotificationChannelUpdate,
-    NotificationChannelResponse,
-    NotificationLogResponse,
-)
+from app.models.ai.incident import Incident, NotificationChannel, NotificationLog, StockAlert
 from app.modules.ai_agent.analyzer import (
     analyze_incident_with_ia,
     auto_resolve_incident,
     suggest_fix,
+)
+from app.schemas.incidents import (
+    IncidentAnalysisRequest,
+    IncidentAnalysisResponse,
+    IncidentCreate,
+    IncidentResponse,
+    IncidentUpdate,
+    NotificationChannelCreate,
+    NotificationChannelResponse,
+    NotificationChannelUpdate,
+    NotificationLogResponse,
+    StockAlertCreate,
+    StockAlertResponse,
 )
 
 router = APIRouter(prefix="/incidents", tags=["Incidents & IA"])
@@ -39,13 +34,13 @@ router = APIRouter(prefix="/incidents", tags=["Incidents & IA"])
 # ============================================================================
 
 
-@router.get("/", response_model=List[IncidentResponse])
+@router.get("/", response_model=list[IncidentResponse])
 async def list_incidents(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
-    tipo: Optional[str] = None,
-    severidad: Optional[str] = None,
-    estado: Optional[str] = None,
+    tipo: str | None = None,
+    severidad: str | None = None,
+    estado: str | None = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -61,9 +56,7 @@ async def list_incidents(
     if estado:
         query = query.filter(Incident.estado == estado)
 
-    incidents = (
-        query.order_by(desc(Incident.created_at)).offset(skip).limit(limit).all()
-    )
+    incidents = query.order_by(desc(Incident.created_at)).offset(skip).limit(limit).all()
     return incidents
 
 
@@ -231,9 +224,7 @@ async def get_fix_suggestion(
         suggestion = await suggest_fix(incident_id, db)
         return suggestion
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error generando sugerencia: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error generando sugerencia: {str(e)}")
 
 
 @router.post("/{incident_id}/resolve")
@@ -266,12 +257,12 @@ async def resolve_incident(
 # ============================================================================
 
 
-@router.get("/stock-alerts/", response_model=List[StockAlertResponse])
+@router.get("/stock-alerts/", response_model=list[StockAlertResponse])
 async def list_stock_alerts(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
-    alert_type: Optional[str] = None,
-    status: Optional[str] = None,
+    alert_type: str | None = None,
+    status: str | None = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -351,13 +342,12 @@ async def notify_stock_alert(
     )
 
     if not channels:
-        raise HTTPException(
-            status_code=400, detail="No hay canales de notificación configurados"
-        )
+        raise HTTPException(status_code=400, detail="No hay canales de notificación configurados")
 
     # Enviar notificación por el canal de mayor prioridad
-    from app.modules.ai_agent.notifier import send_notification
     from datetime import datetime
+
+    from app.modules.ai_agent.notifier import send_notification
 
     try:
         await send_notification(channel=channels[0], alert=alert, db=db)
@@ -367,9 +357,7 @@ async def notify_stock_alert(
 
         return {"message": "Notificación enviada", "channel": channels[0].tipo}
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error enviando notificación: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error enviando notificación: {str(e)}")
 
 
 @router.post("/stock-alerts/{alert_id}/resolve")
@@ -404,7 +392,7 @@ async def resolve_stock_alert(
 # ============================================================================
 
 
-@router.get("/notifications/channels", response_model=List[NotificationChannelResponse])
+@router.get("/notifications/channels", response_model=list[NotificationChannelResponse])
 async def list_notification_channels(
     db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
 ):
@@ -450,9 +438,7 @@ async def create_notification_channel(
     return new_channel
 
 
-@router.put(
-    "/notifications/channels/{channel_id}", response_model=NotificationChannelResponse
-)
+@router.put("/notifications/channels/{channel_id}", response_model=NotificationChannelResponse)
 async def update_notification_channel(
     channel_id: UUID,
     channel_update: NotificationChannelUpdate,
@@ -486,7 +472,7 @@ async def update_notification_channel(
     return channel
 
 
-@router.get("/notifications/log", response_model=List[NotificationLogResponse])
+@router.get("/notifications/log", response_model=list[NotificationLogResponse])
 async def get_notification_log(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),

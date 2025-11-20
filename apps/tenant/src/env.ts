@@ -10,7 +10,8 @@ const Schema = z.object({
 
 const parsed = Schema.safeParse(import.meta.env)
 if (!parsed.success) {
-  console.error(parsed.error.flatten().fieldErrors)
+  const fieldErrors = 'error' in parsed ? parsed.error.flatten().fieldErrors : {}
+  console.error(fieldErrors)
   throw new Error('Invalid VITE_* environment variables for TENANT')
 }
 

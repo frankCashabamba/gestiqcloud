@@ -24,4 +24,3 @@ export const MODULES = [
 ]
 
 export type ModuleManifest = typeof pos
-

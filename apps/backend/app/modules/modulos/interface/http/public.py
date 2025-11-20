@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-from typing import List, Optional
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
+from app.models.tenant import Tenant as Empresa
 from app.modules import crud as mod_crud
 from app.modules.modulos.interface.http.schemas import ModuloOutSchema
-from app.models.tenant import Tenant as Empresa
-
 
 router = APIRouter(
     prefix="/modulos",
@@ -17,29 +14,27 @@ router = APIRouter(
 )
 
 
-@router.get(
-    "/empresa/{empresa_slug}/seleccionables", response_model=List[ModuloOutSchema]
-)
+@router.get("/empresa/{empresa_slug}/seleccionables", response_model=list[ModuloOutSchema])
 def listar_modulos_activos_por_slug(
-    empresa_slug: Optional[str] = None,
+    empresa_slug: str | None = None,
     db: Session = Depends(get_db),
 ):
     empresa = db.query(Empresa).filter(Empresa.slug == empresa_slug).first()
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
     registros = mod_crud.obtener_modulos_de_empresa(db, empresa.id)
-    items: List[ModuloOutSchema] = []
+    items: list[ModuloOutSchema] = []
     for r in registros:
-        m = getattr(r, "modulo", None)
-        if not r.activo or m is None:
+        m = getattr(r, "module", None)
+        if not r.active or m is None:
             continue
         dto = {
             "id": m.id,
             "name": m.name,
             "nombre": m.name,  # Legacy compatibility
             "url": m.url,
-            "icono": m.icono,
-            "categoria": m.categoria,
+            "icono": m.icon or "",
+            "categoria": m.category or "",
             "active": m.active,
             "activo": m.active,  # Legacy compatibility
         }

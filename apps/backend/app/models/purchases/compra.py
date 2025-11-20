@@ -1,20 +1,19 @@
-﻿"""Modelos de Compras"""
+"""Purchase Models"""
 
 import uuid
 from datetime import date, datetime
-from typing import Optional, List
 
-from sqlalchemy import Date, String, Numeric, ForeignKey, Text
+from sqlalchemy import Date, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
 
 
-class Compra(Base):
-    """Orden de compra"""
+class Purchase(Base):
+    """Purchase Order"""
 
-    __tablename__ = "compras"
+    __tablename__ = "purchases"
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -26,75 +25,71 @@ class Compra(Base):
         nullable=False,
         index=True,
     )
-    numero: Mapped[str] = mapped_column(String(50), nullable=False)
-    proveedor_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    number: Mapped[str] = mapped_column(String(50), nullable=False)
+    supplier_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("proveedores.id", ondelete="SET NULL"),
+        ForeignKey("suppliers.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
-    fecha: Mapped[date] = mapped_column(Date, nullable=False, default=date.today)
+    date: Mapped[date] = mapped_column(Date(), nullable=False, default=date.today)
     subtotal: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
-    impuestos: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    taxes: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
-    estado: Mapped[str] = mapped_column(
+    status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
         default="draft",
         # draft, ordered, received, invoiced, cancelled
     )
-    notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    fecha_entrega: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    usuario_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow
-    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    delivery_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
     # Relationships
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
-    proveedor = relationship("Proveedor", foreign_keys=[proveedor_id])
-    lineas: Mapped[List["CompraLinea"]] = relationship(
-        "CompraLinea", back_populates="compra", cascade="all, delete-orphan"
+    supplier = relationship("Supplier", foreign_keys=[supplier_id])
+    lines: Mapped[list["PurchaseLine"]] = relationship(
+        "PurchaseLine", back_populates="purchase", cascade="all, delete-orphan"
     )
 
     def __repr__(self):
-        return f"<Compra {self.numero} - {self.total}>"
+        return f"<Purchase {self.number} - {self.total}>"
 
 
-class CompraLinea(Base):
-    """Línea de orden de compra"""
+class PurchaseLine(Base):
+    """Purchase Order Line"""
 
-    __tablename__ = "compra_lineas"
+    __tablename__ = "purchase_lines"
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    compra_id: Mapped[uuid.UUID] = mapped_column(
+    purchase_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("compras.id", ondelete="CASCADE"),
+        ForeignKey("purchases.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    producto_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    product_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("products.id", ondelete="SET NULL"),
         nullable=True,
     )
-    descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    cantidad: Mapped[float] = mapped_column(Numeric(12, 3), nullable=False)
-    precio_unitario: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
-    impuesto_tasa: Mapped[float] = mapped_column(
-        Numeric(6, 4), nullable=False, default=0
-    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quantity: Mapped[float] = mapped_column(Numeric(12, 3), nullable=False)
+    unit_price: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
+    tax_rate: Mapped[float] = mapped_column(Numeric(6, 4), nullable=False, default=0)
     total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
 
     # Relationships
-    compra: Mapped["Compra"] = relationship("Compra", back_populates="lineas")
-    producto = relationship("Product", foreign_keys=[producto_id])
+    purchase: Mapped["Purchase"] = relationship("Purchase", back_populates="lines")
+    product = relationship("Product", foreign_keys=[product_id])
 
     def __repr__(self):
-        return f"<CompraLinea {self.description} - {self.cantidad}>"
+        return f"<PurchaseLine {self.description} - {self.quantity}>"

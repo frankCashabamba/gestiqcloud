@@ -17,4 +17,3 @@ Notas
 - No se eliminan columnas existentes (p. ej. ruc).
 - Todos los nuevos campos son NULLables.
 - Requiere Postgres (índice parcial).
-

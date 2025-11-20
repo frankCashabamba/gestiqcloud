@@ -14,7 +14,6 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  Grid,
   Divider,
   Alert,
   CircularProgress,
@@ -27,6 +26,7 @@ import {
   DialogContent,
   DialogActions,
 } from '@mui/material';
+import Grid from '@mui/material/Grid';
 import {
   Save as SaveIcon,
   RestartAlt as RestartIcon,
@@ -75,7 +75,7 @@ function TabPanel(props: TabPanelProps) {
 export default function TenantConfiguracion() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  
+
   const [tabValue, setTabValue] = useState(0);
   const [settings, setSettings] = useState<TenantSettings>({});
   const [loading, setLoading] = useState(true);
@@ -84,13 +84,13 @@ export default function TenantConfiguracion() {
   const [success, setSuccess] = useState<string | null>(null);
   const [showJsonDialog, setShowJsonDialog] = useState(false);
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
-  
+
   // Sector y Plantilla
   const [sectores, setSectores] = useState<Sector[]>([]);
   const [empresaData, setEmpresaData] = useState<any>(null);
   const [selectedSector, setSelectedSector] = useState<number | null>(null);
   const [selectedPlantilla, setSelectedPlantilla] = useState<string>('');
-  
+
   // Certificate upload states
   const [sriCertFile, setSriCertFile] = useState<File | null>(null);
   const [sriCertPassword, setSriCertPassword] = useState('');
@@ -108,7 +108,9 @@ export default function TenantConfiguracion() {
     loadSectores();
     loadEmpresaData();
     // Cargar catálogos desde API (evitar hardcode)
-    listMonedas().then((rows)=> setMonedas(rows.filter(r=> r.active !== false))).catch(()=> setMonedas([]))
+    listMonedas()
+      .then((rows) => setMonedas(rows.filter((r) => r.activo !== false)))
+      .catch(() => setMonedas([]))
     listPaises().then((rows)=> setPaises(rows.filter(r=> r.active !== false))).catch(()=> setPaises([]))
     listTimezones().then((rows)=> setTimezones(rows.filter((r:any)=> r.active !== false))).catch(()=> setTimezones([]))
     listLocales().then((rows)=> setLocales(rows.filter((r:any)=> r.active !== false))).catch(()=> setLocales([]))
@@ -116,12 +118,12 @@ export default function TenantConfiguracion() {
 
   const loadSettings = async () => {
     if (!id) return;
-    
+
     try {
       setLoading(true);
       const data = await getTenantSettings(id);
       setSettings(data);
-      
+
       // Cargar sector y plantilla desde settings
       setSelectedSector(data.sector_id || null);
       setSelectedPlantilla(data.sector_plantilla_name || '');
@@ -160,12 +162,12 @@ export default function TenantConfiguracion() {
       const keys = path.split('.');
       const newSettings = JSON.parse(JSON.stringify(prev));
       let current = newSettings;
-      
+
       for (let i = 0; i < keys.length - 1; i++) {
         if (!current[keys[i]]) current[keys[i]] = {};
         current = current[keys[i]];
       }
-      
+
       current[keys[keys.length - 1]] = value;
       return newSettings;
     });
@@ -173,22 +175,22 @@ export default function TenantConfiguracion() {
 
   const handleSave = async () => {
     if (!id) return;
-    
+
     try {
       setSaving(true);
-      
+
       // Guardar configuración avanzada + sector/plantilla en un solo call
       const settingsToSave = {
         ...settings,
         sector_id: selectedSector,
         sector_plantilla_nombre: selectedPlantilla || null,
       };
-      
+
       await updateTenantSettings(id, settingsToSave);
-      
+
       // Recargar configuración para confirmar el guardado
       await loadSettings();
-      
+
       setSuccess('Configuración guardada correctamente');
     } catch (err: any) {
       setError(err.message || 'Error guardando configuración');
@@ -199,7 +201,7 @@ export default function TenantConfiguracion() {
 
   const handleExport = async () => {
     if (!id) return;
-    
+
     try {
       const blob = await exportSettings(id);
       const url = window.URL.createObjectURL(blob);
@@ -218,7 +220,7 @@ export default function TenantConfiguracion() {
 
   const handleRestoreDefaults = async () => {
     if (!id) return;
-    
+
     try {
       await restoreDefaults(id);
       await loadSettings();
@@ -231,20 +233,20 @@ export default function TenantConfiguracion() {
 
   const handleUploadCertificate = async (type: 'sri' | 'sii') => {
     if (!id) return;
-    
+
     const file = type === 'sri' ? sriCertFile : siiCertFile;
     const password = type === 'sri' ? sriCertPassword : siiCertPassword;
-    
+
     if (!file || !password) {
       setError('Debe seleccionar un archivo y proporcionar la contraseña');
       return;
     }
-    
+
     try {
       setUploadingCert(true);
       await uploadCertificate(id, type, file, password);
       setSuccess(`Certificado ${type.toUpperCase()} subido correctamente`);
-      
+
       if (type === 'sri') {
         setSriCertFile(null);
         setSriCertPassword('');
@@ -252,7 +254,7 @@ export default function TenantConfiguracion() {
         setSiiCertFile(null);
         setSiiCertPassword('');
       }
-      
+
       await loadSettings();
     } catch (err: any) {
       setError(err.message || 'Error subiendo certificado');
@@ -308,7 +310,7 @@ export default function TenantConfiguracion() {
           </IconButton>
           <Typography variant="h4">⚙️ Configuración Avanzada</Typography>
         </Box>
-        
+
         <Box display="flex" gap={1}>
           <Button
             variant="outlined"
@@ -374,7 +376,7 @@ export default function TenantConfiguracion() {
             Configuración General
           </Typography>
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Locale</InputLabel>
                 <Select
@@ -391,8 +393,8 @@ export default function TenantConfiguracion() {
                 </Select>
               </FormControl>
             </Grid>
-            
-            <Grid item xs={12} md={6}>
+
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Timezone</InputLabel>
                 <Select
@@ -409,8 +411,8 @@ export default function TenantConfiguracion() {
                 </Select>
               </FormControl>
             </Grid>
-            
-            <Grid item xs={12} md={6}>
+
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Moneda</InputLabel>
                 <Select
@@ -419,15 +421,15 @@ export default function TenantConfiguracion() {
                   label="Moneda"
                 >
                   {monedas.map((m) => (
-                    <MenuItem key={m.code} value={m.code}>
-{m.code} - {m.name}
+                    <MenuItem key={m.codigo} value={m.codigo}>
+                      {m.codigo} - {m.nombre}
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
-            
-            <Grid item xs={12} md={6}>
+
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>País</InputLabel>
                 <Select
@@ -437,14 +439,14 @@ export default function TenantConfiguracion() {
                 >
                   {paises.map((p) => (
                     <MenuItem key={p.code} value={p.code}>
-{p.code} - {p.name}
+                      {p.code} - {p.name}
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider sx={{ my: 2 }} />
               <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 600 }}>
                 🏢 Sector y Plantilla
@@ -454,7 +456,7 @@ export default function TenantConfiguracion() {
               </Typography>
             </Grid>
 
-            <Grid item xs={12} md={12}>
+            <Grid size={{ xs: 12, md: 12 }}>
               <FormControl fullWidth>
                 <InputLabel>Plantilla de Sector</InputLabel>
                 <Select
@@ -496,7 +498,7 @@ export default function TenantConfiguracion() {
             Configuración POS
           </Typography>
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Ancho de Ticket</InputLabel>
                 <Select
@@ -509,8 +511,8 @@ export default function TenantConfiguracion() {
                 </Select>
               </FormControl>
             </Grid>
-            
-            <Grid item xs={12} md={6}>
+
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 type="number"
@@ -520,8 +522,8 @@ export default function TenantConfiguracion() {
                 inputProps={{ min: 0, max: 100, step: 0.01 }}
               />
             </Grid>
-            
-            <Grid item xs={12} md={6}>
+
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 type="number"
@@ -531,8 +533,8 @@ export default function TenantConfiguracion() {
                 inputProps={{ min: 0 }}
               />
             </Grid>
-            
-            <Grid item xs={12}>
+
+            <Grid size={12}>
               <FormControlLabel
                 control={
                   <Switch
@@ -543,15 +545,15 @@ export default function TenantConfiguracion() {
                 label="Precios incluyen impuestos"
               />
             </Grid>
-            
-            <Grid item xs={12}>
+
+            <Grid size={12}>
               <Divider sx={{ my: 2 }} />
               <Typography variant="subtitle1" gutterBottom>
                 Store Credits (Vales)
               </Typography>
             </Grid>
-            
-            <Grid item xs={12} md={4}>
+
+            <Grid size={{ xs: 12, md: 4 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -562,8 +564,8 @@ export default function TenantConfiguracion() {
                 label="Habilitar Store Credits"
               />
             </Grid>
-            
-            <Grid item xs={12} md={4}>
+
+            <Grid size={{ xs: 12, md: 4 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -574,8 +576,8 @@ export default function TenantConfiguracion() {
                 label="Un Solo Uso"
               />
             </Grid>
-            
-            <Grid item xs={12} md={4}>
+
+            <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 fullWidth
                 type="number"
@@ -594,7 +596,7 @@ export default function TenantConfiguracion() {
             Configuración de Inventario
           </Typography>
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -605,8 +607,8 @@ export default function TenantConfiguracion() {
                 label="Rastrear Lotes"
               />
             </Grid>
-            
-            <Grid item xs={12} md={6}>
+
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -617,8 +619,8 @@ export default function TenantConfiguracion() {
                 label="Rastrear Caducidad"
               />
             </Grid>
-            
-            <Grid item xs={12} md={6}>
+
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -629,8 +631,8 @@ export default function TenantConfiguracion() {
                 label="Permitir Stock Negativo"
               />
             </Grid>
-            
-            <Grid item xs={12} md={6}>
+
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 type="number"
@@ -650,7 +652,7 @@ export default function TenantConfiguracion() {
             Configuración de Facturación
           </Typography>
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -661,8 +663,8 @@ export default function TenantConfiguracion() {
                 label="Auto-Numeración"
               />
             </Grid>
-            
-            <Grid item xs={12} md={6}>
+
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -673,8 +675,8 @@ export default function TenantConfiguracion() {
                 label="Reiniciar Numeración Anualmente"
               />
             </Grid>
-            
-            <Grid item xs={12} md={6}>
+
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Prefijo de Serie"
@@ -683,8 +685,8 @@ export default function TenantConfiguracion() {
                 helperText="Ej: F, FAC, INV"
               />
             </Grid>
-            
-            <Grid item xs={12} md={6}>
+
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 type="number"
@@ -694,8 +696,8 @@ export default function TenantConfiguracion() {
                 inputProps={{ min: 1 }}
               />
             </Grid>
-            
-            <Grid item xs={12} md={6}>
+
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -706,8 +708,8 @@ export default function TenantConfiguracion() {
                 label="Incluir Logo en Facturas"
               />
             </Grid>
-            
-            <Grid item xs={12}>
+
+            <Grid size={12}>
               <TextField
                 fullWidth
                 multiline
@@ -726,14 +728,14 @@ export default function TenantConfiguracion() {
           <Typography variant="h6" gutterBottom>
             Configuración de E-Factura
           </Typography>
-          
+
           {/* SRI Ecuador */}
           <Box sx={{ mb: 4 }}>
             <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>
               🇪🇨 SRI Ecuador
             </Typography>
             <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <FormControlLabel
                   control={
                     <Switch
@@ -744,8 +746,8 @@ export default function TenantConfiguracion() {
                   label="Habilitar SRI"
                 />
               </Grid>
-              
-              <Grid item xs={12} md={6}>
+
+              <Grid size={{ xs: 12, md: 6 }}>
                 <FormControl fullWidth>
                   <InputLabel>Entorno</InputLabel>
                   <Select
@@ -759,15 +761,15 @@ export default function TenantConfiguracion() {
                   </Select>
                 </FormControl>
               </Grid>
-              
-              <Grid item xs={12}>
+
+              <Grid size={12}>
                 <Divider />
                 <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>
                   Certificado Digital (.p12 / .pfx)
                 </Typography>
               </Grid>
-              
-              <Grid item xs={12} md={6}>
+
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Button
                   variant="outlined"
                   component="label"
@@ -789,8 +791,8 @@ export default function TenantConfiguracion() {
                   </Typography>
                 )}
               </Grid>
-              
-              <Grid item xs={12} md={6}>
+
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   type="password"
@@ -800,8 +802,8 @@ export default function TenantConfiguracion() {
                   disabled={!settings.einvoicing?.sri?.enabled || !sriCertFile}
                 />
               </Grid>
-              
-              <Grid item xs={12}>
+
+              <Grid size={12}>
                 <Button
                   variant="contained"
                   onClick={() => handleUploadCertificate('sri')}
@@ -822,7 +824,7 @@ export default function TenantConfiguracion() {
               🇪🇸 SII España
             </Typography>
             <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <FormControlLabel
                   control={
                     <Switch
@@ -833,8 +835,8 @@ export default function TenantConfiguracion() {
                   label="Habilitar SII"
                 />
               </Grid>
-              
-              <Grid item xs={12} md={6}>
+
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   label="Agencia"
@@ -843,15 +845,15 @@ export default function TenantConfiguracion() {
                   disabled={!settings.einvoicing?.sii?.enabled}
                 />
               </Grid>
-              
-              <Grid item xs={12}>
+
+              <Grid size={12}>
                 <Divider />
                 <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>
                   Certificado Digital
                 </Typography>
               </Grid>
-              
-              <Grid item xs={12} md={6}>
+
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Button
                   variant="outlined"
                   component="label"
@@ -873,8 +875,8 @@ export default function TenantConfiguracion() {
                   </Typography>
                 )}
               </Grid>
-              
-              <Grid item xs={12} md={6}>
+
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   type="password"
@@ -884,8 +886,8 @@ export default function TenantConfiguracion() {
                   disabled={!settings.einvoicing?.sii?.enabled || !siiCertFile}
                 />
               </Grid>
-              
-              <Grid item xs={12}>
+
+              <Grid size={12}>
                 <Button
                   variant="contained"
                   onClick={() => handleUploadCertificate('sii')}
@@ -932,9 +934,9 @@ export default function TenantConfiguracion() {
           <Alert severity="info" sx={{ mb: 2 }}>
             Configuración avanzada de módulos adicionales. Formato JSON personalizado.
           </Alert>
-          
+
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 multiline
@@ -950,8 +952,8 @@ export default function TenantConfiguracion() {
                 }}
               />
             </Grid>
-            
-            <Grid item xs={12} md={6}>
+
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 multiline
@@ -967,8 +969,8 @@ export default function TenantConfiguracion() {
                 }}
               />
             </Grid>
-            
-            <Grid item xs={12} md={6}>
+
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 multiline
@@ -984,8 +986,8 @@ export default function TenantConfiguracion() {
                 }}
               />
             </Grid>
-            
-            <Grid item xs={12} md={6}>
+
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 multiline
@@ -1001,8 +1003,8 @@ export default function TenantConfiguracion() {
                 }}
               />
             </Grid>
-            
-            <Grid item xs={12}>
+
+            <Grid size={12}>
               <TextField
                 fullWidth
                 multiline

@@ -12,12 +12,14 @@ Multi-moneda y multi-usuario.
 
 import uuid
 from datetime import date, datetime
-from typing import Optional
 from decimal import Decimal
 
-from sqlalchemy import JSON, String, Numeric, ForeignKey, Date, Text, Enum as SQLEnum, TIMESTAMP
-from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import JSON, TIMESTAMP, Date
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import ForeignKey, Numeric, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.config.database import Base, schema_column, schema_table_args
 
@@ -26,304 +28,225 @@ JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
 
 # Enums
 caja_movimiento_tipo = SQLEnum(
-    "INGRESO",      # Entrada de efectivo
-    "EGRESO",       # Salida de efectivo
-    "AJUSTE",       # Ajuste de caja
+    "INGRESO",  # Entrada de efectivo
+    "EGRESO",  # Salida de efectivo
+    "AJUSTE",  # Ajuste de caja
     name="caja_movimiento_tipo",
-    create_type=False
+    create_type=False,
 )
 
 caja_movimiento_categoria = SQLEnum(
-    "VENTA",           # Cobro de venta
-    "COMPRA",          # Pago de compra
-    "GASTO",           # Gastos operativos
-    "NOMINA",          # Pago de nóminas
-    "BANCO",           # Transferencia banco <-> caja
-    "CAMBIO",          # Cambio de fondo
-    "AJUSTE",          # Ajustes de cuadre
-    "OTRO",            # Otros movimientos
+    "VENTA",  # Cobro de venta
+    "COMPRA",  # Pago de compra
+    "GASTO",  # Gastos operativos
+    "NOMINA",  # Pago de nóminas
+    "BANCO",  # Transferencia banco <-> caja
+    "CAMBIO",  # Cambio de fondo
+    "AJUSTE",  # Ajustes de cuadre
+    "OTRO",  # Otros movimientos
     name="caja_movimiento_categoria",
-    create_type=False
+    create_type=False,
 )
 
 cierre_caja_status = SQLEnum(
-    "ABIERTO",      # Caja abierta (día en curso)
-    "CERRADO",      # Caja cerrada (cuadrada)
-    "PENDIENTE",    # Pendiente de revisar (descuadre)
+    "ABIERTO",  # Caja abierta (día en curso)
+    "CERRADO",  # Caja cerrada (cuadrada)
+    "PENDIENTE",  # Pendiente de revisar (descuadre)
     name="cierre_caja_status",
-    create_type=False
+    create_type=False,
 )
 
 
-class CajaMovimiento(Base):
+class CashMovement(Base):
     """
-    Movimiento de Caja - Registro individual de ingreso/egreso.
-    
+    Cash Movement - Individual cash income/expense record.
+
     Attributes:
-        tipo: INGRESO, EGRESO, AJUSTE
-        categoria: VENTA, COMPRA, GASTO, NOMINA, BANCO, CAMBIO, AJUSTE, OTRO
-        importe: Cantidad (positivo para ingresos, negativo para egresos)
-        moneda: Código de moneda (EUR, USD, etc.)
-        concepto: Descripción del movimiento
-        ref_doc_type: Tipo de documento origen (invoice, receipt, expense, etc.)
-        ref_doc_id: ID del documento origen
-        usuario_id: Usuario que registró el movimiento
-        caja_id: Caja/Punto de venta (opcional, para multi-caja)
+        type: INCOME, EXPENSE, ADJUSTMENT
+        category: SALES, PURCHASES, EXPENSE, PAYROLL, BANK, CHANGE, ADJUSTMENT, OTHER
+        amount: Amount (positive for income, negative for expense)
+        currency: Currency code (EUR, USD, etc.)
+        description: Movement description
+        ref_doc_type: Source document type (invoice, receipt, expense, etc.)
+        ref_doc_id: Source document ID
+        user_id: User who recorded the movement
+        cash_box_id: Cash box/POS (optional, for multi-cash)
     """
-    
-    __tablename__ = "caja_movimientos"
+
+    __tablename__ = "cash_movements"
     __table_args__ = schema_table_args()
-    
+
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
-        index=True
-    )
-    
-    # Tipo y categoría
-    tipo: Mapped[str] = mapped_column(
-        caja_movimiento_tipo,
-        nullable=False,
         index=True,
-        comment="INGRESO, EGRESO, AJUSTE"
     )
-    categoria: Mapped[str] = mapped_column(
+
+    # Type and category
+    type: Mapped[str] = mapped_column(
+        caja_movimiento_tipo, nullable=False, index=True, comment="INCOME, EXPENSE, ADJUSTMENT"
+    )
+    category: Mapped[str] = mapped_column(
         caja_movimiento_categoria,
         nullable=False,
         index=True,
-        comment="VENTA, COMPRA, GASTO, NOMINA, BANCO, CAMBIO, AJUSTE, OTRO"
+        comment="SALES, PURCHASES, EXPENSE, PAYROLL, BANK, CHANGE, ADJUSTMENT, OTHER",
     )
-    
-    # Importe
-    importe: Mapped[Decimal] = mapped_column(
+
+    # Amount
+    amount: Mapped[Decimal] = mapped_column(
         Numeric(12, 2),
         nullable=False,
-        comment="Importe del movimiento (positivo=ingreso, negativo=egreso)"
+        comment="Amount (positive=income, negative=expense)",
     )
-    moneda: Mapped[str] = mapped_column(
-        String(3),
-        nullable=False,
-        default="EUR",
-        comment="Código de moneda ISO 4217"
+    currency: Mapped[str] = mapped_column(
+        String(3), nullable=False, default="EUR", comment="ISO 4217 currency code"
     )
-    
-    # Descripción
-    concepto: Mapped[str] = mapped_column(
-        String(255),
-        nullable=False,
-        comment="Descripción del movimiento"
+
+    # Description
+    description: Mapped[str] = mapped_column(
+        String(255), nullable=False, comment="Movement description"
     )
-    notas: Mapped[Optional[str]] = mapped_column(
-        Text,
-        nullable=True
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Reference to source document
+    ref_doc_type: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, comment="Document type (invoice, receipt, expense, payroll)"
     )
-    
-    # Referencia a documento origen
-    ref_doc_type: Mapped[Optional[str]] = mapped_column(
-        String(50),
-        nullable=True,
-        comment="Tipo de documento (invoice, receipt, expense, payroll)"
+    ref_doc_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True, comment="Source document ID"
     )
-    ref_doc_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        PGUUID(as_uuid=True),
-        nullable=True,
-        comment="ID del documento origen"
-    )
-    
-    # Multi-caja (opcional)
-    caja_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+
+    # Multi-cash box (optional)
+    cash_box_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         nullable=True,
         index=True,
-        comment="ID de caja/punto de venta (para multi-caja)"
+        comment="Cash box/POS ID (for multi-cash)",
     )
-    
-    # Usuario responsable
-    usuario_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        PGUUID(as_uuid=True),
-        nullable=True,
-        comment="Usuario que registró el movimiento"
+
+    # Responsible user
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True, comment="User who recorded the movement"
     )
-    
-    # Fecha
-    fecha: Mapped[date] = mapped_column(
-        Date,
-        nullable=False,
-        index=True,
-        comment="Fecha del movimiento"
-    )
-    
-    # Auditoría
+
+    # Date
+    date: Mapped[date] = mapped_column(Date(), nullable=False, index=True, comment="Movement date")
+
+    # Audit
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True),
-        nullable=False,
-        server_default="now()"
+        TIMESTAMP(timezone=True), nullable=False, server_default="now()"
     )
-    
-    # Relación con cierre
-    cierre_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+
+    # Relation to closing
+    closing_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey(schema_column("cierres_caja"), ondelete="SET NULL"),
+        ForeignKey(schema_column("cash_closings"), ondelete="SET NULL"),
         nullable=True,
-        index=True
+        index=True,
     )
 
 
-class CierreCaja(Base):
+class CashClosing(Base):
     """
-    Cierre de Caja - Cuadre diario de caja.
-    
+    Cash Closing - Daily cash reconciliation.
+
     Attributes:
-        fecha: Fecha del cierre
-        caja_id: ID de caja (opcional, para multi-caja)
-        moneda: Moneda del cierre
-        
-        Saldos:
-        - saldo_inicial: Saldo al inicio del día
-        - total_ingresos: Suma de ingresos del día
-        - total_egresos: Suma de egresos del día
-        - saldo_teorico: saldo_inicial + ingresos - egresos
-        - saldo_real: Efectivo contado físicamente
-        - diferencia: saldo_real - saldo_teorico
-        
-        Estado:
-        - status: ABIERTO, CERRADO, PENDIENTE
-        - cuadrado: True si diferencia = 0
-        
-        Usuario:
-        - abierto_por: Usuario que abrió caja
-        - cerrado_por: Usuario que cerró caja
+        date: Closing date
+        cash_box_id: Cash box ID (optional, for multi-cash)
+        currency: Closing currency
+
+        Balances:
+        - opening_balance: Balance at start of day
+        - total_income: Sum of day's income
+        - total_expense: Sum of day's expenses
+        - theoretical_balance: opening_balance + income - expense
+        - physical_balance: Physically counted cash
+        - difference: physical_balance - theoretical_balance
+
+        Status:
+        - status: OPEN, CLOSED, PENDING
+        - is_balanced: True if difference = 0
+
+        User:
+        - opened_by: User who opened cash
+        - closed_by: User who closed cash
     """
-    
-    __tablename__ = "cierres_caja"
+
+    __tablename__ = "cash_closings"
     __table_args__ = schema_table_args()
-    
+
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
-        index=True
-    )
-    
-    # Fecha y caja
-    fecha: Mapped[date] = mapped_column(
-        Date,
-        nullable=False,
         index=True,
-        comment="Fecha del cierre"
     )
-    caja_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        PGUUID(as_uuid=True),
-        nullable=True,
-        index=True,
-        comment="ID de caja (para multi-caja)"
+
+    # Date and cash box
+    date: Mapped[date] = mapped_column(Date(), nullable=False, index=True, comment="Closing date")
+    cash_box_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True, index=True, comment="Cash box ID (for multi-cash)"
     )
-    moneda: Mapped[str] = mapped_column(
-        String(3),
-        nullable=False,
-        default="EUR"
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="EUR")
+
+    # === BALANCES ===
+    opening_balance: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=0, comment="Balance at start of day"
     )
-    
-    # === SALDOS ===
-    saldo_inicial: Mapped[Decimal] = mapped_column(
+    total_income: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=0, comment="Sum of day's income"
+    )
+    total_expense: Mapped[Decimal] = mapped_column(
         Numeric(12, 2),
         nullable=False,
         default=0,
-        comment="Saldo al inicio del día"
+        comment="Sum of day's expenses (absolute value)",
     )
-    total_ingresos: Mapped[Decimal] = mapped_column(
+    theoretical_balance: Mapped[Decimal] = mapped_column(
         Numeric(12, 2),
         nullable=False,
         default=0,
-        comment="Suma de ingresos del día"
+        comment="Theoretical balance (opening + income - expense)",
     )
-    total_egresos: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2),
-        nullable=False,
-        default=0,
-        comment="Suma de egresos del día (valor absoluto)"
+    physical_balance: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=0, comment="Physically counted cash"
     )
-    saldo_teorico: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2),
-        nullable=False,
-        default=0,
-        comment="Saldo teórico (inicial + ingresos - egresos)"
+    difference: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=0, comment="Difference (physical - theoretical)"
     )
-    saldo_real: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2),
-        nullable=False,
-        default=0,
-        comment="Efectivo contado físicamente"
-    )
-    diferencia: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2),
-        nullable=False,
-        default=0,
-        comment="Diferencia (real - teórico)"
-    )
-    
-    # === ESTADO ===
+
+    # === STATUS ===
     status: Mapped[str] = mapped_column(
-        cierre_caja_status,
-        nullable=False,
-        default="ABIERTO",
-        index=True
+        cierre_caja_status, nullable=False, default="OPEN", index=True
     )
-    cuadrado: Mapped[bool] = mapped_column(
-        nullable=False,
-        default=False,
-        comment="True si diferencia = 0"
+    is_balanced: Mapped[bool] = mapped_column(
+        nullable=False, default=False, comment="True if difference = 0"
     )
-    
-    # === DETALLES ===
-    detalles_billetes: Mapped[Optional[dict]] = mapped_column(
-        JSON_TYPE,
-        nullable=True,
-        comment="Desglose de billetes y monedas contadas"
+
+    # === DETAILS ===
+    bill_breakdown: Mapped[dict | None] = mapped_column(
+        JSON_TYPE, nullable=True, comment="Breakdown of bills and coins counted"
     )
-    notas: Mapped[Optional[str]] = mapped_column(
-        Text,
-        nullable=True
-    )
-    
-    # === USUARIOS ===
-    abierto_por: Mapped[Optional[uuid.UUID]] = mapped_column(
-        PGUUID(as_uuid=True),
-        nullable=True
-    )
-    abierto_at: Mapped[Optional[datetime]] = mapped_column(
-        TIMESTAMP(timezone=True),
-        nullable=True
-    )
-    cerrado_por: Mapped[Optional[uuid.UUID]] = mapped_column(
-        PGUUID(as_uuid=True),
-        nullable=True
-    )
-    cerrado_at: Mapped[Optional[datetime]] = mapped_column(
-        TIMESTAMP(timezone=True),
-        nullable=True
-    )
-    
-    # Auditoría
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # === USERS ===
+    opened_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    opened_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    closed_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+
+    # Audit
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True),
-        nullable=False,
-        server_default="now()"
+        TIMESTAMP(timezone=True), nullable=False, server_default="now()"
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True),
-        nullable=False,
-        server_default="now()",
-        onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True), nullable=False, server_default="now()", onupdate=datetime.utcnow
     )

@@ -1,4 +1,4 @@
-﻿"""Module: role_service.py
+"""Module: role_service.py
 
 Auto-generated module docstring."""
 
@@ -10,16 +10,14 @@ from sqlalchemy.future import select
 from app.models import RolEmpresa, UsuarioRolempresa
 
 
-async def get_user_permisos(
-    usuario_id: int, tenant_id: int, db: AsyncSession
-) -> list[str]:
+async def get_user_permisos(usuario_id: int, tenant_id: int, db: AsyncSession) -> list[str]:
     query = (
-        select(RolEmpresa.permisos)
+        select(RolEmpresa.permissions)
         .join(UsuarioRolempresa, RolEmpresa.id == UsuarioRolempresa.rol_id)
         .where(
             UsuarioRolempresa.usuario_id == usuario_id,
             UsuarioRolempresa.tenant_id == tenant_id,
-            UsuarioRolempresa.active,
+            UsuarioRolempresa.activo,
         )
         .limit(1)
     )

@@ -1,9 +1,9 @@
 # 📋 INFORME DE AUDITORÍA TÉCNICA – BACKEND
 
-**Proyecto**: GestiqCloud  
-**Tipo**: ERP/CRM Multi-Tenant  
-**Stack**: FastAPI 0.112+ | SQLAlchemy 2.0 | PostgreSQL 15 | Celery + Redis  
-**Fecha**: 2025-11-06  
+**Proyecto**: GestiqCloud
+**Tipo**: ERP/CRM Multi-Tenant
+**Stack**: FastAPI 0.112+ | SQLAlchemy 2.0 | PostgreSQL 15 | Celery + Redis
+**Fecha**: 2025-11-06
 **Auditor**: Sistema de Análisis Técnico Automatizado
 
 ---
@@ -101,7 +101,7 @@ apps/backend/app/
 ### **Vulnerabilidades y Gaps**
 
 #### 🔴 **CRÍTICO**: Falta Rate Limiting por Endpoint
-**Ruta**: `apps/backend/app/middleware/rate_limit.py`  
+**Ruta**: `apps/backend/app/middleware/rate_limit.py`
 **Problema**: Solo existe rate limit **global** (120 req/min). Endpoints críticos como `/api/v1/tenant/auth/login` no tienen protección específica contra brute-force.
 
 **Evidencia**:
@@ -135,7 +135,7 @@ async def login(...):
 ---
 
 #### ⚠️ **MEDIO**: Dependencias con Versiones Desactualizadas
-**Ruta**: `apps/backend/requirements.txt`  
+**Ruta**: `apps/backend/requirements.txt`
 **Problema**: Varias dependencias tienen versiones pinneadas sin rangos → No se aplican parches de seguridad automáticamente.
 
 **Evidencia**:
@@ -171,7 +171,7 @@ updates:
 ---
 
 #### ⚠️ **MEDIO**: Secrets en Variables de Entorno Sin Validación Estricta
-**Ruta**: `apps/backend/app/config/settings.py:244-248`  
+**Ruta**: `apps/backend/app/config/settings.py:244-248`
 **Problema**: La validación `assert_required_for_production()` solo se ejecuta al arrancar, pero si `ENV != "production"`, permite secrets débiles.
 
 **Evidencia**:
@@ -200,7 +200,7 @@ def validate_secret_key(cls, v: SecretStr):
 ---
 
 #### 🟡 **BAJO**: Falta Escaneo de Seguridad en Pre-Commit
-**Ruta**: `.pre-commit-config.yaml`  
+**Ruta**: `.pre-commit-config.yaml`
 **Problema**: No incluye **Bandit** (SAST para Python) ni **safety** (check de CVEs).
 
 **Evidencia**:
@@ -219,7 +219,7 @@ def validate_secret_key(cls, v: SecretStr):
   hooks:
     - id: bandit
       args: ["-c", "pyproject.toml"]
-      
+
 - repo: https://github.com/pyupio/safety
   rev: 2.3.5
   hooks:
@@ -299,7 +299,7 @@ def run_legacy_migrations():
 ### **Row-Level Security (RLS)**
 **Estado**: ✅ **IMPLEMENTADO CORRECTAMENTE**
 
-**Script**: `scripts/py/apply_rls.py`  
+**Script**: `scripts/py/apply_rls.py`
 **Trigger**: Automático en `prod.py:25-64` con `RUN_RLS_APPLY=1`
 
 **Cobertura**:
@@ -505,7 +505,7 @@ filterwarnings = ...  # ✅ Silencia warnings conocidos
   run: |
     pip install pytest-cov
     pytest --cov=app --cov-report=term --cov-report=xml --cov-fail-under=60
-    
+
 - name: Upload coverage to Codecov
   uses: codecov/codecov-action@v3
 ```
@@ -666,10 +666,8 @@ HEALTHCHECK CMD curl -f http://127.0.0.1:8000/ready || exit 1
 # .github/workflows/ci.yml
 - name: Lint (Black + Ruff)
   run: |
-    pip install black ruff
-    black --check apps/backend
     ruff check apps/backend
-    
+
 - name: Validate Alembic migrations
   run: |
     alembic upgrade head
@@ -725,7 +723,7 @@ scaling:
 | 0.88 | `app/services/audit_service.py` | `app/models/security/auth_audit.py` | Near | ⚠️ Consolidar en `modules/identity/application/audit.py` |
 | 0.92 | Legacy routers (`app/routers/*.py`) | Módulos modernos (`app/modules/*/interface/http/`) | Near | ❌ **Eliminar legacy** tras validar cobertura |
 
-**Total Estimado**: ~400-600 líneas de código duplicado/muerto  
+**Total Estimado**: ~400-600 líneas de código duplicado/muerto
 **Impacto**: Reduce mantenimiento y riesgo de bugs por divergencia
 
 ---
@@ -783,4 +781,3 @@ Total estimado: **150-200 endpoints** (no contados por duplicación legacy)
 **FIN DEL INFORME BACKEND**
 
 *Próximo paso*: Generar `Informe_Frontend.md`
-

@@ -26,9 +26,9 @@ Total: **13 archivos** (321 MB)
 
 ### 1. **Stock-02-11-2025.xlsx** ✅
 
-**Tipo**: Productos de panadería  
-**Parser**: `products_excel.py`  
-**Handler**: `ProductHandler`  
+**Tipo**: Productos de panadería
+**Parser**: `products_excel.py`
+**Handler**: `ProductHandler`
 **Tabla destino**: `products`
 
 **Estructura**:
@@ -59,9 +59,9 @@ ProductHandler.promote() → tabla products
 
 ### 2. **67 Y 68 CATALOGO.xlsx** ✅
 
-**Tipo**: Catálogo de importadora  
-**Parser**: `catalogo_importadora.py` (nuevo)  
-**Handler**: `ProductHandler`  
+**Tipo**: Catálogo de importadora
+**Parser**: `catalogo_importadora.py` (nuevo)
+**Handler**: `ProductHandler`
 **Tabla destino**: `products`
 
 **Estructura**:
@@ -91,9 +91,9 @@ ProductHandler.promote() → tabla products
 
 ### 3. **19-01-24..xlsx** ✅
 
-**Tipo**: Productos de panadería  
-**Parser**: `products_excel.py`  
-**Handler**: `ProductHandler`  
+**Tipo**: Productos de panadería
+**Parser**: `products_excel.py`
+**Handler**: `ProductHandler`
 **Tabla destino**: `products`
 
 **Estructura**:
@@ -116,17 +116,17 @@ ProductHandler.promote() → tabla products
 
 ### 4. **Hoja de cálculo sin título.xlsx** ⚠️
 
-**Tipo**: Genérico (requiere inspección manual)  
-**Tamaño**: 21 KB  
+**Tipo**: Genérico (requiere inspección manual)
+**Tamaño**: 21 KB
 **Acción**: Requiere revisar contenido para determinar parser
 
 ---
 
 ### 5. **movimientos.xlsx** ✅
 
-**Tipo**: Extracto bancario Santander  
-**Parser**: `banco_santander_excel.py` (nuevo)  
-**Handler**: `BankHandler`  
+**Tipo**: Extracto bancario Santander
+**Parser**: `banco_santander_excel.py` (nuevo)
+**Handler**: `BankHandler`
 **Tabla destino**: `bank_transactions` + `bank_accounts`
 
 **Estructura**:
@@ -157,9 +157,9 @@ Auto-crea cuenta bancaria con IBAN
 
 ### 6. **2024-001.xml** ✅
 
-**Tipo**: Factura electrónica Facturae (España)  
-**Parser**: XML parser específico  
-**Handler**: `InvoiceHandler`  
+**Tipo**: Factura electrónica Facturae (España)
+**Parser**: XML parser específico
+**Handler**: `InvoiceHandler`
 **Tabla destino**: `invoices` + `invoice_lines`
 
 **Estructura**:
@@ -463,40 +463,40 @@ graph TB
         P2[67 Y 68 CATALOGO.xlsx]
         P3[19-01-24..xlsx]
     end
-    
+
     subgraph Banco
         B1[movimientos.xlsx]
     end
-    
+
     subgraph Facturas
         F1[2024-001.xml]
         F2[Invoice-*.pdf]
     end
-    
+
     subgraph Gastos
         G1[Receipt-*.pdf]
         G2[recibos.pdf]
         G3[tiken*.pdf]
     end
-    
+
     P1 --> |ProductHandler| PRODUCTS[products<br/>product_categories<br/>stock_items]
     P2 --> |ProductHandler| PRODUCTS
     P3 --> |ProductHandler| PRODUCTS
-    
+
     B1 --> |BankHandler| BANK[bank_transactions<br/>bank_accounts]
-    
+
     F1 --> |InvoiceHandler| INVOICES[invoices<br/>invoice_lines<br/>clients]
     F2 --> |InvoiceHandler| INVOICES
-    
+
     G1 --> |ExpenseHandler| GASTOS[gastos<br/>proveedores]
     G2 --> |ExpenseHandler| GASTOS
     G3 --> |ExpenseHandler| GASTOS
-    
+
     classDef excel fill:#1a5f1a,stroke:#fff,color:#fff
     classDef pdf fill:#8b0000,stroke:#fff,color:#fff
     classDef xml fill:#00008b,stroke:#fff,color:#fff
     classDef tabla fill:#4a4a4a,stroke:#fff,color:#fff
-    
+
     class P1,P2,P3,B1 excel
     class F2,G1,G2,G3 pdf
     class F1 xml
@@ -642,6 +642,6 @@ IMPORTS_OCR_DPI=150  # En lugar de 200
 
 ---
 
-**Última actualización**: 2025-11-05  
-**Archivos analizados**: 13/13  
+**Última actualización**: 2025-11-05
+**Archivos analizados**: 13/13
 **Compatibilidad**: 100%

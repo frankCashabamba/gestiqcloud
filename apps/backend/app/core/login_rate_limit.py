@@ -3,14 +3,16 @@ import logging
 import os
 import time
 from dataclasses import dataclass
+
 from fastapi import Request
+
 from app.config.settings import settings
 
 _logger = logging.getLogger(__name__)
 
 try:
     # Prefer shared utils when available
-    from apps.backend.app.shared.utils import utcnow_iso, now_ts  # type: ignore
+    from apps.backend.app.shared.utils import now_ts, utcnow_iso  # type: ignore
 except Exception:
     # Minimal fallbacks for test/CI environments without 'apps' alias
     def now_ts() -> int:
@@ -29,13 +31,12 @@ except Exception:  # pragma: no cover - redis optional
 
 # ---------- Config (override via settings) ----------
 WINDOW_SECONDS = getattr(settings, "LOGIN_WINDOW_SECONDS", 900)  # 15 min
-MAX_ATTEMPTS = int(
-    getattr(settings, "LOGIN_MAX_ATTEMPTS", 10)
-)  # 10 fallos (por defecto)
+MAX_ATTEMPTS = int(getattr(settings, "LOGIN_MAX_ATTEMPTS", 10))  # 10 fallos (por defecto)
 COOLDOWN_SECONDS = getattr(settings, "LOGIN_COOLDOWN_SECONDS", 900)  # 15 min cool-down
 BACKOFF_BASE = getattr(settings, "LOGIN_BACKOFF_BASE", 2)  # 2^n
 BACKOFF_STEP = getattr(settings, "LOGIN_BACKOFF_STEP", 2)  # cada 2 fallos
 KEY_PREFIX = getattr(settings, "LOGIN_RL_PREFIX", "rl:login")
+RL_ENABLED = str(os.getenv("LOGIN_RATE_LIMIT_ENABLED", "1")).lower() not in ("0", "false")
 
 
 # ---------- Redis client (optional) ----------
@@ -98,6 +99,8 @@ def _calc_backoff(failures: int) -> int:
 
 # ---------- Public API ----------
 def check(request: Request, ident: str) -> RLStatus:
+    if not RL_ENABLED:
+        return RLStatus(True, retry_after=0, remaining=MAX_ATTEMPTS, reason="disabled")
     ip = request.client.host if request.client else "unknown"
     k = _key(ip, ident)
 
@@ -125,9 +128,7 @@ def check(request: Request, ident: str) -> RLStatus:
             backoff = _calc_backoff(failures)
             if backoff > 0:
                 # Si hay backoff, pedimos al cliente que espere (no bloqueamos estrictamente)
-                return RLStatus(
-                    True, retry_after=backoff, remaining=remaining, reason="backoff"
-                )
+                return RLStatus(True, retry_after=backoff, remaining=remaining, reason="backoff")
             return RLStatus(True, retry_after=0, remaining=remaining, reason="ok")
     # Fallback en memoria por proceso (mejor usar Redis en prod)
     # Nota: este fallback se resetea si el proceso reinicia
@@ -141,15 +142,15 @@ def check(request: Request, ident: str) -> RLStatus:
     remaining = max(0, MAX_ATTEMPTS - failures)
     if failures >= MAX_ATTEMPTS:
         retry_after = max(1, entry["reset"] - now)
-        return RLStatus(
-            False, retry_after=retry_after, remaining=0, reason="max_attempts"
-        )
+        return RLStatus(False, retry_after=retry_after, remaining=0, reason="max_attempts")
     backoff = _calc_backoff(failures)
     check._mem = {**store, k: entry}
     return RLStatus(True, retry_after=backoff, remaining=remaining, reason="ok")
 
 
 def incr_fail(request: Request, ident: str) -> RLStatus:
+    if not RL_ENABLED:
+        return RLStatus(True, retry_after=0, remaining=MAX_ATTEMPTS, reason="disabled")
     ip = request.client.host if request.client else "unknown"
     k = _key(ip, ident)
 
@@ -188,9 +189,7 @@ def incr_fail(request: Request, ident: str) -> RLStatus:
     check._mem = {**store, k: entry}
     if failures >= MAX_ATTEMPTS:
         entry["reset"] = now + COOLDOWN_SECONDS
-        return RLStatus(
-            False, retry_after=COOLDOWN_SECONDS, remaining=0, reason="max_attempts"
-        )
+        return RLStatus(False, retry_after=COOLDOWN_SECONDS, remaining=0, reason="max_attempts")
     remaining = max(0, MAX_ATTEMPTS - failures)
     return RLStatus(
         True,
@@ -201,6 +200,8 @@ def incr_fail(request: Request, ident: str) -> RLStatus:
 
 
 def reset(request: Request, ident: str) -> None:
+    if not RL_ENABLED:
+        return
     ip = request.client.host if request.client else "unknown"
     k = _key(ip, ident)
     if r:

@@ -195,6 +195,6 @@ Si falta Tesseract en Windows:
 - ✅ 4 documentos de guía y debugging
 - ✅ 100% compatible con Windows
 
-**Versión**: 2.0  
-**Fecha**: 2025-11-05  
+**Versión**: 2.0
+**Fecha**: 2025-11-05
 **Estado**: ✅ COMPLETADO

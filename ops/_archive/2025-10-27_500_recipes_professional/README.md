@@ -1,6 +1,6 @@
 # Migración: Sistema de Recetas Profesional
 
-**Fecha**: 2025-10-27  
+**Fecha**: 2025-10-27
 **Versión**: 500
 
 ## Descripción

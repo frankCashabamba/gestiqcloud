@@ -54,13 +54,15 @@ def validate_prerequisites(engine):
     with engine.connect() as conn:
         # Check if tenants table exists
         result = conn.execute(
-            text("""
+            text(
+                """
             SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'public'
                 AND table_name = 'tenants'
             )
-        """)
+        """
+            )
         )
         if not result.scalar():
             print(
@@ -70,14 +72,16 @@ def validate_prerequisites(engine):
 
         # Check if core_empresa has tenant_id
         result = conn.execute(
-            text("""
+            text(
+                """
             SELECT EXISTS (
-                SELECT FROM information_schema.columns 
-                WHERE table_schema = 'public' 
+                SELECT FROM information_schema.columns
+                WHERE table_schema = 'public'
                 AND table_name = 'core_empresa'
                 AND column_name = 'tenant_id'
             )
-        """)
+        """
+            )
         )
         if not result.scalar():
             print("WARNING: core_empresa.tenant_id does not exist. Backfill may fail.")
@@ -95,13 +99,15 @@ def validate_prerequisites(engine):
         ]
         for table in tables:
             result = conn.execute(
-                text(f"""
+                text(
+                    f"""
                 SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
+                    SELECT FROM information_schema.tables
+                    WHERE table_schema = 'public'
                     AND table_name = '{table}'
                 )
-            """)
+            """
+                )
             )
             if not result.scalar():
                 print(

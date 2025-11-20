@@ -10,10 +10,11 @@ This script helps test the ElectricSQL offline/online flow by:
 Run with: python scripts/test_offline_online.py
 """
 
-import time
-import requests
 import subprocess
 import sys
+import time
+
+import requests
 
 
 class OfflineOnlineTester:

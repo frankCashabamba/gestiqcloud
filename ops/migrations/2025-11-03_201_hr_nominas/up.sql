@@ -1,257 +1,221 @@
 -- ============================================================================
 -- Migration: 2025-11-03_201_hr_nominas
--- Descripción: Sistema completo de nóminas con devengos, deducciones y conceptos
--- Autor: GestiQCloud Team
--- Fecha: 2025-11-03
+-- Description: Complete payroll system with earnings, deductions and concepts
+-- Updated: 2025-11-17 - Spanish to English names
 -- ============================================================================
 
--- Crear tipos ENUM para nóminas
-CREATE TYPE nomina_status AS ENUM ('DRAFT', 'APPROVED', 'PAID', 'CANCELLED');
-CREATE TYPE nomina_tipo AS ENUM ('MENSUAL', 'EXTRA', 'FINIQUITO', 'ESPECIAL');
+-- Create ENUM types for payroll
+DO $$ BEGIN
+  CREATE TYPE payroll_status AS ENUM ('DRAFT', 'APPROVED', 'PAID', 'CANCELLED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-COMMENT ON TYPE nomina_status IS 'Estados de una nómina: DRAFT=Borrador, APPROVED=Aprobada, PAID=Pagada, CANCELLED=Cancelada';
-COMMENT ON TYPE nomina_tipo IS 'Tipos de nómina: MENSUAL=Ordinaria, EXTRA=Paga extra, FINIQUITO=Liquidación, ESPECIAL=Pagos especiales';
+DO $$ BEGIN
+  CREATE TYPE payroll_type AS ENUM ('MONTHLY', 'EXTRA', 'SEVERANCE', 'SPECIAL');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+COMMENT ON TYPE payroll_status IS 'Payroll status: DRAFT=Draft, APPROVED=Approved, PAID=Paid, CANCELLED=Cancelled';
+COMMENT ON TYPE payroll_type IS 'Payroll types: MONTHLY=Regular, EXTRA=Extra pay, SEVERANCE=Severance, SPECIAL=Special payments';
 
 -- ============================================================================
--- Tabla: nominas
+-- Table: payrolls
 -- ============================================================================
 
-CREATE TABLE nominas (
+CREATE TABLE IF NOT EXISTS payrolls (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    
-    -- Numeración y referencias
-    numero VARCHAR(50) NOT NULL UNIQUE,
-    empleado_id UUID NOT NULL REFERENCES empleados(id) ON DELETE RESTRICT,
-    
-    -- Período
-    periodo_mes INTEGER NOT NULL CHECK (periodo_mes >= 1 AND periodo_mes <= 12),
-    periodo_ano INTEGER NOT NULL CHECK (periodo_ano >= 2020 AND periodo_ano <= 2100),
-    tipo nomina_tipo NOT NULL DEFAULT 'MENSUAL',
-    
-    -- === DEVENGOS (positivos) ===
-    salario_base NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (salario_base >= 0),
-    complementos NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (complementos >= 0),
-    horas_extra NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (horas_extra >= 0),
-    otros_devengos NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (otros_devengos >= 0),
-    total_devengado NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (total_devengado >= 0),
-    
-    -- === DEDUCCIONES (negativas) ===
-    seg_social NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (seg_social >= 0),
-    irpf NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (irpf >= 0),
-    otras_deducciones NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (otras_deducciones >= 0),
-    total_deducido NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (total_deducido >= 0),
-    
-    -- === TOTALES ===
-    liquido_total NUMERIC(12, 2) NOT NULL DEFAULT 0,
-    
-    -- === PAGO ===
-    fecha_pago DATE,
-    metodo_pago VARCHAR(50),
-    
-    -- === ESTADO ===
-    status nomina_status NOT NULL DEFAULT 'DRAFT',
-    
-    -- === INFORMACIÓN ADICIONAL ===
-    notas TEXT,
-    conceptos_json JSONB,
-    
-    -- === AUDITORÍA ===
+
+    -- Numbering and references
+    number VARCHAR(50) NOT NULL UNIQUE,
+    employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE RESTRICT,
+
+    -- Period
+    period_month INTEGER NOT NULL CHECK (period_month >= 1 AND period_month <= 12),
+    period_year INTEGER NOT NULL CHECK (period_year >= 2020 AND period_year <= 2100),
+    type payroll_type NOT NULL DEFAULT 'MONTHLY',
+
+    -- === EARNINGS (positive) ===
+    base_salary NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (base_salary >= 0),
+    allowances NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (allowances >= 0),
+    overtime NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (overtime >= 0),
+    other_earnings NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (other_earnings >= 0),
+    total_earnings NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (total_earnings >= 0),
+
+    -- === DEDUCTIONS (negative) ===
+    social_security NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (social_security >= 0),
+    income_tax NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (income_tax >= 0),
+    other_deductions NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (other_deductions >= 0),
+    total_deductions NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (total_deductions >= 0),
+
+    -- === TOTALS ===
+    net_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+
+    -- === PAYMENT ===
+    payment_date DATE,
+    payment_method VARCHAR(50),
+
+    -- === STATUS ===
+    status payroll_status NOT NULL DEFAULT 'DRAFT',
+
+    -- === ADDITIONAL INFO ===
+    notes TEXT,
+    concepts_json JSONB,
+
+    -- === AUDIT ===
     approved_by UUID,
     approved_at TIMESTAMPTZ,
     created_by UUID,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
+
     -- === CONSTRAINTS ===
-    CONSTRAINT nominas_periodo_empleado_tipo_unique 
-        UNIQUE (tenant_id, empleado_id, periodo_mes, periodo_ano, tipo)
+    CONSTRAINT payrolls_period_employee_type_unique
+        UNIQUE (tenant_id, employee_id, period_month, period_year, type)
 );
 
--- Índices
-CREATE INDEX idx_nominas_tenant_id ON nominas(tenant_id);
-CREATE INDEX idx_nominas_empleado_id ON nominas(empleado_id);
-CREATE INDEX idx_nominas_periodo ON nominas(periodo_ano, periodo_mes);
-CREATE INDEX idx_nominas_status ON nominas(status);
-CREATE INDEX idx_nominas_numero ON nominas(numero);
-CREATE INDEX idx_nominas_fecha_pago ON nominas(fecha_pago) WHERE fecha_pago IS NOT NULL;
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_payrolls_tenant_id ON payrolls(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_payrolls_employee_id ON payrolls(employee_id);
+CREATE INDEX IF NOT EXISTS idx_payrolls_period ON payrolls(period_year, period_month);
+CREATE INDEX IF NOT EXISTS idx_payrolls_status ON payrolls(status);
+CREATE INDEX IF NOT EXISTS idx_payrolls_number ON payrolls(number);
+CREATE INDEX IF NOT EXISTS idx_payrolls_payment_date ON payrolls(payment_date) WHERE payment_date IS NOT NULL;
 
--- Comentarios
-COMMENT ON TABLE nominas IS 'Nóminas mensuales de empleados con devengos, deducciones y totales';
-COMMENT ON COLUMN nominas.numero IS 'Número único de nómina (NOM-YYYY-MM-NNNN)';
-COMMENT ON COLUMN nominas.salario_base IS 'Salario base del período';
-COMMENT ON COLUMN nominas.complementos IS 'Suma de complementos salariales (plus transporte, nocturnidad, etc.)';
-COMMENT ON COLUMN nominas.horas_extra IS 'Pago por horas extraordinarias';
-COMMENT ON COLUMN nominas.otros_devengos IS 'Otros devengos';
-COMMENT ON COLUMN nominas.total_devengado IS 'Total devengado (suma de devengos)';
-COMMENT ON COLUMN nominas.seg_social IS 'Cotización Seguridad Social (España) o IESS (Ecuador)';
-COMMENT ON COLUMN nominas.irpf IS 'Retención IRPF (España) o Impuesto Renta (Ecuador)';
-COMMENT ON COLUMN nominas.otras_deducciones IS 'Otras deducciones (anticipos, embargos, etc.)';
-COMMENT ON COLUMN nominas.total_deducido IS 'Total deducido (suma de deducciones)';
-COMMENT ON COLUMN nominas.liquido_total IS 'Líquido a pagar (devengos - deducciones)';
-COMMENT ON COLUMN nominas.conceptos_json IS 'Detalle de conceptos en formato JSON';
+-- Comments
+COMMENT ON TABLE payrolls IS 'Monthly payrolls for employees with earnings, deductions and totals';
+COMMENT ON COLUMN payrolls.number IS 'Unique payroll number (PAY-YYYY-MM-NNNN)';
+COMMENT ON COLUMN payrolls.base_salary IS 'Base salary for the period';
+COMMENT ON COLUMN payrolls.allowances IS 'Sum of salary allowances (transport, night work, etc.)';
+COMMENT ON COLUMN payrolls.overtime IS 'Payment for overtime hours';
+COMMENT ON COLUMN payrolls.other_earnings IS 'Other earnings';
+COMMENT ON COLUMN payrolls.total_earnings IS 'Total earnings (sum of earnings)';
+COMMENT ON COLUMN payrolls.social_security IS 'Social security contribution';
+COMMENT ON COLUMN payrolls.income_tax IS 'Income tax withholding';
+COMMENT ON COLUMN payrolls.other_deductions IS 'Other deductions (advances, garnishments, etc.)';
+COMMENT ON COLUMN payrolls.total_deductions IS 'Total deductions (sum of deductions)';
+COMMENT ON COLUMN payrolls.net_amount IS 'Net amount to pay (earnings - deductions)';
+COMMENT ON COLUMN payrolls.concepts_json IS 'Breakdown of concepts in JSON format';
 
 -- ============================================================================
--- Tabla: nomina_conceptos
+-- Table: payroll_concepts
 -- ============================================================================
 
-CREATE TABLE nomina_conceptos (
+CREATE TABLE IF NOT EXISTS payroll_concepts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    nomina_id UUID NOT NULL REFERENCES nominas(id) ON DELETE CASCADE,
-    
-    -- Tipo de concepto
-    tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('DEVENGO', 'DEDUCCION')),
-    codigo VARCHAR(50) NOT NULL,
-    descripcion VARCHAR(255) NOT NULL,
-    
-    -- Importe
-    importe NUMERIC(12, 2) NOT NULL CHECK (importe >= 0),
-    
-    -- Configuración
-    es_base BOOLEAN NOT NULL DEFAULT TRUE,
-    
-    -- Auditoría
+    payroll_id UUID NOT NULL REFERENCES payrolls(id) ON DELETE CASCADE,
+
+    -- Concept type
+    type VARCHAR(20) NOT NULL CHECK (type IN ('EARNING', 'DEDUCTION')),
+    code VARCHAR(50) NOT NULL,
+    description VARCHAR(255) NOT NULL,
+
+    -- Amount
+    amount NUMERIC(12, 2) NOT NULL CHECK (amount >= 0),
+
+    -- Configuration
+    is_base BOOLEAN NOT NULL DEFAULT TRUE,
+
+    -- Audit
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Índices
-CREATE INDEX idx_nomina_conceptos_nomina_id ON nomina_conceptos(nomina_id);
-CREATE INDEX idx_nomina_conceptos_tipo ON nomina_conceptos(tipo);
-CREATE INDEX idx_nomina_conceptos_codigo ON nomina_conceptos(codigo);
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_payroll_concepts_payroll_id ON payroll_concepts(payroll_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_concepts_type ON payroll_concepts(type);
+CREATE INDEX IF NOT EXISTS idx_payroll_concepts_code ON payroll_concepts(code);
 
--- Comentarios
-COMMENT ON TABLE nomina_conceptos IS 'Conceptos individuales de nómina (devengos y deducciones)';
-COMMENT ON COLUMN nomina_conceptos.tipo IS 'DEVENGO (positivo) o DEDUCCION (negativo)';
-COMMENT ON COLUMN nomina_conceptos.codigo IS 'Código del concepto (ej: PLUS_TRANS, ANTICIPO)';
-COMMENT ON COLUMN nomina_conceptos.importe IS 'Cantidad del concepto (siempre positivo)';
-COMMENT ON COLUMN nomina_conceptos.es_base IS 'Si computa para base de cotización';
+-- Comments
+COMMENT ON TABLE payroll_concepts IS 'Individual payroll concepts (earnings and deductions)';
+COMMENT ON COLUMN payroll_concepts.type IS 'EARNING (positive) or DEDUCTION (negative)';
+COMMENT ON COLUMN payroll_concepts.code IS 'Concept code (e.g., TRANSPORT_BONUS, ADVANCE)';
+COMMENT ON COLUMN payroll_concepts.amount IS 'Concept amount (always positive)';
+COMMENT ON COLUMN payroll_concepts.is_base IS 'Whether it counts for contribution base';
 
 -- ============================================================================
--- Tabla: nomina_plantillas
+-- Table: payroll_templates
 -- ============================================================================
 
-CREATE TABLE nomina_plantillas (
+CREATE TABLE IF NOT EXISTS payroll_templates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    empleado_id UUID NOT NULL REFERENCES empleados(id) ON DELETE CASCADE,
-    
-    -- Configuración
-    nombre VARCHAR(100) NOT NULL,
-    descripcion TEXT,
-    conceptos_json JSONB NOT NULL,
-    activo BOOLEAN NOT NULL DEFAULT TRUE,
-    
-    -- Auditoría
+    employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+
+    -- Configuration
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    concepts_json JSONB NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
+    -- Audit
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
-    -- Constraints
-    CONSTRAINT nomina_plantillas_tenant_empleado_nombre_unique 
-        UNIQUE (tenant_id, empleado_id, nombre)
+
+    CONSTRAINT payroll_templates_tenant_employee_name_unique
+        UNIQUE (tenant_id, employee_id, name)
 );
 
--- Índices
-CREATE INDEX idx_nomina_plantillas_tenant_id ON nomina_plantillas(tenant_id);
-CREATE INDEX idx_nomina_plantillas_empleado_id ON nomina_plantillas(empleado_id);
-CREATE INDEX idx_nomina_plantillas_activo ON nomina_plantillas(activo) WHERE activo = TRUE;
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_payroll_templates_tenant_id ON payroll_templates(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_templates_employee_id ON payroll_templates(employee_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_templates_is_active ON payroll_templates(is_active) WHERE is_active = TRUE;
 
--- Comentarios
-COMMENT ON TABLE nomina_plantillas IS 'Plantillas de conceptos estándar para generar nóminas automáticamente';
-COMMENT ON COLUMN nomina_plantillas.nombre IS 'Nombre de la plantilla';
-COMMENT ON COLUMN nomina_plantillas.conceptos_json IS 'Lista de conceptos con tipo, código, descripción e importe';
-COMMENT ON COLUMN nomina_plantillas.activo IS 'Plantilla activa (para uso automático)';
+-- Comments
+COMMENT ON TABLE payroll_templates IS 'Payroll templates per employee to generate payrolls quickly';
+COMMENT ON COLUMN payroll_templates.concepts_json IS 'Template concepts in JSON format (can be customized)';
 
 -- ============================================================================
--- RLS (Row Level Security)
+-- Triggers
 -- ============================================================================
 
-ALTER TABLE nominas ENABLE ROW LEVEL SECURITY;
-ALTER TABLE nomina_conceptos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE nomina_plantillas ENABLE ROW LEVEL SECURITY;
-
--- Políticas RLS para nominas
-CREATE POLICY nominas_tenant_isolation ON nominas
-    USING (tenant_id::text = current_setting('app.tenant_id', TRUE));
-
--- Políticas RLS para nomina_conceptos (via nominas)
-CREATE POLICY nomina_conceptos_tenant_isolation ON nomina_conceptos
-    USING (
-        EXISTS (
-            SELECT 1 FROM nominas 
-            WHERE nominas.id = nomina_conceptos.nomina_id 
-            AND nominas.tenant_id::text = current_setting('app.tenant_id', TRUE)
-        )
-    );
-
--- Políticas RLS para nomina_plantillas
-CREATE POLICY nomina_plantillas_tenant_isolation ON nomina_plantillas
-    USING (tenant_id::text = current_setting('app.tenant_id', TRUE));
-
--- ============================================================================
--- TRIGGERS
--- ============================================================================
-
--- Trigger para actualizar updated_at en nominas
-CREATE TRIGGER nominas_updated_at
-    BEFORE UPDATE ON nominas
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
--- Trigger para actualizar updated_at en nomina_plantillas
-CREATE TRIGGER nomina_plantillas_updated_at
-    BEFORE UPDATE ON nomina_plantillas
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
--- ============================================================================
--- FUNCIONES
--- ============================================================================
-
--- Función para validar totales de nómina (trigger opcional)
-CREATE OR REPLACE FUNCTION validate_nomina_totals()
+CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Validar que total_devengado sea la suma correcta
-    IF NEW.total_devengado != (NEW.salario_base + NEW.complementos + NEW.horas_extra + NEW.otros_devengos) THEN
-        RAISE EXCEPTION 'Total devengado no coincide con la suma de devengos';
-    END IF;
-    
-    -- Validar que total_deducido sea la suma correcta
-    IF NEW.total_deducido != (NEW.seg_social + NEW.irpf + NEW.otras_deducciones) THEN
-        RAISE EXCEPTION 'Total deducido no coincide con la suma de deducciones';
-    END IF;
-    
-    -- Validar que líquido total sea correcto
-    IF NEW.liquido_total != (NEW.total_devengado - NEW.total_deducido) THEN
-        RAISE EXCEPTION 'Líquido total no coincide con devengos - deducciones';
-    END IF;
-    
+    NEW.updated_at = NOW();
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- Aplicar trigger de validación (opcional, comentado para permitir flexibilidad)
--- CREATE TRIGGER nominas_validate_totals
---     BEFORE INSERT OR UPDATE ON nominas
---     FOR EACH ROW
---     EXECUTE FUNCTION validate_nomina_totals();
-
--- ============================================================================
--- DATOS INICIALES (Opcional)
--- ============================================================================
-
--- Conceptos estándar España
--- (Se pueden cargar desde catálogo si existe tabla de conceptos)
-
--- ============================================================================
--- FIN DE MIGRACIÓN
--- ============================================================================
-
--- Log de migración
 DO $$
 BEGIN
-    RAISE NOTICE 'Migración 2025-11-03_201_hr_nominas aplicada exitosamente';
-    RAISE NOTICE '- Tablas creadas: nominas, nomina_conceptos, nomina_plantillas';
-    RAISE NOTICE '- RLS habilitado en todas las tablas';
-    RAISE NOTICE '- Índices de performance aplicados';
-END $$;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger WHERE tgname = 'payrolls_updated_at'
+    ) THEN
+        CREATE TRIGGER payrolls_updated_at
+            BEFORE UPDATE ON payrolls
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger WHERE tgname = 'payroll_templates_updated_at'
+    ) THEN
+        CREATE TRIGGER payroll_templates_updated_at
+            BEFORE UPDATE ON payroll_templates
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+END;
+$$;
+
+-- Enable RLS
+ALTER TABLE payrolls ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_payrolls ON payrolls;
+CREATE POLICY tenant_isolation_payrolls ON payrolls
+    USING (tenant_id::text = current_setting('app.tenant_id', TRUE));
+
+ALTER TABLE payroll_concepts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_payroll_concepts ON payroll_concepts;
+CREATE POLICY tenant_isolation_payroll_concepts ON payroll_concepts
+    USING (
+        EXISTS (
+            SELECT 1 FROM payrolls p
+            WHERE p.id = payroll_concepts.payroll_id
+              AND p.tenant_id::text = current_setting('app.tenant_id', TRUE)
+        )
+    );
+
+ALTER TABLE payroll_templates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_payroll_templates ON payroll_templates;
+CREATE POLICY tenant_isolation_payroll_templates ON payroll_templates
+    USING (tenant_id::text = current_setting('app.tenant_id', TRUE));

@@ -10,13 +10,13 @@ graph TB
         A[HTTP API /imports] --> B[Tenant Endpoints]
         A --> C[Admin Endpoints]
     end
-    
+
     subgraph "Application Layer"
         D[Use Cases] --> E[Task Extract]
         D --> F[Task Validate]
         D --> G[Task Promote]
     end
-    
+
     subgraph "Domain Layer"
         H[Handlers] --> I[Invoice Handler]
         H --> J[Bank Handler]
@@ -24,14 +24,14 @@ graph TB
         L[Validators] --> M[EC Validator]
         L --> N[ES Validator]
     end
-    
+
     subgraph "Infrastructure Layer"
         O[Repositories] --> P[ImportBatchRepo]
         O --> Q[ImportItemRepo]
         R[Storage] --> S[MinIO/S3]
         T[Queue] --> U[Celery + Redis]
     end
-    
+
     B --> D
     C --> D
     D --> H
@@ -101,15 +101,15 @@ def ingest_file(db, tenant_id, batch_id, file_key, filename, file_size, file_sha
     # 1. Verificar duplicados
     if repository.exists_promoted_hash(db, tenant_id, file_sha256):
         return create_item(status="rejected_duplicate")
-    
+
     # 2. Crear item
     item = create_item(status="preprocessing")
     db.add(item)
     db.commit()
-    
+
     # 3. Encolar task de extracción
     task_extract.apply_async((str(item.id), str(tenant_id), str(batch_id)))
-    
+
     return item
 ```
 
@@ -201,7 +201,7 @@ Abstrae acceso a datos:
 class ImportBatchRepository:
     def get_by_id(self, db: Session, batch_id: UUID) -> ImportBatch:
         return db.query(ImportBatch).filter_by(id=batch_id).first()
-    
+
     def get_items_by_status(self, db: Session, batch_id: UUID, status: str):
         return db.query(ImportItem).filter_by(batch_id=batch_id, status=status).all()
 ```
@@ -320,11 +320,11 @@ flowchart TD
 @app.middleware("http")
 async def tenant_middleware(request: Request, call_next):
     tenant_id = get_tenant_id_from_token(request)
-    
+
     with get_db() as db:
         db.execute(f"SET LOCAL app.tenant_id = '{tenant_id}'")
         response = await call_next(request)
-    
+
     return response
 ```
 
@@ -393,7 +393,7 @@ def extract_invoice(pdf_content: bytes, country: str):
     span = trace.get_current_span()
     span.set_attribute("country", country)
     span.set_attribute("content_size", len(pdf_content))
-    
+
     # Lógica de extracción
     ...
 ```

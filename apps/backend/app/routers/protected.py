@@ -4,8 +4,8 @@ Auto-generated module docstring."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-
 from jwt import ExpiredSignatureError, InvalidTokenError
+
 from app.modules.identity.infrastructure.jwt_service import JwtService
 from app.schemas.configuracion import AuthenticatedUser
 
@@ -19,22 +19,15 @@ def decode_token(token: str) -> AuthenticatedUser:
     try:
         payload = JwtService().decode(token, expected_kind="access")
     except ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expirado"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expirado")
     except InvalidTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
 
     # Derive required fields
     uid = payload.get("user_id")
-    if isinstance(uid, str) and uid.isdigit():
-        uid = int(uid)
-    if not isinstance(uid, (int,)):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido"
-        )
+    if not uid:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
+    # Accept both int and string (UUID) formats
 
     kind = payload.get("kind") or payload.get("scope") or "tenant"
     user_type = "admin" if kind == "admin" else "tenant"
@@ -49,7 +42,7 @@ def decode_token(token: str) -> AuthenticatedUser:
         plantilla=payload.get("plantilla"),
         es_admin_empresa=payload.get("es_admin_empresa"),
         permisos=payload.get("permisos") or {},
-        nombre=payload.get("nombre"),
+        name=payload.get("nombre"),
     )
 
 

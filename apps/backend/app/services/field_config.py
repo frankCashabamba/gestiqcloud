@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-from typing import List, Dict, Optional, Callable, Any
+from collections.abc import Callable
+from typing import Any
+
 from sqlalchemy.orm import Session
 
 # Importar defaults por sector
 from app.services.sector_defaults import get_sector_defaults
 
 
-def _normalize(items: List[Dict]) -> List[Dict]:
-    out: List[Dict] = []
+def _normalize(items: list[dict]) -> list[dict]:
+    out: list[dict] = []
     for it in items or []:
         f = (it or {}).get("field")
         if not f:
@@ -26,7 +28,7 @@ def _normalize(items: List[Dict]) -> List[Dict]:
     return out
 
 
-def _merge(base_items: List[Dict], overrides: List[Dict]) -> List[Dict]:
+def _merge(base_items: list[dict], overrides: list[dict]) -> list[dict]:
     base = {str(it["field"]): {**it} for it in _normalize(base_items)}
     for o in _normalize(overrides):
         key = str(o["field"])
@@ -54,10 +56,10 @@ def resolve_fields(
     db: Session,
     *,
     module: str,
-    tenant_id: Optional[str],
-    sector: Optional[str],
-    defaults_fn: Optional[Callable[[str, str], List[Dict[str, Any]]]] = None,
-) -> List[Dict]:
+    tenant_id: str | None,
+    sector: str | None,
+    defaults_fn: Callable[[str, str], list[dict[str, Any]]] | None = None,
+) -> list[dict]:
     """Resolve effective field list using form_mode.
 
     - Reads tenant overrides (tenant_field_config)
@@ -68,7 +70,7 @@ def resolve_fields(
     from app.models.core.ui_field_config import TenantFieldConfig  # type: ignore
 
     # Load tenant overrides
-    tenant_items: List[Dict] = []
+    tenant_items: list[dict] = []
     if tenant_id:
         rows = (
             db.query(TenantFieldConfig)
@@ -92,7 +94,7 @@ def resolve_fields(
         ]
 
     # Load sector defaults
-    sector_items: List[Dict] = []
+    sector_items: list[dict] = []
     if sector:
         try:
             from app.models.core.ui_field_config import SectorFieldDefault  # type: ignore

@@ -1,4 +1,4 @@
-﻿"""Module: home.py
+"""Module: home.py
 
 Auto-generated module docstring."""
 
@@ -17,9 +17,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 @router.get("/")
-async def home(
-    request: Request, user=Depends(get_current_user), db: Session = Depends(get_db)
-):
+async def home(request: Request, user=Depends(get_current_user), db: Session = Depends(get_db)):
     usuario_empresa = False
     empresa = None
     empresa_nombre = None

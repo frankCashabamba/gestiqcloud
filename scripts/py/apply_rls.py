@@ -20,10 +20,12 @@ You can pass multiple --schema flags.
 """
 
 from __future__ import annotations
-import os
-import sys
+
 import argparse
 import contextlib
+import os
+import sys
+
 import psycopg2
 from psycopg2 import sql
 

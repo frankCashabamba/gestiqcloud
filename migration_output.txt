@@ -1,0 +1,115 @@
+Found 25 migration(s)
+  - 2025-11-01_000_baseline_modern
+  - 2025-11-01_001_catalog_tables
+  - 2025-11-01_150_modulos_to_english
+  - 2025-11-01_160_create_usuarios_usuarioempresa
+  - 2025-11-01_170_reference_tables
+  - 2025-11-01_170_tenant_field_config
+  - 2025-11-01_171_ref_timezones_locales
+  - 2025-11-01_172_core_moneda_catalog
+  - 2025-11-01_173_core_country_catalog
+  - 2025-11-02_231_product_categories_add_metadata
+  - 2025-11-02_300_import_batches_system
+  - 2025-11-02_400_import_column_mappings
+  - 2025-11-03_050_create_recipes_tables
+  - 2025-11-03_180_hr_empleados
+  - 2025-11-03_200_add_recipe_computed_columns
+  - 2025-11-03_200_production_orders
+  - 2025-11-03_201_add_unit_conversion
+  - 2025-11-03_201_hr_nominas
+  - 2025-11-03_202_finance_caja
+  - 2025-11-03_203_accounting
+  - 2025-11-04_240_ui_templates_catalog
+  - 2025-11-05_fix_negative_stock_alerts
+  - 2025-11-06_500_pos_daily_counts
+  - 2025-11-07_600_inventory_alerts
+  - 20250111_001_add_classification_fields
+
+Connecting to database...
+[OK] Database connection successful
+
+============================================================
+Applying migrations...
+============================================================
+
+> 2025-11-01_000_baseline_modern
+  [OK] Migration applied
+
+> 2025-11-01_001_catalog_tables
+  [OK] Migration applied
+
+> 2025-11-01_150_modulos_to_english
+  [OK] Migration applied
+
+> 2025-11-01_160_create_usuarios_usuarioempresa
+  [OK] Migration applied
+
+> 2025-11-01_170_reference_tables
+  [OK] Migration applied
+
+> 2025-11-01_170_tenant_field_config
+  [OK] Migration applied
+
+> 2025-11-01_171_ref_timezones_locales
+  [OK] Migration applied
+
+> 2025-11-01_172_core_moneda_catalog
+  [OK] Migration applied
+
+> 2025-11-01_173_core_country_catalog
+  [OK] Migration applied
+
+> 2025-11-02_231_product_categories_add_metadata
+  [OK] Migration applied
+
+> 2025-11-02_300_import_batches_system
+  [OK] Migration applied
+
+> 2025-11-02_400_import_column_mappings
+  [OK] Migration applied
+
+> 2025-11-03_050_create_recipes_tables
+  [OK] Migration applied
+
+> 2025-11-03_180_hr_empleados
+  [OK] Migration applied
+
+> 2025-11-03_200_add_recipe_computed_columns
+  [OK] Migration applied
+
+> 2025-11-03_200_production_orders
+  [OK] Migration applied
+
+> 2025-11-03_201_add_unit_conversion
+  [OK] Migration applied
+
+> 2025-11-03_201_hr_nominas
+  [OK] Migration applied
+
+> 2025-11-03_202_finance_caja
+  [ERROR] Error: ya existe un trigger «cierres_caja_updated_at» para la relación «cierres_caja»
+
+
+> 2025-11-03_203_accounting
+  [ERROR] Error: ya existe un trigger «asiento_lineas_validar_cuadre» para la relación «asiento_lineas»
+
+
+> 2025-11-04_240_ui_templates_catalog
+  [OK] Migration applied
+
+> 2025-11-05_fix_negative_stock_alerts
+  [OK] Migration applied
+
+> 2025-11-06_500_pos_daily_counts
+  [OK] Migration applied
+
+> 2025-11-07_600_inventory_alerts
+  [OK] Migration applied
+
+> 20250111_001_add_classification_fields
+  [OK] Migration applied
+
+============================================================
+[FAILED] 2 migration(s) failed:
+  - 2025-11-03_202_finance_caja
+  - 2025-11-03_203_accounting

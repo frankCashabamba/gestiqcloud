@@ -17,14 +17,14 @@ export default function CompraLineasEditor({ lineas, onChange }: Props) {
   const updateLinea = (idx: number, field: keyof CompraLinea, value: any) => {
     const updated = [...lineas]
     updated[idx] = { ...updated[idx], [field]: value }
-    
+
     // Recalcular subtotal
     if (field === 'cantidad' || field === 'precio_unitario') {
       const cant = field === 'cantidad' ? value : updated[idx].cantidad
       const precio = field === 'precio_unitario' ? value : updated[idx].precio_unitario
       updated[idx].subtotal = cant * precio
     }
-    
+
     onChange(updated)
   }
 

@@ -1,7 +1,9 @@
 # app/models/security/auth_audit.py
-from sqlalchemy import Column, String, DateTime, func
-from sqlalchemy.dialects.postgresql import UUID
 from uuid import uuid4
+
+from sqlalchemy import Column, DateTime, String, func
+from sqlalchemy.dialects.postgresql import UUID
+
 from app.config.database import Base
 
 

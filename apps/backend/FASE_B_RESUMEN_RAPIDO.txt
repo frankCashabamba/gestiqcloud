@@ -4,7 +4,7 @@
 
 ✅ 4 NUEVOS PARSERS CREADOS:
   1. csv_products      - CSV para productos
-  2. xml_products      - XML para productos  
+  2. xml_products      - XML para productos
   3. xlsx_expenses     - Excel para gastos
   4. pdf_qr            - PDF con extracción de QR
 
@@ -30,7 +30,7 @@
 
 🔗 USAR PARSERS:
   from app.modules.imports.parsers import registry
-  
+
   parser = registry.get_parser("csv_products")
   result = parser["handler"]("file.csv")
 

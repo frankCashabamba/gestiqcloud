@@ -1,19 +1,15 @@
 # app/core/security_headers.py
+from backend.app.config.settings import settings
 from starlette.requests import Request
 from starlette.responses import Response
-from backend.app.config.settings import settings
 
 
 def _csp_for_request(request: Request) -> str:
     # Orígenes externos opcionales (deja "" si no aplican)
     API = getattr(settings, "PUBLIC_API_ORIGIN", "")  # p.ej. "https://api.miapp.com"
     CDN = getattr(settings, "PUBLIC_ASSETS_CDN", "")  # p.ej. "https://cdn.miapp.com"
-    FONTS_CSS = getattr(
-        settings, "FONTS_STYLES_ORIGIN", ""
-    )  # p.ej. "https://fonts.googleapis.com"
-    FONTS_BIN = getattr(
-        settings, "FONTS_BINARY_ORIGIN", ""
-    )  # p.ej. "https://fonts.gstatic.com"
+    FONTS_CSS = getattr(settings, "FONTS_STYLES_ORIGIN", "")  # p.ej. "https://fonts.googleapis.com"
+    FONTS_BIN = getattr(settings, "FONTS_BINARY_ORIGIN", "")  # p.ej. "https://fonts.gstatic.com"
     # Si no usas estos orígenes, déjalos en blanco; el join los ignora.
 
     def join_src(*vals: str) -> str:
@@ -30,9 +26,7 @@ def _csp_for_request(request: Request) -> str:
             # Recursos
             join_src("img-src", "'self'", "data:", "blob:", CDN),
             join_src("font-src", "'self'", "data:", FONTS_BIN),
-            join_src(
-                "style-src", "'self'", FONTS_CSS
-            ),  # sin 'unsafe-inline' en prod (ideal)
+            join_src("style-src", "'self'", FONTS_CSS),  # sin 'unsafe-inline' en prod (ideal)
             join_src("script-src", "'self'", CDN),  # no inline, no eval
             join_src("connect-src", "'self'", API),  # API separada si aplica
             "media-src 'self'",
@@ -77,14 +71,8 @@ async def security_headers_middleware(request: Request, call_next):
     resp.headers["Content-Security-Policy"] = _csp_for_request(request)
 
     # HSTS solo prod + https
-    if (
-        settings.ENV == "production"
-        and settings.HSTS_ENABLED
-        and request.url.scheme == "https"
-    ):
-        resp.headers["Strict-Transport-Security"] = (
-            "max-age=15552000; includeSubDomains; preload"
-        )
+    if settings.ENV == "production" and settings.HSTS_ENABLED and request.url.scheme == "https":
+        resp.headers["Strict-Transport-Security"] = "max-age=15552000; includeSubDomains; preload"
 
     # Opcionales según settings
     if settings.COOP_ENABLED:

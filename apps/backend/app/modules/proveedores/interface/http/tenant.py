@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
@@ -9,6 +9,7 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
+
 from ...infrastructure.repositories import ProveedorRepo
 from .schemas import ProveedorCreate, ProveedorOut, ProveedorUpdate
 
@@ -40,7 +41,7 @@ def _user_id(request: Request) -> str | None:
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _prepare_payload(
@@ -55,16 +56,12 @@ def _prepare_payload(
 
     if iban:
         if confirm is None or iban.strip() != confirm.strip():
-            raise HTTPException(
-                status_code=400, detail="La confirmacion de IBAN no coincide"
-            )
+            raise HTTPException(status_code=400, detail="La confirmacion de IBAN no coincide")
         if iban.strip() != (current_iban or "").strip():
             data["iban_actualizado_por"] = _user_id(request)
             data["iban_actualizado_at"] = _now()
     elif confirm:
-        raise HTTPException(
-            status_code=400, detail="Debes indicar el IBAN si aportas confirmacion"
-        )
+        raise HTTPException(status_code=400, detail="Debes indicar el IBAN si aportas confirmacion")
     return data
 
 

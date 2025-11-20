@@ -2,9 +2,9 @@
 
 ## Resumen Ejecutivo
 
-**Fecha:** 11 Nov 2025  
-**Estado:** 100% Completada  
-**Artefactos Entregables:** 3  
+**Fecha:** 11 Nov 2025
+**Estado:** 100% Completada
+**Artefactos Entregables:** 3
 **Tests de Integración:** 50+
 
 ---
@@ -149,14 +149,14 @@ class HandlersRouter:
         "recibo": ExpenseHandler,
         "transferencia": BankHandler,
     }
-    
+
     ROUTING_TARGET_MAP = {
         "invoice": "invoices",
         "expense_receipt": "expenses",
         "bank_tx": "bank_movements",
         "product": "inventory",
     }
-    
+
     @classmethod
     def promote_canonical(cls, db, tenant_id, canonical_doc, **kwargs):
         """Despacha documento a handler correcto."""
@@ -401,5 +401,5 @@ tests/modules/imports/
 
 ---
 
-*Documento generado: 11 Nov 2025*  
+*Documento generado: 11 Nov 2025*
 *Fase siguiente: Fase D - IA Configurable*

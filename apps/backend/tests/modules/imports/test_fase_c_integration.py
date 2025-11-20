@@ -10,17 +10,20 @@ Verifica que:
 """
 
 import pytest
-from uuid import uuid4
-from unittest.mock import Mock, MagicMock, patch
 
 from app.modules.imports.domain.canonical_schema import validate_canonical
-from app.modules.imports.validators.country_validators import (
-    get_validator_for_country,
-    ECValidator,
-    ESValidator,
+from app.modules.imports.domain.handlers import (
+    BankHandler,
+    ExpenseHandler,
+    InvoiceHandler,
+    ProductHandler,
 )
 from app.modules.imports.domain.handlers_router import HandlersRouter
-from app.modules.imports.domain.handlers import InvoiceHandler, BankHandler, ExpenseHandler, ProductHandler
+from app.modules.imports.validators.country_validators import (
+    ECValidator,
+    ESValidator,
+    get_validator_for_country,
+)
 
 
 class TestCanonicalValidationPhaseC:
@@ -47,9 +50,7 @@ class TestCanonicalValidationPhaseC:
                 "subtotal": 100.0,
                 "tax": 12.0,
                 "total": 112.0,
-                "tax_breakdown": [
-                    {"code": "IVA12-EC", "rate": 12.0, "amount": 12.0}
-                ],
+                "tax_breakdown": [{"code": "IVA12-EC", "rate": 12.0, "amount": 12.0}],
             },
             "lines": [
                 {
@@ -197,7 +198,7 @@ class TestCountryValidatorsSpain:
     def test_es_validator_valid_cif(self):
         """CIF español válido."""
         validator = ESValidator()
-        errors = validator.validate_tax_id("A12345674")
+        validator.validate_tax_id("A12345674")
         # Puede ser válido dependiendo de la implementación
         # assert len(errors) == 0
 
@@ -236,7 +237,7 @@ class TestCountryValidatorFactory:
         """Factory es case-insensitive."""
         validator1 = get_validator_for_country("EC")
         validator2 = get_validator_for_country("ec")
-        assert type(validator1) == type(validator2)
+        assert type(validator1) is type(validator2)
 
 
 class TestHandlersRouterMapping:
@@ -326,9 +327,7 @@ class TestCompleteFlowEcuador:
                 "subtotal": 100.0,
                 "tax": 12.0,
                 "total": 112.0,
-                "tax_breakdown": [
-                    {"code": "IVA12-EC", "rate": 12.0, "amount": 12.0}
-                ],
+                "tax_breakdown": [{"code": "IVA12-EC", "rate": 12.0, "amount": 12.0}],
             },
         }
 
@@ -470,9 +469,7 @@ class TestCompleteFlowSpain:
                 "subtotal": 100.0,
                 "tax": 21.0,
                 "total": 121.0,
-                "tax_breakdown": [
-                    {"code": "IVA21-ES", "rate": 21.0, "amount": 21.0}
-                ],
+                "tax_breakdown": [{"code": "IVA21-ES", "rate": 21.0, "amount": 21.0}],
             },
         }
 

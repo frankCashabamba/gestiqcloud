@@ -3,11 +3,12 @@ Servicio de aplicación de plantillas de sector
 Aplica configuración completa de un SectorPlantilla a un Tenant
 """
 
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from typing import Dict, Any
-import logging
 import json
+import logging
+from typing import Any
+
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.models.empresa.empresa import SectorPlantilla
 from app.models.tenant import Tenant
@@ -22,7 +23,7 @@ def apply_sector_template(
     sector_plantilla_id: int,
     override_existing: bool = False,
     design_only: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Aplica una plantilla de sector completa a un tenant.
 
@@ -43,9 +44,7 @@ def apply_sector_template(
         dict con resumen de cambios aplicados
     """
     try:
-        logger.info(
-            f"🎨 Aplicando plantilla de sector {sector_plantilla_id} a tenant {tenant_id}"
-        )
+        logger.info(f"🎨 Aplicando plantilla de sector {sector_plantilla_id} a tenant {tenant_id}")
 
         # 1. Obtener plantilla de sector
         sector = db.get(SectorPlantilla, sector_plantilla_id)
@@ -56,9 +55,7 @@ def apply_sector_template(
         try:
             config = SectorConfigJSON(**sector.template_config)
         except Exception as e:
-            logger.error(
-                f"❌ Config inválido en plantilla {sector_plantilla_id}: {e}"
-            )
+            logger.error(f"❌ Config inválido en plantilla {sector_plantilla_id}: {e}")
             raise ValueError(f"Configuración de plantilla inválida: {e}")
 
         # 2. Obtener tenant
@@ -81,20 +78,18 @@ def apply_sector_template(
             # Branding
             if config.branding.color_primario:
                 tenant.primary_color = config.branding.color_primario
-                result["changes"].append(
-                    f"Color primario: {config.branding.color_primario}"
-                )
+                result["changes"].append(f"Color primario: {config.branding.color_primario}")
 
             if config.branding.plantilla_inicio:
                 tenant.default_template = config.branding.plantilla_inicio
-                result["changes"].append(
-                    f"Plantilla inicio: {config.branding.plantilla_inicio}"
-                )
+                result["changes"].append(f"Plantilla inicio: {config.branding.plantilla_inicio}")
             # Guardar nombre humano de la plantilla aplicada para interfaces administrativas
             try:
                 # Persistir el slug de la plantilla de sector en el campo moderno del modelo
                 # Normaliza a minúsculas y sin espacios finales
-                tenant.sector_template_name = (getattr(sector, "sector_name", None) or "default").strip().lower()
+                tenant.sector_template_name = (
+                    (getattr(sector, "sector_name", None) or "default").strip().lower()
+                )
             except Exception:
                 tenant.sector_template_name = None
 
@@ -147,10 +142,12 @@ def apply_sector_template(
 
             if not settings:
                 # Crear nuevo
-                create_settings_sql = text("""
+                create_settings_sql = text(
+                    """
                     INSERT INTO tenant_settings (tenant_id, settings, pos_config, locale, timezone, currency)
                     VALUES (:tenant_id, :settings, :pos_config, :locale, :timezone, :currency)
-                """)
+                """
+                )
 
                 db.execute(
                     create_settings_sql,
@@ -168,8 +165,9 @@ def apply_sector_template(
                 logger.info("✅ TenantSettings creado")
             else:
                 # Actualizar existente
-                update_settings_sql = text("""
-                    UPDATE tenant_settings 
+                update_settings_sql = text(
+                    """
+                    UPDATE tenant_settings
                     SET settings = :settings,
                         pos_config = :pos_config,
                         locale = :locale,
@@ -177,7 +175,8 @@ def apply_sector_template(
                         currency = :currency,
                         updated_at = NOW()
                     WHERE tenant_id = :tenant_id
-                """)
+                """
+                )
 
                 db.execute(
                     update_settings_sql,
@@ -215,27 +214,29 @@ def apply_sector_template(
                 for category_name in config.defaults.categories:
                     # Verificar si ya existe
                     exists = db.execute(
-                        text("""
-                            SELECT id FROM categories 
+                        text(
+                            """
+                            SELECT id FROM categories
                             WHERE tenant_id = :tid AND name = :name
-                        """),
+                        """
+                        ),
                         {"tid": tenant_id, "name": category_name},
                     ).scalar()
 
                     if not exists:
                         db.execute(
-                            text("""
+                            text(
+                                """
                                 INSERT INTO categories (tenant_id, name, created_at)
                                 VALUES (:tenant_id, :name, NOW())
-                            """),
+                            """
+                            ),
                             {"tenant_id": tenant_id, "name": category_name},
                         )
                         result["categories_created"].append(category_name)
 
                 if result["categories_created"]:
-                    logger.info(
-                        f"✅ {len(result['categories_created'])} categorías creadas"
-                    )
+                    logger.info(f"✅ {len(result['categories_created'])} categorías creadas")
                     result["changes"].append(
                         f"{len(result['categories_created'])} categorías creadas"
                     )
@@ -274,9 +275,7 @@ def get_available_templates(db: Session) -> list:
                 config = SectorConfigJSON(**template.template_config)
 
                 # Contar módulos habilitados
-                modules_enabled = sum(
-                    1 for mod in config.modules.values() if mod.enabled
-                )
+                modules_enabled = sum(1 for mod in config.modules.values() if mod.enabled)
 
                 result.append(
                     {
@@ -304,7 +303,7 @@ def get_available_templates(db: Session) -> list:
         return []
 
 
-def get_template_preview(db: Session, sector_plantilla_id: int) -> Dict[str, Any]:
+def get_template_preview(db: Session, sector_plantilla_id: int) -> dict[str, Any]:
     """
     Obtiene vista previa detallada de una plantilla.
 
@@ -325,8 +324,7 @@ def get_template_preview(db: Session, sector_plantilla_id: int) -> Dict[str, Any
             "tipo_negocio_id": sector.business_category_id,
             "config": config.model_dump(),
             "modules": {
-                k: {"enabled": v.enabled, "order": v.order}
-                for k, v in config.modules.items()
+                k: {"enabled": v.enabled, "order": v.order} for k, v in config.modules.items()
             },
         }
 

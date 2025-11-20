@@ -100,7 +100,7 @@ export default function CajaForm() {
                     const label = f.label || (f.field.charAt(0).toUpperCase() + f.field.slice(1).replace(/_/g, ' '))
                     const type = getInputType(f.field)
                     const value = (form as any)[f.field] ?? ''
-                    
+
                     if (f.field === 'tipo') {
                         return (
                             <div key={f.field}>

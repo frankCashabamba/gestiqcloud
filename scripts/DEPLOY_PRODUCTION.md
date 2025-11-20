@@ -31,7 +31,7 @@ docker exec db_produccion psql -U postgres -d gestiqclouddb_prod -c "\dt" | grep
 
 # Reactivar los 3 modelos deshabilitados
 ren apps\backend\app\models\hr\nomina.py.disabled nomina.py
-ren apps\backend\app\models\production\production_order.py.disabled production_order.py  
+ren apps\backend\app\models\production\production_order.py.disabled production_order.py
 ren apps\backend\app\models\accounting\plan_cuentas.py.disabled plan_cuentas.py
 
 # Commit
@@ -73,7 +73,7 @@ curl -X POST https://tu-dominio.com/api/v1/admin/auth/login \
 
 **Modelos deshabilitados** (temporalmente para desarrollo):
 - `nomina.py.disabled` → Nóminas
-- `production_order.py.disabled` → Órdenes producción  
+- `production_order.py.disabled` → Órdenes producción
 - `plan_cuentas.py.disabled` → Contabilidad
 
 **Razón**: SQLAlchemy valida ForeignKeys al iniciar. En local, las migraciones se aplican después del backend, causando errores.
@@ -116,5 +116,5 @@ docker compose restart backend
 
 ---
 
-**Última actualización**: 2025-11-03  
+**Última actualización**: 2025-11-03
 **Estado**: Migraciones creadas ✅ | Modelos listos ✅ | Scripts preparados ✅

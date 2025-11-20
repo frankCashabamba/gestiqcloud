@@ -2,17 +2,18 @@
 Inventory Alerts Service
 Handles checking inventory levels and sending notifications
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
-from uuid import UUID
-from sqlalchemy.orm import Session
-from sqlalchemy import select, func, and_, or_
+from typing import Any
 
+from sqlalchemy import and_, or_, select
+from sqlalchemy.orm import Session
+
+from app.models.core.products import Product
 from app.models.inventory.alerts import AlertConfig, AlertHistory
 from app.models.inventory.stock import StockItem
-from app.models.core.products import Product
 from app.models.inventory.warehouse import Warehouse
 
 
@@ -22,24 +23,20 @@ class InventoryAlertService:
     def __init__(self, db: Session):
         self.db = db
 
-    def check_and_send_alerts(self, tenant_id: Optional[str] = None) -> Dict[str, Any]:
+    def check_and_send_alerts(self, tenant_id: str | None = None) -> dict[str, Any]:
         """
         Check all active alert configurations and send notifications for products below threshold
         """
-        results = {
-            "alerts_sent": [],
-            "errors": [],
-            "configs_checked": 0
-        }
+        results = {"alerts_sent": [], "errors": [], "configs_checked": 0}
 
         # Get active alert configs that need checking
         query = select(AlertConfig).where(
             and_(
-                AlertConfig.is_active == True,
+                AlertConfig.is_active,
                 or_(
                     AlertConfig.next_check_at <= datetime.utcnow(),
-                    AlertConfig.next_check_at.is_(None)
-                )
+                    AlertConfig.next_check_at.is_(None),
+                ),
             )
         )
 
@@ -58,12 +55,14 @@ class InventoryAlertService:
 
             # Update last checked time and next check time
             config.last_checked_at = datetime.utcnow()
-            config.next_check_at = datetime.utcnow() + timedelta(minutes=config.check_frequency_minutes)
+            config.next_check_at = datetime.utcnow() + timedelta(
+                minutes=config.check_frequency_minutes
+            )
 
         self.db.commit()
         return results
 
-    def _check_single_config(self, config: AlertConfig) -> List[Dict[str, Any]]:
+    def _check_single_config(self, config: AlertConfig) -> list[dict[str, Any]]:
         """Check a single alert configuration and send alerts if needed"""
         alerts_sent = []
 
@@ -78,20 +77,24 @@ class InventoryAlertService:
                     if sent_channels:
                         # Record the alert in history
                         self._record_alert_history(config, product_data, message, sent_channels)
-                        alerts_sent.append({
-                            "config_id": str(config.id),
-                            "product_id": str(product_data["product_id"]),
-                            "warehouse_id": product_data.get("warehouse_id"),
-                            "channels": sent_channels,
-                            "message": message
-                        })
+                        alerts_sent.append(
+                            {
+                                "config_id": str(config.id),
+                                "product_id": str(product_data["product_id"]),
+                                "warehouse_id": product_data.get("warehouse_id"),
+                                "channels": sent_channels,
+                                "message": message,
+                            }
+                        )
             except Exception as e:
                 # Log error but continue with other products
-                print(f"Error checking product {product_data['product_id']} for config {config.id}: {str(e)}")
+                print(
+                    f"Error checking product {product_data['product_id']} for config {config.id}: {str(e)}"
+                )
 
         return alerts_sent
 
-    def _get_products_for_config(self, config: AlertConfig) -> List[Dict[str, Any]]:
+    def _get_products_for_config(self, config: AlertConfig) -> list[dict[str, Any]]:
         """Get products that match the alert configuration filters"""
         # Build base query for stock items with product info
         query = (
@@ -107,7 +110,7 @@ class InventoryAlertService:
             .join(Product, Product.id == StockItem.product_id)
             .join(Warehouse, Warehouse.id == StockItem.warehouse_id)
             .where(StockItem.tenant_id == config.tenant_id)
-            .where(Product.active == True)
+            .where(Product.active)
         )
 
         # Apply warehouse filter
@@ -126,19 +129,23 @@ class InventoryAlertService:
 
         products = []
         for row in rows:
-            products.append({
-                "product_id": row[0],
-                "warehouse_id": row[1],
-                "current_stock": float(row[2] or 0),
-                "product_name": row[3],
-                "sku": row[4],
-                "warehouse_name": row[5],
-                "category_id": row[6],
-            })
+            products.append(
+                {
+                    "product_id": row[0],
+                    "warehouse_id": row[1],
+                    "current_stock": float(row[2] or 0),
+                    "product_name": row[3],
+                    "sku": row[4],
+                    "warehouse_name": row[5],
+                    "category_id": row[6],
+                }
+            )
 
         return products
 
-    def _should_send_alert(self, config: AlertConfig, product_data: Dict[str, Any]) -> tuple[bool, str]:
+    def _should_send_alert(
+        self, config: AlertConfig, product_data: dict[str, Any]
+    ) -> tuple[bool, str]:
         """Determine if an alert should be sent for this product"""
         current_stock = product_data["current_stock"]
 
@@ -155,26 +162,34 @@ class InventoryAlertService:
             # Check cooldown - don't send alerts too frequently
             cooldown_period = datetime.utcnow() - timedelta(hours=config.cooldown_hours)
 
-            recent_alerts = self.db.query(AlertHistory).filter(
-                and_(
-                    AlertHistory.tenant_id == config.tenant_id,
-                    AlertHistory.product_id == product_data["product_id"],
-                    AlertHistory.alert_type == config.alert_type,
-                    AlertHistory.sent_at >= cooldown_period
+            recent_alerts = (
+                self.db.query(AlertHistory)
+                .filter(
+                    and_(
+                        AlertHistory.tenant_id == config.tenant_id,
+                        AlertHistory.product_id == product_data["product_id"],
+                        AlertHistory.alert_type == config.alert_type,
+                        AlertHistory.sent_at >= cooldown_period,
+                    )
                 )
-            ).count()
+                .count()
+            )
 
             if recent_alerts == 0:
                 # Check daily limit
                 today = datetime.utcnow().date()
                 today_start = datetime.combine(today, datetime.min.time())
 
-                daily_alerts = self.db.query(AlertHistory).filter(
-                    and_(
-                        AlertHistory.alert_config_id == config.id,
-                        AlertHistory.sent_at >= today_start
+                daily_alerts = (
+                    self.db.query(AlertHistory)
+                    .filter(
+                        and_(
+                            AlertHistory.alert_config_id == config.id,
+                            AlertHistory.sent_at >= today_start,
+                        )
                     )
-                ).count()
+                    .count()
+                )
 
                 if daily_alerts < config.max_alerts_per_day:
                     message = self._build_alert_message(config, product_data, threshold)
@@ -182,7 +197,9 @@ class InventoryAlertService:
 
         return False, ""
 
-    def _build_alert_message(self, config: AlertConfig, product_data: Dict[str, Any], threshold: float) -> str:
+    def _build_alert_message(
+        self, config: AlertConfig, product_data: dict[str, Any], threshold: float
+    ) -> str:
         """Build the alert message"""
         product_name = product_data["product_name"]
         sku = product_data["sku"]
@@ -199,23 +216,26 @@ class InventoryAlertService:
         message = f"""🔔 ALERTA DE INVENTARIO - {alert_type_text}
 
 Producto: {product_name}
-SKU: {sku or 'N/A'}
+SKU: {sku or "N/A"}
 Almacén: {warehouse_name}
 Stock Actual: {current_stock}
 Umbral: {threshold}
 
 Configuración: {config.name}
 
-Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"""
+Fecha: {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")}"""
 
         return message
 
-    def _send_alert_notification(self, config: AlertConfig, product_data: Dict[str, Any], message: str) -> List[str]:
+    def _send_alert_notification(
+        self, config: AlertConfig, product_data: dict[str, Any], message: str
+    ) -> list[str]:
         """Send alert notification through configured channels"""
         channels_sent = []
 
         try:
             from app.services.notifications import NotificationService
+
             notification_service = NotificationService(self.db)
 
             # Email notifications
@@ -224,7 +244,7 @@ Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"""
                     notification_service.send_email(
                         recipients=config.email_recipients,
                         subject=f"Alerta de Inventario: {config.name}",
-                        body=message
+                        body=message,
                     )
                     channels_sent.append("email")
                 except Exception as e:
@@ -253,8 +273,13 @@ Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"""
 
         return channels_sent
 
-    def _record_alert_history(self, config: AlertConfig, product_data: Dict[str, Any],
-                           message: str, channels_sent: List[str]) -> None:
+    def _record_alert_history(
+        self,
+        config: AlertConfig,
+        product_data: dict[str, Any],
+        message: str,
+        channels_sent: list[str],
+    ) -> None:
         """Record the alert in history"""
         history = AlertHistory(
             tenant_id=config.tenant_id,

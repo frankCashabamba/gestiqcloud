@@ -1,29 +1,42 @@
 # app/core/access_guard.py
+from typing import Any
+
 from fastapi import HTTPException, Request
-from sqlalchemy import text
-from app.config.database import SessionLocal
-from typing import Any, Dict
 from jwt import ExpiredSignatureError, InvalidTokenError
+from sqlalchemy import text
 
-from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
+from app.config.database import SessionLocal
+
+# Import shared token service from common location
+from app.core.jwt_provider import get_token_service
+
+token_service = get_token_service()
 
 
-token_service = PyJWTTokenService()
+def with_access_claims(request: Request) -> dict[str, Any]:
+    import logging
 
+    logger = logging.getLogger(__name__)
 
-def with_access_claims(request: Request) -> Dict[str, Any]:
     # 1) extrae Authorization
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
+        logger.error("Missing bearer token")
         raise HTTPException(status_code=401, detail="Missing bearer token")
     token = auth.split(" ", 1)[1].strip()
     try:
+        logger.debug(f"Attempting to decode token, token_service_id={id(token_service)}")
+        logger.debug(f"Token (first 50 chars): {token[:50]}...")
         claims = token_service.decode_and_validate(token, expected_type="access")
-    except ExpiredSignatureError:
+        logger.debug(f"Token decoded successfully, claims_keys={list(claims.keys())}")
+    except ExpiredSignatureError as e:
+        logger.error(f"Token expired: {e}")
         raise HTTPException(status_code=401, detail="Token expired") from None
-    except InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token") from None
+    except InvalidTokenError as e:
+        logger.error(f"Invalid token: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=401, detail="Token inválido") from None
     if not isinstance(claims, dict):
+        logger.error(f"Invalid token payload, type={type(claims)}")
         raise HTTPException(status_code=401, detail="Invalid token payload")
     # ValidaciÃ³n opcional: X-Tenant-Slug debe corresponder al tenant del token
     try:
@@ -45,9 +58,7 @@ def with_access_claims(request: Request) -> Dict[str, Any]:
                                 text("SELECT slug FROM tenants WHERE tenant_id=:id"),
                                 {"id": int(tid)},
                             ).first()
-                            ok = bool(
-                                row and row[0] and str(row[0]).strip() == tenant_slug
-                            )
+                            ok = bool(row and row[0] and str(row[0]).strip() == tenant_slug)
                     except Exception:
                         ok = False
                 # Si no ok y hay tabla tenants, valida contra tenants.slug
@@ -57,21 +68,15 @@ def with_access_claims(request: Request) -> Dict[str, Any]:
                             # tid puede ser UUID; compara por id::text o por tenant_id si es dÃ­gito
                             if tid.isdigit():
                                 row = db.execute(
-                                    text(
-                                        "SELECT slug FROM tenants WHERE tenant_id =:id"
-                                    ),
+                                    text("SELECT slug FROM tenants WHERE tenant_id =:id"),
                                     {"id": int(tid)},
                                 ).first()
                             else:
                                 row = db.execute(
-                                    text(
-                                        "SELECT slug FROM tenants WHERE tenant_id =:id"
-                                    ),
+                                    text("SELECT slug FROM tenants WHERE tenant_id =:id"),
                                     {"id": tid},
                                 ).first()
-                            ok = bool(
-                                row and row[0] and str(row[0]).strip() == tenant_slug
-                            )
+                            ok = bool(row and row[0] and str(row[0]).strip() == tenant_slug)
                     except Exception:
                         ok = False
                 if not ok:

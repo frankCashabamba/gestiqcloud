@@ -7,17 +7,16 @@ Verificar funcionalidad completa del SettingsManager
 import sys
 import traceback
 from pathlib import Path
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
 from app.config.database import get_db_url
 from app.models.empresa.tenant import Tenant
 from app.modules.settings import SettingsManager
 
-
 backend_path = Path(__file__).resolve().parent.parent / "apps" / "backend"
 sys.path.insert(0, str(backend_path))
-
-
 
 
 def test_settings_manager():

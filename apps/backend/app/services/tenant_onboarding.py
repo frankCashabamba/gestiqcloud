@@ -3,10 +3,10 @@ Tenant Onboarding Service
 Auto-setup de recursos necesarios al crear un tenant nuevo
 """
 
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from typing import Optional
 import logging
+
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ def auto_setup_tenant(
     db: Session,
     tenant_id: str,
     country: str = "EC",
-    sector_plantilla_id: Optional[int] = None,
+    sector_plantilla_id: int | None = None,
 ) -> dict:
     """
     Configura automáticamente un nuevo tenant con:
@@ -49,9 +49,7 @@ def auto_setup_tenant(
 
             existing = db.execute(
                 text(
-                    "SELECT id FROM pos_registers "
-                    "WHERE tenant_id = :tid AND name = :name "
-                    "LIMIT 1"
+                    "SELECT id FROM pos_registers WHERE tenant_id = :tid AND name = :name LIMIT 1"
                 ),
                 {"tid": tenant_id, "name": default_register_name},
             ).scalar()
@@ -60,11 +58,13 @@ def auto_setup_tenant(
                 logger.info("ℹ️ Registro POS ya existía")
                 result["pos_register_id"] = existing
             else:
-                create_register_sql = text("""
+                create_register_sql = text(
+                    """
                     INSERT INTO pos_registers (tenant_id, name, active, created_at)
                     VALUES (:tenant_id, :name, TRUE, NOW())
                     RETURNING id
-                """)
+                """
+                )
 
                 reg_result = db.execute(
                     create_register_sql,
@@ -97,9 +97,7 @@ def auto_setup_tenant(
             # Series POS (si se creó el registro)
             # Nota: register_id es int (serial), no UUID
             if result.get("pos_register_id"):
-                create_default_series(
-                    db, tenant_id, register_id=result["pos_register_id"]
-                )
+                create_default_series(db, tenant_id, register_id=result["pos_register_id"])
                 result["series_created"].append("pos")
 
             logger.info(f"✅ Series creadas: {result['series_created']}")
@@ -150,17 +148,17 @@ def ensure_tenant_ready(db: Session, tenant_id: str) -> bool:
     """
     try:
         # Verificar si existe al menos 1 registro POS
-        check_sql = text("""
-            SELECT COUNT(*) FROM pos_registers 
+        check_sql = text(
+            """
+            SELECT COUNT(*) FROM pos_registers
             WHERE tenant_id = :tenant_id
-        """)
+        """
+        )
 
         result = db.execute(check_sql, {"tenant_id": tenant_id}).scalar()
 
         if result == 0:
-            logger.info(
-                f"⚙️ Tenant {tenant_id} sin configuración, ejecutando auto-setup..."
-            )
+            logger.info(f"⚙️ Tenant {tenant_id} sin configuración, ejecutando auto-setup...")
 
             # Obtener país del tenant
             country_sql = text("SELECT country FROM tenants WHERE id = :id")

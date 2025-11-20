@@ -68,7 +68,7 @@ apps/packages/
 ### 2. Módulos Backend SIN Frontend (Prioridad ALTA):
 
 #### A. Reconciliation (Conciliación Bancaria)
-**Backend**: `apps/backend/app/modules/reconciliation/`  
+**Backend**: `apps/backend/app/modules/reconciliation/`
 **Frontend**: ❌ NO EXISTE
 
 **¿Dónde debería estar?**
@@ -78,7 +78,7 @@ apps/packages/
 **Revisar**: ¿Finanzas ya incluye conciliación?
 
 #### B. E-Invoicing (Facturación Electrónica)
-**Backend**: `apps/backend/app/modules/einvoicing/`  
+**Backend**: `apps/backend/app/modules/einvoicing/`
 **Frontend**: ⚠️ Integrado en `facturacion`
 
 **Revisar**: ¿`facturacion` tiene componentes de einvoicing?

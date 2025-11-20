@@ -40,8 +40,8 @@ Authorization: Bearer {token}
 
 ### Requisitos
 
-✅ La orden debe estar en estado **`confirmed`** o **`delivered`**  
-✅ La orden **NO** debe tener ya una factura asociada  
+✅ La orden debe estar en estado **`confirmed`** o **`delivered`**
+✅ La orden **NO** debe tener ya una factura asociada
 ✅ La orden debe tener **al menos un item**
 
 ### Response Exitoso (201 Created)
@@ -128,8 +128,8 @@ Authorization: Bearer {token}
 
 ### Requisitos
 
-✅ El recibo debe estar en estado **`paid`**  
-✅ El recibo **NO** debe tener ya una factura asociada  
+✅ El recibo debe estar en estado **`paid`**
+✅ El recibo **NO** debe tener ya una factura asociada
 ✅ El cliente debe **existir** y tener **datos fiscales completos** (identificación)
 
 ### Response Exitoso (201 Created)
@@ -370,10 +370,10 @@ Todos los documentos convertidos mantienen relaciones bidireccionales:
 
 ```sql
 -- Ver de dónde vino una factura
-SELECT 
+SELECT
   metadata::jsonb->>'sales_order_id' as from_sales_order,
   metadata::jsonb->>'pos_receipt_id' as from_pos_receipt
-FROM invoices 
+FROM invoices
 WHERE id = 'invoice-uuid';
 ```
 
@@ -381,7 +381,7 @@ WHERE id = 'invoice-uuid';
 
 ```sql
 -- Ver factura de una orden
-SELECT i.* 
+SELECT i.*
 FROM invoices i
 WHERE i.metadata::jsonb->>'sales_order_id' = '123';
 ```
@@ -431,7 +431,7 @@ Si no existe, el sistema usa fallback (no recomendado para producción).
 
 ```sql
 -- Órdenes facturadas hoy
-SELECT 
+SELECT
     so.id as order_id,
     i.numero as invoice_number,
     i.total,
@@ -441,7 +441,7 @@ JOIN invoices i ON i.metadata::jsonb->>'sales_order_id' = so.id::text
 WHERE DATE(i.fecha_creacion) = CURRENT_DATE;
 
 -- Recibos POS convertidos a factura
-SELECT 
+SELECT
     r.number as receipt_number,
     i.numero as invoice_number,
     i.total,
@@ -462,6 +462,6 @@ WHERE DATE(i.fecha_creacion) >= CURRENT_DATE - INTERVAL '7 days';
 
 ---
 
-**Versión**: 1.0  
-**Última actualización**: 2024-11-06  
+**Versión**: 1.0
+**Última actualización**: 2024-11-06
 **Autor**: GestiqCloud Development Team

@@ -8,9 +8,8 @@ unit tests to SQLAlchemy constructors while remaining compatible with
 the application code that only reads attributes.
 """
 
-from typing import Optional
-from uuid import UUID
 from datetime import datetime
+from uuid import UUID
 
 
 class SRISubmission:  # noqa: D401 - simple data holder
@@ -22,10 +21,10 @@ class SRISubmission:  # noqa: D401 - simple data holder
         invoice_id: UUID,
         tenant_id: UUID,
         status: str,
-        clave_acceso: Optional[str] = None,
-        error_message: Optional[str] = None,
-        submitted_at: Optional[datetime] = None,
-        created_at: Optional[datetime] = None,
+        clave_acceso: str | None = None,
+        error_message: str | None = None,
+        submitted_at: datetime | None = None,
+        created_at: datetime | None = None,
     ) -> None:
         self.invoice_id = invoice_id
         self.tenant_id = tenant_id

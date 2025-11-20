@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
+
 from app.db.rls import tenant_id_sql_expr
 
 logger = logging.getLogger(__name__)
@@ -38,9 +40,7 @@ def set_tenant_context(session: Session, tenant_id: uuid.UUID) -> None:
             is_postgres = False
 
         if is_postgres:
-            session.execute(
-                text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_id)}
-            )
+            session.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_id)})
         # Store in session.info for debugging/utilities
         session.info["tenant_id"] = str(tenant_id)
         logger.debug(f"Set tenant context: {tenant_id}")

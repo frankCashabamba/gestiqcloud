@@ -1,6 +1,6 @@
 /**
  * useSectorValidation
- * 
+ *
  * Hook para validaciones específicas del sector activo
  * Retorna función de validación que aplica reglas según plantilla
  */
@@ -20,11 +20,11 @@ export interface ValidationResult {
 
 /**
  * Hook que retorna función de validación personalizada por sector
- * 
+ *
  * @example
  * ```tsx
  * const { validate } = useSectorValidation()
- * 
+ *
  * const result = validate(formData, 'product')
  * if (!result.valid) {
  *   console.error('Errores:', result.errors)
@@ -37,13 +37,13 @@ export function useSectorValidation() {
 
   /**
    * Valida un formulario según las reglas del sector
-   * 
+   *
    * @param formData - Datos del formulario a validar
    * @param context - Contexto de validación ('product', 'inventory', 'sale')
    * @returns Resultado de validación con errores y warnings
    */
   const validate = (
-    formData: any, 
+    formData: any,
     context: 'product' | 'inventory' | 'sale' | 'customer'
   ): ValidationResult => {
     const errors: ValidationError[] = []
@@ -137,7 +137,7 @@ export function useSectorValidation() {
       if (formData.precio_compra && formData.precio_venta) {
         const compra = parseFloat(formData.precio_compra)
         const venta = parseFloat(formData.precio_venta)
-        
+
         if (venta < compra) {
           warnings.push({
             field: 'precio_venta',

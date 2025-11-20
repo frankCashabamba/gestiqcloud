@@ -22,18 +22,19 @@ Características:
 import asyncio
 import json
 import logging
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Any, Optional
-import typer
-from dataclasses import dataclass, asdict, field
 from enum import Enum
+from pathlib import Path
+
+import typer
 
 logger = logging.getLogger("app.imports.batch_import")
 
 
 class ImportStatus(str, Enum):
     """Estado de importación de un archivo."""
+
     SUCCESS = "success"
     VALIDATION_ERROR = "validation_error"
     PARSER_ERROR = "parser_error"
@@ -45,16 +46,17 @@ class ImportStatus(str, Enum):
 @dataclass
 class FileImportResult:
     """Resultado de importar un archivo."""
+
     filename: str
     filepath: str
     status: ImportStatus
-    doc_type: Optional[str] = None
-    parser_id: Optional[str] = None
+    doc_type: str | None = None
+    parser_id: str | None = None
     items_count: int = 0
-    errors: List[str] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
     promoted: bool = False
-    promotion_errors: List[str] = field(default_factory=list)
+    promotion_errors: list[str] = field(default_factory=list)
     processing_time_ms: float = 0.0
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
 
@@ -62,6 +64,7 @@ class FileImportResult:
 @dataclass
 class BatchImportReport:
     """Reporte agregado de importación batch."""
+
     total_files: int
     processed: int = 0
     successful: int = 0
@@ -69,7 +72,7 @@ class BatchImportReport:
     failed: int = 0
     validation_errors: int = 0
     promotion_errors: int = 0
-    results: List[FileImportResult] = field(default_factory=list)
+    results: list[FileImportResult] = field(default_factory=list)
     total_items: int = 0
     total_time_ms: float = 0.0
     started_at: str = field(default_factory=lambda: datetime.now().isoformat())
@@ -82,13 +85,13 @@ class BatchImporter:
     def __init__(
         self,
         folder: Path,
-        doc_type: Optional[str] = None,
-        parser_id: Optional[str] = None,
+        doc_type: str | None = None,
+        parser_id: str | None = None,
         recursive: bool = True,
         pattern: str = "*.*",
         validate: bool = True,
         promote: bool = False,
-        country: Optional[str] = None,
+        country: str | None = None,
         dry_run: bool = False,
         skip_errors: bool = True,
     ):
@@ -107,6 +110,7 @@ class BatchImporter:
     async def run(self) -> BatchImportReport:
         """Ejecutar importación batch."""
         import time
+
         start_time = time.time()
 
         try:
@@ -118,7 +122,7 @@ class BatchImporter:
                 logger.warning(f"No files found in {self.folder}")
                 return self.report
 
-            typer.echo(f"\n📁 Batch Import Started")
+            typer.echo("\n📁 Batch Import Started")
             typer.echo(f"  Folder: {self.folder}")
             typer.echo(f"  Files: {len(files)}")
             typer.echo(f"  Validate: {self.validate}")
@@ -140,17 +144,19 @@ class BatchImporter:
                     if result.status == ImportStatus.SUCCESS:
                         self.report.successful += 1
                         self.report.total_items += result.items_count
-                        typer.echo(f" ✓ ({result.items_count} items, {result.processing_time_ms:.0f}ms)")
+                        typer.echo(
+                            f" ✓ ({result.items_count} items, {result.processing_time_ms:.0f}ms)"
+                        )
                     elif result.status == ImportStatus.SKIPPED:
                         self.report.skipped += 1
-                        typer.echo(f" ⊘ (skipped)")
+                        typer.echo(" ⊘ (skipped)")
                     elif result.status == ImportStatus.VALIDATION_ERROR:
                         self.report.validation_errors += 1
                         self.report.failed += 1
-                        typer.echo(f" ✗ (validation errors)")
+                        typer.echo(" ✗ (validation errors)")
                     else:
                         self.report.failed += 1
-                        typer.echo(f" ✗ (error)")
+                        typer.echo(" ✗ (error)")
 
                     self.report.processed += 1
 
@@ -165,7 +171,7 @@ class BatchImporter:
                     self.report.results.append(result)
                     self.report.failed += 1
                     self.report.processed += 1
-                    typer.echo(f" ✗ (unexpected error)")
+                    typer.echo(" ✗ (unexpected error)")
 
                     if not self.skip_errors:
                         raise
@@ -179,6 +185,7 @@ class BatchImporter:
     async def _import_file(self, file_path: Path) -> FileImportResult:
         """Importar un archivo individual."""
         import time
+
         start_time = time.time()
 
         result = FileImportResult(
@@ -302,7 +309,7 @@ class BatchImporter:
 
         return parsers[0]()
 
-    def _find_files(self) -> List[Path]:
+    def _find_files(self) -> list[Path]:
         """Encontrar archivos en la carpeta."""
         if self.recursive:
             return list(self.folder.rglob(self.pattern))
@@ -335,19 +342,19 @@ def _export_report(report: BatchImportReport, output_path: Path):
 
 def main(
     folder: str = typer.Option(..., "--folder", "-f", help="Carpeta a importar"),
-    doc_type: Optional[str] = typer.Option(
+    doc_type: str | None = typer.Option(
         None, "--doc-type", "-t", help="Tipo de documento (invoice, product, expense, bank_tx)"
     ),
-    parser_id: Optional[str] = typer.Option(
-        None, "--parser", help="ID específico del parser"
-    ),
+    parser_id: str | None = typer.Option(None, "--parser", help="ID específico del parser"),
     pattern: str = typer.Option("*.*", "--pattern", help="Patrón de archivos (ej: *.csv)"),
     recursive: bool = typer.Option(
         True, "--recursive/--no-recursive", help="Buscar recursivamente en subcarpetas"
     ),
     validate: bool = typer.Option(True, "--validate/--no-validate", help="Validar documentos"),
-    promote: bool = typer.Option(False, "--promote/--no-promote", help="Promocionar a tablas destino"),
-    country: Optional[str] = typer.Option(
+    promote: bool = typer.Option(
+        False, "--promote/--no-promote", help="Promocionar a tablas destino"
+    ),
+    country: str | None = typer.Option(
         None, "--country", "-c", help="Código país para validación (EC, ES, etc.)"
     ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Simular sin procesar"),
@@ -389,7 +396,7 @@ def main(
         report_data = asyncio.run(importer.run())
 
         # Mostrar resumen
-        typer.echo(f"\n📊 Batch Import Summary:")
+        typer.echo("\n📊 Batch Import Summary:")
         typer.echo(f"  Total: {report_data.total_files}")
         typer.echo(f"  ✓ Successful: {report_data.successful}")
         typer.echo(f"  ✗ Failed: {report_data.failed}")

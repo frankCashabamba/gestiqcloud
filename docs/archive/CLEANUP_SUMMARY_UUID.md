@@ -1,6 +1,6 @@
 # ✅ LIMPIEZA COMPLETA: Sistema 100% UUID
 
-**Fecha**: 28 Octubre 2025  
+**Fecha**: 28 Octubre 2025
 **Estado**: ✅ COMPLETADO
 
 ## 🎯 Objetivo Alcanzado
@@ -173,16 +173,16 @@ docker exec db psql -U postgres -d gestiqclouddb_dev -c "\d tenants" | grep tena
 
 # 2. Listar todas las FKs a tenants.id
 docker exec db psql -U postgres -d gestiqclouddb_dev -c "
-SELECT conname, conrelid::regclass 
-FROM pg_constraint 
+SELECT conname, conrelid::regclass
+FROM pg_constraint
 WHERE confrelid = 'tenants'::regclass AND contype = 'f';"
 # ✅ Resultado: 26 FKs apuntando a id (UUID)
 
 # 3. Verificar tablas con tenant_id
 docker exec db psql -U postgres -d gestiqclouddb_dev -c "
-SELECT table_name, data_type 
-FROM information_schema.columns 
-WHERE column_name = 'tenant_id' 
+SELECT table_name, data_type
+FROM information_schema.columns
+WHERE column_name = 'tenant_id'
 ORDER BY table_name;"
 # ✅ Resultado: 44 tablas con UUID, 1 con varchar (auth_audit)
 ```

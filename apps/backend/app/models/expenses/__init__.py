@@ -1,5 +1,8 @@
 """Expenses module models"""
 
-from .gasto import Gasto
+from .gasto import Expense
 
-__all__ = ["Gasto"]
+# Keep old name for backward compatibility during migration
+Gasto = Expense
+
+__all__ = ["Expense", "Gasto"]

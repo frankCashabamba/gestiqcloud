@@ -1,19 +1,17 @@
 """Settings Manager - Use Cases"""
 
 import uuid
-from typing import Dict, Any, List
 from datetime import datetime
-from sqlalchemy.orm import Session
+from typing import Any
+
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from app.models.core.settings import TenantSettings
 from app.models.tenant import Tenant
+
 from .defaults import get_default_settings
-from .modules_catalog import (
-    get_available_modules,
-    get_module_by_id,
-    validate_module_dependencies,
-)
+from .modules_catalog import get_available_modules, get_module_by_id, validate_module_dependencies
 
 
 class SettingsManager:
@@ -22,7 +20,7 @@ class SettingsManager:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_all_settings(self, tenant_id: uuid.UUID) -> Dict[str, Any]:
+    def get_all_settings(self, tenant_id: uuid.UUID) -> dict[str, Any]:
         """
         Obtener todas las configuraciones de un tenant
 
@@ -33,9 +31,7 @@ class SettingsManager:
             Dict con toda la configuración (crea defaults si no existe)
         """
         settings = (
-            self.db.query(TenantSettings)
-            .filter(TenantSettings.tenant_id == tenant_id)
-            .first()
+            self.db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
         )
 
         if not settings:
@@ -52,7 +48,7 @@ class SettingsManager:
             "updated_at": settings.updated_at.isoformat(),
         }
 
-    def get_module_settings(self, tenant_id: uuid.UUID, module: str) -> Dict[str, Any]:
+    def get_module_settings(self, tenant_id: uuid.UUID, module: str) -> dict[str, Any]:
         """
         Obtener configuración de un módulo específico
 
@@ -80,8 +76,8 @@ class SettingsManager:
         }
 
     def update_module_settings(
-        self, tenant_id: uuid.UUID, module: str, config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, tenant_id: uuid.UUID, module: str, config: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Actualizar configuración de un módulo
 
@@ -98,9 +94,7 @@ class SettingsManager:
             raise ValueError(f"Módulo '{module}' no existe")
 
         settings = (
-            self.db.query(TenantSettings)
-            .filter(TenantSettings.tenant_id == tenant_id)
-            .first()
+            self.db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
         )
 
         if not settings:
@@ -125,7 +119,7 @@ class SettingsManager:
             "updated_at": settings.updated_at.isoformat(),
         }
 
-    def enable_module(self, tenant_id: uuid.UUID, module: str) -> Dict[str, Any]:
+    def enable_module(self, tenant_id: uuid.UUID, module: str) -> dict[str, Any]:
         """
         Habilitar un módulo
 
@@ -142,9 +136,7 @@ class SettingsManager:
 
         # Validar dependencias
         settings = self.get_all_settings(tenant_id)
-        enabled_modules = [
-            m for m, cfg in settings["modules"].items() if cfg.get("enabled", False)
-        ]
+        enabled_modules = [m for m, cfg in settings["modules"].items() if cfg.get("enabled", False)]
 
         # Agregar el módulo a habilitar
         test_enabled = enabled_modules + [module]
@@ -170,7 +162,7 @@ class SettingsManager:
             "updated_at": result["updated_at"],
         }
 
-    def disable_module(self, tenant_id: uuid.UUID, module: str) -> Dict[str, Any]:
+    def disable_module(self, tenant_id: uuid.UUID, module: str) -> dict[str, Any]:
         """
         Deshabilitar un módulo
 
@@ -197,9 +189,7 @@ class SettingsManager:
         # Verificar que otros módulos no dependan de este
         settings = self.get_all_settings(tenant_id)
         enabled_modules = [
-            m
-            for m, cfg in settings["modules"].items()
-            if cfg.get("enabled", False) and m != module
+            m for m, cfg in settings["modules"].items() if cfg.get("enabled", False) and m != module
         ]
 
         # Verificar dependencias inversas
@@ -229,9 +219,7 @@ class SettingsManager:
             "updated_at": result["updated_at"],
         }
 
-    def get_available_modules(
-        self, tenant_id: uuid.UUID = None
-    ) -> List[Dict[str, Any]]:
+    def get_available_modules(self, tenant_id: uuid.UUID = None) -> list[dict[str, Any]]:
         """
         Obtener lista de módulos disponibles
 
@@ -251,9 +239,7 @@ class SettingsManager:
                 country = tenant.country
 
             settings = self.get_all_settings(tenant_id)
-            enabled_map = {
-                m: cfg.get("enabled", False) for m, cfg in settings["modules"].items()
-            }
+            enabled_map = {m: cfg.get("enabled", False) for m, cfg in settings["modules"].items()}
 
         modules = get_available_modules(country)
 
@@ -264,9 +250,7 @@ class SettingsManager:
 
         return modules
 
-    def init_default_settings(
-        self, tenant_id: uuid.UUID, country: str = "ES"
-    ) -> Dict[str, Any]:
+    def init_default_settings(self, tenant_id: uuid.UUID, country: str = "ES") -> dict[str, Any]:
         """
         Inicializar configuración por defecto para un tenant
 
@@ -279,9 +263,7 @@ class SettingsManager:
         """
         # Verificar si ya existe
         existing = (
-            self.db.query(TenantSettings)
-            .filter(TenantSettings.tenant_id == tenant_id)
-            .first()
+            self.db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
         )
 
         if existing:
@@ -303,9 +285,7 @@ class SettingsManager:
             "created_at": settings.updated_at.isoformat(),
         }
 
-    def _create_default_settings(
-        self, tenant_id: uuid.UUID, country: str = None
-    ) -> TenantSettings:
+    def _create_default_settings(self, tenant_id: uuid.UUID, country: str = None) -> TenantSettings:
         """
         Crear settings por defecto (uso interno)
 
@@ -342,9 +322,7 @@ class SettingsManager:
             self.db.rollback()
             # Si falla por duplicado, obtener el existente
             settings = (
-                self.db.query(TenantSettings)
-                .filter(TenantSettings.tenant_id == tenant_id)
-                .first()
+                self.db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
             )
 
         return settings

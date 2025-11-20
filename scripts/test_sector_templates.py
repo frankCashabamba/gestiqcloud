@@ -3,8 +3,9 @@
 Script de testing para sistema de plantillas de sector
 """
 
-import requests
 import json
+
+import requests
 
 BASE_URL = "http://localhost:8000"
 
@@ -127,20 +128,20 @@ def test_5_verify_tenant_config(tenant_id: str):
     print(
         """
     -- Ver configuración del tenant
-    SELECT 
+    SELECT
       nombre,
       color_primario,
       plantilla_inicio,
       config_json->'sector_template_applied' as plantilla_aplicada
     FROM tenants
     WHERE id = '{tenant_id}';
-    
+
     -- Ver módulos en TenantSettings
-    SELECT 
+    SELECT
       settings->'modules' as modules_config
     FROM tenant_settings
     WHERE tenant_id = '{tenant_id}';
-    
+
     -- Ver categorías creadas
     SELECT name FROM categories
     WHERE tenant_id = '{tenant_id}'
@@ -153,11 +154,13 @@ def test_5_verify_tenant_config(tenant_id: str):
 
 def main():
     """Ejecutar todos los tests"""
-    print("""
+    print(
+        """
 ╔══════════════════════════════════════════════════════════════╗
 ║        🎨 Test Suite: Sistema de Plantillas de Sector       ║
 ╚══════════════════════════════════════════════════════════════╝
-    """)
+    """
+    )
 
     try:
         # Test 1: Listar plantillas
@@ -178,13 +181,15 @@ def main():
         test_5_verify_tenant_config("TENANT_ID_AQUI")
 
         print_section("✅ TESTS COMPLETADOS")
-        print("""
+        print(
+            """
 Próximos pasos:
 1. Aplicar migración: python scripts/py/bootstrap_imports.py --dir ops/migrations
 2. Modificar endpoint de creación de empresa para aceptar sector_plantilla_id
 3. Crear frontend selector de plantillas
 4. Probar flujo completo end-to-end
-        """)
+        """
+        )
 
     except requests.exceptions.ConnectionError:
         print("\n❌ Error: No se puede conectar al backend")

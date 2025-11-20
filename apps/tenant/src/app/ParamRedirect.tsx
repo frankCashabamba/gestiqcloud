@@ -35,4 +35,3 @@ export default function ParamRedirect({ to, replace = true }: { to: string; repl
 
   return <Navigate to={target} replace={replace} />
 }
-

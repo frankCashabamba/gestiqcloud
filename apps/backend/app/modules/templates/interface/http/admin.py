@@ -1,17 +1,14 @@
 from __future__ import annotations
 
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
+from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.config.database import get_db
 from app.modules.templates.services import validate_overlay
-
 
 router = APIRouter(
     prefix="/admin/templates",
@@ -23,9 +20,7 @@ router = APIRouter(
 @router.get("/packages", response_model=list[dict])
 def list_packages(db: Session = Depends(get_db)):
     rows = db.execute(
-        text(
-            "SELECT template_key, version FROM template_packages ORDER BY template_key, version"
-        )
+        text("SELECT template_key, version FROM template_packages ORDER BY template_key, version")
     )
     return [{"template_key": r[0], "version": r[1]} for r in rows]
 
@@ -57,7 +52,7 @@ class OverlayIn(BaseModel):
     tenant_id: str
     name: str
     config: dict
-    activate: Optional[bool] = True
+    activate: bool | None = True
 
 
 @router.post("/overlays", response_model=dict)

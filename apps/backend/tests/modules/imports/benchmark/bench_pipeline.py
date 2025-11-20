@@ -3,11 +3,11 @@ Benchmark end-to-end pipeline: ingest → extract → validate → promote.
 Target: < 30s para batch de 10 items (sin OCR real).
 """
 
-import time
 import json
 import statistics
+import time
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -18,15 +18,15 @@ def benchmark_full_pipeline_batch(
     db: Session,
     tenant_id: str,
     batch_size: int = 10,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Benchmark pipeline completo con batch sintético.
     """
     from app.modules.imports.application.use_cases import (
         create_batch,
         ingest_file,
-        validate_item_sync,
         promote_batch,
+        validate_item_sync,
     )
 
     # 1. Crear batch
@@ -98,7 +98,7 @@ def benchmark_full_pipeline_batch(
     }
 
 
-def benchmark_promotion_throughput(iterations: int = 50) -> Dict[str, Any]:
+def benchmark_promotion_throughput(iterations: int = 50) -> dict[str, Any]:
     """
     Benchmark throughput de promoción (sin DB real, solo lógica).
     """
@@ -127,7 +127,7 @@ def benchmark_promotion_throughput(iterations: int = 50) -> Dict[str, Any]:
     }
 
 
-def run_all_benchmarks() -> Dict[str, Any]:
+def run_all_benchmarks() -> dict[str, Any]:
     """Ejecuta todos los benchmarks de pipeline."""
     import datetime
 
@@ -178,9 +178,7 @@ def run_all_benchmarks() -> Dict[str, Any]:
 if __name__ == "__main__":
     results = run_all_benchmarks()
 
-    output_path = (
-        Path(__file__).parent / f"bench_pipeline_results_{int(time.time())}.json"
-    )
+    output_path = Path(__file__).parent / f"bench_pipeline_results_{int(time.time())}.json"
     with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
 

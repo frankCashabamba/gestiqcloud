@@ -1,32 +1,25 @@
 -- ============================================================================
 -- Migration Rollback: 2025-11-03_201_hr_nominas
--- Descripción: Rollback del sistema de nóminas
+-- Description: Rollback of payroll system
 -- ============================================================================
 
--- Eliminar triggers
-DROP TRIGGER IF EXISTS nominas_updated_at ON nominas;
-DROP TRIGGER IF EXISTS nomina_plantillas_updated_at ON nomina_plantillas;
-DROP TRIGGER IF EXISTS nominas_validate_totals ON nominas;
+-- Drop triggers
+DROP TRIGGER IF EXISTS payrolls_updated_at ON payrolls;
+DROP TRIGGER IF EXISTS payroll_templates_updated_at ON payroll_templates;
 
--- Eliminar funciones
-DROP FUNCTION IF EXISTS validate_nomina_totals();
+-- Drop functions
+DROP FUNCTION IF EXISTS update_updated_at_column();
 
--- Eliminar políticas RLS
-DROP POLICY IF EXISTS nominas_tenant_isolation ON nominas;
-DROP POLICY IF EXISTS nomina_conceptos_tenant_isolation ON nomina_conceptos;
-DROP POLICY IF EXISTS nomina_plantillas_tenant_isolation ON nomina_plantillas;
+-- Drop RLS policies
+DROP POLICY IF EXISTS tenant_isolation_payrolls ON payrolls;
+DROP POLICY IF EXISTS tenant_isolation_payroll_concepts ON payroll_concepts;
+DROP POLICY IF EXISTS tenant_isolation_payroll_templates ON payroll_templates;
 
--- Eliminar tablas (en orden inverso por dependencias)
-DROP TABLE IF EXISTS nomina_conceptos CASCADE;
-DROP TABLE IF EXISTS nomina_plantillas CASCADE;
-DROP TABLE IF EXISTS nominas CASCADE;
+-- Drop tables (in reverse order of dependencies)
+DROP TABLE IF EXISTS payroll_concepts CASCADE;
+DROP TABLE IF EXISTS payroll_templates CASCADE;
+DROP TABLE IF EXISTS payrolls CASCADE;
 
--- Eliminar tipos ENUM
-DROP TYPE IF EXISTS nomina_tipo CASCADE;
-DROP TYPE IF EXISTS nomina_status CASCADE;
-
--- Log de rollback
-DO $$
-BEGIN
-    RAISE NOTICE 'Rollback de migración 2025-11-03_201_hr_nominas completado';
-END $$;
+-- Drop ENUM types
+DROP TYPE IF EXISTS payroll_type CASCADE;
+DROP TYPE IF EXISTS payroll_status CASCADE;

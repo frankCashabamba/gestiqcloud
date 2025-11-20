@@ -10,7 +10,7 @@ Crear la tabla `core_sectorplantilla` para almacenar plantillas de configuració
   - `id` SERIAL PRIMARY KEY
   - `nombre` VARCHAR(255) UNIQUE
   - `tipo_empresa_id` FK a core_tipoempresa
-  - `tipo_negocio_id` FK a core_tiponegocio  
+  - `tipo_negocio_id` FK a core_tiponegocio
   - `config_json` JSONB (configuración completa)
   - `created_at` TIMESTAMPTZ
   - `updated_at` TIMESTAMPTZ (auto-actualizado con trigger)

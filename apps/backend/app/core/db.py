@@ -4,7 +4,7 @@ Public import point for SQLAlchemy session/engine/base.
 """
 
 try:
-    from app.config.database import SessionLocal, engine, Base  # type: ignore
+    from app.config.database import Base, SessionLocal, engine  # type: ignore
 except Exception:  # pragma: no cover
     # Provide very light fallbacks to avoid import errors in analysis contexts
     SessionLocal = None  # type: ignore

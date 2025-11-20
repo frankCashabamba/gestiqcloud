@@ -21,6 +21,13 @@ export interface POSShift {
   opening_float: number
   closing_total?: number
   status: 'open' | 'closed'
+  difference?: number
+  total_sales?: number
+  cash_sales?: number
+  expected_cash?: number
+  counted_cash?: number
+  loss_amount?: number
+  loss_note?: string | null
 }
 
 export interface POSReceiptLine {

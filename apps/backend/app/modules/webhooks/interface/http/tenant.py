@@ -1,17 +1,14 @@
 from __future__ import annotations
 
-from typing import Optional
-
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
+from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.db.rls import tenant_id_from_request
-from app.config.database import get_db
-from app.db.rls import ensure_rls
+from app.db.rls import ensure_rls, tenant_id_from_request
 
 try:
     from apps.backend.celery_app import celery_app
@@ -33,7 +30,7 @@ router = APIRouter(
 class SubCreate(BaseModel):
     event: str
     url: str
-    secret: Optional[str] = None
+    secret: str | None = None
 
 
 @router.post("/subscriptions", response_model=dict)
@@ -51,9 +48,7 @@ def create_subscription(payload: SubCreate, db: Session = Depends(get_db)):
 @router.get("/subscriptions", response_model=list[dict])
 def list_subscriptions(db: Session = Depends(get_db)):
     rows = db.execute(
-        text(
-            "SELECT id::text AS id, event, url, active, created_at FROM webhook_subscriptions"
-        )
+        text("SELECT id::text AS id, event, url, active, created_at FROM webhook_subscriptions")
     )
     return [dict(r) for r in rows.mappings().all()]
 
@@ -65,7 +60,7 @@ class DeliverIn(BaseModel):
 
 @router.post("/deliveries", response_model=dict)
 def enqueue_delivery(payload: DeliverIn, request: Request, db: Session = Depends(get_db)):
-    # Enqueue one delivery per active subscription  
+    # Enqueue one delivery per active subscription
     _tid = tenant_id_from_request(request)
     subs = db.execute(
         text("SELECT id, url FROM webhook_subscriptions WHERE event=:e AND active"),

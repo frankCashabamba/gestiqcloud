@@ -1,21 +1,21 @@
 from __future__ import annotations
 
+import logging
 import os
+import subprocess
+from datetime import UTC, datetime
+from pathlib import Path
+
 import requests
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
-from app.config.database import get_db, SessionLocal
-from pathlib import Path
-import subprocess
-from app.core.authz import require_scope
-import logging
-from datetime import datetime, timezone
-from app.core.access_guard import with_access_claims
 
-router = APIRouter(
-    dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))]
-)
+from app.config.database import SessionLocal, get_db
+from app.core.access_guard import with_access_claims
+from app.core.authz import require_scope
+
+router = APIRouter(dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))])
 log = logging.getLogger("app.admin.ops")
 
 # Simple in-memory status for inline migrations
@@ -43,9 +43,9 @@ def list_missing_id_defaults(db: Session = Depends(get_db)):
     except Exception as e:
         try:
             log.exception("missing_id_defaults_list_failed: %s", e)
-        except Exception:
+        except Exception as e:
             pass
-        raise HTTPException(status_code=500, detail=f"schema_check_error:{e}")
+        raise HTTPException(status_code=500, detail=f"schema_check_error:{e}") from e
 
 
 def _log_started(
@@ -104,9 +104,7 @@ def _log_started(
                 "mode": mode,
                 "job_id": job_id,
                 "pending_count": pending_count,
-                "revisions": None
-                if not revisions
-                else __import__("json").dumps(revisions),
+                "revisions": None if not revisions else __import__("json").dumps(revisions),
                 "triggered_by": triggered_by,
             },
         )
@@ -151,7 +149,7 @@ def _run_inline_migrations(db: Session | None = None) -> None:
             {
                 "running": True,
                 "mode": "inline",
-                "started_at": datetime.now(timezone.utc).isoformat(),
+                "started_at": datetime.now(UTC).isoformat(),
                 "finished_at": None,
                 "ok": None,
                 "error": None,
@@ -162,16 +160,12 @@ def _run_inline_migrations(db: Session | None = None) -> None:
         root = backend_dir.parent.parent
         env = os.environ.copy()
         # Alembic upgrade head
-        subprocess.run(
-            ["alembic", "upgrade", "head"], check=True, cwd=str(backend_dir), env=env
-        )
+        subprocess.run(["alembic", "upgrade", "head"], check=True, cwd=str(backend_dir), env=env)
         # Apply RLS defaults/policies (idempotent)
         rls_py = root / "scripts" / "py" / "apply_rls.py"
         if rls_py.exists():
             cmd = ["python", str(rls_py), "--schema", "public", "--set-default"]
-            res = subprocess.run(
-                cmd, cwd=str(root), env=env, capture_output=True, text=True
-            )
+            res = subprocess.run(cmd, cwd=str(root), env=env, capture_output=True, text=True)
             if res.returncode != 0:
                 try:
                     log.error(
@@ -184,9 +178,7 @@ def _run_inline_migrations(db: Session | None = None) -> None:
                     pass
                 # Fallback: try without --set-default (policies only)
                 cmd2 = ["python", str(rls_py), "--schema", "public"]
-                res2 = subprocess.run(
-                    cmd2, cwd=str(root), env=env, capture_output=True, text=True
-                )
+                res2 = subprocess.run(cmd2, cwd=str(root), env=env, capture_output=True, text=True)
                 if res2.returncode != 0:
                     try:
                         log.error(
@@ -212,7 +204,7 @@ def _run_inline_migrations(db: Session | None = None) -> None:
         migration_state.update(
             {
                 "running": False,
-                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "finished_at": datetime.now(UTC).isoformat(),
                 "ok": True,
                 "error": None,
             }
@@ -228,7 +220,7 @@ def _run_inline_migrations(db: Session | None = None) -> None:
         migration_state.update(
             {
                 "running": False,
-                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "finished_at": datetime.now(UTC).isoformat(),
                 "ok": False,
                 "error": f"inline_migration_failed:{e}",
             }
@@ -248,7 +240,7 @@ def _run_inline_migrations(db: Session | None = None) -> None:
         migration_state.update(
             {
                 "running": False,
-                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "finished_at": datetime.now(UTC).isoformat(),
                 "ok": False,
                 "error": f"inline_migration_error:{e}",
             }
@@ -266,9 +258,13 @@ def _run_inline_migrations(db: Session | None = None) -> None:
 
 
 @router.post("/ops/migrate")
-def trigger_migrations(
-    background_tasks: BackgroundTasks, db: Session = Depends(get_db)
-):
+def trigger_migrations(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Trigger the Render migrate job if configured.
+
+    Requires env vars:
+      - RENDER_API_KEY
+      - RENDER_MIGRATE_JOB_ID
+    """
     # Prevent concurrent runs
     try:
         if migration_state.get("running"):
@@ -276,8 +272,12 @@ def trigger_migrations(
     except Exception:
         pass
     # Optional: short-circuit if there are no pending Alembic migrations
+    _pending_count = -1
+    _pending_revs = []
     try:
         pending, count, revs = _alembic_has_pending()
+        _pending_count = count
+        _pending_revs = revs or []
         if not pending:
             return {
                 "ok": True,
@@ -291,12 +291,7 @@ def trigger_migrations(
     except Exception:
         # If the check fails, proceed to try migrations to avoid false negatives
         pass
-    """Trigger the Render migrate job if configured.
 
-    Requires env vars:
-      - RENDER_API_KEY
-      - RENDER_MIGRATE_JOB_ID
-    """
     job_id = os.getenv("RENDER_MIGRATE_JOB_ID")
     api_key = os.getenv("RENDER_API_KEY")
     if not job_id or not api_key:
@@ -312,8 +307,8 @@ def trigger_migrations(
             "run_id": rid,
             "configured": False,
             "pending": True,
-            "pending_count": _pending_count if "_pending_count" in globals() else -1,  # noqa: F821
-            "pending_revisions": _pending_revs if "_pending_revs" in globals() else [],  # noqa: F821
+            "pending_count": _pending_count,
+            "pending_revisions": _pending_revs,
         }
 
     try:
@@ -327,9 +322,7 @@ def trigger_migrations(
             timeout=15,
         )
     except requests.RequestException as e:
-        raise HTTPException(
-            status_code=502, detail=f"render_api_unreachable: {e}"
-        ) from e
+        raise HTTPException(status_code=502, detail=f"render_api_unreachable: {e}") from e
 
     if 200 <= resp.status_code < 300:
         # We cannot track remote job state here; record a hint
@@ -338,7 +331,7 @@ def trigger_migrations(
             {
                 "running": True,
                 "mode": "render_job",
-                "started_at": datetime.now(timezone.utc).isoformat(),
+                "started_at": datetime.now(UTC).isoformat(),
                 "finished_at": None,
                 "ok": None,
                 "error": None,
@@ -351,8 +344,8 @@ def trigger_migrations(
             "job_id": job_id,
             "run_id": rid,
             "pending": True,
-            "pending_count": _pending_count if "_pending_count" in globals() else -1,  # noqa: F821
-            "pending_revisions": _pending_revs if "_pending_revs" in globals() else [],  # noqa: F821
+            "pending_count": _pending_count,
+            "pending_revisions": _pending_revs,
         }
     raise HTTPException(status_code=502, detail=f"render_api_error:{resp.status_code}")
 
@@ -425,12 +418,8 @@ def migrate_status_details(db: Session = Depends(get_db)):
         if res:
             last_run = {
                 "id": res[0],
-                "started_at": res[1].isoformat()
-                if getattr(res[1], "isoformat", None)
-                else res[1],
-                "finished_at": res[2].isoformat()
-                if getattr(res[2], "isoformat", None)
-                else res[2],
+                "started_at": res[1].isoformat() if getattr(res[1], "isoformat", None) else res[1],
+                "finished_at": res[2].isoformat() if getattr(res[2], "isoformat", None) else res[2],
                 "mode": res[3],
                 "ok": res[4],
                 "error": res[5],
@@ -439,9 +428,7 @@ def migrate_status_details(db: Session = Depends(get_db)):
     except Exception:
         last_run = None
 
-    render_configured = bool(
-        os.getenv("RENDER_MIGRATE_JOB_ID") and os.getenv("RENDER_API_KEY")
-    )
+    render_configured = bool(os.getenv("RENDER_MIGRATE_JOB_ID") and os.getenv("RENDER_API_KEY"))
     inline_enabled = True
 
     return {
@@ -492,7 +479,7 @@ def migrate_history(limit: int = 20, db: Session = Depends(get_db)):
             ),
             {"limit": max(1, min(200, int(limit or 20)))},
         )
-        rows = [dict(zip([c for c in res.keys()], r)) for r in res.fetchall()]
+        rows = [dict(zip(list(res.keys()), r, strict=False)) for r in res.fetchall()]
         return {"ok": True, "items": rows}
     except Exception as e:
         # If table doesn't exist yet, return empty history instead of 500
@@ -501,7 +488,7 @@ def migrate_history(limit: int = 20, db: Session = Depends(get_db)):
             "does not exist" in msg or "no existe" in msg or "undefined" in msg
         ):
             return {"ok": True, "items": []}
-        raise HTTPException(status_code=500, detail=f"history_error:{e}")
+        raise HTTPException(status_code=500, detail=f"history_error:{e}") from e
 
 
 @router.post("/ops/migrate/refresh")
@@ -518,23 +505,17 @@ def migrate_refresh(db: Session = Depends(get_db)):
             timeout=15,
         )
     except requests.RequestException as e:
-        raise HTTPException(
-            status_code=502, detail=f"render_api_unreachable: {e}"
-        ) from e
+        raise HTTPException(status_code=502, detail=f"render_api_unreachable: {e}") from e
 
     if not (200 <= resp.status_code < 300):
-        raise HTTPException(
-            status_code=502, detail=f"render_api_error:{resp.status_code}"
-        )
+        raise HTTPException(status_code=502, detail=f"render_api_error:{resp.status_code}")
 
     try:
         data = resp.json() or {}
     except Exception:
         data = {}
 
-    runs = (
-        data if isinstance(data, list) else data.get("data") or data.get("runs") or []
-    )
+    runs = data if isinstance(data, list) else data.get("data") or data.get("runs") or []
     latest = runs[0] if runs else None
     if not latest:
         return {"ok": True, "updated": False, "status": "unknown"}
@@ -567,7 +548,7 @@ def migrate_refresh(db: Session = Depends(get_db)):
                 migration_state.update(
                     {
                         "running": False,
-                        "finished_at": datetime.now(timezone.utc).isoformat(),
+                        "finished_at": datetime.now(UTC).isoformat(),
                         "ok": ok,
                         "error": None if ok else f"render_status:{status}",
                     }
@@ -585,10 +566,11 @@ def _alembic_has_pending() -> tuple[bool, int, list[str]]:
     Falls back to considering pending=True on error to be safe.
     """
     try:
-        from alembic.config import Config
-        from alembic.script import ScriptDirectory
-        from alembic.runtime.migration import MigrationContext
         from sqlalchemy import create_engine
+
+        from alembic.config import Config
+        from alembic.runtime.migration import MigrationContext
+        from alembic.script import ScriptDirectory
         from app.config.database import make_db_url
 
         backend_dir = Path(__file__).resolve().parents[3]

@@ -1,15 +1,47 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-from typing import Optional, Sequence
+from collections.abc import Sequence
+from dataclasses import dataclass
 
+from app.core.crud_base import CRUDBase
+from app.models.core.products import Product  # ✅ CORREGIDO: modelo centralizado
 from app.modules.productos.application.ports import ProductoRepo
 from app.modules.productos.domain.entities import Producto
-from app.models.core.products import Product  # ✅ CORREGIDO: modelo centralizado
 from app.modules.shared.infrastructure.sqlalchemy_repo import SqlAlchemyRepo
-from app.core.crud_base import CRUDBase
 
 
-class ProductoCRUD(CRUDBase[Product, "ProductoCreateDTO", "ProductoUpdateDTO"]):
+@dataclass
+class ProductoCreateDTO:
+    nombre: str
+    precio: float
+    activo: bool = True
+    tenant_id: int | None = None
+
+    def model_dump(self) -> dict:
+        return {
+            "nombre": self.nombre,
+            "precio": self.precio,
+            "activo": self.activo,
+            "tenant_id": self.tenant_id,
+        }
+
+
+@dataclass
+class ProductoUpdateDTO:
+    nombre: str | None = None
+    precio: float | None = None
+    activo: bool | None = None
+
+    def model_dump(self, exclude_unset: bool = False) -> dict:
+        d = {
+            "nombre": self.nombre,
+            "precio": self.precio,
+            "activo": self.activo,
+        }
+        return {k: v for k, v in d.items() if not exclude_unset or v is not None}
+
+
+class ProductoCRUD(CRUDBase[Product, ProductoCreateDTO, ProductoUpdateDTO]):
     pass
 
 
@@ -23,7 +55,7 @@ class SqlAlchemyProductoRepo(SqlAlchemyRepo, ProductoRepo):
             tenant_id=m.tenant_id,
         )
 
-    def get(self, id: int) -> Optional[Producto]:
+    def get(self, id: int) -> Producto | None:
         m = self.db.query(Product).filter(Product.id == id).first()
         return self._to_entity(m) if m else None
 
@@ -37,21 +69,6 @@ class SqlAlchemyProductoRepo(SqlAlchemyRepo, ProductoRepo):
         return [self._to_entity(m) for m in ms]
 
     def create(self, p: Producto) -> Producto:
-        class ProductoCreateDTO:
-            def __init__(self, **kw):
-                self.name = kw.get("nombre")
-                self.price = kw.get("precio")
-                self.active = kw.get("activo")
-                self.tenant_id = kw.get("tenant_id")
-
-            def model_dump(self):
-                return {
-                    "nombre": self.name,
-                    "precio": self.price,
-                    "activo": self.active,
-                    "tenant_id": self.tenant_id,
-                }
-
         dto = ProductoCreateDTO(
             nombre=p.name, precio=p.price, activo=p.active, tenant_id=p.tenant_id
         )
@@ -61,22 +78,6 @@ class SqlAlchemyProductoRepo(SqlAlchemyRepo, ProductoRepo):
     def update(self, p: Producto) -> Producto:
         if p.id is None:
             raise ValueError("id requerido para update")
-
-        class ProductoUpdateDTO:
-            def __init__(self, **kw):
-                self.name = kw.get("nombre")
-                self.price = kw.get("precio")
-                self.active = kw.get("activo")
-
-            def model_dump(self, exclude_unset: bool = False):
-                d = {
-                    "nombre": self.name,
-                    "precio": self.price,
-                    "activo": self.active,
-                }
-                return {
-                    k: v for k, v in d.items() if not exclude_unset or v is not None
-                }
 
         dto = ProductoUpdateDTO(nombre=p.name, precio=p.price, activo=p.active)
         m = ProductoCRUD(Product).update(self.db, p.id, dto)

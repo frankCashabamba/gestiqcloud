@@ -1,5 +1,9 @@
 """Purchases module models"""
 
-from .compra import Compra, CompraLinea
+from .compra import Purchase, PurchaseLine
 
-__all__ = ["Compra", "CompraLinea"]
+# Keep old names for backward compatibility during migration
+Compra = Purchase
+CompraLinea = PurchaseLine
+
+__all__ = ["Purchase", "PurchaseLine", "Compra", "CompraLinea"]

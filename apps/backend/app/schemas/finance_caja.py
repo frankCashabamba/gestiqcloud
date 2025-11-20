@@ -7,76 +7,87 @@ Sistema completo de caja diaria con:
 - Estadísticas y reportes
 """
 
-from pydantic import BaseModel, Field, validator
-from typing import Optional, List, Dict, Any
-from uuid import UUID
-from datetime import datetime, date
+from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
+from uuid import UUID
 
+from pydantic import BaseModel, ConfigDict, Field, validator
 
 # ============================================================================
 # MOVIMIENTOS DE CAJA
 # ============================================================================
 
+
 class CajaMovimientoBase(BaseModel):
     """Base para movimientos de caja"""
+
     tipo: str = Field(..., description="INGRESO, EGRESO, AJUSTE")
-    categoria: str = Field(..., description="VENTA, COMPRA, GASTO, NOMINA, BANCO, etc.")
+    categoria: str = Field(default="OTRO", description="VENTA, COMPRA, GASTO, NOMINA, BANCO, etc.")
     importe: Decimal = Field(..., description="Importe del movimiento")
     moneda: str = Field(default="EUR", max_length=3, description="Código moneda")
-    concepto: str = Field(..., max_length=255, description="Descripción")
-    notas: Optional[str] = Field(None, description="Notas adicionales")
-    fecha: date = Field(..., description="Fecha del movimiento")
-    ref_doc_type: Optional[str] = Field(None, description="Tipo documento origen")
-    ref_doc_id: Optional[UUID] = Field(None, description="ID documento origen")
-    caja_id: Optional[UUID] = Field(None, description="ID de caja (multi-caja)")
-    
-    @validator('tipo')
+    concepto: str = Field(
+        ...,
+        max_length=255,
+        description="Descripción",
+        alias="descripcion",
+    )
+    notas: str | None = Field(None, description="Notas adicionales")
+    fecha: date = Field(default_factory=date.today, description="Fecha del movimiento")
+    ref_doc_type: str | None = Field(None, description="Tipo documento origen")
+    ref_doc_id: UUID | None = Field(None, description="ID documento origen")
+    caja_id: UUID | None = Field(None, description="ID de caja (multi-caja)")
+
+    @validator("tipo")
     def validate_tipo(cls, v):
-        if v not in ['INGRESO', 'EGRESO', 'AJUSTE']:
-            raise ValueError('Tipo debe ser INGRESO, EGRESO o AJUSTE')
+        if v not in ["INGRESO", "EGRESO", "AJUSTE"]:
+            raise ValueError("Tipo debe ser INGRESO, EGRESO o AJUSTE")
         return v
-    
-    @validator('categoria')
+
+    @validator("categoria")
     def validate_categoria(cls, v):
-        valid = ['VENTA', 'COMPRA', 'GASTO', 'NOMINA', 'BANCO', 'CAMBIO', 'AJUSTE', 'OTRO']
+        valid = ["VENTA", "COMPRA", "GASTO", "NOMINA", "BANCO", "CAMBIO", "AJUSTE", "OTRO"]
         if v not in valid:
-            raise ValueError(f'Categoría debe ser una de: {", ".join(valid)}')
+            raise ValueError(f"Categoría debe ser una de: {', '.join(valid)}")
         return v
-    
-    @validator('importe')
-    def validate_importe(cls, v, values):
-        """Validar signo del importe según tipo"""
-        if 'tipo' in values:
-            if values['tipo'] == 'EGRESO' and v > 0:
-                # Auto-convertir a negativo
-                return -abs(v)
-            elif values['tipo'] == 'INGRESO' and v < 0:
-                # Auto-convertir a positivo
-                return abs(v)
+
+    @validator("importe")
+    def validate_importe(cls, v):
+        """El importe debe ser positivo."""
+        if v <= Decimal("0"):
+            raise ValueError("El importe debe ser mayor a cero")
         return v
+
+    @property
+    def descripcion(self) -> str:
+        return self.concepto
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class CajaMovimientoCreate(CajaMovimientoBase):
     """Schema para crear movimiento de caja"""
+
     pass
 
 
 class CajaMovimientoResponse(CajaMovimientoBase):
     """Schema de respuesta para movimiento"""
+
     id: UUID
     tenant_id: UUID
-    usuario_id: Optional[UUID]
-    cierre_id: Optional[UUID]
+    usuario_id: UUID | None
+    cierre_id: UUID | None
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
 
 class CajaMovimientoList(BaseModel):
     """Lista paginada de movimientos"""
-    items: List[CajaMovimientoResponse]
+
+    items: list[CajaMovimientoResponse]
     total: int
     page: int
     page_size: int
@@ -87,8 +98,10 @@ class CajaMovimientoList(BaseModel):
 # CIERRES DE CAJA
 # ============================================================================
 
+
 class DetallesBilletes(BaseModel):
     """Desglose de billetes y monedas"""
+
     billete_500: int = Field(default=0, ge=0, description="Cantidad de billetes de 500")
     billete_200: int = Field(default=0, ge=0, description="Cantidad de billetes de 200")
     billete_100: int = Field(default=0, ge=0, description="Cantidad de billetes de 100")
@@ -104,7 +117,7 @@ class DetallesBilletes(BaseModel):
     moneda_005: int = Field(default=0, ge=0, description="Cantidad de monedas de 0.05€")
     moneda_002: int = Field(default=0, ge=0, description="Cantidad de monedas de 0.02€")
     moneda_001: int = Field(default=0, ge=0, description="Cantidad de monedas de 0.01€")
-    
+
     def calcular_total(self) -> Decimal:
         """Calcula el total de efectivo contado"""
         total = Decimal("0")
@@ -128,30 +141,38 @@ class DetallesBilletes(BaseModel):
 
 class CierreCajaBase(BaseModel):
     """Base para cierre de caja"""
+
     fecha: date = Field(..., description="Fecha del cierre")
-    caja_id: Optional[UUID] = Field(None, description="ID de caja")
+    caja_id: UUID | None = Field(None, description="ID de caja")
     moneda: str = Field(default="EUR", max_length=3)
     saldo_inicial: Decimal = Field(default=Decimal("0"), description="Saldo inicial")
-    notas: Optional[str] = Field(None, description="Notas del cierre")
+    notas: str | None = Field(None, description="Notas del cierre")
 
 
 class CierreCajaCreate(CierreCajaBase):
     """Schema para crear cierre (apertura de caja)"""
+
+    total_ingresos: Decimal = Field(
+        default=Decimal("0"), description="Total de ingresos registrados"
+    )
+    total_egresos: Decimal = Field(default=Decimal("0"), description="Total de egresos registrados")
+
     pass
 
 
 class CierreCajaClose(BaseModel):
     """Schema para cerrar caja"""
+
     saldo_real: Decimal = Field(..., description="Efectivo contado físicamente")
-    detalles_billetes: Optional[DetallesBilletes] = Field(
-        None,
-        description="Desglose de billetes y monedas (opcional)"
+    detalles_billetes: DetallesBilletes | None = Field(
+        None, description="Desglose de billetes y monedas (opcional)"
     )
-    notas: Optional[str] = Field(None, description="Notas del cierre")
+    notas: str | None = Field(None, description="Notas del cierre")
 
 
 class CierreCajaResponse(CierreCajaBase):
     """Schema de respuesta para cierre"""
+
     id: UUID
     tenant_id: UUID
     total_ingresos: Decimal
@@ -161,21 +182,22 @@ class CierreCajaResponse(CierreCajaBase):
     diferencia: Decimal
     status: str
     cuadrado: bool
-    detalles_billetes: Optional[Dict[str, Any]]
-    abierto_por: Optional[UUID]
-    abierto_at: Optional[datetime]
-    cerrado_por: Optional[UUID]
-    cerrado_at: Optional[datetime]
+    detalles_billetes: dict[str, Any] | None
+    abierto_por: UUID | None
+    abierto_at: datetime | None
+    cerrado_por: UUID | None
+    cerrado_at: datetime | None
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 
 
 class CierreCajaList(BaseModel):
     """Lista paginada de cierres"""
-    items: List[CierreCajaResponse]
+
+    items: list[CierreCajaResponse]
     total: int
     page: int
     page_size: int
@@ -186,43 +208,46 @@ class CierreCajaList(BaseModel):
 # SALDO Y ESTADÍSTICAS
 # ============================================================================
 
+
 class CajaSaldoResponse(BaseModel):
     """Respuesta de saldo actual de caja"""
+
     fecha: date
     moneda: str
     saldo_inicial: Decimal
     total_ingresos_hoy: Decimal
     total_egresos_hoy: Decimal
     saldo_actual: Decimal
-    caja_id: Optional[UUID]
+    caja_id: UUID | None
     tiene_cierre_abierto: bool
 
 
 class CajaStats(BaseModel):
     """Estadísticas de caja"""
+
     # Período
     fecha_desde: date
     fecha_hasta: date
     moneda: str
-    
+
     # Totales
     total_ingresos: Decimal
     total_egresos: Decimal
     saldo_neto: Decimal
-    
+
     # Por categoría
-    ingresos_por_categoria: Dict[str, Decimal] = Field(default_factory=dict)
-    egresos_por_categoria: Dict[str, Decimal] = Field(default_factory=dict)
-    
+    ingresos_por_categoria: dict[str, Decimal] = Field(default_factory=dict)
+    egresos_por_categoria: dict[str, Decimal] = Field(default_factory=dict)
+
     # Promedio diario
     promedio_ingresos_dia: Decimal
     promedio_egresos_dia: Decimal
-    
+
     # Cierres
     total_cierres: int
     cierres_cuadrados: int
     total_diferencias: Decimal
-    
+
     # Movimientos
     total_movimientos: int
     total_ingresos_count: int

@@ -1,24 +1,23 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
-from typing import List, Optional
 from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse
+from psycopg2.extras import Json
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import bindparam, text
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_guc_from_request, ensure_rls
-import logging
-from fastapi import APIRouter, Depends, HTTPException, Request, Query
-from fastapi.responses import HTMLResponse
-from psycopg2.extras import Json
-from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import text, bindparam
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import Session
 from app.modules.settings.infrastructure.repositories import SettingsRepo
-from app.modules.shared.services.numbering import generar_numero_documento
 
 logger = logging.getLogger(__name__)
 
@@ -92,9 +91,16 @@ def _to_decimal(value: float) -> Decimal:
 
 class RegisterIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
-    code: Optional[str] = None
-    default_warehouse_id: Optional[str] = None
-    metadata: Optional[dict] = None
+    code: str | None = None
+    default_warehouse_id: str | None = None
+    metadata: dict | None = None
+
+    @field_validator("default_warehouse_id")
+    @classmethod
+    def validate_warehouse_id(cls, v):
+        if v is not None:
+            _validate_uuid(v, "Warehouse ID")
+        return v
 
 
 class OpenShiftIn(BaseModel):
@@ -133,15 +139,15 @@ class ReceiptLineIn(BaseModel):
 class PaymentIn(BaseModel):
     method: str = Field(min_length=1, max_length=50)
     amount: float = Field(gt=0, description="Monto debe ser > 0")
-    ref: Optional[str] = Field(default=None, max_length=200)
+    ref: str | None = Field(default=None, max_length=200)
 
 
 class ReceiptCreateIn(BaseModel):
     shift_id: str
     register_id: str
-    lines: List[ReceiptLineIn] = Field(default_factory=list)
-    payments: List[PaymentIn] = Field(default_factory=list)
-    notes: Optional[str] = Field(default=None, max_length=500)
+    lines: list[ReceiptLineIn] = Field(default_factory=list)
+    payments: list[PaymentIn] = Field(default_factory=list)
+    notes: str | None = Field(default=None, max_length=500)
 
     @field_validator("shift_id", "register_id")
     @classmethod
@@ -160,11 +166,7 @@ def _resolve_default_tax_rate(db: Session) -> float | None:
         repo = SettingsRepo(db)
         pos_cfg = repo.get("pos") or {}
         fiscal_cfg = repo.get("fiscal") or {}
-        dr = (
-            ((pos_cfg.get("tax") or {}).get("default_rate"))
-            if isinstance(pos_cfg, dict)
-            else None
-        )
+        dr = ((pos_cfg.get("tax") or {}).get("default_rate")) if isinstance(pos_cfg, dict) else None
         if dr is None:
             dr = (
                 ((fiscal_cfg.get("tax") or {}).get("default_rate"))
@@ -201,7 +203,7 @@ def _is_tax_enabled(db: Session) -> bool:
             try:
                 if isinstance(val, bool):
                     return val
-                if isinstance(val, (int, float)):
+                if isinstance(val, int | float):
                     return bool(int(val))
                 if isinstance(val, str):
                     v = val.strip().lower()
@@ -230,8 +232,8 @@ def _is_tax_enabled(db: Session) -> bool:
 
 
 class CheckoutIn(BaseModel):
-    payments: List[PaymentIn] = Field(min_length=1)
-    warehouse_id: Optional[str] = None
+    payments: list[PaymentIn] = Field(min_length=1)
+    warehouse_id: str | None = None
 
     @field_validator("warehouse_id")
     @classmethod
@@ -243,8 +245,8 @@ class CheckoutIn(BaseModel):
 
 class CloseShiftIn(BaseModel):
     closing_cash: float = Field(ge=0)
-    loss_amount: Optional[float] = 0.0
-    loss_note: Optional[str] = None
+    loss_amount: float | None = 0.0
+    loss_note: str | None = None
 
 
 class CalculateTotalsLineIn(BaseModel):
@@ -259,7 +261,7 @@ class CalculateTotalsLineIn(BaseModel):
 class CalculateTotalsIn(BaseModel):
     """Request para cálculo de totales de recibo"""
 
-    lines: List[CalculateTotalsLineIn]
+    lines: list[CalculateTotalsLineIn]
     global_discount_pct: float = Field(ge=0, le=100, default=0)
 
 
@@ -278,7 +280,7 @@ class ItemIn(BaseModel):
     product_id: int
     qty: float = Field(gt=0)
     unit_price: float = Field(ge=0)
-    tax: Optional[float] = Field(default=None, ge=0)
+    tax: float | None = Field(default=None, ge=0)
 
 
 class RemoveItemIn(BaseModel):
@@ -286,11 +288,18 @@ class RemoveItemIn(BaseModel):
 
 
 class PaymentsIn(BaseModel):
-    payments: List[PaymentIn]
+    payments: list[PaymentIn]
 
 
 class PostReceiptIn(BaseModel):
-    warehouse_id: Optional[int] = None
+    warehouse_id: str | None = None
+
+    @field_validator("warehouse_id")
+    @classmethod
+    def validate_warehouse_id(cls, v):
+        if v is not None:
+            _validate_uuid(v, "Warehouse ID")
+        return v
 
 
 # ============================================================================
@@ -298,7 +307,7 @@ class PostReceiptIn(BaseModel):
 # ============================================================================
 
 
-@router.get("/registers", response_model=List[dict])
+@router.get("/registers", response_model=list[dict])
 def list_registers(request: Request, db: Session = Depends(get_db)):
     """Lista todos los registros POS del tenant actual"""
     ensure_guc_from_request(request, db, persist=True)
@@ -323,15 +332,11 @@ def list_registers(request: Request, db: Session = Depends(get_db)):
             for r in rows
         ]
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error al listar registros: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error al listar registros: {str(e)}")
 
 
 @router.post("/registers", response_model=dict, status_code=201)
-def create_register(
-    payload: RegisterIn, request: Request, db: Session = Depends(get_db)
-):
+def create_register(payload: RegisterIn, request: Request, db: Session = Depends(get_db)):
     """Crea un nuevo registro POS (baseline moderno)."""
     ensure_guc_from_request(request, db, persist=True)
     tid = _get_tenant_id(request)
@@ -353,9 +358,7 @@ def create_register(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(
-            status_code=500, detail=f"Error al crear registro: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error al crear registro: {str(e)}")
 
 
 # ============================================================================
@@ -390,9 +393,7 @@ def open_shift(payload: OpenShiftIn, request: Request, db: Session = Depends(get
         # Verificar que no hay un turno abierto
         existing = db.execute(
             text(
-                "SELECT id FROM pos_shifts "
-                "WHERE register_id = :rid AND status = 'open' "
-                "FOR UPDATE"
+                "SELECT id FROM pos_shifts WHERE register_id = :rid AND status = 'open' FOR UPDATE"
             ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
             {"rid": register_uuid},
         ).first()
@@ -527,9 +528,7 @@ def get_shift_summary(
 
     except Exception as e:
         logger.error(f"Error getting shift summary: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Error al obtener resumen: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error al obtener resumen: {str(e)}")
 
 
 @router.post("/shifts/{shift_id}/close", response_model=dict)
@@ -611,9 +610,9 @@ def close_shift(
 
         for method, amount in sales_by_method:
             total_sales += float(amount)
-            if method.lower() == 'cash':
+            if method.lower() == "cash":
                 cash_sales = float(amount)
-            elif method.lower() in ('card', 'credit', 'debit'):
+            elif method.lower() in ("card", "credit", "debit"):
                 card_sales = float(amount)
             else:
                 other_sales += float(amount)
@@ -687,12 +686,12 @@ def close_shift(
         raise HTTPException(status_code=500, detail=f"Error al cerrar turno: {str(e)}")
 
 
-@router.get("/shifts", response_model=List[dict])
+@router.get("/shifts", response_model=list[dict])
 def list_shifts(
     request: Request,
-    status: Optional[str] = None,
-    since: Optional[str] = None,
-    until: Optional[str] = None,
+    status: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
     limit: int = Query(default=200, le=1000),
     db: Session = Depends(get_db),
 ):
@@ -794,9 +793,7 @@ def shift_summary(shift_id: str, request: Request, db: Session = Depends(get_db)
         }
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error al obtener resumen: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error al obtener resumen: {str(e)}")
 
 
 # ============================================================================
@@ -843,9 +840,7 @@ def calculate_receipt_totals(payload: CalculateTotalsIn):
         subtotal += line_subtotal
 
         # Descuento de línea
-        line_discount = line_subtotal * (
-            _to_decimal(line.discount_pct) / Decimal("100")
-        )
+        line_discount = line_subtotal * (_to_decimal(line.discount_pct) / Decimal("100"))
         line_discounts += line_discount
 
         # Base neta de línea (después de descuento)
@@ -880,9 +875,7 @@ def calculate_receipt_totals(payload: CalculateTotalsIn):
 
 
 @router.post("/receipts", response_model=dict, status_code=201)
-def create_receipt(
-    payload: ReceiptCreateIn, request: Request, db: Session = Depends(get_db)
-):
+def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Depends(get_db)):
     """Crea un nuevo recibo POS"""
     ensure_guc_from_request(request, db, persist=True)
 
@@ -893,9 +886,7 @@ def create_receipt(
     try:
         # Verificar que el turno existe y estÃ¡ abierto
         shift = db.execute(
-            text(
-                "SELECT status FROM pos_shifts WHERE id = :sid AND register_id = :rid"
-            ).bindparams(
+            text("SELECT status FROM pos_shifts WHERE id = :sid AND register_id = :rid").bindparams(
                 bindparam("sid", type_=PGUUID(as_uuid=True)),
                 bindparam("rid", type_=PGUUID(as_uuid=True)),
             ),
@@ -955,6 +946,12 @@ def create_receipt(
         ).first()
 
         receipt_id = row[0]
+
+        # Commit the receipt insertion to make it visible for RLS policies
+        db.commit()
+
+        # Restore RLS context after commit
+        ensure_guc_from_request(request, db, persist=True)
 
         # Insertar lÃ­neas
         # Resolver configuración fiscal del tenant
@@ -1032,9 +1029,9 @@ def checkout(
     try:
         # 1. Validar estado del recibo
         receipt = db.execute(
-            text(
-                "SELECT shift_id, status FROM pos_receipts WHERE id = :id FOR UPDATE"
-            ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+            text("SELECT shift_id, status FROM pos_receipts WHERE id = :id FOR UPDATE").bindparams(
+                bindparam("id", type_=PGUUID(as_uuid=True))
+            ),
             {"id": receipt_uuid},
         ).first()
 
@@ -1076,9 +1073,7 @@ def checkout(
 
         payments_total = db.execute(
             text(
-                "SELECT COALESCE(SUM(amount), 0) "
-                "FROM pos_payments "
-                "WHERE receipt_id = :rid"
+                "SELECT COALESCE(SUM(amount), 0) FROM pos_payments WHERE receipt_id = :rid"
             ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
             {"rid": receipt_uuid},
         ).first()
@@ -1115,9 +1110,7 @@ def checkout(
             ).fetchall()
 
             if len(warehouses) == 0:
-                raise HTTPException(
-                    status_code=400, detail="No hay almacenes activos disponibles"
-                )
+                raise HTTPException(status_code=400, detail="No hay almacenes activos disponibles")
             elif len(warehouses) > 1:
                 raise HTTPException(
                     status_code=400,
@@ -1239,13 +1232,13 @@ def checkout(
         raise HTTPException(status_code=500, detail=f"Error en checkout: {str(e)}")
 
 
-@router.get("/receipts", response_model=List[dict])
+@router.get("/receipts", response_model=list[dict])
 def list_receipts(
     request: Request,
-    status: Optional[str] = None,
-    since: Optional[str] = None,
-    until: Optional[str] = None,
-    shift_id: Optional[str] = None,
+    status: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    shift_id: str | None = None,
     limit: int = Query(default=500, le=1000),
     db: Session = Depends(get_db),
 ):
@@ -1296,9 +1289,7 @@ def list_receipts(
             for r in rows
         ]
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error al listar recibos: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error al listar recibos: {str(e)}")
 
 
 @router.get("/receipts/{receipt_id}/print")
@@ -1340,9 +1331,7 @@ def print_receipt(
         # Obtener pagos
         payments = db.execute(
             text(
-                "SELECT method, amount FROM pos_payments "
-                "WHERE receipt_id = :rid "
-                "ORDER BY paid_at"
+                "SELECT method, amount FROM pos_payments WHERE receipt_id = :rid ORDER BY paid_at"
             ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
             {"rid": receipt_uuid},
         ).fetchall()
@@ -1372,33 +1361,33 @@ def print_receipt(
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ticket {receipt[1]}</title>
     <style>
-        @page {{ 
-            width: {width}; 
-            margin: 0; 
+        @page {{
+            width: {width};
+            margin: 0;
         }}
         * {{
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }}
-        body {{ 
+        body {{
             width: 100%;
             max-width: 48mm;
-            font-family: 'Courier New', Courier, monospace; 
-            font-size: 9pt; 
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 9pt;
             margin: 5mm auto;
             padding: 0 2mm;
         }}
-        .center {{ 
-            text-align: center; 
+        .center {{
+            text-align: center;
             margin: 3px 0;
         }}
         .bold {{
             font-weight: bold;
         }}
-        .line {{ 
-            display: flex; 
-            justify-content: space-between; 
+        .line {{
+            display: flex;
+            justify-content: space-between;
             margin: 2px 0;
             font-size: 8pt;
         }}
@@ -1413,15 +1402,15 @@ def print_receipt(
             text-align: right;
             white-space: nowrap;
         }}
-        hr {{ 
-            border: none; 
-            border-top: 1px dashed #000; 
-            margin: 5px 0; 
+        hr {{
+            border: none;
+            border-top: 1px dashed #000;
+            margin: 5px 0;
         }}
-        .total {{ 
-            margin-top: 5px; 
+        .total {{
+            margin-top: 5px;
             padding-top: 5px;
-            font-weight: bold; 
+            font-weight: bold;
             font-size: 10pt;
         }}
         .section {{
@@ -1446,16 +1435,16 @@ def print_receipt(
     <div class="center" style="font-size: 8pt;">
         {receipt[4].strftime("%d/%m/%Y %H:%M") if receipt[4] else ""}
     </div>
-    
+
     <hr>
-    
+
     <div class="section">
         <div class="section-title">PRODUCTOS</div>
         {lines_html}
     </div>
-    
+
     <hr>
-    
+
     <div class="line">
         <span>SUBTOTAL</span>
         <span>${(receipt[2] - receipt[3]):.2f}</span>
@@ -1468,7 +1457,7 @@ def print_receipt(
         <span>TOTAL</span>
         <span>${receipt[2]:.2f}</span>
     </div>
-    
+
     {
             f'''
     <hr>
@@ -1480,17 +1469,17 @@ def print_receipt(
             if payments
             else ""
         }
-    
+
     <hr>
-    
+
     <div class="center" style="margin-top: 10px; font-size: 8pt;">
         Â¡Gracias por su compra!
     </div>
-    
+
     <div class="center" style="margin-top: 8px; font-size: 7pt;">
         Estado: {receipt[5].upper()}
     </div>
-    
+
     <script>
         // Auto-imprimir al cargar
         window.onload = function() {{
@@ -1507,9 +1496,7 @@ def print_receipt(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error al generar ticket: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error al generar ticket: {str(e)}")
 
 
 # ============================================================================
@@ -1523,9 +1510,7 @@ def print_receipt(
     deprecated=True,
     include_in_schema=False,
 )
-def add_item(
-    receipt_id: str, payload: ItemIn, request: Request, db: Session = Depends(get_db)
-):
+def add_item(receipt_id: str, payload: ItemIn, request: Request, db: Session = Depends(get_db)):
     """
     DEPRECATED: Usa POST /receipts con lÃ­neas incluidas.
     Agrega un item a un recibo en borrador.
@@ -1542,9 +1527,7 @@ def add_item(
         ).first()
 
         if not rec or rec[0] != "draft":
-            raise HTTPException(
-                status_code=400, detail="El recibo no estÃ¡ en borrador"
-            )
+            raise HTTPException(status_code=400, detail="El recibo no estÃ¡ en borrador")
 
         row = db.execute(
             text(
@@ -1599,14 +1582,12 @@ def remove_item(
         ).first()
 
         if not rec or rec[0] != "draft":
-            raise HTTPException(
-                status_code=400, detail="El recibo no estÃ¡ en borrador"
-            )
+            raise HTTPException(status_code=400, detail="El recibo no estÃ¡ en borrador")
 
         db.execute(
-            text(
-                "DELETE FROM pos_items WHERE id = :id AND receipt_id = :rid"
-            ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
+            text("DELETE FROM pos_items WHERE id = :id AND receipt_id = :rid").bindparams(
+                bindparam("rid", type_=PGUUID(as_uuid=True))
+            ),
             {"id": payload.item_id, "rid": receipt_uuid},
         )
 
@@ -1649,9 +1630,7 @@ def take_payment(
         ).first()
 
         if not rec or rec[0] != "draft":
-            raise HTTPException(
-                status_code=400, detail="El recibo no estÃ¡ en borrador"
-            )
+            raise HTTPException(status_code=400, detail="El recibo no estÃ¡ en borrador")
 
         # Insertar pagos
         for payment in payload.payments:
@@ -1671,8 +1650,7 @@ def take_payment(
         # Marcar como pagado (sin validaciÃ³n de monto)
         db.execute(
             text(
-                "UPDATE pos_receipts SET status = 'paid', paid_at = NOW() "
-                "WHERE id = :id"
+                "UPDATE pos_receipts SET status = 'paid', paid_at = NOW() WHERE id = :id"
             ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
             {"id": receipt_uuid},
         )
@@ -1706,6 +1684,7 @@ def post_receipt(
     """
     ensure_guc_from_request(request, db, persist=True)
     receipt_uuid = _validate_uuid(receipt_id, "Receipt ID")
+    tenant_id = _get_tenant_id(request)
 
     try:
         # Validar estado
@@ -1717,9 +1696,7 @@ def post_receipt(
         ).first()
 
         if not rec or rec[1] != "draft":
-            raise HTTPException(
-                status_code=400, detail="El recibo no estÃ¡ en borrador"
-            )
+            raise HTTPException(status_code=400, detail="El recibo no estÃ¡ en borrador")
 
         shift_id = rec[0]
 
@@ -1738,9 +1715,7 @@ def post_receipt(
             wh_id = str(row[0]) if row and row[0] is not None else None
 
         if wh_id is None:
-            raise HTTPException(
-                status_code=400, detail="Se requiere especificar un almacÃ©n"
-            )
+            raise HTTPException(status_code=400, detail="Se requiere especificar un almacÃ©n")
 
         # Calcular totales
         tot_row = db.execute(
@@ -1756,9 +1731,7 @@ def post_receipt(
 
         pay_row = db.execute(
             text(
-                "SELECT COALESCE(SUM(amount), 0) "
-                "FROM pos_payments "
-                "WHERE receipt_id = :rid"
+                "SELECT COALESCE(SUM(amount), 0) FROM pos_payments WHERE receipt_id = :rid"
             ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
             {"rid": receipt_uuid},
         ).first()
@@ -1773,9 +1746,9 @@ def post_receipt(
 
         # Consumir stock
         items = db.execute(
-            text(
-                "SELECT product_id, qty FROM pos_items WHERE receipt_id = :rid"
-            ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
+            text("SELECT product_id, qty FROM pos_items WHERE receipt_id = :rid").bindparams(
+                bindparam("rid", type_=PGUUID(as_uuid=True))
+            ),
             {"rid": receipt_uuid},
         ).fetchall()
 
@@ -1783,14 +1756,16 @@ def post_receipt(
             db.execute(
                 text(
                     "INSERT INTO stock_moves("
-                    "product_id, warehouse_id, qty, kind, ref_type, ref_id"
-                    ") VALUES (:pid, :wid, :q, 'issue', 'pos_receipt', :rid)"
+                    "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id, posted"
+                    ") VALUES (:tid, :pid, :wid, :q, 'issue', 'pos_receipt', :rid, TRUE)"
                 ).bindparams(
+                    bindparam("tid", type_=PGUUID(as_uuid=True)),
                     bindparam("pid", type_=PGUUID(as_uuid=True)),
                     bindparam("wid", type_=PGUUID(as_uuid=True)),
                     bindparam("rid", type_=PGUUID(as_uuid=True)),
                 ),
                 {
+                    "tid": tenant_id,
                     "pid": it[0],
                     "wid": wh_id,
                     "q": float(it[1]),
@@ -1813,13 +1788,14 @@ def post_receipt(
             if row is None:
                 db.execute(
                     text(
-                        "INSERT INTO stock_items(warehouse_id, product_id, qty) "
-                        "VALUES (:wid, :pid, 0)"
+                        "INSERT INTO stock_items(tenant_id, warehouse_id, product_id, qty) "
+                        "VALUES (:tid, :wid, :pid, 0)"
                     ).bindparams(
+                        bindparam("tid", type_=PGUUID(as_uuid=True)),
                         bindparam("wid", type_=PGUUID(as_uuid=True)),
                         bindparam("pid", type_=PGUUID(as_uuid=True)),
                     ),
-                    {"wid": wh_id, "pid": it[0]},
+                    {"tid": tenant_id, "wid": wh_id, "pid": it[0]},
                 )
                 cur_qty = 0.0
             else:
@@ -1838,11 +1814,10 @@ def post_receipt(
                 {"q": new_qty, "wid": wh_id, "pid": it[0]},
             )
 
-        # Actualizar recibo
+        # Actualizar recibo (use 'paid' not 'posted' - valid statuses: draft, paid, voided, invoiced)
         db.execute(
             text(
-                "UPDATE pos_receipts SET status = 'posted', totals = :tot "
-                "WHERE id = :rid"
+                "UPDATE pos_receipts SET status = 'paid', totals = :tot WHERE id = :rid"
             ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
             {
                 "rid": receipt_uuid,
@@ -1891,16 +1866,14 @@ def post_receipt(
         except Exception:
             db.rollback()
 
-        return {"id": str(receipt_uuid), "status": "posted", "total": total}
+        return {"id": str(receipt_uuid), "status": "paid", "total": total}
 
     except HTTPException:
         db.rollback()
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(
-            status_code=500, detail=f"Error al procesar recibo: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error al procesar recibo: {str(e)}")
 
 
 # ============================================================================
@@ -1908,12 +1881,12 @@ def post_receipt(
 # ============================================================================
 
 
-@router.get("/daily_counts", response_model=List[dict])
+@router.get("/daily_counts", response_model=list[dict])
 def list_daily_counts(
     request: Request,
-    register_id: Optional[str] = None,
-    since: Optional[str] = None,
-    until: Optional[str] = None,
+    register_id: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
     limit: int = Query(default=100, le=1000),
     db: Session = Depends(get_db),
 ):
@@ -1970,9 +1943,7 @@ def list_daily_counts(
             for r in rows
         ]
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error al listar reportes diarios: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error al listar reportes diarios: {str(e)}")
 
 
 @router.get("/health", include_in_schema=False)

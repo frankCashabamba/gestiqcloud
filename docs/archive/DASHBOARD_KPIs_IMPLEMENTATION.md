@@ -76,7 +76,7 @@ Se ha implementado un **sistema profesional de KPIs en tiempo real** para todas 
 
 **Ejemplo de uso**:
 ```tsx
-const { data, loading, error, refetch } = useDashboardKPIs({ 
+const { data, loading, error, refetch } = useDashboardKPIs({
   periodo: 'today',
   autoRefresh: true,
   refreshInterval: 60000 // 1 minuto
@@ -149,20 +149,20 @@ graph TB
         A[Plantillas TSX] --> B[useDashboardKPIs]
         B --> C[fetch + Auth]
     end
-    
+
     subgraph Backend
         C --> D[/api/v1/dashboard/kpis]
         D --> E[RLS Middleware]
         E --> F[SQL Queries]
     end
-    
+
     subgraph Database
         F --> G[(Invoices)]
         F --> H[(Stock Items)]
         F --> I[(Expenses)]
         F --> J[(Sales Orders)]
     end
-    
+
     style B fill:#4A90E2
     style D fill:#50C878
     style F fill:#FF6B6B
@@ -208,7 +208,7 @@ open http://localhost:3000
 # Buscar: /api/v1/dashboard/kpis
 ```
 
-**Resultado esperado**: 
+**Resultado esperado**:
 - Números reales en lugar de `--`
 - Skeleton animado durante carga
 - Moneda formateada correctamente (€ 1.234,56)
@@ -283,10 +283,10 @@ const { data } = useDashboardKPIs({ periodo: 'month' })
 
 ## Seguridad
 
-✅ **RLS Middleware** - Aislamiento por tenant  
-✅ **JWT Authentication** - Solo usuarios autenticados  
-✅ **SQL Injection Protection** - SQLAlchemy ORM  
-✅ **CORS Configurado** - Solo dominios permitidos  
+✅ **RLS Middleware** - Aislamiento por tenant
+✅ **JWT Authentication** - Solo usuarios autenticados
+✅ **SQL Injection Protection** - SQLAlchemy ORM
+✅ **CORS Configurado** - Solo dominios permitidos
 
 ## Performance
 
@@ -312,6 +312,6 @@ const { data } = useDashboardKPIs({ periodo: 'month' })
 
 ---
 
-**Implementado por**: Amp AI Agent  
-**Fecha**: 27 de enero de 2025  
+**Implementado por**: Amp AI Agent
+**Fecha**: 27 de enero de 2025
 **Estado**: ✅ Completado y listo para producción

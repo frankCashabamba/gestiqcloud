@@ -10,7 +10,7 @@ def test_cookie_helpers_set_secure_attributes(monkeypatch):
     monkeypatch.setattr(settings, "COOKIE_SAMESITE", "none")
     monkeypatch.setattr(settings, "COOKIE_DOMAIN", ".example.com")
 
-    from app.core.auth_http import set_refresh_cookie, set_access_cookie
+    from app.core.auth_http import set_access_cookie, set_refresh_cookie
 
     resp = Response()
 

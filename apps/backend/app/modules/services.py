@@ -1,15 +1,16 @@
-﻿"""Module: services.py
+"""Module: services.py
 
 Service layer helpers for module assignment to companies and users.
 """
 
-from fastapi import HTTPException
 import uuid
-from sqlalchemy.orm import Session
-from sqlalchemy import text
 
-from app.models.core.modulo import EmpresaModulo, ModuloAsignado
+from fastapi import HTTPException
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.db.rls import set_tenant_guc
+from app.models.core.modulo import AssignedModule, CompanyModule
 from app.modules import crud, schemas
 
 
@@ -20,10 +21,10 @@ def asignar_modulo_a_empresa_si_no_existe(
     modulo_in: schemas.EmpresaModuloCreate,
 ):
     existente = (
-        db.query(EmpresaModulo)
+        db.query(CompanyModule)
         .filter_by(
             tenant_id=tenant_id,
-            modulo_id=modulo_in.modulo_id,
+            module_id=modulo_in.modulo_id,
         )
         .first()
     )
@@ -46,11 +47,11 @@ def asignar_modulo_a_usuario_si_empresa_lo_tiene(
 ):
     # Verifica que la empresa tenga contratado el módulo
     empresa_modulo = (
-        db.query(EmpresaModulo)
+        db.query(CompanyModule)
         .filter_by(
             tenant_id=tenant_id,
-            modulo_id=modulo_id,
-            activo=True,
+            module_id=modulo_id,
+            active=True,
         )
         .first()
     )
@@ -63,11 +64,11 @@ def asignar_modulo_a_usuario_si_empresa_lo_tiene(
 
     # Verifica que el usuario aún no tenga el módulo asignado
     existente = (
-        db.query(ModuloAsignado)
+        db.query(AssignedModule)
         .filter_by(
             tenant_id=tenant_id,
-            usuario_id=usuario_id,
-            modulo_id=modulo_id,
+            user_id=usuario_id,
+            module_id=modulo_id,
         )
         .first()
     )
@@ -118,28 +119,28 @@ def upsert_modulo_a_empresa(
     except Exception:
         pass
     existente = (
-        db.query(EmpresaModulo)
+        db.query(CompanyModule)
         .filter_by(
             tenant_id=tenant_uuid,
-            modulo_id=modulo_in.modulo_id,
+            module_id=modulo_in.modulo_id,
         )
         .first()
     )
 
     if existente:
         existente.active = modulo_in.active  # type: ignore[assignment]
-        existente.fecha_expiracion = modulo_in.fecha_expiracion  # type: ignore[assignment]
-        existente.plantilla_inicial = modulo_in.plantilla_inicial  # type: ignore[assignment]
+        existente.expiration_date = modulo_in.fecha_expiracion  # type: ignore[assignment]
+        existente.initial_template = modulo_in.plantilla_inicial  # type: ignore[assignment]
         db.commit()
         db.refresh(existente)
         asignacion = existente
     else:
-        asignacion = EmpresaModulo(
+        asignacion = CompanyModule(
             tenant_id=tenant_uuid,
-            modulo_id=modulo_in.modulo_id,
-            activo=modulo_in.active,
-            fecha_expiracion=modulo_in.fecha_expiracion,
-            plantilla_inicial=modulo_in.plantilla_inicial,
+            module_id=modulo_in.modulo_id,
+            active=modulo_in.active,
+            expiration_date=modulo_in.fecha_expiracion,
+            initial_template=modulo_in.plantilla_inicial,
         )
         db.add(asignacion)
         db.commit()
@@ -148,23 +149,23 @@ def upsert_modulo_a_empresa(
     # Asegura que las relaciones estén cargadas
     db.refresh(asignacion)
     _ = asignacion.tenant
-    _ = asignacion.modulo
+    _ = asignacion.module
 
     # Coalesce de slug profesional: preferir slug, luego nombre, luego tenant_id
     empresa_slug = (
         getattr(asignacion.tenant, "slug", None)
-        or getattr(asignacion.tenant, "nombre", None)
+        or getattr(asignacion.tenant, "name", None)
         or str(asignacion.tenant_id)
     )
 
     return schemas.EmpresaModuloOutAdmin(
         id=asignacion.id,  # type: ignore[arg-type]
         tenant_id=asignacion.tenant_id,  # type: ignore[arg-type]
-        modulo_id=asignacion.modulo_id,  # type: ignore[arg-type]
+        modulo_id=asignacion.module_id,  # type: ignore[arg-type]
         active=asignacion.active,  # type: ignore[arg-type]
-        fecha_activacion=asignacion.fecha_activacion,  # type: ignore[arg-type]
-        fecha_expiracion=asignacion.fecha_expiracion,  # type: ignore[arg-type]
-        plantilla_inicial=asignacion.plantilla_inicial,  # type: ignore[arg-type]
+        fecha_activacion=asignacion.activation_date,  # type: ignore[arg-type]
+        fecha_expiracion=asignacion.expiration_date,  # type: ignore[arg-type]
+        plantilla_inicial=asignacion.initial_template,  # type: ignore[arg-type]
         empresa_slug=empresa_slug,
-        modulo=schemas.ModuloOut.from_orm(asignacion.modulo),
+        modulo=schemas.ModuloOut.from_orm(asignacion.module),
     )

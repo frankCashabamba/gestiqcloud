@@ -3,7 +3,6 @@
 Auto-generated module docstring."""
 
 from datetime import datetime
-from typing import Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String
@@ -13,10 +12,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.config.database import Base
 
 
-class ConfiguracionEmpresa(Base):
-    """Class ConfiguracionEmpresa - auto-generated docstring."""
+class CompanySettings(Base):
+    """Class CompanySettings - auto-generated docstring."""
 
-    __tablename__ = "core_configuracionempresa"
+    __tablename__ = "company_settings"
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -28,44 +27,44 @@ class ConfiguracionEmpresa(Base):
         nullable=True,
     )
 
-    idioma_predeterminado: Mapped[str] = mapped_column(String(10), default="es")
-    zona_horaria: Mapped[str] = mapped_column(String(50), default="UTC")
-    moneda: Mapped[str] = mapped_column(String(10), default="USD")
+    default_language: Mapped[str] = mapped_column(String(10), default="es")
+    timezone: Mapped[str] = mapped_column(String(50), default="UTC")
+    currency: Mapped[str] = mapped_column(String(10), default="USD")
 
-    logo_empresa: Mapped[Optional[str]] = mapped_column(String(100))
-    color_secundario: Mapped[str] = mapped_column(String(7), default="#6c757d")
-    color_primario: Mapped[str] = mapped_column(String(7), default="#4f46e5")
+    company_logo: Mapped[str | None] = mapped_column(String(100))
+    secondary_color: Mapped[str] = mapped_column(String(7), default="#6c757d")
+    primary_color: Mapped[str] = mapped_column(String(7), default="#4f46e5")
 
-    permitir_roles_personalizados: Mapped[bool] = mapped_column(Boolean, default=True)
-    limite_usuarios: Mapped[int] = mapped_column(Integer, default=10)
+    allow_custom_roles: Mapped[bool] = mapped_column(Boolean, default=True)
+    user_limit: Mapped[int] = mapped_column(Integer, default=10)
 
-    dias_laborales: Mapped[List[str]] = mapped_column(
+    working_days: Mapped[list[str]] = mapped_column(
         JSON, default=lambda: ["lunes", "martes", "miércoles", "jueves", "viernes"]
     )
-    horario_atencion: Mapped[Dict[str, str]] = mapped_column(
-        JSON, default=lambda: {"inicio": "09:00", "fin": "18:00"}
+    business_hours: Mapped[dict[str, str]] = mapped_column(
+        JSON, default=lambda: {"start": "09:00", "end": "18:00"}
     )
-    tipo_operacion: Mapped[str] = mapped_column(String, default="ventas")
+    operation_type: Mapped[str] = mapped_column(String, default="ventas")
 
-    razon_social: Mapped[Optional[str]] = mapped_column(String)
-    rfc: Mapped[Optional[str]] = mapped_column(String)
-    regimen_fiscal: Mapped[Optional[str]] = mapped_column(String)
+    company_name: Mapped[str | None] = mapped_column(String)
+    tax_id: Mapped[str | None] = mapped_column(String)
+    tax_regime: Mapped[str | None] = mapped_column(String)
 
-    creado_en: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    actualizado_en: Mapped[datetime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
-    idioma_id: Mapped[Optional[int]] = mapped_column(ForeignKey("core_idioma.id"))
-    moneda_id: Mapped[Optional[int]] = mapped_column(ForeignKey("core_moneda.id"))
+    language_id: Mapped[int | None] = mapped_column(ForeignKey("languages.id"))
+    currency_id: Mapped[int | None] = mapped_column(ForeignKey("currencies.id"))
 
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
 
 
-class ConfiguracionInventarioEmpresa(Base):
-    """Class ConfiguracionInventarioEmpresa - auto-generated docstring."""
+class InventorySettings(Base):
+    """Class InventorySettings - auto-generated docstring."""
 
-    __tablename__ = "core_configuracioninventarioempresa"
+    __tablename__ = "inventory_settings"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     tenant_id: Mapped[UUID | None] = mapped_column(
@@ -76,12 +75,16 @@ class ConfiguracionInventarioEmpresa(Base):
         nullable=True,
     )
 
-    control_stock_activo: Mapped[bool] = mapped_column(Boolean, default=True)
-    notificar_bajo_stock: Mapped[bool] = mapped_column(Boolean, default=True)
-    stock_minimo_global: Mapped[Optional[int]] = mapped_column(Integer)
+    stock_control_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    low_stock_notification_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    global_minimum_stock: Mapped[int | None] = mapped_column(Integer)
 
-    um_predeterminadas: Mapped[Optional[dict]] = mapped_column(JSON)
-    categorias_personalizadas: Mapped[bool] = mapped_column(Boolean, default=False)
-    campos_extra_producto: Mapped[Optional[dict]] = mapped_column(JSON)
+    default_units: Mapped[dict | None] = mapped_column(JSON)
+    custom_categories_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    extra_product_fields: Mapped[dict | None] = mapped_column(JSON)
 
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
+
+
+# Keep old names for backward compatibility during migration
+EmpresaSettings = CompanySettings

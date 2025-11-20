@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
-from uuid import UUID
 from datetime import datetime
+from uuid import UUID
 
 try:
     from celery import Task  # type: ignore
@@ -73,9 +73,7 @@ def _classify_document(ocr_result: dict) -> str:
     return max(scores, key=scores.get)
 
 
-def _impl(
-    item_id: str, tenant_id: str, batch_id: str, task_id: str | None = None
-) -> dict:
+def _impl(item_id: str, tenant_id: str, batch_id: str, task_id: str | None = None) -> dict:
     """
     Clasifica tipo de documento.
 
@@ -154,9 +152,8 @@ if _celery_available and celery_app is not None:  # pragma: no cover
 
     @celery_app.task(base=ClassifyTask, bind=True, name="imports.classify")
     def classify_item(self, item_id: str, tenant_id: str, batch_id: str) -> dict:
-        return _impl(
-            item_id, tenant_id, batch_id, task_id=getattr(self.request, "id", None)
-        )
+        return _impl(item_id, tenant_id, batch_id, task_id=getattr(self.request, "id", None))
+
 else:
 
     def classify_item(item_id: str, tenant_id: str, batch_id: str) -> dict:  # type: ignore

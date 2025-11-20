@@ -2,7 +2,7 @@
 -- BASELINE MODERNA - GestiQCloud v2.0
 -- Schema 100% Inglés - Fresh Start Nov 2025
 -- =====================================================
--- 
+--
 -- Esta es la migración baseline consolidada que crea
 -- el esquema completo moderno desde cero.
 --
@@ -150,20 +150,28 @@ CREATE TABLE IF NOT EXISTS stock_moves (
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     warehouse_id UUID NOT NULL REFERENCES warehouses(id) ON DELETE CASCADE,
-    qty NUMERIC(12, 3) NOT NULL,
-    kind VARCHAR(20) NOT NULL,
+    qty NUMERIC(14, 3) NOT NULL,
+    kind VARCHAR(50) NOT NULL,
+    tentative BOOLEAN DEFAULT FALSE,
+    posted BOOLEAN DEFAULT FALSE,
     ref_type VARCHAR(50),
-    ref_id UUID,
-    notes TEXT,
-    posted_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    ref_id VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_stock_moves_tenant ON stock_moves(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_stock_moves_product ON stock_moves(product_id);
 CREATE INDEX IF NOT EXISTS idx_stock_moves_warehouse ON stock_moves(warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_stock_moves_product ON stock_moves(product_id);
 CREATE INDEX IF NOT EXISTS idx_stock_moves_kind ON stock_moves(kind);
-CREATE INDEX IF NOT EXISTS idx_stock_moves_posted_at ON stock_moves(posted_at);
+CREATE INDEX IF NOT EXISTS idx_stock_moves_tentative ON stock_moves(tentative);
+CREATE INDEX IF NOT EXISTS idx_stock_moves_posted ON stock_moves(posted);
+
+-- RLS para stock_moves
+ALTER TABLE stock_moves ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_stock_moves ON stock_moves;
+CREATE POLICY tenant_isolation_stock_moves ON stock_moves
+    USING (tenant_id::text = current_setting('app.tenant_id', TRUE));
 
 -- =====================================================
 -- ALERTS: Stock Alerts

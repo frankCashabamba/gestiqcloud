@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from fastapi import Depends, Request
-from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 from sqlalchemy.sql import literal_column
 
 from app.config.database import get_db
-
 
 __all__ = [
     "ensure_rls",
@@ -78,8 +77,16 @@ def ensure_rls(
                 logging.warning(f"Error converting tenant_id to tenant_id: {e}")
 
         # Usa SET LOCAL para scope de transacción/request
-        db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(t_id)})
-        db.execute(text("SET LOCAL app.user_id = :uid"), {"uid": str(u_id)})
+        # Pero solo en PostgreSQL (SQLite no lo soporta)
+        try:
+            from app.config.database import IS_SQLITE
+
+            if not IS_SQLITE:
+                db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(t_id)})
+                db.execute(text("SET LOCAL app.user_id = :uid"), {"uid": str(u_id)})
+        except Exception:
+            # Si la BD no es PG, skip SET LOCAL
+            pass
 
         # Expón tenant_id en session.info para hooks/utilidades ORM
         try:
@@ -105,9 +112,7 @@ def tenant_id_sql_expr():
         db.scalar(select(tenant_id_sql_expr()))
         stmt = select(Model).where(Model.tenant_id == tenant_id_sql_expr())
     """
-    return literal_column("current_setting('app.tenant_id', true)::uuid").label(
-        "tenant_id"
-    )
+    return literal_column("current_setting('app.tenant_id', true)::uuid").label("tenant_id")
 
 
 def tenant_id_sql_expr_text(param_name: str = "tid") -> str:
@@ -162,9 +167,7 @@ def set_tenant_guc(db: Session, tenant_id: str, persist: bool = False) -> None:
         pass
 
 
-def ensure_guc_from_request(
-    request: Request, db: Session, persist: bool = False
-) -> None:
+def ensure_guc_from_request(request: Request, db: Session, persist: bool = False) -> None:
     """Extrae tenant de la request y lo setea como GUC en esta sesión."""
     tid = tenant_id_from_request(request)
     if tid:

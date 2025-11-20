@@ -570,7 +570,6 @@ Documentación
 
 ---
 
-**Documento preparado**: Nov 11, 2025 - 14:30 UTC  
-**Método**: Análisis de código fuente real  
+**Documento preparado**: Nov 11, 2025 - 14:30 UTC
+**Método**: Análisis de código fuente real
 **Precisión**: ✅ Verificado contra fuentes
-

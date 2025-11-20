@@ -1,15 +1,71 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-from typing import Optional, Sequence
+from collections.abc import Sequence
+from dataclasses import dataclass
 
+from app.core.crud_base import CRUDBase
+from app.models.core.clients import Cliente as ClienteORM
 from app.modules.clients.application.ports import ClienteRepo
 from app.modules.clients.domain.entities import Cliente
-from app.models.core.clients import Cliente as ClienteORM
 from app.modules.shared.infrastructure.sqlalchemy_repo import SqlAlchemyRepo
-from app.core.crud_base import CRUDBase
 
 
-class ClienteCRUD(CRUDBase[ClienteORM, "ClienteCreateDTO", "ClienteUpdateDTO"]):
+@dataclass
+class ClienteCreateDTO:
+    name: str
+    email: str | None = None
+    tax_id: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    city: str | None = None
+    state: str | None = None
+    country: str | None = None
+    postal_code: str | None = None
+    tenant_id: int | None = None
+
+    def model_dump(self) -> dict:
+        return {
+            "name": self.name,
+            "email": self.email,
+            "tax_id": self.tax_id,
+            "phone": self.phone,
+            "address": self.address,
+            "city": self.city,
+            "state": self.state,
+            "country": self.country,
+            "postal_code": self.postal_code,
+            "tenant_id": self.tenant_id,
+        }
+
+
+@dataclass
+class ClienteUpdateDTO:
+    name: str | None = None
+    email: str | None = None
+    tax_id: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    city: str | None = None
+    state: str | None = None
+    country: str | None = None
+    postal_code: str | None = None
+
+    def model_dump(self, exclude_unset: bool = False) -> dict:
+        d = {
+            "name": self.name,
+            "email": self.email,
+            "tax_id": self.tax_id,
+            "phone": self.phone,
+            "address": self.address,
+            "city": self.city,
+            "state": self.state,
+            "country": self.country,
+            "postal_code": self.postal_code,
+        }
+        return {k: v for k, v in d.items() if not exclude_unset or v is not None}
+
+
+class ClienteCRUD(CRUDBase[ClienteORM, ClienteCreateDTO, ClienteUpdateDTO]):
     pass
 
 
@@ -29,7 +85,7 @@ class SqlAlchemyClienteRepo(SqlAlchemyRepo, ClienteRepo):
             tenant_id=m.tenant_id,
         )
 
-    def get(self, id: int) -> Optional[Cliente]:
+    def get(self, id: int) -> Cliente | None:
         m = self.db.query(ClienteORM).filter(ClienteORM.id == id).first()
         return self._to_entity(m) if m else None
 
@@ -43,34 +99,18 @@ class SqlAlchemyClienteRepo(SqlAlchemyRepo, ClienteRepo):
         return [self._to_entity(m) for m in ms]
 
     def create(self, c: Cliente) -> Cliente:
-        class ClienteCreateDTO:
-            def __init__(self, **kw):
-                self.name = kw.get("nombre")
-                self.identificacion = kw.get("identificacion")
-                self.email = kw.get("email")
-                self.phone = kw.get("telefono")
-                self.address = kw.get("direccion")
-                self.localidad = kw.get("localidad")
-                self.state = kw.get("provincia")
-                self.pais = kw.get("pais")
-                self.codigo_postal = kw.get("codigo_postal")
-                self.tenant_id = kw.get("tenant_id")
-
-            def model_dump(self):
-                return {
-                    "name": self.name,
-                    "tax_id": self.identificacion,
-                    "email": self.email,
-                    "phone": self.phone,
-                    "address": self.address,
-                    "city": self.localidad,
-                    "state": self.state,
-                    "country": self.pais,
-                    "postal_code": self.codigo_postal,
-                    "tenant_id": self.tenant_id,
-                }
-
-        dto = ClienteCreateDTO(**c.__dict__).model_dump()
+        dto = ClienteCreateDTO(
+            name=c.nombre,
+            email=c.email,
+            tax_id=c.identificacion,
+            phone=c.telefono,
+            address=c.direccion,
+            city=c.localidad,
+            state=c.provincia,
+            country=c.pais,
+            postal_code=c.codigo_postal,
+            tenant_id=c.tenant_id,
+        )
         m = ClienteCRUD(ClienteORM).create(self.db, dto)
         return self._to_entity(m)
 
@@ -78,35 +118,17 @@ class SqlAlchemyClienteRepo(SqlAlchemyRepo, ClienteRepo):
         if c.id is None:
             raise ValueError("id requerido para update")
 
-        class ClienteUpdateDTO:
-            def __init__(self, **kw):
-                self.name = kw.get("nombre")
-                self.identificacion = kw.get("identificacion")
-                self.email = kw.get("email")
-                self.phone = kw.get("telefono")
-                self.address = kw.get("direccion")
-                self.localidad = kw.get("localidad")
-                self.state = kw.get("provincia")
-                self.pais = kw.get("pais")
-                self.codigo_postal = kw.get("codigo_postal")
-
-            def model_dump(self, exclude_unset: bool = False):
-                d = {
-                    "name": self.name,
-                    "tax_id": self.identificacion,
-                    "email": self.email,
-                    "phone": self.phone,
-                    "address": self.address,
-                    "city": self.localidad,
-                    "state": self.state,
-                    "country": self.pais,
-                    "postal_code": self.codigo_postal,
-                }
-                return {
-                    k: v for k, v in d.items() if not exclude_unset or v is not None
-                }
-
-        dto = ClienteUpdateDTO(**c.__dict__).model_dump(exclude_unset=True)
+        dto = ClienteUpdateDTO(
+            name=c.nombre,
+            email=c.email,
+            tax_id=c.identificacion,
+            phone=c.telefono,
+            address=c.direccion,
+            city=c.localidad,
+            state=c.provincia,
+            country=c.pais,
+            postal_code=c.codigo_postal,
+        )
         m = ClienteCRUD(ClienteORM).update(self.db, c.id, dto)
         if not m:
             raise ValueError("cliente no existe")

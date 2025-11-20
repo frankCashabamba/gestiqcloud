@@ -1,6 +1,14 @@
 # Auto-generado: registra todos los modelos importándolos
 
 # Core models
+# Sistema IA + Incidencias + Alertas
+from app.models.ai import Incident, NotificationChannel, NotificationLog, StockAlert
+from app.models.auth.refresh_family import RefreshFamily
+
+# Auth & Security
+from app.models.auth.useradmis import SuperUser
+from app.models.core.auditoria_importacion import ImportAudit
+from app.models.core.clients import Client, Cliente
 from app.models.core.facturacion import (
     BankAccount,
     BankTransaction,
@@ -11,69 +19,66 @@ from app.models.core.facturacion import (
     MovimientoTipo,
     Payment,
 )
-from app.models.core.invoiceLine import LineaFactura, LineaPanaderia, LineaTaller
-from app.models.core.modulo import EmpresaModulo, Modulo, ModuloAsignado
-from app.models.core.products import Product
-from app.models.recipes import Recipe, RecipeIngredient
+from app.models.core.invoiceLine import BakeryLine, InvoiceLine, LineaFactura, WorkshopLine
+from app.models.core.modulo import AssignedModule, CompanyModule, Module
 from app.models.core.product_category import ProductCategory
-from app.models.core.auditoria_importacion import AuditoriaImportacion
-from app.models.core.clients import Cliente
+from app.models.core.products import Product
 from app.models.core.settings import TenantSettings
-
-# Empresa (legacy)
-from app.models.empresa.rolempresas import RolEmpresa
-from app.models.empresa.settings import (
-    ConfiguracionEmpresa,
-    ConfiguracionInventarioEmpresa,
-)
-from app.models.empresa.usuario_rolempresa import UsuarioRolempresa
-from app.models.empresa.usuarioempresa import UsuarioEmpresa
 from app.models.empresa.empresa import (
-    CategoriaEmpresa,
-    DiaSemana,
-    HorarioAtencion,
-    Idioma,
-    Moneda,
-    Pais,
-    RefTimezone,
+    BusinessCategory,
+    BusinessHours,
+    BusinessType,
+    CompanyCategory,
+    Country,
+    Currency,
+    GlobalActionPermission,
+    Language,
     RefLocale,
-    PerfilUsuario,
-    PermisoAccionGlobal,
+    RefTimezone,
     RolBase,
     SectorPlantilla,
-    TipoEmpresa,
-    TipoNegocio,
+    UserProfile,
+    Weekday,
 )
 
-# Auth & Security
-from app.models.auth.useradmis import SuperUser
-from app.models.auth.refresh_family import RefreshFamily
-from app.models.security.auth_audit import AuthAudit
-from app.models.tenant import Tenant
-
-# Nuevos módulos profesionales
-from app.models.sales import Venta
-from app.models.suppliers import Proveedor, ProveedorContacto, ProveedorDireccion
-from app.models.purchases import Compra, CompraLinea
-from app.models.expenses import Gasto
-from app.models.finance import CajaMovimiento, CierreCaja, BancoMovimiento
+# Empresa (legacy)
+from app.models.empresa.rolempresas import CompanyRole
+from app.models.empresa.settings import CompanySettings, InventorySettings
+from app.models.empresa.usuario_rolempresa import CompanyUserRole
+from app.models.empresa.usuarioempresa import CompanyUser, UsuarioEmpresa
+from app.models.expenses import Expense, Gasto
+from app.models.finance import BancoMovimiento, BankMovement, CajaMovimiento, CierreCaja
 from app.models.hr import Empleado, Vacacion
-from app.models.pos import (
-    POSRegister,
-    POSShift,
-    POSReceipt,
-    POSReceiptLine,
-    POSPayment,
-    StoreCredit,
-    StoreCreditEvent,
-    DocSeries,
-)
-
-# Sistema IA + Incidencias + Alertas
-from app.models.ai import Incident, StockAlert, NotificationChannel, NotificationLog
+from app.models.hr.nomina import Payroll, PayrollConcept, PayrollTemplate
 
 # Imports system
 from app.models.imports import ImportColumnMapping
+from app.models.pos import (
+    DocSeries,
+    POSPayment,
+    POSReceipt,
+    POSReceiptLine,
+    POSRegister,
+    POSShift,
+    StoreCredit,
+    StoreCreditEvent,
+)
+
+# Nuevos módulos profesionales
+from app.models.production import ProductionOrder, ProductionOrderLine
+from app.models.purchases import Compra, CompraLinea, Purchase, PurchaseLine
+from app.models.recipes import Recipe, RecipeIngredient
+from app.models.sales import Sale, Venta
+from app.models.security.auth_audit import AuthAudit
+from app.models.suppliers import (
+    Proveedor,
+    ProveedorContacto,
+    ProveedorDireccion,
+    Supplier,
+    SupplierAddress,
+    SupplierContact,
+)
+from app.models.tenant import Tenant
 
 __all__ = [
     # Core Facturación
@@ -86,46 +91,62 @@ __all__ = [
     "MovimientoTipo",
     "Payment",
     # Core Invoice Lines
+    "InvoiceLine",
     "LineaFactura",
-    "LineaPanaderia",
-    "LineaTaller",
+    "BakeryLine",
+    "WorkshopLine",
     # Core Models
-    "EmpresaModulo",
-    "Modulo",
-    "ModuloAsignado",
+    "Module",
+    "CompanyModule",
+    "AssignedModule",
     "Product",
     "Recipe",
     "RecipeIngredient",
     "ProductCategory",
-    "AuditoriaImportacion",
+    "ImportAudit",
+    "Client",
     "Cliente",
     "TenantSettings",
     # Empresa
-    "RolEmpresa",
-    "ConfiguracionEmpresa",
-    "ConfiguracionInventarioEmpresa",
-    "UsuarioRolempresa",
+    "CompanyRole",
+    "CompanySettings",
+    "InventorySettings",
+    "CompanyUserRole",
+    "CompanyUser",
     "UsuarioEmpresa",
-    "CategoriaEmpresa",
-    "DiaSemana",
-    "HorarioAtencion",
-    "Idioma",
-    "Moneda",
-    "Pais",
+    "CompanyCategory",
+    "Weekday",
+    "GlobalActionPermission",
+    "BusinessHours",
+    "Language",
+    "Currency",
+    "Country",
     "RefTimezone",
     "RefLocale",
-    "PerfilUsuario",
-    "PermisoAccionGlobal",
     "RolBase",
     "SectorPlantilla",
-    "TipoEmpresa",
-    "TipoNegocio",
+    "BusinessType",
+    "BusinessCategory",
+    "UserProfile",
     # Auth & Security
     "SuperUser",
     "RefreshFamily",
     "AuthAudit",
     "Tenant",
     # Módulos profesionales
+    "Sale",
+    "Supplier",
+    "SupplierContact",
+    "SupplierAddress",
+    "Purchase",
+    "PurchaseLine",
+    "Expense",
+    "CajaMovimiento",
+    "CierreCaja",
+    "BankMovement",
+    "Empleado",
+    "Vacacion",
+    # Backward compatibility aliases
     "Venta",
     "Proveedor",
     "ProveedorContacto",
@@ -133,11 +154,7 @@ __all__ = [
     "Compra",
     "CompraLinea",
     "Gasto",
-    "CajaMovimiento",
-    "CierreCaja",
     "BancoMovimiento",
-    "Empleado",
-    "Vacacion",
     # POS
     "POSRegister",
     "POSShift",
@@ -154,4 +171,11 @@ __all__ = [
     "NotificationLog",
     # Imports
     "ImportColumnMapping",
+    # Payroll
+    "Payroll",
+    "PayrollConcept",
+    "PayrollTemplate",
+    # Production
+    "ProductionOrder",
+    "ProductionOrderLine",
 ]

@@ -2,8 +2,6 @@
 
 Auto-generated module docstring."""
 
-from typing import List
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -15,7 +13,7 @@ from app.schemas.configuracion import CategoriaEmpresa, CategoriaEmpresaCreate
 router = APIRouter(prefix="/api/v1/categories", tags=["categorias"])
 
 
-@router.get("/", response_model=List[CategoriaEmpresa])
+@router.get("/", response_model=list[CategoriaEmpresa])
 def list_categorias(db: Session = Depends(get_db)):
     """Function list_categorias - auto-generated docstring."""
     return db.query(CategoriaModel).all()
@@ -33,17 +31,13 @@ def create_categoria(data: CategoriaEmpresaCreate, db: Session = Depends(get_db)
 
 
 @router.put("/{id}", response_model=CategoriaEmpresa)
-def update_categoria(
-    id: int, data: CategoriaEmpresaCreate, db: Session = Depends(get_db)
-):
+def update_categoria(id: int, data: CategoriaEmpresaCreate, db: Session = Depends(get_db)):
     """Function update_categoria - auto-generated docstring."""
     cat = db.get(CategoriaModel, id)  # evita query().get() (legacy)
     if not cat:
         raise HTTPException(status_code=404)
 
-    updates = data.model_dump(
-        exclude_unset=True, exclude_none=True
-    )  # solo campos provistos
+    updates = data.model_dump(exclude_unset=True, exclude_none=True)  # solo campos provistos
     for k, v in updates.items():
         setattr(cat, k, v)
 

@@ -15,9 +15,7 @@ from app.settings.schemas.configuracion_inventario import (
 
 def get_by_empresa(db: Session, tenant_id: int):
     """Function get_by_empresa - auto-generated docstring."""
-    return (
-        db.query(ConfiguracionInventarioEmpresa).filter_by(tenant_id=tenant_id).first()
-    )
+    return db.query(ConfiguracionInventarioEmpresa).filter_by(tenant_id=tenant_id).first()
 
 
 def create(db: Session, obj_in: ConfiguracionInventarioCreate):

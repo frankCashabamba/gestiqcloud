@@ -56,15 +56,15 @@ export async function procesarDocumento(file: File, authToken?: string): Promise
 
 export async function pollOcrJob(jobId: string, authToken?: string): Promise<ProcesarDocumentoResult> {
     const status = await getOcrJob(jobId, authToken)
-    
+
     if (status.status === 'failed') {
         throw new Error(status.error || 'El procesamiento del documento falló.')
     }
-    
+
     if (status.status === 'done' && status.result) {
         return { status: 'done', jobId, payload: status.result }
     }
-    
+
     return { status: 'pending', jobId }
 }
 

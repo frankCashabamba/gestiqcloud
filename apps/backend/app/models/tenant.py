@@ -7,12 +7,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Optional, List
 
-from sqlalchemy import Boolean, ForeignKey, String, Text, JSON
+from sqlalchemy import JSON, Boolean, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
 
@@ -34,7 +33,7 @@ class Tenant(Base):
     # BASIC INFORMATION
     # ============================================================
     name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    slug: Mapped[Optional[str]] = mapped_column(String(100), unique=True, index=True)
+    slug: Mapped[str | None] = mapped_column(String(100), unique=True, index=True)
 
     @property
     def nombre(self) -> str:
@@ -48,48 +47,40 @@ class Tenant(Base):
     # ============================================================
     # TAX & CONTACT DATA
     # ============================================================
-    tax_id: Mapped[Optional[str]] = mapped_column(
+    tax_id: Mapped[str | None] = mapped_column(
         String(30), index=True, comment="Tax ID / RUC / NIF / CIF"
     )
-    phone: Mapped[Optional[str]] = mapped_column(String(20))
-    address: Mapped[Optional[str]] = mapped_column(Text)
-    city: Mapped[Optional[str]] = mapped_column(String(100))
-    state: Mapped[Optional[str]] = mapped_column(String(100))
-    postal_code: Mapped[Optional[str]] = mapped_column(String(20))
-    country: Mapped[Optional[str]] = mapped_column(String(100))
-    website: Mapped[Optional[str]] = mapped_column(String(255))
+    phone: Mapped[str | None] = mapped_column(String(20))
+    address: Mapped[str | None] = mapped_column(Text)
+    city: Mapped[str | None] = mapped_column(String(100))
+    state: Mapped[str | None] = mapped_column(String(100))
+    postal_code: Mapped[str | None] = mapped_column(String(20))
+    country: Mapped[str | None] = mapped_column(String(100))
+    website: Mapped[str | None] = mapped_column(String(255))
 
     # ============================================================
     # MULTI-TENANT CONFIG
     # ============================================================
-    base_currency: Mapped[str] = mapped_column(
-        String(3), default="EUR", comment="ISO 4217"
-    )
-    country_code: Mapped[str] = mapped_column(
-        String(2), default="ES", comment="ISO 3166-1 alpha-2"
-    )
+    base_currency: Mapped[str] = mapped_column(String(3), default="EUR", comment="ISO 4217")
+    country_code: Mapped[str] = mapped_column(String(2), default="ES", comment="ISO 3166-1 alpha-2")
 
     # ============================================================
     # BRANDING & CUSTOMIZATION
     # ============================================================
-    logo: Mapped[Optional[str]] = mapped_column(
-        String(500), comment="Logo URL or path"
-    )
+    logo: Mapped[str | None] = mapped_column(String(500), comment="Logo URL or path")
     primary_color: Mapped[str] = mapped_column(String(7), default="#4f46e5")
     default_template: Mapped[str] = mapped_column(String(100), default="client")
 
     # ============================================================
     # SECTOR & TEMPLATE
     # ============================================================
-    sector_id: Mapped[Optional[int]] = mapped_column(nullable=True)
-    sector_template_name: Mapped[Optional[str]] = mapped_column(
-        String(255), nullable=True
-    )
+    sector_id: Mapped[int | None] = mapped_column(nullable=True)
+    sector_template_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # ============================================================
     # JSON CONFIGURATION
     # ============================================================
-    config_json: Mapped[Optional[dict]] = mapped_column(
+    config_json: Mapped[dict | None] = mapped_column(
         MutableDict.as_mutable(JSON), nullable=True, default=dict
     )
 
@@ -97,18 +88,16 @@ class Tenant(Base):
     # STATUS & AUDIT
     # ============================================================
     active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
-    deactivation_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        default=datetime.utcnow, nullable=False
-    )
-    updated_at: Mapped[Optional[datetime]] = mapped_column(
+    deactivation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime | None] = mapped_column(
         default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
     # ============================================================
     # RELATIONSHIPS
     # ============================================================
-    incidents: Mapped[List["Incident"]] = relationship(  # noqa: F821
+    incidents: Mapped[list[Incident]] = relationship(  # noqa: F821
         "Incident", back_populates="tenant", cascade="all, delete-orphan"
     )
 

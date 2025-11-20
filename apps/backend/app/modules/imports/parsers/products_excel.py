@@ -1,11 +1,12 @@
 """Excel parser for products with automatic category detection."""
 
-from typing import Dict, Any, Optional
-import openpyxl
 from datetime import datetime
+from typing import Any
+
+import openpyxl
 
 
-def parse_products_excel(file_path: str, sheet_name: str = None) -> Dict[str, Any]:
+def parse_products_excel(file_path: str, sheet_name: str = None) -> dict[str, Any]:
     """Parse products Excel with automatic category detection.
 
     Detects categories as rows with:
@@ -55,21 +56,29 @@ def parse_products_excel(file_path: str, sheet_name: str = None) -> Dict[str, An
         if any(kw in col_lower for kw in ["producto", "nombre", "name", "item", "articulo"]):
             if "nombre" not in col_map:  # Evitar sobreescribir
                 col_map["nombre"] = idx
-        
+
         # Cantidad - detectar múltiples variantes (excluir "sobrante" y "venta diaria")
         elif any(kw in col_lower for kw in ["cantidad", "qty", "stock", "existencia", "unidades"]):
             # No mapear si es dato operacional
-            if "sobrante" not in col_lower and "venta" not in col_lower and "diaria" not in col_lower:
+            if (
+                "sobrante" not in col_lower
+                and "venta" not in col_lower
+                and "diaria" not in col_lower
+            ):
                 if "cantidad" not in col_map:
                     col_map["cantidad"] = idx
-        
+
         # Precio - más flexible (no requiere "unit")
-        elif any(kw in col_lower for kw in ["precio", "price", "pvp", "venta", "unitario", "valor"]):
+        elif any(
+            kw in col_lower for kw in ["precio", "price", "pvp", "venta", "unitario", "valor"]
+        ):
             if "precio" not in col_map:
                 col_map["precio"] = idx
-        
+
         # SKU/Código
-        elif any(kw in col_lower for kw in ["sku", "codigo", "código", "code", "referencia", "ref"]):
+        elif any(
+            kw in col_lower for kw in ["sku", "codigo", "código", "code", "referencia", "ref"]
+        ):
             if "sku" not in col_map:
                 col_map["sku"] = idx
 
@@ -106,7 +115,7 @@ def parse_products_excel(file_path: str, sheet_name: str = None) -> Dict[str, An
         # Also check for empty strings, not just None
         cantidad_empty = cantidad is None or (isinstance(cantidad, str) and not cantidad.strip())
         precio_empty = precio is None or (isinstance(precio, str) and not precio.strip())
-        
+
         if cantidad_empty and precio_empty:
             current_category = nombre_str.upper()  # Categorías en mayúsculas
             if current_category not in categories:
@@ -168,8 +177,8 @@ def parse_products_excel(file_path: str, sheet_name: str = None) -> Dict[str, An
 
 
 def normalize_product_row(
-    raw_row: Dict[str, Any], category_context: Optional[str] = None
-) -> Dict[str, Any]:
+    raw_row: dict[str, Any], category_context: str | None = None
+) -> dict[str, Any]:
     """Normalize a single product row for validation/promotion.
 
     Args:
@@ -180,18 +189,11 @@ def normalize_product_row(
         Normalized dict with standardized field names
     """
     # Ensure all aliases are present
-    nombre = (
-        raw_row.get("nombre") or raw_row.get("name") or raw_row.get("producto") or ""
-    )
+    nombre = raw_row.get("nombre") or raw_row.get("name") or raw_row.get("producto") or ""
     precio = raw_row.get("precio") or raw_row.get("price") or 0
-    cantidad = (
-        raw_row.get("cantidad") or raw_row.get("quantity") or raw_row.get("stock") or 0
-    )
+    cantidad = raw_row.get("cantidad") or raw_row.get("quantity") or raw_row.get("stock") or 0
     categoria = (
-        raw_row.get("categoria")
-        or raw_row.get("category")
-        or category_context
-        or "SIN_CATEGORIA"
+        raw_row.get("categoria") or raw_row.get("category") or category_context or "SIN_CATEGORIA"
     )
 
     normalized = {

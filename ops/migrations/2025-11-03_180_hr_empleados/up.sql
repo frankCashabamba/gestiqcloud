@@ -1,5 +1,6 @@
 -- Migration: 2025-11-03_180_hr_empleados
--- Description: Base tables for HR module (empleados + vacaciones)
+-- Description: Base tables for HR module (employees + vacations)
+-- Updated: 2025-11-17 - Spanish to English names
 
 SET row_security = off;
 
@@ -13,71 +14,71 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ============================================================================
--- Tabla: empleados
+-- Table: employees
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS empleados (
+CREATE TABLE IF NOT EXISTS employees (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    usuario_id UUID REFERENCES auth_user(id) ON DELETE SET NULL,
-    codigo VARCHAR(50),
-    nombre VARCHAR(255) NOT NULL,
-    apellidos VARCHAR(255),
-    documento VARCHAR(50),
-    fecha_nacimiento DATE,
-    fecha_alta DATE NOT NULL DEFAULT CURRENT_DATE,
-    fecha_baja DATE,
-    cargo VARCHAR(100),
-    departamento VARCHAR(100),
-    salario_base NUMERIC(12,2),
-    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    user_id UUID,
+    code VARCHAR(50),
+    first_name VARCHAR(255) NOT NULL,
+    last_name VARCHAR(255),
+    document_id VARCHAR(50),
+    birth_date DATE,
+    hire_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    termination_date DATE,
+    position VARCHAR(100),
+    department VARCHAR(100),
+    base_salary NUMERIC(12,2),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_empleados_tenant ON empleados(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_empleados_usuario ON empleados(usuario_id);
-CREATE INDEX IF NOT EXISTS idx_empleados_activo ON empleados(activo) WHERE activo = TRUE;
-CREATE INDEX IF NOT EXISTS idx_empleados_departamento ON empleados(departamento);
+CREATE INDEX IF NOT EXISTS idx_employees_tenant ON employees(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_employees_user ON employees(user_id);
+CREATE INDEX IF NOT EXISTS idx_employees_is_active ON employees(is_active) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_employees_department ON employees(department);
 
-COMMENT ON TABLE empleados IS 'Catálogo de empleados por tenant';
-COMMENT ON COLUMN empleados.salario_base IS 'Salario mensual base registrado para el empleado';
+COMMENT ON TABLE employees IS 'Employee records per tenant';
+COMMENT ON COLUMN employees.base_salary IS 'Monthly base salary for the employee';
 
-ALTER TABLE empleados ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation_empleados ON empleados;
-CREATE POLICY tenant_isolation_empleados ON empleados
+ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_employees ON employees;
+CREATE POLICY tenant_isolation_employees ON employees
     USING (tenant_id::text = current_setting('app.tenant_id', TRUE));
 
 -- ============================================================================
--- Tabla: vacaciones
+-- Table: vacations
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS vacaciones (
+CREATE TABLE IF NOT EXISTS vacations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    empleado_id UUID NOT NULL REFERENCES empleados(id) ON DELETE CASCADE,
-    fecha_inicio DATE NOT NULL,
-    fecha_fin DATE NOT NULL,
-    dias INTEGER NOT NULL CHECK (dias > 0),
-    estado VARCHAR(20) NOT NULL DEFAULT 'solicitada',
-    aprobado_por UUID,
-    notas TEXT,
+    employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    days INTEGER NOT NULL CHECK (days > 0),
+    status VARCHAR(20) NOT NULL DEFAULT 'requested',
+    approved_by UUID,
+    notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_vacaciones_tenant ON vacaciones(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_vacaciones_empleado ON vacaciones(empleado_id);
-CREATE INDEX IF NOT EXISTS idx_vacaciones_estado ON vacaciones(estado);
+CREATE INDEX IF NOT EXISTS idx_vacations_tenant ON vacations(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_vacations_employee ON vacations(employee_id);
+CREATE INDEX IF NOT EXISTS idx_vacations_status ON vacations(status);
 
-COMMENT ON TABLE vacaciones IS 'Solicitudes de vacaciones asociadas a empleados de un tenant';
+COMMENT ON TABLE vacations IS 'Vacation requests associated with employees';
 
-ALTER TABLE vacaciones ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation_vacaciones ON vacaciones;
-CREATE POLICY tenant_isolation_vacaciones ON vacaciones
+ALTER TABLE vacations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_vacations ON vacations;
+CREATE POLICY tenant_isolation_vacations ON vacations
     USING (
         EXISTS (
             SELECT 1
-            FROM empleados e
-            WHERE e.id = vacaciones.empleado_id
+            FROM employees e
+            WHERE e.id = vacations.employee_id
               AND e.tenant_id::text = current_setting('app.tenant_id', TRUE)
         )
     );
@@ -88,19 +89,19 @@ CREATE POLICY tenant_isolation_vacaciones ON vacaciones
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM pg_trigger WHERE tgname = 'empleados_updated_at'
+        SELECT 1 FROM pg_trigger WHERE tgname = 'employees_updated_at'
     ) THEN
-        CREATE TRIGGER empleados_updated_at
-            BEFORE UPDATE ON empleados
+        CREATE TRIGGER employees_updated_at
+            BEFORE UPDATE ON employees
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column();
     END IF;
 
     IF NOT EXISTS (
-        SELECT 1 FROM pg_trigger WHERE tgname = 'vacaciones_updated_at'
+        SELECT 1 FROM pg_trigger WHERE tgname = 'vacations_updated_at'
     ) THEN
-        CREATE TRIGGER vacaciones_updated_at
-            BEFORE UPDATE ON vacaciones
+        CREATE TRIGGER vacations_updated_at
+            BEFORE UPDATE ON vacations
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column();
     END IF;

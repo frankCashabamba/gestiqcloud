@@ -42,7 +42,7 @@ export default function PreviewPage() {
   const { token, profile } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  
+
   const [batches, setBatches] = useState<Batch[]>([])
   const [selectedBatch, setSelectedBatch] = useState<string | null>(null)
   const [productos, setProductos] = useState<ProductoPreview[]>([])
@@ -52,13 +52,13 @@ export default function PreviewPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [categoryAssignment, setCategoryAssignment] = useState<string>('')
   const [promoting, setPromoting] = useState(false)
   const [newCategory, setNewCategory] = useState<string>('')
   const [expandedErrors, setExpandedErrors] = useState<string | null>(null)
-  
+
   // Categorías detectadas en el lote (por frecuencia)
   const detectedCategories = useMemo(() => {
     const map = new Map<string, number>()
@@ -127,7 +127,7 @@ export default function PreviewPage() {
       if (!res.ok) throw new Error('Error al cargar lotes')
       const data = await res.json()
       setBatches(data.items || data)
-      
+
       // Auto-seleccionar si hay batch_id en URL o priorizar PARSING/PENDING/READY
       const urlBatchId = searchParams.get('batch_id')
       if (urlBatchId) {
@@ -283,7 +283,7 @@ export default function PreviewPage() {
     if (!selectedBatch) return
     const confirmed = confirm('¿Promover este lote a producción? Esto creará/actualizará productos en el sistema.')
     if (!confirmed) return
-    
+
     setPromoting(true)
     try {
       const res = await fetch(`/api/v1/imports/batches/${selectedBatch}/promote`, {
@@ -397,8 +397,8 @@ export default function PreviewPage() {
   const categorias = [...new Set(visibleProductos.map(p => p.categoria).filter(Boolean))]
 
   return (
-    <ImportadorLayout 
-      title="Vista previa" 
+    <ImportadorLayout
+      title="Vista previa"
       description="Valida, categoriza y promueve lotes de productos a producción."
     >
       {loading && <div className="text-slate-600">Cargando lotes...</div>}
@@ -531,8 +531,8 @@ export default function PreviewPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {categorias.map(cat => (
-                      <span 
-                        key={cat} 
+                      <span
+                        key={cat}
                         className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
                       >
                         {cat}
@@ -898,6 +898,3 @@ export default function PreviewPage() {
     </ImportadorLayout>
   )
 }
-
-
-

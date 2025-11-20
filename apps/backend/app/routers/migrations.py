@@ -1,15 +1,15 @@
 """Router para gestión de migraciones de esquema."""
 
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from pydantic import BaseModel
-from datetime import datetime
+import logging
 import os
 import subprocess
-import logging
+from datetime import datetime
 from pathlib import Path
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
@@ -24,17 +24,17 @@ class MigrationRecord(BaseModel):
 
     id: int
     version: str
-    name: Optional[str] = None
+    name: str | None = None
     status: str
-    mode: Optional[str] = None
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    executed_by: Optional[str] = None
-    execution_time_ms: Optional[int] = None
-    error_message: Optional[str] = None
-    applied_order: Optional[int] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    mode: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    executed_by: str | None = None
+    execution_time_ms: int | None = None
+    error_message: str | None = None
+    applied_order: int | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -45,11 +45,11 @@ class MigrationExecuteResponse(BaseModel):
 
     ok: bool
     message: str
-    job_id: Optional[str] = None
+    job_id: str | None = None
     migrations_applied: int = 0
 
 
-@router.get("/history", response_model=List[MigrationRecord])
+@router.get("/history", response_model=list[MigrationRecord])
 async def get_migration_history(
     limit: int = 50,
     db: Session = Depends(get_db),
@@ -62,8 +62,9 @@ async def get_migration_history(
     """
     result = (
         db.execute(
-            text("""
-            SELECT 
+            text(
+                """
+            SELECT
                 id, version, name, status, mode,
                 started_at, completed_at, executed_by,
                 execution_time_ms, error_message, applied_order,
@@ -71,7 +72,8 @@ async def get_migration_history(
             FROM schema_migrations
             ORDER BY applied_order DESC NULLS LAST, created_at DESC
             LIMIT :limit
-        """),
+        """
+            ),
             {"limit": limit},
         )
         .mappings()
@@ -93,13 +95,15 @@ async def get_migration_status(
     # Contar migraciones por estado
     stats = (
         db.execute(
-            text("""
-            SELECT 
+            text(
+                """
+            SELECT
                 status,
                 COUNT(*) as count
             FROM schema_migrations
             GROUP BY status
-        """)
+        """
+            )
         )
         .mappings()
         .all()
@@ -113,7 +117,7 @@ async def get_migration_status(
                 SELECT version, name, completed_at, status
                 FROM schema_migrations
                 WHERE status = 'success'
-                ORDER BY 
+                ORDER BY
                     applied_order DESC NULLS LAST,
                     COALESCE(completed_at, updated_at, created_at) DESC NULLS LAST
                 LIMIT 1
@@ -200,11 +204,7 @@ async def execute_migrations(
                     if root.exists():
                         # Insertar fila por carpeta que tenga up.sql si no existe
                         for d in sorted(
-                            [
-                                p
-                                for p in root.iterdir()
-                                if p.is_dir() and (p / "up.sql").exists()
-                            ],
+                            [p for p in root.iterdir() if p.is_dir() and (p / "up.sql").exists()],
                             key=lambda p: p.name,
                         ):
                             version = d.name
@@ -228,11 +228,13 @@ async def execute_migrations(
 
                 # Registrar inicio
                 db.execute(
-                    text("""
-                        UPDATE schema_migrations 
+                    text(
+                        """
+                        UPDATE schema_migrations
                         SET status = 'running', started_at = NOW(), executed_by = :user
                         WHERE status = 'pending'
-                    """),
+                    """
+                    ),
                     {"user": user_email},
                 )
                 db.commit()
@@ -253,26 +255,28 @@ async def execute_migrations(
                 if result.returncode == 0:
                     # Actualizar a success
                     db.execute(
-                        text("""
-                            UPDATE schema_migrations 
+                        text(
+                            """
+                            UPDATE schema_migrations
                             SET status = 'success', completed_at = NOW()
                             WHERE status = 'running'
-                        """)
+                        """
+                        )
                     )
                     db.commit()
-                    logger.info(
-                        f"✅ Migraciones ejecutadas exitosamente por {user_email}"
-                    )
+                    logger.info(f"✅ Migraciones ejecutadas exitosamente por {user_email}")
                 else:
                     # Registrar error
                     db.execute(
-                        text("""
-                            UPDATE schema_migrations 
-                            SET status = 'failed', 
+                        text(
+                            """
+                            UPDATE schema_migrations
+                            SET status = 'failed',
                                 completed_at = NOW(),
                                 error_message = :error
                             WHERE status = 'running'
-                        """),
+                        """
+                        ),
                         {"error": result.stderr[:1000]},  # Limitar tamaño
                     )
                     db.commit()
@@ -301,12 +305,14 @@ async def get_pending_migrations(
     """Obtiene las migraciones pendientes de ejecutar."""
     result = (
         db.execute(
-            text("""
+            text(
+                """
             SELECT version, name, created_at
             FROM schema_migrations
             WHERE status = 'pending'
             ORDER BY version
-        """)
+        """
+            )
         )
         .mappings()
         .all()
@@ -381,10 +387,6 @@ async def mark_migration_status(
         db.commit()
     except Exception as e:
         db.rollback()
-        raise HTTPException(
-            status_code=500, detail=f"No se pudo marcar la migración: {e}"
-        )
+        raise HTTPException(status_code=500, detail=f"No se pudo marcar la migración: {e}")
 
-    return MigrationMarkResponse(
-        ok=True, version=version, status=st, message="Estado actualizado"
-    )
+    return MigrationMarkResponse(ok=True, version=version, status=st, message="Estado actualizado")

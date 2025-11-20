@@ -16,7 +16,7 @@ describe('ClassificationCard', () => {
         enhancedByAI={false}
       />
     )
-    
+
     expect(container.firstChild).toBeNull()
   })
 
@@ -29,7 +29,7 @@ describe('ClassificationCard', () => {
         enhancedByAI={true}
       />
     )
-    
+
     expect(screen.getByText(/Clasificación Detectada/)).toBeInTheDocument()
     expect(screen.getByText('csv_products')).toBeInTheDocument()
     expect(screen.getByText('95%')).toBeInTheDocument()
@@ -45,7 +45,7 @@ describe('ClassificationCard', () => {
         enhancedByAI={false}
       />
     )
-    
+
     expect(screen.getByText('72%')).toBeInTheDocument()
     expect(screen.getByText('Media')).toBeInTheDocument()
   })
@@ -59,7 +59,7 @@ describe('ClassificationCard', () => {
         enhancedByAI={true}
       />
     )
-    
+
     expect(screen.getByText('45%')).toBeInTheDocument()
     expect(screen.getByText('Baja')).toBeInTheDocument()
   })
@@ -73,7 +73,7 @@ describe('ClassificationCard', () => {
         enhancedByAI={true}
       />
     )
-    
+
     expect(screen.getByText('openai')).toBeInTheDocument()
   })
 
@@ -86,7 +86,7 @@ describe('ClassificationCard', () => {
         enhancedByAI={false}
       />
     )
-    
+
     expect(screen.getByText('Heurística')).toBeInTheDocument()
   })
 
@@ -100,7 +100,7 @@ describe('ClassificationCard', () => {
         parserOverride="xlsx_expenses"
       />
     )
-    
+
     expect(screen.getByText(/OVERRIDE MANUAL/)).toBeInTheDocument()
     expect(screen.getByText('csv_products')).toBeInTheDocument()
     expect(screen.getByText('xlsx_expenses')).toBeInTheDocument()
@@ -115,7 +115,7 @@ describe('ClassificationCard', () => {
         enhancedByAI={true}
       />
     )
-    
+
     // Parser badge
     expect(screen.getByText('📄')).toBeInTheDocument()
     // Confidence badge
@@ -134,7 +134,7 @@ describe('ClassificationCard', () => {
         parserOverride="xlsx_expenses"
       />
     )
-    
+
     expect(
       screen.getByText(/Se usará el parser seleccionado manualmente/)
     ).toBeInTheDocument()
@@ -149,7 +149,7 @@ describe('ClassificationCard', () => {
         enhancedByAI={false}
       />
     )
-    
+
     expect(
       screen.getByText(/Clasificación automática detectada/)
     ).toBeInTheDocument()

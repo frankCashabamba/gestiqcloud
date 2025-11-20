@@ -1,1 +1,1 @@
-from app.legacy.admin.settings_admin.crud import *  # shim to legacy
+from app.legacy.admin.settings_admin.crud import *  # noqa: F403  # shim to legacy

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
-
-from sqlalchemy import String, Integer, JSON
+from sqlalchemy import JSON, Integer, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,4 +23,4 @@ class Delivery(Base):
     order_id: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String, default="pending")
     # Avoid reserved attribute name 'metadata'
-    extra_metadata: Mapped[Optional[dict]] = mapped_column("metadata", JSON)
+    extra_metadata: Mapped[dict | None] = mapped_column("metadata", JSON)

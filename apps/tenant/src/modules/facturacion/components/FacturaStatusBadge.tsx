@@ -17,4 +17,3 @@ export default function FacturaStatusBadge({ estado }: { estado: EstadoFactura }
     <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 12, fontWeight: 600, ...style }}>{label}</span>
   )
 }
-

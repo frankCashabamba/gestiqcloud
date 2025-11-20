@@ -103,7 +103,7 @@ export default function EmpleadoForm() {
         {/* Datos Personales */}
         <fieldset className="border rounded p-4">
           <legend className="font-semibold text-gray-700 px-2">Datos Personales</legend>
-          
+
           <div className="grid grid-cols-2 gap-4 mt-2">
             <div>
               <label className="block mb-1 font-medium text-sm">Código</label>
@@ -210,7 +210,7 @@ export default function EmpleadoForm() {
         {/* Datos Laborales */}
         <fieldset className="border rounded p-4">
           <legend className="font-semibold text-gray-700 px-2">Datos Laborales</legend>
-          
+
           <div className="grid grid-cols-3 gap-4 mt-2">
             <div>
               <label className="block mb-1 font-medium text-sm">Fecha Ingreso *</label>

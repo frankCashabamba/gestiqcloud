@@ -231,7 +231,7 @@ export function VistaPrevia({
                     {invalidItems.length} producto(s) con errores
                   </h4>
                   <p className="text-sm text-yellow-700 mt-1">
-                    Estos productos no se importarán hasta que corrijas los errores. 
+                    Estos productos no se importarán hasta que corrijas los errores.
                     Puedes continuar con los {validItems.length} válidos.
                   </p>
                 </div>

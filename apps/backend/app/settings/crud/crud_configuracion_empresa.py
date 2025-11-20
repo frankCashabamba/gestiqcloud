@@ -28,13 +28,9 @@ def create(db: Session, obj_in: ConfiguracionEmpresaCreate):
     return config
 
 
-def update(
-    db: Session, db_obj: ConfiguracionEmpresa, obj_in: ConfiguracionEmpresaUpdate
-):
+def update(db: Session, db_obj: ConfiguracionEmpresa, obj_in: ConfiguracionEmpresaUpdate):
     """Function update - auto-generated docstring."""
-    updates = obj_in.model_dump(
-        exclude_unset=True
-    )  # v2: reemplaza .dict(exclude_unset=True)
+    updates = obj_in.model_dump(exclude_unset=True)  # v2: reemplaza .dict(exclude_unset=True)
     for field, value in updates.items():
         setattr(db_obj, field, value)
     db.commit()

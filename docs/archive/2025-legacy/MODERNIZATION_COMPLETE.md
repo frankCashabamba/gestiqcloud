@@ -1,6 +1,6 @@
 # ✅ MODERNIZACIÓN COMPLETA - 100% INGLÉS
 
-**Fecha**: 2025-11-01  
+**Fecha**: 2025-11-01
 **Estado**: **COMPLETADO** 🎉
 
 ---
@@ -117,7 +117,7 @@ export type StockItem = {
   qty: number                  // NO qty_on_hand
   location?: string | null     // NO ubicacion
   lot?: string | null          // NO lote
-  
+
   product?: {
     sku: string                // NO codigo
     name: string               // NO nombre
@@ -304,9 +304,9 @@ Actualizar scripts que aún usen nombres legacy:
 
 ---
 
-**Versión**: 1.0.0 Moderno  
-**Última actualización**: 2025-11-01  
-**Estado**: Production-Ready ✅  
+**Versión**: 1.0.0 Moderno
+**Última actualización**: 2025-11-01
+**Estado**: Production-Ready ✅
 **Mantenedores**: GestiQCloud Team
 
 ---

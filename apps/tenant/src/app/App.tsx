@@ -48,7 +48,7 @@ export default function App() {
               {/* Tenant-scoped module routes only */}
               <Route path='/:empresa/:mod/*' element={<ModuleLoader />} />
               {/* Legacy redirects only when slug changed (avoid loops) */}
-            
+
               {/* Optional legacy redirects kept minimal to avoid stray paths */}
               {/* <Route path='/plantilla/:slug' element={<PlantillaToEmpresaRedirect />} /> */}
             </Route>

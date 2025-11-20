@@ -1,6 +1,6 @@
 # ✅ REFACTORIZACIÓN COMPLETA - ELIMINACIÓN DE DUPLICACIONES EN FACTURACIÓN
 
-**Fecha**: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")  
+**Fecha**: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 **Estado**: ✅ **COMPLETADO**
 
 ---
@@ -139,7 +139,7 @@ from app.models.core.payment import PaymentBase, PaymentMethod, PaymentStatus
 class Payment(PaymentBase, Base):
     __tablename__ = "payments"
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
-    
+
     # Campos específicos de pagos bancarios
     bank_tx_id: Mapped[UUID] = mapped_column(ForeignKey("bank_transactions.id"))
     invoice_id: Mapped[UUID] = mapped_column(ForeignKey("invoices.id"))
@@ -249,7 +249,7 @@ def generar_numero_factura(db: Session, tenant_id: str) -> str:
         ...
     except Exception:
         pass
-    
+
     # Fallback con 30+ líneas
     ultima = db.query(Invoice)...
     # etc
@@ -421,13 +421,13 @@ def create_invoice_from_order(
     db: Session = Depends(get_db)
 ):
     tenant_id = request.state.access_claims.get("tenant_id")
-    
+
     converter = DocumentConverter(db)
     invoice_id = converter.sales_order_to_invoice(
         sales_order_id=order_id,
         tenant_id=tenant_id
     )
-    
+
     return {"invoice_id": str(invoice_id)}
 ```
 
@@ -442,14 +442,14 @@ def create_invoice_from_receipt(
 ):
     tenant_id = request.state.access_claims.get("tenant_id")
     customer_id = payload["customer_id"]
-    
+
     converter = DocumentConverter(db)
     invoice_id = converter.pos_receipt_to_invoice(
         receipt_id=UUID(receipt_id),
         tenant_id=tenant_id,
         customer_id=UUID(customer_id)
     )
-    
+
     return {"invoice_id": str(invoice_id)}
 ```
 
@@ -477,7 +477,7 @@ class InvoiceLine(DocumentLineBase, Base):
     id: Mapped[UUID]
     # Hereda: description, qty, unit_price, tax_rate, discount_pct
     # Hereda: subtotal, discount_amount, tax_amount, total
-    
+
     # Solo campos específicos
     sector: Mapped[str]
 ```
@@ -644,9 +644,9 @@ SELECT public.assign_next_number(
 
 ---
 
-**Estado Final**: ✅ **REFACTORIZACIÓN COMPLETADA**  
-**Próxima Fase**: 🔄 Migración gradual de módulos existentes  
-**Impacto en Producción**: ✅ Cero (100% compatible)  
+**Estado Final**: ✅ **REFACTORIZACIÓN COMPLETADA**
+**Próxima Fase**: 🔄 Migración gradual de módulos existentes
+**Impacto en Producción**: ✅ Cero (100% compatible)
 **Calidad del Código**: ⬆️ Significativamente mejorada
 
 ---

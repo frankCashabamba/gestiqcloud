@@ -1,6 +1,6 @@
 # Migration: Renombrar columnas de modulos_modulo a inglés
 
-**Fecha**: 2025-11-01  
+**Fecha**: 2025-11-01
 **Tipo**: Schema change (renombrado de columnas)
 
 ## Objetivo

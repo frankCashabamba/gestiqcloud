@@ -5,9 +5,9 @@ Auto-generated module docstring."""
 # app/middleware/tenant_middleware.py
 
 from fastapi import Request
+from jwt import ExpiredSignatureError, InvalidTokenError
 from starlette.responses import JSONResponse
 
-from jwt import ExpiredSignatureError, InvalidTokenError
 from app.modules.identity.infrastructure.jwt_service import JwtService
 
 
