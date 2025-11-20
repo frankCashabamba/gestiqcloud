@@ -100,7 +100,7 @@ CREATE INDEX IF NOT EXISTS idx_sales_order_items_product ON sales_order_items(pr
 COMMENT ON TABLE sales_order_items IS 'Line items of sales orders';
 
 -- ============================================================================
--- Table: sales
+-- Table: sales (Spanish column names per venta.py model)
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS sales (
@@ -109,31 +109,42 @@ CREATE TABLE IF NOT EXISTS sales (
 
     -- Reference
     number VARCHAR(50) NOT NULL UNIQUE,
-    sales_order_id UUID REFERENCES sales_orders(id) ON DELETE SET NULL,
 
-    -- Customer
-    customer_id UUID NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,
+    -- Customer (Spanish name per model)
+    cliente_id UUID REFERENCES clients(id) ON DELETE SET NULL,
 
-    -- Amounts
+    -- Amounts (taxes not tax)
     subtotal NUMERIC(12, 2) NOT NULL DEFAULT 0,
-    tax NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    taxes NUMERIC(12, 2) NOT NULL DEFAULT 0,
     total NUMERIC(12, 2) NOT NULL DEFAULT 0,
 
-    -- Date
-    sale_date DATE NOT NULL,
+    -- Date (Spanish name per model)
+    fecha DATE NOT NULL,
 
-    -- Notes
-    notes TEXT,
+    -- Status
+    estado VARCHAR(20) DEFAULT 'draft',
+
+    -- Notes (Spanish name per model)
+    notas TEXT,
+
+    -- User (Spanish name per model)
+    usuario_id UUID DEFAULT gen_random_uuid() NOT NULL,
 
     -- Audit
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_sales_tenant ON sales(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_sales_number ON sales(number);
-CREATE INDEX IF NOT EXISTS idx_sales_customer ON sales(customer_id);
-CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(sale_date);
+-- Create indexes (only if columns exist)
+DO $$
+BEGIN
+    CREATE INDEX IF NOT EXISTS idx_sales_tenant ON sales(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_sales_number ON sales(number);
+    CREATE INDEX IF NOT EXISTS idx_sales_cliente_id ON sales(cliente_id);
+    CREATE INDEX IF NOT EXISTS idx_sales_fecha ON sales(fecha);
+EXCEPTION WHEN OTHERS THEN
+    NULL;
+END $$;
 
 COMMENT ON TABLE sales IS 'Finalized sales transactions';
 
