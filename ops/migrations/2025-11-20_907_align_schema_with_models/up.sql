@@ -2,7 +2,7 @@
 -- Description: Align database schema with SQLAlchemy models
 -- Fixes: sales table columns to match venta.py model (Spanish names)
 --        import_items table constraints and indexes
---        business_types tenant_id NOT NULL constraint
+--        business_types tenant_id constraint
 --        Ensure all test fixtures work
 
 BEGIN;
@@ -15,14 +15,24 @@ BEGIN;
 ALTER TABLE sales DROP CONSTRAINT IF EXISTS sales_customer_id_fkey CASCADE;
 
 -- 2. Rename columns to match model (English -> Spanish)
-ALTER TABLE sales
-    RENAME COLUMN IF EXISTS customer_id TO cliente_id;
+-- Use PL/pgSQL to handle optional renames (columns might already be renamed)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'sales' AND column_name = 'customer_id') THEN
+        ALTER TABLE sales RENAME COLUMN customer_id TO cliente_id;
+    END IF;
 
-ALTER TABLE sales
-    RENAME COLUMN IF EXISTS sale_date TO fecha;
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'sales' AND column_name = 'sale_date') THEN
+        ALTER TABLE sales RENAME COLUMN sale_date TO fecha;
+    END IF;
 
-ALTER TABLE sales
-    RENAME COLUMN IF EXISTS tax TO taxes;
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'sales' AND column_name = 'tax') THEN
+        ALTER TABLE sales RENAME COLUMN tax TO taxes;
+    END IF;
+END $$;
 
 -- 3. Add missing columns if not exist
 ALTER TABLE sales
@@ -31,10 +41,17 @@ ALTER TABLE sales
     ADD COLUMN IF NOT EXISTS estado VARCHAR(20) DEFAULT 'draft';
 
 -- 4. Make cliente_id nullable (as per model)
-ALTER TABLE sales
-    ALTER COLUMN cliente_id DROP NOT NULL;
+DO $$
+BEGIN
+    -- Check if client_id column exists and is NOT NULL, then drop the constraint
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'sales' AND column_name = 'cliente_id'
+               AND is_nullable = 'NO') THEN
+        ALTER TABLE sales ALTER COLUMN cliente_id DROP NOT NULL;
+    END IF;
+END $$;
 
--- 5. Add foreign key for cliente_id with correct constraint name
+-- 5. Add foreign key for cliente_id with correct constraint name (ignore if exists)
 ALTER TABLE sales
     ADD CONSTRAINT sales_cliente_id_fkey
     FOREIGN KEY (cliente_id) REFERENCES clients(id) ON DELETE SET NULL;
@@ -57,8 +74,15 @@ ALTER TABLE business_types
     ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE;
 
 -- Make sure it's nullable (NOT NOT NULL)
-ALTER TABLE business_types
-    ALTER COLUMN tenant_id DROP NOT NULL;
+DO $$
+BEGIN
+    -- Only drop constraint if column is NOT NULL
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'business_types' AND column_name = 'tenant_id'
+               AND is_nullable = 'NO') THEN
+        ALTER TABLE business_types ALTER COLUMN tenant_id DROP NOT NULL;
+    END IF;
+END $$;
 
 -- ============================================================================
 -- Fix import_items table - proper unique constraint for idempotency
@@ -87,6 +111,14 @@ ALTER TABLE stock_moves
 -- ============================================================================
 
 -- company_users.id should be UUID, not integer
-ALTER TABLE company_users ALTER COLUMN id TYPE UUID USING gen_random_uuid();
+-- Only convert if it's currently an integer type
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'company_users' AND column_name = 'id'
+               AND data_type = 'integer') THEN
+        ALTER TABLE company_users ALTER COLUMN id TYPE UUID USING gen_random_uuid();
+    END IF;
+END $$;
 
 COMMIT;
