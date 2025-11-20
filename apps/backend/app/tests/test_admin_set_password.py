@@ -51,7 +51,7 @@ def test_admin_set_password_not_found(db):
     from fastapi import HTTPException
 
     try:
-        set_password(999999, SetPasswordIn(password="NewPassw0rd!"), db)
+        set_password(uuid4(), SetPasswordIn(password="NewPassw0rd!"), db)
         assert False, "expected HTTPException for missing user"
     except HTTPException as e:
         assert e.status_code == 404
