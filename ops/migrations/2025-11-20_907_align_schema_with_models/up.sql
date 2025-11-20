@@ -14,23 +14,49 @@ BEGIN;
 -- 1. Drop existing constraints that conflict
 ALTER TABLE sales DROP CONSTRAINT IF EXISTS sales_customer_id_fkey CASCADE;
 
--- 2. Rename columns to match model (English -> Spanish)
--- Use PL/pgSQL to handle optional renames (columns might already be renamed)
+-- 2. Handle column alignment: rename OR drop duplicates
 DO $$
 BEGIN
+    -- If customer_id exists and cliente_id doesn't, rename
     IF EXISTS (SELECT 1 FROM information_schema.columns
-               WHERE table_name = 'sales' AND column_name = 'customer_id') THEN
+               WHERE table_name = 'sales' AND column_name = 'customer_id')
+       AND NOT EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'sales' AND column_name = 'cliente_id') THEN
         ALTER TABLE sales RENAME COLUMN customer_id TO cliente_id;
+    -- If both exist, drop the English version
+    ELSIF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'sales' AND column_name = 'customer_id')
+       AND EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'sales' AND column_name = 'cliente_id') THEN
+        ALTER TABLE sales DROP COLUMN customer_id;
     END IF;
 
+    -- If sale_date exists and fecha doesn't, rename
     IF EXISTS (SELECT 1 FROM information_schema.columns
-               WHERE table_name = 'sales' AND column_name = 'sale_date') THEN
+               WHERE table_name = 'sales' AND column_name = 'sale_date')
+       AND NOT EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'sales' AND column_name = 'fecha') THEN
         ALTER TABLE sales RENAME COLUMN sale_date TO fecha;
+    -- If both exist, drop the English version
+    ELSIF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'sales' AND column_name = 'sale_date')
+       AND EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'sales' AND column_name = 'fecha') THEN
+        ALTER TABLE sales DROP COLUMN sale_date;
     END IF;
 
+    -- If tax exists and taxes doesn't, rename
     IF EXISTS (SELECT 1 FROM information_schema.columns
-               WHERE table_name = 'sales' AND column_name = 'tax') THEN
+               WHERE table_name = 'sales' AND column_name = 'tax')
+       AND NOT EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'sales' AND column_name = 'taxes') THEN
         ALTER TABLE sales RENAME COLUMN tax TO taxes;
+    -- If both exist, drop the English version
+    ELSIF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'sales' AND column_name = 'tax')
+       AND EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'sales' AND column_name = 'taxes') THEN
+        ALTER TABLE sales DROP COLUMN tax;
     END IF;
 END $$;
 
@@ -43,7 +69,7 @@ ALTER TABLE sales
 -- 4. Make cliente_id nullable (as per model)
 DO $$
 BEGIN
-    -- Check if client_id column exists and is NOT NULL, then drop the constraint
+    -- Only drop constraint if column is NOT NULL
     IF EXISTS (SELECT 1 FROM information_schema.columns
                WHERE table_name = 'sales' AND column_name = 'cliente_id'
                AND is_nullable = 'NO') THEN
@@ -52,9 +78,15 @@ BEGIN
 END $$;
 
 -- 5. Add foreign key for cliente_id with correct constraint name (ignore if exists)
-ALTER TABLE sales
-    ADD CONSTRAINT sales_cliente_id_fkey
-    FOREIGN KEY (cliente_id) REFERENCES clients(id) ON DELETE SET NULL;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints
+                   WHERE table_name = 'sales' AND constraint_name = 'sales_cliente_id_fkey') THEN
+        ALTER TABLE sales
+            ADD CONSTRAINT sales_cliente_id_fkey
+            FOREIGN KEY (cliente_id) REFERENCES clients(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
 -- 6. Drop unused columns that aren't in the model
 ALTER TABLE sales DROP COLUMN IF EXISTS sales_order_id;
