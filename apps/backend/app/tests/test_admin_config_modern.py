@@ -4,8 +4,8 @@ from fastapi.testclient import TestClient
 def test_admin_config_idioma_crud(client: TestClient):
     import uuid
 
-    # Use unique code to avoid conflicts
-    codigo = f"es_{uuid.uuid4().hex[:8]}"
+    # Use unique code to avoid conflicts (max 10 chars)
+    codigo = f"es_{uuid.uuid4().hex[:5]}"
 
     # Create idioma
     payload = {"codigo": codigo, "name": "Español", "activo": True}

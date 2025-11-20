@@ -27,7 +27,17 @@ class SqlAlchemyTipoEmpresaRepo(TipoEmpresaRepo):
         return [self._to_dto(r) for r in rows]
 
     def create(self, data: TipoEmpresaIn) -> TipoEmpresaOut:
+        from app.models.tenant import Tenant
+
+        # Get or create default tenant for admin config tables
+        default_tenant = self.db.query(Tenant).first()
+        if not default_tenant:
+            default_tenant = Tenant(name="System", slug="system")
+            self.db.add(default_tenant)
+            self.db.flush()
+
         obj = TipoEmpresaORM(
+            tenant_id=default_tenant.id,
             name=data.name,
             description=data.description,
             active=data.active,
