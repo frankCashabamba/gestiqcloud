@@ -66,13 +66,14 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
 
     # Create warehouse first
     warehouse_id = _uuid.uuid4()
+    warehouse_code = f"POS-WH-{warehouse_id.hex[:8]}"
     try:
         db.execute(
             text(
-                "INSERT INTO warehouses (id, tenant_id, name, active) "
-                "VALUES (:id, :tid, :name, TRUE)"
+                "INSERT INTO warehouses (id, tenant_id, code, name, active) "
+                "VALUES (:id, :tid, :code, :name, TRUE)"
             ),
-            {"id": warehouse_id, "tid": tid, "name": "Test Warehouse"},
+            {"id": warehouse_id, "tid": tid, "code": warehouse_code, "name": "Test Warehouse"},
         )
         db.commit()
     except Exception:

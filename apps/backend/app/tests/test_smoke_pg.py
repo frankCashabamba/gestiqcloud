@@ -88,13 +88,14 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session, tenant_minimal):
 
     # Create a warehouse first
     warehouse_id = _uuid.uuid4()
+    warehouse_code = f"SALES-WH-{warehouse_id.hex[:8]}"
     try:
         db.execute(
             text(
-                "INSERT INTO warehouses (id, tenant_id, name, active) "
-                "VALUES (:id, :tid, :name, TRUE)"
+                "INSERT INTO warehouses (id, tenant_id, code, name, active) "
+                "VALUES (:id, :tid, :code, :name, TRUE)"
             ),
-            {"id": warehouse_id, "tid": tid, "name": "Test Warehouse"},
+            {"id": warehouse_id, "tid": tid, "code": warehouse_code, "name": "Test Warehouse"},
         )
         db.commit()
     except Exception:
