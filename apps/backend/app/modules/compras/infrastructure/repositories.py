@@ -3,79 +3,83 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.core.crud_base import CRUDBase
-from app.models.purchases import Compra
+from app.models.purchases import Purchase
 
 
 @dataclass
-class CompraCreateDTO:
+class PurchaseCreateDTO:
     tenant_id: int | None = None
-    fecha: str | None = None
-    proveedor_id: int | None = None
+    date: str | None = None
+    supplier_id: int | None = None
     total: float | None = None
-    estado: str | None = None
+    status: str | None = None
 
     def model_dump(self) -> dict:
         return {
             "tenant_id": self.tenant_id,
-            "fecha": self.fecha,
-            "proveedor_id": self.proveedor_id,
+            "date": self.date,
+            "supplier_id": self.supplier_id,
             "total": self.total,
-            "estado": self.estado,
+            "status": self.status,
         }
 
 
 @dataclass
-class CompraUpdateDTO:
-    fecha: str | None = None
-    proveedor_id: int | None = None
+class PurchaseUpdateDTO:
+    date: str | None = None
+    supplier_id: int | None = None
     total: float | None = None
-    estado: str | None = None
+    status: str | None = None
 
     def model_dump(self, exclude_unset: bool = False) -> dict:
         d = {
-            "fecha": self.fecha,
-            "proveedor_id": self.proveedor_id,
+            "date": self.date,
+            "supplier_id": self.supplier_id,
             "total": self.total,
-            "estado": self.estado,
+            "status": self.status,
         }
         return {k: v for k, v in d.items() if not exclude_unset or v is not None}
 
 
-class CompraCRUD(CRUDBase[Compra, CompraCreateDTO, CompraUpdateDTO]):
+class PurchaseCRUD(CRUDBase[Purchase, PurchaseCreateDTO, PurchaseUpdateDTO]):
     pass
 
 
-class CompraRepo:
+class PurchaseRepo:
     def __init__(self, db: Session):
         self.db = db
-        self.crud = CompraCRUD(Compra)
+        self.crud = PurchaseCRUD(Purchase)
 
-    def list(self, tenant_id) -> list[Compra]:
+    def list(self, tenant_id) -> list[Purchase]:
         return (
-            self.db.query(Compra)
-            .filter(Compra.tenant_id == tenant_id)
-            .order_by(Compra.fecha.desc())
+            self.db.query(Purchase)
+            .filter(Purchase.tenant_id == tenant_id)
+            .order_by(Purchase.date.desc())
             .all()
         )
 
-    def get(self, tenant_id, cid) -> Compra | None:
-        return self.db.query(Compra).filter(Compra.tenant_id == tenant_id, Compra.id == cid).first()
+    def get(self, tenant_id, cid) -> Purchase | None:
+        return (
+            self.db.query(Purchase)
+            .filter(Purchase.tenant_id == tenant_id, Purchase.id == cid)
+            .first()
+        )
 
     def create(
         self,
         tenant_id,
         *,
-        fecha,
-        proveedor_id: int | None,
+        date,
+        supplier_id: int | None,
         total: float,
-        estado: str | None,
-    ) -> Compra:
-        dto = CompraCreateDTO(
+        status: str | None,
+    ) -> Purchase:
+        dto = PurchaseCreateDTO(
             tenant_id=tenant_id,
-            fecha=fecha,
-            proveedor_id=proveedor_id,
+            date=date,
+            supplier_id=supplier_id,
             total=total,
-            estado=estado,
+            status=status,
         )
         return self.crud.create(self.db, dto)
 
@@ -84,21 +88,21 @@ class CompraRepo:
         tenant_id,
         cid,
         *,
-        fecha,
-        proveedor_id: int | None,
+        date,
+        supplier_id: int | None,
         total: float,
-        estado: str | None,
-    ) -> Compra:
-        dto = CompraUpdateDTO(fecha=fecha, proveedor_id=proveedor_id, total=total, estado=estado)
+        status: str | None,
+    ) -> Purchase:
+        dto = PurchaseUpdateDTO(date=date, supplier_id=supplier_id, total=total, status=status)
         obj = self.get(tenant_id, cid)
         if not obj:
-            raise ValueError("Compra no encontrada")
+            raise ValueError("Purchase not found")
         return self.crud.update(self.db, obj, dto)
 
     def delete(self, tenant_id, cid) -> None:
         obj = self.get(tenant_id, cid)
         if not obj:
-            raise ValueError("Compra no encontrada")
+            raise ValueError("Purchase not found")
         ok = self.crud.delete(self.db, cid)
         if not ok:
-            raise ValueError("Compra no encontrada")
+            raise ValueError("Purchase not found")

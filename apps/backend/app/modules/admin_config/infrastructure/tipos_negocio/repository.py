@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
 
-from app.models.empresa.empresa import TipoNegocio as TipoNegocioORM
+from app.models.company.company import BusinessCategory as TipoNegocioORM
 from app.modules.admin_config.application.tipos_negocio.dto import TipoNegocioIn, TipoNegocioOut
 from app.modules.admin_config.application.tipos_negocio.ports import TipoNegocioRepo
 

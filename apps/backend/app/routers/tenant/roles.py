@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.deps import require_tenant as require_current_user
 from app.db.rls import ensure_rls
-from app.models.empresa.rolempresas import RolEmpresa
-from app.models.empresa.tenant import Empresa
+from app.models.company.company_role import CompanyRole as RolEmpresa
+from app.models.company.tenant import Empresa
 from app.schemas.rol_empresa import RolEmpresaCreate, RolEmpresaOut, RolEmpresaUpdate
 
 router = APIRouter(prefix="/tenant/roles", tags=["tenant-roles"])
@@ -63,8 +63,8 @@ async def create_rol(
     """Crear un nuevo rol para el tenant actual."""
     ensure_rls(db, current_user.get("tenant_id"))
 
-    # Verificar que es admin
-    if not current_user.get("es_admin_empresa"):
+    # Verify admin
+    if not current_user.get("is_company_admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los administradores pueden crear roles",
@@ -115,8 +115,8 @@ async def update_rol(
     """Actualizar un rol existente."""
     ensure_rls(db, current_user.get("tenant_id"))
 
-    # Verificar que es admin
-    if not current_user.get("es_admin_empresa"):
+    # Verify admin
+    if not current_user.get("is_company_admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los administradores pueden modificar roles",
@@ -164,7 +164,7 @@ async def delete_rol(
     ensure_rls(db, current_user.get("tenant_id"))
 
     # Verificar que es admin
-    if not current_user.get("es_admin_empresa"):
+    if not current_user.get("is_company_admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los administradores pueden eliminar roles",

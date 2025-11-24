@@ -9,7 +9,7 @@ from app.api.email.email_utils import reenviar_correo_reset
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.models.empresa.usuarioempresa import UsuarioEmpresa
+from app.models.company.usuarioempresa import UsuarioEmpresa
 from app.models.tenant import Tenant as Empresa
 
 router = APIRouter(
@@ -23,7 +23,7 @@ def listar_usuarios(db: Session = Depends(get_db)):
     """Lista usuarios principales (admins de empresa)."""
     rows = (
         db.query(UsuarioEmpresa)
-        .filter(UsuarioEmpresa.es_admin_empresa == True)  # noqa: E712
+        .filter(UsuarioEmpresa.is_company_admin.is_(True))
         .order_by(UsuarioEmpresa.id.desc())
         .limit(500)
         .all()
@@ -39,7 +39,7 @@ def listar_usuarios(db: Session = Depends(get_db)):
             "nombre": nombre,
             "email": getattr(u, "email", None),
             "es_admin": False,
-            "es_admin_empresa": True,
+            "is_company_admin": True,
             "activo": bool(getattr(u, "activo", False)),
         }
 
@@ -70,7 +70,7 @@ def activar_usuario(usuario_id: UUID, db: Session = Depends(get_db)):
     u = db.query(UsuarioEmpresa).filter(UsuarioEmpresa.id == usuario_id).first()
     if not u:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    if not bool(getattr(u, "es_admin_empresa", False)):
+    if not bool(getattr(u, "is_company_admin", False)):
         raise HTTPException(status_code=403, detail="not_tenant_admin")
     u.active = True
     db.add(u)
@@ -83,7 +83,7 @@ def desactivar_usuario(usuario_id: UUID, db: Session = Depends(get_db)):
     u = db.query(UsuarioEmpresa).filter(UsuarioEmpresa.id == usuario_id).first()
     if not u:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    if not bool(getattr(u, "es_admin_empresa", False)):
+    if not bool(getattr(u, "is_company_admin", False)):
         raise HTTPException(status_code=403, detail="not_tenant_admin")
     u.active = False
     db.add(u)

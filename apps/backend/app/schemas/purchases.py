@@ -1,4 +1,4 @@
-"""Schemas Pydantic para Compras"""
+"""Purchases Pydantic schemas."""
 
 from datetime import date, datetime
 from uuid import UUID
@@ -6,91 +6,91 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 
-# Base schema - Compra
-class CompraBase(BaseModel):
-    """Campos comunes de Compra"""
+class PurchaseBase(BaseModel):
+    """Common purchase fields."""
 
-    numero: str = Field(..., max_length=50, description="Número de compra")
-    proveedor_id: UUID | None = Field(None, description="ID del proveedor")
-    fecha: date = Field(default_factory=date.today)
+    number: str = Field(..., alias="numero", max_length=50, description="Purchase number")
+    supplier_id: UUID | None = Field(None, alias="proveedor_id", description="Supplier ID")
+    date: date = Field(default_factory=date.today, alias="fecha")
     subtotal: float = Field(default=0, ge=0)
-    impuestos: float = Field(default=0, ge=0)
+    taxes: float = Field(default=0, ge=0, alias="impuestos")
     total: float = Field(default=0, ge=0)
-    estado: str = Field(default="draft", pattern="^(draft|confirmed|received|cancelled)$")
-    notas: str | None = None
+    status: str = Field(
+        default="draft",
+        alias="estado",
+        pattern="^(draft|confirmed|received|cancelled)$",
+    )
+    notes: str | None = Field(None, alias="notas")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
-# Create schema
-class CompraCreate(CompraBase):
-    """Schema para crear compra"""
-
-    pass
+class PurchaseCreate(PurchaseBase):
+    """Create purchase."""
 
 
-# Update schema
-class CompraUpdate(BaseModel):
-    """Schema para actualizar compra (todos campos opcionales)"""
+class PurchaseUpdate(BaseModel):
+    """Update purchase (all fields optional)."""
 
-    numero: str | None = Field(None, max_length=50)
-    proveedor_id: UUID | None = None
-    fecha: date | None = None
+    number: str | None = Field(None, alias="numero", max_length=50)
+    supplier_id: UUID | None = Field(None, alias="proveedor_id")
+    date: date | None = Field(None, alias="fecha")
     subtotal: float | None = Field(None, ge=0)
-    impuestos: float | None = Field(None, ge=0)
+    taxes: float | None = Field(None, alias="impuestos", ge=0)
     total: float | None = Field(None, ge=0)
-    estado: str | None = Field(None, pattern="^(draft|confirmed|received|cancelled)$")
-    notas: str | None = None
+    status: str | None = Field(
+        None, alias="estado", pattern="^(draft|confirmed|received|cancelled)$"
+    )
+    notes: str | None = Field(None, alias="notas")
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
-# Response schema
-class CompraResponse(CompraBase):
-    """Schema de respuesta de compra"""
+class PurchaseResponse(PurchaseBase):
+    """Purchase response."""
 
     id: UUID
     tenant_id: UUID
-    usuario_id: UUID
+    user_id: UUID = Field(alias="usuario_id")
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
 
-# List schema
-class CompraList(BaseModel):
-    """Schema para lista paginada de compras"""
+class PurchaseList(BaseModel):
+    """Paginated purchase list."""
 
-    items: list[CompraResponse]
+    items: list[PurchaseResponse]
     total: int
     page: int = 1
     page_size: int = 100
 
 
-# Base schema - CompraLinea
-class CompraLineaBase(BaseModel):
-    """Campos comunes de línea de compra"""
+class PurchaseLineBase(BaseModel):
+    """Common purchase line fields."""
 
-    producto_id: UUID = Field(..., description="ID del producto")
-    cantidad: float = Field(..., gt=0, description="Cantidad")
-    precio_unitario: float = Field(..., ge=0, description="Precio unitario")
-    impuesto_tasa: float = Field(default=0, ge=0, le=1, description="Tasa de impuesto (0-1)")
-    descuento: float = Field(default=0, ge=0, le=100, description="Descuento en %")
-    total: float = Field(default=0, ge=0, description="Total de línea")
-
-
-# Create schema
-class CompraLineaCreate(CompraLineaBase):
-    """Schema para crear línea de compra"""
-
-    compra_id: UUID = Field(..., description="ID de la compra")
+    product_id: UUID = Field(..., alias="producto_id", description="Product ID")
+    quantity: float = Field(..., alias="cantidad", gt=0, description="Quantity")
+    unit_price: float = Field(..., alias="precio_unitario", ge=0, description="Unit price")
+    tax_rate: float = Field(
+        default=0, alias="impuesto_tasa", ge=0, le=1, description="Tax rate (0-1)"
+    )
+    discount: float = Field(default=0, alias="descuento", ge=0, le=100, description="Discount %")
+    total: float = Field(default=0, ge=0, description="Line total")
 
 
-# Response schema
-class CompraLineaResponse(CompraLineaBase):
-    """Schema de respuesta de línea de compra"""
+class PurchaseLineCreate(PurchaseLineBase):
+    """Create purchase line."""
+
+    purchase_id: UUID = Field(..., alias="compra_id", description="Purchase ID")
+
+
+class PurchaseLineResponse(PurchaseLineBase):
+    """Purchase line response."""
 
     id: UUID
-    compra_id: UUID
+    purchase_id: UUID = Field(alias="compra_id")
     created_at: datetime
     updated_at: datetime
 

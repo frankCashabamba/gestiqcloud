@@ -1,13 +1,12 @@
-"""Module: modulo.py
-
-Auto-generated module docstring."""
+"""Module definitions (modules contracted per tenant/user)."""
 
 # pylint: disable=unsubscriptable-object
 import uuid
 from datetime import datetime
 
 from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
@@ -23,7 +22,7 @@ JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
 
 
 class Module(Base):
-    """Class Module - auto-generated docstring."""
+    """Module catalog entry."""
 
     __tablename__ = "modules"
     __table_args__ = {"extend_existing": True}
@@ -42,25 +41,9 @@ class Module(Base):
     context_filters: Mapped[dict | None] = mapped_column(JSON_TYPE)  # type: ignore
     category: Mapped[str | None] = mapped_column(String(50))  # type: ignore
 
-    @property
-    def descripcion(self) -> str | None:
-        return self.description
-
-    @descripcion.setter
-    def descripcion(self, value: str | None) -> None:
-        self.description = value
-
-    @property
-    def activo(self) -> bool:
-        return bool(self.active)
-
-    @activo.setter
-    def activo(self, value: bool) -> None:
-        self.active = bool(value)
-
 
 class CompanyModule(Base):
-    """Class CompanyModule - auto-generated docstring."""
+    """Tenant-purchased module."""
 
     __tablename__ = "company_modules"
     __table_args__ = {"extend_existing": True}
@@ -97,7 +80,7 @@ class AssignedModule(Base):
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )  # pylint: disable=unsubscriptable-object
     tenant_id: Mapped[object] = mapped_column(_uuid_col, ForeignKey("tenants.id"), nullable=True)  # type: ignore
-    # CompanyUser.id es UUID; alinear tipo de FK
+    # CompanyUser.id is UUID; align FK type
     user_id: Mapped[uuid.UUID] = mapped_column(
         _uuid_col, ForeignKey("company_users.id"), nullable=False
     )  # type: ignore

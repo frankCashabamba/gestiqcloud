@@ -38,9 +38,9 @@ router = APIRouter(prefix="/incidents", tags=["Incidents & IA"])
 async def list_incidents(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
-    tipo: str | None = None,
-    severidad: str | None = None,
-    estado: str | None = None,
+    type_: str | None = None,
+    severity: str | None = None,
+    status_: str | None = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -49,12 +49,12 @@ async def list_incidents(
 
     query = db.query(Incident).filter(Incident.tenant_id == tenant_id)
 
-    if tipo:
-        query = query.filter(Incident.tipo == tipo)
-    if severidad:
-        query = query.filter(Incident.severidad == severidad)
-    if estado:
-        query = query.filter(Incident.estado == estado)
+    if type_:
+        query = query.filter(Incident.type == type_)
+    if severity:
+        query = query.filter(Incident.severity == severity)
+    if status_:
+        query = query.filter(Incident.status == status_)
 
     incidents = query.order_by(desc(Incident.created_at)).offset(skip).limit(limit).all()
     return incidents
@@ -71,10 +71,10 @@ async def create_incident(
 
     new_incident = Incident(
         tenant_id=tenant_id,
-        tipo=incident_data.tipo,
-        severidad=incident_data.severidad,
-        titulo=incident_data.titulo,
-        descripcion=incident_data.description,
+        type=incident_data.type,
+        severity=incident_data.severity,
+        title=incident_data.title,
+        description=incident_data.description,
         stack_trace=incident_data.stack_trace,
         context=incident_data.context,
         auto_detected=False,
@@ -131,7 +131,7 @@ async def update_incident(
     for field, value in update_data.items():
         setattr(incident, field, value)
 
-    if incident_update.estado == "resolved" and not incident.resolved_at:
+    if incident_update.status == "resolved" and not incident.resolved_at:
         from datetime import datetime
 
         incident.resolved_at = datetime.utcnow()
@@ -355,7 +355,7 @@ async def notify_stock_alert(
         alert.notified_at = datetime.utcnow()
         db.commit()
 
-        return {"message": "Notificación enviada", "channel": channels[0].tipo}
+        return {"message": "Notificación enviada", "channel": channels[0].type}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error enviando notificación: {str(e)}")
 
@@ -424,7 +424,7 @@ async def create_notification_channel(
 
     new_channel = NotificationChannel(
         tenant_id=tenant_id,
-        tipo=channel_data.tipo,
+        channel_type=channel_data.channel_type,
         name=channel_data.name,
         config=channel_data.config,
         is_active=channel_data.is_active,

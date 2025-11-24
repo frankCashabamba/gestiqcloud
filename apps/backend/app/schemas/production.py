@@ -1,5 +1,5 @@
 """
-Production Schemas - Esquemas Pydantic para órdenes de producción
+Production Schemas - Pydantic models for production orders
 """
 
 from datetime import datetime
@@ -9,28 +9,26 @@ from uuid import UUID
 from pydantic import BaseModel, Field, validator
 
 # ============================================================================
-# LÍNEAS DE ORDEN
+# ORDER LINES
 # ============================================================================
 
 
 class ProductionOrderLineBase(BaseModel):
-    """Base para líneas de orden de producción"""
+    """Base for production order lines."""
 
-    ingredient_product_id: UUID = Field(..., description="ID del producto ingrediente")
-    qty_required: Decimal = Field(..., gt=0, description="Cantidad requerida")
-    qty_consumed: Decimal = Field(default=Decimal("0"), ge=0, description="Cantidad consumida")
-    unit: str = Field(default="unit", description="Unidad de medida")
-    cost_unit: Decimal = Field(default=Decimal("0"), ge=0, description="Costo unitario")
+    ingredient_product_id: UUID = Field(..., description="Ingredient product ID")
+    qty_required: Decimal = Field(..., gt=0, description="Required quantity")
+    qty_consumed: Decimal = Field(default=Decimal("0"), ge=0, description="Consumed quantity")
+    unit: str = Field(default="unit", description="Unit of measure")
+    cost_unit: Decimal = Field(default=Decimal("0"), ge=0, description="Unit cost")
 
 
 class ProductionOrderLineCreate(ProductionOrderLineBase):
-    """Schema para crear línea de orden"""
-
-    pass
+    """Create production order line."""
 
 
 class ProductionOrderLineResponse(ProductionOrderLineBase):
-    """Schema de respuesta para línea"""
+    """Production order line response."""
 
     id: UUID
     order_id: UUID
@@ -43,38 +41,38 @@ class ProductionOrderLineResponse(ProductionOrderLineBase):
 
 
 # ============================================================================
-# ÓRDENES DE PRODUCCIÓN
+# PRODUCTION ORDERS
 # ============================================================================
 
 
 class ProductionOrderBase(BaseModel):
-    """Base para órdenes de producción"""
+    """Base for production orders."""
 
-    recipe_id: UUID = Field(..., description="ID de la receta")
-    product_id: UUID = Field(..., description="ID del producto a producir")
-    warehouse_id: UUID | None = Field(None, description="ID del almacén")
-    qty_planned: Decimal = Field(..., gt=0, description="Cantidad planificada")
-    scheduled_date: datetime | None = Field(None, description="Fecha programada")
-    notes: str | None = Field(None, description="Notas internas")
+    recipe_id: UUID = Field(..., description="Recipe ID")
+    product_id: UUID = Field(..., description="Product to produce")
+    warehouse_id: UUID | None = Field(None, description="Warehouse ID")
+    qty_planned: Decimal = Field(..., gt=0, description="Planned quantity")
+    scheduled_date: datetime | None = Field(None, description="Scheduled date")
+    notes: str | None = Field(None, description="Internal notes")
 
 
 class ProductionOrderCreate(ProductionOrderBase):
-    """Schema para crear orden de producción"""
+    """Create production order."""
 
     lines: list[ProductionOrderLineCreate] | None = Field(
         default_factory=list,
-        description="Líneas de ingredientes (opcional, se auto-genera desde receta)",
+        description="Ingredient lines (optional, auto-generated from recipe)",
     )
 
     @validator("qty_planned")
     def validate_qty_planned(cls, v):
         if v <= 0:
-            raise ValueError("La cantidad planificada debe ser mayor a 0")
+            raise ValueError("Planned quantity must be greater than 0")
         return v
 
 
 class ProductionOrderUpdate(BaseModel):
-    """Schema para actualizar orden de producción"""
+    """Update production order."""
 
     qty_produced: Decimal | None = Field(None, ge=0)
     waste_qty: Decimal | None = Field(None, ge=0)
@@ -85,39 +83,39 @@ class ProductionOrderUpdate(BaseModel):
 
 
 class ProductionOrderStartRequest(BaseModel):
-    """Schema para iniciar producción"""
+    """Start production."""
 
     started_at: datetime | None = Field(
-        default_factory=datetime.utcnow, description="Fecha/hora de inicio"
+        default_factory=datetime.utcnow, description="Start datetime"
     )
-    notes: str | None = Field(None, description="Notas de inicio")
+    notes: str | None = Field(None, description="Start notes")
 
 
 class ProductionOrderCompleteRequest(BaseModel):
-    """Schema para completar producción"""
+    """Complete production."""
 
-    qty_produced: Decimal = Field(..., gt=0, description="Cantidad producida")
-    waste_qty: Decimal = Field(default=Decimal("0"), ge=0, description="Mermas")
-    waste_reason: str | None = Field(None, description="Motivo de mermas")
-    batch_number: str | None = Field(None, description="Número de lote")
+    qty_produced: Decimal = Field(..., gt=0, description="Produced quantity")
+    waste_qty: Decimal = Field(default=Decimal("0"), ge=0, description="Waste")
+    waste_reason: str | None = Field(None, description="Waste reason")
+    batch_number: str | None = Field(None, description="Batch number")
     completed_at: datetime | None = Field(
-        default_factory=datetime.utcnow, description="Fecha/hora de finalización"
+        default_factory=datetime.utcnow, description="Completion datetime"
     )
-    notes: str | None = Field(None, description="Notas de cierre")
+    notes: str | None = Field(None, description="Closing notes")
 
     @validator("qty_produced")
     def validate_qty_produced(cls, v):
         if v <= 0:
-            raise ValueError("La cantidad producida debe ser mayor a 0")
+            raise ValueError("Produced quantity must be greater than 0")
         return v
 
 
 class ProductionOrderResponse(ProductionOrderBase):
-    """Schema de respuesta completo"""
+    """Full production order response."""
 
     id: UUID
     tenant_id: UUID
-    numero: str
+    order_number: str = Field(alias="numero")
     qty_produced: Decimal
     waste_qty: Decimal
     waste_reason: str | None
@@ -130,7 +128,7 @@ class ProductionOrderResponse(ProductionOrderBase):
     created_at: datetime
     updated_at: datetime
 
-    # Relaciones
+    # Relationships
     lines: list[ProductionOrderLineResponse] = Field(default_factory=list)
 
     class Config:
@@ -168,14 +166,14 @@ class ProductionOrderStats(BaseModel):
 
 
 class ProductionCalculatorRequest(BaseModel):
-    """Request para calcular necesidades de producción"""
+    """Request to calculate production needs."""
 
-    recipe_id: UUID = Field(..., description="ID de la receta")
-    qty_desired: Decimal = Field(..., gt=0, description="Cantidad deseada a producir")
+    recipe_id: UUID = Field(..., description="Recipe ID")
+    qty_desired: Decimal = Field(..., gt=0, description="Desired quantity to produce")
 
 
 class IngredientRequirement(BaseModel):
-    """Ingrediente requerido"""
+    """Required ingredient."""
 
     ingredient_id: UUID
     ingredient_name: str
@@ -187,7 +185,7 @@ class IngredientRequirement(BaseModel):
 
 
 class ProductionCalculatorResponse(BaseModel):
-    """Respuesta de calculadora de producción"""
+    """Production calculator response."""
 
     recipe_id: UUID
     recipe_name: str

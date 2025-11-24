@@ -1,15 +1,15 @@
 from .services import (
-    actualizar_usuario_empresa,
     check_username_availability,
-    crear_usuario_empresa,
-    listar_usuarios_empresa,
-    toggle_usuario_activo,
+    create_company_user,
+    list_company_users,
+    toggle_user_active,
+    update_company_user,
 )
 
 __all__ = [
-    "listar_usuarios_empresa",
-    "crear_usuario_empresa",
-    "actualizar_usuario_empresa",
-    "toggle_usuario_activo",
+    "list_company_users",
+    "create_company_user",
+    "update_company_user",
+    "toggle_user_active",
     "check_username_availability",
 ]

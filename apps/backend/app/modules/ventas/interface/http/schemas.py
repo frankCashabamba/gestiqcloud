@@ -4,22 +4,22 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
 
-class VentaBase(BaseModel):
-    fecha: date
+class SaleBase(BaseModel):
+    date: date
     total: float
-    cliente_id: str | None = None
-    estado: str | None = None
+    customer_id: str | None = None
+    status: str | None = None
 
 
-class VentaCreate(VentaBase):
+class SaleCreate(SaleBase):
     pass
 
 
-class VentaUpdate(VentaBase):
+class SaleUpdate(SaleBase):
     pass
 
 
-class VentaOut(VentaBase):
+class SaleOut(SaleBase):
     id: UUID
 
     model_config = ConfigDict(from_attributes=True)

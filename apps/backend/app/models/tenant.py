@@ -1,7 +1,4 @@
-"""Modelo Tenant - Entidad principal multi-tenant.
-
-Consolida la información de empresa (legacy core_empresa) como única fuente de verdad.
-"""
+"""Tenant model - primary multi-tenant entity (single source of truth)."""
 
 from __future__ import annotations
 
@@ -34,15 +31,6 @@ class Tenant(Base):
     # ============================================================
     name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     slug: Mapped[str | None] = mapped_column(String(100), unique=True, index=True)
-
-    @property
-    def nombre(self) -> str:
-        """Legacy property kept for backwards compatibility."""
-        return self.name
-
-    @nombre.setter
-    def nombre(self, value: str) -> None:
-        self.name = value
 
     # ============================================================
     # TAX & CONTACT DATA

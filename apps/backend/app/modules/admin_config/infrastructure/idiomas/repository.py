@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
 
-from app.models.empresa.empresa import Idioma as IdiomaORM
+from app.models.company.company import Language as IdiomaORM
 from app.modules.admin_config.application.idiomas.dto import IdiomaIn, IdiomaOut
 from app.modules.admin_config.application.idiomas.ports import IdiomaRepo
 

@@ -1,82 +1,72 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class UsuarioEmpresaBase(BaseModel):
+class CompanyUserBase(BaseModel):
     first_name: str | None = Field(
         default=None,
-        validation_alias="nombre_encargado",
-        serialization_alias="nombre_encargado",
     )
     last_name: str | None = Field(
         default=None,
-        validation_alias="apellido_encargado",
-        serialization_alias="apellido_encargado",
     )
-    email: EmailStr
+    email: str
     username: str | None = None
 
     model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
 
-class UsuarioEmpresaCreate(UsuarioEmpresaBase):
+class CompanyUserCreate(CompanyUserBase):
     password: str = Field(min_length=8)
-    active: bool = Field(default=True, alias="activo")
-    es_admin_empresa: bool = False
-    modulos: list[UUID] = Field(default_factory=list)
+    active: bool = Field(default=True)
+    is_company_admin: bool = Field(default=False)
+    modules: list[UUID] = Field(default_factory=list)
     roles: list[UUID] = Field(default_factory=list)
 
 
-class UsuarioEmpresaUpdate(BaseModel):
+class CompanyUserUpdate(BaseModel):
     first_name: str | None = Field(
         default=None,
-        validation_alias="nombre_encargado",
-        serialization_alias="nombre_encargado",
     )
     last_name: str | None = Field(
         default=None,
-        validation_alias="apellido_encargado",
-        serialization_alias="apellido_encargado",
     )
-    email: EmailStr | None = None
+    email: str | None = None
     username: str | None = None
     password: str | None = Field(default=None, min_length=8)
-    es_admin_empresa: bool | None = None
-    active: bool | None = Field(
-        default=None, validation_alias="activo", serialization_alias="activo"
-    )
-    modulos: list[UUID] | None = None
+    is_company_admin: bool | None = Field(default=None)
+    active: bool | None = Field(default=None)
+    modules: list[UUID] | None = Field(default=None)
     roles: list[UUID] | None = None
 
     model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
 
-class UsuarioEmpresaOut(UsuarioEmpresaBase):
+class CompanyUserOut(CompanyUserBase):
     id: UUID
     tenant_id: UUID
-    es_admin_empresa: bool
-    active: bool = Field(validation_alias="activo", serialization_alias="activo")
-    modulos: list[UUID] = Field(default_factory=list)
+    is_company_admin: bool
+    active: bool
+    modules: list[UUID] = Field(default_factory=list)
     roles: list[UUID] = Field(default_factory=list)
-    ultimo_login_at: datetime | None = Field(
+    last_login_at: datetime | None = Field(
         default=None,
         validation_alias="last_login_at",
-        serialization_alias="ultimo_login_at",
+        serialization_alias="last_login_at",
     )
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
-class ModuloOption(BaseModel):
+class ModuleOption(BaseModel):
     id: UUID
     name: str | None = None
-    categoria: str | None = None
-    icono: str | None = None
+    category: str | None = None
+    icon: str | None = None
 
 
-class RolEmpresaOption(BaseModel):
+class CompanyRoleOption(BaseModel):
     id: UUID
     name: str
     description: str | None = None

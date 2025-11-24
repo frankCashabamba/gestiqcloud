@@ -97,7 +97,7 @@ from app.modules.admin_config.infrastructure.sectores_plantilla.repository impor
 )
 from app.modules.admin_config.infrastructure.timezones.repository import SqlAlchemyTimezoneRepo
 from app.modules.admin_config.infrastructure.tipos_empresa.repository import (
-    SqlAlchemyTipoEmpresaRepo,
+    SqlAlchemyTipoCompanyRepo,
 )
 from app.modules.admin_config.infrastructure.tipos_negocio.repository import (
     SqlAlchemyTipoNegocioRepo,
@@ -280,8 +280,8 @@ def _sectores_in_from_update(payload: SectorPlantillaUpdate, current) -> SectorP
     )
 
 
-def _tipos_empresa_repo(db: Session) -> SqlAlchemyTipoEmpresaRepo:
-    return SqlAlchemyTipoEmpresaRepo(db)
+def _tipos_empresa_repo(db: Session) -> SqlAlchemyTipoCompanyRepo:
+    return SqlAlchemyTipoCompanyRepo(db)
 
 
 def _tipos_empresa_schema(out) -> TipoEmpresaRead:

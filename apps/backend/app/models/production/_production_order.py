@@ -1,19 +1,12 @@
 """
-Production Order Models - Órdenes de Producción
+Production Order Models
 
-Sistema de planificación y ejecución de producción basado en recetas.
-
-Flujo:
-1. Crear orden de producción (cantidad a producir)
-2. Reservar materias primas (ingredientes de receta)
-3. Ejecutar producción (consumo real de stock)
-4. Generar productos terminados (aumentar stock)
-5. Registrar mermas y desperdicios
-
-Compatible con:
-- Panadería: Horneadas de pan/bollería
-- Restaurante: Preparaciones de platos/menús
-- Otros sectores con recetas/BOM
+Plan and execute production based on recipes/BOM:
+1. Create production order (planned qty)
+2. Reserve raw materials (recipe ingredients)
+3. Execute production (consume stock)
+4. Produce finished goods (increase stock)
+5. Register waste/scrap
 """
 
 import uuid
@@ -29,36 +22,35 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base, schema_table_args
 
-# Enum de estados
 production_order_status = SQLEnum(
-    "DRAFT",  # Borrador (planificación)
-    "SCHEDULED",  # Programado
-    "IN_PROGRESS",  # En proceso
-    "COMPLETED",  # Completado
-    "CANCELLED",  # Cancelado
+    "DRAFT",
+    "SCHEDULED",
+    "IN_PROGRESS",
+    "COMPLETED",
+    "CANCELLED",
     name="production_order_status",
-    create_type=False,  # No crear tipo si ya existe
+    create_type=False,
 )
 
 
 class ProductionOrder(Base):
     """
-    Orden de Producción - Planificación de fabricación basada en recetas.
+    Production Order - Recipe-based manufacturing plan.
 
     Attributes:
-        numero: Número único de orden (ej: OP-2025-001)
-        recipe_id: Receta base para la producción
-        product_id: Producto final a producir
-        qty_planned: Cantidad planificada a producir
-        qty_produced: Cantidad real producida
-        scheduled_date: Fecha programada de producción
-        started_at: Fecha/hora inicio real
-        completed_at: Fecha/hora finalización real
-        status: Estado actual (draft/scheduled/in_progress/completed/cancelled)
-        batch_number: Número de lote generado
-        notes: Notas internas
-        waste_qty: Cantidad de mermas/desperdicios
-        waste_reason: Motivo de las mermas
+        order_number: Unique order number (e.g., OP-2025-001)
+        recipe_id: Base recipe for the run
+        product_id: Finished product to produce
+        qty_planned: Planned quantity
+        qty_produced: Actual produced quantity
+        scheduled_date: Scheduled production date
+        started_at: Actual start datetime
+        completed_at: Actual completion datetime
+        status: Current status
+        batch_number: Generated lot number
+        notes: Internal notes
+        waste_qty: Waste quantity
+        waste_reason: Waste reason
     """
 
     __tablename__ = "production_orders"
@@ -69,78 +61,76 @@ class ProductionOrder(Base):
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
 
-    # Numeración secuencial
-    numero: Mapped[str] = mapped_column(
+    # Sequential numbering
+    order_number: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
         unique=True,
         index=True,
-        comment="Número único de orden (ej: OP-2025-001)",
+        comment="Unique order number (e.g., OP-2025-001)",
     )
 
-    # Referencias
+    # References
     recipe_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("recipes.id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
-        comment="Receta base",
+        comment="Base recipe",
     )
     product_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), nullable=False, index=True, comment="Producto final"
+        PGUUID(as_uuid=True), nullable=False, index=True, comment="Finished product"
     )
     warehouse_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), nullable=True, comment="Almacén donde se produce"
+        PGUUID(as_uuid=True), nullable=True, comment="Warehouse where production happens"
     )
 
-    # Cantidades
+    # Quantities
     qty_planned: Mapped[Decimal] = mapped_column(
-        Numeric(14, 3), nullable=False, comment="Cantidad planificada a producir"
+        Numeric(14, 3), nullable=False, comment="Planned quantity to produce"
     )
     qty_produced: Mapped[Decimal] = mapped_column(
-        Numeric(14, 3), nullable=False, default=0, comment="Cantidad real producida"
+        Numeric(14, 3), nullable=False, default=0, comment="Actual produced quantity"
     )
     waste_qty: Mapped[Decimal] = mapped_column(
-        Numeric(14, 3), nullable=False, default=0, comment="Cantidad de mermas/desperdicios"
+        Numeric(14, 3), nullable=False, default=0, comment="Waste quantity"
     )
-    waste_reason: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="Motivo de las mermas"
-    )
+    waste_reason: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Waste reason")
 
-    # Fechas y tiempos
+    # Dates/times
     scheduled_date: Mapped[datetime | None] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=True, comment="Fecha programada de producción"
+        TIMESTAMP(timezone=True), nullable=True, comment="Scheduled production date"
     )
     started_at: Mapped[datetime | None] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=True, comment="Fecha/hora de inicio real"
+        TIMESTAMP(timezone=True), nullable=True, comment="Actual start datetime"
     )
     completed_at: Mapped[datetime | None] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=True, comment="Fecha/hora de finalización real"
+        TIMESTAMP(timezone=True), nullable=True, comment="Actual completion datetime"
     )
 
-    # Estado y lote
+    # Status and batch
     status: Mapped[str] = mapped_column(
         production_order_status,
         nullable=False,
         default="DRAFT",
         index=True,
-        comment="Estado actual",
+        comment="Current status",
     )
     batch_number: Mapped[str | None] = mapped_column(
-        String(50), nullable=True, index=True, comment="Número de lote generado (ej: LOT-2025-001)"
+        String(50), nullable=True, index=True, comment="Generated lot number (e.g., LOT-2025-001)"
     )
 
-    # Información adicional
+    # Additional info
     notes: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="Notas internas de producción"
+        Text, nullable=True, comment="Internal production notes"
     )
     metadata_json: Mapped[dict | None] = mapped_column(
         JSONB().with_variant(JSON(), "sqlite"),
         nullable=True,
-        comment="Datos adicionales (temperatura, humedad, etc.)",
+        comment="Additional data (temperature, humidity, etc.)",
     )
 
-    # Auditoría
+    # Audit
     created_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"
@@ -154,22 +144,29 @@ class ProductionOrder(Base):
         "ProductionOrderLine", back_populates="order", cascade="all, delete-orphan", lazy="selectin"
     )
 
+    # Backward compatibility: keep Spanish attribute name
+    @property
+    def numero(self) -> str:
+        return self.order_number
+
+    @numero.setter
+    def numero(self, value: str) -> None:
+        self.order_number = value
+
 
 class ProductionOrderLine(Base):
     """
-    Líneas de Orden de Producción - Ingredientes consumidos.
-
-    Cada línea representa un ingrediente de la receta y su consumo real.
+    Production Order Lines - Ingredients consumed.
 
     Attributes:
-        order_id: Orden de producción padre
-        ingredient_product_id: Producto ingrediente
-        qty_required: Cantidad requerida según receta
-        qty_consumed: Cantidad real consumida
-        unit: Unidad de medida (kg, l, units, etc.)
-        cost_unit: Costo unitario del ingrediente
-        cost_total: Costo total de la línea
-        stock_move_id: Movimiento de stock generado (si se ejecutó)
+        order_id: Parent production order
+        ingredient_product_id: Ingredient product
+        qty_required: Quantity required by recipe
+        qty_consumed: Actual consumed quantity
+        unit: Unit of measure (kg, l, units, etc.)
+        cost_unit: Ingredient unit cost
+        cost_total: Line total cost
+        stock_move_id: Generated stock movement (if executed)
     """
 
     __tablename__ = "production_order_lines"
@@ -179,7 +176,7 @@ class ProductionOrderLine(Base):
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
 
-    # Referencer
+    # References
     order_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey(
@@ -190,37 +187,37 @@ class ProductionOrderLine(Base):
         index=True,
     )
     ingredient_product_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), nullable=False, index=True, comment="Producto ingrediente"
+        PGUUID(as_uuid=True), nullable=False, index=True, comment="Ingredient product"
     )
     stock_move_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), nullable=True, comment="Movimiento de stock generado"
+        PGUUID(as_uuid=True), nullable=True, comment="Generated stock movement"
     )
 
-    # Cantidades
+    # Quantities
     qty_required: Mapped[Decimal] = mapped_column(
-        Numeric(14, 3), nullable=False, comment="Cantidad requerida según receta"
+        Numeric(14, 3), nullable=False, comment="Quantity required per recipe"
     )
     qty_consumed: Mapped[Decimal] = mapped_column(
-        Numeric(14, 3), nullable=False, default=0, comment="Cantidad real consumida"
+        Numeric(14, 3), nullable=False, default=0, comment="Actual consumed quantity"
     )
     unit: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="unit", comment="Unidad de medida"
+        String(20), nullable=False, default="unit", comment="Unit of measure"
     )
 
-    # Costos
+    # Costs
     cost_unit: Mapped[Decimal] = mapped_column(
-        Numeric(12, 4), nullable=False, default=0, comment="Costo unitario"
+        Numeric(12, 4), nullable=False, default=0, comment="Unit cost"
     )
     cost_total: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2), nullable=False, default=0, comment="Costo total de la línea"
+        Numeric(12, 2), nullable=False, default=0, comment="Line total cost"
     )
 
-    # Auditoría
+    # Audit
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"
     )
 
-    # Relaciones
+    # Relationships
     order: Mapped["ProductionOrder"] = relationship(
         "ProductionOrder",
         back_populates="lines",

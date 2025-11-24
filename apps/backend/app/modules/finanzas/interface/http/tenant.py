@@ -33,7 +33,8 @@ from app.db.rls import ensure_rls
 from app.models.core.facturacion import BankTransaction
 
 # Models
-from app.models.finance.caja import CajaMovimiento, CierreCaja
+from app.models.finance.cash_management import CashClosing as CierreCaja
+from app.models.finance.cash_management import CashMovement as CajaMovimiento
 
 # Schemas - Caja
 from app.schemas.finance_caja import (
@@ -584,50 +585,50 @@ async def get_caja_stats(
 # ============================================================================
 
 
-@router.get("/banco/movimientos", response_model=dict, summary="Listar movimientos bancarios")
-def list_movimientos_banco(
+@router.get("/banco/movimientos", response_model=dict, summary="List bank transactions")
+def list_bank_transactions(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    fecha_desde: str | None = None,
-    fecha_hasta: str | None = None,
-    tipo: str | None = None,
-    conciliado: bool | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    tx_type: str | None = None,
+    reconciled: bool | None = None,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
-    """Lista movimientos bancarios"""
+    """List bank transactions for the tenant."""
     tenant_id = UUID(claims["tenant_id"])
 
     query = db.query(BankTransaction).filter(BankTransaction.tenant_id == tenant_id)
 
-    if fecha_desde:
-        query = query.filter(BankTransaction.fecha >= fecha_desde)
-    if fecha_hasta:
-        query = query.filter(BankTransaction.fecha <= fecha_hasta)
-    if tipo:
-        query = query.filter(BankTransaction.tipo == tipo)
-    if conciliado is not None:
-        from app.models.core.facturacion import MovimientoEstado
+    if date_from:
+        query = query.filter(BankTransaction.date >= date_from)
+    if date_to:
+        query = query.filter(BankTransaction.date <= date_to)
+    if tx_type:
+        query = query.filter(BankTransaction.type == tx_type)
+    if reconciled is not None:
+        from app.models.core.facturacion import TransactionStatus
 
-        estado = MovimientoEstado.CONCILIADO if conciliado else MovimientoEstado.PENDIENTE
-        query = query.filter(BankTransaction.estado == estado)
+        status = TransactionStatus.RECONCILED if reconciled else TransactionStatus.PENDING
+        query = query.filter(BankTransaction.status == status)
 
     total = query.count()
-    movimientos = query.order_by(BankTransaction.fecha.desc()).offset(skip).limit(limit).all()
+    transactions = query.order_by(BankTransaction.date.desc()).offset(skip).limit(limit).all()
 
     return {
         "items": [
             {
                 "id": str(m.id),
                 "tenant_id": str(m.tenant_id),
-                "cuenta_id": str(m.cuenta_id),
-                "fecha": m.fecha.isoformat() if m.fecha else None,
-                "tipo": m.tipo.value if hasattr(m.tipo, "value") else m.tipo,
-                "monto": float(m.monto),
-                "descripcion": m.description,
-                "estado": m.estado.value if hasattr(m.estado, "value") else m.estado,
+                "account_id": str(m.account_id),
+                "date": m.date.isoformat() if m.date else None,
+                "type": m.type.value if hasattr(m.type, "value") else m.type,
+                "amount": float(m.amount),
+                "concept": m.concept,
+                "status": m.status.value if hasattr(m.status, "value") else m.status,
             }
-            for m in movimientos
+            for m in transactions
         ],
         "total": total,
         "skip": skip,
@@ -635,72 +636,70 @@ def list_movimientos_banco(
     }
 
 
-@router.post("/banco/{id}/conciliar", response_model=dict, summary="Conciliar movimiento bancario")
-def conciliar_movimiento(
+@router.post("/banco/{id}/conciliar", response_model=dict, summary="Reconcile bank transaction")
+def reconcile_transaction(
     id: UUID,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
-    """Marcar movimiento bancario como conciliado"""
+    """Mark bank transaction as reconciled."""
     tenant_id = UUID(claims["tenant_id"])
 
-    movimiento = (
+    tx = (
         db.query(BankTransaction)
         .filter(and_(BankTransaction.id == id, BankTransaction.tenant_id == tenant_id))
         .first()
     )
 
-    if not movimiento:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Movimiento no encontrado"
-        )
+    if not tx:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
 
-    from app.models.core.facturacion import MovimientoEstado
+    from app.models.core.facturacion import TransactionStatus
 
-    if movimiento.estado == MovimientoEstado.CONCILIADO:
+    if tx.status == TransactionStatus.RECONCILED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Este movimiento ya está conciliado",
+            detail="This transaction is already reconciled",
         )
 
-    movimiento.estado = MovimientoEstado.CONCILIADO
+    tx.status = TransactionStatus.RECONCILED
     db.commit()
-    db.refresh(movimiento)
+    db.refresh(tx)
 
     return {
-        "id": str(movimiento.id),
-        "estado": movimiento.estado.value,
-        "message": "Movimiento conciliado exitosamente",
+        "id": str(tx.id),
+        "status": tx.status.value,
+        "message": "Transaction reconciled",
     }
 
 
-@router.get("/banco/saldos", response_model=list, summary="Obtener saldos bancarios")
-def get_saldos_banco(
-    fecha: str | None = None,
+@router.get("/banco/saldos", response_model=list, summary="Get bank balances")
+def get_bank_balances(
+    date_filter: str | None = None,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
-    """Obtener saldos bancarios por cuenta"""
+    """Get bank balances per account."""
     tenant_id = UUID(claims["tenant_id"])
 
     query = db.query(BankTransaction).filter(BankTransaction.tenant_id == tenant_id)
 
-    if fecha:
-        query = query.filter(BankTransaction.fecha <= fecha)
+    if date_filter:
+        query = query.filter(BankTransaction.date <= date_filter)
 
-    cuentas_data = (
+    accounts_data = (
         query.with_entities(
-            BankTransaction.cuenta_id, func.sum(BankTransaction.monto).label("saldo")
+            BankTransaction.account_id, func.sum(BankTransaction.amount).label("balance")
         )
-        .group_by(BankTransaction.cuenta_id)
+        .group_by(BankTransaction.account_id)
         .all()
     )
 
     return [
         {
-            "cuenta_id": str(cuenta.cuenta_id),
-            "saldo": float(cuenta.saldo or 0),
-            "fecha": fecha or datetime.utcnow().date().isoformat(),
+            "account_id": str(acc.account_id),
+            "balance": float(acc.balance or 0),
+            "date": date_filter or datetime.utcnow().date().isoformat(),
         }
-        for cuenta in cuentas_data
+        for acc in accounts_data
     ]

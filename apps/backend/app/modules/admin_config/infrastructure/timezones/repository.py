@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
 
-from app.models.empresa.empresa import RefTimezone as TimezoneORM
+from app.models.company.company import RefTimezone as TimezoneORM
 from app.modules.admin_config.application.timezones.dto import TimezoneIn, TimezoneOut
 from app.modules.admin_config.application.timezones.ports import TimezoneRepo
 

@@ -10,7 +10,7 @@ from app.config.database import IS_SQLITE, Base
 
 
 class SuperUser(Base):
-    """Tabla de usuarios (admin)."""
+    """Admin users table."""
 
     __tablename__ = "auth_user"
     __table_args__ = {"extend_existing": True}
@@ -24,14 +24,14 @@ class SuperUser(Base):
         index=True,
     )
 
-    # Identidad
+    # Identity
     username: Mapped[str] = mapped_column(String(150), unique=True, index=True, nullable=False)
     email: Mapped[str] = mapped_column(String(254), unique=True, index=True, nullable=False)
 
-    # Credenciales
+    # Credentials
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    # Estado / permisos
+    # Status / permissions
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
     is_superadmin: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("false")
@@ -39,9 +39,9 @@ class SuperUser(Base):
     is_staff: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
 
-    # Nota: SuperUser es global (no por tenant); no incluir tenant_id
+    # Note: SuperUser is global (not per tenant); do not include tenant_id
 
-    # Auditoría de acceso / seguridad
+    # Access/security audit
     failed_login_count: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default=text("0")
     )

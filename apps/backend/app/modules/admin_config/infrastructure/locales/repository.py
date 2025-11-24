@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
 
-from app.models.empresa.empresa import RefLocale as LocaleORM
+from app.models.company.company import RefLocale as LocaleORM
 from app.modules.admin_config.application.locales.dto import LocaleIn, LocaleOut
 from app.modules.admin_config.application.locales.ports import LocaleRepo
 

@@ -32,7 +32,8 @@ from app.db.rls import ensure_rls
 
 # Models
 from app.models.hr import Empleado, Vacacion
-from app.models.hr.nomina import Nomina, NominaConcepto
+from app.models.hr.payroll import Payroll as Nomina
+from app.models.hr.payroll import PayrollConcept as NominaConcepto
 
 # Schemas - Empleados y Vacaciones
 from app.schemas.hr import (

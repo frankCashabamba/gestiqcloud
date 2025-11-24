@@ -72,7 +72,7 @@ class AuthenticatedUser(BaseModel):
     tenant_id: UUID | None = None
     empresa_slug: str | None = None
     plantilla: str | None = None
-    es_admin_empresa: bool | None = None
+    is_company_admin: bool | None = None
     permisos: dict | None = {}
     name: str | None = None
 

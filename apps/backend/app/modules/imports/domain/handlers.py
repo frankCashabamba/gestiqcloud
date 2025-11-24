@@ -47,30 +47,30 @@ class InvoiceHandler:
             ).strip()
 
             # Fecha de emisión
-            fecha_raw = (
+            tx_date_raw = (
                 normalized.get("invoice_date")
-                or normalized.get("fecha_emision")
-                or normalized.get("fecha")
+                or normalized.get("tx_date_emision")
+                or normalized.get("tx_date")
                 or normalized.get("date")
                 or normalized.get("issue_date")
             )
-            if isinstance(fecha_raw, str):
+            if isinstance(tx_date_raw, str):
                 for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"]:
                     try:
-                        fecha_emision = datetime.strptime(fecha_raw, fmt).date().isoformat()
+                        tx_date_emision = datetime.strptime(tx_date_raw, fmt).date().isoformat()
                         break
                     except ValueError:
                         continue
                 else:
-                    fecha_emision = datetime.utcnow().date().isoformat()
-            elif isinstance(fecha_raw, (date, datetime)):
-                fecha_emision = (
-                    fecha_raw.isoformat()
-                    if isinstance(fecha_raw, date)
-                    else fecha_raw.date().isoformat()
+                    tx_date_emision = datetime.utcnow().date().isoformat()
+            elif isinstance(tx_date_raw, (date, datetime)):
+                tx_date_emision = (
+                    tx_date_raw.isoformat()
+                    if isinstance(tx_date_raw, date)
+                    else tx_date_raw.date().isoformat()
                 )
             else:
-                fecha_emision = datetime.utcnow().date().isoformat()
+                tx_date_emision = datetime.utcnow().date().isoformat()
 
             # Proveedor
             vendor_name = str(
@@ -126,7 +126,7 @@ class InvoiceHandler:
                 cliente_id=cliente.id,
                 numero=invoice_number,
                 proveedor=vendor_name,
-                fecha_emision=fecha_emision,
+                tx_date_emision=tx_date_emision,
                 subtotal=subtotal,
                 iva=iva,
                 total=total,
@@ -141,7 +141,7 @@ class InvoiceHandler:
             if not lines_data and total > 0:
                 lines_data = [
                     {
-                        "descripcion": normalized.get("concepto") or "Importe de factura",
+                        "descripcion": normalized.get("concept") or "Importe de factura",
                         "cantidad": 1,
                         "precio_unitario": total,
                     }
@@ -206,37 +206,35 @@ class BankHandler:
         from app.models.core.facturacion import (
             BankAccount,
             BankTransaction,
-            MovimientoEstado,
-            MovimientoTipo,
+            TransactionStatus,
+            TransactionType,
         )
 
         try:
             # Fecha
-            fecha_raw = (
+            tx_date_raw = (
                 normalized.get("date")
-                or normalized.get("fecha")
+                or normalized.get("tx_date")
                 or normalized.get("value_date")
                 or normalized.get("transaction_date")
                 or normalized.get("bank_tx", {}).get("value_date")
             )
-            if isinstance(fecha_raw, str):
+            if isinstance(tx_date_raw, str):
                 for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"]:
                     try:
-                        fecha = datetime.strptime(fecha_raw, fmt).date()
+                        tx_date = datetime.strptime(tx_date_raw, fmt).date()
                         break
                     except ValueError:
                         continue
                 else:
-                    fecha = datetime.utcnow().date()
-            elif isinstance(fecha_raw, (date, datetime)):
-                fecha = fecha_raw if isinstance(fecha_raw, date) else fecha_raw.date()
+                    tx_date = datetime.utcnow().date()
+            elif isinstance(tx_date_raw, (date, datetime)):
+                tx_date = tx_date_raw if isinstance(tx_date_raw, date) else tx_date_raw.date()
             else:
-                fecha = datetime.utcnow().date()
+                tx_date = datetime.utcnow().date()
 
-            # Importe y dirección
             amount = float(
                 normalized.get("amount")
-                or normalized.get("importe")
                 or normalized.get("monto")
                 or normalized.get("bank_tx", {}).get("amount")
                 or 0
@@ -252,19 +250,19 @@ class BankHandler:
                 amount = abs(amount)
 
             # Concepto
-            concepto = str(
+            concept = str(
                 normalized.get("description")
-                or normalized.get("concepto")
+                or normalized.get("concept")
                 or normalized.get("narrative")
                 or normalized.get("bank_tx", {}).get("narrative")
-                or "Movimiento bancario"
+                or "Bank transaction"
             ).strip()
 
             # Referencia
-            referencia = (
+            reference = (
                 str(
                     normalized.get("reference")
-                    or normalized.get("referencia")
+                    or normalized.get("reference")
                     or normalized.get("external_ref")
                     or normalized.get("bank_tx", {}).get("external_ref")
                     or ""
@@ -276,67 +274,66 @@ class BankHandler:
             iban = str(normalized.get("iban") or "").strip() or None
 
             # Moneda
-            moneda = str(
+            currency = str(
                 normalized.get("currency")
-                or normalized.get("moneda")
+                or normalized.get("currency")
                 or (normalized.get("country") == "EC" and "USD")
                 or "EUR"
             ).upper()
 
-            # Buscar o crear cuenta bancaria
+            # Find or create bank account
             if iban:
-                cuenta = (
+                account = (
                     db.query(BankAccount)
                     .filter(BankAccount.tenant_id == tenant_id, BankAccount.iban == iban)
                     .first()
                 )
             else:
-                cuenta = db.query(BankAccount).filter(BankAccount.tenant_id == tenant_id).first()
+                account = db.query(BankAccount).filter(BankAccount.tenant_id == tenant_id).first()
 
-            if not cuenta:
-                cuenta = BankAccount(
+            if not account:
+                account = BankAccount(
                     id=uuid4(),
                     tenant_id=tenant_id,
-                    nombre="Cuenta Principal",
+                    name="Main Account",
                     iban=iban or f"ES00-{str(uuid4())[:16]}",
-                    banco="Banco desconocido",
-                    moneda=moneda,
-                    cliente_id=None,
+                    bank="Unknown",
+                    currency=currency,
+                    customer_id=None,
                 )
-                db.add(cuenta)
+                db.add(account)
                 db.flush()
 
-            # Tipo de movimiento
-            tipo_map = {
-                "transfer": MovimientoTipo.TRANSFERENCIA,
-                "transferencia": MovimientoTipo.TRANSFERENCIA,
-                "card": MovimientoTipo.TARJETA,
-                "tarjeta": MovimientoTipo.TARJETA,
-                "cash": MovimientoTipo.EFECTIVO,
-                "efectivo": MovimientoTipo.EFECTIVO,
-                "receipt": MovimientoTipo.RECIBO,
-                "recibo": MovimientoTipo.RECIBO,
+            type_map = {
+                "transfer": TransactionType.TRANSFER,
+                "transferencia": TransactionType.TRANSFER,
+                "card": TransactionType.CARD,
+                "tarjeta": TransactionType.CARD,
+                "cash": TransactionType.CASH,
+                "efectivo": TransactionType.CASH,
+                "receipt": TransactionType.RECEIPT,
+                "recibo": TransactionType.RECEIPT,
             }
-            tipo_str = str(normalized.get("tipo") or normalized.get("type") or "otro").lower()
-            tipo = tipo_map.get(tipo_str, MovimientoTipo.OTRO)
+            type_str = str(normalized.get("tipo") or normalized.get("type") or "other").lower()
+            tx_type = type_map.get(type_str, TransactionType.OTHER)
 
             # Crear transacción
             transaction = BankTransaction(
                 id=uuid4(),
                 tenant_id=tenant_id,
-                cuenta_id=cuenta.id,
-                fecha=fecha,
-                importe=amount,
-                moneda=moneda,
-                tipo=tipo,
-                estado=MovimientoEstado.PENDIENTE,
-                concepto=concepto,
-                referencia=referencia,
-                contrapartida_nombre=str(normalized.get("counterparty_name") or "").strip() or None,
-                contrapartida_iban=str(normalized.get("counterparty_iban") or "").strip() or None,
-                fuente=normalized.get("source") or "import",
-                categoria=str(normalized.get("categoria") or "").strip() or None,
-                origen=direction,
+                account_id=account.id,
+                date=tx_date,
+                amount=amount,
+                currency=currency,
+                type=tx_type,
+                status=TransactionStatus.PENDING,
+                concept=concept,
+                reference=reference,
+                counterparty_name=str(normalized.get("counterparty_name") or "").strip() or None,
+                counterparty_iban=str(normalized.get("counterparty_iban") or "").strip() or None,
+                source=normalized.get("source") or "import",
+                category=str(normalized.get("category") or "").strip() or None,
+                direction=direction,
             )
             db.add(transaction)
             db.flush()
@@ -371,37 +368,37 @@ class ExpenseHandler:
 
         try:
             # Fecha
-            fecha_raw = (
+            tx_date_raw = (
                 normalized.get("date")
-                or normalized.get("fecha")
+                or normalized.get("tx_date")
                 or normalized.get("expense_date")
                 or normalized.get("issue_date")
             )
-            if isinstance(fecha_raw, str):
+            if isinstance(tx_date_raw, str):
                 for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"]:
                     try:
-                        fecha = datetime.strptime(fecha_raw, fmt).date()
+                        tx_date = datetime.strptime(tx_date_raw, fmt).date()
                         break
                     except ValueError:
                         continue
                 else:
-                    fecha = datetime.utcnow().date()
-            elif isinstance(fecha_raw, (date, datetime)):
-                fecha = fecha_raw if isinstance(fecha_raw, date) else fecha_raw.date()
+                    tx_date = datetime.utcnow().date()
+            elif isinstance(tx_date_raw, (date, datetime)):
+                tx_date = tx_date_raw if isinstance(tx_date_raw, date) else tx_date_raw.date()
             else:
-                fecha = datetime.utcnow().date()
+                tx_date = datetime.utcnow().date()
 
             # Concepto
-            concepto = str(
+            concept = str(
                 normalized.get("description")
-                or normalized.get("concepto")
+                or normalized.get("concept")
                 or normalized.get("descripcion")
                 or "Gasto"
             ).strip()
 
             # Categoría
-            categoria = (
-                str(normalized.get("category") or normalized.get("categoria") or "otros")
+            category = (
+                str(normalized.get("category") or normalized.get("category") or "otros")
                 .strip()
                 .lower()
             )
@@ -416,11 +413,11 @@ class ExpenseHandler:
             total = float(
                 normalized.get("total")
                 or normalized.get("amount")
-                or normalized.get("importe")
+                or normalized.get("amount")
                 or normalized.get("totals", {}).get("total")
                 or 0
             )
-            importe = total - iva if iva > 0 else total
+            amount = total - iva if iva > 0 else total
 
             # Forma de pago
             payment_map = {
@@ -481,11 +478,11 @@ class ExpenseHandler:
             gasto = Gasto(
                 id=uuid4(),
                 tenant_id=tenant_id,
-                fecha=fecha,
-                concepto=concepto,
-                categoria=categoria,
-                subcategoria=None,
-                importe=Decimal(str(importe)),
+                tx_date=tx_date,
+                concept=concept,
+                category=category,
+                subcategory=None,
+                amount=Decimal(str(amount)),
                 iva=Decimal(str(iva)),
                 total=Decimal(str(total)),
                 proveedor_id=proveedor_id,
@@ -550,7 +547,7 @@ class ProductHandler:
 
         # Category resolution
         category_id = None
-        category_name = str(normalized.get("category") or normalized.get("categoria") or "").strip()
+        category_name = str(normalized.get("category") or normalized.get("category") or "").strip()
         if category_name:
             category = (
                 db.query(ProductCategory)
@@ -619,8 +616,8 @@ class ProductHandler:
                 existing.category_id = category_id
             # Keep or extend metadata
             meta = dict(existing.product_metadata or {})
-            if normalized.get("_imported_at"):
-                meta["imported_at"] = normalized.get("_imported_at")
+            if normalized.get("_amountd_at"):
+                meta["amountd_at"] = normalized.get("_amountd_at")
             meta.setdefault("source", "excel_import")
             existing.product_metadata = meta
             db.flush()
@@ -710,7 +707,7 @@ class ProductHandler:
             unit=(normalized.get("unit") or normalized.get("unidad") or "unidad"),
             category_id=category_id,
             product_metadata={
-                "imported_at": normalized.get("_imported_at"),
+                "amountd_at": normalized.get("_amountd_at"),
                 "source": "excel_import",
             },
         )

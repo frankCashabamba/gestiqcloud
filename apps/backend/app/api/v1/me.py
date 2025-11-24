@@ -10,7 +10,7 @@ from app.config.settings import settings
 from app.core.deps import require_tenant
 from app.core.refresh import decode_and_validate
 from app.db.rls import ensure_rls
-from app.models.empresa.usuarioempresa import UsuarioEmpresa
+from app.models.company.company_user import CompanyUser
 
 router = APIRouter(prefix="/me", tags=["Me"], dependencies=[Depends(ensure_rls)])
 
@@ -22,7 +22,7 @@ def me(s: dict = Depends(require_tenant)) -> dict:
     return {
         "user_id": s.get("tenant_user_id"),
         "tenant_id": s.get("tenant_id"),
-        "permisos": [],
+        "permissions": [],
     }
 
 
@@ -73,20 +73,19 @@ def me_tenant(request: Request, db: Session = Depends(get_db)):
         # 2) usa GET /api/v1/me (require_tenant) en el FE.
         raise HTTPException(status_code=404, detail="tenant_not_found")
 
-    # Optionally enrich with username and empresa_slug for better UX
+    # Optionally enrich with username and company_slug for better UX
     username = None
-    empresa_slug = None
-    es_admin_empresa = None
+    company_slug = None
+    is_company_admin = None
     try:
-        uid = int(user_id) if user_id and user_id.isdigit() else None
+        uid = user_id
     except Exception:
         uid = None
     if uid is not None:
-        u = db.query(UsuarioEmpresa).filter(UsuarioEmpresa.id == uid).first()
+        u = db.query(CompanyUser).filter(CompanyUser.id == uid).first()
         if u is not None:
             username = getattr(u, "username", None)
             try:
-                # Get slug from tenant (Empresa no longer exists)
                 from app.models.tenant import Tenant
 
                 tenant = (
@@ -94,20 +93,20 @@ def me_tenant(request: Request, db: Session = Depends(get_db)):
                     if hasattr(u, "tenant_id") and u.tenant_id
                     else None
                 )
-                empresa_slug = tenant.slug if tenant else None
+                company_slug = tenant.slug if tenant else None
             except Exception:
-                empresa_slug = None
+                company_slug = None
             try:
-                es_admin_empresa = bool(getattr(u, "es_admin_empresa", None))
+                is_company_admin = bool(getattr(u, "is_company_admin", None))
             except Exception:
-                es_admin_empresa = None
+                is_company_admin = None
 
     return {
         "tenant_id": str(tenant_id),
         "user_id": user_id,
         "username": username,
-        "empresa_slug": empresa_slug,
-        "es_admin_empresa": es_admin_empresa,
+        "empresa_slug": company_slug,
+        "is_company_admin": is_company_admin,
         "scope": "tenant",
     }
 

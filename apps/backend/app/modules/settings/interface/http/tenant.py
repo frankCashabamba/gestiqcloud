@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
+from app.models.company.settings import ConfiguracionEmpresa
 from app.models.core.ui_field_config import TenantFieldConfig
 from app.models.core.ui_template import UiTemplate
-from app.models.empresa.settings import ConfiguracionEmpresa
 from app.models.tenant import Tenant as Empresa
 from app.services.field_config import resolve_fields
 
@@ -48,9 +48,9 @@ def get_fiscal(db: Session = Depends(get_db)):
 
 
 def _require_tenant_admin(claims: dict):
-    # es_admin_empresa debe ser True para modificar settings sensibles
+    # is_company_admin must be True to modify sensitive settings
     try:
-        if not isinstance(claims, dict) or not claims.get("es_admin_empresa", False):
+        if not isinstance(claims, dict) or not claims.get("is_company_admin", False):
             raise HTTPException(status_code=403, detail="admin_required")
     except Exception:
         raise HTTPException(status_code=403, detail="admin_required")
@@ -75,7 +75,7 @@ def put_pos_settings(
 ):
     """Actualizar ajustes POS (incluye tax.enabled/default_rate).
 
-    Requiere es_admin_empresa=true en claims.
+    Requires is_company_admin=true in claims.
     """
     _require_tenant_admin(claims)
     SettingsRepo(db).put("pos", payload)

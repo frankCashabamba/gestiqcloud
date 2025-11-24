@@ -1,4 +1,4 @@
-"""Modelo de Numeración Documental"""
+"""Document numbering series model for POS/backoffice."""
 
 import uuid
 from datetime import datetime
@@ -11,7 +11,7 @@ from app.config.database import Base
 
 
 class DocSeries(Base):
-    """Serie de numeración documental"""
+    """Document numbering series."""
 
     __tablename__ = "doc_series"
     __table_args__ = {"extend_existing": True}
@@ -35,7 +35,7 @@ class DocSeries(Base):
     doc_type: Mapped[str] = mapped_column(
         String(10),
         nullable=False,
-        # R = recibo, F = factura, C = abono
+        comment="R=receipt, F=invoice, C=credit_note",
     )
     name: Mapped[str] = mapped_column(String(50), nullable=False)
     current_no: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

@@ -1,16 +1,11 @@
 """
-Modelos base para líneas de documentos.
+Base models for commercial document lines.
 
-Define una jerarquía común para todas las líneas de documentos comerciales:
-- Facturas (invoice_lines)
-- Órdenes de venta (sales_order_items)
-- Recibos POS (pos_receipt_lines)
-- Órdenes de compra (purchase_order_lines)
-
-Esto permite:
-- Reutilización de código
-- Consistencia en la estructura
-- Facilita conversiones entre documentos
+Provides a common structure for:
+- Invoices (invoice_lines)
+- Sales orders (sales_order_items)
+- POS receipts (pos_receipt_lines)
+- Purchase orders (purchase_order_lines)
 """
 
 from uuid import UUID
@@ -22,60 +17,58 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 class DocumentLineBase:
     """
-    Clase base abstracta (mixin) para todas las líneas de documento.
+    Abstract mixin for all document lines.
 
-    Define los campos comunes que toda línea de documento debe tener.
-    No se mapea a una tabla, solo provee estructura común.
+    Not mapped to a table; only provides common fields.
     """
 
-    # Campos comunes a todas las líneas
     product_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         nullable=True,
-        comment="Producto (puede ser nulo para líneas de texto libre)",
+        comment="Product (can be null for free-text lines)",
     )
 
     description: Mapped[str] = mapped_column(
-        String(500), nullable=False, comment="Descripción del item/servicio"
+        String(500), nullable=False, comment="Item/service description"
     )
 
-    qty: Mapped[float] = mapped_column(Numeric(12, 3), nullable=False, comment="Cantidad")
+    qty: Mapped[float] = mapped_column(Numeric(12, 3), nullable=False, comment="Quantity")
 
     unit_price: Mapped[float] = mapped_column(
-        Numeric(12, 4), nullable=False, default=0, comment="Precio unitario antes de impuestos"
+        Numeric(12, 4), nullable=False, default=0, comment="Unit price before tax"
     )
 
     tax_rate: Mapped[float] = mapped_column(
-        Numeric(6, 4), nullable=False, default=0, comment="Tasa de impuesto (0.21 = 21%)"
+        Numeric(6, 4), nullable=False, default=0, comment="Tax rate (0.21 = 21%)"
     )
 
     discount_pct: Mapped[float] = mapped_column(
-        Numeric(5, 2), nullable=False, default=0, comment="Porcentaje de descuento (10 = 10%)"
+        Numeric(5, 2), nullable=False, default=0, comment="Discount % (10 = 10%)"
     )
 
     @property
     def subtotal(self) -> float:
-        """Subtotal antes de descuentos e impuestos"""
+        """Subtotal before discounts and taxes."""
         return float(self.qty * self.unit_price)
 
     @property
     def discount_amount(self) -> float:
-        """Monto del descuento"""
+        """Discount amount."""
         return float(self.subtotal * (self.discount_pct / 100))
 
     @property
     def base_amount(self) -> float:
-        """Base imponible (después de descuento, antes de impuestos)"""
+        """Tax base (after discount, before taxes)."""
         return float(self.subtotal - self.discount_amount)
 
     @property
     def tax_amount(self) -> float:
-        """Monto del impuesto"""
+        """Tax amount."""
         return float(self.base_amount * self.tax_rate)
 
     @property
     def total(self) -> float:
-        """Total de la línea (base + impuestos)"""
+        """Line total (base + taxes)."""
         return float(self.base_amount + self.tax_amount)
 
 

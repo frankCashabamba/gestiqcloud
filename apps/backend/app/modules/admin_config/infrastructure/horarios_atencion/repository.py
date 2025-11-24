@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
 
-from app.models.empresa.empresa import HorarioAtencion as HorarioAtencionORM
+from app.models.company.company import BusinessHours as HorarioAtencionORM
 from app.modules.admin_config.application.horarios_atencion.dto import (
     HorarioAtencionIn,
     HorarioAtencionOut,
@@ -19,9 +19,9 @@ class SqlAlchemyHorarioAtencionRepo(HorarioAtencionRepo):
     def _to_dto(self, h: HorarioAtencionORM) -> HorarioAtencionOut:
         return HorarioAtencionOut(
             id=h.id,
-            dia_id=h.dia_id,
-            inicio=h.inicio,
-            fin=h.fin,
+            dia_id=h.weekday_id,
+            inicio=h.start_time,
+            fin=h.end_time,
         )
 
     def list(self) -> Sequence[HorarioAtencionOut]:
@@ -34,9 +34,9 @@ class SqlAlchemyHorarioAtencionRepo(HorarioAtencionRepo):
 
     def create(self, data: HorarioAtencionIn) -> HorarioAtencionOut:
         obj = HorarioAtencionORM(
-            dia_id=data.dia_id,
-            inicio=data.inicio,
-            fin=data.fin,
+            weekday_id=data.dia_id,
+            start_time=data.inicio,
+            end_time=data.fin,
         )
         self.db.add(obj)
         self.db.commit()
@@ -51,9 +51,9 @@ class SqlAlchemyHorarioAtencionRepo(HorarioAtencionRepo):
         obj = self.db.query(HorarioAtencionORM).filter(HorarioAtencionORM.id == id).first()
         if not obj:
             raise ValueError("horario_no_encontrado")
-        obj.dia_id = data.dia_id
-        obj.inicio = data.inicio
-        obj.fin = data.fin
+        obj.weekday_id = data.dia_id
+        obj.start_time = data.inicio
+        obj.end_time = data.fin
         self.db.add(obj)
         self.db.commit()
         self.db.refresh(obj)

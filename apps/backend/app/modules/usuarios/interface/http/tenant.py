@@ -10,16 +10,16 @@ from app.core.authz import require_scope
 from app.db.rls import ensure_rls
 from app.modules.usuarios.application import permissions, services
 from app.modules.usuarios.infrastructure.schemas import (
-    ModuloOption,
-    RolEmpresaOption,
-    UsuarioEmpresaCreate,
-    UsuarioEmpresaOut,
-    UsuarioEmpresaUpdate,
+    CompanyRoleOption,
+    CompanyUserCreate,
+    CompanyUserOut,
+    CompanyUserUpdate,
+    ModuleOption,
 )
 
 router = APIRouter(
-    prefix="/tenant/usuarios",
-    tags=["Usuarios"],
+    prefix="/tenant/users",
+    tags=["Users"],
     dependencies=[
         Depends(with_access_claims),
         Depends(require_scope("tenant")),
@@ -27,14 +27,14 @@ router = APIRouter(
     ],
 )
 
-public_router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
+public_router = APIRouter(prefix="/users", tags=["Users"])
 
 
-def _tenant_empresa_id(request: Request) -> UUID:
+def _tenant_id(request: Request) -> UUID:
     claims = request.state.access_claims
     tenant_id = claims.get("tenant_id")
     if tenant_id is None:
-        raise HTTPException(status_code=400, detail="Empresa no encontrada en el token")
+        raise HTTPException(status_code=400, detail="tenant_not_found_in_token")
     if isinstance(tenant_id, UUID):
         return tenant_id
     try:
@@ -47,25 +47,25 @@ class SetPasswordIn(BaseModel):
     password: str = Field(min_length=8)
 
 
-@router.get("", response_model=list[UsuarioEmpresaOut])
-def listar_usuarios(
+@router.get("", response_model=list[CompanyUserOut])
+def list_users(
     request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(permissions.require_perm_update_tenant_user),
 ):
-    tenant_id = _tenant_empresa_id(request)
-    return services.listar_usuarios_empresa(db, tenant_id)
+    tenant_id = _tenant_id(request)
+    return services.list_company_users(db, tenant_id)
 
 
-@router.post("", response_model=UsuarioEmpresaOut, status_code=status.HTTP_201_CREATED)
-def crear_usuario(
+@router.post("", response_model=CompanyUserOut, status_code=status.HTTP_201_CREATED)
+def create_user(
     request: Request,
-    usuario_in: UsuarioEmpresaCreate,
+    usuario_in: CompanyUserCreate,
     db: Session = Depends(get_db),
     current_user=Depends(permissions.require_perm_create_tenant_user),
 ):
-    tenant_id = _tenant_empresa_id(request)
-    return services.crear_usuario_empresa(
+    tenant_id = _tenant_id(request)
+    return services.create_company_user(
         db,
         tenant_id,
         usuario_in,
@@ -73,66 +73,63 @@ def crear_usuario(
     )
 
 
-@router.patch("/{usuario_id}", response_model=UsuarioEmpresaOut)
-def actualizar_usuario(
+@router.patch("/{usuario_id}", response_model=CompanyUserOut)
+def update_user(
     request: Request,
     usuario_id: UUID,
-    usuario_in: UsuarioEmpresaUpdate,
+    usuario_in: CompanyUserUpdate,
     db: Session = Depends(get_db),
     current_user=Depends(permissions.require_perm_update_tenant_user),
 ):
-    tenant_id = _tenant_empresa_id(request)
-    return services.actualizar_usuario_empresa(db, tenant_id, usuario_id, usuario_in)
+    tenant_id = _tenant_id(request)
+    return services.update_company_user(db, tenant_id, usuario_id, usuario_in)
 
 
 @router.post("/{usuario_id}/set-password")
-def set_password_usuario(
+def set_user_password(
     request: Request,
     usuario_id: UUID,
     payload: SetPasswordIn,
     db: Session = Depends(get_db),
     current_user=Depends(permissions.require_perm_set_password_tenant_user),
 ):
-    """Establece la contraseña de un usuario de empresa del mismo tenant.
-
-    Requiere rol de admin de empresa. No devuelve datos sensibles.
-    """
-    tenant_id = _tenant_empresa_id(request)
-    update = UsuarioEmpresaUpdate(password=payload.password)
-    services.actualizar_usuario_empresa(db, tenant_id, usuario_id, update)
+    """Set the password for a company user in the same tenant."""
+    tenant_id = _tenant_id(request)
+    update = CompanyUserUpdate(password=payload.password)
+    services.update_company_user(db, tenant_id, usuario_id, update)
     return {"ok": True}
 
 
 @router.delete("/{usuario_id}", status_code=status.HTTP_204_NO_CONTENT)
-def desactivar_usuario(
+def deactivate_user(
     request: Request,
     usuario_id: UUID,
     db: Session = Depends(get_db),
     current_user=Depends(permissions.require_perm_delete_tenant_user),
 ):
-    tenant_id = _tenant_empresa_id(request)
-    services.toggle_usuario_activo(db, tenant_id, usuario_id, activo=False)
+    tenant_id = _tenant_id(request)
+    services.toggle_user_active(db, tenant_id, usuario_id, active=False)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/modulos", response_model=list[ModuloOption])
-def listar_modulos_empresa(
+@router.get("/modules", response_model=list[ModuleOption])
+def list_company_modules(
     request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(permissions.require_perm_update_tenant_user),
 ):
-    tenant_id = _tenant_empresa_id(request)
-    return services.listar_modulos_empresa(db, tenant_id)
+    tenant_id = _tenant_id(request)
+    return services.list_company_modules(db, tenant_id)
 
 
-@router.get("/roles", response_model=list[RolEmpresaOption])
-def listar_roles_empresa(
+@router.get("/roles", response_model=list[CompanyRoleOption])
+def list_company_roles(
     request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(permissions.require_perm_update_tenant_user),
 ):
-    tenant_id = _tenant_empresa_id(request)
-    return services.listar_roles_empresa(db, tenant_id)
+    tenant_id = _tenant_id(request)
+    return services.list_company_roles(db, tenant_id)
 
 
 @public_router.get("/check-username/{username}")

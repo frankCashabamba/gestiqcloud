@@ -3,19 +3,19 @@ from __future__ import annotations
 from uuid import uuid4
 
 from app.models.auth.useradmis import SuperUser
-from app.models.empresa.usuarioempresa import CompanyUser
+from app.models.company.company_user import CompanyUser
 from app.models.tenant import Tenant
 from app.modules.usuarios.interface.http.admin import SetPasswordIn, set_password
 
 
-def test_admin_set_password_updates_usuarioempresa_only(db):
+def test_admin_set_password_updates_company_user_only(db):
     # Arrange: create a SuperUser and a CompanyUser
     su = SuperUser(username="owner", email="owner@example.com", password_hash="x")  # noqa: F841
     db.add(su)
     db.flush()
 
     # Create tenant (Tenant is now the primary entity, no tenant_id needed)
-    tenant = Tenant(id=uuid4(), nombre="Test Co", slug="testco-t")
+    tenant = Tenant(id=uuid4(), name="Test Co", slug="testco-t")
     db.add(tenant)
     db.flush()
 

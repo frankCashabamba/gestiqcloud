@@ -8,7 +8,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-from app.schemas.finance_caja import CajaMovimientoCreate, CierreCajaCreate
+from app.schemas.finance_caja import CashClosingCreate, CashMovementCreate
 
 
 class TestCajaMovimientoSchema:
@@ -16,65 +16,69 @@ class TestCajaMovimientoSchema:
 
     def test_caja_movimiento_create_ingreso(self):
         """Crear movimiento de ingreso"""
-        data = CajaMovimientoCreate(
-            tipo="INGRESO",
-            importe=Decimal("150.00"),
-            descripcion="Venta contado",
+        data = CashMovementCreate(
+            movement_type="INCOME",
+            amount=Decimal("150.00"),
+            description="Venta contado",
             ref_doc_type="pos_receipt",
         )
 
-        assert data.tipo == "INGRESO"
-        assert data.importe == Decimal("150.00")
-        assert data.descripcion == "Venta contado"
+        assert data.movement_type == "INCOME"
+        assert data.amount == Decimal("150.00")
+        assert data.description == "Venta contado"
 
     def test_caja_movimiento_create_egreso(self):
         """Crear movimiento de egreso"""
-        data = CajaMovimientoCreate(
-            tipo="EGRESO",
-            importe=Decimal("50.00"),
-            descripcion="Compra materiales",
+        data = CashMovementCreate(
+            movement_type="EXPENSE",
+            amount=Decimal("50.00"),
+            description="Materials purchase",
         )
 
-        assert data.tipo == "EGRESO"
-        assert data.importe == Decimal("50.00")
+        assert data.movement_type == "EXPENSE"
+        assert data.amount == Decimal("50.00")
 
-    def test_caja_movimiento_tipo_validation(self):
-        """Tipo debe ser INGRESO o EGRESO"""
-        # INGRESO válido
-        data1 = CajaMovimientoCreate(tipo="INGRESO", importe=Decimal("100"), descripcion="Test")
-        assert data1.tipo == "INGRESO"
+    def test_caja_movimiento_movement_type_validation(self):
+        """Tipo debe ser INCOME o EXPENSE"""
+        # INCOME válido
+        data1 = CashMovementCreate(
+            movement_type="INCOME", amount=Decimal("100"), description="Test"
+        )
+        assert data1.movement_type == "INCOME"
 
-        # EGRESO válido
-        data2 = CajaMovimientoCreate(tipo="EGRESO", importe=Decimal("50"), descripcion="Test")
-        assert data2.tipo == "EGRESO"
+        # EXPENSE válido
+        data2 = CashMovementCreate(
+            movement_type="EXPENSE", amount=Decimal("50"), description="Test"
+        )
+        assert data2.movement_type == "EXPENSE"
 
 
-class TestCierreCajaSchema:
+class TestCashClosingSchema:
     """Tests de cierre de caja"""
 
     def test_cierre_caja_create(self):
         """Crear cierre de caja"""
-        data = CierreCajaCreate(
-            fecha=date(2025, 11, 3),
-            saldo_inicial=Decimal("100.00"),
-            total_ingresos=Decimal("450.00"),
-            total_egresos=Decimal("80.00"),
+        data = CashClosingCreate(
+            date=date(2025, 11, 3),
+            opening_balance=Decimal("100.00"),
+            total_income=Decimal("450.00"),
+            total_expense=Decimal("80.00"),
         )
 
-        assert data.fecha == date(2025, 11, 3)
-        assert data.saldo_inicial == Decimal("100.00")
-        assert data.total_ingresos == Decimal("450.00")
-        assert data.total_egresos == Decimal("80.00")
+        assert data.date == date(2025, 11, 3)
+        assert data.opening_balance == Decimal("100.00")
+        assert data.total_income == Decimal("450.00")
+        assert data.total_expense == Decimal("80.00")
 
-    def test_cierre_caja_saldo_final_calculation(self):
+    def test_cierre_caja_final_balance_calculation(self):
         """Saldo final = inicial + ingresos - egresos"""
-        saldo_inicial = Decimal("100.00")
-        total_ingresos = Decimal("450.00")
-        total_egresos = Decimal("80.00")
+        opening_balance = Decimal("100.00")
+        total_income = Decimal("450.00")
+        total_expense = Decimal("80.00")
 
-        saldo_final = saldo_inicial + total_ingresos - total_egresos
+        final_balance = opening_balance + total_income - total_expense
 
-        assert saldo_final == Decimal("470.00")
+        assert final_balance == Decimal("470.00")
 
 
 class TestCajaCalculations:
@@ -92,19 +96,19 @@ class TestCajaCalculations:
     def test_multiple_movements(self):
         """Suma de múltiples movimientos"""
         movimientos = [
-            {"tipo": "INGRESO", "importe": Decimal("100")},
-            {"tipo": "INGRESO", "importe": Decimal("200")},
-            {"tipo": "EGRESO", "importe": Decimal("50")},
-            {"tipo": "INGRESO", "importe": Decimal("150")},
-            {"tipo": "EGRESO", "importe": Decimal("30")},
+            {"movement_type": "INCOME", "amount": Decimal("100")},
+            {"movement_type": "INCOME", "amount": Decimal("200")},
+            {"movement_type": "EXPENSE", "amount": Decimal("50")},
+            {"movement_type": "INCOME", "amount": Decimal("150")},
+            {"movement_type": "EXPENSE", "amount": Decimal("30")},
         ]
 
-        total_ingresos = sum(m["importe"] for m in movimientos if m["tipo"] == "INGRESO")
-        total_egresos = sum(m["importe"] for m in movimientos if m["tipo"] == "EGRESO")
+        total_income = sum(m["amount"] for m in movimientos if m["movement_type"] == "INCOME")
+        total_expense = sum(m["amount"] for m in movimientos if m["movement_type"] == "EXPENSE")
 
-        assert total_ingresos == Decimal("450")
-        assert total_egresos == Decimal("80")
-        assert total_ingresos - total_egresos == Decimal("370")
+        assert total_income == Decimal("450")
+        assert total_expense == Decimal("80")
+        assert total_income - total_expense == Decimal("370")
 
 
 class TestCajaIntegration:
@@ -123,11 +127,11 @@ class TestCajaIntegration:
         """Caja recibe movimientos automáticos del POS"""
         # Simular venta POS que genera movimiento de caja
         venta_pos = {
-            "tipo": "INGRESO",
-            "importe": Decimal("25.50"),
+            "movement_type": "INCOME",
+            "amount": Decimal("25.50"),
             "ref_doc_type": "pos_receipt",
             "ref_doc_id": str(uuid4()),
         }
 
-        assert venta_pos["tipo"] == "INGRESO"
+        assert venta_pos["movement_type"] == "INCOME"
         assert venta_pos["ref_doc_type"] == "pos_receipt"

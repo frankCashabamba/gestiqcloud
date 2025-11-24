@@ -4,21 +4,21 @@ from collections.abc import Sequence
 from typing import Protocol
 
 
-class EmpresaDTO(dict):
+class CompanyDTO(dict):
     pass
 
 
-class UsuarioEmpresaDTO(dict):
+class CompanyUserDTO(dict):
     pass
 
 
-class EmpresaRepo(Protocol):
-    def list_all(self) -> Sequence[EmpresaDTO]: ...
+class CompanyRepo(Protocol):
+    def list_all(self) -> Sequence[CompanyDTO]: ...
 
-    def list_by_tenant(self, *, tenant_id: int) -> Sequence[EmpresaDTO]: ...
+    def list_by_tenant(self, *, tenant_id: int) -> Sequence[CompanyDTO]: ...
 
-    def get(self, *, id: int) -> EmpresaDTO | None: ...
+    def get(self, *, id: int) -> CompanyDTO | None: ...
 
 
-class UsuarioEmpresaRepo(Protocol):
-    def get_by_id(self, *, id: int) -> UsuarioEmpresaDTO | None: ...
+class CompanyUserRepo(Protocol):
+    def get_by_id(self, *, id: int) -> CompanyUserDTO | None: ...

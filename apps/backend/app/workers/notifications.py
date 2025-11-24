@@ -22,7 +22,7 @@ from app.models.ai.incident import NotificationChannel, NotificationLog, StockAl
 def send_notification_task(
     self,
     tenant_id: str,
-    tipo: str,
+    channel_type: str,
     destinatario: str,
     asunto: str,
     mensaje: str,
@@ -51,14 +51,14 @@ def send_notification_task(
                     db.query(NotificationChannel)
                     .filter(
                         NotificationChannel.tenant_id == tenant_id,
-                        NotificationChannel.tipo == tipo,
-                        NotificationChannel.active,
+                        NotificationChannel.channel_type == channel_type,
+                        NotificationChannel.is_active,
                     )
                     .first()
                 )
 
                 if not channel:
-                    raise ValueError(f"Canal {tipo} no configurado o inactivo")
+                    raise ValueError(f"Channel {channel_type} no configurado o inactivo")
 
                 config = channel.config
             else:
@@ -66,23 +66,23 @@ def send_notification_task(
 
             # 2. Enviar según tipo
             result = None
-            if tipo == "email":
+            if channel_type == "email":
                 result = send_email(config, destinatario, asunto, mensaje)
-            elif tipo == "whatsapp":
+            elif channel_type == "whatsapp":
                 result = send_whatsapp(config, destinatario, mensaje)
-            elif tipo == "telegram":
+            elif channel_type == "telegram":
                 result = send_telegram(config, destinatario, mensaje)
             else:
-                raise ValueError(f"Tipo de notificación no soportado: {tipo}")
+                raise ValueError(f"Unsupported notification type: {channel_type}")
 
             # 3. Log exitoso
             log = NotificationLog(
                 tenant_id=tenant_id,
-                tipo=tipo,
+                channel_type=channel_type,
                 destinatario=destinatario,
                 asunto=asunto,
                 mensaje=mensaje,
-                canal=tipo,
+                canal=channel_type,
                 estado="sent",
                 ref_type=ref_type,
                 ref_id=ref_id,
@@ -98,11 +98,11 @@ def send_notification_task(
             # Log error
             log = NotificationLog(
                 tenant_id=tenant_id,
-                tipo=tipo,
+                channel_type=channel_type,
                 destinatario=destinatario,
                 asunto=asunto,
                 mensaje=mensaje,
-                canal=tipo,
+                canal=channel_type,
                 estado="failed",
                 error_message=str(e),
                 ref_type=ref_type,
@@ -275,7 +275,7 @@ def check_and_notify_low_stock():
         # 2. Obtener alertas activas no notificadas
         alerts = (
             db.query(StockAlert)
-            .filter(StockAlert.estado == "active", StockAlert.notified_at is None)
+            .filter(StockAlert.status == "active", StockAlert.notified_at is None)
             .all()
         )
 
@@ -298,7 +298,7 @@ def check_and_notify_low_stock():
                 db.query(NotificationChannel)
                 .filter(
                     NotificationChannel.tenant_id == tenant_id,
-                    NotificationChannel.active,
+                    NotificationChannel.is_active,
                 )
                 .all()
             )
@@ -334,23 +334,23 @@ Tienes {len(tenant_alerts)} producto(s) con stock bajo:
                 try:
                     send_notification_task.delay(
                         tenant_id=tenant_id,
-                        tipo=channel.tipo,
+                        channel_type=channel.channel_type,
                         destinatario=default_recipient,
                         asunto="⚠️ Alerta Stock Bajo",
                         mensaje=mensaje,
                         ref_type="stock_alert",
                         ref_id=None,
                     )
-                    channels_used.append(channel.tipo)
+                    channels_used.append(channel.channel_type)
                 except Exception as e:
-                    print(f"Error enviando alerta por {channel.tipo}: {e}")
+                    print(f"Error enviando alerta por {channel.channel_type}: {e}")
 
             # Marcar como notificadas
             if channels_used:
                 for alert in tenant_alerts:
                     alert.notified_at = datetime.utcnow()
                     alert.notified_via = channels_used
-                    alert.estado = "notified"
+                    alert.status = "notified"
                 db.commit()
                 notified_count += 1
 
@@ -358,7 +358,7 @@ Tienes {len(tenant_alerts)} producto(s) con stock bajo:
 
 
 @shared_task
-def send_invoice_notification(invoice_id: str, tipo: str = "email"):
+def send_invoice_notification(invoice_id: str, channel_type: str = "email"):
     """
     Notifica al cliente sobre una factura
 
@@ -382,25 +382,25 @@ def send_invoice_notification(invoice_id: str, tipo: str = "email"):
 <p><b>Cliente:</b> {invoice.cliente.name if invoice.cliente else "N/A"}</p>
 <p><b>Total:</b> {invoice.total} €</p>
 
-<p><b>Estado:</b> {invoice.estado}</p>
+<p><b>Estado:</b> {invoice.status}</p>
 
 <a href="https://app.gestiqcloud.com/invoices/{invoice.id}">Ver Factura Completa</a>
         """.strip()
 
         # Destinatario
         destinatario = None
-        if tipo == "email" and invoice.cliente:
+        if channel_type == "email" and invoice.cliente:
             destinatario = invoice.cliente.email
-        elif tipo == "whatsapp" and invoice.cliente:
+        elif channel_type == "whatsapp" and invoice.cliente:
             destinatario = invoice.cliente.phone
 
         if not destinatario:
-            raise ValueError(f"No hay destinatario {tipo} configurado")
+            raise ValueError(f"No hay destinatario {channel_type} configurado")
 
         # Enviar
         send_notification_task.delay(
             tenant_id=str(invoice.tenant_id),
-            tipo=tipo,
+            channel_type=channel_type,
             destinatario=destinatario,
             asunto=asunto,
             mensaje=mensaje,
@@ -426,7 +426,7 @@ def cleanup_old_logs(days: int = 90):
             db.query(NotificationLog)
             .filter(
                 NotificationLog.created_at < cutoff_date,
-                NotificationLog.estado == "sent",
+                NotificationLog.status == "sent",
             )
             .delete()
         )

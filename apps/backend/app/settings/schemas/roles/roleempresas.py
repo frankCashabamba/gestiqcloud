@@ -1,14 +1,10 @@
-"""Module: roleempresas.py
-
-Auto-generated module docstring."""
-
-# settings/schemas/roles/roleemresas.py
+"""Schemas for company roles (settings layer)."""
 
 from pydantic import BaseModel, ConfigDict
 
 
 class RolBase(BaseModel):
-    """Class RolBase - auto-generated docstring."""
+    """Base role schema."""
 
     name: str
     description: str | None = None
@@ -16,7 +12,7 @@ class RolBase(BaseModel):
 
 
 class RolCreate(BaseModel):
-    """Class RolCreate - auto-generated docstring."""
+    """Create role schema."""
 
     name: str
     description: str | None
@@ -25,13 +21,11 @@ class RolCreate(BaseModel):
 
 
 class RolUpdate(RolBase):
-    """Class RolUpdate - auto-generated docstring."""
-
-    pass
+    """Update role schema."""
 
 
 class RolResponse(RolBase):
-    """Class RolResponse - auto-generated docstring."""
+    """Role response schema."""
 
     id: int
     tenant_id: int
@@ -41,7 +35,7 @@ class RolResponse(RolBase):
 
 
 class RolEmpresaOut(BaseModel):
-    """Class RolEmpresaOut - auto-generated docstring."""
+    """Company role output schema."""
 
     id: int
     name: str

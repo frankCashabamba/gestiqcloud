@@ -9,13 +9,13 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
-from app.modules.empresa.application.use_cases import ListarEmpresasTenant
-from app.modules.empresa.infrastructure.repositories import SqlEmpresaRepo
-from app.modules.empresa.interface.http.schemas import EmpresaOutSchema
+from app.modules.empresa.application.use_cases import ListCompaniesTenant
+from app.modules.empresa.infrastructure.repositories import SqlCompanyRepo
+from app.modules.empresa.interface.http.schemas import CompanyOutSchema
 
 router = APIRouter(
-    prefix="/empresa",
-    tags=["Empresa"],
+    prefix="/company",
+    tags=["Company"],
     dependencies=[
         Depends(with_access_claims),
         Depends(require_scope("tenant")),
@@ -29,12 +29,12 @@ def _tenant_uuid(request: Request) -> UUID:
     try:
         return UUID(str(raw))
     except (TypeError, ValueError):
-        raise HTTPException(status_code=401, detail="tenant_id inválido")
+        raise HTTPException(status_code=401, detail="invalid_tenant_id")
 
 
-@router.get("", response_model=list[EmpresaOutSchema])
-def mi_empresa(request: Request, db: Session = Depends(get_db)) -> list[EmpresaOutSchema]:
+@router.get("", response_model=list[CompanyOutSchema])
+def my_company(request: Request, db: Session = Depends(get_db)) -> list[CompanyOutSchema]:
     tenant_id = _tenant_uuid(request)
-    use = ListarEmpresasTenant(SqlEmpresaRepo(db))
+    use = ListCompaniesTenant(SqlCompanyRepo(db))
     items = use.execute(tenant_id=tenant_id)
-    return [EmpresaOutSchema.model_validate(i) for i in items]
+    return [CompanyOutSchema.model_validate(i) for i in items]
