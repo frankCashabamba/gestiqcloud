@@ -22,7 +22,7 @@ from app.core.deps import set_tenant_scope
 from app.core.i18n import t
 from app.core.jwt_provider import get_token_service as get_shared_token_service
 from app.core.perm_loader import build_tenant_claims
-from app.models.empresa.usuarioempresa import UsuarioEmpresa
+from app.models.company.company_user import CompanyUser
 from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
 from app.modules.identity.infrastructure.rate_limit import SimpleRateLimiter
 from app.modules.identity.infrastructure.refresh_repo import SqlRefreshTokenRepo
@@ -73,12 +73,12 @@ def tenant_login(
 
     # 1) Buscar usuario (case-insensitive) + join con tenant
     user = (
-        db.query(UsuarioEmpresa)
-        .options(joinedload(UsuarioEmpresa.tenant))
+        db.query(CompanyUser)
+        .options(joinedload(CompanyUser.tenant))
         .filter(
             or_(
-                func.lower(UsuarioEmpresa.email) == ident,
-                func.lower(UsuarioEmpresa.username) == ident,
+                func.lower(CompanyUser.email) == ident,
+                func.lower(CompanyUser.username) == ident,
             )
         )
         .first()
@@ -256,7 +256,7 @@ def tenant_login(
         "tenant_id": claims.get("tenant_id"),
         "empresa_slug": claims.get("empresa_slug"),
         "plantilla": claims.get("plantilla"),
-        "es_admin_empresa": claims.get("es_admin_empresa"),
+        "is_company_admin": claims.get("is_company_admin"),
     }
 
 
@@ -342,11 +342,7 @@ def tenant_set_password(payload: SetPasswordIn, db: Session = Depends(get_db)):
     except Exception:
         raise HTTPException(status_code=400, detail="invalid_or_expired_token")
 
-    user = (
-        db.query(UsuarioEmpresa)
-        .filter(func.lower(UsuarioEmpresa.email) == str(email).lower())
-        .first()
-    )
+    user = db.query(CompanyUser).filter(func.lower(CompanyUser.email) == str(email).lower()).first()
     if not user:
         raise HTTPException(status_code=404, detail="user_not_found")
 

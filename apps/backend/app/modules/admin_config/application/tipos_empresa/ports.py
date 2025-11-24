@@ -7,7 +7,7 @@ from uuid import UUID
 from app.modules.admin_config.application.tipos_empresa.dto import TipoEmpresaIn, TipoEmpresaOut
 
 
-class TipoEmpresaRepo(Protocol):
+class TipoCompanyRepo(Protocol):
     def list(self) -> Sequence[TipoEmpresaOut]: ...
 
     def create(self, data: TipoEmpresaIn) -> TipoEmpresaOut: ...

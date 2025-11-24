@@ -1,11 +1,11 @@
 """
-HR Nomina Schemas - Esquemas Pydantic para sistema de nóminas
+HR Payroll Schemas - Esquemas Pydantic para sistema de nóminas
 
 Sistema completo de gestión de nóminas con:
 - Cálculo automático de devengos y deducciones
 - Compatibilidad España (IRPF, Seg. Social) y Ecuador (IESS, IR)
-- Conceptos salariales configurables
-- Plantillas de nómina reutilizables
+- Concepts salariales configurables
+- Templates de nómina reutilizables
 """
 
 from datetime import date, datetime
@@ -20,37 +20,38 @@ from pydantic import BaseModel, Field, validator
 # ============================================================================
 
 
-class NominaConceptoBase(BaseModel):
-    """Base para conceptos de nómina"""
+class PayrollConceptBase(BaseModel):
+    """Base for payroll concepts (earnings/deductions)."""
 
-    tipo: str = Field(..., description="DEVENGO o DEDUCCION")
-    codigo: str = Field(..., max_length=50, description="Código del concepto")
-    descripcion: str = Field(..., max_length=255, description="Descripción legible")
-    importe: Decimal = Field(..., ge=0, description="Importe del concepto")
-    es_base: bool = Field(default=True, description="Computa para base de cotización")
+    concept_type: str = Field(..., description="EARNING or DEDUCTION")
+    code: str = Field(..., max_length=50, description="Concept code")
+    description: str = Field(..., max_length=255, description="Readable description")
+    amount: Decimal = Field(..., ge=0, description="Concept amount")
+    is_base: bool = Field(default=True, description="Counts toward contribution base")
 
-    @validator("tipo")
-    def validate_tipo(cls, v):
-        if v not in ["DEVENGO", "DEDUCCION"]:
-            raise ValueError("Tipo debe ser DEVENGO o DEDUCCION")
+    @validator("concept_type")
+    def validate_concept_type(cls, v):
+        valid = ["EARNING", "DEDUCTION"]
+        if v not in valid:
+            raise ValueError(f"concept_type must be one of: {', '.join(valid)}")
         return v
 
-    @validator("codigo")
-    def validate_codigo(cls, v):
+    @validator("code")
+    def validate_code(cls, v):
         return v.upper().strip()
 
 
-class NominaConceptoCreate(NominaConceptoBase):
+class PayrollConceptCreate(PayrollConceptBase):
     """Schema para crear concepto de nómina"""
 
     pass
 
 
-class NominaConceptoResponse(NominaConceptoBase):
+class PayrollConceptResponse(PayrollConceptBase):
     """Schema de respuesta para concepto"""
 
     id: UUID
-    nomina_id: UUID
+    payroll_id: UUID
     created_at: datetime
 
     class Config:
@@ -62,54 +63,55 @@ class NominaConceptoResponse(NominaConceptoBase):
 # ============================================================================
 
 
-class ConceptoPlantilla(BaseModel):
-    """Concepto dentro de una plantilla"""
+class TemplateConcept(BaseModel):
+    """Concept within a template."""
 
-    tipo: str = Field(..., description="DEVENGO o DEDUCCION")
-    codigo: str = Field(..., description="Código único")
-    descripcion: str = Field(..., description="Descripción")
-    importe: Decimal = Field(..., ge=0, description="Importe por defecto")
-    es_base: bool = Field(default=True)
+    concept_type: str = Field(..., description="EARNING or DEDUCTION")
+    code: str = Field(..., description="Unique code")
+    description: str = Field(..., description="Description")
+    amount: Decimal = Field(..., ge=0, description="Default amount")
+    is_base: bool = Field(default=True)
 
-    @validator("tipo")
-    def validate_tipo(cls, v):
-        if v not in ["DEVENGO", "DEDUCCION"]:
-            raise ValueError("Tipo debe ser DEVENGO o DEDUCCION")
+    @validator("concept_type")
+    def validate_concept_type(cls, v):
+        valid = ["EARNING", "DEDUCTION"]
+        if v not in valid:
+            raise ValueError(f"concept_type must be one of: {', '.join(valid)}")
         return v
 
 
-class NominaPlantillaBase(BaseModel):
+class PayrollTemplateBase(BaseModel):
     """Base para plantillas de nómina"""
 
-    nombre: str = Field(..., max_length=100, description="Nombre de la plantilla")
-    descripcion: str | None = Field(None, description="Descripción de la plantilla")
-    conceptos_json: list[ConceptoPlantilla] = Field(
-        default_factory=list, description="Lista de conceptos estándar"
+    name: str = Field(..., max_length=100, description="Nombre de la plantilla")
+    description: str | None = Field(None, description="Descripción de la plantilla")
+    template_concepts: list[TemplateConcept] = Field(
+        default_factory=list, description="Lista de concepts estándar"
     )
-    activo: bool = Field(default=True, description="Plantilla activa")
+    is_active: bool = Field(default=True, description="Template activa")
 
 
-class NominaPlantillaCreate(NominaPlantillaBase):
+class PayrollTemplateCreate(PayrollTemplateBase):
     """Schema para crear plantilla"""
 
-    empleado_id: UUID = Field(..., description="ID del empleado")
+    employee_id: UUID = Field(..., description="ID del empleado")
 
 
-class NominaPlantillaUpdate(BaseModel):
+class PayrollTemplateUpdate(BaseModel):
     """Schema para actualizar plantilla"""
 
-    nombre: str | None = Field(None, max_length=100)
-    descripcion: str | None = None
-    conceptos_json: list[ConceptoPlantilla] | None = None
-    activo: bool | None = None
+    name: str | None = Field(None, max_length=100)
+    description: str | None = None
+    template_concepts: list[TemplateConcept] | None = None
+    is_active: bool | None = None
 
 
-class NominaPlantillaResponse(NominaPlantillaBase):
+class PayrollTemplateResponse(PayrollTemplateBase):
     """Schema de respuesta para plantilla"""
 
     id: UUID
     tenant_id: UUID
-    empleado_id: UUID
+    employee_id: UUID
     created_at: datetime
     updated_at: datetime
 
@@ -118,89 +120,90 @@ class NominaPlantillaResponse(NominaPlantillaBase):
 
 
 # ============================================================================
-# NÓMINAS
+# PAYROLLS
 # ============================================================================
 
 
-class NominaBase(BaseModel):
-    """Base para nóminas"""
+class PayrollBase(BaseModel):
+    """Payroll base schema."""
 
-    empleado_id: UUID = Field(..., description="ID del empleado")
-    periodo_mes: int = Field(..., ge=1, le=12, description="Mes del período")
-    periodo_ano: int = Field(..., ge=2020, le=2100, description="Año del período")
-    tipo: str = Field(default="MENSUAL", description="MENSUAL, EXTRA, FINIQUITO, ESPECIAL")
+    employee_id: UUID = Field(..., description="Employee ID")
+    period_month: int = Field(..., ge=1, le=12, description="Period month")
+    period_year: int = Field(..., ge=2020, le=2100, description="Period year")
+    payroll_type: str = Field(default="MONTHLY", description="MONTHLY, BONUS, SEVERANCE, SPECIAL")
 
     # Devengos
-    salario_base: Decimal = Field(default=Decimal("0"), ge=0, description="Salario base")
-    complementos: Decimal = Field(default=Decimal("0"), ge=0, description="Complementos")
-    horas_extra: Decimal = Field(default=Decimal("0"), ge=0, description="Horas extra")
-    otros_devengos: Decimal = Field(default=Decimal("0"), ge=0, description="Otros devengos")
+    base_salary: Decimal = Field(default=Decimal("0"), ge=0, description="Base salary")
+    allowances: Decimal = Field(default=Decimal("0"), ge=0, description="Allowances")
+    overtime_hours: Decimal = Field(default=Decimal("0"), ge=0, description="Overtime hours")
+    other_earnings: Decimal = Field(default=Decimal("0"), ge=0, description="Other earnings")
 
     # Deducciones
-    seg_social: Decimal = Field(default=Decimal("0"), ge=0, description="Seg. Social/IESS")
-    irpf: Decimal = Field(default=Decimal("0"), ge=0, description="IRPF/IR")
-    otras_deducciones: Decimal = Field(default=Decimal("0"), ge=0, description="Otras deducciones")
+    social_security: Decimal = Field(default=Decimal("0"), ge=0, description="Social security/IESS")
+    income_tax: Decimal = Field(default=Decimal("0"), ge=0, description="Income tax")
+    other_deductions: Decimal = Field(default=Decimal("0"), ge=0, description="Other deductions")
 
     # Pago
-    metodo_pago: str | None = Field(None, description="efectivo, transferencia, etc.")
-    notas: str | None = Field(None, description="Notas internas")
+    payment_method: str | None = Field(None, description="cash, transfer, etc.")
+    notes: str | None = Field(None, description="Internal notes")
 
-    @validator("tipo")
-    def validate_tipo(cls, v):
-        if v not in ["MENSUAL", "EXTRA", "FINIQUITO", "ESPECIAL"]:
-            raise ValueError("Tipo inválido")
+    @validator("payroll_type")
+    def validate_payroll_type(cls, v):
+        valid = ["MONTHLY", "BONUS", "SEVERANCE", "SPECIAL"]
+        if v not in valid:
+            raise ValueError(f"payroll_type must be one of: {', '.join(valid)}")
         return v
 
 
-class NominaCreate(NominaBase):
+class PayrollCreate(PayrollBase):
     """Schema para crear nómina"""
 
-    conceptos: list[NominaConceptoCreate] | None = Field(
-        default_factory=list, description="Conceptos adicionales (opcional)"
+    concepts: list[PayrollConceptCreate] | None = Field(
+        default_factory=list, description="Concepts adicionales (opcional)"
     )
     auto_calculate: bool = Field(default=True, description="Auto-calcular totales y deducciones")
 
 
-class NominaUpdate(BaseModel):
+class PayrollUpdate(BaseModel):
     """Schema para actualizar nómina (solo borrador)"""
 
-    salario_base: Decimal | None = Field(None, ge=0)
-    complementos: Decimal | None = Field(None, ge=0)
-    horas_extra: Decimal | None = Field(None, ge=0)
-    otros_devengos: Decimal | None = Field(None, ge=0)
-    seg_social: Decimal | None = Field(None, ge=0)
-    irpf: Decimal | None = Field(None, ge=0)
-    otras_deducciones: Decimal | None = Field(None, ge=0)
-    metodo_pago: str | None = None
-    notas: str | None = None
+    base_salary: Decimal | None = Field(None, ge=0)
+    allowances: Decimal | None = Field(None, ge=0)
+    overtime_hours: Decimal | None = Field(None, ge=0)
+    other_earnings: Decimal | None = Field(None, ge=0)
+    social_security: Decimal | None = Field(None, ge=0)
+    income_tax: Decimal | None = Field(None, ge=0)
+    other_deductions: Decimal | None = Field(None, ge=0)
+    payment_method: str | None = None
+    notes: str | None = None
 
 
-class NominaResponse(NominaBase):
+class PayrollResponse(PayrollBase):
     """Schema de respuesta para nómina"""
 
     id: UUID
     tenant_id: UUID
-    numero: str
-    total_devengado: Decimal
-    total_deducido: Decimal
-    liquido_total: Decimal
-    fecha_pago: date | None
+    number: str
+    total_earnings: Decimal
+    total_deductions: Decimal
+    net_total: Decimal
+    payment_date: date | None
     status: str
     approved_by: UUID | None
     approved_at: datetime | None
     created_by: UUID | None
     created_at: datetime
     updated_at: datetime
-    conceptos: list[NominaConceptoResponse] = []
+    concepts: list[PayrollConceptResponse] = []
 
     class Config:
         from_attributes = True
 
 
-class NominaList(BaseModel):
+class PayrollList(BaseModel):
     """Schema para lista paginada de nóminas"""
 
-    items: list[NominaResponse]
+    items: list[PayrollResponse]
     total: int
     page: int
     page_size: int
@@ -212,65 +215,66 @@ class NominaList(BaseModel):
 # ============================================================================
 
 
-class NominaCalculateRequest(BaseModel):
-    """Request para calcular nómina"""
+class PayrollCalculateRequest(BaseModel):
+    """Request to calculate payroll."""
 
-    empleado_id: UUID = Field(..., description="ID del empleado")
-    periodo_mes: int = Field(..., ge=1, le=12)
-    periodo_ano: int = Field(..., ge=2020, le=2100)
-    tipo: str = Field(default="MENSUAL")
+    employee_id: UUID = Field(..., description="Employee ID")
+    period_month: int = Field(..., ge=1, le=12)
+    period_year: int = Field(..., ge=2020, le=2100)
+    payroll_type: str = Field(default="MONTHLY")
 
-    # Devengos opcionales (si no se pasan, se usan del empleado)
-    salario_base: Decimal | None = Field(None, ge=0)
-    complementos: Decimal | None = Field(None, ge=0)
-    horas_extra: Decimal | None = Field(None, ge=0)
-    otros_devengos: Decimal | None = Field(None, ge=0)
+    # Optional earnings (fallback to employee defaults if omitted)
+    base_salary: Decimal | None = Field(None, ge=0)
+    allowances: Decimal | None = Field(None, ge=0)
+    overtime_hours: Decimal | None = Field(None, ge=0)
+    other_earnings: Decimal | None = Field(None, ge=0)
 
-    # Conceptos adicionales
-    conceptos: list[NominaConceptoCreate] | None = Field(default_factory=list)
+    # Additional concepts
+    concepts: list[PayrollConceptCreate] | None = Field(default_factory=list)
 
-    @validator("tipo")
-    def validate_tipo(cls, v):
-        if v not in ["MENSUAL", "EXTRA", "FINIQUITO", "ESPECIAL"]:
-            raise ValueError("Tipo inválido")
+    @validator("payroll_type")
+    def validate_payroll_type_calc(cls, v):
+        valid = ["MONTHLY", "BONUS", "SEVERANCE", "SPECIAL"]
+        if v not in valid:
+            raise ValueError(f"payroll_type must be one of: {', '.join(valid)}")
         return v
 
 
-class NominaCalculateResponse(BaseModel):
-    """Respuesta de la calculadora"""
+class PayrollCalculateResponse(BaseModel):
+    """Payroll calculator response."""
 
     # Input
-    empleado_id: UUID
-    periodo_mes: int
-    periodo_ano: int
-    tipo: str
+    employee_id: UUID
+    period_month: int
+    period_year: int
+    payroll_type: str
 
-    # Devengos
-    salario_base: Decimal
-    complementos: Decimal
-    horas_extra: Decimal
-    otros_devengos: Decimal
-    total_devengado: Decimal
+    # Earnings
+    base_salary: Decimal
+    allowances: Decimal
+    overtime_hours: Decimal
+    other_earnings: Decimal
+    total_earnings: Decimal
 
-    # Deducciones calculadas
-    seg_social: Decimal
-    seg_social_rate: Decimal = Field(description="% aplicado")
-    irpf: Decimal
-    irpf_rate: Decimal = Field(description="% aplicado")
-    otras_deducciones: Decimal
-    total_deducido: Decimal
+    # Calculated deductions
+    social_security: Decimal
+    social_security_rate: Decimal = Field(description="Applied %")
+    income_tax: Decimal
+    income_tax_rate: Decimal = Field(description="Applied %")
+    other_deductions: Decimal
+    total_deductions: Decimal
 
-    # Total
-    liquido_total: Decimal
+    # Totals
+    net_total: Decimal
 
-    # Detalles de cálculo
-    base_cotizacion: Decimal = Field(description="Base para Seg. Social")
-    base_irpf: Decimal = Field(description="Base para IRPF/IR")
-    conceptos_detalle: list[dict[str, Any]] = Field(default_factory=list)
+    # Calculation details
+    contribution_base: Decimal = Field(description="Base for social security")
+    income_tax_base: Decimal = Field(description="Base for income tax")
+    concepts_detail: list[dict[str, Any]] = Field(default_factory=list)
 
-    # Info empleado
-    empleado_nombre: str
-    empleado_cargo: str | None
+    # Employee info
+    employee_name: str
+    employee_role: str | None
 
 
 # ============================================================================
@@ -278,24 +282,24 @@ class NominaCalculateResponse(BaseModel):
 # ============================================================================
 
 
-class NominaApproveRequest(BaseModel):
-    """Request para aprobar nómina"""
+class PayrollApproveRequest(BaseModel):
+    """Request to approve payroll."""
 
-    notas: str | None = Field(None, description="Notas de aprobación")
+    notes: str | None = Field(None, description="Approval notes")
 
 
-class NominaPayRequest(BaseModel):
-    """Request para marcar nómina como pagada"""
+class PayrollPayRequest(BaseModel):
+    """Request to mark payroll as paid."""
 
-    fecha_pago: date = Field(..., description="Fecha real de pago")
-    metodo_pago: str = Field(..., description="efectivo, transferencia, etc.")
-    referencia_pago: str | None = Field(None, description="Referencia bancaria")
+    payment_date: date = Field(..., description="Actual payment date")
+    payment_method: str = Field(..., description="cash, transfer, etc.")
+    payment_reference: str | None = Field(None, description="Bank reference")
 
-    @validator("metodo_pago")
+    @validator("payment_method")
     def validate_metodo(cls, v):
-        valid_methods = ["efectivo", "transferencia", "cheque", "otro"]
+        valid_methods = ["cash", "transfer", "check", "other"]
         if v.lower() not in valid_methods:
-            raise ValueError(f"Método debe ser uno de: {', '.join(valid_methods)}")
+            raise ValueError(f"payment_method must be one of: {', '.join(valid_methods)}")
         return v.lower()
 
 
@@ -304,8 +308,8 @@ class NominaPayRequest(BaseModel):
 # ============================================================================
 
 
-class NominaStats(BaseModel):
-    """Estadísticas de nóminas"""
+class PayrollStats(BaseModel):
+    """Payroll statistics."""
 
     # Por status
     total_draft: int
@@ -313,19 +317,19 @@ class NominaStats(BaseModel):
     total_paid: int
     total_cancelled: int
 
-    # Importes período actual
-    total_devengado_mes: Decimal
-    total_deducido_mes: Decimal
+    # Current period totals
+    total_earnings_mes: Decimal
+    total_deductions_mes: Decimal
     total_liquido_mes: Decimal
 
-    # Promedio
+    # Averages
     promedio_liquido: Decimal
 
-    # Por tipo
-    nominas_por_tipo: dict[str, int] = Field(default_factory=dict)
+    # Por payroll_type
+    payrolls_by_type: dict[str, int] = Field(default_factory=dict)
 
     # Período
-    periodo_mes: int
-    periodo_ano: int
+    period_month: int
+    period_year: int
     total_empleados: int
-    total_nominas: int
+    total_payrolls: int

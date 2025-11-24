@@ -419,7 +419,7 @@ def _is_owner_or_manager(request: Request) -> bool:
         claims = getattr(request.state, "access_claims", None) or {}
         # Super-admin flags win (empresa-level or general)
         if str(
-            claims.get("es_admin_empresa") or claims.get("es_admin") or claims.get("is_admin") or ""
+            claims.get("is_company_admin") or claims.get("es_admin") or claims.get("is_admin") or ""
         ).lower() in ("1", "true", "yes"):
             return True
 

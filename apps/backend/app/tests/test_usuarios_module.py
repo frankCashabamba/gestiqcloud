@@ -41,8 +41,8 @@ def tenant_headers(client: TestClient, usuario_empresa_factory, seed_tenant_cont
             print(f"[DEBUG] Token payload keys: {list(payload_data.keys())}")
             print(f"[DEBUG] has 'kind': {'kind' in payload_data}")
             print(f"[DEBUG] has 'sub': {'sub' in payload_data}")
-            print(f"[DEBUG] has 'es_admin_empresa': {'es_admin_empresa' in payload_data}")
-            print(f"[DEBUG] has 'permisos': {'permisos' in payload_data}")
+            print(f"[DEBUG] has 'is_company_admin': {'is_company_admin' in payload_data}")
+            print(f"[DEBUG] has 'permissions': {'permissions' in payload_data}")
     except Exception as e:
         print(f"\n[DEBUG] Could not decode token: {e}")
 
@@ -51,10 +51,10 @@ def tenant_headers(client: TestClient, usuario_empresa_factory, seed_tenant_cont
 
 @pytest.fixture
 def seed_tenant_context(db, usuario_empresa_factory):
+    from app.models.company.company_role import CompanyRole
+    from app.models.company.company_user import CompanyUser
+    from app.models.company.company_user_role import CompanyUserRole
     from app.models.core.modulo import CompanyModule, Module
-    from app.models.empresa.rolempresas import CompanyRole
-    from app.models.empresa.usuario_rolempresa import CompanyUserRole
-    from app.models.empresa.usuarioempresa import CompanyUser
 
     usuario, tenant = usuario_empresa_factory(
         email="tenant_admin@example.com", username="tenantadmin"
@@ -170,35 +170,35 @@ def seed_tenant_context(db, usuario_empresa_factory):
 
 
 def test_listar_usuarios(client: TestClient, tenant_headers):
-    r = client.get("/api/v1/tenant/usuarios", headers=tenant_headers)
+    r = client.get("/api/v1/tenant/users", headers=tenant_headers)
     assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
     data = r.json()
     assert isinstance(data, list), f"Expected list, got {type(data)}"
-    assert any(u["es_admin_empresa"] for u in data), "No admin user found in list"
+    assert any(u["is_company_admin"] for u in data), "No admin user found in list"
 
 
 def test_listar_modulos(client: TestClient, tenant_headers):
-    r = client.get("/api/v1/tenant/usuarios/modulos", headers=tenant_headers)
+    r = client.get("/api/v1/tenant/users/modules", headers=tenant_headers)
     assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
     data = r.json()
     assert len(data) >= 1, f"Expected at least 1 modulo, got {len(data)}"
 
 
 def test_listar_roles(client: TestClient, tenant_headers):
-    r = client.get("/api/v1/tenant/usuarios/roles", headers=tenant_headers)
+    r = client.get("/api/v1/tenant/users/roles", headers=tenant_headers)
     assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
     data = r.json()
     assert len(data) >= 1, f"Expected at least 1 role, got {len(data)}"
 
 
 def test_check_username_public(client: TestClient, db):
-    r = client.get("/api/v1/usuarios/check-username/algunusuario")
+    r = client.get("/api/v1/users/check-username/algunusuario")
     assert r.status_code in (200, 400)
 
 
 def test_crear_usuario_estandar(client: TestClient, tenant_headers):
-    modules = client.get("/api/v1/tenant/usuarios/modulos", headers=tenant_headers).json()
-    roles = client.get("/api/v1/tenant/usuarios/roles", headers=tenant_headers).json()
+    modules = client.get("/api/v1/tenant/users/modules", headers=tenant_headers).json()
+    roles = client.get("/api/v1/tenant/users/roles", headers=tenant_headers).json()
 
     assert len(modules) > 0, "No modules available"
     assert len(roles) > 0, "No roles available"
@@ -209,16 +209,16 @@ def test_crear_usuario_estandar(client: TestClient, tenant_headers):
         "email": "juan@example.com",
         "username": "juanp",
         "password": "Secret123!",
-        "es_admin_empresa": False,
-        "modulos": [modules[0]["id"]],
+        "is_company_admin": False,
+        "modules": [modules[0]["id"]],
         "roles": [roles[0]["id"]],
         "active": True,
     }
-    r = client.post("/api/v1/tenant/usuarios", json=payload, headers=tenant_headers)
+    r = client.post("/api/v1/tenant/users", json=payload, headers=tenant_headers)
     assert r.status_code == 201, f"Expected 201, got {r.status_code}: {r.text}"
     data = r.json()
-    assert data["es_admin_empresa"] is False
-    assert data["modulos"] == payload["modulos"]
+    assert data["is_company_admin"] is False
+    assert data["modules"] == payload["modules"]
     assert data["roles"] == payload["roles"]
 
 
@@ -229,18 +229,18 @@ def test_crear_usuario_admin(client: TestClient, tenant_headers):
         "email": "ana.admin@example.com",
         "username": "anaadmin",
         "password": "Secret123!",
-        "es_admin_empresa": True,
-        "modulos": [],
+        "is_company_admin": True,
+        "modules": [],
         "roles": [],
         "active": True,
     }
-    r = client.post("/api/v1/tenant/usuarios", json=payload, headers=tenant_headers)
+    r = client.post("/api/v1/tenant/users", json=payload, headers=tenant_headers)
     assert r.status_code == 201, f"Expected 201, got {r.status_code}: {r.text}"
     data = r.json()
-    assert data["es_admin_empresa"] is True
+    assert data["is_company_admin"] is True
     # Admin obtiene todos los módulos contratados
-    mods = client.get("/api/v1/tenant/usuarios/modulos", headers=tenant_headers).json()
-    assert set(data["modulos"]) == {m["id"] for m in mods}
+    mods = client.get("/api/v1/tenant/users/modules", headers=tenant_headers).json()
+    assert set(data["modules"]) == {m["id"] for m in mods}
 
 
 def test_actualizar_usuario(client: TestClient, tenant_headers):
@@ -250,36 +250,36 @@ def test_actualizar_usuario(client: TestClient, tenant_headers):
         "email": "maria.tester@example.com",
         "username": "mariat",
         "password": "Secret123!",
-        "es_admin_empresa": False,
-        "modulos": [],
+        "is_company_admin": False,
+        "modules": [],
         "roles": [],
         "active": True,
     }
-    r = client.post("/api/v1/tenant/usuarios", json=payload, headers=tenant_headers)
+    r = client.post("/api/v1/tenant/users", json=payload, headers=tenant_headers)
     assert r.status_code == 201, f"Expected 201 on create, got {r.status_code}: {r.text}"
     usuario_id = r.json()["id"]
 
     update = {
         "last_name": "Actualizada",
         "active": False,
-        "modulos": [],
+        "modules": [],
         "roles": [],
     }
-    r = client.patch(f"/api/v1/tenant/usuarios/{usuario_id}", json=update, headers=tenant_headers)
+    r = client.patch(f"/api/v1/tenant/users/{usuario_id}", json=update, headers=tenant_headers)
     assert r.status_code == 200, f"Expected 200 on update, got {r.status_code}: {r.text}"
     data = r.json()
-    assert data["apellido_encargado"] == "Actualizada"
-    assert data["activo"] is False
+    assert data["last_name"] == "Actualizada"
+    assert data["active"] is False
 
 
 def test_no_permite_eliminar_ultimo_admin(client: TestClient, tenant_headers):
-    usuarios = client.get("/api/v1/tenant/usuarios", headers=tenant_headers).json()
-    admin = next((u for u in usuarios if u["es_admin_empresa"]), None)
+    usuarios = client.get("/api/v1/tenant/users", headers=tenant_headers).json()
+    admin = next((u for u in usuarios if u["is_company_admin"]), None)
     assert admin is not None, "No admin user found"
 
     r = client.patch(
-        f"/api/v1/tenant/usuarios/{admin['id']}",
-        json={"es_admin_empresa": False},
+        f"/api/v1/tenant/users/{admin['id']}",
+        json={"is_company_admin": False},
         headers=tenant_headers,
     )
     assert r.status_code == 400, f"Expected 400, got {r.status_code}: {r.text}"

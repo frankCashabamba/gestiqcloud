@@ -2,24 +2,32 @@
 
 import os
 
-from .empleado import Employee, Vacation
+from .employee import Employee, Vacation
 
-# Keep old names for backward compatibility during migration
+# Backward compatibility aliases
 Empleado = Employee
 Vacacion = Vacation
 
-# Feature flag: Cargar nominas solo si tablas existen
-if os.getenv("ENABLE_NOMINAS_MODULE", "false").lower() == "true":
-    from .nomina import Nomina, NominaConcepto, NominaPlantilla
+# Feature flag: load payroll module only if enabled
+if os.getenv("ENABLE_PAYROLL_MODULE", "false").lower() == "true":
+    from .payroll import Payroll, PayrollConcept, PayrollTemplate
+
+    # Legacy Spanish aliases
+    Payroll = Payroll
+    PayrollConcepto = PayrollConcept
+    PayrollPlantilla = PayrollTemplate
 
     __all__ = [
         "Empleado",
         "Vacacion",
         "Employee",
         "Vacation",
-        "Nomina",
-        "NominaConcepto",
-        "NominaPlantilla",
+        "Payroll",
+        "PayrollConcept",
+        "PayrollTemplate",
+        "Payroll",
+        "PayrollConcepto",
+        "PayrollPlantilla",
     ]
 else:
     __all__ = ["Empleado", "Vacacion", "Employee", "Vacation"]

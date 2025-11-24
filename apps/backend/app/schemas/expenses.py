@@ -1,4 +1,4 @@
-"""Schemas Pydantic para Gastos"""
+"""Expenses Pydantic schemas."""
 
 from datetime import date, datetime
 from uuid import UUID
@@ -6,69 +6,74 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 
-# Base schema
-class GastoBase(BaseModel):
-    """Campos comunes de Gasto"""
+class ExpenseBase(BaseModel):
+    """Common expense fields."""
 
-    numero: str = Field(..., max_length=50, description="Número de gasto")
-    proveedor_id: UUID | None = Field(None, description="ID del proveedor")
-    categoria_gasto_id: UUID | None = Field(None, description="ID de categoría de gasto")
-    fecha: date = Field(default_factory=date.today)
-    concepto: str = Field(..., max_length=255, description="Concepto del gasto")
+    number: str = Field(..., alias="numero", max_length=50, description="Expense number")
+    supplier_id: UUID | None = Field(None, alias="proveedor_id", description="Supplier ID")
+    expense_category_id: UUID | None = Field(
+        None, alias="categoria_gasto_id", description="Expense category ID"
+    )
+    date: date = Field(default_factory=date.today, alias="fecha")
+    concept: str = Field(..., alias="concepto", max_length=255, description="Expense concept")
     subtotal: float = Field(default=0, ge=0)
-    impuestos: float = Field(default=0, ge=0)
+    taxes: float = Field(default=0, ge=0, alias="impuestos")
     total: float = Field(default=0, ge=0)
-    estado: str = Field(default="draft", pattern="^(draft|approved|paid|cancelled)$")
-    metodo_pago: str | None = Field(None, pattern="^(cash|card|transfer|check)$")
-    referencia: str | None = Field(None, max_length=100, description="Referencia bancaria o cheque")
-    notas: str | None = None
+    status: str = Field(
+        default="draft", alias="estado", pattern="^(draft|approved|paid|cancelled)$"
+    )
+    payment_method: str | None = Field(
+        None, alias="metodo_pago", pattern="^(cash|card|transfer|check)$"
+    )
+    reference: str | None = Field(
+        None, alias="referencia", max_length=100, description="Bank/cheque reference"
+    )
+    notes: str | None = Field(None, alias="notas")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
-# Create schema
-class GastoCreate(GastoBase):
-    """Schema para crear gasto"""
-
-    pass
+class ExpenseCreate(ExpenseBase):
+    """Create expense."""
 
 
-# Update schema
-class GastoUpdate(BaseModel):
-    """Schema para actualizar gasto (todos campos opcionales)"""
+class ExpenseUpdate(BaseModel):
+    """Update expense (all fields optional)."""
 
-    numero: str | None = Field(None, max_length=50)
-    proveedor_id: UUID | None = None
-    categoria_gasto_id: UUID | None = None
-    fecha: date | None = None
-    concepto: str | None = Field(None, max_length=255)
+    number: str | None = Field(None, alias="numero", max_length=50)
+    supplier_id: UUID | None = Field(None, alias="proveedor_id")
+    expense_category_id: UUID | None = Field(None, alias="categoria_gasto_id")
+    date: date | None = Field(None, alias="fecha")
+    concept: str | None = Field(None, alias="concepto", max_length=255)
     subtotal: float | None = Field(None, ge=0)
-    impuestos: float | None = Field(None, ge=0)
+    taxes: float | None = Field(None, alias="impuestos", ge=0)
     total: float | None = Field(None, ge=0)
-    estado: str | None = Field(None, pattern="^(draft|approved|paid|cancelled)$")
-    metodo_pago: str | None = Field(None, pattern="^(cash|card|transfer|check)$")
-    referencia: str | None = Field(None, max_length=100)
-    notas: str | None = None
+    status: str | None = Field(None, alias="estado", pattern="^(draft|approved|paid|cancelled)$")
+    payment_method: str | None = Field(
+        None, alias="metodo_pago", pattern="^(cash|card|transfer|check)$"
+    )
+    reference: str | None = Field(None, alias="referencia", max_length=100)
+    notes: str | None = Field(None, alias="notas")
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
-# Response schema
-class GastoResponse(GastoBase):
-    """Schema de respuesta de gasto"""
+class ExpenseResponse(ExpenseBase):
+    """Expense response."""
 
     id: UUID
     tenant_id: UUID
-    usuario_id: UUID
+    user_id: UUID = Field(alias="usuario_id")
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
 
-# List schema
-class GastoList(BaseModel):
-    """Schema para lista paginada de gastos"""
+class ExpenseList(BaseModel):
+    """Paginated expense list."""
 
-    items: list[GastoResponse]
+    items: list[ExpenseResponse]
     total: int
     page: int = 1
     page_size: int = 100

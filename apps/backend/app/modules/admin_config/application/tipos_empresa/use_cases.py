@@ -4,16 +4,16 @@ from collections.abc import Sequence
 from uuid import UUID
 
 from app.modules.admin_config.application.tipos_empresa.dto import TipoEmpresaIn, TipoEmpresaOut
-from app.modules.admin_config.application.tipos_empresa.ports import TipoEmpresaRepo
+from app.modules.admin_config.application.tipos_empresa.ports import TipoCompanyRepo
 from app.modules.shared.application.base import BaseUseCase
 
 
-class ListarTiposEmpresa(BaseUseCase[TipoEmpresaRepo]):
+class ListarTiposEmpresa(BaseUseCase[TipoCompanyRepo]):
     def execute(self) -> Sequence[TipoEmpresaOut]:
         return list(self.repo.list())
 
 
-class ObtenerTipoEmpresa(BaseUseCase[TipoEmpresaRepo]):
+class ObtenerTipoEmpresa(BaseUseCase[TipoCompanyRepo]):
     def execute(self, id: UUID | str) -> TipoEmpresaOut:
         tipo = self.repo.get(id)
         if not tipo:
@@ -21,16 +21,16 @@ class ObtenerTipoEmpresa(BaseUseCase[TipoEmpresaRepo]):
         return tipo
 
 
-class CrearTipoEmpresa(BaseUseCase[TipoEmpresaRepo]):
+class CrearTipoEmpresa(BaseUseCase[TipoCompanyRepo]):
     def execute(self, data: TipoEmpresaIn) -> TipoEmpresaOut:
         return self.repo.create(data)
 
 
-class ActualizarTipoEmpresa(BaseUseCase[TipoEmpresaRepo]):
+class ActualizarTipoEmpresa(BaseUseCase[TipoCompanyRepo]):
     def execute(self, id: UUID | str, data: TipoEmpresaIn) -> TipoEmpresaOut:
         return self.repo.update(id, data)
 
 
-class EliminarTipoEmpresa(BaseUseCase[TipoEmpresaRepo]):
+class EliminarTipoEmpresa(BaseUseCase[TipoCompanyRepo]):
     def execute(self, id: UUID | str) -> None:
         self.repo.delete(id)

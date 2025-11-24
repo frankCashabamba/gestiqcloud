@@ -1,24 +1,22 @@
-"""Schemas para gestión de roles de empresa."""
+"""Schemas for company roles management."""
 
 from pydantic import BaseModel, Field
 
 
 class RolEmpresaBase(BaseModel):
-    """Base schema para roles de empresa."""
+    """Base schema for company roles."""
 
-    name: str = Field(..., min_length=1, max_length=100, description="Nombre del rol")
-    description: str | None = Field(None, description="Descripción del rol")
-    permissions: dict = Field(default_factory=dict, description="Permisos del rol en formato JSON")
+    name: str = Field(..., min_length=1, max_length=100, description="Role name")
+    description: str | None = Field(None, description="Role description")
+    permissions: dict = Field(default_factory=dict, description="Role permissions (JSON structure)")
 
 
 class RolEmpresaCreate(RolEmpresaBase):
-    """Schema para crear un rol de empresa."""
-
-    pass
+    """Create company role."""
 
 
 class RolEmpresaUpdate(BaseModel):
-    """Schema para actualizar un rol de empresa."""
+    """Update company role."""
 
     name: str | None = Field(None, min_length=1, max_length=100)
     description: str | None = None
@@ -26,7 +24,7 @@ class RolEmpresaUpdate(BaseModel):
 
 
 class RolEmpresaOut(RolEmpresaBase):
-    """Schema de salida para roles de empresa."""
+    """Company role response schema."""
 
     id: int
     tenant_id: int

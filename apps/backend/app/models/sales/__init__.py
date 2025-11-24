@@ -1,8 +1,5 @@
-"""Sales module models"""
+"""Sales module models."""
 
-from .venta import Sale
+from .sale import Sale
 
-# Keep old name for backward compatibility during migration
-Venta = Sale
-
-__all__ = ["Sale", "Venta"]
+__all__ = ["Sale"]

@@ -5,8 +5,8 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 from uuid import UUID
 
-from app.models.tenant import Tenant as EmpresaORM
-from app.modules.empresa.application.ports import EmpresaDTO, EmpresaRepo
+from app.models.tenant import Tenant as CompanyORM
+from app.modules.empresa.application.ports import CompanyDTO, CompanyRepo
 from app.modules.shared.infrastructure.sqlalchemy_repo import SqlAlchemyRepo
 
 logger = logging.getLogger(__name__)
@@ -18,37 +18,37 @@ def _to_uuid(value: Any) -> UUID:
     return UUID(str(value))
 
 
-class SqlEmpresaRepo(SqlAlchemyRepo, EmpresaRepo):
-    def _to_dto(self, e: EmpresaORM) -> EmpresaDTO:
-        return EmpresaDTO(
+class SqlCompanyRepo(SqlAlchemyRepo, CompanyRepo):
+    def _to_dto(self, e: CompanyORM) -> CompanyDTO:
+        return CompanyDTO(
             id=getattr(e, "id", None),
             name=getattr(e, "name", None),
             slug=getattr(e, "slug", None),
         )
 
-    def list_all(self) -> Sequence[EmpresaDTO]:
+    def list_all(self) -> Sequence[CompanyDTO]:
         logger.debug("DB URL: %s", str(self.db.get_bind().url))
-        rows = self.db.query(EmpresaORM).order_by(EmpresaORM.id.desc()).limit(200).all()
-        logger.debug("Empresas encontradas: %d", len(rows))
+        rows = self.db.query(CompanyORM).order_by(CompanyORM.id.desc()).limit(200).all()
+        logger.debug("Companies found: %d", len(rows))
         return [self._to_dto(e) for e in rows]
 
-    def list_by_tenant(self, *, tenant_id: Any) -> Sequence[EmpresaDTO]:
+    def list_by_tenant(self, *, tenant_id: Any) -> Sequence[CompanyDTO]:
         tenant_uuid = _to_uuid(tenant_id)
         rows = (
-            self.db.query(EmpresaORM)
-            .filter(EmpresaORM.id == tenant_uuid)
-            .order_by(EmpresaORM.id.desc())
+            self.db.query(CompanyORM)
+            .filter(CompanyORM.id == tenant_uuid)
+            .order_by(CompanyORM.id.desc())
             .all()
         )
         return [self._to_dto(e) for e in rows]
 
-    def get(self, *, id: Any) -> EmpresaDTO | None:
-        e = self.db.query(EmpresaORM).filter(EmpresaORM.id == _to_uuid(id)).first()
+    def get(self, *, id: Any) -> CompanyDTO | None:
+        e = self.db.query(CompanyORM).filter(CompanyORM.id == _to_uuid(id)).first()
         return self._to_dto(e) if e else None
 
     # --- CRUD admin ---
-    def create(self, data: Mapping) -> EmpresaDTO:
-        m = EmpresaORM(
+    def create(self, data: Mapping) -> CompanyDTO:
+        m = CompanyORM(
             name=data.get("name"),
             slug=data.get("slug"),
             tax_id=data.get("tax_id"),
@@ -73,8 +73,8 @@ class SqlEmpresaRepo(SqlAlchemyRepo, EmpresaRepo):
         self.db.refresh(m)
         return self._to_dto(m)
 
-    def update(self, id: Any, data: Mapping) -> EmpresaDTO | None:
-        m = self.db.query(EmpresaORM).filter(EmpresaORM.id == _to_uuid(id)).first()
+    def update(self, id: Any, data: Mapping) -> CompanyDTO | None:
+        m = self.db.query(CompanyORM).filter(CompanyORM.id == _to_uuid(id)).first()
         if not m:
             return None
         for field in (
@@ -103,7 +103,7 @@ class SqlEmpresaRepo(SqlAlchemyRepo, EmpresaRepo):
         return self._to_dto(m)
 
     def delete(self, id: Any) -> bool:
-        m = self.db.query(EmpresaORM).filter(EmpresaORM.id == _to_uuid(id)).first()
+        m = self.db.query(CompanyORM).filter(CompanyORM.id == _to_uuid(id)).first()
         if not m:
             return False
         self.db.delete(m)

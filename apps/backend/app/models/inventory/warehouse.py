@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from sqlalchemy import JSON, Boolean, String
+from sqlalchemy import JSON, Boolean, ForeignKey, String
 from sqlalchemy import text as sa_text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -29,7 +29,9 @@ class Warehouse(Base):
         # Server-side default for Postgres so ORM can fetch RETURNING
         server_default=sa_text("gen_random_uuid()"),
     )
-    tenant_id: Mapped[str] = mapped_column(_uuid_col(), index=True)
+    tenant_id: Mapped[str] = mapped_column(
+        _uuid_col(), ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
     code: Mapped[str] = mapped_column(String, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
     # DB column is 'active' but our model uses 'is_active' in code

@@ -28,7 +28,9 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
-from app.models.accounting.plan_cuentas import AsientoContable, AsientoLinea, PlanCuentas
+from app.models.accounting.chart_of_accounts import ChartOfAccounts as PlanCuentas
+from app.models.accounting.chart_of_accounts import JournalEntry as AsientoContable
+from app.models.accounting.chart_of_accounts import JournalEntryLine as AsientoLinea
 from app.schemas.accounting import (
     AsientoContableCreate,
     AsientoContableList,

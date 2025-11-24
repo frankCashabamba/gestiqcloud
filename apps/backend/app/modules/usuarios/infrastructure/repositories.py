@@ -4,25 +4,25 @@ from collections.abc import Iterable
 from sqlalchemy.orm import Session
 
 from app.models import AssignedModule, CompanyModule, CompanyRole, CompanyUser, CompanyUserRole
-from app.modules.usuarios.infrastructure.schemas import UsuarioEmpresaCreate
+from app.modules.usuarios.infrastructure.schemas import CompanyUserCreate
 
 
-def get_usuarios_by_empresa(
+def get_users_by_tenant(
     db: Session,
     tenant_id: int,
     *,
     include_admins: bool = True,
-    include_inactivos: bool = False,
+    include_inactive: bool = False,
 ) -> list[CompanyUser]:
     query = db.query(CompanyUser).filter(CompanyUser.tenant_id == tenant_id)
     if not include_admins:
         query = query.filter(CompanyUser.is_company_admin.is_(False))
-    if not include_inactivos:
+    if not include_inactive:
         query = query.filter(CompanyUser.is_active.is_(True))
     return query.all()
 
 
-def get_usuario_by_id(db: Session, usuario_id: int, tenant_id: int) -> CompanyUser | None:
+def get_user_by_id(db: Session, usuario_id: int, tenant_id: int) -> CompanyUser | None:
     return (
         db.query(CompanyUser)
         .filter(
@@ -33,19 +33,19 @@ def get_usuario_by_id(db: Session, usuario_id: int, tenant_id: int) -> CompanyUs
     )
 
 
-def get_usuario_by_email(db: Session, email: str) -> CompanyUser | None:
+def get_user_by_email(db: Session, email: str) -> CompanyUser | None:
     return db.query(CompanyUser).filter(CompanyUser.email == email).first()
 
 
-def get_usuario_by_username(db: Session, username: str) -> CompanyUser | None:
+def get_user_by_username(db: Session, username: str) -> CompanyUser | None:
     return db.query(CompanyUser).filter(CompanyUser.username == username).first()
 
 
-def insert_usuario_empresa(
+def insert_company_user(
     db: Session,
     *,
     tenant_id: int,
-    data: UsuarioEmpresaCreate,
+    data: CompanyUserCreate,
     hashed_password: str,
 ) -> CompanyUser:
     model = CompanyUser(
@@ -56,19 +56,19 @@ def insert_usuario_empresa(
         username=data.username,
         password_hash=hashed_password,
         is_active=data.active,
-        is_company_admin=data.es_admin_empresa,
+        is_company_admin=data.is_company_admin,
     )
     db.add(model)
     db.flush()
     return model
 
 
-def set_modulos_usuario(db: Session, usuario_id, tenant_id, modulos: Iterable) -> None:
+def set_user_modules(db: Session, usuario_id, tenant_id, modules: Iterable) -> None:
     db.query(AssignedModule).filter(
         AssignedModule.user_id == usuario_id,
         AssignedModule.tenant_id == tenant_id,
     ).delete(synchronize_session=False)
-    for modulo_id in modulos:
+    for modulo_id in modules:
         db.add(
             AssignedModule(
                 user_id=usuario_id,
@@ -78,23 +78,23 @@ def set_modulos_usuario(db: Session, usuario_id, tenant_id, modulos: Iterable) -
         )
 
 
-def set_roles_usuario(db: Session, usuario_id, tenant_id, roles: Iterable) -> None:
+def set_user_roles(db: Session, user_id, tenant_id, roles: Iterable) -> None:
     db.query(CompanyUserRole).filter(
-        CompanyUserRole.usuario_id == usuario_id,
+        CompanyUserRole.user_id == user_id,
         CompanyUserRole.tenant_id == tenant_id,
     ).delete(synchronize_session=False)
-    for rol_id in roles:
+    for role_id in roles:
         db.add(
             CompanyUserRole(
-                usuario_id=usuario_id,
+                user_id=user_id,
                 tenant_id=tenant_id,
-                rol_id=rol_id,
-                activo=True,
+                role_id=role_id,
+                is_active=True,
             )
         )
 
 
-def get_modulos_usuario_ids(db: Session, usuario_id, tenant_id):
+def get_user_module_ids(db: Session, usuario_id, tenant_id):
     rows = (
         db.query(AssignedModule.module_id)
         .filter(
@@ -106,20 +106,20 @@ def get_modulos_usuario_ids(db: Session, usuario_id, tenant_id):
     return [row[0] for row in rows]  # AssignedModule uses english names
 
 
-def get_roles_usuario_ids(db: Session, usuario_id, tenant_id):
+def get_user_role_ids(db: Session, usuario_id, tenant_id):
     rows = (
-        db.query(CompanyUserRole.rol_id)
+        db.query(CompanyUserRole.role_id)
         .filter(
-            CompanyUserRole.usuario_id == usuario_id,
+            CompanyUserRole.user_id == usuario_id,
             CompanyUserRole.tenant_id == tenant_id,
-            CompanyUserRole.activo.is_(True),
+            CompanyUserRole.is_active.is_(True),
         )
         .all()
     )
     return [row[0] for row in rows]
 
 
-def get_modulos_contratados_ids(db: Session, tenant_id: int):
+def get_contracted_module_ids(db: Session, tenant_id: int):
     rows = (
         db.query(CompanyModule.module_id)
         .filter(
@@ -131,7 +131,7 @@ def get_modulos_contratados_ids(db: Session, tenant_id: int):
     return [row[0] for row in rows]
 
 
-def count_admins_empresa(db: Session, tenant_id: int) -> int:
+def count_company_admins(db: Session, tenant_id: int) -> int:
     return (
         db.query(CompanyUser)
         .filter(
@@ -155,10 +155,10 @@ def find_super_admin_role_id(db: Session, tenant_id: int):
     )
 
 
-def load_detalle_usuarios(
+def load_user_details(
     db: Session, tenant_id: int
 ) -> list[tuple[CompanyUser, list[int], list[int]]]:
-    usuarios = get_usuarios_by_empresa(db, tenant_id, include_admins=True, include_inactivos=True)
+    usuarios = get_users_by_tenant(db, tenant_id, include_admins=True, include_inactive=True)
     if not usuarios:
         return []
 
@@ -174,22 +174,22 @@ def load_detalle_usuarios(
     ):
         mod_map[usuario_id].append(modulo_id)
 
-    rol_map: dict[int, list[int]] = defaultdict(list)
+    role_map: dict[int, list[int]] = defaultdict(list)
     for usuario_id, rol_id in (
-        db.query(CompanyUserRole.usuario_id, CompanyUserRole.rol_id)
+        db.query(CompanyUserRole.user_id, CompanyUserRole.role_id)
         .filter(
             CompanyUserRole.tenant_id == tenant_id,
-            CompanyUserRole.usuario_id.in_(usuario_ids),
-            CompanyUserRole.activo.is_(True),
+            CompanyUserRole.user_id.in_(usuario_ids),
+            CompanyUserRole.is_active.is_(True),
         )
         .all()
     ):
-        rol_map[usuario_id].append(rol_id)
+        role_map[usuario_id].append(rol_id)
 
-    return [(u, mod_map.get(u.id, []), rol_map.get(u.id, [])) for u in usuarios]
+    return [(u, mod_map.get(u.id, []), role_map.get(u.id, [])) for u in usuarios]
 
 
-def get_modulos_contratados(db: Session, tenant_id: int) -> list[dict]:
+def get_contracted_modules(db: Session, tenant_id: int) -> list[dict]:
     rows = (
         db.query(CompanyModule)
         .filter(
@@ -205,14 +205,14 @@ def get_modulos_contratados(db: Session, tenant_id: int) -> list[dict]:
             {
                 "id": row.module_id,
                 "name": getattr(modulo, "name", None),
-                "categoria": getattr(modulo, "category", None),
-                "icono": getattr(modulo, "icon", None),
+                "category": getattr(modulo, "category", None),
+                "icon": getattr(modulo, "icon", None),
             }
         )
     return result
 
 
-def get_roles_empresa(db: Session, tenant_id: int) -> list[dict]:
+def get_company_roles(db: Session, tenant_id: int) -> list[dict]:
     rows = (
         db.query(CompanyRole)
         .filter(CompanyRole.tenant_id == tenant_id)

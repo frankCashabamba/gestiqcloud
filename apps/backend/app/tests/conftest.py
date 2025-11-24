@@ -46,11 +46,11 @@ def _load_all_models():
     modules = [
         "app.models.auth.useradmis",
         "app.models.auth.refresh_family",
-        "app.models.empresa.empresa",
-        "app.models.empresa.usuarioempresa",
-        "app.models.empresa.usuario_rolempresa",
-        "app.models.empresa.rolempresas",
-        "app.models.empresa.settings",
+        "app.models.company.company",
+        "app.models.company.company_user",
+        "app.models.company.company_user_role",
+        "app.models.company.company_role",
+        "app.models.company.settings",
         # Tenancy model so SQLite create_all creates the tenants table used by admin flows
         "app.models.tenant",
         # Imports pipeline models (UUID/JSON fields are SQLite-friendly in tests)
@@ -227,8 +227,8 @@ def db():
     if missing:
         # Try direct imports of critical modules, then create_all again
         importlib.import_module("app.models.auth.useradmis")
-        importlib.import_module("app.models.empresa.usuarioempresa")
-        importlib.import_module("app.models.empresa.usuario_rolempresa")
+        importlib.import_module("app.models.company.company_user")
+        importlib.import_module("app.models.company.company_user_role")
         importlib.import_module("app.models.auth.refresh_family")
         Base.metadata.create_all(bind=engine)
         missing = required.difference(Base.metadata.tables.keys())
@@ -295,7 +295,7 @@ def usuario_empresa_factory(db):
         username: str = "tenantuser",
         email: str = "tenant@example.com",
         password: str = "tenant123",
-        es_admin_empresa: bool = True,
+        is_company_admin: bool = True,
     ):
         if empresa_name:
             empresa_nombre = empresa_name
@@ -303,7 +303,7 @@ def usuario_empresa_factory(db):
 
         from sqlalchemy import or_
 
-        from app.models.empresa.usuarioempresa import CompanyUser
+        from app.models.company.company_user import CompanyUser
         from app.models.tenant import Tenant
         from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
 
@@ -327,7 +327,7 @@ def usuario_empresa_factory(db):
                 # Create tenant if missing
                 tenant_obj = Tenant(
                     id=_uuid.uuid4(),
-                    nombre=empresa_nombre,
+                    name=empresa_nombre,
                     slug=empresa_slug or f"t-{_uuid.uuid4().hex[:8]}",
                 )
                 db.add(tenant_obj)
@@ -336,7 +336,7 @@ def usuario_empresa_factory(db):
 
             if password:
                 existing.password_hash = hasher.hash(password)
-            existing.is_company_admin = es_admin_empresa
+            existing.is_company_admin = is_company_admin
             existing.is_active = True
 
             db.commit()
@@ -346,7 +346,7 @@ def usuario_empresa_factory(db):
 
         # Create new tenant (Empresa table no longer exists)
         slug = empresa_slug or f"acme-{_uuid.uuid4().hex[:8]}"
-        tenant = Tenant(id=_uuid.uuid4(), nombre=empresa_nombre, slug=slug)
+        tenant = Tenant(id=_uuid.uuid4(), name=empresa_nombre, slug=slug)
         db.add(tenant)
         db.flush()
 
@@ -356,7 +356,7 @@ def usuario_empresa_factory(db):
             last_name="User",
             email=email,
             username=username,
-            is_company_admin=es_admin_empresa,
+            is_company_admin=is_company_admin,
             password_hash=hasher.hash(password),
             is_active=True,
         )

@@ -1,3 +1,3 @@
-from .models import UsuarioEmpresaAggregate
+from .models import CompanyUserAggregate
 
-__all__ = ["UsuarioEmpresaAggregate"]
+__all__ = ["CompanyUserAggregate"]

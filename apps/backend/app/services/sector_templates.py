@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.models.empresa.empresa import SectorPlantilla
+from app.models.company.empresa import SectorPlantilla
 from app.models.tenant import Tenant
 from app.schemas.sector_plantilla import SectorConfigJSON
 

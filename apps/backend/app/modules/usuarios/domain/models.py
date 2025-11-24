@@ -1,19 +1,20 @@
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 
 
 @dataclass
-class UsuarioEmpresaAggregate:
-    """Aggregate view of a usuario-empresa with assigned modules and roles."""
+class CompanyUserAggregate:
+    """Aggregate view of a company user with assigned modules and roles."""
 
-    id: int
-    tenant_id: int
+    id: uuid.UUID
+    tenant_id: uuid.UUID
     email: str
-    nombre_encargado: str | None = None
-    apellido_encargado: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
     username: str | None = None
-    es_admin_empresa: bool = False
-    activo: bool = True
-    modulos: list[int] = field(default_factory=list)
-    roles: list[int] = field(default_factory=list)
-    ultimo_login_at: datetime | None = None
+    is_company_admin: bool = False
+    is_active: bool = True
+    modules: list[uuid.UUID] = field(default_factory=list)
+    roles: list[uuid.UUID] = field(default_factory=list)
+    last_login_at: datetime | None = None

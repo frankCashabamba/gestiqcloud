@@ -5,44 +5,44 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.crud_base import CRUDBase
-from app.models.sales import Venta
+from app.models.sales import Sale
 from app.models.tenant import Tenant
 
 
 @dataclass
-class VentaCreateDTO:
-    fecha: str | None = None
-    cliente_id: str | None = None
+class SaleCreateDTO:
+    date: str | None = None
+    customer_id: str | None = None
     total: float | None = None
-    estado: str | None = None
+    status: str | None = None
 
     def model_dump(self) -> dict:
         return {
-            "fecha": self.fecha,
-            "cliente_id": self.cliente_id,
+            "date": self.date,
+            "customer_id": self.customer_id,
             "total": self.total,
-            "estado": self.estado,
+            "status": self.status,
         }
 
 
 @dataclass
-class VentaUpdateDTO:
-    fecha: str | None = None
-    cliente_id: str | None = None
+class SaleUpdateDTO:
+    date: str | None = None
+    customer_id: str | None = None
     total: float | None = None
-    estado: str | None = None
+    status: str | None = None
 
     def model_dump(self, exclude_unset: bool = False) -> dict:
         d = {
-            "fecha": self.fecha,
-            "cliente_id": self.cliente_id,
+            "date": self.date,
+            "customer_id": self.customer_id,
             "total": self.total,
-            "estado": self.estado,
+            "status": self.status,
         }
         return {k: v for k, v in d.items() if not exclude_unset or v is not None}
 
 
-class VentaCRUD(CRUDBase[Venta, VentaCreateDTO, VentaUpdateDTO]):
+class SaleCRUD(CRUDBase[Sale, SaleCreateDTO, SaleUpdateDTO]):
     pass
 
 
@@ -64,52 +64,52 @@ def _uuid_obj(value: UUIDLike | None) -> UUID | None:
     return UUID(value)
 
 
-class VentaRepo:
+class SaleRepo:
     def __init__(self, db: Session):
         self.db = db
-        self.crud = VentaCRUD(Venta)
+        self.crud = SaleCRUD(Sale)
 
-    def list(self) -> list[Venta]:
+    def list(self) -> list[Sale]:
         return list(self.crud.list(self.db))
 
-    def get(self, vid: UUIDLike) -> Venta | None:
+    def get(self, vid: UUIDLike) -> Sale | None:
         return self.crud.get(self.db, str(vid))
 
     def create(
-        self, *, fecha, cliente_id: UUIDLike | None, total: float, estado: str | None
-    ) -> Venta:
+        self, *, date, customer_id: UUIDLike | None, total: float, status: str | None
+    ) -> Sale:
         tenant_id = self._resolve_tenant_id()
         user_id = self._resolve_user_id()
-        dto = VentaCreateDTO(
-            fecha=fecha, cliente_id=_uuid_str(cliente_id), total=total, estado=estado
+        dto = SaleCreateDTO(
+            date=date, customer_id=_uuid_str(customer_id), total=total, status=status
         )
         return self.crud.create(
             self.db,
             dto,
-            extra_fields={"tenant_id": _uuid_obj(tenant_id), "usuario_id": _uuid_obj(user_id)},
+            extra_fields={"tenant_id": _uuid_obj(tenant_id), "user_id": _uuid_obj(user_id)},
         )
 
     def update(
         self,
         vid: UUIDLike,
         *,
-        fecha,
-        cliente_id: UUIDLike | None,
+        date,
+        customer_id: UUIDLike | None,
         total: float,
-        estado: str | None,
-    ) -> Venta:
-        dto = VentaUpdateDTO(
-            fecha=fecha, cliente_id=_uuid_str(cliente_id), total=total, estado=estado
+        status: str | None,
+    ) -> Sale:
+        dto = SaleUpdateDTO(
+            date=date, customer_id=_uuid_str(customer_id), total=total, status=status
         )
         obj = self.crud.update(self.db, str(vid), dto)
         if not obj:
-            raise ValueError("Venta no encontrada")
+            raise ValueError("Sale not found")
         return obj
 
     def delete(self, vid: UUIDLike) -> None:
         ok = self.crud.delete(self.db, str(vid))
         if not ok:
-            raise ValueError("Venta no encontrada")
+            raise ValueError("Sale not found")
 
     def _resolve_tenant_id(self) -> str:
         tid = self.db.info.get("tenant_id")

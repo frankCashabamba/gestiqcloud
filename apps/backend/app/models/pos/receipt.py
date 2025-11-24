@@ -1,4 +1,4 @@
-"""Modelos POS: Tickets y Pagos"""
+"""POS Models: Receipts and Payments"""
 
 import uuid
 from datetime import datetime
@@ -11,7 +11,7 @@ from app.config.database import Base
 
 
 class POSReceipt(Base):
-    """Ticket/Recibo de venta"""
+    """POS sales receipt"""
 
     __tablename__ = "pos_receipts"
     __table_args__ = {"extend_existing": True}
@@ -72,7 +72,7 @@ class POSReceipt(Base):
 
 
 class POSReceiptLine(Base):
-    """Línea de ticket"""
+    """Receipt line"""
 
     __tablename__ = "pos_receipt_lines"
     __table_args__ = {"extend_existing": True}
@@ -105,7 +105,7 @@ class POSReceiptLine(Base):
 
 
 class POSPayment(Base):
-    """Pago de ticket"""
+    """Receipt payment"""
 
     __tablename__ = "pos_payments"
     __table_args__ = {"extend_existing": True}

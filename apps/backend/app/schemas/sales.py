@@ -1,4 +1,4 @@
-"""Schemas Pydantic para Ventas"""
+"""Sales Pydantic schemas."""
 
 from datetime import date, datetime
 from uuid import UUID
@@ -7,60 +7,62 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 # Base schema
-class VentaBase(BaseModel):
-    """Campos comunes de Venta"""
+class SaleBase(BaseModel):
+    """Common sales fields."""
 
-    numero: str = Field(..., max_length=50, description="Número de venta")
-    cliente_id: UUID | None = Field(None, description="ID del cliente")
-    fecha: date = Field(default_factory=date.today)
+    number: str = Field(..., alias="numero", max_length=50, description="Sale number")
+    customer_id: UUID | None = Field(None, alias="cliente_id", description="Customer ID")
+    date: date = Field(default_factory=date.today, alias="fecha")
     subtotal: float = Field(default=0, ge=0)
-    impuestos: float = Field(default=0, ge=0)
+    taxes: float = Field(default=0, ge=0, alias="impuestos")
     total: float = Field(default=0, ge=0)
-    estado: str = Field(default="draft", pattern="^(draft|confirmed|invoiced|cancelled)$")
-    notas: str | None = None
+    status: str = Field(
+        default="draft",
+        alias="estado",
+        pattern="^(draft|confirmed|invoiced|cancelled)$",
+    )
+    notes: str | None = Field(None, alias="notas")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
-# Create schema
-class VentaCreate(VentaBase):
-    """Schema para crear venta"""
-
-    pass
+class SaleCreate(SaleBase):
+    """Create sale schema."""
 
 
-# Update schema
-class VentaUpdate(BaseModel):
-    """Schema para actualizar venta (todos campos opcionales)"""
+class SaleUpdate(BaseModel):
+    """Update sale schema (all fields optional)."""
 
-    numero: str | None = Field(None, max_length=50)
-    cliente_id: UUID | None = None
-    fecha: date | None = None
+    number: str | None = Field(None, alias="numero", max_length=50)
+    customer_id: UUID | None = Field(None, alias="cliente_id")
+    date: date | None = Field(None, alias="fecha")
     subtotal: float | None = Field(None, ge=0)
-    impuestos: float | None = Field(None, ge=0)
+    taxes: float | None = Field(None, alias="impuestos", ge=0)
     total: float | None = Field(None, ge=0)
-    estado: str | None = Field(None, pattern="^(draft|confirmed|invoiced|cancelled)$")
-    notas: str | None = None
+    status: str | None = Field(
+        None, alias="estado", pattern="^(draft|confirmed|invoiced|cancelled)$"
+    )
+    notes: str | None = Field(None, alias="notas")
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
-# Response schema
-class VentaResponse(VentaBase):
-    """Schema de respuesta de venta"""
+class SaleResponse(SaleBase):
+    """Sale response schema."""
 
     id: UUID
     tenant_id: UUID
-    usuario_id: UUID
+    user_id: UUID = Field(alias="usuario_id")
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
 
-# List schema
-class VentaList(BaseModel):
-    """Schema para lista paginada de ventas"""
+class SaleList(BaseModel):
+    """Paginated sale list."""
 
-    items: list[VentaResponse]
+    items: list[SaleResponse]
     total: int
     page: int = 1
     page_size: int = 100

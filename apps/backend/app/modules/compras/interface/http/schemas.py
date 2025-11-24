@@ -3,22 +3,22 @@ from datetime import date
 from pydantic import BaseModel, ConfigDict
 
 
-class CompraBase(BaseModel):
-    fecha: date
+class PurchaseBase(BaseModel):
+    date: date
     total: float
-    proveedor_id: int | None = None
-    estado: str | None = None
+    supplier_id: int | None = None
+    status: str | None = None
 
 
-class CompraCreate(CompraBase):
+class PurchaseCreate(PurchaseBase):
     pass
 
 
-class CompraUpdate(CompraBase):
+class PurchaseUpdate(PurchaseBase):
     pass
 
 
-class CompraOut(CompraBase):
+class PurchaseOut(PurchaseBase):
     id: int
 
     model_config = ConfigDict(from_attributes=True)

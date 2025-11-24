@@ -16,21 +16,21 @@ PG_UUID = UUID().with_variant(String(36), "sqlite")
 class Incident(Base):
     __tablename__ = "incidents"
     __table_args__ = (
-        Index("idx_incidents_tenant_estado", "tenant_id", "estado"),
+        Index("idx_incidents_tenant_status", "tenant_id", "status"),
         Index("idx_incidents_created_at", "created_at"),
-        Index("idx_incidents_severidad", "severidad"),
+        Index("idx_incidents_severity", "severity"),
         {"extend_existing": True},
     )
 
     id = Column(PG_UUID, primary_key=True, default=uuid.uuid4)
     tenant_id = Column(PG_UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
-    tipo = Column(String(50), nullable=False)  # error, warning, bug, feature_request, stock_alert
-    severidad = Column(String(20), nullable=False)  # low, medium, high, critical
-    titulo = Column(String(255), nullable=False)
-    descripcion = Column(Text)
+    type = Column(String(50), nullable=False)  # error, warning, bug, feature_request, stock_alert
+    severity = Column(String(20), nullable=False)  # low, medium, high, critical
+    title = Column(String(255), nullable=False)
+    description = Column(Text)
     stack_trace = Column(Text)
     context = Column(JSON_TYPE)
-    estado = Column(
+    status = Column(
         String(20), default="open", nullable=False
     )  # open, in_progress, resolved, closed
     # Fix FK to company users table
@@ -94,7 +94,7 @@ class NotificationChannel(Base):
 
     id = Column(PG_UUID, primary_key=True, default=uuid.uuid4)
     tenant_id = Column(PG_UUID, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
-    tipo = Column(String(50), nullable=False)  # email, whatsapp, telegram, slack
+    channel_type = Column(String(50), nullable=False)  # email, whatsapp, telegram, slack
     name = Column(String(100), nullable=False)
     config = Column(JSON_TYPE, nullable=False)  # {api_key, phone, chat_id, webhook_url, etc}
     is_active = Column(Boolean, default=True)
@@ -107,11 +107,11 @@ class NotificationChannel(Base):
 
 
 class NotificationLog(Base):
-    __tablename__ = "notification_log"
+    __tablename__ = "notification_logs"
     __table_args__ = (
-        Index("idx_notification_log_tenant", "tenant_id"),
-        Index("idx_notification_log_status", "status"),
-        Index("idx_notification_log_sent_at", "sent_at"),
+        Index("idx_notification_logs_tenant", "tenant_id"),
+        Index("idx_notification_logs_status", "status"),
+        Index("idx_notification_logs_sent_at", "sent_at"),
         {"extend_existing": True},
     )
 
@@ -120,7 +120,7 @@ class NotificationLog(Base):
     channel_id = Column(PG_UUID, ForeignKey("notification_channels.id", ondelete="SET NULL"))
     incident_id = Column(PG_UUID, ForeignKey("incidents.id", ondelete="CASCADE"))
     stock_alert_id = Column(PG_UUID, ForeignKey("stock_alerts.id", ondelete="CASCADE"))
-    tipo = Column(String(50), nullable=False)
+    notification_type = Column(String(50), nullable=False)
     recipient = Column(String(255), nullable=False)
     subject = Column(String(255))
     body = Column(Text)

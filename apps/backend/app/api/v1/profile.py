@@ -19,10 +19,10 @@ def me_tenant(request: Request):
         "user_id": c.get("user_id"),
         "tenant_id": c.get("tenant_id"),
         "empresa_slug": c.get("empresa_slug"),
-        "nombre": c.get("nombre"),
-        "es_admin_empresa": c.get("es_admin_empresa"),
+        "name": c.get("name"),
+        "is_company_admin": c.get("is_company_admin"),
         "roles": c.get("roles", []),
-        "permisos": c.get("permisos", {}),
+        "permissions": c.get("permissions", {}),
         "plantilla": c.get("plantilla"),
     }
 

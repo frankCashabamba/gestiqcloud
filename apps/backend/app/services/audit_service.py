@@ -1,4 +1,4 @@
-"""Servicio de auditoría genérico para todo el sistema."""
+"""Generic audit service for the entire system."""
 
 import json
 from datetime import date, datetime
@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 
 class AuditJSONEncoder(json.JSONEncoder):
-    """Custom JSON encoder para tipos no serializables."""
+    """Custom JSON encoder for non-serializable types."""
 
     def default(self, obj):
         if isinstance(obj, UUID):
@@ -26,28 +26,28 @@ class AuditJSONEncoder(json.JSONEncoder):
 
 
 class AuditService:
-    """Servicio centralizado para registrar acciones de auditoría."""
+    """Centralized service to register audit actions."""
 
     @staticmethod
     def log_action(
         db: Session,
         action_type: str,  # CREATE, UPDATE, DELETE, etc.
-        entity_type: str,  # 'empresa', 'usuario', 'producto', etc.
+        entity_type: str,  # 'company', 'user', 'product', etc.
         entity_id: str | None = None,
         old_data: dict[str, Any] | None = None,
         new_data: dict[str, Any] | None = None,
         user_id: str | None = None,
         user_email: str | None = None,
         user_role: str | None = None,
-        tenant_id: UUID | None = None,  # UUID del tenant
-        tenant_legacy_id: int | None = None,  # ID empresa (legacy)
+        tenant_id: UUID | None = None,  # tenant UUID
+        tenant_legacy_id: int | None = None,  # legacy tenant id if any
         description: str | None = None,
         notes: str | None = None,
         ip_address: str | None = None,
         user_agent: str | None = None,  # reservado, se guarda en props
         request_id: str | None = None,
     ) -> None:
-        """Registra una acción en audit_log (schema real)."""
+        """Register an action in audit_log."""
 
         # Armar props JSONB
         props: dict[str, Any] = {
@@ -110,10 +110,10 @@ class AuditService:
         return changes
 
     @staticmethod
-    def log_delete_empresa(
+    def log_delete_company(
         db: Session,
-        empresa_data: dict[str, Any],
-        related_data: dict[str, Any],  # {'usuarios': [...], 'productos': [...], etc.}
+        company_data: dict[str, Any],
+        related_data: dict[str, Any],  # {'users': [...], 'products': [...], etc.}
         user_id: int | None = None,
         user_email: str | None = None,
         user_role: str = "admin",
@@ -121,16 +121,16 @@ class AuditService:
         tenant_uuid: UUID | None = None,
         tenant_legacy_id: int | None = None,
     ) -> None:
-        """Ayudante para registrar borrado de empresa + cascadas."""
+        """Helper to register company deletion with cascades."""
 
         # Registro de empresa borrada
         AuditService.log_action(
             db=db,
             action_type="DELETE",
-            entity_type="empresa",
+            entity_type="company",
             entity_id=str(tenant_legacy_id) if tenant_legacy_id is not None else None,
             old_data={
-                "empresa": empresa_data,
+                "company": company_data,
                 "related_entities": {k: len(v) for k, v in related_data.items()},
             },
             user_id=str(user_id) if user_id is not None else None,
@@ -138,10 +138,8 @@ class AuditService:
             user_role=user_role,
             tenant_id=tenant_uuid,
             tenant_legacy_id=tenant_legacy_id,
-            description=(
-                f'Empresa "{empresa_data.get("nombre")}" eliminada con '
-                f"{sum(len(v) for v in related_data.values())} registros relacionados"
-            ),
+            description=f'Company "{company_data.get("name")}" deleted with '
+            f"{sum(len(v) for v in related_data.values())} related records",
             ip_address=ip_address,
         )
 
@@ -152,7 +150,7 @@ class AuditService:
             AuditService.log_action(
                 db=db,
                 action_type="DELETE",
-                entity_type=f"empresa_cascade_{etype}",
+                entity_type=f"company_cascade_{etype}",
                 old_data={"items": entities, "count": len(entities)},
                 user_id=str(user_id) if user_id is not None else None,
                 user_email=user_email,

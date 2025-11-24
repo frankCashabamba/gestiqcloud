@@ -5,13 +5,13 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
 
-from app.models.empresa.empresa import TipoEmpresa as TipoEmpresaORM
+from app.models.company.company import BusinessType as TipoEmpresaORM
 from app.modules.admin_config.application.tipos_empresa.dto import TipoEmpresaIn, TipoEmpresaOut
-from app.modules.admin_config.application.tipos_empresa.ports import TipoEmpresaRepo
+from app.modules.admin_config.application.tipos_empresa.ports import TipoCompanyRepo
 from app.shared.utils import slugify
 
 
-class SqlAlchemyTipoEmpresaRepo(TipoEmpresaRepo):
+class SqlAlchemyTipoCompanyRepo(TipoCompanyRepo):
     def __init__(self, db: Session):
         self.db = db
 

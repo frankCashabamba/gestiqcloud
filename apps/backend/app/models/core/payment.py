@@ -1,15 +1,10 @@
 """
-Modelos base para pagos.
+Base models for payments.
 
-Define una jerarquía común para todos los tipos de pagos:
-- Payment: Pagos bancarios vinculados a facturas (conciliación)
-- POSPayment: Pagos inmediatos en punto de venta
-- AdvancePayment: Anticipos y señas
-
-Esto permite:
-- Reutilización de lógica de pagos
-- Reporting unificado
-- Facilita conciliación entre sistemas
+Common hierarchy for:
+- Payment: Bank-linked invoice payments (reconciliation)
+- POSPayment: Immediate POS payments
+- AdvancePayment: Future deposits/advances
 """
 
 from datetime import datetime
@@ -20,7 +15,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 
 class PaymentMethod(str, Enum):
-    """Métodos de pago soportados"""
+    """Supported payment methods."""
 
     CASH = "cash"
     CARD = "card"
@@ -34,7 +29,7 @@ class PaymentMethod(str, Enum):
 
 
 class PaymentStatus(str, Enum):
-    """Estados de pago"""
+    """Payment statuses."""
 
     PENDING = "pending"
     COMPLETED = "completed"
@@ -45,51 +40,45 @@ class PaymentStatus(str, Enum):
 
 class PaymentBase:
     """
-    Clase base abstracta (mixin) para todos los pagos.
-
-    Define los campos comunes que todo pago debe tener.
-    No se mapea a una tabla, solo provee estructura común.
+    Abstract mixin for all payments (not mapped directly).
     """
 
-    # Campos comunes
-    amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, comment="Monto del pago")
+    amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, comment="Payment amount")
 
     currency: Mapped[str] = mapped_column(
-        String(3), nullable=False, default="EUR", comment="Moneda (ISO 4217)"
+        String(3), nullable=False, default="EUR", comment="Currency (ISO 4217)"
     )
 
     method: Mapped[str] = mapped_column(
-        String(50), nullable=False, comment="Método de pago (cash, card, transfer, etc.)"
+        String(50), nullable=False, comment="Payment method (cash, card, transfer, etc.)"
     )
 
     status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="pending", comment="Estado del pago"
+        String(20), nullable=False, default="pending", comment="Payment status"
     )
 
     reference: Mapped[str | None] = mapped_column(
-        String(200), nullable=True, comment="Referencia externa (número de transacción, etc.)"
+        String(200), nullable=True, comment="External reference (transaction id, etc.)"
     )
 
-    notes: Mapped[str | None] = mapped_column(
-        String(500), nullable=True, comment="Notas adicionales"
-    )
+    notes: Mapped[str | None] = mapped_column(String(500), nullable=True, comment="Notes")
 
-    paid_at: Mapped[datetime | None] = mapped_column(nullable=True, comment="Fecha/hora del pago")
+    paid_at: Mapped[datetime | None] = mapped_column(nullable=True, comment="Payment datetime")
 
     created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow, comment="Fecha de creación del registro"
+        nullable=False, default=datetime.utcnow, comment="Record creation datetime"
     )
 
     def is_completed(self) -> bool:
-        """Verifica si el pago está completado"""
+        """Check if payment is completed."""
         return self.status == PaymentStatus.COMPLETED.value
 
     def is_pending(self) -> bool:
-        """Verifica si el pago está pendiente"""
+        """Check if payment is pending."""
         return self.status == PaymentStatus.PENDING.value
 
     def can_refund(self) -> bool:
-        """Verifica si el pago puede ser reembolsado"""
+        """Check if payment can be refunded."""
         return self.status == PaymentStatus.COMPLETED.value
 
 

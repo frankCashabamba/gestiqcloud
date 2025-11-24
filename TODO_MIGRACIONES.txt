@@ -1,0 +1,98 @@
+📋 TODO: CONSOLIDAR MIGRACIONES
+═══════════════════════════════════════════════════════════════════
+
+🎯 OBJETIVO
+───────────
+Tener 1 migración PROFESIONAL en lugar de 40+ fragmentadas.
+
+
+📊 ESTADO ACTUAL
+────────────────
+❌ ops/migrations/ tiene 40+ archivos
+❌ Mismas tablas modificadas en múltiples migraciones
+❌ Cambios de campos sueltos (ADD COLUMN, RENAME, etc.)
+
+Ejemplo problema:
+  business_types
+  ├─ Creada en: 2025-11-18_340_business_reference_tables
+  ├─ Modificada: 2025-11-20_000 (ADD tenant_id, code)
+  ├─ Modificada: 2025-11-20_000 (RENAME active→is_active)
+  └─ ❌ Esparcida en 3 migraciones
+
+
+✅ SOLUCIÓN IMPLEMENTADA
+─────────────────────────
+Creé 3 archivos:
+
+1. scripts/generate_schema_sql.py
+   • Introspecciona modelos SQLAlchemy
+   • Genera SQL limpio (CREATE TABLE completas)
+   • Crea indexes automáticamente
+   • Genera README
+
+2. QUICK_START_MIGRATIONS.md
+   • Guía paso-a-paso
+   • Comandos listos para copiar-pegar
+   • Checklist de verificación
+
+3. GENERATE_MIGRATIONS.md
+   • Documentación detallada
+   • Troubleshooting
+   • Alternativas si algo falla
+
+
+🚀 CÓMO USARLO
+──────────────
+1. Ejecutar script:
+   python scripts/generate_schema_sql.py --date 2025-11-21 --number 000
+
+2. Se crea:
+   ops/migrations/2025-11-21_000_complete_consolidated_schema/
+   ├── up.sql   (aplicar)
+   ├── down.sql (rollback)
+   └── README.md (documentación)
+
+3. Aplicar:
+   docker exec -i db psql -U postgres -d gestiqclouddb_dev < \
+     ops/migrations/2025-11-21_000_complete_consolidated_schema/up.sql
+
+4. Limpiar antiguas (opcional):
+   mkdir ops/migrations/_archive_old
+   Move-Item ops/migrations/2025-11-* ops/migrations/_archive_old/
+
+
+📈 BENEFICIOS
+──────────────
+✅ Una migración en lugar de 40+
+✅ Definiciones completas de tablas
+✅ Profesional y mantenible
+✅ Índices optimizados
+✅ Reversible (down.sql)
+✅ Documentado automáticamente
+
+
+⚙️ REQUISITOS
+──────────────
+• Python 3.8+
+• Dependencias de backend (requirements.txt)
+• Estar en raíz del proyecto
+
+
+📝 ARCHIVOS GENERADOS
+──────────────────────
+/MIGRACIONES_MODELOS.md        ← Mapeo completo actual
+/QUICK_START_MIGRATIONS.md     ← Guía rápida
+/GENERATE_MIGRATIONS.md        ← Documentación detallada
+/scripts/generate_schema_sql.py ← Script principal
+
+
+🔗 REFERENCIAS
+───────────────
+• Ver: QUICK_START_MIGRATIONS.md (más fácil)
+• Ver: GENERATE_MIGRATIONS.md (detallado)
+• Ejecutar: python scripts/generate_schema_sql.py --date 2025-11-21 --number 000
+
+
+═══════════════════════════════════════════════════════════════════
+✅ LISTO PARA EMPEZAR
+═══════════════════════════════════════════════════════════════════

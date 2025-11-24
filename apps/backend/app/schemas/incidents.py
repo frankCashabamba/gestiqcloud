@@ -6,24 +6,24 @@ from pydantic import BaseModel, Field, validator
 
 
 class IncidentCreate(BaseModel):
-    tipo: Literal["error", "warning", "bug", "feature_request", "stock_alert"] = Field(
-        ..., description="Tipo de incidencia"
+    type: Literal["error", "warning", "bug", "feature_request", "stock_alert"] = Field(
+        ..., description="Incident type"
     )
-    severidad: Literal["low", "medium", "high", "critical"] = Field(
-        ..., description="Nivel de severidad"
+    severity: Literal["low", "medium", "high", "critical"] = Field(
+        ..., description="Severity level"
     )
-    titulo: str = Field(..., min_length=1, max_length=255, description="Título descriptivo")
-    description: str | None = Field(None, description="Descripción detallada")
-    stack_trace: str | None = Field(None, description="Stack trace si es error técnico")
-    context: dict[str, Any] | None = Field(None, description="Contexto adicional (JSON)")
+    title: str = Field(..., min_length=1, max_length=255, description="Short title")
+    description: str | None = Field(None, description="Detailed description")
+    stack_trace: str | None = Field(None, description="Stack trace if technical error")
+    context: dict[str, Any] | None = Field(None, description="Additional context (JSON)")
 
     class Config:
         json_schema_extra = {
             "example": {
-                "tipo": "error",
-                "severidad": "high",
-                "titulo": "Error al procesar importación de productos",
-                "descripcion": "Fallo al validar archivo CSV línea 45",
+                "type": "error",
+                "severity": "high",
+                "title": "Error processing product import",
+                "description": "Failed validating CSV at line 45",
                 "stack_trace": "Traceback...",
                 "context": {"file_id": "abc-123", "line": 45},
             }
@@ -31,7 +31,7 @@ class IncidentCreate(BaseModel):
 
 
 class IncidentUpdate(BaseModel):
-    estado: Literal["open", "in_progress", "resolved", "closed"] | None = None
+    status: Literal["open", "in_progress", "resolved", "closed"] | None = None
     assigned_to: UUID | None = None
     ia_analysis: dict[str, Any] | None = None
     ia_suggestion: str | None = None
@@ -40,13 +40,13 @@ class IncidentUpdate(BaseModel):
 class IncidentResponse(BaseModel):
     id: UUID
     tenant_id: UUID
-    tipo: str
-    severidad: str
-    titulo: str
+    type: str
+    severity: str
+    title: str
     description: str | None
     stack_trace: str | None
     context: dict[str, Any] | None
-    estado: str
+    status: str
     assigned_to: UUID | None
     auto_detected: bool
     auto_resolved: bool
@@ -103,27 +103,27 @@ class StockAlertResponse(BaseModel):
 
 
 class NotificationChannelCreate(BaseModel):
-    tipo: Literal["email", "whatsapp", "telegram", "slack"]
+    channel_type: Literal["email", "whatsapp", "telegram", "slack"]
     name: str = Field(..., min_length=1, max_length=100)
     config: dict[str, Any] = Field(
-        ..., description="Configuración del canal (API keys, webhooks, etc)"
+        ..., description="Channel configuration (API keys, webhooks, etc)"
     )
     is_active: bool = True
     priority: int = Field(0, ge=0, le=100)
 
     @validator("config")
     def validate_config(cls, v, values):
-        tipo = values.get("tipo")
-        if tipo == "email":
+        channel_type = values.get("channel_type")
+        if channel_type == "email":
             if "smtp_host" not in v or "from_email" not in v:
                 raise ValueError("Email config requires smtp_host and from_email")
-        elif tipo == "whatsapp":
+        elif channel_type == "whatsapp":
             if "api_key" not in v or "phone" not in v:
                 raise ValueError("WhatsApp config requires api_key and phone")
-        elif tipo == "telegram":
+        elif channel_type == "telegram":
             if "bot_token" not in v or "chat_id" not in v:
                 raise ValueError("Telegram config requires bot_token and chat_id")
-        elif tipo == "slack":
+        elif channel_type == "slack":
             if "webhook_url" not in v:
                 raise ValueError("Slack config requires webhook_url")
         return v
@@ -131,8 +131,8 @@ class NotificationChannelCreate(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "tipo": "telegram",
-                "name": "Alertas Stock Principal",
+                "channel_type": "telegram",
+                "name": "Primary Stock Alerts",
                 "config": {
                     "bot_token": "123456:ABC-DEF...",
                     "chat_id": "-1001234567890",
@@ -153,7 +153,7 @@ class NotificationChannelUpdate(BaseModel):
 class NotificationChannelResponse(BaseModel):
     id: UUID
     tenant_id: UUID
-    tipo: str
+    channel_type: str
     name: str
     config: dict[str, Any]
     is_active: bool
@@ -171,7 +171,7 @@ class NotificationLogResponse(BaseModel):
     channel_id: UUID | None
     incident_id: UUID | None
     stock_alert_id: UUID | None
-    tipo: str
+    notification_type: str
     recipient: str
     subject: str | None
     status: str

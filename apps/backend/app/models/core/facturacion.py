@@ -48,12 +48,12 @@ class Invoice(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
     )
     number: Mapped[str] = mapped_column("number", String, nullable=False)
-    supplier: Mapped[str] = mapped_column("supplier", String)
-    issue_date: Mapped[str] = mapped_column("issue_date", String)
-    amount: Mapped[int] = mapped_column("amount", default=0)
-    status: Mapped[str] = mapped_column("status", String, default="pending")
+    supplier: Mapped[str] = mapped_column("supplier", String, nullable=True)
+    issue_date: Mapped[date | str] = mapped_column("issue_date", String, nullable=True)
+    amount: Mapped[float] = mapped_column("amount", default=0)
+    status: Mapped[str] = mapped_column("status", String, default="pending", index=True)
     created_at: Mapped[str] = mapped_column("created_at", String, server_default=text("now()"))
-    tenant_id: Mapped[uuid.UUID] = mapped_column("tenant_id", ForeignKey("tenants.id"))
+    tenant_id: Mapped[uuid.UUID] = mapped_column("tenant_id", ForeignKey("tenants.id"), index=True)
     customer_id: Mapped[uuid.UUID] = mapped_column(
         "customer_id", UUID(as_uuid=True), ForeignKey("clients.id")
     )
@@ -76,8 +76,8 @@ class BankAccount(Base):
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(
         "tenant_id", UUID(as_uuid=True), ForeignKey("tenants.id"), index=True, nullable=True
     )
-    name: Mapped[str] = mapped_column("name", String)
-    iban: Mapped[str] = mapped_column("iban", String, index=True)
+    name: Mapped[str] = mapped_column("name", String, nullable=False)
+    iban: Mapped[str] = mapped_column("iban", String, index=True, unique=True)
     bank: Mapped[str] = mapped_column("bank", String, nullable=True)
     currency: Mapped[str] = mapped_column("currency", String, default="EUR")
     customer_id: Mapped[uuid.UUID] = mapped_column(
@@ -88,22 +88,22 @@ class BankAccount(Base):
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
 
 
-class MovimientoTipo(Enum):
+class TransactionType(Enum):
     """Transaction type enum."""
 
-    RECIBO = "receipt"
-    TRANSFERENCIA = "transfer"
-    TARJETA = "card"
-    EFECTIVO = "cash"
-    OTRO = "other"
+    RECEIPT = "receipt"
+    TRANSFER = "transfer"
+    CARD = "card"
+    CASH = "cash"
+    OTHER = "other"
 
 
-class MovimientoEstado(Enum):
+class TransactionStatus(Enum):
     """Transaction status enum."""
 
-    PENDIENTE = "pending"
-    CONCILIADO = "reconciled"
-    RECHAZADO = "rejected"
+    PENDING = "pending"
+    RECONCILED = "reconciled"
+    REJECTED = "rejected"
 
 
 class BankTransaction(Base):
@@ -119,14 +119,14 @@ class BankTransaction(Base):
         "account_id", UUID(as_uuid=True), ForeignKey("bank_accounts.id"), index=True
     )
     date: Mapped[date] = mapped_column(Date(), index=True)
-    amount: Mapped[float] = mapped_column("amount")
+    amount: Mapped[float] = mapped_column("amount", nullable=False)
     currency: Mapped[str] = mapped_column("currency", String, default="EUR")
-    type: Mapped[MovimientoTipo] = mapped_column("type", SAEnum(MovimientoTipo))
-    status: Mapped[MovimientoEstado] = mapped_column(
-        "status", SAEnum(MovimientoEstado), default=MovimientoEstado.PENDIENTE
+    type: Mapped[TransactionType] = mapped_column("type", SAEnum(TransactionType))
+    status: Mapped[TransactionStatus] = mapped_column(
+        "status", SAEnum(TransactionStatus), default=TransactionStatus.PENDING
     )
-    concept: Mapped[str] = mapped_column("concept", String)
-    reference: Mapped[str | None] = mapped_column("reference", String, nullable=True)
+    concept: Mapped[str] = mapped_column("concept", String, nullable=False)
+    reference: Mapped[str | None] = mapped_column("reference", String, nullable=True, index=True)
     counterparty_name: Mapped[str | None] = mapped_column(
         "counterparty_name", String, nullable=True
     )
@@ -154,6 +154,39 @@ class BankTransaction(Base):
     # Relationships
     account: Mapped[BankAccount] = relationship(BankAccount)
     customer: Mapped[Client | None] = relationship(Client)
+
+    # Legacy aliases
+    @property
+    def fecha(self) -> date:
+        return self.date
+
+    @fecha.setter
+    def fecha(self, value: date) -> None:
+        self.date = value
+
+    @property
+    def monto(self) -> float:
+        return self.amount
+
+    @monto.setter
+    def monto(self, value: float) -> None:
+        self.amount = value
+
+    @property
+    def tipo(self) -> TransactionType:
+        return self.type
+
+    @tipo.setter
+    def tipo(self, value: TransactionType) -> None:
+        self.type = value
+
+    @property
+    def estado(self) -> TransactionStatus:
+        return self.status
+
+    @estado.setter
+    def estado(self, value: TransactionStatus) -> None:
+        self.status = value
 
 
 class Payment(Base):

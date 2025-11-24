@@ -6,12 +6,12 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
 
-from ...infrastructure.repositories import CompraRepo
-from .schemas import CompraCreate, CompraOut, CompraUpdate
+from ...infrastructure.repositories import PurchaseRepo
+from .schemas import PurchaseCreate, PurchaseOut, PurchaseUpdate
 
 router = APIRouter(
-    prefix="/compras",
-    tags=["Compras"],
+    prefix="/purchases",
+    tags=["Purchases"],
     dependencies=[
         Depends(with_access_claims),
         Depends(require_scope("tenant")),
@@ -20,50 +20,54 @@ router = APIRouter(
 )
 
 
-@router.get("", response_model=list[CompraOut])
-def list_compras(db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)):
+@router.get("", response_model=list[PurchaseOut])
+def list_purchases(db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)):
     tenant_id = claims["tenant_id"]
-    return CompraRepo(db).list(tenant_id)
+    return PurchaseRepo(db).list(tenant_id)
 
 
-@router.get("/{cid}", response_model=CompraOut)
-def get_compra(cid: int, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)):
+@router.get("/{cid}", response_model=PurchaseOut)
+def get_purchase(
+    cid: int, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
+):
     tenant_id = claims["tenant_id"]
-    obj = CompraRepo(db).get(tenant_id, cid)
+    obj = PurchaseRepo(db).get(tenant_id, cid)
     if not obj:
-        raise HTTPException(404, "No encontrado")
+        raise HTTPException(404, "Not found")
     return obj
 
 
-@router.post("", response_model=CompraOut)
-def create_compra(
-    payload: CompraCreate, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
+@router.post("", response_model=PurchaseOut)
+def create_purchase(
+    payload: PurchaseCreate,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
 ):
     tenant_id = claims["tenant_id"]
-    return CompraRepo(db).create(tenant_id, **payload.model_dump())
+    return PurchaseRepo(db).create(tenant_id, **payload.model_dump())
 
 
-@router.put("/{cid}", response_model=CompraOut)
-def update_compra(
+@router.put("/{cid}", response_model=PurchaseOut)
+def update_purchase(
     cid: int,
-    payload: CompraUpdate,
+    payload: PurchaseUpdate,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
     tenant_id = claims["tenant_id"]
     try:
-        return CompraRepo(db).update(tenant_id, cid, **payload.model_dump())
+        return PurchaseRepo(db).update(tenant_id, cid, **payload.model_dump())
     except ValueError:
-        raise HTTPException(404, "No encontrado")
+        raise HTTPException(404, "Not found")
 
 
 @router.delete("/{cid}")
-def delete_compra(
+def delete_purchase(
     cid: int, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
 ):
     tenant_id = claims["tenant_id"]
     try:
-        CompraRepo(db).delete(tenant_id, cid)
+        PurchaseRepo(db).delete(tenant_id, cid)
     except ValueError:
-        raise HTTPException(404, "No encontrado")
+        raise HTTPException(404, "Not found")
     return {"success": True}

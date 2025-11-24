@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
 
-from app.models.empresa.empresa import SectorPlantilla as SectorPlantillaORM
+from app.models.company.company import SectorTemplate as SectorPlantillaORM
 from app.modules.admin_config.application.sectores_plantilla.dto import (
     SectorPlantillaIn,
     SectorPlantillaOut,

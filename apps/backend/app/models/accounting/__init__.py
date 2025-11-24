@@ -1,13 +1,25 @@
 """Accounting models."""
 
-# Los módulos contractuales se controlan por tenant en estas tablas:
-# - `modulos_modulo`: catálogo de módulos disponibles.
-# - `modulos_empresamodulo`: módulos que un tenant ha contratado.
-# - `modulos_moduloasignado`: qué usuarios de ese tenant pueden usar cada módulo.
-from app.models.accounting.plan_cuentas import (  # noqa: E402
-    AsientoContable,
-    AsientoLinea,
-    PlanCuentas,
+# Legacy contract modules per tenant:
+# - modules: catalog of available modules
+# - company_modules: modules a tenant has purchased
+# - assigned_modules: which users can access them
+from app.models.accounting.chart_of_accounts import (  # noqa: E402
+    ChartOfAccounts,
+    JournalEntry,
+    JournalEntryLine,
 )
 
-__all__ = ["PlanCuentas", "AsientoContable", "AsientoLinea"]
+# Backward compatibility aliases (Spanish names)
+PlanCuentas = ChartOfAccounts
+AsientoContable = JournalEntry
+AsientoLinea = JournalEntryLine
+
+__all__ = [
+    "ChartOfAccounts",
+    "JournalEntry",
+    "JournalEntryLine",
+    "PlanCuentas",
+    "AsientoContable",
+    "AsientoLinea",
+]

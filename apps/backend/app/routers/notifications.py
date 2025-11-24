@@ -64,7 +64,9 @@ def _get_notification_task():
 
 @router.get("/channels", response_model=list[NotificationChannelResponse])
 def list_channels(
-    tipo: str | None = Query(None, description="Filtrar por tipo: email, whatsapp, telegram"),
+    channel_type: str | None = Query(
+        None, description="Filtrar por tipo: email, whatsapp, telegram"
+    ),
     activo: bool | None = Query(None),
     db: Session = Depends(get_db),
     tenant_id: str = Depends(get_current_tenant_id),
@@ -72,10 +74,10 @@ def list_channels(
     """Lista todos los canales de notificación configurados"""
     query = db.query(NotificationChannel).filter(NotificationChannel.tenant_id == tenant_id)
 
-    if tipo:
-        query = query.filter(NotificationChannel.tipo == tipo)
+    if channel_type:
+        query = query.filter(NotificationChannel.channel_type == channel_type)
     if activo is not None:
-        query = query.filter(NotificationChannel.active == activo)
+        query = query.filter(NotificationChannel.is_active == activo)
 
     channels = query.order_by(NotificationChannel.created_at.desc()).all()
     return channels
@@ -100,19 +102,19 @@ def create_channel(
     - **telegram**: Bot API
     """
     # Validar tipo
-    if payload.tipo not in ["email", "whatsapp", "telegram"]:
+    if payload.channel_type not in ["email", "whatsapp", "telegram"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Tipo debe ser: email, whatsapp o telegram",
         )
 
     # Validar config según tipo
-    _validate_channel_config(payload.tipo, payload.config)
+    _validate_channel_config(payload.channel_type, payload.config)
 
     # Crear canal
     channel = NotificationChannel(
         tenant_id=tenant_id,
-        tipo=payload.tipo,
+        channel_type=payload.channel_type,
         nombre=payload.name,
         descripcion=payload.description,
         config=payload.config,
@@ -176,7 +178,7 @@ def update_channel(
 
     # Validar config si se está actualizando
     if "config" in update_data:
-        _validate_channel_config(channel.tipo, update_data["config"])
+        _validate_channel_config(channel.channel_type, update_data["config"])
 
     for field, value in update_data.items():
         setattr(channel, field, value)
@@ -245,7 +247,7 @@ def test_notification(
 
 <p>Este es un mensaje de prueba desde <b>GestiQCloud</b>.</p>
 
-<p><b>Canal:</b> {channel.name} ({channel.tipo})</p>
+<p><b>Canal:</b> {channel.name} ({channel.channel_type})</p>
 <p><b>Fecha:</b> {datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S")} UTC</p>
 
 <p>Si recibes este mensaje, tu canal está configurado correctamente ✅</p>
@@ -254,7 +256,7 @@ def test_notification(
     # Enviar async
     task = _get_notification_task().delay(
         tenant_id=str(tenant_id),
-        tipo=channel.tipo,
+        channel_type=channel.channel_type,
         destinatario=payload.destinatario,
         asunto=asunto,
         mensaje=mensaje,
@@ -289,13 +291,13 @@ def send_notification(
 
     config = None
     if payload.config_override:
-        _validate_channel_config(payload.tipo, payload.config_override)
+        _validate_channel_config(payload.channel_type, payload.config_override)
         config = payload.config_override
 
     # Enviar async
     task = _get_notification_task().delay(
         tenant_id=str(tenant_id),
-        tipo=payload.tipo,
+        channel_type=payload.channel_type,
         destinatario=payload.destinatario,
         asunto=payload.asunto,
         mensaje=payload.mensaje,
@@ -318,8 +320,8 @@ def send_notification(
 
 @router.get("/log", response_model=list[NotificationLogResponse])
 def list_logs(
-    tipo: str | None = Query(None),
-    estado: str | None = Query(None),
+    channel_type: str | None = Query(None),
+    status_: str | None = Query(None),
     ref_type: str | None = Query(None),
     days: int = Query(7, ge=1, le=90, description="Días hacia atrás"),
     limit: int = Query(50, ge=1, le=500),
@@ -343,10 +345,10 @@ def list_logs(
         NotificationLog.created_at >= cutoff_date,
     )
 
-    if tipo:
-        query = query.filter(NotificationLog.tipo == tipo)
-    if estado:
-        query = query.filter(NotificationLog.estado == estado)
+    if channel_type:
+        query = query.filter(NotificationLog.notification_type == channel_type)
+    if status_:
+        query = query.filter(NotificationLog.status == status_)
     if ref_type:
         query = query.filter(NotificationLog.ref_type == ref_type)
 
@@ -370,30 +372,30 @@ def get_log_stats(
 
     # Total por estado
     by_status = (
-        db.query(NotificationLog.estado, func.count(NotificationLog.id).label("count"))
+        db.query(NotificationLog.status, func.count(NotificationLog.id).label("count"))
         .filter(
             NotificationLog.tenant_id == tenant_id,
             NotificationLog.created_at >= cutoff_date,
         )
-        .group_by(NotificationLog.estado)
+        .group_by(NotificationLog.status)
         .all()
     )
 
     # Total por tipo
     by_tipo = (
-        db.query(NotificationLog.tipo, func.count(NotificationLog.id).label("count"))
+        db.query(NotificationLog.notification_type, func.count(NotificationLog.id).label("count"))
         .filter(
             NotificationLog.tenant_id == tenant_id,
             NotificationLog.created_at >= cutoff_date,
         )
-        .group_by(NotificationLog.tipo)
+        .group_by(NotificationLog.notification_type)
         .all()
     )
 
     return {
         "period_days": days,
-        "by_status": {row.estado: row.count for row in by_status},
-        "by_tipo": {row.tipo: row.count for row in by_tipo},
+        "by_status": {row.status: row.count for row in by_status},
+        "by_tipo": {row.channel_type: row.count for row in by_tipo},
         "total": sum(row.count for row in by_status),
     }
 
@@ -405,7 +407,7 @@ def get_log_stats(
 
 @router.get("/alerts", response_model=list[StockAlertResponse])
 def list_stock_alerts(
-    estado: str | None = Query("active"),
+    status_: str | None = Query("active"),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
     tenant_id: str = Depends(get_current_tenant_id),
@@ -423,9 +425,9 @@ def list_stock_alerts(
         "WHERE tenant_id = :tid "
     )
     params = {"tid": tenant_id, "lim": int(limit)}
-    if estado:
+    if status_:
         base_sql += " AND status = :st"
-        params["st"] = estado
+        params["st"] = status_
     base_sql += " ORDER BY (threshold_qty - current_qty) ASC, created_at DESC  LIMIT :lim"
 
     rows = db.execute(text(base_sql), params).mappings().all()
@@ -466,7 +468,7 @@ def resolve_stock_alert(
     if not alert:
         raise HTTPException(status_code=404, detail="Alerta no encontrada")
 
-    alert.estado = "resolved"
+    alert.status = "resolved"
     alert.resolved_at = datetime.utcnow()
     # TODO: alert.resolved_by = current_user_id
 

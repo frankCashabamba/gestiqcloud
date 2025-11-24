@@ -1,5 +1,5 @@
 """
-SQLAlchemy Models - Sistema de Recetas
+SQLAlchemy Models - Recipe System
 """
 
 from sqlalchemy import (
@@ -23,7 +23,7 @@ from app.config.database import Base as BaseModel
 
 
 class Recipe(BaseModel):
-    """Receta de producción"""
+    """Production recipe."""
 
     __tablename__ = "recipes"
 
@@ -37,24 +37,24 @@ class Recipe(BaseModel):
         nullable=False,
     )
     name = Column(String(200), nullable=False)
-    rendimiento = Column(Integer, nullable=False)  # unidades producidas
-    costo_total = Column(Numeric(12, 4), default=0)
-    # Columna generada en BD: CASE WHEN rendimiento > 0 THEN costo_total / rendimiento ELSE 0 END
-    costo_por_unidad = Column(
+    yield_qty = Column(Integer, nullable=False)  # units produced
+    total_cost = Column(Numeric(12, 4), default=0)
+    # Generated: CASE WHEN yield_qty > 0 THEN total_cost / yield_qty ELSE 0 END
+    unit_cost = Column(
         Numeric(12, 4),
         Computed(
-            text("CASE WHEN rendimiento > 0 THEN costo_total / rendimiento ELSE 0 END"),
+            text("CASE WHEN yield_qty > 0 THEN total_cost / yield_qty ELSE 0 END"),
             persisted=True,
         ),
     )
-    tiempo_preparacion = Column(Integer)  # minutos
-    instrucciones = Column(Text)
-    activo = Column(Boolean, default=True)
+    prep_time_minutes = Column(Integer)  # minutes
+    instructions = Column(Text)
+    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
-    ingredientes = relationship(
+    ingredients = relationship(
         "RecipeIngredient",
         back_populates="recipe",
         cascade="all, delete-orphan",
@@ -67,16 +67,16 @@ class Recipe(BaseModel):
     __table_args__ = (
         Index("idx_recipes_tenant", "tenant_id"),
         Index("idx_recipes_product", "product_id"),
-        Index("idx_recipes_activo", "activo", postgresql_where=text("activo = TRUE")),
+        Index("idx_recipes_is_active", "is_active", postgresql_where=text("is_active = TRUE")),
         {"extend_existing": True},
     )
 
     def __repr__(self):
-        return f"<Recipe {self.name} (rend: {self.rendimiento})>"
+        return f"<Recipe {self.name} (yield: {self.yield_qty})>"
 
 
 class RecipeIngredient(BaseModel):
-    """Ingrediente de receta con info de compra"""
+    """Recipe ingredient with purchase info."""
 
     __tablename__ = "recipe_ingredients"
 
@@ -84,47 +84,45 @@ class RecipeIngredient(BaseModel):
     recipe_id = Column(
         UUID(as_uuid=True), ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False
     )
-    producto_id = Column(
+    product_id = Column(
         UUID(as_uuid=True),
         ForeignKey("products.id", ondelete="RESTRICT"),
         nullable=False,
     )
 
     qty = Column(Numeric(12, 4), nullable=False)
-    unidad_medida = Column(String(10), nullable=False)
+    unit = Column(String(10), nullable=False)
 
-    # Info de presentación de compra
-    presentacion_compra = Column(String(100))  # "Saco 110 lbs"
-    qty_presentacion = Column(Numeric(12, 4), nullable=False)
-    unidad_presentacion = Column(String(10), nullable=False)
-    costo_presentacion = Column(Numeric(12, 4), nullable=False)
-    # Columna generada en BD: CASE WHEN qty_presentacion > 0 THEN (qty * costo_presentacion) / qty_presentacion ELSE 0 END
-    costo_ingrediente = Column(
+    purchase_packaging = Column(String(100))  # e.g. "Bag 110 lbs"
+    qty_per_package = Column(Numeric(12, 4), nullable=False)
+    package_unit = Column(String(10), nullable=False)
+    package_cost = Column(Numeric(12, 4), nullable=False)
+    ingredient_cost = Column(
         Numeric(12, 4),
         Computed(
             text(
-                "CASE WHEN qty_presentacion > 0 THEN (qty * costo_presentacion) / qty_presentacion ELSE 0 END"
+                "CASE WHEN qty_per_package > 0 THEN (qty * package_cost) / qty_per_package ELSE 0 END"
             ),
             persisted=True,
         ),
     )
 
-    notas = Column(Text)
-    orden = Column(Integer, default=0)
+    notes = Column(Text)
+    line_order = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
-    recipe = relationship("Recipe", back_populates="ingredientes")
+    recipe = relationship("Recipe", back_populates="ingredients")
     product = relationship(
-        "Product", foreign_keys=[producto_id], back_populates="used_in_ingredients"
+        "Product", foreign_keys=[product_id], back_populates="used_in_ingredients"
     )
 
     # Constraints
     __table_args__ = (
         Index("idx_recipe_ingredients_recipe", "recipe_id"),
-        Index("idx_recipe_ingredients_producto", "producto_id"),
+        Index("idx_recipe_ingredients_product", "product_id"),
         {"extend_existing": True},
     )
 
     def __repr__(self):
-        return f"<RecipeIngredient {self.qty} {self.unidad_medida}>"
+        return f"<RecipeIngredient {self.qty} {self.unit}>"

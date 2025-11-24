@@ -5,7 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
-class EmpresaInSchema(BaseModel):
+class CompanyInSchema(BaseModel):
     name: str = Field(min_length=1)
     slug: str | None = None
     tax_id: str | None = None
@@ -13,19 +13,19 @@ class EmpresaInSchema(BaseModel):
     address: str | None = None
     city: str | None = None
     state: str | None = None
-    cp: str | None = None
-    pais: str | None = None
+    postal_code: str | None = Field(default=None, validation_alias="cp")
+    country: str | None = Field(default=None, validation_alias="pais")
     logo: str | None = None
-    color_primario: str | None = "#4f46e5"
+    primary_color: str | None = Field(default="#4f46e5", validation_alias="color_primario")
     active: bool | None = True
-    motivo_desactivacion: str | None = None
-    plantilla_inicio: str | None = "cliente"
-    sitio_web: str | None = None
+    deactivation_reason: str | None = Field(default=None, validation_alias="motivo_desactivacion")
+    initial_template: str | None = Field(default="client", validation_alias="plantilla_inicio")
+    website: str | None = Field(default=None, validation_alias="sitio_web")
     config_json: dict | None = None
 
 
-class EmpresaOutSchema(BaseModel):
+class CompanyOutSchema(BaseModel):
     id: UUID
     name: str
     slug: str | None = None
-    modulos: list[str] = []
+    modules: list[str] = Field(default_factory=list, validation_alias="modulos")

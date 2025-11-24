@@ -3,10 +3,10 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.models.company.company_role import CompanyRole
+from app.models.company.company_user import CompanyUser
+from app.models.company.company_user_role import CompanyUserRole
 from app.models.core.modulo import AssignedModule, Module
-from app.models.empresa.rolempresas import CompanyRole
-from app.models.empresa.usuario_rolempresa import CompanyUserRole
-from app.models.empresa.usuarioempresa import CompanyUser
 from app.models.tenant import Tenant
 
 
@@ -75,10 +75,10 @@ def build_tenant_claims(db: Session, user: CompanyUser) -> dict[str, Any]:
         "tenant_id": str(tenant.id),
         "empresa_slug": tenant.slug,
         "plantilla": plantilla,
-        "es_admin_empresa": bool(getattr(user, "is_company_admin", False)),
-        "nombre": getattr(user, "nombre_encargado", None),
-        "roles": [],  # si tienes nombres de rol, puedes añadirlos aquí
-        "permisos": permisos_finales,
+        "is_company_admin": bool(getattr(user, "is_company_admin", False)),
+        "name": getattr(user, "nombre_encargado", None),
+        "roles": [],  # add role names if available
+        "permissions": permisos_finales,
         "kind": "tenant",
         "sub": user.email,
     }
