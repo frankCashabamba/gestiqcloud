@@ -93,7 +93,7 @@ def analyze_file(filepath: Path) -> Dict[str, List[str]]:
 
 def analyze_project() -> Dict[Path, Dict]:
     """Analyze entire project for changes needed."""
-    print("🔍 Analyzing project structure...\n")
+    print("Analyzing project structure...\n")
 
     files = find_python_files()
     changes_needed = {}
@@ -109,7 +109,7 @@ def analyze_project() -> Dict[Path, Dict]:
 
 def print_analysis(changes_needed: Dict[Path, Dict]):
     """Print analysis results."""
-    print(f"\n📊 ANALYSIS RESULTS\n{'='*60}")
+    print(f"\nANALYSIS RESULTS\n{'='*60}")
 
     import_count = sum(len(c["imports"]) for c in changes_needed.values())
     alias_count = sum(len(c["aliases"]) for c in changes_needed.values())
@@ -123,23 +123,23 @@ def print_analysis(changes_needed: Dict[Path, Dict]):
     print(f"\n{'='*60}\nFILES TO UPDATE:\n")
 
     for filepath, changes in sorted(changes_needed.items()):
-        print(f"\n📄 {filepath}")
+        print(f"\n{filepath}")
         if changes["imports"]:
             print("  Imports:")
             for change in changes["imports"][:3]:  # Show first 3
-                print(f"    • {change}")
+                print(f"    - {change}")
             if len(changes["imports"]) > 3:
                 print(f"    ... and {len(changes['imports'])-3} more")
 
         if changes["aliases"]:
             print("  Aliases to remove:")
             for alias in changes["aliases"]:
-                print(f"    • {alias}")
+                print(f"    - {alias}")
 
         if changes["labels"]:
             print("  Labels to update:")
             for label in changes["labels"][:2]:
-                print(f"    • {label}")
+                print(f"    - {label}")
             if len(changes["labels"]) > 2:
                 print(f"    ... and {len(changes['labels'])-2} more")
 
@@ -170,7 +170,7 @@ def apply_import_changes(filepath: Path):
 
 def execute_refactoring():
     """Execute refactoring changes."""
-    print("🚀 Executing refactoring...\n")
+    print("Executing refactoring...\n")
 
     files = find_python_files()
     changed_files = []
@@ -178,15 +178,15 @@ def execute_refactoring():
     for filepath in files:
         if apply_import_changes(filepath):
             changed_files.append(filepath)
-            print(f"✅ {filepath.relative_to(REPO_ROOT)}")
+            print(f"Updated: {filepath.relative_to(REPO_ROOT)}")
 
-    print(f"\n✅ Updated {len(changed_files)} files")
+    print(f"\nUpdated {len(changed_files)} files")
     return changed_files
 
 
 def verify_refactoring():
     """Verify refactoring completion."""
-    print("✓ Verifying refactoring...\n")
+    print("Verifying refactoring...\n")
 
     remaining = {}
     files = find_python_files()
@@ -214,13 +214,13 @@ def verify_refactoring():
             pass
 
     if remaining:
-        print(f"⚠️  Found {len(remaining)} files with remaining old patterns:\n")
+        print(f"Found {len(remaining)} files with remaining old patterns:\n")
         for filepath, patterns in sorted(remaining.items()):
             print(f"  {filepath}")
             for pattern in patterns:
-                print(f"    • {pattern}")
+                print(f"    - {pattern}")
     else:
-        print("✅ No remaining old patterns found!")
+        print("No remaining old patterns found!")
 
     return remaining
 
@@ -238,14 +238,14 @@ def main():
         print_analysis(changes)
 
     elif command == "--execute":
-        response = input("\n⚠️  This will modify files. Continue? (y/N): ")
+        response = input("\nThis will modify files. Continue? (y/N): ")
         if response.lower() == "y":
-            changed = execute_refactoring()
+            execute_refactoring()
             verify = verify_refactoring()
             if verify:
-                print("\n⚠️  Some patterns still remain. Check manually.")
+                print("\nSome patterns still remain. Check manually.")
             else:
-                print("\n✅ All patterns removed successfully!")
+                print("\nAll patterns removed successfully!")
         else:
             print("Aborted.")
 
