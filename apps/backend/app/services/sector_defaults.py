@@ -133,7 +133,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "boolean",
             },
         ],
-        "proveedores": [
+        "suppliers": [
             {
                 "field": "nombre",
                 "visible": True,
@@ -230,7 +230,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "visible": True,
                 "required": True,
                 "ord": 20,
-                "label": "Proveedor",
+                "label": "Supplier",
                 "type": "select",
             },
             {
@@ -271,7 +271,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "visible": True,
                 "required": False,
                 "ord": 50,
-                "label": "Lote del proveedor",
+                "label": "Supplier Batch",
                 "type": "text",
             },
             {
@@ -369,7 +369,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "options": ["borrador", "confirmado", "facturado"],
             },
         ],
-        "gastos": [
+        "expenses": [
             {
                 "field": "fecha",
                 "visible": True,
@@ -399,7 +399,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "visible": True,
                 "required": False,
                 "ord": 25,
-                "label": "Proveedor",
+                "label": "Supplier",
                 "type": "text",
             },
             {
@@ -592,7 +592,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "boolean",
             },
         ],
-        "proveedores": [
+        "suppliers": [
             {
                 "field": "nombre",
                 "visible": True,
@@ -680,7 +680,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "visible": True,
                 "required": True,
                 "ord": 20,
-                "label": "Proveedor",
+                "label": "Supplier",
                 "type": "select",
             },
             {
@@ -833,7 +833,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "options": ["borrador", "confirmado", "enviado", "entregado", "facturado"],
             },
         ],
-        "gastos": [
+        "expenses": [
             {
                 "field": "fecha",
                 "visible": True,
@@ -863,7 +863,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "visible": True,
                 "required": False,
                 "ord": 25,
-                "label": "Proveedor",
+                "label": "Supplier",
                 "type": "text",
             },
             {
@@ -1007,7 +1007,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "boolean",
             },
         ],
-        "proveedores": [
+        "suppliers": [
             {
                 "field": "nombre",
                 "visible": True,
@@ -1095,7 +1095,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "visible": True,
                 "required": True,
                 "ord": 20,
-                "label": "Proveedor",
+                "label": "Supplier",
                 "type": "select",
             },
             {
@@ -1224,7 +1224,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "options": ["borrador", "confirmado", "servido", "facturado"],
             },
         ],
-        "gastos": [
+        "expenses": [
             {
                 "field": "fecha",
                 "visible": True,
@@ -1254,7 +1254,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "visible": True,
                 "required": False,
                 "ord": 25,
-                "label": "Proveedor",
+                "label": "Supplier",
                 "type": "text",
             },
             {
@@ -1436,7 +1436,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "boolean",
             },
         ],
-        "proveedores": [
+        "suppliers": [
             {
                 "field": "nombre",
                 "visible": True,
@@ -1532,7 +1532,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "visible": True,
                 "required": True,
                 "ord": 20,
-                "label": "Proveedor",
+                "label": "Supplier",
                 "type": "select",
             },
             {
@@ -1677,7 +1677,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "options": ["presupuesto", "aprobado", "en_proceso", "completado", "facturado"],
             },
         ],
-        "gastos": [
+        "expenses": [
             {
                 "field": "fecha",
                 "visible": True,
@@ -1707,7 +1707,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "visible": True,
                 "required": False,
                 "ord": 25,
-                "label": "Proveedor",
+                "label": "Supplier",
                 "type": "text",
             },
             {
@@ -1781,7 +1781,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
 SECTOR_CATEGORIES: dict[str, dict[str, list[str]]] = {
     "panaderia": {
         "productos": ["Pan", "Bollería", "Pastelería", "Bebidas", "Otros"],
-        "gastos": [
+        "expenses": [
             "Materias Primas",
             "Suministros",
             "Servicios",
@@ -1794,7 +1794,7 @@ SECTOR_CATEGORIES: dict[str, dict[str, list[str]]] = {
     },
     "retail": {
         "productos": ["Ropa", "Electrónica", "Hogar", "Juguetes", "Deportes", "Otros"],
-        "gastos": [
+        "expenses": [
             "Mercancía",
             "Embalaje",
             "Marketing",
@@ -1807,7 +1807,7 @@ SECTOR_CATEGORIES: dict[str, dict[str, list[str]]] = {
     },
     "restaurante": {
         "productos": ["Entrantes", "Principales", "Postres", "Bebidas", "Menús", "Otros"],
-        "gastos": [
+        "expenses": [
             "Alimentos",
             "Bebidas",
             "Suministros Cocina",
@@ -1830,7 +1830,7 @@ SECTOR_CATEGORIES: dict[str, dict[str, list[str]]] = {
             "Servicios",
             "Otros",
         ],
-        "gastos": [
+        "expenses": [
             "Repuestos",
             "Herramientas",
             "Consumibles",

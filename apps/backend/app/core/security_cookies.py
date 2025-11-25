@@ -56,7 +56,7 @@ def get_current_user_from_cookie(
         )
 
     # 4. Buscar usuario en DB
-    from app.models.company.usuarioempresa import UsuarioEmpresa
+    from app.models.company.company_user import CompanyUser as UsuarioEmpresa
 
     user = db.query(UsuarioEmpresa).filter(UsuarioEmpresa.id == user_id).first()
 

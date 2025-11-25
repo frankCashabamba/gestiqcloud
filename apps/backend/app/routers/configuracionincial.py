@@ -1,70 +1,63 @@
-"""Module: configuracionincial.py
+"""Module: company_settings_router.py
 
 Auto-generated module docstring."""
-
-# routers/configuracioninicial.py
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.models import ConfiguracionEmpresa
+from app.models import CompanySettings
 from app.routers.protected import get_current_user
+from app.schemas.company_settings import CompanySettingsCreate, CompanySettingsOut
 from app.schemas.configuracion import AuthenticatedUser
-from app.schemas.configuracionempresasinicial import (
-    ConfiguracionEmpresaCreate,
-    EmpresaConfiguracionOut,
-)
 
 router = APIRouter()
 
 
-@router.post("/configuracion-inicial")
-def guardar_configuracion_inicial(
-    data: ConfiguracionEmpresaCreate,
+@router.post("/company-settings")
+def save_company_settings(
+    data: CompanySettingsCreate,
     db: Session = Depends(get_db),
     current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     tenant_id = current_user.tenant_id
 
-    existente = db.query(ConfiguracionEmpresa).filter_by(tenant_id=tenant_id).first()
-    if existente:
-        raise HTTPException(status_code=400, detail="Configuración ya existe para esta empresa")
+    existing = db.query(CompanySettings).filter_by(tenant_id=tenant_id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Settings already exist for this company")
 
-    nueva = ConfiguracionEmpresa(
+    new_settings = CompanySettings(
         tenant_id=tenant_id,
-        idioma_predeterminado=data.idioma_predeterminado,
-        zona_horaria=data.zona_horaria,
-        moneda=data.moneda,
-        logo_empresa=data.logo_empresa,
-        color_primario=data.color_primario,
-        color_secundario=data.color_secundario,
+        default_language=data.default_language,
+        timezone=data.timezone,
+        currency=data.currency,
+        company_logo=data.company_logo,
+        primary_color=data.primary_color,
+        secondary_color=data.secondary_color,
     )
-    db.add(nueva)
+    db.add(new_settings)
     db.commit()
-    db.refresh(nueva)
-    return {"message": "Configuración guardada", "id": nueva.id}
+    db.refresh(new_settings)
+    return {"message": "Settings saved", "id": new_settings.id}
 
 
-@router.get("/configuracion/empresa/{tenant_id}", response_model=EmpresaConfiguracionOut)
-def get_configuracion_empresa(
-    tenant_id: int,  # ✅ usa tenant_id, no slug
+@router.get("/company-settings/{tenant_id}", response_model=CompanySettingsOut)
+def get_company_settings(
+    tenant_id: int,
     db: Session = Depends(get_db),
 ):
-    config = (
-        db.query(ConfiguracionEmpresa).filter(ConfiguracionEmpresa.tenant_id == tenant_id).first()
-    )
+    settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
 
-    if not config:
+    if not settings:
         return {
-            "empresa_nombre": f"Empresa {tenant_id}",
-            "color_primario": "#4f46e5",
-            "color_secundario": "#6c757d",
-            "logo_empresa": None,
+            "company_name": f"Company {tenant_id}",
+            "primary_color": "#4f46e5",
+            "secondary_color": "#6c757d",
+            "company_logo": None,
         }
 
     return {
-        "logo_empresa": config.logo_empresa,
-        "color_primario": config.color_primario,
-        "color_secundario": config.color_secundario,
+        "company_logo": settings.company_logo,
+        "primary_color": settings.primary_color,
+        "secondary_color": settings.secondary_color,
     }

@@ -123,13 +123,13 @@ class SectorConfigJSON(BaseModel):
             "contabilidad",
             "compras",
             "clientes",
-            "proveedores",
+            "suppliers",
             "finanzas",
-            "gastos",
+            "expenses",
             "importador",
-            "rrhh",
+            "hr",
             "settings",
-            "usuarios",
+            "users",
         }
 
         if isinstance(v, dict):

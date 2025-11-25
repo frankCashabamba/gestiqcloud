@@ -1,4 +1,4 @@
-"""Schemas Pydantic para Proveedores"""
+"""Pydantic schemas for Suppliers"""
 
 from datetime import datetime
 from uuid import UUID
@@ -6,100 +6,100 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
-class ProveedorContactoCreate(BaseModel):
-    """Schema para crear contacto de proveedor"""
+class SupplierContactCreate(BaseModel):
+    """Schema for creating supplier contact"""
 
     name: str = Field(..., max_length=255)
-    cargo: str | None = Field(None, max_length=100)
+    position: str | None = Field(None, max_length=100)
     email: EmailStr | None = None
     phone: str | None = Field(None, max_length=50)
 
 
-class ProveedorContactoResponse(ProveedorContactoCreate):
-    """Schema de respuesta de contacto"""
+class SupplierContactResponse(SupplierContactCreate):
+    """Schema for supplier contact response"""
 
     id: UUID
-    proveedor_id: UUID
+    supplier_id: UUID
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class ProveedorDireccionCreate(BaseModel):
-    """Schema para crear dirección de proveedor"""
+class SupplierAddressCreate(BaseModel):
+    """Schema for creating supplier address"""
 
-    tipo: str | None = Field(None, pattern="^(fiscal|envio|otro)$")
+    type: str | None = Field(None, pattern="^(billing|shipping|other)$")
     address: str | None = None
     city: str | None = Field(None, max_length=100)
     state: str | None = Field(None, max_length=100)
-    codigo_postal: str | None = Field(None, max_length=20)
-    pais: str = Field(default="ES", max_length=2)
+    postal_code: str | None = Field(None, max_length=20)
+    country: str = Field(default="ES", max_length=2)
 
 
-class ProveedorDireccionResponse(ProveedorDireccionCreate):
-    """Schema de respuesta de dirección"""
+class SupplierAddressResponse(SupplierAddressCreate):
+    """Schema for supplier address response"""
 
     id: UUID
-    proveedor_id: UUID
+    supplier_id: UUID
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class ProveedorBase(BaseModel):
-    """Campos comunes de Proveedor"""
+class SupplierBase(BaseModel):
+    """Common Supplier fields"""
 
-    codigo: str | None = Field(None, max_length=50)
+    code: str | None = Field(None, max_length=50)
     name: str = Field(..., max_length=255)
-    nombre_comercial: str | None = Field(None, max_length=255)
+    trade_name: str | None = Field(None, max_length=255)
     tax_id: str | None = Field(None, max_length=50)
     email: EmailStr | None = None
     phone: str | None = Field(None, max_length=50)
-    web: str | None = Field(None, max_length=255)
-    active: bool = True
-    notas: str | None = None
+    website: str | None = Field(None, max_length=255)
+    is_active: bool = True
+    notes: str | None = None
 
 
-class ProveedorCreate(ProveedorBase):
-    """Schema para crear proveedor"""
+class SupplierCreate(SupplierBase):
+    """Schema for creating supplier"""
 
-    contactos: list[ProveedorContactoCreate] = Field(default_factory=list)
-    direcciones: list[ProveedorDireccionCreate] = Field(default_factory=list)
+    contacts: list[SupplierContactCreate] = Field(default_factory=list)
+    addresses: list[SupplierAddressCreate] = Field(default_factory=list)
 
 
-class ProveedorUpdate(BaseModel):
-    """Schema para actualizar proveedor"""
+class SupplierUpdate(BaseModel):
+    """Schema for updating supplier"""
 
-    codigo: str | None = Field(None, max_length=50)
+    code: str | None = Field(None, max_length=50)
     name: str | None = Field(None, max_length=255)
-    nombre_comercial: str | None = Field(None, max_length=255)
+    trade_name: str | None = Field(None, max_length=255)
     tax_id: str | None = Field(None, max_length=50)
     email: EmailStr | None = None
     phone: str | None = Field(None, max_length=50)
-    web: str | None = Field(None, max_length=255)
-    active: bool | None = None
-    notas: str | None = None
+    website: str | None = Field(None, max_length=255)
+    is_active: bool | None = None
+    notes: str | None = None
 
     model_config = ConfigDict(extra="forbid")
 
 
-class ProveedorResponse(ProveedorBase):
-    """Schema de respuesta de proveedor"""
+class SupplierResponse(SupplierBase):
+    """Schema for supplier response"""
 
     id: UUID
     tenant_id: UUID
     created_at: datetime
     updated_at: datetime
-    contactos: list[ProveedorContactoResponse] = Field(default_factory=list)
-    direcciones: list[ProveedorDireccionResponse] = Field(default_factory=list)
+    contacts: list[SupplierContactResponse] = Field(default_factory=list)
+    addresses: list[SupplierAddressResponse] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class ProveedorList(BaseModel):
-    """Schema para lista paginada de proveedores"""
+class SupplierList(BaseModel):
+    """Schema for paginated supplier list"""
 
-    items: list[ProveedorResponse]
+    items: list[SupplierResponse]
     total: int
     page: int = 1
     page_size: int = 100

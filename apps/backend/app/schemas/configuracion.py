@@ -7,32 +7,32 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
 
-class CategoriaEmpresaBase(BaseModel):
-    """Class CategoriaEmpresaBase - auto-generated docstring."""
+class CompanyCategoryBase(BaseModel):
+    """Class CompanyCategoryBase - auto-generated docstring."""
 
     name: str
 
 
-class CategoriaEmpresaCreate(CategoriaEmpresaBase):
-    """Class CategoriaEmpresaCreate - auto-generated docstring."""
+class CompanyCategoryCreate(CompanyCategoryBase):
+    """Class CompanyCategoryCreate - auto-generated docstring."""
 
     pass
 
 
-class CategoriaEmpresa(CategoriaEmpresaBase):
-    """Class CategoriaEmpresa - auto-generated docstring."""
+class CompanyCategory(CompanyCategoryBase):
+    """Class CompanyCategory - auto-generated docstring."""
 
     id: int
     model_config = ConfigDict(from_attributes=True)
 
 
-# para roles
+# Role schemas
 class RolBaseBase(BaseModel):
     """Class RolBaseBase - auto-generated docstring."""
 
     name: str
     description: str | None = ""
-    permisos: list[str] = []
+    permissions: list[str] = []
 
 
 class RolBaseCreate(RolBaseBase):
@@ -44,7 +44,7 @@ class RolBaseCreate(RolBaseBase):
 class RolBaseUpdate(RolBaseBase):
     """Class RolBaseUpdate - auto-generated docstring."""
 
-    permisos: list[str]
+    permissions: list[str]
 
 
 class RolBase(RolBaseBase):
@@ -54,11 +54,11 @@ class RolBase(RolBaseBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-class PermisoAccionGlobalpermiso(BaseModel):
-    """Class PermisoAccionGlobalpermiso - auto-generated docstring."""
+class GlobalActionPermissionSchema(BaseModel):
+    """Class GlobalActionPermissionSchema - auto-generated docstring."""
 
     id: int
-    clave: str
+    key: str
     description: str | None
     model_config = ConfigDict(from_attributes=True)
 

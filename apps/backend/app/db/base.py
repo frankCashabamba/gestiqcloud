@@ -12,7 +12,7 @@ try:
 except Exception:
     pass
 try:
-    import app.modules.proveedores.infrastructure.models  # noqa: F401
+    import app.modules.suppliers.infrastructure.models  # noqa: F401
 except Exception:
     pass
 try:
@@ -24,11 +24,11 @@ try:
 except Exception:
     pass
 try:
-    import app.modules.gastos.infrastructure.models  # noqa: F401
+    import app.modules.expenses.infrastructure.models  # noqa: F401
 except Exception:
     pass
 try:
-    import app.modules.rrhh.infrastructure.models  # noqa: F401
+    import app.modules.hr.infrastructure.models  # noqa: F401
 except Exception:
     pass
 try:

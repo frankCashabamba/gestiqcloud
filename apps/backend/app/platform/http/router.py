@@ -155,8 +155,8 @@ def include_router_safe(
 
 
 def _mount_empresas(r: APIRouter) -> None:
-    include_router_safe(r, ("app.modules.empresa.interface.http.admin", "router"))
-    include_router_safe(r, ("app.modules.empresa.interface.http.tenant", "router"))
+    include_router_safe(r, ("app.modules.company.interface.http.admin", "router"))
+    include_router_safe(r, ("app.modules.company.interface.http.tenant", "router"))
 
 
 def build_api_router() -> APIRouter:
@@ -207,9 +207,9 @@ def build_api_router() -> APIRouter:
         r, ("app.modules.clients.interface.http.tenant", "router"), prefix="/tenant"
     )
 
-    # Proveedores (mount under /tenant)
+    # Suppliers (mount under /tenant)
     include_router_safe(
-        r, ("app.modules.proveedores.interface.http.tenant", "router"), prefix="/tenant"
+        r, ("app.modules.suppliers.interface.http.tenant", "router"), prefix="/tenant"
     )
 
     # Módulos
@@ -260,8 +260,10 @@ def build_api_router() -> APIRouter:
         r, ("app.modules.compras.interface.http.tenant", "router"), prefix="/tenant"
     )
 
-    # Gastos
-    include_router_safe(r, ("app.modules.gastos.interface.http.tenant", "router"), prefix="/tenant")
+    # Expenses
+    include_router_safe(
+        r, ("app.modules.expenses.interface.http.tenant", "router"), prefix="/tenant"
+    )
 
     # (deduplicated) Inventario router is already mounted above
 

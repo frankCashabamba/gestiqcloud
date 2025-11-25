@@ -2,4 +2,13 @@
 
 from app.models.company.company_settings import CompanySettings, InventorySettings
 
-__all__ = ["CompanySettings", "InventorySettings"]
+# Legacy Spanish aliases
+ConfiguracionEmpresa = CompanySettings
+ConfiguracionInventario = InventorySettings
+
+__all__ = [
+    "CompanySettings",
+    "InventorySettings",
+    "ConfiguracionEmpresa",
+    "ConfiguracionInventario",
+]

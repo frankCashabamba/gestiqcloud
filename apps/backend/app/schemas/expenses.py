@@ -10,10 +10,8 @@ class ExpenseBase(BaseModel):
     """Common expense fields."""
 
     number: str = Field(..., alias="numero", max_length=50, description="Expense number")
-    supplier_id: UUID | None = Field(None, alias="proveedor_id", description="Supplier ID")
-    expense_category_id: UUID | None = Field(
-        None, alias="categoria_gasto_id", description="Expense category ID"
-    )
+    supplier_id: UUID | None = Field(None, description="Supplier ID")
+    expense_category_id: UUID | None = Field(None, description="Expense category ID")
     date: date = Field(default_factory=date.today, alias="fecha")
     concept: str = Field(..., alias="concepto", max_length=255, description="Expense concept")
     subtotal: float = Field(default=0, ge=0)
@@ -41,8 +39,8 @@ class ExpenseUpdate(BaseModel):
     """Update expense (all fields optional)."""
 
     number: str | None = Field(None, alias="numero", max_length=50)
-    supplier_id: UUID | None = Field(None, alias="proveedor_id")
-    expense_category_id: UUID | None = Field(None, alias="categoria_gasto_id")
+    supplier_id: UUID | None = Field(None)
+    expense_category_id: UUID | None = Field(None)
     date: date | None = Field(None, alias="fecha")
     concept: str | None = Field(None, alias="concepto", max_length=255)
     subtotal: float | None = Field(None, ge=0)

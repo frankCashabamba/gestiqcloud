@@ -102,7 +102,7 @@ __all__ = [
     "ImportAudit",
     "Client",
     "TenantSettings",
-    # Empresa
+    # Company
     "CompanyRole",
     "CompanySettings",
     "InventorySettings",
@@ -127,7 +127,7 @@ __all__ = [
     "RefreshFamily",
     "AuthAudit",
     "Tenant",
-    # Módulos profesionales
+    # Professional modules
     "Sale",
     "Supplier",
     "SupplierContact",

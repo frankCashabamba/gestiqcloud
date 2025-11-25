@@ -355,9 +355,9 @@ app.include_router(build_api_router(), prefix="/api/v1")
 # - Production → app/modules/produccion/interface/http/tenant.py
 # - Accounting → app/modules/contabilidad/interface/http/tenant.py
 # - Sales → app/modules/ventas/interface/http/tenant.py
-# - Suppliers → app/modules/proveedores/interface/http/tenant.py
+# - Suppliers → app/modules/suppliers/interface/http/tenant.py
 # - Purchases → app/modules/compras/interface/http/tenant.py
-# - Expenses → app/modules/gastos/interface/http/tenant.py
+# - Expenses → app/modules/expenses/interface/http/tenant.py
 #
 # Si necesitas restaurar alguno, ver git history antes de 2025-11-06
 # ============================================================================

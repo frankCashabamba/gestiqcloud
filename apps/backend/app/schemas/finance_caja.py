@@ -257,3 +257,19 @@ class CajaStats(BaseModel):
     total_movimientos: int
     total_ingresos_count: int
     total_egresos_count: int
+
+
+# ============================================================================
+# LEGACY ALIASES (compatibilidad con endpoints antiguos)
+# ============================================================================
+
+# Movimientos
+CajaMovimientoCreate = CashMovementCreate
+CajaMovimientoResponse = CashMovementResponse
+CajaMovimientoList = CashMovementList
+
+# Cierres
+CierreCajaCreate = CashClosingCreate
+CierreCajaClose = CashClosingClose
+CierreCajaResponse = CashClosingResponse
+CierreCajaList = CashClosingList

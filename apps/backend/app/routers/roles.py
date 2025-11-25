@@ -7,10 +7,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.models import PermisoAccionGlobal
+from app.models import GlobalActionPermission
 from app.models import RolBase as RolModel
 from app.schemas.configuracion import (
-    PermisoAccionGlobalpermiso,
+    GlobalActionPermissionSchema,
     RolBase,
     RolBaseCreate,
     RolBaseUpdate,
@@ -32,76 +32,76 @@ def list_roles(db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=RolBase)
-def create_rol(data: RolBaseCreate, db: Session = Depends(get_db)):
-    """Function create_rol - auto-generated docstring."""
-    # Validación simple de tipos en permisos
-    if not all(isinstance(p, str) for p in data.permisos):
-        raise HTTPException(status_code=400, detail="Todos los permisos deben ser strings")
+def create_role(data: RolBaseCreate, db: Session = Depends(get_db)):
+    """Function create_role - auto-generated docstring."""
+    # Simple validation for permissions
+    if not all(isinstance(p, str) for p in data.permissions):
+        raise HTTPException(status_code=400, detail="All permissions must be strings")
 
-    payload = data.model_dump(exclude_none=True)  # v2: reemplaza .dict()
-    nuevo = RolModel(**payload)
-    db.add(nuevo)
+    payload = data.model_dump(exclude_none=True)
+    new_role = RolModel(**payload)
+    db.add(new_role)
 
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=400, detail="Ya existe un rol con ese nombre.")
+        raise HTTPException(status_code=400, detail="A role with that name already exists.")
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
-    db.refresh(nuevo)
-    return nuevo
+    db.refresh(new_role)
+    return new_role
 
 
 @router.put("/{id}", response_model=RolBase)
-def update_rol(id: int, data: RolBaseUpdate, db: Session = Depends(get_db)):
-    """Function update_rol - auto-generated docstring."""
-    rol = db.get(RolModel, id)  # evita query().get() (legacy)
-    if not rol:
-        raise HTTPException(status_code=404, detail="Rol no encontrado")
+def update_role(id: int, data: RolBaseUpdate, db: Session = Depends(get_db)):
+    """Function update_role - auto-generated docstring."""
+    role = db.get(RolModel, id)
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
 
-    # Permite updates parciales: solo campos enviados
+    # Allow partial updates: only sent fields
     updates = data.model_dump(exclude_unset=True)
 
-    # Validar permisos si vienen en el payload
-    if "permisos" in updates:
-        permisos = updates["permisos"] or []
-        if not all(isinstance(p, str) for p in permisos):
-            raise HTTPException(status_code=400, detail="Todos los permisos deben ser strings")
+    # Validate permissions if they come in the payload
+    if "permissions" in updates:
+        permissions = updates["permissions"] or []
+        if not all(isinstance(p, str) for p in permissions):
+            raise HTTPException(status_code=400, detail="All permissions must be strings")
 
-    # Chequear nombre duplicado solo si se envió nombre y cambia
-    nuevo_nombre: str | None = updates.get("nombre")
-    if nuevo_nombre and nuevo_nombre != rol.name:
-        existe = db.query(RolModel).filter(RolModel.name == nuevo_nombre, RolModel.id != id).first()
-        if existe:
-            raise HTTPException(status_code=400, detail="Ya existe un rol con ese nombre.")
+    # Check for duplicate name only if name was sent and changed
+    new_name: str | None = updates.get("name")
+    if new_name and new_name != role.name:
+        existing = db.query(RolModel).filter(RolModel.name == new_name, RolModel.id != id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="A role with that name already exists.")
 
     for k, v in updates.items():
-        setattr(rol, k, v)
+        setattr(role, k, v)
 
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=400, detail="Ya existe un rol con ese nombre.")
-    db.refresh(rol)
-    return rol
+        raise HTTPException(status_code=400, detail="A role with that name already exists.")
+    db.refresh(role)
+    return role
 
 
 @router.delete("/{id}", response_model=dict)
-def delete_rol(id: int, db: Session = Depends(get_db)):
-    """Function delete_rol - auto-generated docstring."""
-    rol = db.get(RolModel, id)
-    if not rol:
-        raise HTTPException(status_code=404, detail="Rol no encontrado")
-    db.delete(rol)
+def delete_role(id: int, db: Session = Depends(get_db)):
+    """Function delete_role - auto-generated docstring."""
+    role = db.get(RolModel, id)
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    db.delete(role)
     db.commit()
-    return {"detail": "Eliminado"}
+    return {"detail": "Deleted"}
 
 
-@router.get("/permisos-globales", response_model=list[PermisoAccionGlobalpermiso])
-def list_permisos(db: Session = Depends(get_db)):
-    """Function list_permisos - auto-generated docstring."""
-    return db.query(PermisoAccionGlobal).all()
+@router.get("/global-permissions", response_model=list[GlobalActionPermissionSchema])
+def list_permissions(db: Session = Depends(get_db)):
+    """Function list_permissions - auto-generated docstring."""
+    return db.query(GlobalActionPermission).all()

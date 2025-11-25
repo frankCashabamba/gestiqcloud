@@ -1,5 +1,5 @@
 """
-Settings Router - Gestión de Configuración del Sistema
+Settings Router - System Configuration Management
 """
 
 from typing import Any
@@ -16,14 +16,14 @@ from app.schemas.settings import ModuleInfo, ModuleListResponse, ModuleSettingsU
 router = APIRouter(prefix="/api/v1/settings", tags=["Settings"])
 
 AVAILABLE_MODULES = {
-    "inventory": {"name": "Inventario", "description": "Gestión de stock y almacenes"},
-    "sales": {"name": "Ventas", "description": "Gestión de ventas y clientes"},
-    "purchases": {"name": "Compras", "description": "Gestión de compras y proveedores"},
-    "pos": {"name": "Punto de Venta", "description": "TPV y caja registradora"},
-    "finance": {"name": "Finanzas", "description": "Caja, banco y contabilidad"},
-    "hr": {"name": "RRHH", "description": "Recursos humanos y nóminas"},
-    "expenses": {"name": "Gastos", "description": "Control de gastos operativos"},
-    "einvoicing": {"name": "Facturación Electrónica", "description": "SRI/AEAT"},
+    "inventory": {"name": "Inventory", "description": "Stock and warehouse management"},
+    "sales": {"name": "Sales", "description": "Sales and customer management"},
+    "purchases": {"name": "Purchases", "description": "Purchase and supplier management"},
+    "pos": {"name": "Point of Sale", "description": "POS and cash register"},
+    "finance": {"name": "Finance", "description": "Cash, bank, and accounting"},
+    "hr": {"name": "Human Resources", "description": "Human resources and payroll"},
+    "expenses": {"name": "Expenses", "description": "Operational expense control"},
+    "einvoicing": {"name": "E-Invoicing", "description": "SRI/AEAT"},
 }
 
 
@@ -32,7 +32,7 @@ def get_all_settings(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """Obtener toda la configuración del tenant"""
+    """Get all tenant settings"""
     tenant_id = UUID(current_user["tenant_id"])
     settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
 

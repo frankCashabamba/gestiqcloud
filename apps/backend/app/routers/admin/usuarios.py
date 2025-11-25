@@ -9,7 +9,7 @@ from app.api.email.email_utils import reenviar_correo_reset
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.models.company.usuarioempresa import UsuarioEmpresa
+from app.models.company.company_user import CompanyUser as UsuarioEmpresa
 from app.models.tenant import Tenant as Empresa
 
 router = APIRouter(

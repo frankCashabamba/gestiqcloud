@@ -10,7 +10,7 @@ class PurchaseBase(BaseModel):
     """Common purchase fields."""
 
     number: str = Field(..., alias="numero", max_length=50, description="Purchase number")
-    supplier_id: UUID | None = Field(None, alias="proveedor_id", description="Supplier ID")
+    supplier_id: UUID | None = Field(None, description="Supplier ID")
     date: date = Field(default_factory=date.today, alias="fecha")
     subtotal: float = Field(default=0, ge=0)
     taxes: float = Field(default=0, ge=0, alias="impuestos")
@@ -33,7 +33,7 @@ class PurchaseUpdate(BaseModel):
     """Update purchase (all fields optional)."""
 
     number: str | None = Field(None, alias="numero", max_length=50)
-    supplier_id: UUID | None = Field(None, alias="proveedor_id")
+    supplier_id: UUID | None = Field(None)
     date: date | None = Field(None, alias="fecha")
     subtotal: float | None = Field(None, ge=0)
     taxes: float | None = Field(None, alias="impuestos", ge=0)
