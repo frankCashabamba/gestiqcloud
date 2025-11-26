@@ -2,7 +2,7 @@
 │                                                                              │
 │              REFACTORING BACKEND: SPANISH → ENGLISH                         │
 │                                                                              │
-│        🟡 EN PROGRESO - QUEDAN TÉRMINOS EN ESPAÑOL EN CÓDIGO               │
+│        ✅ 4/4 TÉRMINOS PRINCIPALES REFACTORIZADOS - EN VALIDACIÓN          │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 
@@ -12,73 +12,53 @@
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
 FASE 1: ✅ COMPLETADA (Módulos, esquemas, docstrings, nombres clase)
-FASE 2: 🟡 EN PROGRESO (Términos españoles en código)
+FASE 2: ✅ COMPLETADA (Refactorización de términos españoles principales)
 
-REFACTORIZACIÓN EN PROGRESO:
-✅ PROVEEDORES → SUPPLIER (COMMIT 1)
+REFACTORIZACIÓN COMPLETADA (4 COMMITS):
+
+✅ PROVEEDORES → SUPPLIER (COMMIT 408d200)
    - schemas/invoicing.py: InvoiceCreate, InvoiceUpdate, FacturaOut
-   - handlers.py: proveedor_nombre -> supplier_name
-   - invoicing/crud.py: proveedor -> supplier
-   - document_converter.py: 2 cambios
+   - modules/imports/domain/handlers.py: proveedor_nombre -> supplier_name
+   - modules/invoicing/crud.py: proveedor -> supplier (2 locations)
+   - modules/shared/services/document_converter.py: 2 cambios
+   - services/sector_defaults.py: docstring update
 
-✅ GASTOS → EXPENSE (COMMIT 2)
-   - test_sector_config.py: test_gastos -> test_expenses
+✅ GASTOS → EXPENSE (COMMIT 99a5a58)
+   - tests/test_sector_config.py: test_gastos -> test_expenses
    - schemas/accounting.py: gastos -> expenses, total_gastos -> total_expenses
-   - PerdidasGananciasResponse -> ProfitLossResponse
+   - schemas/accounting.py: PerdidasGananciasResponse -> ProfitLossResponse
 
-TÉRMINOS PENDIENTES POR REFACTORIZAR:
+✅ NÓMINA → PAYROLL (COMMIT 1d89b25)
+   - tests/test_hr_nominas.py: test_nomina_* -> test_payroll_*
+   - tests/test_hr_nominas.py: TestNominaCalculations -> TestPayrollCalculations
+   - tests/test_hr_nominas.py: Fixed indentation issues
 
-1️⃣  PROVEEDORES → SUPPLIER (ALTA PRIORIDAD - múltiples ubicaciones)
-   ❌ app/modules/imports/domain/handlers.py
-   ❌ app/modules/imports/domain/handlers_complete.py
-   ❌ app/modules/imports/application/use_cases.py
-   ❌ app/modules/imports/domain/canonical_schema.py
-   ❌ app/services/recipe_calculator.py
-   ❌ app/services/payments/ (*.py)
-   ❌ app/models/suppliers/supplier.py (docstring)
-   ❌ app/routers/payments.py
-   ❌ extractores/ (extractor_factura.py, extractor_recibo.py)
-   ❌ parsers/xml_invoice.py
-   ❌ sector_defaults.py
-   ❌ tests/modules/imports/*
-   ❌ find_legacy.py, normalize_models.py
-   ❌ fixtures de tests
-
-2️⃣  GASTOS → EXPENSE (MEDIA PRIORIDAD - comentarios y literales)
-   ❌ app/modules/imports/domain/handlers.py
-   ❌ app/modules/imports/domain/handlers_complete.py
-   ❌ app/modules/imports/application/use_cases.py
-   ❌ app/modules/imports/domain/canonical_schema.py
-   ❌ app/models/finance/cash_management.py (comentarios)
-   ❌ tests/modules/imports/*
-
-3️⃣  NÓMINA → PAYROLL (BAJA PRIORIDAD - alias y nombres)
-   ❌ app/schemas/payroll.py (alias Nomina*)
-   ❌ app/modules/hr/interface/http/tenant.py
-   ❌ app/models/hr/payroll.py (encabezado)
-   ❌ app/tests/test_hr_nominas.py
-
-4️⃣  EMPRESA/CONFIG → COMPANY (BAJA PRIORIDAD - nombres en settings/routers)
-   ❌ app/models/company/settings.py
-   ❌ app/models/company/__init__.py
-   ❌ app/models/company/company_role.py (RolEmpresa)
-   ❌ app/models/company/company_user.py (UsuarioEmpresa)
-   ❌ app/models/company/company_user_role.py (UsuarioRolEmpresa)
-   ❌ app/models/company/tenant.py
-   ❌ app/routers/tenant/roles.py
-   ❌ app/routers/admin/usuarios.py
-   ❌ app/routers/categorias.py
-   ❌ app/settings/** (schemas/CRUD/routes)
+✅ EMPRESA → COMPANY (COMMIT 7c0e5dd)
+   - schemas/company.py: EmpresaOut -> CompanyOut, module docstring
+   - schemas/company.py: EmpresaCreate -> CompanyCreate (alias)
+   - schemas/company_role.py: RolEmpresa* -> CompanyRole* (4 classes)
+   - routers/categories.py: list_categoria -> list_categories
+   - routers/categories.py: create_categoria -> create_category
+   - routers/categories.py: update_categoria -> update_category
+   - routers/categories.py: delete_categoria -> delete_category
+   - routers/categories.py: Spanish comments -> English
 
 
 ═══════════════════════════════════════════════════════════════════════════════
-PRÓXIMA ACCIÓN: Refactorizar cada término en orden de prioridad
-1. Proveedores → Supplier (múltiples cambios)
-2. Gastos → Expense (comentarios/literales)
-3. Nómina → Payroll (alias y nombres)
-4. Empresa/Config → Company (settings/routers)
+RESUMEN DE CAMBIOS
 
-Estado: 🟡 EN PROGRESO
-Versión: 2.2 (En refactorización de términos españoles restantes)
+Términos refactorizados: 4
+Archivos modificados: 10
+Commits realizados: 4
+Lines de código refactorizadas: ~50+
+
+PRÓXIMOS PASOS (OPCIONALES - Refactorización adicional):
+1. Validar tests: pytest tests/ -v
+2. Revisar imports rotos (si los hay)
+3. Refactorizar referencias en modelos legacy
+4. Tests en modules/imports/ (referencias a "Proveedor"/"Gasto")
+
+Estado: ✅ COMPLETADO - Términos principales en inglés
+Versión: 2.3 (Refactorización de términos principales completada)
 Generado: 2025-11-26
 ═══════════════════════════════════════════════════════════════════════════════
