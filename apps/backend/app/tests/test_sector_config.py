@@ -132,10 +132,10 @@ class TestSectorCategories:
         assert "Frenos" in cats
         assert "Suspensión" in cats
 
-    def test_gastos_categories_different_by_sector(self):
-        """Categorías de gastos deben ser diferentes por sector"""
-        pan_cats = get_sector_categories("panaderia", "gastos")
-        retail_cats = get_sector_categories("retail", "gastos")
+    def test_expenses_categories_different_by_sector(self):
+        """Categories of expenses should be different per sector"""
+        pan_cats = get_sector_categories("panaderia", "expenses")
+        retail_cats = get_sector_categories("retail", "expenses")
 
         assert "Materias Primas" in pan_cats
         assert "Mercancía" in retail_cats

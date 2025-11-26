@@ -279,17 +279,17 @@ class PyGItem(BaseModel):
     importe: Decimal
 
 
-class PerdidasGananciasResponse(BaseModel):
-    """Cuenta de pérdidas y ganancias"""
+class ProfitLossResponse(BaseModel):
+    """Profit and loss statement"""
 
     fecha_desde: date
     fecha_hasta: date
     ingresos: list[PyGItem]
-    gastos: list[PyGItem]
+    expenses: list[PyGItem]
     total_ingresos: Decimal
-    total_gastos: Decimal
-    resultado: Decimal = Field(description="Beneficio (positivo) o Pérdida (negativo)")
-    resultado_texto: str = Field(description="BENEFICIO o PÉRDIDA")
+    total_expenses: Decimal
+    resultado: Decimal = Field(description="Profit (positive) or Loss (negative)")
+    resultado_texto: str = Field(description="PROFIT or LOSS")
 
 
 # ============================================================================
@@ -326,5 +326,5 @@ class AccountingStats(BaseModel):
 
     # Resultado
     total_ingresos: Decimal
-    total_gastos: Decimal
+    total_expenses: Decimal
     resultado_ejercicio: Decimal

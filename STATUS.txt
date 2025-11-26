@@ -14,6 +14,18 @@
 FASE 1: ✅ COMPLETADA (Módulos, esquemas, docstrings, nombres clase)
 FASE 2: 🟡 EN PROGRESO (Términos españoles en código)
 
+REFACTORIZACIÓN EN PROGRESO:
+✅ PROVEEDORES → SUPPLIER (COMMIT 1)
+   - schemas/invoicing.py: InvoiceCreate, InvoiceUpdate, FacturaOut
+   - handlers.py: proveedor_nombre -> supplier_name
+   - invoicing/crud.py: proveedor -> supplier
+   - document_converter.py: 2 cambios
+
+✅ GASTOS → EXPENSE (COMMIT 2)
+   - test_sector_config.py: test_gastos -> test_expenses
+   - schemas/accounting.py: gastos -> expenses, total_gastos -> total_expenses
+   - PerdidasGananciasResponse -> ProfitLossResponse
+
 TÉRMINOS PENDIENTES POR REFACTORIZAR:
 
 1️⃣  PROVEEDORES → SUPPLIER (ALTA PRIORIDAD - múltiples ubicaciones)
