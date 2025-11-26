@@ -10,12 +10,12 @@ from pydantic import BaseModel, ConfigDict
 class ConfiguracionEmpresaBase(BaseModel):
     """Class ConfiguracionEmpresaBase - auto-generated docstring."""
 
-    idioma_predeterminado: str | None = "es"
-    zona_horaria: str | None = "UTC"
-    moneda: str | None = "USD"
-    logo_empresa: str | None = None
-    color_primario: str | None = "#4f46e5"
-    color_secundario: str | None = "#6c757d"
+    default_language: str | None = "es"
+    timezone: str | None = "UTC"
+    currency: str | None = "USD"
+    company_logo: str | None = None
+    primary_color: str | None = "#4f46e5"
+    secondary_color: str | None = "#6c757d"
 
 
 class ConfiguracionEmpresaCreate(ConfiguracionEmpresaBase):

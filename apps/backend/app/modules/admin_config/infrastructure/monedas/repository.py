@@ -45,7 +45,7 @@ class SqlAlchemyMonedaRepo(MonedaRepo):
     def update(self, id: int, data: MonedaIn) -> MonedaOut:
         obj = self.db.query(MonedaORM).filter(MonedaORM.id == id).first()
         if not obj:
-            raise ValueError("moneda_no_encontrada")
+            raise ValueError("currency_not_found")
         obj.code = data.code
         obj.name = data.name
         obj.symbol = data.symbol
@@ -58,6 +58,6 @@ class SqlAlchemyMonedaRepo(MonedaRepo):
     def delete(self, id: int) -> None:
         obj = self.db.query(MonedaORM).filter(MonedaORM.id == id).first()
         if not obj:
-            raise ValueError("moneda_no_encontrada")
+            raise ValueError("currency_not_found")
         self.db.delete(obj)
         self.db.commit()

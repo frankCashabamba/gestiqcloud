@@ -10,12 +10,12 @@ from pydantic import BaseModel, ConfigDict
 class ConfiguracionInventarioBase(BaseModel):
     """Class ConfiguracionInventarioBase - auto-generated docstring."""
 
-    control_stock_activo: bool | None = True
-    notificar_bajo_stock: bool | None = True
-    stock_minimo_global: int | None = None
-    um_predeterminadas: dict[str, list[str]] | None = None
-    categorias_personalizadas: bool | None = False
-    campos_extra_producto: list[str] | None = None
+    stock_control_enabled: bool | None = True
+    low_stock_notifications: bool | None = True
+    global_minimum_stock: int | None = None
+    default_units_of_measure: dict[str, list[str]] | None = None
+    custom_categories_enabled: bool | None = False
+    product_extra_fields: list[str] | None = None
 
 
 class ConfiguracionInventarioCreate(ConfiguracionInventarioBase):

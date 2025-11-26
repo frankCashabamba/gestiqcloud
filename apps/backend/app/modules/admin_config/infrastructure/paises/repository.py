@@ -43,7 +43,7 @@ class SqlAlchemyPaisRepo(PaisRepo):
     def update(self, id: int, data: PaisIn) -> PaisOut:
         obj = self.db.query(PaisORM).filter(PaisORM.id == id).first()
         if not obj:
-            raise ValueError("pais_no_encontrado")
+            raise ValueError("country_not_found")
         obj.code = data.code
         obj.name = data.name
         obj.active = data.active
@@ -55,6 +55,6 @@ class SqlAlchemyPaisRepo(PaisRepo):
     def delete(self, id: int) -> None:
         obj = self.db.query(PaisORM).filter(PaisORM.id == id).first()
         if not obj:
-            raise ValueError("pais_no_encontrado")
+            raise ValueError("country_not_found")
         self.db.delete(obj)
         self.db.commit()
