@@ -7,29 +7,29 @@ from app.modules.admin_config.application.tipos_negocio.ports import TipoNegocio
 from app.modules.shared.application.base import BaseUseCase
 
 
-class ListarTiposNegocio(BaseUseCase[TipoNegocioRepo]):
+class ListBusinessTypes(BaseUseCase[TipoNegocioRepo]):
     def execute(self) -> Sequence[TipoNegocioOut]:
         return list(self.repo.list())
 
 
-class ObtenerTipoNegocio(BaseUseCase[TipoNegocioRepo]):
+class GetBusinessType(BaseUseCase[TipoNegocioRepo]):
     def execute(self, id: int) -> TipoNegocioOut:
-        tipo = self.repo.get(id)
-        if not tipo:
-            raise ValueError("tipo_negocio_no_encontrado")
-        return tipo
+        business_type = self.repo.get(id)
+        if not business_type:
+            raise ValueError("business_type_not_found")
+        return business_type
 
 
-class CrearTipoNegocio(BaseUseCase[TipoNegocioRepo]):
+class CreateBusinessType(BaseUseCase[TipoNegocioRepo]):
     def execute(self, data: TipoNegocioIn) -> TipoNegocioOut:
         return self.repo.create(data)
 
 
-class ActualizarTipoNegocio(BaseUseCase[TipoNegocioRepo]):
+class UpdateBusinessType(BaseUseCase[TipoNegocioRepo]):
     def execute(self, id: int, data: TipoNegocioIn) -> TipoNegocioOut:
         return self.repo.update(id, data)
 
 
-class EliminarTipoNegocio(BaseUseCase[TipoNegocioRepo]):
+class DeleteBusinessType(BaseUseCase[TipoNegocioRepo]):
     def execute(self, id: int) -> None:
         self.repo.delete(id)

@@ -7,29 +7,29 @@ from app.modules.admin_config.application.paises.ports import PaisRepo
 from app.modules.shared.application.base import BaseUseCase
 
 
-class ListarPaises(BaseUseCase[PaisRepo]):
+class ListCountries(BaseUseCase[PaisRepo]):
     def execute(self) -> Sequence[PaisOut]:
         return list(self.repo.list())
 
 
-class ObtenerPais(BaseUseCase[PaisRepo]):
+class GetCountry(BaseUseCase[PaisRepo]):
     def execute(self, id: int) -> PaisOut:
-        pais = self.repo.get(id)
-        if not pais:
-            raise ValueError("pais_no_encontrado")
-        return pais
+        country = self.repo.get(id)
+        if not country:
+            raise ValueError("country_not_found")
+        return country
 
 
-class CrearPais(BaseUseCase[PaisRepo]):
+class CreateCountry(BaseUseCase[PaisRepo]):
     def execute(self, data: PaisIn) -> PaisOut:
         return self.repo.create(data)
 
 
-class ActualizarPais(BaseUseCase[PaisRepo]):
+class UpdateCountry(BaseUseCase[PaisRepo]):
     def execute(self, id: int, data: PaisIn) -> PaisOut:
         return self.repo.update(id, data)
 
 
-class EliminarPais(BaseUseCase[PaisRepo]):
+class DeleteCountry(BaseUseCase[PaisRepo]):
     def execute(self, id: int) -> None:
         self.repo.delete(id)

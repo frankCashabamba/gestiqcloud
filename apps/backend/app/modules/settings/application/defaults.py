@@ -1,8 +1,8 @@
-"""Default Settings por Módulo y País"""
+"""Default Settings per Module and Country"""
 
 from typing import Any
 
-# Configuración por defecto para España
+# Default settings for Spain
 DEFAULT_SETTINGS_ES: dict[str, Any] = {
     "global": {
         "locale": "es_ES",
@@ -143,7 +143,7 @@ DEFAULT_SETTINGS_ES: dict[str, Any] = {
     },
 }
 
-# Configuración por defecto para Ecuador
+# Default settings for Ecuador
 DEFAULT_SETTINGS_EC: dict[str, Any] = {
     "global": {
         "locale": "es_EC",
@@ -281,12 +281,12 @@ DEFAULT_SETTINGS_EC: dict[str, Any] = {
     },
 }
 
-# Configuración por defecto (España como base)
+# Default settings (Spain as base)
 DEFAULT_SETTINGS = DEFAULT_SETTINGS_ES
 
 
 def get_default_settings(country: str = "ES") -> dict[str, Any]:
-    """Obtener configuración por defecto según país"""
+    """Get default settings by country"""
     if country.upper() == "EC":
         return DEFAULT_SETTINGS_EC.copy()
     return DEFAULT_SETTINGS_ES.copy()

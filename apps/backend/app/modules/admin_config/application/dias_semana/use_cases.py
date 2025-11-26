@@ -7,29 +7,29 @@ from app.modules.admin_config.application.dias_semana.ports import DiaSemanaRepo
 from app.modules.shared.application.base import BaseUseCase
 
 
-class ListarDiasSemana(BaseUseCase[DiaSemanaRepo]):
+class ListWeekDays(BaseUseCase[DiaSemanaRepo]):
     def execute(self) -> Sequence[DiaSemanaOut]:
         return list(self.repo.list())
 
 
-class ObtenerDiaSemana(BaseUseCase[DiaSemanaRepo]):
+class GetWeekDay(BaseUseCase[DiaSemanaRepo]):
     def execute(self, id: int) -> DiaSemanaOut:
-        dia = self.repo.get(id)
-        if not dia:
-            raise ValueError("dia_no_encontrado")
-        return dia
+        day = self.repo.get(id)
+        if not day:
+            raise ValueError("day_not_found")
+        return day
 
 
-class CrearDiaSemana(BaseUseCase[DiaSemanaRepo]):
+class CreateWeekDay(BaseUseCase[DiaSemanaRepo]):
     def execute(self, data: DiaSemanaIn) -> DiaSemanaOut:
         return self.repo.create(data)
 
 
-class ActualizarDiaSemana(BaseUseCase[DiaSemanaRepo]):
+class UpdateWeekDay(BaseUseCase[DiaSemanaRepo]):
     def execute(self, id: int, data: DiaSemanaIn) -> DiaSemanaOut:
         return self.repo.update(id, data)
 
 
-class EliminarDiaSemana(BaseUseCase[DiaSemanaRepo]):
+class DeleteWeekDay(BaseUseCase[DiaSemanaRepo]):
     def execute(self, id: int) -> None:
         self.repo.delete(id)

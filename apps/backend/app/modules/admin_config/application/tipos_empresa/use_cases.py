@@ -8,29 +8,29 @@ from app.modules.admin_config.application.tipos_empresa.ports import TipoCompany
 from app.modules.shared.application.base import BaseUseCase
 
 
-class ListarTiposEmpresa(BaseUseCase[TipoCompanyRepo]):
+class ListCompanyTypes(BaseUseCase[TipoCompanyRepo]):
     def execute(self) -> Sequence[TipoEmpresaOut]:
         return list(self.repo.list())
 
 
-class ObtenerTipoEmpresa(BaseUseCase[TipoCompanyRepo]):
+class GetCompanyType(BaseUseCase[TipoCompanyRepo]):
     def execute(self, id: UUID | str) -> TipoEmpresaOut:
-        tipo = self.repo.get(id)
-        if not tipo:
-            raise ValueError("tipo_empresa_no_encontrado")
-        return tipo
+        company_type = self.repo.get(id)
+        if not company_type:
+            raise ValueError("company_type_not_found")
+        return company_type
 
 
-class CrearTipoEmpresa(BaseUseCase[TipoCompanyRepo]):
+class CreateCompanyType(BaseUseCase[TipoCompanyRepo]):
     def execute(self, data: TipoEmpresaIn) -> TipoEmpresaOut:
         return self.repo.create(data)
 
 
-class ActualizarTipoEmpresa(BaseUseCase[TipoCompanyRepo]):
+class UpdateCompanyType(BaseUseCase[TipoCompanyRepo]):
     def execute(self, id: UUID | str, data: TipoEmpresaIn) -> TipoEmpresaOut:
         return self.repo.update(id, data)
 
 
-class EliminarTipoEmpresa(BaseUseCase[TipoCompanyRepo]):
+class DeleteCompanyType(BaseUseCase[TipoCompanyRepo]):
     def execute(self, id: UUID | str) -> None:
         self.repo.delete(id)

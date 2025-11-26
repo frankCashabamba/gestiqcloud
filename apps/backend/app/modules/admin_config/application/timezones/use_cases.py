@@ -7,29 +7,29 @@ from app.modules.admin_config.application.timezones.ports import TimezoneRepo
 from app.modules.shared.application.base import BaseUseCase
 
 
-class ListarTimezones(BaseUseCase[TimezoneRepo]):
+class ListTimezones(BaseUseCase[TimezoneRepo]):
     def execute(self) -> Sequence[TimezoneOut]:
         return list(self.repo.list())
 
 
-class ObtenerTimezone(BaseUseCase[TimezoneRepo]):
+class GetTimezone(BaseUseCase[TimezoneRepo]):
     def execute(self, name: str) -> TimezoneOut:
-        tz = self.repo.get(name)
-        if not tz:
-            raise ValueError("timezone_no_encontrado")
-        return tz
+        timezone = self.repo.get(name)
+        if not timezone:
+            raise ValueError("timezone_not_found")
+        return timezone
 
 
-class CrearTimezone(BaseUseCase[TimezoneRepo]):
+class CreateTimezone(BaseUseCase[TimezoneRepo]):
     def execute(self, data: TimezoneIn) -> TimezoneOut:
         return self.repo.create(data)
 
 
-class ActualizarTimezone(BaseUseCase[TimezoneRepo]):
+class UpdateTimezone(BaseUseCase[TimezoneRepo]):
     def execute(self, name: str, data: TimezoneIn) -> TimezoneOut:
         return self.repo.update(name, data)
 
 
-class EliminarTimezone(BaseUseCase[TimezoneRepo]):
+class DeleteTimezone(BaseUseCase[TimezoneRepo]):
     def execute(self, name: str) -> None:
         self.repo.delete(name)

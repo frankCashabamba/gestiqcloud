@@ -7,29 +7,29 @@ from app.modules.admin_config.application.locales.ports import LocaleRepo
 from app.modules.shared.application.base import BaseUseCase
 
 
-class ListarLocales(BaseUseCase[LocaleRepo]):
+class ListLocales(BaseUseCase[LocaleRepo]):
     def execute(self) -> Sequence[LocaleOut]:
         return list(self.repo.list())
 
 
-class ObtenerLocale(BaseUseCase[LocaleRepo]):
+class GetLocale(BaseUseCase[LocaleRepo]):
     def execute(self, code: str) -> LocaleOut:
         locale = self.repo.get(code)
         if not locale:
-            raise ValueError("locale_no_encontrado")
+            raise ValueError("locale_not_found")
         return locale
 
 
-class CrearLocale(BaseUseCase[LocaleRepo]):
+class CreateLocale(BaseUseCase[LocaleRepo]):
     def execute(self, data: LocaleIn) -> LocaleOut:
         return self.repo.create(data)
 
 
-class ActualizarLocale(BaseUseCase[LocaleRepo]):
+class UpdateLocale(BaseUseCase[LocaleRepo]):
     def execute(self, code: str, data: LocaleIn) -> LocaleOut:
         return self.repo.update(code, data)
 
 
-class EliminarLocale(BaseUseCase[LocaleRepo]):
+class DeleteLocale(BaseUseCase[LocaleRepo]):
     def execute(self, code: str) -> None:
         self.repo.delete(code)

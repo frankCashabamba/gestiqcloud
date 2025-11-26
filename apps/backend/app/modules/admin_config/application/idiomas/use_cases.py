@@ -7,29 +7,29 @@ from app.modules.admin_config.application.idiomas.ports import IdiomaRepo
 from app.modules.shared.application.base import BaseUseCase
 
 
-class ListarIdiomas(BaseUseCase[IdiomaRepo]):
+class ListLanguages(BaseUseCase[IdiomaRepo]):
     def execute(self) -> Sequence[IdiomaOut]:
         return list(self.repo.list())
 
 
-class ObtenerIdioma(BaseUseCase[IdiomaRepo]):
+class GetLanguage(BaseUseCase[IdiomaRepo]):
     def execute(self, id: int) -> IdiomaOut:
-        idioma = self.repo.get(id)
-        if not idioma:
-            raise ValueError("idioma_no_encontrado")
-        return idioma
+        language = self.repo.get(id)
+        if not language:
+            raise ValueError("language_not_found")
+        return language
 
 
-class CrearIdioma(BaseUseCase[IdiomaRepo]):
+class CreateLanguage(BaseUseCase[IdiomaRepo]):
     def execute(self, data: IdiomaIn) -> IdiomaOut:
         return self.repo.create(data)
 
 
-class ActualizarIdioma(BaseUseCase[IdiomaRepo]):
+class UpdateLanguage(BaseUseCase[IdiomaRepo]):
     def execute(self, id: int, data: IdiomaIn) -> IdiomaOut:
         return self.repo.update(id, data)
 
 
-class EliminarIdioma(BaseUseCase[IdiomaRepo]):
+class DeleteLanguage(BaseUseCase[IdiomaRepo]):
     def execute(self, id: int) -> None:
         self.repo.delete(id)

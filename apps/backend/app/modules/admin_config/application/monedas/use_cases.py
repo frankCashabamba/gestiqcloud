@@ -7,29 +7,29 @@ from app.modules.admin_config.application.monedas.ports import MonedaRepo
 from app.modules.shared.application.base import BaseUseCase
 
 
-class ListarMonedas(BaseUseCase[MonedaRepo]):
+class ListCurrencies(BaseUseCase[MonedaRepo]):
     def execute(self) -> Sequence[MonedaOut]:
         return list(self.repo.list())
 
 
-class ObtenerMoneda(BaseUseCase[MonedaRepo]):
+class GetCurrency(BaseUseCase[MonedaRepo]):
     def execute(self, id: int) -> MonedaOut:
-        moneda = self.repo.get(id)
-        if not moneda:
-            raise ValueError("moneda_no_encontrada")
-        return moneda
+        currency = self.repo.get(id)
+        if not currency:
+            raise ValueError("currency_not_found")
+        return currency
 
 
-class CrearMoneda(BaseUseCase[MonedaRepo]):
+class CreateCurrency(BaseUseCase[MonedaRepo]):
     def execute(self, data: MonedaIn) -> MonedaOut:
         return self.repo.create(data)
 
 
-class ActualizarMoneda(BaseUseCase[MonedaRepo]):
+class UpdateCurrency(BaseUseCase[MonedaRepo]):
     def execute(self, id: int, data: MonedaIn) -> MonedaOut:
         return self.repo.update(id, data)
 
 
-class EliminarMoneda(BaseUseCase[MonedaRepo]):
+class DeleteCurrency(BaseUseCase[MonedaRepo]):
     def execute(self, id: int) -> None:
         self.repo.delete(id)
