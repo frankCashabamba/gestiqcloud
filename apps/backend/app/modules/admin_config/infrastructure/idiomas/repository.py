@@ -16,8 +16,8 @@ class SqlAlchemyIdiomaRepo(IdiomaRepo):
     def _to_dto(self, i: IdiomaORM) -> IdiomaOut:
         return IdiomaOut(
             id=i.id,
-            codigo=i.code,
-            nombre=i.name,
+            code=i.code,
+            name=i.name,
             active=i.active,
         )
 
@@ -27,8 +27,8 @@ class SqlAlchemyIdiomaRepo(IdiomaRepo):
 
     def create(self, data: IdiomaIn) -> IdiomaOut:
         obj = IdiomaORM(
-            code=data.codigo,
-            name=data.nombre,
+            code=data.code,
+            name=data.name,
             active=data.active,
         )
         self.db.add(obj)
@@ -43,9 +43,9 @@ class SqlAlchemyIdiomaRepo(IdiomaRepo):
     def update(self, id: int, data: IdiomaIn) -> IdiomaOut:
         obj = self.db.query(IdiomaORM).filter(IdiomaORM.id == id).first()
         if not obj:
-            raise ValueError("idioma_no_encontrado")
-        obj.code = data.codigo
-        obj.name = data.nombre
+            raise ValueError("language_not_found")
+        obj.code = data.code
+        obj.name = data.name
         obj.active = data.active
         self.db.add(obj)
         self.db.commit()
@@ -55,6 +55,6 @@ class SqlAlchemyIdiomaRepo(IdiomaRepo):
     def delete(self, id: int) -> None:
         obj = self.db.query(IdiomaORM).filter(IdiomaORM.id == id).first()
         if not obj:
-            raise ValueError("idioma_no_encontrado")
+            raise ValueError("language_not_found")
         self.db.delete(obj)
         self.db.commit()

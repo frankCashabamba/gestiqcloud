@@ -5,14 +5,14 @@ from dataclasses import dataclass
 
 @dataclass
 class DiaSemanaIn:
-    clave: str
-    nombre: str
-    orden: int
+    code: str
+    name: str
+    order: int
 
 
 @dataclass
 class DiaSemanaOut:
     id: int
-    clave: str
-    nombre: str
-    orden: int
+    code: str
+    name: str
+    order: int

@@ -16,20 +16,20 @@ class SqlAlchemyDiaSemanaRepo(DiaSemanaRepo):
     def _to_dto(self, d: DiaSemanaORM) -> DiaSemanaOut:
         return DiaSemanaOut(
             id=d.id,
-            clave=d.key,
-            nombre=d.name,
-            orden=d.order,
+            code=d.key,
+            name=d.name,
+            order=d.order,
         )
 
     def list(self) -> Sequence[DiaSemanaOut]:
-        rows = self.db.query(DiaSemanaORM).order_by(DiaSemanaORM.orden.asc()).all()
+        rows = self.db.query(DiaSemanaORM).order_by(DiaSemanaORM.order.asc()).all()
         return [self._to_dto(r) for r in rows]
 
     def create(self, data: DiaSemanaIn) -> DiaSemanaOut:
         obj = DiaSemanaORM(
-            key=data.clave,
-            name=data.nombre,
-            order=data.orden,
+            key=data.code,
+            name=data.name,
+            order=data.order,
         )
         self.db.add(obj)
         self.db.commit()
@@ -43,10 +43,10 @@ class SqlAlchemyDiaSemanaRepo(DiaSemanaRepo):
     def update(self, id: int, data: DiaSemanaIn) -> DiaSemanaOut:
         obj = self.db.query(DiaSemanaORM).filter(DiaSemanaORM.id == id).first()
         if not obj:
-            raise ValueError("dia_no_encontrado")
-        obj.key = data.clave
-        obj.name = data.nombre
-        obj.order = data.orden
+            raise ValueError("day_not_found")
+        obj.key = data.code
+        obj.name = data.name
+        obj.order = data.order
         self.db.add(obj)
         self.db.commit()
         self.db.refresh(obj)
@@ -55,6 +55,6 @@ class SqlAlchemyDiaSemanaRepo(DiaSemanaRepo):
     def delete(self, id: int) -> None:
         obj = self.db.query(DiaSemanaORM).filter(DiaSemanaORM.id == id).first()
         if not obj:
-            raise ValueError("dia_no_encontrado")
+            raise ValueError("day_not_found")
         self.db.delete(obj)
         self.db.commit()
