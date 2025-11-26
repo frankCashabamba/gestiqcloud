@@ -5,8 +5,20 @@ from datetime import date, datetime
 from typing import Any
 
 try:
-    from .country_validators import get_validator_for_country
+    from .country_validators import ECValidator, ESValidator
     from .error_catalog import ERROR_CATALOG
+
+    def get_validator_for_country(country_code: str):
+        """Get country-specific validator by country code."""
+        validators = {
+            "EC": ECValidator,
+            "ES": ESValidator,
+        }
+        validator_class = validators.get(country_code.upper())
+        if validator_class is None:
+            raise ValueError(f"No validator available for country: {country_code}")
+        return validator_class()
+
 except ImportError:
 
     def get_validator_for_country(country_code: str):

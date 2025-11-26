@@ -1,724 +1,402 @@
-============================= test session starts =============================
-platform win32 -- Python 3.11.9, pytest-8.4.1, pluggy-1.6.0 -- C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\python.exe
-cachedir: .pytest_cache
-rootdir: c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend
-configfile: pytest.ini
-plugins: anyio-4.9.0, asyncio-1.0.0, cov-7.0.0
-asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
-collecting ... collected 1 item
+....F.........F........F.....F.....FF.
+ERROR: Coverage failure: total of 1.53 is less than fail-under=40.00
+                                                                         [100%]
+================================== FAILURES ===================================
+_____________ TestECValidator.test_validate_ruc_invalid_checksum ______________
 
-app/tests/test_admin_config_modern.py::test_admin_config_tipo_empresa_crud [DEBUG] app.router: Mounted router app.modules.identity.interface.http.admin.router at prefix='/admin' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.identity.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.identity.interface.http.profile.router at prefix='' (deprecated=False)
-[DEBUG] app.router: Mounted router app.api.v1.auth.router at prefix='' (deprecated=False)
-[DEBUG] app.router: Mounted router app.api.v1.me.router at prefix='' (deprecated=False)
-[DEBUG] app.router: Mounted router app.api.v1.telemetry.router at prefix='' (deprecated=False)
-[DEBUG] app.router: Mounted router app.api.v1.einvoicing.router at prefix='' (deprecated=False)
-[DEBUG] app.router: Mounted router app.api.v1.email_health.router at prefix='' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.identity.interface.http.sessions.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.productos.interface.http.public.router at prefix='' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.productos.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.productos.interface.http.admin.router at prefix='' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.empresa.interface.http.admin.router at prefix='' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.empresa.interface.http.tenant.router at prefix='' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.clients.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.proveedores.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.modulos.interface.http.admin.router at prefix='' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.modulos.interface.http.tenant.router at prefix='' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.modulos.interface.http.public.router at prefix='' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.usuarios.interface.http.tenant.router at prefix='' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.usuarios.interface.http.tenant.public_router at prefix='' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.usuarios.interface.http.admin.router at prefix='/admin' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.registry.interface.http.admin.router at prefix='/admin' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.registry.interface.http.tenant.router at prefix='' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.admin_config.interface.http.admin.router at prefix='/admin' (deprecated=False)
-[DEBUG] app.router: Mounted router app.api.v1.me.router at prefix='' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.facturacion.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.facturacion.interface.http.send_email.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.inventario.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.ventas.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.ventas.interface.http.tenant.deliveries_router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.compras.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.gastos.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.imports.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.imports.interface.http.preview.router at prefix='/imports' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.imports.interface.http.preview.files_router at prefix='/imports' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.imports.interface.http.tenant.public_router at prefix='' (deprecated=False)
-[INFO] app.router: imports.public_router mounted=True via IMPORTS_ENABLED
-[DEBUG] app.router: Skip mounting app.modules.contabilidad.interface.http.tenant.router (primary): cannot import name 'AsientoContable' from 'app.models.accounting.plan_cuentas' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\accounting\plan_cuentas.py)
-Traceback (most recent call last):
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 96, in include_router_safe
-    _include(*primary)
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 83, in _include
-    rt = _import_attr(module_path, attr)
-         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 65, in _import_attr
-    mod = import_module(module_path)
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\importlib\__init__.py", line 126, in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
-  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
-  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
-  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
-  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
-  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\contabilidad\interface\http\tenant.py", line 31, in <module>
-    from app.models.accounting.plan_cuentas import AsientoContable, AsientoLinea, PlanCuentas
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\accounting\__init__.py", line 7, in <module>
-    from app.models.accounting.plan_cuentas import (  # noqa: E402
-ImportError: cannot import name 'AsientoContable' from 'app.models.accounting.plan_cuentas' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\accounting\plan_cuentas.py)
-[DEBUG] app.router: Skip mounting app.modules.rrhh.interface.http.tenant.router (primary): cannot import name 'Nomina' from 'app.models.hr.nomina' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\hr\nomina.py)
-Traceback (most recent call last):
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 96, in include_router_safe
-    _include(*primary)
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 83, in _include
-    rt = _import_attr(module_path, attr)
-         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 65, in _import_attr
-    mod = import_module(module_path)
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\importlib\__init__.py", line 126, in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
-  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
-  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
-  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
-  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
-  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\rrhh\interface\http\tenant.py", line 35, in <module>
-    from app.models.hr.nomina import Nomina, NominaConcepto
-ImportError: cannot import name 'Nomina' from 'app.models.hr.nomina' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\hr\nomina.py)
-[DEBUG] app.router: Skip mounting app.modules.finanzas.interface.http.tenant.router (primary): cannot import name 'CajaMovimiento' from 'app.models.finance.caja' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\finance\caja.py)
-Traceback (most recent call last):
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 96, in include_router_safe
-    _include(*primary)
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 83, in _include
-    rt = _import_attr(module_path, attr)
-         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 65, in _import_attr
-    mod = import_module(module_path)
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\importlib\__init__.py", line 126, in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
-  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
-  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
-  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
-  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
-  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\finanzas\interface\http\tenant.py", line 36, in <module>
-    from app.models.finance.caja import CajaMovimiento, CierreCaja
-ImportError: cannot import name 'CajaMovimiento' from 'app.models.finance.caja' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\finance\caja.py)
-[DEBUG] app.router: Skip mounting app.modules.produccion.interface.http.tenant.router (primary): module not found: app.models.production.production_order
-[DEBUG] app.router: Mounted router app.modules.imports.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.ventas.interface.http.conversions.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.pos.interface.http.conversions.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.crm.presentation.tenant.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Skip mounting app.modules.settings.interface.http.tenant.router (primary): cannot import name 'ConfiguracionEmpresa' from 'app.models.empresa.settings' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\empresa\settings.py)
-Traceback (most recent call last):
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 96, in include_router_safe
-    _include(*primary)
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 83, in _include
-    rt = _import_attr(module_path, attr)
-         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 65, in _import_attr
-    mod = import_module(module_path)
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\importlib\__init__.py", line 126, in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
-  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
-  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
-  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
-  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
-  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\settings\interface\http\tenant.py", line 13, in <module>
-    from app.models.empresa.settings import ConfiguracionEmpresa
-ImportError: cannot import name 'ConfiguracionEmpresa' from 'app.models.empresa.settings' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\empresa\settings.py)
-[DEBUG] app.router: Skip mounting app.modules.settings.interface.http.tenant.admin_router (primary): cannot import name 'ConfiguracionEmpresa' from 'app.models.empresa.settings' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\empresa\settings.py)
-Traceback (most recent call last):
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 96, in include_router_safe
-    _include(*primary)
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 83, in _include
-    rt = _import_attr(module_path, attr)
-         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 65, in _import_attr
-    mod = import_module(module_path)
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\importlib\__init__.py", line 126, in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
-  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
-  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
-  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
-  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
-  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\modules\settings\interface\http\tenant.py", line 13, in <module>
-    from app.models.empresa.settings import ConfiguracionEmpresa
-ImportError: cannot import name 'ConfiguracionEmpresa' from 'app.models.empresa.settings' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\empresa\settings.py)
-[DEBUG] app.router: Skip mounting app.routers.dashboard_stats.router (primary): module not found: app.routers.dashboard_stats
-[DEBUG] app.router: Skip mounting app.routers.tenant.roles.router (primary): module not found: app.models.empresa.tenant
-[DEBUG] app.router: Mounted router app.routers.migrations.router at prefix='' (deprecated=False)
-[DEBUG] app.router: Mounted router app.routers.admin.usuarios.router at prefix='/admin/usuarios' (deprecated=False)
-[DEBUG] app.router: Skip mounting app.routers.roles.router (primary): cannot import name 'PermisoAccionGlobal' from 'app.models' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\__init__.py)
-Traceback (most recent call last):
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 96, in include_router_safe
-    _include(*primary)
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 83, in _include
-    rt = _import_attr(module_path, attr)
-         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\platform\http\router.py", line 65, in _import_attr
-    mod = import_module(module_path)
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\importlib\__init__.py", line 126, in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
-  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
-  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
-  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
-  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
-  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
-  File "c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\routers\roles.py", line 10, in <module>
-    from app.models import PermisoAccionGlobal
-ImportError: cannot import name 'PermisoAccionGlobal' from 'app.models' (c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\models\__init__.py)
-[DEBUG] app.router: Mounted router app.modules.einvoicing.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.templates.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.templates.interface.http.admin.router at prefix='/admin' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.copilot.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.pos.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.reconciliation.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.export.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
-[DEBUG] app.router: Mounted router app.modules.webhooks.interface.http.tenant.router at prefix='/tenant' (deprecated=False)
-[INFO] app.router: Sector Templates router mounted at /api/v1/sectores
-[INFO] app.router: Tenant Config router mounted at /api/v1/settings
-[INFO] app.router: Dashboard KPIs router mounted at /api/v1/dashboard/kpis
-[INFO] app.router: Admin Stats router mounted at /api/v1/admin/stats
-[INFO] app.router: Settings router mounted at /api/v1/settings
-[INFO] app.router: Tenant Settings (public) mounted at /api/v1/settings/tenant
-[INFO] app.router: Incidents router mounted at /api/v1/incidents
-[INFO] app.router: Notifications router mounted at /api/v1/notifications
-[INFO] app.router: ElectricSQL shapes router mounted at /api/v1/electric
-[INFO] app.router: IA Classification router mounted at /api/v1/imports/ai
-[settings] ENV= development ENV_FILE_USED= <none> SECRET_KEY_PRESENT= True SEARCH_DIRS= ['C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app\\config', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend', 'c:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend']
-[settings] ENV= development ENV_FILE_USED= <none> SECRET_KEY_PRESENT= True SEARCH_DIRS= ['C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app\\config', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend\\app', 'C:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend', 'c:\\Users\\pc_cashabamba\\Documents\\GitHub\\proyecto\\apps\\backend']
-[INFO] Preview router mounted at /api/v1/imports/preview
-PASSED
-ERROR: Coverage failure: total of 36.16 is less than fail-under=40.00
+self = <validators.test_ec_validator.TestECValidator object at 0x0000024943C146D0>
 
+    def test_validate_ruc_invalid_checksum(self):
+        errors = self.validator.validate_tax_id("1713175071009")  # noqa: F841
+>       assert len(errors) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
 
-============================== warnings summary ===============================
-app/tests/test_admin_config_modern.py::test_admin_config_tipo_empresa_crud
-app/tests/test_admin_config_modern.py::test_admin_config_tipo_empresa_crud
-  C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\fields.py:1093: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'env'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
-    warn(
+tests\modules\imports\validators\test_ec_validator.py:30: AssertionError
+_________ TestECValidator.test_validate_clave_acceso_invalid_checksum _________
 
-app/tests/test_admin_config_modern.py::test_admin_config_tipo_empresa_crud
-  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\main.py:87: DeprecationWarning:
-          on_event is deprecated, use lifespan event handlers instead.
+self = <validators.test_ec_validator.TestECValidator object at 0x0000024943C17590>
 
-          Read more about it in the
-          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+    def test_validate_clave_acceso_invalid_checksum(self):
+        clave = "0801202501179214673900110010010000000011234567819"
+        errors = self.validator.validate_clave_acceso(clave)  # noqa: F841
+>       assert len(errors) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
 
-    @app.on_event("startup")
+tests\modules\imports\validators\test_ec_validator.py:78: AssertionError
+______________ TestESValidator.test_validate_cif_invalid_control ______________
 
-app/tests/test_admin_config_modern.py::test_admin_config_tipo_empresa_crud
-  C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\fastapi\applications.py:4495: DeprecationWarning:
-          on_event is deprecated, use lifespan event handlers instead.
+self = <validators.test_es_validator.TestESValidator object at 0x0000024943C33E10>
 
-          Read more about it in the
-          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+    def test_validate_cif_invalid_control(self):
+        errors = self.validator.validate_tax_id("A12345679")  # noqa: F841
+>       assert len(errors) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
 
-    return self.router.on_event(event_type)
+tests\modules\imports\validators\test_es_validator.py:37: AssertionError
+____________ TestESValidator.test_validate_invoice_number_too_long ____________
 
-app/tests/test_admin_config_modern.py: 18 warnings
-  C:\Users\pc_cashabamba\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\_internal\_config.py:323: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
-    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+self = <validators.test_es_validator.TestESValidator object at 0x0000024943C16410>
 
-app/tests/test_admin_config_modern.py::test_admin_config_tipo_empresa_crud
-  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\sector_plantilla.py:115: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
-    @validator("modules", pre=True)
+    def test_validate_invoice_number_too_long(self):
+        errors = self.validator.validate_invoice_number("A" * 31)  # noqa: F841
+>       assert len(errors) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
 
-app/tests/test_admin_config_modern.py::test_admin_config_tipo_empresa_crud
-  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\incidents.py:114: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
-    @validator("config")
+tests\modules\imports\validators\test_es_validator.py:72: AssertionError
+_______ TestValidatorsIntegration.test_validate_invoices_invalid_ruc_ec _______
 
-app/tests/test_admin_config_modern.py::test_admin_config_tipo_empresa_crud
-  c:\Users\pc_cashabamba\Documents\GitHub\proyecto\apps\backend\app\schemas\notifications.py:122: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
-    @validator("tipo")
+self = <validators.test_integration.TestValidatorsIntegration object at 0x0000024943C3F850>
 
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+    def test_validate_invoices_invalid_ruc_ec(self):
+        invoice = {
+            "invoice_number": "001-001-000000123",
+            "invoice_date": "2025-01-15",
+            "issuer_tax_id": "1713175071009",
+            "net_amount": 100.0,
+            "tax_amount": 12.0,
+            "total_amount": 112.0,
+        }
+
+        errors = validate_invoices(invoice, country="EC")  # noqa: F841
+>       assert any("dígito verificador" in e["msg"].lower() for e in errors)
+E       assert False
+E        +  where False = any(<generator object TestValidatorsIntegration.test_validate_invoices_invalid_ruc_ec.<locals>.<genexpr> at 0x0000024943B96DC0>)
+
+tests\modules\imports\validators\test_integration.py:48: AssertionError
+____ TestValidatorsIntegration.test_validate_invoices_invalid_tax_rate_es _____
+
+self = <validators.test_integration.TestValidatorsIntegration object at 0x0000024943C3FE90>
+
+    def test_validate_invoices_invalid_tax_rate_es(self):
+        invoice = {
+            "invoice_number": "FAC-2025-001",
+            "invoice_date": "2025-01-15",
+            "issuer_tax_id": "12345678Z",
+            "net_amount": 100.0,
+            "tax_amount": 12.0,
+            "total_amount": 112.0,
+            "tax_rate": 12.0,
+        }
+
+        errors = validate_invoices(invoice, country="ES")  # noqa: F841
+>       assert any("tasa de impuesto" in e["msg"].lower() for e in errors)
+E       assert False
+E        +  where False = any(<generator object TestValidatorsIntegration.test_validate_invoices_invalid_tax_rate_es.<locals>.<genexpr> at 0x0000024943B96B20>)
+
+tests\modules\imports\validators\test_integration.py:62: AssertionError
 =============================== tests coverage ================================
 _______________ coverage: platform win32, python 3.11.9-final-0 _______________
 
-Name                                                                       Stmts   Miss   Cover   Missing
----------------------------------------------------------------------------------------------------------
-app\__init__.py                                                                1      0 100.00%
-app\api\__init__.py                                                            0      0 100.00%
-app\api\access.py                                                              0      0 100.00%
-app\api\common\__init__.py                                                     0      0 100.00%
-app\api\common\lang.py                                                         8      8   0.00%   2-13
-app\api\email\email_utils.py                                                 126    107  15.08%   21-28, 39-125, 130-135, 139-140, 144-145, 154-174, 178-198
-app\api\v1\__init__.py                                                         0      0 100.00%
-app\api\v1\admin\__init__.py                                                   0      0 100.00%
-app\api\v1\admin\auth.py                                                     118     83  29.66%   54-182, 189-214, 220-234, 240-253
-app\api\v1\auth.py                                                            44     29  34.09%   35-80
-app\api\v1\einvoicing.py                                                      27     12  55.56%   28-32, 42-48
-app\api\v1\email_health.py                                                    48     33  31.25%   16-54, 66-86
-app\api\v1\me.py                                                              75     57  24.00%   22, 31-37, 48-105, 122-138
-app\api\v1\profile.py                                                         13      4  69.23%   17-18, 32-33
-app\api\v1\telemetry.py                                                       14      1  92.86%   22
-app\api\v1\tenant\__init__.py                                                  0      0 100.00%
-app\api\v1\tenant\auth.py                                                    179    137  23.46%   51-252, 265-286, 292-303, 309-319, 334-362
-app\api\v1\tenant\productos.py                                                31     31   0.00%   1-50
-app\api\v1\tenant\sessions.py                                                 13      3  76.92%   20-29
-app\config\__init__.py                                                         0      0 100.00%
-app\config\celery_config.py                                                   12     12   0.00%   5-105
-app\config\database.py                                                       134     67  50.00%   24-25, 49, 71, 123, 128-129, 145-177, 182-186, 200-201, 204-213, 224, 233-238, 249-255, 265-273
-app\config\settings.py                                                       272     91  66.54%   16-39, 57-78, 92, 94, 102-103, 130-131, 142-153, 200, 204-215, 329, 336, 342, 356, 365, 382, 394, 401-440, 452
-app\config\test_database.py                                                    6      6   0.00%   6-13
-app\core\__init__.py                                                           0      0 100.00%
-app\core\access_guard.py                                                      59     51  13.56%   17-91
-app\core\audit.py                                                             13      9  30.77%   18-36
-app\core\auth_cookies.py                                                      50     50   0.00%   6-198
-app\core\auth_http.py                                                         71     55  22.54%   16-21, 25, 29, 34-50, 60, 65-71, 84-86, 91-106, 111-120
-app\core\auth_shared.py                                                       96     84  12.50%   16-22, 27, 39-42, 55-179
-app\core\authz.py                                                             25     18  28.00%   9-12, 17-20, 26-37
-app\core\base_crud.py                                                         72     53  26.39%   27-41, 53-58, 62, 73-83, 89-99, 104-116
-app\core\config.py                                                             2      2   0.00%   7-8
-app\core\crud_base.py                                                         25     10  60.00%   28, 32, 36-39, 43-46, 50
-app\core\csrf.py                                                               7      4  42.86%   7-10
-app\core\db.py                                                                 3      3   0.00%   6-20
-app\core\deps.py                                                              18     12  33.33%   9-12, 16-19, 23-26
-app\core\empresa_crud.py                                                      15      2  86.67%   29, 36
-app\core\i18n.py                                                              17     11  35.29%   26-35, 39-40
-app\core\jwt_provider.py                                                      14      1  92.86%   37
-app\core\log_context.py                                                       23     23   0.00%   6-55
-app\core\logging.py                                                           12     12   0.00%   6-19
-app\core\login_rate_limit.py                                                 138    101  26.81%   16-24, 47-52, 60-67, 79-80, 84-91, 96-97, 102-148, 152-194, 203-213, 217, 221
-app\core\maintenance.py                                                       10     10   0.00%   2-26
-app\core\perm_loader.py                                                       30     22  26.67%   15-85
-app\core\permissions.py                                                        4      2  50.00%   10-11
-app\core\ports_base.py                                                         8      8   0.00%   1-24
-app\core\refresh.py                                                          137    102  25.55%   35, 40, 46-54, 66-82, 94-115, 120-121, 140-159, 164-176, 190-206, 211-231, 240-245, 249-251, 255-265, 269-285, 289-301, 306-308, 313-315, 320-374
-app\core\security.py                                                          27     11  59.26%   29, 34-35, 40, 49-57
-app\core\security_cookies.py                                                  36     36   0.00%   6-124
-app\core\sessions.py                                                         131     55  58.02%   43-44, 47-53, 56-57, 60-61, 66-71, 74, 77, 80-86, 89, 92, 121, 124-126, 138, 145, 148-149, 166-172, 197-210, 225, 228-233
-app\core\tenancy.py                                                            4      4   0.00%   6-12
-app\core\types.py                                                              8      0 100.00%
-app\db\__init__.py                                                             0      0 100.00%
-app\db\base.py                                                                35      0 100.00%
-app\db\models.py                                                               0      0 100.00%
-app\db\rls.py                                                                 86     72  16.28%   21-26, 39-102, 115, 126, 139-146, 155-167, 172-174
-app\db\session.py                                                             18      8  55.56%   30-34, 46-50
-app\main.py                                                                  373    160  57.10%   36-37, 68-84, 89-92, 100, 113, 118, 132-138, 160, 174-175, 206-211, 218-233, 242, 248-275, 284, 289, 294, 299, 304, 371-372, 380-381, 387, 396, 411-412, 422-423, 431-432, 440-441, 449-450, 458-459, 469-473, 488-489, 499-500, 510-511, 513-524, 532-533, 541-542, 549-550, 555-556, 561-562, 567-568, 573-574, 583-587, 601, 605-611, 616-659, 664
-app\middleware\__init__.py                                                     0      0 100.00%
-app\middleware\endpoint_rate_limit.py                                         64     46  28.12%   40-45, 50, 63-66, 70-72, 75-130, 145-180
-app\middleware\i18n_header.py                                                 10     10   0.00%   2-14
-app\middleware\metrics.py                                                     16     16   0.00%   1-22
-app\middleware\rate_limit.py                                                  50     38  24.00%   18-21, 24-26, 30-70
-app\middleware\request_log.py                                                 46     10  78.26%   19-20, 32-33, 40, 42, 53-54, 74-76
-app\middleware\require_csrf.py                                                29     29   0.00%   2-47
-app\middleware\rls.py                                                         16      7  56.25%   28-38, 47
-app\middleware\security_headers.py                                            36      9  75.00%   16, 19-40, 75, 79, 81, 87
-app\middleware\tenant.py                                                      55     44  20.00%   27-39, 52-91, 100-112
-app\middleware\tenant_middleware.py                                           31     31   0.00%   7-53
-app\models\__init__.py                                                        30      0 100.00%
-app\models\accounting\__init__.py                                              2      1  50.00%   13
-app\models\accounting\plan_cuentas.py                                         66      0 100.00%
-app\models\ai\__init__.py                                                      2      0 100.00%
-app\models\ai\incident.py                                                     85      0 100.00%
-app\models\auth\__init__.py                                                    0      0 100.00%
-app\models\auth\refresh_family.py                                             32      0 100.00%
-app\models\auth\useradmis.py                                                  23      0 100.00%
-app\models\core\__init__.py                                                    0      0 100.00%
-app\models\core\audit.py                                                       0      0 100.00%
-app\models\core\auditoria_importacion.py                                      22      0 100.00%
-app\models\core\clients.py                                                    21      0 100.00%
-app\models\core\document_line.py                                              26     26   0.00%   16-79
-app\models\core\einvoicing.py                                                 58      0 100.00%
-app\models\core\facturacion.py                                               106      0 100.00%
-app\models\core\invoiceLine.py                                                30      0 100.00%
-app\models\core\modelsimport.py                                              120      6  95.00%   108, 112, 191, 195, 199, 203
-app\models\core\modulo.py                                                     57      4  92.98%   47, 51, 55, 59
-app\models\core\payment.py                                                    35     35   0.00%   15-93
-app\models\core\product_category.py                                           25      1  96.00%   51
-app\models\core\products.py                                                   32      0 100.00%
-app\models\core\settings.py                                                   22      1  95.45%   53
-app\models\core\sri_submissions.py                                            12     12   0.00%   11-38
-app\models\core\ui_field_config.py                                            28      0 100.00%
-app\models\core\ui_template.py                                                17      0 100.00%
-app\models\empresa\__init__.py                                                 0      0 100.00%
-app\models\empresa\empresa.py                                                142      4  97.18%   81, 85, 126, 130
-app\models\empresa\rolempresas.py                                             21      0 100.00%
-app\models\empresa\settings.py                                                42      0 100.00%
-app\models\empresa\usuario_rolempresa.py                                      42      7  83.33%   50, 56, 61, 66, 71, 76, 81
-app\models\empresa\usuarioempresa.py                                          43      5  88.37%   88, 93, 98, 103, 108
-app\models\expenses\__init__.py                                                3      0 100.00%
-app\models\expenses\gasto.py                                                  29      1  96.55%   67
-app\models\finance\__init__.py                                                 6      0 100.00%
-app\models\finance\banco.py                                                   24      1  95.83%   51
-app\models\finance\caja.py                                                    56      0 100.00%
-app\models\hr\__init__.py                                                      8      2  75.00%   13-15
-app\models\hr\empleado.py                                                     49      2  95.92%   59, 104
-app\models\hr\nomina.py                                                       68      0 100.00%
-app\models\imports.py                                                         22      1  95.45%   44
-app\models\inventory\stock.py                                                 34      2  94.12%   16-17
-app\models\inventory\warehouse.py                                             21      2  90.48%   16-17
-app\models\pos\__init__.py                                                     5      0 100.00%
-app\models\pos\doc_series.py                                                  22      1  95.45%   56
-app\models\pos\receipt.py                                                     59      3  94.92%   71, 104, 135
-app\models\pos\register.py                                                    34      2  94.12%   44, 81
-app\models\pos\store_credit.py                                                37      2  94.59%   54, 86
-app\models\production\__init__.py                                              5      0 100.00%
-app\models\production\_production_order.py                                    49      0 100.00%
-app\models\purchases\__init__.py                                               4      0 100.00%
-app\models\purchases\compra.py                                                43      2  95.35%   61, 95
-app\models\recipes.py                                                         44      2  95.45%   75, 130
-app\models\sales\__init__.py                                                   3      0 100.00%
-app\models\sales\delivery.py                                                  18      2  88.89%   13-14
-app\models\sales\order.py                                                     35      0 100.00%
-app\models\sales\venta.py                                                     26      1  96.15%   72
-app\models\security\__init__.py                                                0      0 100.00%
-app\models\security\auth_audit.py                                             15      0 100.00%
-app\models\suppliers\__init__.py                                               5      0 100.00%
-app\models\suppliers\proveedor.py                                             55      3  94.55%   52, 80, 110
-app\models\tenant.py                                                          45      4  91.11%   41, 45, 106, 110
-app\modules\__init__.py                                                        6      1  83.33%   14
-app\modules\admin_config\application\__init__.py                               0      0 100.00%
-app\modules\admin_config\application\dias_semana\__init__.py                   0      0 100.00%
-app\modules\admin_config\application\dias_semana\dto.py                       13      0 100.00%
-app\modules\admin_config\application\dias_semana\ports.py                      5      0 100.00%
-app\modules\admin_config\application\dias_semana\use_cases.py                 23      8  65.22%   12, 17-20, 25, 30, 35
-app\modules\admin_config\application\horarios_atencion\__init__.py             0      0 100.00%
-app\modules\admin_config\application\horarios_atencion\dto.py                 13      0 100.00%
-app\modules\admin_config\application\horarios_atencion\ports.py                5      0 100.00%
-app\modules\admin_config\application\horarios_atencion\use_cases.py           23      8  65.22%   15, 20-23, 28, 33, 38
-app\modules\admin_config\application\idiomas\__init__.py                       0      0 100.00%
-app\modules\admin_config\application\idiomas\dto.py                           13      0 100.00%
-app\modules\admin_config\application\idiomas\ports.py                          5      0 100.00%
-app\modules\admin_config\application\idiomas\use_cases.py                     23      8  65.22%   12, 17-20, 25, 30, 35
-app\modules\admin_config\application\locales\__init__.py                       0      0 100.00%
-app\modules\admin_config\application\locales\dto.py                           12      0 100.00%
-app\modules\admin_config\application\locales\ports.py                          5      0 100.00%
-app\modules\admin_config\application\locales\use_cases.py                     23      8  65.22%   12, 17-20, 25, 30, 35
-app\modules\admin_config\application\monedas\__init__.py                       0      0 100.00%
-app\modules\admin_config\application\monedas\dto.py                           15      0 100.00%
-app\modules\admin_config\application\monedas\ports.py                          5      0 100.00%
-app\modules\admin_config\application\monedas\use_cases.py                     23      8  65.22%   12, 17-20, 25, 30, 35
-app\modules\admin_config\application\paises\__init__.py                        0      0 100.00%
-app\modules\admin_config\application\paises\dto.py                            13      0 100.00%
-app\modules\admin_config\application\paises\ports.py                           5      0 100.00%
-app\modules\admin_config\application\paises\use_cases.py                      23      8  65.22%   12, 17-20, 25, 30, 35
-app\modules\admin_config\application\sectores_plantilla\__init__.py            0      0 100.00%
-app\modules\admin_config\application\sectores_plantilla\dto.py                19      0 100.00%
-app\modules\admin_config\application\sectores_plantilla\ports.py               5      0 100.00%
-app\modules\admin_config\application\sectores_plantilla\use_cases.py          23      8  65.22%   15, 20-23, 28, 33, 38
-app\modules\admin_config\application\timezones\__init__.py                     0      0 100.00%
-app\modules\admin_config\application\timezones\dto.py                         14      0 100.00%
-app\modules\admin_config\application\timezones\ports.py                        5      0 100.00%
-app\modules\admin_config\application\timezones\use_cases.py                   23      8  65.22%   12, 17-20, 25, 30, 35
-app\modules\admin_config\application\tipos_empresa\__init__.py                 0      0 100.00%
-app\modules\admin_config\application\tipos_empresa\dto.py                     14      0 100.00%
-app\modules\admin_config\application\tipos_empresa\ports.py                    6      0 100.00%
-app\modules\admin_config\application\tipos_empresa\use_cases.py               24      3  87.50%   13, 20, 36
-app\modules\admin_config\application\tipos_negocio\__init__.py                 0      0 100.00%
-app\modules\admin_config\application\tipos_negocio\dto.py                     13      0 100.00%
-app\modules\admin_config\application\tipos_negocio\ports.py                    5      0 100.00%
-app\modules\admin_config\application\tipos_negocio\use_cases.py               23      8  65.22%   12, 17-20, 25, 30, 35
-app\modules\admin_config\infrastructure\__init__.py                            0      0 100.00%
-app\modules\admin_config\infrastructure\dias_semana\__init__.py                0      0 100.00%
-app\modules\admin_config\infrastructure\dias_semana\repository.py             40     26  35.00%   14, 17, 25-26, 29-37, 40-41, 44-53, 56-60
-app\modules\admin_config\infrastructure\horarios_atencion\__init__.py          0      0 100.00%
-app\modules\admin_config\infrastructure\horarios_atencion\repository.py       40     26  35.00%   17, 20, 28-33, 36-44, 47-48, 51-60, 63-67
-app\modules\admin_config\infrastructure\idiomas\__init__.py                    0      0 100.00%
-app\modules\admin_config\infrastructure\idiomas\repository.py                 40     26  35.00%   14, 17, 25-26, 29-37, 40-41, 44-53, 56-60
-app\modules\admin_config\infrastructure\locales\__init__.py                    0      0 100.00%
-app\modules\admin_config\infrastructure\locales\repository.py                 40     26  35.00%   14, 17, 24-25, 28-36, 39-40, 43-52, 55-59
-app\modules\admin_config\infrastructure\monedas\__init__.py                    0      0 100.00%
-app\modules\admin_config\infrastructure\monedas\repository.py                 41     27  34.15%   14, 17, 26-27, 30-39, 42-43, 46-56, 59-63
-app\modules\admin_config\infrastructure\paises\__init__.py                     0      0 100.00%
-app\modules\admin_config\infrastructure\paises\repository.py                  40     26  35.00%   14, 17, 25-26, 29-37, 40-41, 44-53, 56-60
-app\modules\admin_config\infrastructure\sectores_plantilla\__init__.py         0      0 100.00%
-app\modules\admin_config\infrastructure\sectores_plantilla\repository.py      42     28  33.33%   17, 20, 31-34, 37-47, 50-51, 54-65, 68-72
-app\modules\admin_config\infrastructure\timezones\__init__.py                  0      0 100.00%
-app\modules\admin_config\infrastructure\timezones\repository.py               41     27  34.15%   14, 17, 25-26, 29-38, 41-42, 45-55, 58-62
-app\modules\admin_config\infrastructure\tipos_empresa\__init__.py              0      0 100.00%
-app\modules\admin_config\infrastructure\tipos_empresa\repository.py           41      8  80.49%   26-27, 47, 57-61
-app\modules\admin_config\infrastructure\tipos_negocio\__init__.py              0      0 100.00%
-app\modules\admin_config\infrastructure\tipos_negocio\repository.py           40     26  35.00%   14, 17, 25-26, 29-37, 40-41, 44-53, 56-60
-app\modules\admin_config\interface\http\admin.py                             430    254  40.93%   138, 142, 146-147, 151-152, 161, 165, 176-177, 185-186, 194, 198, 202-203, 207-208, 216, 220, 224-225, 229-230, 238, 242, 246-247, 251-252, 260, 264, 268-269, 273-274, 306, 310, 314-315, 319-320, 328, 332, 336, 340, 349, 353, 357, 361, 371-373, 378-380, 385-392, 397-402, 408-410, 415-417, 422-429, 434-439, 445-447, 452-454, 459-466, 471-476, 482-484, 489-491, 496-503, 508-513, 519-521, 526-528, 533-540, 545-550, 556-558, 563-565, 570-577, 582-587, 593-595, 600-602, 607-614, 619-624, 630-632, 637-639, 644-649, 654-661, 666-671, 677-679, 694-695, 702-703, 708-718, 724-726, 731-733, 738-745, 750-755
-app\modules\admin_config\schemas.py                                          122      0 100.00%
-app\modules\ai_agent\__init__.py                                               3      0 100.00%
-app\modules\ai_agent\analyzer.py                                              73     58  20.55%   31-66, 82-106, 122-141, 156-181, 186-220, 225-238, 243-259
-app\modules\ai_agent\notifier.py                                             112    100  10.71%   27-93, 105-143, 151-161, 169-194, 199-224, 234, 250, 269-280
-app\modules\clients\application\__init__.py                                    1      0 100.00%
-app\modules\clients\application\dto.py                                        25      0 100.00%
-app\modules\clients\application\ports.py                                       5      0 100.00%
-app\modules\clients\application\use_cases.py                                  32     15  53.12%   14-17, 33-36, 52-53, 72-75, 91
-app\modules\clients\domain\__init__.py                                         1      0 100.00%
-app\modules\clients\domain\entities.py                                        18      2  88.89%   21-22
-app\modules\clients\infrastructure\__init__.py                                 1      0 100.00%
-app\modules\clients\infrastructure\repositories.py                            63     21  66.67%   27, 54-65, 74, 89-90, 93-99, 102-115, 118-135, 138-140
-app\modules\clients\interface\__init__.py                                      1      0 100.00%
-app\modules\clients\interface\http\__init__.py                                 1      0 100.00%
-app\modules\clients\interface\http\schemas.py                                 24      0 100.00%
-app\modules\clients\interface\http\tenant.py                                  58     31  46.55%   26-28, 43, 71-75, 81-85, 90-95, 105-112, 117-119
-app\modules\compras\infrastructure\repositories.py                            48     20  58.33%   18, 35-41, 50-51, 54, 62, 73-80, 92-96, 99-104
-app\modules\compras\interface\http\schemas.py                                 14      0 100.00%
-app\modules\compras\interface\http\tenant.py                                  39     20  48.72%   25-26, 31-35, 42-43, 53-57, 64-69
-app\modules\contabilidad\__init__.py                                           0      0 100.00%
-app\modules\contabilidad\application\__init__.py                               1      1   0.00%   1
-app\modules\contabilidad\crud.py                                               0      0 100.00%
-app\modules\contabilidad\domain\__init__.py                                    1      1   0.00%   1
-app\modules\contabilidad\infrastructure\__init__.py                            1      1   0.00%   1
-app\modules\contabilidad\interface\__init__.py                                 1      0 100.00%
-app\modules\contabilidad\interface\http\__init__.py                            1      0 100.00%
-app\modules\contabilidad\interface\http\tenant.py                            197    185   6.09%   32-449
-app\modules\contabilidad\schemas.py                                            0      0 100.00%
-app\modules\contabilidad\services.py                                           0      0 100.00%
-app\modules\copilot\interface\http\tenant.py                                  51     27  47.06%   34, 46-50, 61-66, 71-95
-app\modules\copilot\services.py                                               94     81  13.83%   10-15, 19-24, 28-39, 43-46, 50-111, 118-141, 147-168, 175-186, 192-203
-app\modules\crm\application\schemas.py                                       113      0 100.00%
-app\modules\crm\application\services.py                                      144    120  16.67%   29, 40-50, 53-54, 57-61, 64-76, 79-86, 95-126, 136-144, 147-152, 155-159, 164-180, 183-194, 197-262, 282-292, 295-299, 304-320
-app\modules\crm\domain\entities.py                                            35      0 100.00%
-app\modules\crm\domain\models.py                                              80      0 100.00%
-app\modules\crm\presentation\tenant.py                                       123     80  34.96%   42-46, 50-54, 59-61, 74-79, 91-98, 103-106, 111-118, 123-127, 134-154, 166-171, 178-185, 190-193, 200-207, 212-216, 229-235, 247-251, 258-265
-app\modules\crud.py                                                          105     84  20.00%   20-62, 67, 72-87, 92-101, 106-125, 130-135, 140, 148-156, 161, 177-186, 191, 202, 207, 212-221
-app\modules\einvoicing\__init__.py                                             0      0 100.00%
-app\modules\einvoicing\application\__init__.py                                 6      3  50.00%   12-14
-app\modules\einvoicing\application\use_cases.py                               45     32  28.89%   13, 31, 40-49, 59-121
-app\modules\einvoicing\interface\http\tenant.py                               68     42  38.24%   37-77, 82-102, 113-132
-app\modules\einvoicing\tasks.py                                               68     68   0.00%   1-160
-app\modules\electric_conflicts.py                                             62     48  22.58%   27-28, 39-56, 75-87, 97-117, 125-132, 138-149, 165-186, 198-223
-app\modules\electric_shapes.py                                                25     14  44.00%   26, 53-60, 73-86
-app\modules\empresa\__init__.py                                                0      0 100.00%
-app\modules\empresa\application\__init__.py                                    0      0 100.00%
-app\modules\empresa\application\ports.py                                       9      0 100.00%
-app\modules\empresa\application\use_cases.py                                  25     11  56.00%   17, 22, 43-69
-app\modules\empresa\domain\__init__.py                                         0      0 100.00%
-app\modules\empresa\infrastructure\__init__.py                                 0      0 100.00%
-app\modules\empresa\infrastructure\repositories.py                            52     34  34.62%   16-18, 23, 30-33, 36-43, 46-47, 51-74, 77-103, 106-111
-app\modules\empresa\interface\__init__.py                                      0      0 100.00%
-app\modules\empresa\interface\http\__init__.py                                 0      0 100.00%
-app\modules\empresa\interface\http\admin.py                                  353    274  22.38%   39-58, 63-80, 85-89, 95-109, 124-206, 225-236, 249-410, 461-473, 483-635
-app\modules\empresa\interface\http\schemas.py                                 25      0 100.00%
-app\modules\empresa\interface\http\tenant.py                                  24      9  62.50%   28-32, 37-40
-app\modules\export\interface\http\tenant.py                                   36     18  50.00%   27-32, 37-42, 51-58, 67-74
-app\modules\facturacion\__init__.py                                            0      0 100.00%
-app\modules\facturacion\application\__init__.py                                1      1   0.00%   1
-app\modules\facturacion\crud.py                                              110     88  20.00%   24-29, 33-35, 46-82, 86-92, 103-147, 151, 157-166, 170-187, 191-247
-app\modules\facturacion\domain\__init__.py                                     1      1   0.00%   1
-app\modules\facturacion\infrastructure\__init__.py                             1      1   0.00%   1
-app\modules\facturacion\interface\__init__.py                                  1      0 100.00%
-app\modules\facturacion\interface\http\__init__.py                             1      0 100.00%
-app\modules\facturacion\interface\http\send_email.py                          31     17  45.16%   29-47
-app\modules\facturacion\interface\http\tenant.py                              88     58  34.09%   21-25, 48-49, 65-66, 77-99, 105-124, 133-134, 143-147, 156-187
-app\modules\facturacion\schemas.py                                            73      0 100.00%
-app\modules\facturacion\services.py                                            0      0 100.00%
-app\modules\finanzas\interface\http\tenant.py                                231    218   5.63%   39-699
-app\modules\gastos\infrastructure\repositories.py                             44     17  61.36%   17, 33-39, 48-49, 52, 55, 60-61, 72-76, 79-81
-app\modules\gastos\interface\http\schemas.py                                  14      0 100.00%
-app\modules\gastos\interface\http\tenant.py                                   39     20  48.72%   25-26, 31-35, 42-43, 53-57, 64-69
-app\modules\identity\__init__.py                                               0      0 100.00%
-app\modules\identity\application\ports.py                                      9      0 100.00%
-app\modules\identity\infrastructure\__init__.py                                0      0 100.00%
-app\modules\identity\infrastructure\jwt_service.py                            83     45  45.78%   44-71, 81-82, 103-112, 115-132, 135-155
-app\modules\identity\infrastructure\jwt_tokens.py                             12      3  75.00%   14, 17, 20
-app\modules\identity\infrastructure\passwords.py                               9      2  77.78%   10, 13
-app\modules\identity\infrastructure\rate_limit.py                             12      3  75.00%   11, 14, 17
-app\modules\identity\infrastructure\refresh_repo.py                           37     23  37.84%   13, 16-34, 44-67, 70-80, 83-100, 103-124, 127-142
-app\modules\identity\interface\__init__.py                                     0      0 100.00%
-app\modules\identity\interface\http\__init__.py                                0      0 100.00%
-app\modules\identity\interface\http\admin.py                                   2      0 100.00%
-app\modules\identity\interface\http\profile.py                                 2      0 100.00%
-app\modules\identity\interface\http\sessions.py                                2      0 100.00%
-app\modules\identity\interface\http\tenant.py                                  2      0 100.00%
-app\modules\imports\ai\__init__.py                                            43     26  39.53%   18-19, 25-26, 31-63, 73-75, 81
-app\modules\imports\ai\azure_provider.py                                      83     71  14.46%   26-52, 64-165, 174-206, 210
-app\modules\imports\ai\base.py                                                28      9  67.86%   41, 61, 71, 85-91
-app\modules\imports\ai\cache.py                                               40     28  30.00%   21-22, 27-30, 39-54, 60-65, 69-70, 75-81
-app\modules\imports\ai\http_endpoints.py                                      93     41  55.91%   67-87, 102-115, 145-161, 189-200, 229-242, 249-258
-app\modules\imports\ai\local_provider.py                                      64     48  25.00%   64-71, 87-142, 161-178, 182-184, 200-215
-app\modules\imports\ai\openai_provider.py                                     84     72  14.29%   26-49, 69-185, 196-230, 234
-app\modules\imports\ai\telemetry.py                                           76     45  40.79%   44-51, 70-82, 86-123, 127-131, 135-138, 150-151, 155-159
-app\modules\imports\application\__init__.py                                    1      0 100.00%
-app\modules\imports\application\job_runner.py                                 94     68  27.66%   20-31, 43-49, 52-55, 58-73, 76-97, 128-137, 150-158, 163-184
-app\modules\imports\domain\__init__.py                                         3      0 100.00%
-app\modules\imports\domain\canonical_schema.py                               270    163  39.63%   199-205, 215-229, 234-257, 264-277, 296-460, 486-498
-app\modules\imports\extractores\__init__.py                                    0      0 100.00%
-app\modules\imports\extractores\extractor_desconocido.py                      45     38  15.56%   10-53, 70-104
-app\modules\imports\extractores\extractor_factura.py                          34     30  11.76%   30-118
-app\modules\imports\extractores\extractor_recibo.py                           19     14  26.32%   20-126
-app\modules\imports\extractores\extractor_transferencia.py                    38     34  10.53%   13-83
-app\modules\imports\extractores\utilidades.py                                149    118  20.81%   49-55, 59-72, 88-175, 180-186, 190, 194-200, 204-208, 212-214, 218-223, 227-228, 232-240, 244-250, 254-262, 266-270, 274-276, 280-302, 306-321, 328-337, 344-354
-app\modules\imports\interface\__init__.py                                      1      0 100.00%
-app\modules\imports\interface\http\__init__.py                                 2      0 100.00%
-app\modules\imports\interface\http\preview.py                                141     91  35.46%   54-57, 74-134, 147-158, 169-181, 206-219, 250-279, 303-332
-app\modules\imports\interface\http\tenant.py                                1176   1006  14.46%   56-59, 85-98, 121-165, 176-204, 216-286, 310-364, 370-394, 417-468, 483-518, 535-572, 585-630, 635-648, 662-699, 733-744, 758-767, 793-823, 847-906, 917-1039, 1044-1050, 1055-1090, 1106-1124, 1140-1168, 1179-1196, 1205-1211, 1223-1291, 1305-1376, 1396-1460, 1484-1531, 1537-1548, 1577-1597, 1613-1627, 1638-1649, 1660-1683, 1693-1717, 1726-1733, 1742-1781, 1796-1876, 1890-1904, 1909-1939, 1956-1979, 1990-2004, 2024-2070, 2096-2129, 2141-2158, 2176-2200, 2205-2223, 2228-2241, 2246-2258, 2268-2295, 2300-2325, 2330-2344, 2359-2395, 2406-2461, 2470-2480, 2484-2488, 2492-2496, 2500-2520, 2617, 2623-2633
-app\modules\imports\parsers\__init__.py                                       43      3  93.02%   33, 37, 41
-app\modules\imports\parsers\csv_bank.py                                       37     32  13.51%   24-118, 130-135, 140-142
-app\modules\imports\parsers\csv_invoices.py                                   31     26  16.13%   24-121, 133-138, 143-145
-app\modules\imports\parsers\csv_products.py                                   41     35  14.63%   20-126, 138-143, 148-150
-app\modules\imports\parsers\generic_excel.py                                  61     57   6.56%   28-115
-app\modules\imports\parsers\pdf_qr.py                                         84     77   8.33%   21-69, 96-170, 175-180, 185-187
-app\modules\imports\parsers\products_excel.py                                 94     89   5.32%   27-172, 192-222
-app\modules\imports\parsers\xlsx_expenses.py                                 115    106   7.83%   22-72, 91-146, 161-230, 235-240, 245-256, 261-263
-app\modules\imports\parsers\xml_camt053_bank.py                               84     76   9.52%   23-41, 53-61, 66-147, 152-160, 165-170, 175-177
-app\modules\imports\parsers\xml_invoice.py                                    90     80  11.11%   26-51, 63-73, 80-89, 95-168, 173-185, 190-201, 206-210, 215-220
-app\modules\imports\parsers\xml_products.py                                   95     89   6.32%   25-59, 80-179, 184-189
-app\modules\imports\schemas.py                                               107      0 100.00%
-app\modules\imports\services.py                                              121     94  22.31%   38-41, 46-61, 66-69, 78-142, 150-155, 159-186
-app\modules\imports\services\classifier.py                                   175    149  14.86%   65-75, 95-151, 155-177, 181-193, 197-219, 228-257, 266-296, 305-360, 372-373, 379-390, 398-401, 405-408, 412-432, 441-470
-app\modules\imports\validators\__init__.py                                   128    109  14.84%   9, 13, 19-34, 38-39, 48-104, 109, 113-122, 126-135, 155-163, 178-196, 211-224
-app\modules\imports\validators\products.py                                    38     36   5.26%   16-63
-app\modules\inventario\interface\http\tenant.py                              384    248  35.42%   26-31, 53-58, 63-80, 85-91, 98-111, 116-124, 158-204, 210-268, 280-371, 382-420, 489-501, 533-568, 599-622, 651-665, 671-718, 728-737, 752-766
-app\modules\modulos\__init__.py                                                0      0 100.00%
-app\modules\modulos\application\__init__.py                                    0      0 100.00%
-app\modules\modulos\application\perm_loader.py                                 1      1   0.00%   2
-app\modules\modulos\application\use_cases.py                                  10      2  80.00%   11, 16
-app\modules\modulos\infrastructure\__init__.py                                 0      0 100.00%
-app\modules\modulos\infrastructure\repositories.py                            13      5  61.54%   11-12, 15-24, 27
-app\modules\modulos\interface\__init__.py                                      0      0 100.00%
-app\modules\modulos\interface\http\__init__.py                                 1      0 100.00%
-app\modules\modulos\interface\http\admin.py                                  204    158  22.55%   39-70, 92-109, 114-141, 146, 159, 173, 178-180, 186, 191, 196, 207-388, 397, 402-417, 426, 431-438
-app\modules\modulos\interface\http\public.py                                  22     12  45.45%   22-42
-app\modules\modulos\interface\http\schemas.py                                 10      0 100.00%
-app\modules\modulos\interface\http\tenant.py                                  32     18  43.75%   29-46
-app\modules\pos\interface\http\conversions.py                                 83     56  32.53%   33-36, 101-172, 193-228, 247-292
-app\modules\pos\interface\http\tenant.py                                     633    493  22.12%   42-53, 58-69, 74-77, 84, 101-103, 113-114, 128-129, 134-136, 155-156, 165-188, 197-231, 241-243, 300-302, 313-335, 341-361, 373-431, 441-531, 542-686, 699-738, 744-796, 822-867, 880-1015, 1026-1232, 1246-1292, 1303-1499, 1518-1554, 1573-1602, 1621-1666, 1685-1876, 1894-1946, 1952
-app\modules\produccion\__init__.py                                             1      0 100.00%
-app\modules\produccion\interface\__init__.py                                   0      0 100.00%
-app\modules\produccion\interface\http\__init__.py                              0      0 100.00%
-app\modules\produccion\interface\http\tenant.py                              456    444   2.63%   35-972
-app\modules\productos\__init__.py                                              0      0 100.00%
-app\modules\productos\application\__init__.py                                  0      0 100.00%
-app\modules\productos\application\dto.py                                      13     13   0.00%   1-18
-app\modules\productos\application\ports.py                                     5      5   0.00%   1-9
-app\modules\productos\application\use_cases.py                                16     16   0.00%   1-33
-app\modules\productos\domain\__init__.py                                       0      0 100.00%
-app\modules\productos\domain\entities.py                                      14     14   0.00%   1-18
-app\modules\productos\infrastructure\__init__.py                               0      0 100.00%
-app\modules\productos\infrastructure\repositories.py                          51     51   0.00%   1-91
-app\modules\productos\interface\http\__init__.py                               0      0 100.00%
-app\modules\productos\interface\http\admin.py                                  9      1  88.89%   18
-app\modules\productos\interface\http\public.py                                13      2  84.62%   24, 42
-app\modules\productos\interface\http\tenant.py                               327    233  28.75%   29-49, 103-119, 132, 142-157, 167-181, 203-224, 229-232, 237-267, 272-295, 303-338, 348-357, 368-388, 416-448, 453-538, 555-570, 588-622
-app\modules\proveedores\infrastructure\repositories.py                        52     37  28.85%   16, 20, 28, 35-44, 47-64, 67-71, 75-77, 80-82
-app\modules\proveedores\interface\http\schemas.py                             69      0 100.00%
-app\modules\proveedores\interface\http\tenant.py                              77     52  32.47%   28-35, 39-40, 44, 53-65, 70-71, 76-80, 89-96, 106-113, 118-123
-app\modules\reconciliation\interface\http\tenant.py                           40     16  60.00%   33-71, 95-113
-app\modules\registry\__init__.py                                               0      0 100.00%
-app\modules\registry\interface\http\admin.py                                   9      2  77.78%   13-14
-app\modules\registry\interface\http\tenant.py                                  9      2  77.78%   14-15
-app\modules\registry\models.py                                                32      0 100.00%
-app\modules\registry\service.py                                               33     26  21.21%   12-16, 24-51
-app\modules\rrhh\interface\http\tenant.py                                    372    359   3.49%   38-1109
-app\modules\schemas.py                                                        72      0 100.00%
-app\modules\services.py                                                       54     44  18.52%   23-38, 49-82, 96-161
-app\modules\settings\__init__.py                                               4      0 100.00%
-app\modules\settings\application\__init__.py                                   0      0 100.00%
-app\modules\settings\application\defaults.py                                   8      3  62.50%   290-292
-app\modules\settings\application\modules_catalog.py                           25     17  32.00%   200-202, 207, 212, 217, 227-240
-app\modules\settings\application\use_cases.py                                103     84  18.45%   21, 33-41, 62-70, 93-116, 133-157, 176-214, 232-251, 265-278, 300-328
-app\modules\settings\infrastructure\repositories.py                           45     36  20.00%   11, 14-29, 32-59
-app\modules\settings\interface\http\tenant.py                                192    182   5.21%   14-512
-app\modules\shared\application\base.py                                         6      0 100.00%
-app\modules\shared\infrastructure\sqlalchemy_repo.py                           5      1  80.00%   13
-app\modules\shared\services\__init__.py                                        3      0 100.00%
-app\modules\shared\services\document_converter.py                             64     54  15.62%   23, 53-139, 174-236, 256, 285
-app\modules\shared\services\numbering.py                                      56     47  16.07%   43-78, 94-103, 116-168, 186-217
-app\modules\templates\interface\http\admin.py                                 43     16  62.79%   22-25, 36-48, 61-86, 91-96
-app\modules\templates\interface\http\tenant.py                                20      8  60.00%   27-55
-app\modules\templates\services.py                                             41     34  17.07%   8-11, 15-19, 23-47, 51-57
-app\modules\usuarios\__init__.py                                               2      0 100.00%
-app\modules\usuarios\application\__init__.py                                   2      0 100.00%
-app\modules\usuarios\application\permissions.py                               54     38  29.63%   14-16, 22-25, 35-44, 49-78, 82-84, 91, 98, 105, 112
-app\modules\usuarios\application\services.py                                  89     72  19.10%   21, 37, 55-62, 72-106, 115-165, 171-172, 176, 180-181, 185-186
-app\modules\usuarios\application\validators.py                                28     21  25.00%   8-10, 16-20, 24-29, 36-46
-app\modules\usuarios\domain\__init__.py                                        2      0 100.00%
-app\modules\usuarios\domain\models.py                                         15      0 100.00%
-app\modules\usuarios\infrastructure\__init__.py                                2      0 100.00%
-app\modules\usuarios\infrastructure\repositories.py                           66     46  30.30%   17-22, 26, 37, 41, 51-63, 67-72, 82-87, 98-106, 110-119, 123-131, 135, 147, 161-189, 193-212, 216-222
-app\modules\usuarios\infrastructure\schemas.py                                44      0 100.00%
-app\modules\usuarios\interface\http\__init__.py                                2      0 100.00%
-app\modules\usuarios\interface\http\admin.py                                  26     11  57.69%   32-44
-app\modules\usuarios\interface\http\tenant.py                                 60     29  51.67%   34-43, 56-57, 67-68, 84-85, 100-103, 113-115, 124-125, 134-135, 140-141
-app\modules\ventas\interface\http\conversions.py                              53     29  45.28%   35-39, 95-136, 154-177
-app\modules\ventas\interface\http\tenant.py                                  134     87  35.07%   27-32, 67-79, 85-94, 99-122, 133-160, 180-189, 203-250
-app\modules\webhooks\interface\http\tenant.py                                 44     17  61.36%   38-45, 50-53, 64-85
-app\platform\http\__init__.py                                                  0      0 100.00%
-app\platform\http\router.py                                                  153     49  67.97%   21-25, 30-48, 53-61, 86, 88, 92, 123-142, 300-311, 426-455
-app\routers\__init__.py                                                        1      0 100.00%
-app\routers\admin\__init__.py                                                  1      0 100.00%
-app\routers\admin\ops.py                                                     280    246  12.14%   38-48, 60-118, 124-142, 147-257, 269-350, 356-360, 376-434, 451-465, 470-491, 496-560, 568-600
-app\routers\admin\usuarios.py                                                 61     40  34.43%   24-46, 57-65, 70-78, 83-91, 96-105
-app\routers\admin_scripts.py                                                 105     88  16.19%   33-42, 56-75, 80-223
-app\routers\admin_stats.py                                                    26     14  46.15%   27-78
-app\routers\categorias.py                                                     36     36   0.00%   5-57
-app\routers\configuracionincial.py                                            25     25   0.00%   7-66
-app\routers\dashboard_kpis.py                                                 55     42  23.64%   32-398
-app\routers\home.py                                                           23     23   0.00%   5-40
-app\routers\incidents.py                                                     171    129  24.56%   48-60, 70-87, 97-108, 119-142, 152-166, 182-202, 212-227, 237-252, 270-280, 294-310, 320-360, 370-387, 400-409, 423-438, 449-472, 483-494
-app\routers\listadosgenerales.py                                               0      0 100.00%
-app\routers\migrations.py                                                    128     74  42.19%   63-83, 96-136, 157-292, 306-321, 350-392
-app\routers\notifications.py                                                 151    111  26.49%   31-33, 46-57, 73-81, 103-129, 139-151, 162-189, 199-214, 229-265, 284-307, 339-357, 367-393, 414-433, 460-475, 485-521
-app\routers\payments.py                                                      122    122   0.00%   5-430
-app\routers\protected.py                                                      26     15  42.31%   19-36, 51, 57
-app\routers\roles.py                                                          64     59   7.81%   11-107
-app\routers\router_admins.py                                                  42     42   0.00%   5-72
-app\routers\sector_plantillas.py                                              78     47  39.74%   35-36, 41-57, 75-89, 108-119, 138-143, 158-164, 181-201
-app\routers\settings_router.py                                                82     60  26.83%   36-50, 66-81, 96-124, 139-165, 179-201, 214-230
-app\routers\tenant\__init__.py                                                 1      0 100.00%
-app\routers\tenant\roles.py                                                   74     66  10.81%   12-193
-app\routers\tenant\usuarios.py                                                 6      6   0.00%   1-10
-app\routers\tenant_config.py                                                  53     43  18.87%   20-64, 84-137
-app\routers\tenant_settings_public.py                                         41     29  29.27%   27-131
-app\schemas\__init__.py                                                        0      0 100.00%
-app\schemas\accounting.py                                                    190    190   0.00%   12-330
-app\schemas\auth.py                                                           11      0 100.00%
-app\schemas\base.py                                                           10     10   0.00%   5-29
-app\schemas\configuracion.py                                                  36      0 100.00%
-app\schemas\configuracionempresasinicial.py                                    8      8   0.00%   7-24
-app\schemas\einvoicing.py                                                     13      0 100.00%
-app\schemas\empresa.py                                                         7      7   0.00%   5-19
-app\schemas\expenses.py                                                       44     44   0.00%   3-74
-app\schemas\finance.py                                                        68     68   0.00%   3-134
-app\schemas\finance_caja.py                                                  151    151   0.00%   10-254
-app\schemas\hr.py                                                             80     80   0.00%   3-146
-app\schemas\hr_nomina.py                                                     176    176   0.00%   11-331
-app\schemas\incidents.py                                                     133     14  89.47%   116-129
-app\schemas\notifications.py                                                  97      3  96.91%   124-126
-app\schemas\pos.py                                                            97     97   0.00%   3-154
-app\schemas\production.py                                                    110    110   0.00%   5-200
-app\schemas\purchases.py                                                      51     51   0.00%   3-97
-app\schemas\recipes.py                                                       139    139   0.00%   5-260
-app\schemas\rol_empresa.py                                                    18     18   0.00%   3-37
-app\schemas\sales.py                                                          36     36   0.00%   3-66
-app\schemas\schemas.py                                                        28     28   0.00%   5-44
-app\schemas\sector_plantilla.py                                               63      6  90.48%   118-140
-app\schemas\settings.py                                                       66      0 100.00%
-app\schemas\suppliers.py                                                      62     62   0.00%   3-105
-app\services\excel_analyzer.py                                                76     67  11.84%   17-62, 67-83, 92-106, 114-207, 224-245, 266-279
-app\services\sector_templates.py                                             116    104  10.34%   46-258, 268-303, 313-333
-app\setup.py                                                                   2      2   0.00%   5-7
-app\shared\utils.py                                                           28     17  39.29%   12, 16-20, 25, 29, 38-77
-app\telemetry\otel.py                                                         40     30  25.00%   10, 23-50, 54-61
-app\utils\__init__.py                                                          0      0 100.00%
-app\utils\csp_debug.py                                                        18     18   0.00%   2-41
-app\utils\email_renderer.py                                                    8      2  75.00%   29-30
-app\utils\time.py                                                              3      3   0.00%   2-7
-app\utils\unit_converter.py                                                  114    114   0.00%   6-298
-app\workers\einvoicing_tasks.py                                              266    245   7.89%   49-115, 123-193, 204-222, 227-242, 250-272, 277-297, 308, 320-327, 332-654
-app\workers\notifications.py                                                 163    141  13.50%   46-115, 130-161, 179-224, 235-257, 270-357, 369-411, 420-436
----------------------------------------------------------------------------------------------------------
-TOTAL                                                                      21975  14029  36.16%
+Name                                                   Stmts   Miss   Cover   Missing
+-------------------------------------------------------------------------------------
+app\__init__.py                                            1      0 100.00%
+app\api\__init__.py                                        0      0 100.00%
+app\api\access.py                                          0      0 100.00%
+app\api\common\__init__.py                                 0      0 100.00%
+app\api\common\lang.py                                     8      8   0.00%   2-13
+app\api\v1\__init__.py                                     0      0 100.00%
+app\api\v1\admin\__init__.py                               0      0 100.00%
+app\api\v1\admin\auth.py                                 118    118   0.00%   1-253
+app\api\v1\auth.py                                        44     44   0.00%   1-80
+app\api\v1\einvoicing.py                                  27     27   0.00%   1-48
+app\api\v1\email_health.py                                48     48   0.00%   1-86
+app\api\v1\me.py                                          75     75   0.00%   2-137
+app\api\v1\profile.py                                     13     13   0.00%   2-33
+app\api\v1\telemetry.py                                   14     14   0.00%   1-22
+app\api\v1\tenant\__init__.py                              0      0 100.00%
+app\api\v1\tenant\auth.py                                179    179   0.00%   1-358
+app\api\v1\tenant\productos.py                            31     31   0.00%   1-50
+app\api\v1\tenant\sessions.py                             13     13   0.00%   2-29
+app\config\__init__.py                                     0      0 100.00%
+app\config\celery_config.py                               12     12   0.00%   5-105
+app\config\database.py                                   134    134   0.00%   2-273
+app\config\settings.py                                   272    272   0.00%   2-452
+app\config\test_database.py                                6      6   0.00%   6-13
+app\core\__init__.py                                       0      0 100.00%
+app\core\access_guard.py                                  73     73   0.00%   2-117
+app\core\audit.py                                         13     13   0.00%   2-36
+app\core\auth_cookies.py                                  50     50   0.00%   6-198
+app\core\auth_http.py                                     71     71   0.00%   1-120
+app\core\auth_shared.py                                   96     96   0.00%   1-179
+app\core\authz.py                                         29     29   0.00%   2-53
+app\core\base_crud.py                                     72     72   0.00%   7-116
+app\core\config.py                                         2      2   0.00%   7-8
+app\core\crud_base.py                                     25     25   0.00%   1-50
+app\core\csrf.py                                           7      7   0.00%   1-10
+app\core\db.py                                             3      3   0.00%   6-20
+app\core\deps.py                                          18     18   0.00%   1-26
+app\core\empresa_crud.py                                  15     15   0.00%   6-36
+app\core\i18n.py                                          17     17   0.00%   2-40
+app\core\jwt_provider.py                                  14     14   0.00%   8-37
+app\core\log_context.py                                   23     23   0.00%   6-55
+app\core\logging.py                                       12     12   0.00%   6-19
+app\core\login_rate_limit.py                             138    138   0.00%   2-221
+app\core\maintenance.py                                   10     10   0.00%   2-26
+app\core\perm_loader.py                                   30     30   0.00%   2-85
+app\core\permissions.py                                    4      4   0.00%   5-11
+app\core\ports_base.py                                     8      8   0.00%   1-24
+app\core\refresh.py                                      137    137   0.00%   1-374
+app\core\security.py                                      27     27   0.00%   8-78
+app\core\security_cookies.py                              36     36   0.00%   6-124
+app\core\sessions.py                                     131    131   0.00%   5-233
+app\core\tenancy.py                                        4      4   0.00%   6-12
+app\core\types.py                                          8      8   0.00%   7-24
+app\db\__init__.py                                         0      0 100.00%
+app\db\base.py                                            35     35   0.00%   3-43
+app\db\models.py                                           0      0 100.00%
+app\db\rls.py                                             86     86   0.00%   1-174
+app\db\session.py                                         18     18   0.00%   5-50
+app\main.py                                              373    373   0.00%   1-668
+app\middleware\__init__.py                                 0      0 100.00%
+app\middleware\endpoint_rate_limit.py                     64     64   0.00%   6-180
+app\middleware\i18n_header.py                             10     10   0.00%   2-14
+app\middleware\metrics.py                                 16     16   0.00%   1-22
+app\middleware\rate_limit.py                              50     50   0.00%   1-70
+app\middleware\request_log.py                             46     46   0.00%   1-78
+app\middleware\require_csrf.py                            29     29   0.00%   2-47
+app\middleware\rls.py                                     16     16   0.00%   10-50
+app\middleware\security_headers.py                        36     36   0.00%   2-90
+app\middleware\tenant.py                                  55     55   0.00%   8-112
+app\middleware\tenant_middleware.py                       31     31   0.00%   7-53
+app\models\__init__.py                                    31     31   0.00%   5-79
+app\models\accounting\__init__.py                          5      5   0.00%   7-18
+app\models\accounting\chart_of_accounts.py                66     66   0.00%   13-291
+app\models\ai\__init__.py                                  2      2   0.00%   1-3
+app\models\ai\incident.py                                 85     85   0.00%   1-136
+app\models\auth\__init__.py                                0      0 100.00%
+app\models\auth\refresh_family.py                         32     32   0.00%   2-69
+app\models\auth\useradmis.py                              23     23   0.00%   2-60
+app\models\company\__init__.py                             6      6   0.00%   3-25
+app\models\company\company.py                            143    143   0.00%   5-257
+app\models\company\company_role.py                        21     21   0.00%   3-44
+app\models\company\company_settings.py                    41     41   0.00%   3-84
+app\models\company\company_user.py                        37     37   0.00%   2-99
+app\models\company\company_user_role.py                   30     30   0.00%   3-64
+app\models\company\settings.py                             4      4   0.00%   3-9
+app\models\company\tenant.py                               2      2   0.00%   3-5
+app\models\core\__init__.py                                0      0 100.00%
+app\models\core\audit.py                                   0      0 100.00%
+app\models\core\clients.py                                21     21   0.00%   5-44
+app\models\core\document_line.py                          26     26   0.00%   11-72
+app\models\core\einvoicing.py                             58     58   0.00%   5-142
+app\models\core\facturacion.py                           130    130   0.00%   3-231
+app\models\core\import_audit.py                           22     22   0.00%   2-37
+app\models\core\invoiceLine.py                            30     30   0.00%   3-65
+app\models\core\modelsimport.py                          120    120   0.00%   5-232
+app\models\core\modulo.py                                 46     46   0.00%   4-90
+app\models\core\payment.py                                35     35   0.00%   10-82
+app\models\core\product_category.py                       25     25   0.00%   5-51
+app\models\core\products.py                               32     32   0.00%   5-52
+app\models\core\settings.py                               22     22   0.00%   3-53
+app\models\core\sri_submissions.py                        12     12   0.00%   11-38
+app\models\core\ui_field_config.py                        28     28   0.00%   1-43
+app\models\core\ui_template.py                            17     17   0.00%   1-23
+app\models\expenses\__init__.py                            2      2   0.00%   3-5
+app\models\expenses\expense.py                            29     29   0.00%   3-67
+app\models\finance\__init__.py                             3      3   0.00%   3-6
+app\models\finance\banco.py                               24     24   0.00%   3-51
+app\models\finance\cash_management.py                     56     56   0.00%   13-250
+app\models\hr\__init__.py                                 11     11   0.00%   3-33
+app\models\hr\employee.py                                 49     49   0.00%   3-104
+app\models\hr\payroll.py                                  68     68   0.00%   14-290
+app\models\imports.py                                     22     22   0.00%   5-44
+app\models\pos\__init__.py                                 5      5   0.00%   3-8
+app\models\pos\doc_series.py                              22     22   0.00%   3-56
+app\models\pos\receipt.py                                 59     59   0.00%   3-135
+app\models\pos\register.py                                34     34   0.00%   3-81
+app\models\pos\store_credit.py                            37     37   0.00%   3-86
+app\models\production\__init__.py                          5      5   0.00%   3-10
+app\models\production\_production_order.py                55     55   0.00%   12-221
+app\models\production\production_order.py                  2      2   0.00%   3-5
+app\models\purchases\__init__.py                           2      2   0.00%   3-5
+app\models\purchases\purchase.py                          43     43   0.00%   3-95
+app\models\recipes.py                                     44     44   0.00%   5-128
+app\models\sales\__init__.py                               2      2   0.00%   3-5
+app\models\sales\delivery.py                              18     18   0.00%   1-26
+app\models\sales\order.py                                 35     35   0.00%   1-57
+app\models\sales\sale.py                                  26     26   0.00%   3-72
+app\models\security\__init__.py                            0      0 100.00%
+app\models\security\auth_audit.py                         15     15   0.00%   2-20
+app\models\suppliers\__init__.py                           2      2   0.00%   3-5
+app\models\suppliers\supplier.py                          55     55   0.00%   3-110
+app\models\tenant.py                                      39     39   0.00%   3-98
+app\modules\__init__.py                                    6      3  50.00%   13-15
+app\modules\ai_agent\__init__.py                           3      3   0.00%   1-4
+app\modules\ai_agent\analyzer.py                          73     73   0.00%   1-259
+app\modules\ai_agent\notifier.py                         112    112   0.00%   1-280
+app\modules\company\__init__.py                            0      0 100.00%
+app\modules\company\application\__init__.py                0      0 100.00%
+app\modules\company\application\ports.py                   9      9   0.00%   1-23
+app\modules\company\application\use_cases.py              25     25   0.00%   1-69
+app\modules\company\domain\__init__.py                     0      0 100.00%
+app\modules\company\infrastructure\__init__.py             0      0 100.00%
+app\modules\company\infrastructure\repositories.py        52     52   0.00%   1-111
+app\modules\company\interface\__init__.py                  0      0 100.00%
+app\modules\company\interface\http\__init__.py             0      0 100.00%
+app\modules\company\interface\http\admin.py              345    345   0.00%   1-662
+app\modules\company\interface\http\schemas.py             25     25   0.00%   1-31
+app\modules\company\interface\http\tenant.py              24     24   0.00%   1-40
+app\modules\contabilidad\__init__.py                       0      0 100.00%
+app\modules\contabilidad\application\__init__.py           1      1   0.00%   1
+app\modules\contabilidad\crud.py                           0      0 100.00%
+app\modules\contabilidad\domain\__init__.py                1      1   0.00%   1
+app\modules\contabilidad\infrastructure\__init__.py        1      1   0.00%   1
+app\modules\contabilidad\interface\__init__.py             1      1   0.00%   1
+app\modules\contabilidad\interface\http\__init__.py        1      1   0.00%   1
+app\modules\contabilidad\interface\http\tenant.py        199    199   0.00%   18-451
+app\modules\contabilidad\schemas.py                        0      0 100.00%
+app\modules\contabilidad\services.py                       0      0 100.00%
+app\modules\crud.py                                      105    105   0.00%   5-221
+app\modules\einvoicing\__init__.py                         0      0 100.00%
+app\modules\einvoicing\application\__init__.py             6      6   0.00%   7-14
+app\modules\einvoicing\application\use_cases.py           45     45   0.00%   1-121
+app\modules\einvoicing\tasks.py                           68     68   0.00%   1-160
+app\modules\electric_conflicts.py                         62     62   0.00%   8-227
+app\modules\electric_shapes.py                            25     25   0.00%   8-86
+app\modules\facturacion\__init__.py                        0      0 100.00%
+app\modules\facturacion\application\__init__.py            1      1   0.00%   1
+app\modules\facturacion\crud.py                          110    110   0.00%   6-250
+app\modules\facturacion\domain\__init__.py                 1      1   0.00%   1
+app\modules\facturacion\infrastructure\__init__.py         1      1   0.00%   1
+app\modules\facturacion\interface\__init__.py              1      1   0.00%   1
+app\modules\facturacion\interface\http\__init__.py         1      1   0.00%   1
+app\modules\facturacion\interface\http\send_email.py      31     31   0.00%   1-47
+app\modules\facturacion\interface\http\tenant.py          88     88   0.00%   1-187
+app\modules\facturacion\schemas.py                        73     73   0.00%   5-140
+app\modules\facturacion\services.py                        0      0 100.00%
+app\modules\identity\__init__.py                           0      0 100.00%
+app\modules\identity\infrastructure\__init__.py            0      0 100.00%
+app\modules\identity\infrastructure\jwt_service.py        83     83   0.00%   1-155
+app\modules\identity\infrastructure\jwt_tokens.py         12     12   0.00%   1-20
+app\modules\identity\infrastructure\passwords.py           9      9   0.00%   1-13
+app\modules\identity\infrastructure\rate_limit.py         12     12   0.00%   1-17
+app\modules\identity\infrastructure\refresh_repo.py       37     37   0.00%   1-142
+app\modules\identity\interface\__init__.py                 0      0 100.00%
+app\modules\identity\interface\http\__init__.py            0      0 100.00%
+app\modules\identity\interface\http\admin.py               2      2   0.00%   1-3
+app\modules\identity\interface\http\profile.py             2      2   0.00%   1-2
+app\modules\identity\interface\http\sessions.py            2      2   0.00%   1-2
+app\modules\identity\interface\http\tenant.py              2      2   0.00%   1-2
+app\modules\imports\validators\__init__.py               134     75  44.03%   11-20, 33, 37-46, 63, 68-69, 74, 77, 83, 93, 97-98, 106-107, 114, 121, 125-134, 138-147, 167-175, 190-208, 223-236
+app\modules\imports\validators\country_validators.py     174     57  67.24%   13, 18, 23, 52-56, 68, 76, 103-107, 113, 145, 154, 158, 170-195, 204-219, 287, 313-317, 320-324, 343-347, 350-354, 357-361, 364-368, 388-392, 395-399, 402-406, 409-413
+app\modules\imports\validators\products.py                38     36   5.26%   16-63
+app\modules\modulos\__init__.py                            0      0 100.00%
+app\modules\modulos\application\__init__.py                0      0 100.00%
+app\modules\modulos\application\perm_loader.py             1      1   0.00%   2
+app\modules\modulos\application\use_cases.py              10     10   0.00%   1-16
+app\modules\modulos\infrastructure\__init__.py             0      0 100.00%
+app\modules\modulos\infrastructure\repositories.py        13     13   0.00%   1-27
+app\modules\modulos\interface\__init__.py                  0      0 100.00%
+app\modules\modulos\interface\http\__init__.py             1      1   0.00%   1
+app\modules\modulos\interface\http\admin.py              204    204   0.00%   1-438
+app\modules\modulos\interface\http\public.py              22     22   0.00%   1-42
+app\modules\modulos\interface\http\schemas.py             10     10   0.00%   1-14
+app\modules\modulos\interface\http\tenant.py              32     32   0.00%   1-46
+app\modules\produccion\__init__.py                         1      1   0.00%   25
+app\modules\produccion\interface\__init__.py               0      0 100.00%
+app\modules\produccion\interface\http\__init__.py          0      0 100.00%
+app\modules\produccion\interface\http\tenant.py          456    456   0.00%   21-972
+app\modules\productos\__init__.py                          0      0 100.00%
+app\modules\productos\application\__init__.py              0      0 100.00%
+app\modules\productos\application\dto.py                  13     13   0.00%   1-18
+app\modules\productos\application\ports.py                 5      5   0.00%   1-9
+app\modules\productos\application\use_cases.py            16     16   0.00%   1-33
+app\modules\productos\domain\__init__.py                   0      0 100.00%
+app\modules\productos\domain\entities.py                  14     14   0.00%   1-18
+app\modules\productos\infrastructure\__init__.py           0      0 100.00%
+app\modules\productos\infrastructure\repositories.py      51     51   0.00%   1-91
+app\modules\registry\__init__.py                           0      0 100.00%
+app\modules\registry\models.py                            32     32   0.00%   1-42
+app\modules\registry\service.py                           33     33   0.00%   1-51
+app\modules\schemas.py                                    72     72   0.00%   5-129
+app\modules\services.py                                   54     54   0.00%   6-161
+app\modules\settings\__init__.py                           4      4   0.00%   3-15
+app\modules\settings\application\__init__.py               0      0 100.00%
+app\modules\settings\application\defaults.py               8      8   0.00%   3-292
+app\modules\settings\application\modules_catalog.py       25     25   0.00%   3-240
+app\modules\settings\application\use_cases.py            103    103   0.00%   3-328
+app\modules\users\__init__.py                              2      2   0.00%   1-3
+app\modules\users\application\__init__.py                  2      2   0.00%   1-9
+app\modules\users\application\permissions.py              54     54   0.00%   1-108
+app\modules\users\application\services.py                 89     89   0.00%   1-184
+app\modules\users\application\validators.py               28     28   0.00%   1-46
+app\modules\users\domain\__init__.py                       2      2   0.00%   1-3
+app\modules\users\domain\models.py                        16     16   0.00%   1-20
+app\modules\users\infrastructure\__init__.py               2      2   0.00%   1-3
+app\modules\users\infrastructure\repositories.py          66     66   0.00%   1-222
+app\modules\users\infrastructure\schemas.py               44     44   0.00%   1-72
+app\routers\__init__.py                                    1      1   0.00%   1
+app\routers\admin\__init__.py                              1      1   0.00%   1
+app\routers\admin\ops.py                                 280    280   0.00%   1-600
+app\routers\admin\usuarios.py                             61     61   0.00%   1-105
+app\routers\admin_scripts.py                             105    105   0.00%   8-223
+app\routers\admin_stats.py                                26     26   0.00%   6-78
+app\routers\categorias.py                                 36     36   0.00%   5-57
+app\routers\configuracionincial.py                        25     25   0.00%   5-59
+app\routers\dashboard_kpis.py                             55     55   0.00%   6-398
+app\routers\dashboard_stats.py                             2      2   0.00%   3-5
+app\routers\home.py                                       23     23   0.00%   5-40
+app\routers\incidents.py                                 171    171   0.00%   1-494
+app\routers\listadosgenerales.py                           0      0 100.00%
+app\routers\migrations.py                                128    128   0.00%   3-392
+app\routers\notifications.py                             151    151   0.00%   5-523
+app\routers\payments.py                                  122    122   0.00%   5-430
+app\routers\protected.py                                  45     45   0.00%   5-101
+app\routers\roles.py                                      64     64   0.00%   5-107
+app\routers\router_admins.py                              42     42   0.00%   5-70
+app\routers\sector_plantillas.py                          78     78   0.00%   5-201
+app\routers\settings_router.py                            82     82   0.00%   5-230
+app\routers\tenant\__init__.py                             1      1   0.00%   1
+app\routers\tenant\roles.py                               74     74   0.00%   3-193
+app\routers\tenant\usuarios.py                             6      6   0.00%   1-10
+app\routers\tenant_config.py                              53     53   0.00%   5-137
+app\routers\tenant_settings_public.py                     41     41   0.00%   7-131
+app\schemas\__init__.py                                    0      0 100.00%
+app\schemas\accounting.py                                190    190   0.00%   12-330
+app\schemas\auth.py                                       11     11   0.00%   5-31
+app\schemas\base.py                                       10     10   0.00%   5-29
+app\schemas\company.py                                     7      7   0.00%   7-19
+app\schemas\company_initial_config.py                      8      8   0.00%   9-24
+app\schemas\company_role.py                               17     17   0.00%   3-35
+app\schemas\company_settings.py                            8      8   0.00%   5-20
+app\schemas\configuracion.py                              36     36   0.00%   5-79
+app\schemas\einvoicing.py                                 13     13   0.00%   1-30
+app\schemas\expenses.py                                   44     44   0.00%   3-77
+app\schemas\finance.py                                    68     68   0.00%   3-134
+app\schemas\finance_caja.py                              160    160   0.00%   5-275
+app\schemas\hr.py                                         80     80   0.00%   3-146
+app\schemas\incidents.py                                 133    133   0.00%   1-191
+app\schemas\notifications.py                              97     97   0.00%   5-155
+app\schemas\payroll.py                                   190    190   0.00%   11-351
+app\schemas\pos.py                                        97     97   0.00%   3-154
+app\schemas\production.py                                109    109   0.00%   5-198
+app\schemas\purchases.py                                  51     51   0.00%   3-97
+app\schemas\recipes.py                                   139    139   0.00%   5-260
+app\schemas\sales.py                                      36     36   0.00%   3-68
+app\schemas\schemas.py                                    28     28   0.00%   5-44
+app\schemas\sector_plantilla.py                           63     63   0.00%   5-170
+app\schemas\settings.py                                   66     66   0.00%   3-160
+app\schemas\suppliers.py                                  62     62   0.00%   3-105
+app\setup.py                                               2      2   0.00%   5-7
+app\update_spanish_docstrings.py                          19     19   0.00%   4-128
+app\utils\__init__.py                                      0      0 100.00%
+app\utils\csp_debug.py                                    18     18   0.00%   2-41
+app\utils\email_renderer.py                                8      8   0.00%   7-30
+app\utils\time.py                                          3      3   0.00%   2-7
+app\utils\unit_converter.py                              114    114   0.00%   6-298
+-------------------------------------------------------------------------------------
+TOTAL                                                  11897  11715   1.53%
 Coverage HTML written to dir htmlcov
-FAIL Required test coverage of 40% not reached. Total coverage: 36.16%
-======================= 1 passed, 25 warnings in 21.72s =======================
+FAIL Required test coverage of 40% not reached. Total coverage: 1.53%
+=========================== short test summary info ===========================
+FAILED tests/modules/imports/validators/test_ec_validator.py::TestECValidator::test_validate_ruc_invalid_checksum
+FAILED tests/modules/imports/validators/test_ec_validator.py::TestECValidator::test_validate_clave_acceso_invalid_checksum
+FAILED tests/modules/imports/validators/test_es_validator.py::TestESValidator::test_validate_cif_invalid_control
+FAILED tests/modules/imports/validators/test_es_validator.py::TestESValidator::test_validate_invoice_number_too_long
+FAILED tests/modules/imports/validators/test_integration.py::TestValidatorsIntegration::test_validate_invoices_invalid_ruc_ec
+FAILED tests/modules/imports/validators/test_integration.py::TestValidatorsIntegration::test_validate_invoices_invalid_tax_rate_es
+6 failed, 32 passed in 3.89s

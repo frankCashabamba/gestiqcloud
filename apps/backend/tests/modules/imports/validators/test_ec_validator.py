@@ -1,14 +1,11 @@
-import pytest
-
-# TODO: Country validators not yet implemented
-# from app.modules.imports.validators import ECValidator
+from app.modules.imports.validators import ECValidator
 
 
-@pytest.mark.skip(reason="ECValidator not yet implemented")
 class TestECValidator:
     """Tests para validador de Ecuador (SRI)."""
 
     def setup_method(self):
+        """Initialize the Ecuador validator."""
         self.validator = ECValidator()
 
     def test_validate_ruc_natural_valid(self):
@@ -94,7 +91,7 @@ class TestECValidatorPerformance:
         """Validación de un item debe ser <10ms."""
         import time
 
-        validator = ECValidator()
+        validator = ECValidator()  # noqa: F841
 
         start = time.perf_counter()
         for _ in range(100):

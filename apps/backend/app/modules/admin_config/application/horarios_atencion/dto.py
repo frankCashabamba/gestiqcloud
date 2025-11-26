@@ -5,14 +5,14 @@ from dataclasses import dataclass
 
 @dataclass
 class HorarioAtencionIn:
-    dia_id: int
-    inicio: str
-    fin: str
+    weekday_id: int
+    start_time: str
+    end_time: str
 
 
 @dataclass
 class HorarioAtencionOut:
     id: int
-    dia_id: int
-    inicio: str
-    fin: str
+    weekday_id: int
+    start_time: str
+    end_time: str

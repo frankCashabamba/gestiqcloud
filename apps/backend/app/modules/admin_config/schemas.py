@@ -5,24 +5,24 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class IdiomaCreate(BaseModel):
-    codigo: str
+    code: str
     name: str
-    active: bool = Field(True, alias="activo")
+    active: bool = True
 
     model_config = ConfigDict(populate_by_name=True)
 
 
 class IdiomaUpdate(BaseModel):
-    codigo: str | None = None
+    code: str | None = None
     name: str | None = None
-    active: bool | None = Field(None, alias="activo")
+    active: bool | None = None
 
     model_config = ConfigDict(populate_by_name=True)
 
 
 class IdiomaRead(BaseModel):
     id: int
-    codigo: str
+    code: str
     name: str
     active: bool
 
@@ -76,43 +76,43 @@ class PaisRead(BaseModel):
 
 
 class DiaSemanaCreate(BaseModel):
-    clave: str
+    code: str
     name: str
-    orden: int
+    order: int
 
 
 class DiaSemanaUpdate(BaseModel):
-    clave: str | None = None
+    code: str | None = None
     name: str | None = None
-    orden: int | None = None
+    order: int | None = None
 
 
 class DiaSemanaRead(BaseModel):
     id: int
-    clave: str
+    code: str
     name: str
-    orden: int
+    order: int
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class HorarioAtencionCreate(BaseModel):
-    dia_id: int
-    inicio: str
-    fin: str
+    weekday_id: int
+    start_time: str
+    end_time: str
 
 
 class HorarioAtencionUpdate(BaseModel):
-    dia_id: int | None = None
-    inicio: str | None = None
-    fin: str | None = None
+    weekday_id: int | None = None
+    start_time: str | None = None
+    end_time: str | None = None
 
 
 class HorarioAtencionRead(BaseModel):
     id: int
-    dia_id: int
-    inicio: str
-    fin: str
+    weekday_id: int
+    start_time: str
+    end_time: str
 
     model_config = ConfigDict(from_attributes=True)
 

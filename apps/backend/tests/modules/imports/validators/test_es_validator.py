@@ -1,14 +1,11 @@
-import pytest
-
-# TODO: Country validators not yet implemented
-# from app.modules.imports.validators import ESValidator
+from app.modules.imports.validators import ESValidator
 
 
-@pytest.mark.skip(reason="ESValidator not yet implemented")
 class TestESValidator:
     """Tests para validador de España (AEAT)."""
 
     def setup_method(self):
+        """Initialize the Spain validator."""
         self.validator = ESValidator()
 
     def test_validate_nif_valid(self):
