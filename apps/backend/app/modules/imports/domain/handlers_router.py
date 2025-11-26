@@ -14,49 +14,49 @@ from .handlers import BankHandler, ExpenseHandler, InvoiceHandler, ProductHandle
 
 
 class HandlersRouter:
-     """Router to dispatch documents to handlers according to their type."""
+    """Router to dispatch documents to handlers according to their type."""
 
-     # Mapping: doc_type -> Handler class
-     HANDLER_MAP: dict[str, type] = {
-         "invoice": InvoiceHandler,
-         "expense_receipt": ExpenseHandler,
-         "bank_tx": BankHandler,
-         "product": ProductHandler,
-         "products": ProductHandler,
-         "expense": ExpenseHandler,
-         # Aliases for flexibility
-         "factura": InvoiceHandler,
-         "recibo": ExpenseHandler,
-         "transferencia": BankHandler,
-         "transaccion_bancaria": BankHandler,
-         "expense_old": ExpenseHandler,
-     }
+    # Mapping: doc_type -> Handler class
+    HANDLER_MAP: dict[str, type] = {
+        "invoice": InvoiceHandler,
+        "expense_receipt": ExpenseHandler,
+        "bank_tx": BankHandler,
+        "product": ProductHandler,
+        "products": ProductHandler,
+        "expense": ExpenseHandler,
+        # Aliases for flexibility
+        "factura": InvoiceHandler,
+        "recibo": ExpenseHandler,
+        "transferencia": BankHandler,
+        "transaccion_bancaria": BankHandler,
+        "expense_old": ExpenseHandler,
+    }
 
-     # Mapping: doc_type -> target destination table
-     ROUTING_TARGET_MAP: dict[str, str] = {
-         "invoice": "invoices",
-         "expense_receipt": "expenses",
-         "bank_tx": "bank_movements",
-         "product": "inventory",
-         "products": "inventory",
-         "expense": "expenses",
-         # Aliases
-         "factura": "invoices",
-         "recibo": "expenses",
-         "transferencia": "bank_movements",
-         "transaccion_bancaria": "bank_movements",
-         "expense_old": "expenses",
-     }
+    # Mapping: doc_type -> target destination table
+    ROUTING_TARGET_MAP: dict[str, str] = {
+        "invoice": "invoices",
+        "expense_receipt": "expenses",
+        "bank_tx": "bank_movements",
+        "product": "inventory",
+        "products": "inventory",
+        "expense": "expenses",
+        # Aliases
+        "factura": "invoices",
+        "recibo": "expenses",
+        "transferencia": "bank_movements",
+        "transaccion_bancaria": "bank_movements",
+        "expense_old": "expenses",
+    }
 
-     @classmethod
-     def get_handler_for_type(cls, doc_type: str) -> type | None:
-         """Get handler class for a doc_type."""
-         return cls.HANDLER_MAP.get(doc_type.lower())
+    @classmethod
+    def get_handler_for_type(cls, doc_type: str) -> type | None:
+        """Get handler class for a doc_type."""
+        return cls.HANDLER_MAP.get(doc_type.lower())
 
-     @classmethod
-     def get_target_for_type(cls, doc_type: str) -> str | None:
-         """Get destination table for a doc_type."""
-         return cls.ROUTING_TARGET_MAP.get(doc_type.lower())
+    @classmethod
+    def get_target_for_type(cls, doc_type: str) -> str | None:
+        """Get destination table for a doc_type."""
+        return cls.ROUTING_TARGET_MAP.get(doc_type.lower())
 
     @classmethod
     def promote_canonical(
@@ -68,21 +68,12 @@ class HandlersRouter:
         **kwargs,
     ) -> dict[str, Any]:
         """
-        Promocionar documento canónico a tabla destino según doc_type.
+        Promote canonical document into its destination table based on doc_type.
 
-        Args:
-            db: SQLAlchemy Session
-            tenant_id: UUID del tenant
-            canonical_doc: CanonicalDocument (SPEC-1)
-            promoted_id: ID previo si ya fue promovido
-            **kwargs: opciones adicionales (options, etc)
-
-        Returns:
-            Dict con {
-                "domain_id": str | None,
-                "target": str (tabla destino),
-                "skipped": bool
-            }
+        Returns a dict with:
+            domain_id: created/updated domain object id
+            target: destination table name
+            skipped: True if no handler/target was found
         """
         doc_type = canonical_doc.get("doc_type", "other")
         handler_class = cls.get_handler_for_type(doc_type)
@@ -95,11 +86,10 @@ class HandlersRouter:
                 "skipped": False,
             }
 
-        # Convertir canonical_doc a formato esperado por handler
-        # (basicalmente, los handlers esperan la estructura normalized)
+        # Convert canonical_doc to the normalized format expected by handlers
         normalized = _canonical_to_normalized(canonical_doc)
 
-        # Llamar al handler
+        # Call handler
         try:
             result: PromoteResult = handler_class.promote(
                 db=db,
