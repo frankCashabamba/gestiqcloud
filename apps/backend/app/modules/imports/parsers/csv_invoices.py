@@ -1,10 +1,10 @@
 """
-Parser para facturas en formato CSV.
+Parser for invoices in CSV format.
 
-Espera columnas estándar: invoice_number, invoice_date, vendor, vendor_tax_id,
+Expected standard columns: invoice_number, invoice_date, vendor, vendor_tax_id,
 buyer, buyer_tax_id, subtotal, tax, total, currency, payment_method, etc.
 
-Salida: lista de CanonicalDocument con doc_type='invoice'
+Output: list of CanonicalDocument with doc_type='invoice'
 """
 
 import csv
@@ -59,7 +59,7 @@ def parse_csv_invoices(file_path: str) -> dict[str, Any]:
                         "name": (
                             normalized_row.get("vendor")
                             or normalized_row.get("vendor_name")
-                            or normalized_row.get("proveedor")
+                            or normalized_row.get("supplier")
                         ),
                         "tax_id": (
                             normalized_row.get("vendor_tax_id")

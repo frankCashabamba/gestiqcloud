@@ -47,14 +47,14 @@ class InvoiceHandler:
         """
         Promociona factura completa a tabla invoices.
 
-        Campos esperados en normalized:
-        - invoice_number, numero, numero_factura
-        - invoice_date, tx_date_emision, tx_date, date
-        - vendor_name, proveedor, supplier
-        - subtotal, base_imponible
-        - tax, iva, impuesto
+        Expected fields in normalized:
+        - invoice_number, number
+        - invoice_date, tx_date_emission, tx_date, date
+        - vendor_name, vendor, supplier
+        - subtotal, taxable_base
+        - tax, iva
         - total
-        - lines (opcional): lista de líneas con descripcion, cantidad, precio_unitario
+        - lines (optional): list of lines with description, quantity, unit_price
         """
         # Idempotencia: si ya fue promocionado, skip
         if promoted_id:
@@ -101,13 +101,13 @@ class InvoiceHandler:
             else:
                 tx_date_emision = datetime.utcnow().date().isoformat()
 
-            # Proveedor/vendor
+            # Vendor/Supplier
             vendor_name = str(
                 normalized.get("vendor_name")
-                or normalized.get("proveedor")
+                or normalized.get("vendor")
                 or normalized.get("supplier")
                 or normalized.get("vendor", {}).get("name")
-                or "Proveedor desconocido"
+                or "Unknown vendor"
             ).strip()
 
             # Importes
@@ -131,31 +131,31 @@ class InvoiceHandler:
                 or (subtotal + iva)
             )
 
-            # Buscar o crear cliente/proveedor
+            # Search or create client/vendor
             cliente = (
                 db.query(Cliente)
                 .filter(Cliente.tenant_id == tenant_id, Cliente.nombre == vendor_name)
                 .first()
             )
             if not cliente:
-                # Crear cliente básico
+                # Create basic client
                 cliente = Cliente(
                     tenant_id=tenant_id,
                     nombre=vendor_name,
-                    tipo="proveedor",
+                    tipo="vendor",
                     email=None,
                     telefono=None,
                 )
                 db.add(cliente)
                 db.flush()
 
-            # Crear factura
+            # Create invoice
             invoice = Invoice(
                 id=uuid4(),
                 tenant_id=tenant_id,
                 cliente_id=cliente.id,
                 numero=invoice_number,
-                proveedor=vendor_name,
+                vendor=vendor_name,
                 tx_date_emision=tx_date_emision,
                 subtotal=subtotal,
                 iva=iva,
@@ -390,12 +390,12 @@ class BankHandler:
 
 
 # =============================================================================
-# EXPENSE/RECEIPT HANDLER - Gastos y recibos completos
+# EXPENSE/RECEIPT HANDLER - Complete expenses and receipts
 # =============================================================================
 
 
 class ExpenseHandler:
-    """Handler real para gastos y recibos."""
+    """Real handler for expenses and receipts."""
 
     @staticmethod
     def promote(
@@ -406,21 +406,21 @@ class ExpenseHandler:
         **kwargs,
     ) -> PromoteResult:
         """
-        Promociona gasto/recibo a tabla gastos.
+        Promotes expense/receipt to expenses table.
 
-        Campos esperados:
+        Expected fields:
         - date, tx_date, expense_date
-        - amount, total, amount
-        - description, concept, descripcion
-        - category, category
-        - vendor, proveedor
-        - payment_method, forma_pago
+        - amount, total
+        - description, concept
+        - category
+        - vendor, supplier
+        - payment_method
         - tax, iva
         """
         if promoted_id:
             return PromoteResult(domain_id=promoted_id, skipped=True)
 
-        from app.models.expenses.gasto import Gasto
+        from app.models.expenses.expense import Expense
 
         try:
             # Fecha
@@ -501,57 +501,52 @@ class ExpenseHandler:
                 or None
             )
 
-            # Proveedor (opcional)
+            # Vendor (optional)
             proveedor_nombre = str(
-                normalized.get("vendor")
-                or normalized.get("proveedor")
-                or normalized.get("vendor", {}).get("name")
-                or ""
+                normalized.get("vendor") or normalized.get("vendor", {}).get("name") or ""
             ).strip()
 
-            proveedor_id = None
+            supplier_id = None
             if proveedor_nombre:
-                # Intentar buscar proveedor existente
+                # Intentar buscar supplier existente
                 try:
-                    from app.models.suppliers.proveedor import Proveedor
+                    from app.models.suppliers import Supplier
 
-                    proveedor = (
-                        db.query(Proveedor)
-                        .filter(
-                            Proveedor.tenant_id == tenant_id, Proveedor.nombre == proveedor_nombre
-                        )
+                    supplier = (
+                        db.query(Supplier)
+                        .filter(Supplier.tenant_id == tenant_id, Supplier.name == proveedor_nombre)
                         .first()
                     )
-                    if proveedor:
-                        proveedor_id = proveedor.id
+                    if supplier:
+                        supplier_id = supplier.id
                 except Exception:
                     pass
 
             # Usuario (requerido - usar UUID genérico si no hay)
-            usuario_id = uuid4()  # En producción, obtener del contexto del request
+            usuario_id = uuid4()  # In production, get from request context
 
-            # Crear gasto
-            gasto = Gasto(
+            # Create expense
+            expense = Expense(
                 id=uuid4(),
                 tenant_id=tenant_id,
-                tx_date=tx_date,
+                date=tx_date,
                 concept=concept,
                 category=category,
                 subcategory=None,
                 amount=Decimal(str(amount)),
-                iva=Decimal(str(iva)),
+                vat=Decimal(str(iva)),
                 total=Decimal(str(total)),
-                proveedor_id=proveedor_id,
-                forma_pago=forma_pago,
-                factura_numero=factura_numero,
-                estado="pendiente",
-                usuario_id=usuario_id,
-                notas=normalized.get("notes") or None,
+                supplier_id=supplier_id,
+                payment_method=forma_pago,
+                invoice_number=factura_numero,
+                status="pending",
+                user_id=usuario_id,
+                notes=normalized.get("notes") or None,
             )
-            db.add(gasto)
+            db.add(expense)
             db.flush()
 
-            return PromoteResult(domain_id=str(gasto.id), skipped=False)
+            return PromoteResult(domain_id=str(expense.id), skipped=False)
 
         except Exception as e:
             return PromoteResult(domain_id=None, skipped=False, errors=[str(e)])

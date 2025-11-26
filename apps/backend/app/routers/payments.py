@@ -217,7 +217,7 @@ def create_payment_link(
 
 @router.post("/webhook/{provider}")
 async def handle_webhook(provider: str, request: Request, db: Session = Depends(get_db)):
-    """Procesar webhooks de proveedores de pago"""
+    """Process payment provider webhooks"""
 
     try:
         # 1. Leer payload

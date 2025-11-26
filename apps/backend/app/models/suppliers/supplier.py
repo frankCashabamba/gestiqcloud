@@ -11,7 +11,7 @@ from app.config.database import Base
 
 
 class Supplier(Base):
-    """Supplier (Proveedor)"""
+    """Supplier"""
 
     __tablename__ = "suppliers"
     __table_args__ = {"extend_existing": True}

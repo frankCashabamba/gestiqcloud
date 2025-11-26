@@ -47,7 +47,7 @@ def extraer_recibo(texto: str, country: str = "EC") -> list[dict[str, Any]]:
 
     importe = float(importe_str.replace(",", "."))
 
-    # Cliente/Proveedor
+    # Client/Vendor
     cliente = (
         buscar_multiple(
             [

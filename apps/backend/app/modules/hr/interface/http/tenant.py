@@ -42,18 +42,9 @@ from app.schemas.hr import (
     VacacionResponse,
 )
 
-# Schemas - Nóminas
-from app.schemas.hr_nomina import (
-    NominaApproveRequest,
-    NominaCalculateRequest,
-    NominaCalculateResponse,
-    NominaConceptoCreate,
-    NominaCreate,
-    NominaList,
-    NominaPayRequest,
-    NominaResponse,
-    NominaStats,
-    NominaUpdate,
+# Schemas - Payroll
+from app.schemas.payroll import (
+    PayrollConceptCreate,
 )
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, func, select
@@ -160,51 +151,49 @@ def _calculate_irpf(base_irpf: Decimal, country: str) -> tuple[Decimal, Decimal]
 
 
 def _calculate_totals(
-    nomina_data: dict, conceptos: list[NominaConceptoCreate], country: str
+    payroll_data: dict, concepts: list[PayrollConceptCreate], country: str
 ) -> dict:
-    """Calcula todos los totales de la nómina"""
-    salario_base = nomina_data.get("salario_base", Decimal("0"))
-    complementos = nomina_data.get("complementos", Decimal("0"))
-    horas_extra = nomina_data.get("horas_extra", Decimal("0"))
-    otros_devengos = nomina_data.get("otros_devengos", Decimal("0"))
+    """Calculate all payroll totals"""
+    base_salary = payroll_data.get("salario_base", Decimal("0"))
+    supplements = payroll_data.get("complementos", Decimal("0"))
+    overtime = payroll_data.get("horas_extra", Decimal("0"))
+    other_earnings = payroll_data.get("otros_devengos", Decimal("0"))
 
-    devengos_conceptos = (
-        sum(c.importe for c in conceptos if c.tipo == "DEVENGO") if conceptos else Decimal("0")
+    concept_earnings = (
+        sum(c.importe for c in concepts if c.tipo == "DEVENGO") if concepts else Decimal("0")
     )
 
-    total_devengado = (
-        salario_base + complementos + horas_extra + otros_devengos + devengos_conceptos
+    total_earned = base_salary + supplements + overtime + other_earnings + concept_earnings
+
+    contribution_base = (
+        base_salary
+        + supplements
+        + overtime
+        + sum(c.importe for c in concepts if c.tipo == "DEVENGO" and c.es_base)
+        if concepts
+        else base_salary + supplements + overtime
     )
 
-    base_cotizacion = (
-        salario_base
-        + complementos
-        + horas_extra
-        + sum(c.importe for c in conceptos if c.tipo == "DEVENGO" and c.es_base)
-        if conceptos
-        else salario_base + complementos + horas_extra
+    seg_social, seg_social_rate = _calculate_seg_social(contribution_base, country)
+    irpf, irpf_rate = _calculate_irpf(contribution_base, country)
+
+    other_deductions = payroll_data.get("otras_deducciones", Decimal("0"))
+    concept_deductions = (
+        sum(c.importe for c in concepts if c.tipo == "DEDUCCION") if concepts else Decimal("0")
     )
 
-    seg_social, seg_social_rate = _calculate_seg_social(base_cotizacion, country)
-    irpf, irpf_rate = _calculate_irpf(base_cotizacion, country)
-
-    otras_deducciones = nomina_data.get("otras_deducciones", Decimal("0"))
-    deducciones_conceptos = (
-        sum(c.importe for c in conceptos if c.tipo == "DEDUCCION") if conceptos else Decimal("0")
-    )
-
-    total_deducido = seg_social + irpf + otras_deducciones + deducciones_conceptos
-    liquido_total = total_devengado - total_deducido
+    total_deducted = seg_social + irpf + other_deductions + concept_deductions
+    net_total = total_earned - total_deducted
 
     return {
-        "total_devengado": total_devengado,
-        "base_cotizacion": base_cotizacion,
+        "total_earned": total_earned,
+        "contribution_base": contribution_base,
         "seg_social": seg_social,
         "seg_social_rate": seg_social_rate,
         "irpf": irpf,
         "irpf_rate": irpf_rate,
-        "total_deducido": total_deducido,
-        "liquido_total": liquido_total,
+        "total_deducted": total_deducted,
+        "net_total": net_total,
     }
 
 

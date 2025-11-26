@@ -101,7 +101,7 @@ def _extract_ubl_invoice(root: ET.Element, ns: str) -> dict[str, Any] | None:
         issue_date = _get_text(root, f".//{tag('IssueDate')}")
         due_date = _get_text(root, f".//{tag('DueDate')}")
 
-        # Proveedor (AccountingSupplierParty)
+        # Vendor/Supplier (AccountingSupplierParty)
         supplier_elem = root.find(f".//{tag('AccountingSupplierParty')}")
         vendor = {}
         if supplier_elem is not None:
@@ -112,7 +112,7 @@ def _extract_ubl_invoice(root: ET.Element, ns: str) -> dict[str, Any] | None:
                     "tax_id": _get_text(vendor_party, f".//{tag('CompanyID')}"),
                 }
 
-        # Comprador (AccountingCustomerParty)
+        # Buyer/Customer (AccountingCustomerParty)
         customer_elem = root.find(f".//{tag('AccountingCustomerParty')}")
         buyer = {}
         if customer_elem is not None:
@@ -123,7 +123,7 @@ def _extract_ubl_invoice(root: ET.Element, ns: str) -> dict[str, Any] | None:
                     "tax_id": _get_text(buyer_party, f".//{tag('CompanyID')}"),
                 }
 
-        # Totales
+        # Totals
         legal_total = root.find(f".//{tag('LegalMonetaryTotal')}")
         totals = {}
         if legal_total is not None:
@@ -135,10 +135,10 @@ def _extract_ubl_invoice(root: ET.Element, ns: str) -> dict[str, Any] | None:
                 "total": _to_float(_get_text(legal_total, f".//{tag('PayableAmount')}")),
             }
 
-        # Moneda
+        # Currency
         currency = _get_text(root, f".//{tag('DocumentCurrencyCode')}") or "USD"
 
-        # Líneas
+        # Lines
         lines = []
         for line_elem in root.findall(f".//{tag('InvoiceLine')}"):
             line = {
@@ -161,7 +161,7 @@ def _extract_ubl_invoice(root: ET.Element, ns: str) -> dict[str, Any] | None:
             "totals": totals,
             "currency": currency,
             "lines": lines,
-            "country": "EC",  # Asumir Ecuador por defecto
+            "country": "EC",  # Default Ecuador
         }
 
     except Exception:
@@ -169,7 +169,7 @@ def _extract_ubl_invoice(root: ET.Element, ns: str) -> dict[str, Any] | None:
 
 
 def _extract_cfdi_invoice(root: ET.Element, ns: str) -> dict[str, Any] | None:
-    """Extraer datos de factura CFDI (México)."""
+    """Extract CFDI invoice data (Mexico)."""
     try:
         # Implementar parsing de CFDI aquí
         # Por ahora, retorna estructura básica
@@ -186,14 +186,14 @@ def _extract_cfdi_invoice(root: ET.Element, ns: str) -> dict[str, Any] | None:
 
 
 def _extract_generic_invoice(root: ET.Element) -> dict[str, Any] | None:
-    """Fallback: extraer datos genéricos."""
+    """Fallback: extract generic data."""
     try:
         return {
             "doc_type": "invoice",
-            "invoice_number": root.findtext("invoice_number") or root.findtext("numero"),
-            "issue_date": root.findtext("issue_date") or root.findtext("fecha"),
+            "invoice_number": root.findtext("invoice_number") or root.findtext("number"),
+            "issue_date": root.findtext("issue_date") or root.findtext("date"),
             "vendor": {
-                "name": root.findtext("vendor_name") or root.findtext("proveedor"),
+                "name": root.findtext("vendor_name") or root.findtext("vendor"),
             },
             "country": "EC",
         }

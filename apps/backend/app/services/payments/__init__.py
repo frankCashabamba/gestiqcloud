@@ -7,7 +7,7 @@ from typing import Any, Protocol
 
 
 class PaymentProvider(Protocol):
-    """Interface para proveedores de pago"""
+    """Interface for payment providers"""
 
     def create_payment_link(
         self,
@@ -65,4 +65,4 @@ def get_provider(name: str, config: dict[str, Any]) -> PaymentProvider:
         return PayPhoneProvider(config)
 
     else:
-        raise ValueError(f"provider de pago no soportado: {name}")
+        raise ValueError(f"payment provider not supported: {name}")

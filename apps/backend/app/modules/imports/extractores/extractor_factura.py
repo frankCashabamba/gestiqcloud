@@ -65,12 +65,12 @@ def extraer_factura(texto: str, country: str = "EC") -> list[dict[str, Any]]:
             "issue_date": fecha or None,
             "invoice_number": numero,
             "vendor": {
-                "name": emisor or "Proveedor desconocido",
+                "name": emisor or "Unknown vendor",
                 "tax_id": cif,
                 "country": country,
             },
             "buyer": {
-                "name": cliente or "Cliente desconocido",
+                "name": cliente or "Unknown client",
             },
             "totals": {
                 "subtotal": subtotal,

@@ -336,16 +336,16 @@ class PayrollStats(BaseModel):
 
 
 # ============================================================================
-# LEGACY ALIASES (compatibilidad con endpoints antiguos)
+# LEGACY ALIASES (backward compatibility with old endpoints)
 # ============================================================================
 
-NominaCreate = PayrollCreate
-NominaUpdate = PayrollUpdate
-NominaResponse = PayrollResponse
-NominaList = PayrollList
-NominaConceptoCreate = PayrollConceptCreate
-NominaCalculateRequest = PayrollCalculateRequest
-NominaCalculateResponse = PayrollCalculateResponse
-NominaApproveRequest = PayrollApproveRequest
-NominaPayRequest = PayrollPayRequest
-NominaStats = PayrollStats
+PayrollCreate = PayrollCreate
+PayrollUpdate = PayrollUpdate
+PayrollResponse = PayrollResponse
+PayrollList = PayrollList
+PayrollConceptCreate = PayrollConceptCreate
+PayrollCalculateRequest = PayrollCalculateRequest
+PayrollCalculateResponse = PayrollCalculateResponse
+PayrollApproveRequest = PayrollApproveRequest
+PayrollPayRequest = PayrollPayRequest
+PayrollStats = PayrollStats

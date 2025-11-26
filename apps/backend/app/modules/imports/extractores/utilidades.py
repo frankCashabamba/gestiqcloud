@@ -254,7 +254,7 @@ def buscar_emisor(texto: str) -> str | None:
     lineas = texto.splitlines()
     for i, linea in enumerate(lineas):
         if re.search(
-            r"^\s*(From|De|Emitido por|Proveedor|Seller|Company name)\b[:\-]?",
+            r"^\s*(From|Issued by|Vendor|Seller|Company name)\b[:\-]?",
             linea,
             re.IGNORECASE,
         ):

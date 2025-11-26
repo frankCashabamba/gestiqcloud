@@ -142,7 +142,7 @@ class ProductInfo(TypedDict, total=False):
     stock: float  # Cantidad en stock
     unit: str | None  # Unidad de medida (pcs, kg, hrs, etc)
     currency: str | None  # ISO 4217 (USD, EUR, etc)
-    supplier: PartyInfo | None  # Proveedor del producto
+    supplier: PartyInfo | None  # Supplier of the product
     barcode: str | None  # Código de barras
 
 
@@ -155,7 +155,7 @@ class ExpenseInfo(TypedDict, total=False):
     category: str | None  # Categoría del gasto (combustible, suministros, etc)
     subcategory: str | None  # Subcategoría
     payment_method: str | None  # Método de pago (cash, card, transfer)
-    vendor: PartyInfo | None  # Proveedor/Comercio
+    vendor: PartyInfo | None  # Vendor/Commerce
     receipt_number: str | None  # Número de recibo
     notes: str | None  # Notas adicionales
 
@@ -174,7 +174,7 @@ class CanonicalDocument(TypedDict, total=False):
     issue_date: str | None  # YYYY-MM-DD
     due_date: str | None  # YYYY-MM-DD (facturas)
     invoice_number: str | None  # Número de factura
-    vendor: PartyInfo | None  # Proveedor/emisor
+    vendor: PartyInfo | None  # Vendor/Issuer
     buyer: PartyInfo | None  # Comprador/receptor
     totals: TotalsBlock | None  # Totales y desglose
     lines: list[DocumentLine] | None  # Líneas de detalle

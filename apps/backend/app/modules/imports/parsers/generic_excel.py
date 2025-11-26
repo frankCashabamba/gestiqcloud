@@ -101,7 +101,10 @@ def parse_excel_generic(file_path: str, sheet_name: str | None = None) -> dict[s
         detected_type = "products"
     elif any(kw in headers_str for kw in ["FECHA", "IMPORTE", "SALDO", "BANCO", "IBAN", "CUENTA"]):
         detected_type = "bank"
-    elif any(kw in headers_str for kw in ["FACTURA", "INVOICE", "PROVEEDOR", "CLIENTE", "IVA"]):
+    elif any(
+        kw in headers_str
+        for kw in ["FACTURA", "INVOICE", "VENDOR", "SUPPLIER", "CLIENT", "IVA", "TAX"]
+    ):
         detected_type = "invoices"
 
     metadata = {

@@ -343,8 +343,8 @@ class FileClassifier:
         invoice_keywords = [
             "factura",
             "invoice",
-            "proveedor",
             "vendor",
+            "supplier",
             "cliente",
             "customer",
             "iva",
@@ -454,9 +454,9 @@ class FileClassifier:
         invoice_keywords = [
             "invoice",
             "factura",
-            "numero",
+            "number",
             "vendor",
-            "proveedor",
+            "supplier",
             "total",
             "subtotal",
             "iva",

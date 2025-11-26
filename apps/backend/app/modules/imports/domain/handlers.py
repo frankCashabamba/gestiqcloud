@@ -72,13 +72,13 @@ class InvoiceHandler:
             else:
                 tx_date_emision = datetime.utcnow().date().isoformat()
 
-            # Proveedor
+            # Vendor/Supplier
             vendor_name = str(
                 normalized.get("vendor_name")
-                or normalized.get("proveedor")
+                or normalized.get("vendor")
                 or normalized.get("supplier")
                 or normalized.get("vendor", {}).get("name")
-                or "Proveedor desconocido"
+                or "Unknown vendor"
             ).strip()
 
             # Importes
@@ -354,8 +354,8 @@ class ExpenseHandler:
         **kwargs,
     ) -> PromoteResult:
         """
-        Promociona gasto/recibo a tabla gastos.
-        IMPLEMENTACIÓN REAL - guarda en base de datos.
+        Promotes expense/receipt to expenses table.
+        REAL IMPLEMENTATION - saves to database.
         """
         if promoted_id:
             return PromoteResult(domain_id=promoted_id, skipped=True)
@@ -364,7 +364,7 @@ class ExpenseHandler:
         from decimal import Decimal
         from uuid import uuid4
 
-        from app.models.expenses.gasto import Gasto
+        from app.models.expenses.expense import Expense
 
         try:
             # Fecha
@@ -388,15 +388,12 @@ class ExpenseHandler:
             else:
                 tx_date = datetime.utcnow().date()
 
-            # Concepto
+            # Concept/Description
             concept = str(
-                normalized.get("description")
-                or normalized.get("concept")
-                or normalized.get("descripcion")
-                or "Gasto"
+                normalized.get("description") or normalized.get("concept") or "Expense"
             ).strip()
 
-            # Categoría
+            # Category
             category = (
                 str(normalized.get("category") or normalized.get("category") or "otros")
                 .strip()
@@ -453,49 +450,49 @@ class ExpenseHandler:
                 or ""
             ).strip()
 
-            proveedor_id = None
+            supplier_id = None
             if proveedor_nombre:
                 try:
-                    from app.models.suppliers.proveedor import Proveedor
+                    from app.models.suppliers import Supplier
 
-                    proveedor = (
-                        db.query(Proveedor)
+                    supplier = (
+                        db.query(Supplier)
                         .filter(
-                            Proveedor.tenant_id == tenant_id,
-                            Proveedor.nombre == proveedor_nombre,
+                            Supplier.tenant_id == tenant_id,
+                            Supplier.name == proveedor_nombre,
                         )
                         .first()
                     )
-                    if proveedor:
-                        proveedor_id = proveedor.id
+                    if supplier:
+                        supplier_id = supplier.id
                 except Exception:
                     pass
 
-            # Usuario (obtener del contexto o usar genérico)
+            # User (obtain from context or use generic)
             usuario_id = uuid4()
 
-            # Crear gasto
-            gasto = Gasto(
+            # Create expense
+            expense = Expense(
                 id=uuid4(),
                 tenant_id=tenant_id,
-                tx_date=tx_date,
+                date=tx_date,
                 concept=concept,
                 category=category,
                 subcategory=None,
                 amount=Decimal(str(amount)),
-                iva=Decimal(str(iva)),
+                vat=Decimal(str(iva)),
                 total=Decimal(str(total)),
-                proveedor_id=proveedor_id,
-                forma_pago=forma_pago,
-                factura_numero=factura_numero,
-                estado="pendiente",
-                usuario_id=usuario_id,
-                notas=normalized.get("notes") or None,
+                supplier_id=supplier_id,
+                payment_method=forma_pago,
+                invoice_number=factura_numero,
+                status="pending",
+                user_id=usuario_id,
+                notes=normalized.get("notes") or None,
             )
-            db.add(gasto)
+            db.add(expense)
             db.flush()
 
-            return PromoteResult(domain_id=str(gasto.id), skipped=False)
+            return PromoteResult(domain_id=str(expense.id), skipped=False)
 
         except Exception:
             return PromoteResult(domain_id=None, skipped=False)

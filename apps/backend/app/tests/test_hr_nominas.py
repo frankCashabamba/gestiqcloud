@@ -1,7 +1,7 @@
 """
-Tests de Módulo de Nóminas (RRHH)
+Tests for Payroll Module (HR)
 
-Valida cálculo de nóminas, conceptos salariales y validaciones.
+Validates payroll calculation, salary concepts and validations.
 """
 
 from decimal import Decimal
@@ -9,14 +9,14 @@ from uuid import uuid4
 
 import pytest
 
-from app.schemas.hr_nomina import PayrollConceptCreate, PayrollCreate
+from app.schemas.payroll import PayrollConceptCreate, PayrollCreate
 
 
 class TestPayrollSchemas:
     """Payroll schema tests"""
 
     def test_nomina_create_schema(self):
-        """Schema de creación de nómina"""
+         """Payroll creation schema"""
         employee_id = uuid4()
 
         data = PayrollCreate(
@@ -33,10 +33,10 @@ class TestPayrollSchemas:
         assert data.base_salary == Decimal("1200.00")
 
     def test_nomina_create_validates_mes(self):
-        """Mes debe estar entre 1 y 12"""
+         """Month must be between 1 and 12"""
         employee_id = uuid4()
 
-        # Mes válido
+        # Valid month
         data = PayrollCreate(
             employee_id=employee_id,
             period_month=6,
@@ -45,7 +45,7 @@ class TestPayrollSchemas:
         )
         assert data.period_month == 6
 
-        # Mes inválido debe fallar
+        # Invalid month should fail
         with pytest.raises(ValueError):
             PayrollCreate(
                 employee_id=employee_id,

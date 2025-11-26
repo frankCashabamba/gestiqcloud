@@ -119,7 +119,7 @@ def _map_columns(header: tuple) -> dict[str, int]:
                 col_map["amount"] = idx
 
         # Vendor
-        elif any(kw in col_lower for kw in ["vendor", "proveedor", "supplier", "from", "origem"]):
+        elif any(kw in col_lower for kw in ["vendor", "supplier", "from", "source"]):
             if "vendor" not in col_map:
                 col_map["vendor"] = idx
 

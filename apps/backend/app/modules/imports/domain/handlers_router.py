@@ -1,8 +1,8 @@
 """
-Router/mapper para despachar documentos canónicos a handlers según doc_type.
+Router/mapper to dispatch canonical documents to handlers according to doc_type.
 
-Mapea doc_type (invoice, bank_tx, expense_receipt, products)
-a los handlers correspondientes (InvoiceHandler, BankHandler, ExpenseHandler, ProductHandler).
+Maps doc_type (invoice, bank_tx, expense_receipt, products)
+to corresponding handlers (InvoiceHandler, BankHandler, ExpenseHandler, ProductHandler).
 """
 
 from typing import Any
@@ -14,49 +14,49 @@ from .handlers import BankHandler, ExpenseHandler, InvoiceHandler, ProductHandle
 
 
 class HandlersRouter:
-    """Router para despachar documentos a handlers según su tipo."""
+     """Router to dispatch documents to handlers according to their type."""
 
-    # Mapeo: doc_type -> Handler class
-    HANDLER_MAP: dict[str, type] = {
-        "invoice": InvoiceHandler,
-        "expense_receipt": ExpenseHandler,
-        "bank_tx": BankHandler,
-        "product": ProductHandler,
-        "products": ProductHandler,
-        "expense": ExpenseHandler,
-        # Aliases para flexibilidad
-        "factura": InvoiceHandler,
-        "recibo": ExpenseHandler,
-        "transferencia": BankHandler,
-        "transaccion_bancaria": BankHandler,
-        "gasto": ExpenseHandler,
-    }
+     # Mapping: doc_type -> Handler class
+     HANDLER_MAP: dict[str, type] = {
+         "invoice": InvoiceHandler,
+         "expense_receipt": ExpenseHandler,
+         "bank_tx": BankHandler,
+         "product": ProductHandler,
+         "products": ProductHandler,
+         "expense": ExpenseHandler,
+         # Aliases for flexibility
+         "factura": InvoiceHandler,
+         "recibo": ExpenseHandler,
+         "transferencia": BankHandler,
+         "transaccion_bancaria": BankHandler,
+         "expense_old": ExpenseHandler,
+     }
 
-    # Mapeo: doc_type -> target destination (tabla destino)
-    ROUTING_TARGET_MAP: dict[str, str] = {
-        "invoice": "invoices",
-        "expense_receipt": "expenses",
-        "bank_tx": "bank_movements",
-        "product": "inventory",
-        "products": "inventory",
-        "expense": "expenses",
-        # Aliases
-        "factura": "invoices",
-        "recibo": "expenses",
-        "transferencia": "bank_movements",
-        "transaccion_bancaria": "bank_movements",
-        "gasto": "expenses",
-    }
+     # Mapping: doc_type -> target destination table
+     ROUTING_TARGET_MAP: dict[str, str] = {
+         "invoice": "invoices",
+         "expense_receipt": "expenses",
+         "bank_tx": "bank_movements",
+         "product": "inventory",
+         "products": "inventory",
+         "expense": "expenses",
+         # Aliases
+         "factura": "invoices",
+         "recibo": "expenses",
+         "transferencia": "bank_movements",
+         "transaccion_bancaria": "bank_movements",
+         "expense_old": "expenses",
+     }
 
-    @classmethod
-    def get_handler_for_type(cls, doc_type: str) -> type | None:
-        """Obtener handler class para un doc_type."""
-        return cls.HANDLER_MAP.get(doc_type.lower())
+     @classmethod
+     def get_handler_for_type(cls, doc_type: str) -> type | None:
+         """Get handler class for a doc_type."""
+         return cls.HANDLER_MAP.get(doc_type.lower())
 
-    @classmethod
-    def get_target_for_type(cls, doc_type: str) -> str | None:
-        """Obtener tabla destino para un doc_type."""
-        return cls.ROUTING_TARGET_MAP.get(doc_type.lower())
+     @classmethod
+     def get_target_for_type(cls, doc_type: str) -> str | None:
+         """Get destination table for a doc_type."""
+         return cls.ROUTING_TARGET_MAP.get(doc_type.lower())
 
     @classmethod
     def promote_canonical(

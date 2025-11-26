@@ -143,14 +143,14 @@ def extraer_texto_ocr_hibrido_paginas(file_bytes: bytes) -> list[str]:
 
 
 def _normalizar_tipo_por_importe(doc: DocumentoProcesado) -> DocumentoProcesado:
-    """Unifica la heurística de tipo: por defecto gastos positivos.
+    """Unifies type heuristic: positive amounts default to expenses.
 
-    Si un extractor ya define `tipo`, lo respeta; si no, usa: importe >= 0 -> "gasto" else "ingreso".
+    If an extractor already defines `type`, respects it; otherwise uses: amount >= 0 -> "expense" else "income".
     """
-    if getattr(doc, "tipo", None) in ("ingreso", "gasto"):
+    if getattr(doc, "tipo", None) in ("income", "expense"):
         return doc
     try:
-        return doc.copy(update={"tipo": "gasto" if float(doc.importe or 0) >= 0 else "ingreso"})
+        return doc.copy(update={"tipo": "expense" if float(doc.importe or 0) >= 0 else "income"})
     except Exception:
         return doc
 
