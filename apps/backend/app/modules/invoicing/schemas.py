@@ -76,7 +76,7 @@ class InvoiceCreate(BaseModel):
     """Class InvoiceCreate - auto-generated docstring."""
 
     numero: str
-    proveedor: str | None = None
+    supplier: str | None = None
     fecha_emision: str
     estado: str
     subtotal: float
@@ -107,7 +107,7 @@ class InvoiceUpdate(BaseModel):
     """Class InvoiceUpdate - auto-generated docstring."""
 
     estado: str | None
-    proveedor: str | None
+    supplier: str | None
     fecha_emision: str | None
     lineas: list[LineaFacturaIn] | None
 
@@ -128,7 +128,7 @@ class FacturaOut(BaseModel):
 
     id: UUID
     numero: str
-    proveedor: str
+    supplier: str
     fecha_emision: str
     monto: int
     estado: str

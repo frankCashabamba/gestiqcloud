@@ -2,7 +2,7 @@
 │                                                                              │
 │              REFACTORING BACKEND: SPANISH → ENGLISH                         │
 │                                                                              │
-│        ✅ 100% COMPLETADO - TODO LISTO PARA PRODUCCIÓN                     │
+│        🟡 EN PROGRESO - QUEDAN TÉRMINOS EN ESPAÑOL EN CÓDIGO               │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 
@@ -11,283 +11,62 @@
 ┃                            ESTADO ACTUAL                                  ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-Módulos Renombrados:    ✅ COMPLETADO (5 dirs)
-Esquemas Renombrados:   ✅ COMPLETADO (4 files)
-Archivos Legacy:        ✅ ELIMINADOS (2 files)
-Docstrings Traducidos:  ✅ COMPLETADO (15+ docstrings)
-Nombres Clase Inglés:   ✅ COMPLETADO (50+ nombres)
-Mensajes Error:         ✅ COMPLETADO (20+ mensajes)
-Settings Labels:        ✅ COMPLETADO (configuracion_empresa, configuracion_inventario)
-Field Names:            ✅ COMPLETADO (idioma->default_language, zona_horaria->timezone)
-Tests Arreglados:       ✅ 146 PASADOS, 37 SKIPPED, 35 FAILED
-Git Commits:            ✅ 8 commits principales
+FASE 1: ✅ COMPLETADA (Módulos, esquemas, docstrings, nombres clase)
+FASE 2: 🟡 EN PROGRESO (Términos españoles en código)
 
-ESTADO: 🟡 EN PROGRESO - Refactoring de términos españoles restantes
+TÉRMINOS PENDIENTES POR REFACTORIZAR:
 
-SESIÓN 4 (En progreso):
-  ✅ Refactor "Proveedor" → "Supplier"
-     - handlers.py, handlers_complete.py, canonical_schema.py
-     - sector_defaults.py (10+ campos)
-     - excel_analyzer.py
-     - templates/pdf/invoice_base.html
-     - 3 commits, ~30 cambios
-  ✅ Refactor "Gasto" → "Expense"
-     - canonical_schema.py comments
-     - handlers_complete.py literals
-     - 1 commit, ~10 cambios
-  ⏳ Pendiente: Nómina → Payroll (REN), Empresa → Company refs
+1️⃣  PROVEEDORES → SUPPLIER (ALTA PRIORIDAD - múltiples ubicaciones)
+   ❌ app/modules/imports/domain/handlers.py
+   ❌ app/modules/imports/domain/handlers_complete.py
+   ❌ app/modules/imports/application/use_cases.py
+   ❌ app/modules/imports/domain/canonical_schema.py
+   ❌ app/services/recipe_calculator.py
+   ❌ app/services/payments/ (*.py)
+   ❌ app/models/suppliers/supplier.py (docstring)
+   ❌ app/routers/payments.py
+   ❌ extractores/ (extractor_factura.py, extractor_recibo.py)
+   ❌ parsers/xml_invoice.py
+   ❌ sector_defaults.py
+   ❌ tests/modules/imports/*
+   ❌ find_legacy.py, normalize_models.py
+   ❌ fixtures de tests
 
+2️⃣  GASTOS → EXPENSE (MEDIA PRIORIDAD - comentarios y literales)
+   ❌ app/modules/imports/domain/handlers.py
+   ❌ app/modules/imports/domain/handlers_complete.py
+   ❌ app/modules/imports/application/use_cases.py
+   ❌ app/modules/imports/domain/canonical_schema.py
+   ❌ app/models/finance/cash_management.py (comentarios)
+   ❌ tests/modules/imports/*
 
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃                     RESUMEN DE CAMBIOS REALIZADOS                        ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+3️⃣  NÓMINA → PAYROLL (BAJA PRIORIDAD - alias y nombres)
+   ❌ app/schemas/payroll.py (alias Nomina*)
+   ❌ app/modules/hr/interface/http/tenant.py
+   ❌ app/models/hr/payroll.py (encabezado)
+   ❌ app/tests/test_hr_nominas.py
 
-✅ COMPLETADO:
+4️⃣  EMPRESA/CONFIG → COMPANY (BAJA PRIORIDAD - nombres en settings/routers)
+   ❌ app/models/company/settings.py
+   ❌ app/models/company/__init__.py
+   ❌ app/models/company/company_role.py (RolEmpresa)
+   ❌ app/models/company/company_user.py (UsuarioEmpresa)
+   ❌ app/models/company/company_user_role.py (UsuarioRolEmpresa)
+   ❌ app/models/company/tenant.py
+   ❌ app/routers/tenant/roles.py
+   ❌ app/routers/admin/usuarios.py
+   ❌ app/routers/categorias.py
+   ❌ app/settings/** (schemas/CRUD/routes)
 
-MÓDULOS (5 directorios renombrados):
-  • app/modules/proveedores/     →  suppliers/    ✅
-  • app/modules/gastos/          →  expenses/     ✅
-  • app/modules/empresa/         →  company/      ✅
-  • app/modules/usuarios/        →  users/        ✅
-  • app/modules/rrhh/            →  hr/           ✅
-
-ESQUEMAS (4 archivos renombrados):
-  • schemas/empresa.py           →  company.py                    ✅
-  • schemas/rol_empresa.py       →  company_role.py              ✅
-  • schemas/hr_nomina.py         →  payroll.py                   ✅
-  • schemas/configuracionempresasinicial.py → company_initial_config.py ✅
-
-MODELOS LEGACY (2 archivos eliminados):
-  • models/company/empresa.py              ✅ ELIMINADO
-  • models/company/usuarioempresa.py       ✅ ELIMINADO
-
-DOCSTRINGS (15+ traducidos español→inglés):
-  • settings/application/use_cases.py      ✅ (9 métodos)
-  • settings/application/defaults.py       ✅ (3 comentarios/docstrings)
-
-NOMBRES CLASE (50+ renombrados español→inglés):
-  • paises/*                               ✅ (ListCountries, GetCountry, etc.)
-  • monedas/*                              ✅ (ListCurrencies, GetCurrency, etc.)
-  • idiomas/*                              ✅ (ListLanguages, GetLanguage, etc.)
-  • locales/*                              ✅ (ListLocales, GetLocale, etc.)
-  • dias_semana/*                          ✅ (ListWeekDays, GetWeekDay, etc.)
-  • timezones/*                            ✅ (ListTimezones, GetTimezone, etc.)
-  • tipos_empresa/*                        ✅ (ListCompanyTypes, GetCompanyType, etc.)
-  • tipos_negocio/*                        ✅ (ListBusinessTypes, GetBusinessType, etc.)
-  • sectores_plantilla/*                   ✅ (ListTemplateSectors, GetTemplateSector, etc.)
-  • horarios_atencion/*                    ✅ (ListAttentionSchedules, GetAttentionSchedule, etc.)
-
-MENSAJES ERROR (10+ traducidos):
-  • Todos los ValueError messages           ✅ (pais_no_encontrado → country_not_found, etc.)
-
-IMPORTS:
-  • ~60-80 imports actualizados             ✅
-
-PYDANTIC:
-  • ~30-40 aliases removidos                ✅
-
-TESTS:
-  • 3 tests con errores de importación    ✅ ARREGLADOS (skipped)
-  • 146 tests pasando                     ✅
-  • 37 tests saltados (por validators)    ⏭️
-
-
-✅ FASE FINAL COMPLETADA (Anteriormente marcada como pendiente):
-
-COMPLETADO EN ESTA SESIÓN:
-
-INFRAESTRUCTURA DTOs admin_config:
-   • Schemas idiomas: codigo → code ✅
-   • Schemas días semana: clave → code, orden → order ✅
-   • Schemas horarios atención: dia_id → weekday_id, inicio → start_time, fin → end_time ✅
-   • DTOs aplicación actualizados ✅
-
-VALIDADORES PAÍS (IMPLEMENTADOS):
-   • ECValidator: validación RUC, Clave de Acceso, tax rates, invoice numbers ✅
-   • ESValidator: validación NIF, NIE, CIF, tax rates, invoice numbers ✅
-   • Integración en __init__.py con get_validator_for_country() ✅
-   • Tests: 31 pasados, 6 fallos por checksums complejos (opcional refinar)
-
-
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃                          ARCHIVOS DISPONIBLES                            ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-ENTRADA RÁPIDA:
-  📄 LEEME_PRIMERO.txt              ← LEER PRIMERO (muy corto)
-  📄 RUN_NOW.md                     ← Opciones de ejecución
-
-EJECUCIÓN:
-  🐍 refactor_script.py             ← Python (automatización)
-  🔷 EJECUTAR.bat                   ← Batch (automático + guía)
-  🔹 PASOS_MANUALES.ps1             ← PowerShell (interactivo)
-
-GUÍAS:
-  📘 REFACTOR_QUICK_START.md        ← Paso a paso (RECOMENDADO)
-  📗 README_REFACTORING.md          ← Resumen ejecutivo
-  📕 REFACTOR_EXECUTABLE.md         ← Detalles técnicos
-  📙 EXECUTION_CHECKLIST.md         ← Checklist de 10 fases
-
-NAVEGACIÓN:
-  📋 COMENZAR_AQUI.md               ← Portal de opciones
-  📋 00_EMPIEZA_AQUI.txt            ← Punto de entrada
-  📋 INDICE_REFACTORING.md          ← Índice navegable
-
-REFERENCIA:
-  📑 REFACTOR_MAPPING.txt           ← Mapeo visual ASCII
-  📑 REFACTOR_PLAN.md               ← Plan general
-  📑 REFACTOR_ANALYSIS.md           ← Análisis codebase
-  📑 SUMMARY.txt                    ← Resumen general
-  📑 RESUMEN_FINAL.txt              ← Resumen ejecutivo
-  📑 STATUS.txt                     ← Este archivo
-
-
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃                       3 OPCIONES DE EJECUCIÓN                            ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ OPCIÓN A: "Hazlo YA" (40 minutos)                                           │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│ 1. Lee: LEEME_PRIMERO.txt (2 min)                                           │
-│ 2. Lee: RUN_NOW.md (2 min)                                                  │
-│ 3. Ejecuta: EJECUTAR.bat (5 min automático)                                │
-│ 4. Ejecuta: PASOS_MANUALES.ps1 (20 min manual)                             │
-│ 5. Verifica: python refactor_script.py --verify (3 min)                    │
-│ 6. Tests: pytest tests/ -v (5 min)                                          │
-│                                                                             │
-│ TOTAL: ~40 minutos                                                          │
-│ RECOMENDADO PARA: Usuarios impacientes                                      │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ OPCIÓN B: "Entiende Primero" (90 minutos)                                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│ 1. Lee: LEEME_PRIMERO.txt (2 min)                                           │
-│ 2. Lee: README_REFACTORING.md (10 min)                                      │
-│ 3. Lee: REFACTOR_EXECUTABLE.md (20 min)                                    │
-│ 4. Ejecuta: REFACTOR_QUICK_START.md pasos 0-3 (10 min auto)                │
-│ 5. Ejecuta: PASOS_MANUALES.ps1 (20 min manual)                             │
-│ 6. Limpia docstrings manualmente (15 min)                                   │
-│ 7. Verifica: pytest tests/ -v (10 min)                                      │
-│                                                                             │
-│ TOTAL: ~90 minutos                                                          │
-│ RECOMENDADO PARA: Usuarios responsables                                     │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ OPCIÓN C: "Análisis Profundo" (140 minutos)                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│ 1. Lee: REFACTOR_ANALYSIS.md (20 min)                                      │
-│ 2. Lee: REFACTOR_PLAN.md (10 min)                                          │
-│ 3. Lee: REFACTOR_MAPPING.txt (15 min, consulta)                            │
-│ 4. Lee: README_REFACTORING.md (10 min)                                      │
-│ 5. Lee: REFACTOR_EXECUTABLE.md (20 min)                                    │
-│ 6. Ejecuta: REFACTOR_QUICK_START.md (pasos 0-10) (75 min)                 │
-│                                                                             │
-│ TOTAL: ~140 minutos                                                         │
-│ RECOMENDADO PARA: Ingenieros que quieren entender todo                      │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃                          PRÓXIMOS PASOS                                   ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-OPCIÓN 1 - COMPLETADA ✅ (25-30 minutos):
-  ✅ 1. Docstrings en español→inglés
-  ✅ 2. Nombres de clase español→inglés
-  ✅ 3. Mensajes de error español→inglés
-  ✅ 4. Settings labels español→inglés
-  ✅ 5. Field names español→inglés
-  ✅ 6. Commit final
-
-OPCIÓN 2 - COMPLETAR (2-3 horas):
-  ✅ 1. Refactoring principal completado
-  ⏳ 2. DTOs admin_config (30 min)
-  ⏳ 3. Implementar validadores de países (2 horas)
-  ⏳ 4. Resolver tests fallidos (30 min)
-  ⏳ 5. Push a rama remota
-
-COMPLETADO EN NUEVA SESIÓN (2ª fase):
-   ✅ 1. Módulos renombrados: facturacion→invoicing, produccion→production, contabilidad→accounting, productos→products, compras→purchases, ventas→sales
-   ✅ 2. Schemas traducidos: finance_caja, payroll, hr, configuracion
-   ✅ 3. Services traducidos: sector_defaults.py
-   ✅ 4. Models traducidos: employee.py, cash_management.py
-   ✅ 5. Routers renombrados: categorias→categories, configuracionincial→initial_config, listadosgenerales→general_listings
-   ✅ 6. Workers traducidos: notifications.py, einvoicing_tasks.py
-   ✅ 7. Imports actualizados en platform/http/router.py y db/base.py
-
-ESTADO ACTUAL: 100% COMPLETADO - REFACTORING TOTAL EN INGLÉS
-RECOMENDADO: Ejecutar pytest para validar que todo funciona correctamente
-
-
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃                          CARACTERÍSTICAS                                  ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-✅ 100% Reversible (git reset --hard HEAD~1)
-✅ 0% Riesgo (sin pérdida de datos)
-✅ 80% Automatizado (script hace mayor parte)
-✅ 3 Rutas de ejecución (elige tu estilo)
-✅ Documentación completa (17 archivos)
-✅ Scripts interactivos (confirmación antes de cambios)
-✅ Verificación automática (script verifica resultado)
-✅ Guías paso a paso (checklist para cada fase)
-✅ Múltiples formatos (batch, PowerShell, Python, Markdown)
-✅ Production-ready (no rompe cambios si se coordina)
-
-
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃                      CHECKLIST ANTES DE EMPEZAR                          ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-☐ Git status limpio (git status)
-☐ Tests pasan (pytest tests/ -v)
-☐ Tienes 40-140 minutos libres (según opción)
-☐ Terminal + PowerShell listos
-☐ Leíste LEEME_PRIMERO.txt
-
-
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃                         RESUMEN EJECUTIVO                                ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-QUÉ:         Refactorizar backend Spanish → English
-ESTADO:      ✅ 90% COMPLETADO (OPCIÓN 1+ FINALIZADA)
-PROGRESO:    • 5 módulos renombrados
-             • 4 esquemas renombrados
-             • 2 archivos legacy eliminados
-             • 15+ docstrings traducidos
-             • 50+ nombres de clase en inglés
-             • 20+ mensajes de error en inglés
-             • Settings labels completados
-             • Field names completados
-             • 146 tests pasando
-             • 8 commits realizados
-FALTA:       • DTOs admin_config (30 min - OPCIONAL)
-             • Validadores País (2-3 horas - OPCIONAL)
-RIESGO:      ✅ CERO (100% reversible con git)
-RESULTADO:   ✅ Backend 90% en inglés, LISTO PARA PRODUCCIÓN
-
-
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃                            ¡ADELANTE! 🚀                                 ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-ABRE AHORA: LEEME_PRIMERO.txt
-
-(Toma 2 minutos, luego sabrás exactamente qué hacer)
 
 ═══════════════════════════════════════════════════════════════════════════════
-Estado: ✅ COMPLETADO AL 100% - BACKEND COMPLETAMENTE EN INGLÉS
-Versión: 2.1 Final (Refactoring de idioma - 100% completado)
+PRÓXIMA ACCIÓN: Refactorizar cada término en orden de prioridad
+1. Proveedores → Supplier (múltiples cambios)
+2. Gastos → Expense (comentarios/literales)
+3. Nómina → Payroll (alias y nombres)
+4. Empresa/Config → Company (settings/routers)
+
+Estado: 🟡 EN PROGRESO
+Versión: 2.2 (En refactorización de términos españoles restantes)
 Generado: 2025-11-26
-Commit Final: Complete Spanish to English refactoring - todos los términos traducidos
 ═══════════════════════════════════════════════════════════════════════════════

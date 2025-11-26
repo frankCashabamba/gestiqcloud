@@ -45,8 +45,8 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
 
         factura_data = factura_in.copy(exclude={"lineas"})
 
-        if factura_data.proveedor is None:
-            factura_data = factura_data.copy(update={"proveedor": "N/A"})
+        if factura_data.supplier is None:
+            factura_data = factura_data.copy(update={"supplier": "N/A"})
 
         factura = self.create(db, factura_data, extra_fields={"tenant_id": tenant_id})
 
@@ -176,7 +176,7 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
             data = temp.datos
             nueva = Invoice(
                 numero=data.get("numero"),
-                proveedor=data.get("proveedor"),
+                supplier=data.get("supplier"),
                 fecha_emision=data.get("fecha_emision"),
                 monto=data.get("monto"),
                 estado=data.get("estado", "pendiente"),

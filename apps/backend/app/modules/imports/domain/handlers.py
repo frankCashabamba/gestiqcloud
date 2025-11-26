@@ -443,7 +443,7 @@ class ExpenseHandler:
             )
 
             # Supplier (optional)
-            proveedor_nombre = str(
+            supplier_name = str(
                 normalized.get("vendor")
                 or normalized.get("proveedor")
                 or normalized.get("vendor", {}).get("name")
@@ -451,7 +451,7 @@ class ExpenseHandler:
             ).strip()
 
             supplier_id = None
-            if proveedor_nombre:
+            if supplier_name:
                 try:
                     from app.models.suppliers import Supplier
 
@@ -459,7 +459,7 @@ class ExpenseHandler:
                         db.query(Supplier)
                         .filter(
                             Supplier.tenant_id == tenant_id,
-                            Supplier.name == proveedor_nombre,
+                            Supplier.name == supplier_name,
                         )
                         .first()
                     )

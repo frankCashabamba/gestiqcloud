@@ -1854,7 +1854,7 @@ def get_sector_defaults(module: str, sector: str = "default") -> list[dict[str, 
     Obtiene la configuración de campos por defecto para un módulo y sector.
 
     Args:
-        module: name del módulo (productos, proveedores, etc.)
+        module: name del módulo (productos, suppliers, etc.)
         sector: name del sector (panaderia, retail, restaurante, taller)
 
     Returns:
