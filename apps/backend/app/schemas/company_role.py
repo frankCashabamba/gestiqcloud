@@ -3,7 +3,7 @@
 from pydantic import BaseModel, Field
 
 
-class RolEmpresaBase(BaseModel):
+class CompanyRoleBase(BaseModel):
     """Base schema for company roles."""
 
     name: str = Field(..., min_length=1, max_length=100, description="Role name")
@@ -11,11 +11,11 @@ class RolEmpresaBase(BaseModel):
     permissions: dict = Field(default_factory=dict, description="Role permissions (JSON structure)")
 
 
-class RolEmpresaCreate(RolEmpresaBase):
+class CompanyRoleCreate(CompanyRoleBase):
     """Create company role."""
 
 
-class RolEmpresaUpdate(BaseModel):
+class CompanyRoleUpdate(BaseModel):
     """Update company role."""
 
     name: str | None = Field(None, min_length=1, max_length=100)
@@ -23,7 +23,7 @@ class RolEmpresaUpdate(BaseModel):
     permissions: dict | None = None
 
 
-class RolEmpresaOut(RolEmpresaBase):
+class CompanyRoleOut(CompanyRoleBase):
     """Company role response schema."""
 
     id: int
