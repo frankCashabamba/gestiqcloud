@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class PayPhoneProvider:
-    """Proveedor de pagos PayPhone (Ecuador)"""
+    """provider de pagos PayPhone (Ecuador)"""
 
     def __init__(self, config: dict[str, Any]):
         self.token = config.get("token")

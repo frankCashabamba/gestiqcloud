@@ -28,7 +28,7 @@ class PaymentProvider(Protocol):
 
     def handle_webhook(self, payload: bytes, headers: dict[str, str]) -> dict[str, Any]:
         """
-        Procesar webhook del proveedor.
+        Procesar webhook del provider.
 
         Returns:
             Dict con 'status', 'invoice_id', 'amount', etc.
@@ -47,7 +47,7 @@ class PaymentProvider(Protocol):
 
 
 def get_provider(name: str, config: dict[str, Any]) -> PaymentProvider:
-    """Factory para obtener proveedor de pago"""
+    """Factory para obtener provider de pago"""
 
     if name == "stripe":
         from .stripe_provider import StripeProvider
@@ -65,4 +65,4 @@ def get_provider(name: str, config: dict[str, Any]) -> PaymentProvider:
         return PayPhoneProvider(config)
 
     else:
-        raise ValueError(f"Proveedor de pago no soportado: {name}")
+        raise ValueError(f"provider de pago no soportado: {name}")

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class KushkiProvider:
-    """Proveedor de pagos Kushki (Ecuador)"""
+    """provider de pagos Kushki (Ecuador)"""
 
     def __init__(self, config: dict[str, Any]):
         self.merchant_id = config.get("merchant_id")

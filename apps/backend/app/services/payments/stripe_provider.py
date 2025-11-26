@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class StripeProvider:
-    """Proveedor de pagos Stripe (España principalmente)"""
+    """provider de pagos Stripe (España principalmente)"""
 
     def __init__(self, config: dict[str, Any]):
         self.api_key = config.get("secret_key")
