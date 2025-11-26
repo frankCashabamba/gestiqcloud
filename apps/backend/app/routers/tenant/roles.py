@@ -1,15 +1,14 @@
 """Router para gestión de roles de empresa (tenant)."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
 from app.config.database import get_db
 from app.core.deps import require_tenant as require_current_user
 from app.db.rls import ensure_rls
-from app.models.company.company_role import CompanyRole as RolEmpresa
+from app.models.company.company_role import CompanyRole as CompanyRole
 from app.models.company.tenant import Empresa
 from app.schemas.rol_empresa import RolEmpresaCreate, RolEmpresaOut, RolEmpresaUpdate
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/tenant/roles", tags=["tenant-roles"])
 
@@ -29,7 +28,9 @@ async def list_roles(db: Session = Depends(get_db), current_user=Depends(require
 
     roles = (
         db.execute(
-            select(RolEmpresa).where(RolEmpresa.tenant_id == empresa.id).order_by(RolEmpresa.name)
+            select(CompanyRole)
+            .where(CompanyRole.tenant_id == empresa.id)
+            .order_by(CompanyRole.name)
         )
         .scalars()
         .all()
@@ -47,7 +48,7 @@ async def get_rol(
     """Obtener un rol por ID."""
     ensure_rls(db, current_user.get("tenant_id"))
 
-    rol = db.get(RolEmpresa, rol_id)
+    rol = db.get(CompanyRole, rol_id)
     if not rol:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rol no encontrado")
 
@@ -80,7 +81,9 @@ async def create_rol(
 
     # Verificar que no exista un rol con el mismo nombre
     existing = db.execute(
-        select(RolEmpresa).where(RolEmpresa.tenant_id == tenant_id, RolEmpresa.name == payload.name)
+        select(CompanyRole).where(
+            CompanyRole.tenant_id == tenant_id, CompanyRole.name == payload.name
+        )
     ).scalar_one_or_none()
 
     if existing:
@@ -90,7 +93,7 @@ async def create_rol(
         )
 
     # Crear rol
-    nuevo_rol = RolEmpresa(
+    nuevo_rol = CompanyRole(
         tenant_id=tenant_id,
         name=payload.name,
         description=payload.description,
@@ -122,7 +125,7 @@ async def update_rol(
             detail="Solo los administradores pueden modificar roles",
         )
 
-    rol = db.get(RolEmpresa, rol_id)
+    rol = db.get(CompanyRole, rol_id)
     if not rol:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rol no encontrado")
 
@@ -132,10 +135,10 @@ async def update_rol(
     # Si se actualiza el nombre, verificar unicidad
     if "name" in update_data:
         existing = db.execute(
-            select(RolEmpresa).where(
-                RolEmpresa.tenant_id == rol.tenant_id,
-                RolEmpresa.name == update_data["name"],
-                RolEmpresa.id != rol_id,
+            select(CompanyRole).where(
+                CompanyRole.tenant_id == rol.tenant_id,
+                CompanyRole.name == update_data["name"],
+                CompanyRole.id != rol_id,
             )
         ).scalar_one_or_none()
 
@@ -170,15 +173,15 @@ async def delete_rol(
             detail="Solo los administradores pueden eliminar roles",
         )
 
-    rol = db.get(RolEmpresa, rol_id)
+    rol = db.get(CompanyRole, rol_id)
     if not rol:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rol no encontrado")
 
     # Verificar que el rol no esté en uso
-    from app.models.usuarios.usuario_rol_empresa import UsuarioRolEmpresa
+    from app.models.usuarios.usuario_rol_empresa import CompanyUserRole
 
     usuarios_con_rol = db.execute(
-        select(UsuarioRolEmpresa).where(UsuarioRolEmpresa.rol_id == rol_id).limit(1)
+        select(CompanyUserRole).where(CompanyUserRole.rol_id == rol_id).limit(1)
     ).scalar_one_or_none()
 
     if usuarios_con_rol:

@@ -21,10 +21,6 @@ from decimal import Decimal
 from math import ceil
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_, func, select
-from sqlalchemy.orm import Session
-
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -32,8 +28,8 @@ from app.db.rls import ensure_rls
 
 # Models
 from app.models.hr import Empleado, Vacacion
-from app.models.hr.payroll import Payroll as Nomina
-from app.models.hr.payroll import PayrollConcept as NominaConcepto
+from app.models.hr.payroll import Payroll as Payroll
+from app.models.hr.payroll import PayrollConcept as PayrollConcept
 
 # Schemas - Empleados y Vacaciones
 from app.schemas.hr import (
@@ -59,6 +55,9 @@ from app.schemas.hr_nomina import (
     NominaStats,
     NominaUpdate,
 )
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import and_, func, select
+from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/hr",
@@ -81,9 +80,9 @@ def _generate_numero_nomina(db: Session, tenant_id: UUID, mes: int, ano: int) ->
     prefix = f"NOM-{ano}-{mes:02d}-"
 
     stmt = (
-        select(Nomina)
-        .where(Nomina.tenant_id == tenant_id, Nomina.numero.like(f"{prefix}%"))
-        .order_by(Nomina.numero.desc())
+        select(Payroll)
+        .where(Payroll.tenant_id == tenant_id, Payroll.numero.like(f"{prefix}%"))
+        .order_by(Payroll.numero.desc())
         .limit(1)
     )
 
@@ -667,24 +666,24 @@ async def list_nominas(
     """
     tenant_id = claims["tenant_id"]
 
-    stmt = select(Nomina).where(Nomina.tenant_id == tenant_id)
+    stmt = select(Payroll).where(Payroll.tenant_id == tenant_id)
 
     if empleado_id:
-        stmt = stmt.where(Nomina.empleado_id == empleado_id)
+        stmt = stmt.where(Payroll.empleado_id == empleado_id)
     if periodo_mes:
-        stmt = stmt.where(Nomina.periodo_mes == periodo_mes)
+        stmt = stmt.where(Payroll.periodo_mes == periodo_mes)
     if periodo_ano:
-        stmt = stmt.where(Nomina.periodo_ano == periodo_ano)
+        stmt = stmt.where(Payroll.periodo_ano == periodo_ano)
     if status:
-        stmt = stmt.where(Nomina.status == status)
+        stmt = stmt.where(Payroll.status == status)
     if tipo:
-        stmt = stmt.where(Nomina.tipo == tipo)
+        stmt = stmt.where(Payroll.tipo == tipo)
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = db.execute(count_stmt).scalar_one()
 
     stmt = (
-        stmt.order_by(Nomina.periodo_ano.desc(), Nomina.periodo_mes.desc(), Nomina.numero.desc())
+        stmt.order_by(Payroll.periodo_ano.desc(), Payroll.periodo_mes.desc(), Payroll.numero.desc())
         .offset(skip)
         .limit(limit)
     )
@@ -734,13 +733,13 @@ async def create_nomina(
         )
 
     # Validar duplicado
-    stmt = select(Nomina).where(
-        Nomina.tenant_id == tenant_id,
-        Nomina.empleado_id == data.empleado_id,
-        Nomina.periodo_mes == data.periodo_mes,
-        Nomina.periodo_ano == data.periodo_ano,
-        Nomina.tipo == data.tipo,
-        Nomina.status != "CANCELLED",
+    stmt = select(Payroll).where(
+        Payroll.tenant_id == tenant_id,
+        Payroll.empleado_id == data.empleado_id,
+        Payroll.periodo_mes == data.periodo_mes,
+        Payroll.periodo_ano == data.periodo_ano,
+        Payroll.tipo == data.tipo,
+        Payroll.status != "CANCELLED",
     )
     existing = db.execute(stmt).scalar_one_or_none()
 
@@ -782,7 +781,7 @@ async def create_nomina(
             nomina_dict["total_devengado"] - nomina_dict["total_deducido"]
         )
 
-    nomina = Nomina(
+    nomina = Payroll(
         tenant_id=tenant_id, numero=numero, status="DRAFT", created_by=user_id, **nomina_dict
     )
 
@@ -791,7 +790,7 @@ async def create_nomina(
 
     if data.conceptos:
         for concepto_data in data.conceptos:
-            concepto = NominaConcepto(nomina_id=nomina.id, **concepto_data.dict())
+            concepto = PayrollConcept(nomina_id=nomina.id, **concepto_data.dict())
             db.add(concepto)
 
     db.commit()
@@ -813,7 +812,7 @@ async def get_nomina(
     """Obtiene detalle de una nómina"""
     tenant_id = claims["tenant_id"]
 
-    stmt = select(Nomina).where(Nomina.id == nomina_id, Nomina.tenant_id == tenant_id)
+    stmt = select(Payroll).where(Payroll.id == nomina_id, Payroll.tenant_id == tenant_id)
     nomina = db.execute(stmt).scalar_one_or_none()
 
     if not nomina:
@@ -836,7 +835,7 @@ async def update_nomina(
     """Actualiza una nómina (solo si está en DRAFT)"""
     tenant_id = claims["tenant_id"]
 
-    stmt = select(Nomina).where(Nomina.id == nomina_id, Nomina.tenant_id == tenant_id)
+    stmt = select(Payroll).where(Payroll.id == nomina_id, Payroll.tenant_id == tenant_id)
     nomina = db.execute(stmt).scalar_one_or_none()
 
     if not nomina:
@@ -878,7 +877,7 @@ async def delete_nomina(
     """Elimina una nómina (solo si está en DRAFT)"""
     tenant_id = claims["tenant_id"]
 
-    stmt = select(Nomina).where(Nomina.id == nomina_id, Nomina.tenant_id == tenant_id)
+    stmt = select(Payroll).where(Payroll.id == nomina_id, Payroll.tenant_id == tenant_id)
     nomina = db.execute(stmt).scalar_one_or_none()
 
     if not nomina:
@@ -909,7 +908,7 @@ async def approve_nomina(
     tenant_id = claims["tenant_id"]
     user_id = claims["user_id"]
 
-    stmt = select(Nomina).where(Nomina.id == nomina_id, Nomina.tenant_id == tenant_id)
+    stmt = select(Payroll).where(Payroll.id == nomina_id, Payroll.tenant_id == tenant_id)
     nomina = db.execute(stmt).scalar_one_or_none()
 
     if not nomina:
@@ -948,7 +947,7 @@ async def pay_nomina(
     """Marca una nómina como pagada (APPROVED → PAID)"""
     tenant_id = claims["tenant_id"]
 
-    stmt = select(Nomina).where(Nomina.id == nomina_id, Nomina.tenant_id == tenant_id)
+    stmt = select(Payroll).where(Payroll.id == nomina_id, Payroll.tenant_id == tenant_id)
     nomina = db.execute(stmt).scalar_one_or_none()
 
     if not nomina:
@@ -1060,32 +1059,32 @@ async def get_nominas_stats(
     mes = periodo_mes or now.month
     ano = periodo_ano or now.year
 
-    stmt = select(Nomina).where(
-        Nomina.tenant_id == tenant_id, Nomina.periodo_mes == mes, Nomina.periodo_ano == ano
+    stmt = select(Payroll).where(
+        Payroll.tenant_id == tenant_id, Payroll.periodo_mes == mes, Payroll.periodo_ano == ano
     )
 
     total_draft = db.execute(
-        select(func.count()).select_from(stmt.where(Nomina.status == "DRAFT").subquery())
+        select(func.count()).select_from(stmt.where(Payroll.status == "DRAFT").subquery())
     ).scalar_one()
 
     total_approved = db.execute(
-        select(func.count()).select_from(stmt.where(Nomina.status == "APPROVED").subquery())
+        select(func.count()).select_from(stmt.where(Payroll.status == "APPROVED").subquery())
     ).scalar_one()
 
     total_paid = db.execute(
-        select(func.count()).select_from(stmt.where(Nomina.status == "PAID").subquery())
+        select(func.count()).select_from(stmt.where(Payroll.status == "PAID").subquery())
     ).scalar_one()
 
     total_cancelled = db.execute(
-        select(func.count()).select_from(stmt.where(Nomina.status == "CANCELLED").subquery())
+        select(func.count()).select_from(stmt.where(Payroll.status == "CANCELLED").subquery())
     ).scalar_one()
 
     result = db.execute(
         select(
-            func.sum(Nomina.total_devengado),
-            func.sum(Nomina.total_deducido),
-            func.sum(Nomina.liquido_total),
-            func.avg(Nomina.liquido_total),
+            func.sum(Payroll.total_devengado),
+            func.sum(Payroll.total_deducido),
+            func.sum(Payroll.liquido_total),
+            func.avg(Payroll.liquido_total),
         ).select_from(stmt.subquery())
     ).one()
 
@@ -1097,13 +1096,13 @@ async def get_nominas_stats(
     total_nominas = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
 
     total_empleados = db.execute(
-        select(func.count(func.distinct(Nomina.empleado_id))).select_from(stmt.subquery())
+        select(func.count(func.distinct(Payroll.empleado_id))).select_from(stmt.subquery())
     ).scalar_one()
 
     nominas_por_tipo = {}
     for tipo in ["MENSUAL", "EXTRA", "FINIQUITO", "ESPECIAL"]:
         count = db.execute(
-            select(func.count()).select_from(stmt.where(Nomina.tipo == tipo).subquery())
+            select(func.count()).select_from(stmt.where(Payroll.tipo == tipo).subquery())
         ).scalar_one()
         nominas_por_tipo[tipo] = count
 

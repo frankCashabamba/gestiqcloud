@@ -3,13 +3,12 @@
 from typing import Optional
 from uuid import UUID, uuid4
 
+from app.config.database import Base
+from app.models.company.company import RolBase
 from sqlalchemy import JSON, Boolean, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.config.database import Base
-from app.models.company.company import RolBase
 
 
 class CompanyRole(Base):
@@ -38,7 +37,3 @@ class CompanyRole(Base):
         UniqueConstraint("tenant_id", "name", name="uq_company_role"),
         {"extend_existing": True},
     )
-
-
-# Keep old name for backward compatibility
-RolEmpresa = CompanyRole

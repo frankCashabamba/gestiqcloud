@@ -3,12 +3,11 @@
 from datetime import datetime
 from uuid import UUID
 
+from app.config.database import Base
+from app.models.company.company_role import CompanyRole
 from sqlalchemy import Boolean, DateTime, ForeignKey, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.config.database import Base
-from app.models.company.company_role import CompanyRole
 
 
 class CompanyUserRole(Base):
@@ -58,7 +57,3 @@ class CompanyUserRole(Base):
     @active.setter
     def active(self, value: bool) -> None:
         self.is_active = value
-
-
-# Keep old name for backward compatibility
-UsuarioRolEmpresa = CompanyUserRole

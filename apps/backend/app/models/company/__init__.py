@@ -17,10 +17,10 @@ from app.models.company.company import (
     UserProfile,
     Weekday,
 )
-from app.models.company.company_role import CompanyRole, RolEmpresa
+from app.models.company.company_role import CompanyRole
 from app.models.company.company_settings import CompanySettings
-from app.models.company.company_user import CompanyUser, UsuarioEmpresa
-from app.models.company.company_user_role import CompanyUserRole, UsuarioRolEmpresa
+from app.models.company.company_user import CompanyUser
+from app.models.company.company_user_role import CompanyUserRole
 
 __all__ = [
     "BusinessCategory",
@@ -39,10 +39,10 @@ __all__ = [
     "SectorTemplate",
     "SectorPlantilla",
     "CompanyRole",
-    "RolEmpresa",
+    "CompanyRole",
     "CompanySettings",
     "CompanyUser",
-    "UsuarioEmpresa",
+    "CompanyUser",
     "CompanyUserRole",
-    "UsuarioRolEmpresa",
+    "CompanyUserRole",
 ]

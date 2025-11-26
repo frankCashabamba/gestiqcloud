@@ -4,10 +4,9 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
+from app.config.database import IS_SQLITE, Base
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.config.database import IS_SQLITE, Base
 
 if TYPE_CHECKING:
     from app.models.tenant import Tenant
@@ -93,7 +92,3 @@ class CompanyUser(Base):
     def is_staff(self) -> bool:
         """Check if user is staff."""
         return self.is_company_admin
-
-
-# Keep old name for backward compatibility
-UsuarioEmpresa = CompanyUser
