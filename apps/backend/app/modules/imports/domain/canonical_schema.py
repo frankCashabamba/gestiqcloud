@@ -29,10 +29,10 @@ from typing import Literal, TypedDict
 
 VALID_DOC_TYPES = Literal[
     "invoice",  # Factura
-    "expense_receipt",  # Recibo/ticket de gasto
+    "expense_receipt",  # Receipt/expense ticket
     "bank_tx",  # Transacción bancaria
     "product",  # Producto (inventario)
-    "expense",  # Gasto
+    "expense",  # Expense
     "other",  # Documento no clasificado
 ]
 
@@ -149,10 +149,10 @@ class ProductInfo(TypedDict, total=False):
 class ExpenseInfo(TypedDict, total=False):
     """Información específica para documentos de tipo 'expense'."""
 
-    description: str  # Descripción del gasto (REQUIRED)
-    amount: float  # Monto del gasto (REQUIRED)
-    expense_date: str  # Fecha del gasto YYYY-MM-DD (REQUIRED)
-    category: str | None  # Categoría del gasto (combustible, suministros, etc)
+    description: str  # Expense description (REQUIRED)
+    amount: float  # Expense amount (REQUIRED)
+    expense_date: str  # Expense date YYYY-MM-DD (REQUIRED)
+    category: str | None  # Expense category (fuel, supplies, etc)
     subcategory: str | None  # Subcategoría
     payment_method: str | None  # Método de pago (cash, card, transfer)
     vendor: PartyInfo | None  # Vendor/Commerce
@@ -181,7 +181,7 @@ class CanonicalDocument(TypedDict, total=False):
     payment: PaymentInfo | None  # Información de pago
     bank_tx: BankTxInfo | None  # Específico para transacciones bancarias
     product: ProductInfo | None  # Específico para productos
-    expense: ExpenseInfo | None  # Específico para gastos
+    expense: ExpenseInfo | None  # Specific to expenses
     routing_proposal: RoutingProposal | None  # Propuesta de enrutamiento
     attachments: list[AttachmentInfo] | None  # Adjuntos relacionados
     metadata: dict | None  # Metadatos adicionales extensibles
@@ -378,7 +378,7 @@ def validate_canonical(data: dict) -> tuple[bool, list[str]]:
     elif doc_type == "expense":
         expense = data.get("expense")
         if not expense:
-            errors.append("Gastos requieren campo 'expense'")
+            errors.append("Expenses require 'expense' field")
         else:
             if not expense.get("description"):
                 errors.append("expense requiere 'description'")

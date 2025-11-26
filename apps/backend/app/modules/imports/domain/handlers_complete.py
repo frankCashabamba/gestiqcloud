@@ -5,7 +5,7 @@ IMPLEMENTACIÓN REAL - Sin skeletons ni IDs ficticios.
 Soporta:
 - Facturas (Invoice) → tabla invoices + invoice_lines
 - Transacciones bancarias (BankTransaction) → tabla bank_transactions
-- Gastos/Recibos (Gasto) → tabla gastos
+- Expenses/Receipts (Expense) → expenses table
 - Productos (Product) → tabla products (ya implementado)
 """
 
@@ -449,7 +449,7 @@ class ExpenseHandler:
                 normalized.get("description")
                 or normalized.get("concept")
                 or normalized.get("descripcion")
-                or "Gasto"
+                or "Expense"
             ).strip()
 
             # Categoría
