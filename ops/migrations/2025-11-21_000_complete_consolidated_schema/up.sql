@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS auth_audit (
 
 CREATE TABLE IF NOT EXISTS auth_refresh_family (
 	id UUID NOT NULL,
-	user_id INTEGER,
+	user_id UUID,
 	tenant_id UUID,
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
 	revoked_at TIMESTAMP WITH TIME ZONE,
@@ -306,6 +306,15 @@ CREATE TABLE IF NOT EXISTS auth_refresh_token (
 	PRIMARY KEY (id),
 	UNIQUE (token)
 );
+
+-- Foreign keys for refresh tokens/families
+ALTER TABLE auth_refresh_family
+    DROP CONSTRAINT IF EXISTS auth_refresh_family_user_id_fkey,
+    ADD CONSTRAINT auth_refresh_family_user_fk FOREIGN KEY (user_id) REFERENCES auth_user(id) ON DELETE SET NULL;
+
+ALTER TABLE auth_refresh_token
+    DROP CONSTRAINT IF EXISTS auth_refresh_token_family_id_fkey,
+    ADD CONSTRAINT auth_refresh_token_family_fk FOREIGN KEY (family_id) REFERENCES auth_refresh_family(id) ON DELETE CASCADE;
 
 
 CREATE TABLE IF NOT EXISTS bank_movements (
@@ -512,7 +521,7 @@ CREATE TABLE IF NOT EXISTS notification_channels (
 
 
 CREATE TABLE IF NOT EXISTS pos_registers (
-	id UUID NOT NULL,
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
 	tenant_id UUID NOT NULL,
 	store_id UUID,
 	name VARCHAR(100) NOT NULL,
@@ -886,6 +895,39 @@ CREATE TABLE IF NOT EXISTS sales (
 	user_id UUID NOT NULL,
 	created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
 	updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+	PRIMARY KEY (id)
+);
+
+-- Sales Orders (missing in consolidated schema)
+CREATE TABLE IF NOT EXISTS sales_orders (
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
+	tenant_id UUID NOT NULL,
+	number VARCHAR(50) NOT NULL,
+	customer_id UUID,
+	order_date DATE NOT NULL DEFAULT now(),
+	required_date DATE,
+	subtotal NUMERIC(12, 2) DEFAULT 0 NOT NULL,
+	tax NUMERIC(12, 2) DEFAULT 0 NOT NULL,
+	total NUMERIC(12, 2) DEFAULT 0 NOT NULL,
+	currency VARCHAR(3) DEFAULT 'EUR',
+	status VARCHAR(20) NOT NULL DEFAULT 'draft',
+	notes TEXT,
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	PRIMARY KEY (id),
+	UNIQUE (number)
+);
+
+CREATE TABLE IF NOT EXISTS sales_order_items (
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
+	sales_order_id UUID NOT NULL,
+	product_id UUID NOT NULL,
+	quantity NUMERIC(14, 3) NOT NULL,
+	unit_price NUMERIC(12, 2) NOT NULL,
+	tax_rate NUMERIC(6, 4) DEFAULT 0.21 NOT NULL,
+	discount_percent NUMERIC(5, 2) DEFAULT 0 NOT NULL,
+	line_total NUMERIC(12, 2) NOT NULL,
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
 	PRIMARY KEY (id)
 );
 
