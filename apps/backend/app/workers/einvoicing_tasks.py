@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class EInvoicingTask(Task):
-    """Base task con manejo de errores"""
+    """Base task con manejo de errors"""
 
     autoretry_for = (Exception,)
     retry_kwargs = {"max_retries": 3, "countdown": 60}
@@ -89,7 +89,7 @@ def generate_facturae_xml(invoice_data: dict[str, Any]) -> str:
     header = etree.SubElement(invoice, "InvoiceHeader")
     etree.SubElement(header, "InvoiceNumber").text = invoice_data["numero"]
     etree.SubElement(header, "InvoiceSeriesCode").text = "A"
-    etree.SubElement(header, "InvoiceDocumentType").text = "FC"  # Factura completa
+    etree.SubElement(header, "InvoiceDocumentType").text = "FC"  # invoice completa
     etree.SubElement(header, "InvoiceClass").text = "OO"
 
     # InvoiceIssueData
@@ -122,8 +122,8 @@ def generate_sri_xml(invoice_data: dict[str, Any]) -> str:
     """
     from lxml import etree
 
-    # Estructura básica factura SRI v1.1.0
-    root = etree.Element("factura", id="comprobante", version="1.1.0")
+    # Estructura básica invoice SRI v1.1.0
+    root = etree.Element("invoice", id="comprobante", version="1.1.0")
 
     # Info tributaria
     info_trib = etree.SubElement(root, "infoTributaria")
@@ -133,13 +133,13 @@ def generate_sri_xml(invoice_data: dict[str, Any]) -> str:
     etree.SubElement(info_trib, "nombreComercial").text = invoice_data["empresa"]["nombre"]
     etree.SubElement(info_trib, "ruc").text = invoice_data["empresa"]["ruc"]
     etree.SubElement(info_trib, "claveAcceso").text = generate_clave_acceso(invoice_data)
-    etree.SubElement(info_trib, "codDoc").text = "01"  # 01=Factura
+    etree.SubElement(info_trib, "codDoc").text = "01"  # 01=invoice
     etree.SubElement(info_trib, "estab").text = "001"  # Establecimiento
     etree.SubElement(info_trib, "ptoEmi").text = "001"  # Punto emisión
     etree.SubElement(info_trib, "secuencial").text = invoice_data["numero"].split("-")[-1].zfill(9)
     etree.SubElement(info_trib, "dirMatriz").text = invoice_data["empresa"].get("direccion", "N/A")
 
-    # Info factura
+    # Info invoice
     info_fact = etree.SubElement(root, "infoFactura")
     etree.SubElement(info_fact, "fechaEmision").text = invoice_data["fecha"].strftime("%d/%m/%Y")
     etree.SubElement(info_fact, "dirEstablecimiento").text = invoice_data["empresa"].get(
@@ -205,7 +205,7 @@ def generate_clave_acceso(invoice_data: dict[str, Any]) -> str:
     dd = fecha.strftime("%d")
     mm = fecha.strftime("%m")
     yyyy = fecha.strftime("%Y")
-    tt = "01"  # Tipo comprobante (01=Factura)
+    tt = "01"  # Tipo comprobante (01=invoice)
     ruc = invoice_data["empresa"]["ruc"]
     ee = "001"  # Establecimiento
     ppp = "001"  # Punto emisión
@@ -290,7 +290,7 @@ def send_to_sri(xml_signed: str, env: str = "sandbox") -> dict[str, Any]:
     if response.status_code == 200:
         # Simplificado - implementar parsing SOAP completo
         if "RECIBIDA" in response.text:
-            return {"status": "authorized", "message": "Comprobante recibido"}
+            return {"status": "authorized", "message": "Comprobante received"}
         else:
             return {"status": "rejected", "message": response.text}
     else:
@@ -331,14 +331,13 @@ except Exception:  # Provide no-op task decorator in tests when minimal
 
 @celery_app.task(base=EInvoicingTask, name="einvoicing.sign_and_send_sri")
 def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"):
-    """Tarea: Firmar y enviar factura a SRI Ecuador"""
-    from sqlalchemy import text
-
+    """task: Firmar y enviar invoice a SRI Ecuador"""
     from app.config.database import SessionLocal
+    from sqlalchemy import text
 
     db = SessionLocal()
     try:
-        # 1. Obtener datos de factura
+        # 1. Obtener datos de invoice
         query = text(
             """
         SELECT
@@ -347,7 +346,7 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
         t.address as empresa_direccion,
         c.name as cliente_nombre, c.identificacion as cliente_ruc,
         c.email as cliente_email
-        FROM facturas f
+        FROM invoices f
         JOIN tenants t ON t.id = f.tenant_id
 
         JOIN clientes c ON c.id = f.cliente_id
@@ -464,7 +463,7 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
         if result["status"] == "authorized":
             update_invoice = text(
                 """
-                UPDATE invoices SET estado = 'einvoice_sent'
+                UPDATE invoices SET status = 'einvoice_sent'
                 WHERE id = :invoice_id
             """
             )
@@ -482,7 +481,7 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
 
     except Exception as e:
         db.rollback()
-        logger.error(f"Error processing SRI invoice {invoice_id}: {e}")
+        logger.error(f"error processing SRI invoice {invoice_id}: {e}")
         raise
 
     finally:
@@ -491,18 +490,17 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
 
 @celery_app.task(base=EInvoicingTask, name="einvoicing.sign_and_send_facturae")
 def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "sandbox"):
-    """Tarea: Firmar y enviar Facturae España"""
+    """task: Firmar y enviar Facturae España"""
     import asyncio
 
-    from sqlalchemy import text
-
     from app.config.database import SessionLocal
+    from sqlalchemy import text
 
     db = SessionLocal()
     try:
         logger.info(f"Facturae task started: {invoice_id} for tenant {tenant_id}")
 
-        # 1. Obtener datos de factura
+        # 1. Obtener datos de invoice
         query = text(
             """
             SELECT
@@ -511,7 +509,7 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
                 t.address as empresa_direccion,
                 c.name as cliente_nombre, c.identificacion as cliente_ruc,
                 c.email as cliente_email
-            FROM facturas f
+            FROM invoices f
             JOIN tenants t ON t.id = f.tenant_id
 
             JOIN clientes c ON c.id = f.cliente_id
@@ -565,7 +563,7 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
         _signed_xml = sign_facturae_xml(xml_content, cert_data)
 
         # 4. Enviar a AEAT/SII (TODO: implementar)
-        result = {"status": "ACCEPTED", "message": "Facturae enviado (stub)"}
+        result = {"status": "ACCEPTED", "message": "Facturae sent (stub)"}
 
         # 5. Guardar resultado en SII batch
         from datetime import datetime
@@ -621,12 +619,12 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
                 },
             )
 
-        # 6. Actualizar factura
+        # 6. Actualizar invoice
         if result["status"] == "ACCEPTED":
             update_query = text(
                 """
-                UPDATE facturas
-                SET estado = 'posted'
+                UPDATE invoices
+                SET status = 'posted'
                 WHERE id = :invoice_id
             """
             )
@@ -636,7 +634,7 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
         return result
     except Exception as e:
         db.rollback()
-        logger.error(f"Error Facturae {invoice_id}: {e}")
+        logger.error(f"error Facturae {invoice_id}: {e}")
         raise
     finally:
         db.close()
@@ -644,7 +642,7 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
 
 @celery_app.task(name="einvoicing.send_einvoice")
 def send_einvoice_task(invoice_id: str, country: str, env: str = "sandbox"):
-    """Tarea unificada: Despachar según país"""
+    """task unificada: Despachar según país"""
 
     if country == "EC":
         return sign_and_send_sri_task.delay(invoice_id, env)

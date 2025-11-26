@@ -1,9 +1,8 @@
 from datetime import date
 
-from sqlalchemy.orm import Session
-
 from app.config.database import Base
-from app.modules.ventas.infrastructure.repositories import SaleRepo
+from app.modules.sales.infrastructure.repositories import SaleRepo
+from sqlalchemy.orm import Session
 
 
 def test_ventas_repo_crud_compat(db: Session):

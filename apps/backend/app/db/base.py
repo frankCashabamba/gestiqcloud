@@ -8,7 +8,7 @@ import app.models  # noqa: F401
 
 # Cargar modelos de módulos vertical-slice para Alembic (sin efectos secundarios)
 try:
-    import app.modules.productos.infrastructure.models  # noqa: F401
+    import app.modules.products.infrastructure.models  # noqa: F401
 except Exception:
     pass
 try:
@@ -16,11 +16,11 @@ try:
 except Exception:
     pass
 try:
-    import app.modules.ventas.infrastructure.models  # noqa: F401
+    import app.modules.sales.infrastructure.models  # noqa: F401
 except Exception:
     pass
 try:
-    import app.modules.compras.infrastructure.models  # noqa: F401
+    import app.modules.purchases.infrastructure.models  # noqa: F401
 except Exception:
     pass
 try:
@@ -37,6 +37,18 @@ except Exception:
     pass
 try:
     import app.modules.settings.infrastructure.models  # noqa: F401
+except Exception:
+    pass
+try:
+    import app.modules.invoicing.infrastructure.models  # noqa: F401
+except Exception:
+    pass
+try:
+    import app.modules.accounting.infrastructure.models  # noqa: F401
+except Exception:
+    pass
+try:
+    import app.modules.production.infrastructure.models  # noqa: F401
 except Exception:
     pass
 

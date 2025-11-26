@@ -36,7 +36,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
     "panaderia": {
         "productos": [
             {
-                "field": "codigo",
+                "field": "code",
                 "visible": True,
                 "required": True,
                 "ord": 10,
@@ -54,11 +54,11 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "text",
             },
             {
-                "field": "nombre",
+                "field": "name",
                 "visible": True,
                 "required": True,
                 "ord": 20,
-                "label": "Nombre del producto",
+                "label": "name del producto",
                 "type": "text",
             },
             {
@@ -124,22 +124,22 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "options": ["4", "10", "21"],
             },
             {
-                "field": "activo",
+                "field": "active",
                 "visible": True,
                 "required": False,
                 "ord": 70,
-                "label": "Activo",
+                "label": "active",
                 "help": "Visible en POS",
                 "type": "boolean",
             },
         ],
         "suppliers": [
             {
-                "field": "nombre",
+                "field": "name",
                 "visible": True,
                 "required": True,
                 "ord": 10,
-                "label": "Nombre comercial",
+                "label": "name comercial",
                 "type": "text",
             },
             {
@@ -200,11 +200,11 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "boolean",
             },
             {
-                "field": "activo",
+                "field": "active",
                 "visible": True,
                 "required": False,
                 "ord": 70,
-                "label": "Activo",
+                "label": "active",
                 "type": "boolean",
             },
         ],
@@ -387,7 +387,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "select",
             },
             {
-                "field": "descripcion",
+                "field": "description",
                 "visible": True,
                 "required": True,
                 "ord": 20,
@@ -460,7 +460,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
     "retail": {
         "productos": [
             {
-                "field": "codigo",
+                "field": "code",
                 "visible": True,
                 "required": True,
                 "ord": 10,
@@ -478,11 +478,11 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "text",
             },
             {
-                "field": "nombre",
+                "field": "name",
                 "visible": True,
                 "required": True,
                 "ord": 20,
-                "label": "Nombre",
+                "label": "name",
                 "type": "text",
             },
             {
@@ -584,21 +584,21 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "options": ["10", "21"],
             },
             {
-                "field": "activo",
+                "field": "active",
                 "visible": True,
                 "required": False,
                 "ord": 70,
-                "label": "Activo",
+                "label": "active",
                 "type": "boolean",
             },
         ],
         "suppliers": [
             {
-                "field": "nombre",
+                "field": "name",
                 "visible": True,
                 "required": True,
                 "ord": 10,
-                "label": "Nombre comercial",
+                "label": "name comercial",
                 "type": "text",
             },
             {
@@ -650,11 +650,11 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "number",
             },
             {
-                "field": "activo",
+                "field": "active",
                 "visible": True,
                 "required": False,
                 "ord": 70,
-                "label": "Activo",
+                "label": "active",
                 "type": "boolean",
             },
         ],
@@ -851,7 +851,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "select",
             },
             {
-                "field": "descripcion",
+                "field": "description",
                 "visible": True,
                 "required": True,
                 "ord": 20,
@@ -924,7 +924,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
     "restaurante": {
         "productos": [
             {
-                "field": "codigo",
+                "field": "code",
                 "visible": True,
                 "required": True,
                 "ord": 10,
@@ -932,11 +932,11 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "text",
             },
             {
-                "field": "nombre",
+                "field": "name",
                 "visible": True,
                 "required": True,
                 "ord": 20,
-                "label": "Nombre del plato",
+                "label": "name del plato",
                 "type": "text",
             },
             {
@@ -999,7 +999,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "options": ["4", "10", "21"],
             },
             {
-                "field": "activo",
+                "field": "active",
                 "visible": True,
                 "required": False,
                 "ord": 70,
@@ -1009,11 +1009,11 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
         ],
         "suppliers": [
             {
-                "field": "nombre",
+                "field": "name",
                 "visible": True,
                 "required": True,
                 "ord": 10,
-                "label": "Nombre comercial",
+                "label": "name comercial",
                 "type": "text",
             },
             {
@@ -1065,11 +1065,11 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "boolean",
             },
             {
-                "field": "activo",
+                "field": "active",
                 "visible": True,
                 "required": False,
                 "ord": 70,
-                "label": "Activo",
+                "label": "active",
                 "type": "boolean",
             },
         ],
@@ -1242,7 +1242,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "select",
             },
             {
-                "field": "descripcion",
+                "field": "description",
                 "visible": True,
                 "required": True,
                 "ord": 20,
@@ -1315,7 +1315,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
     "taller": {
         "productos": [
             {
-                "field": "codigo",
+                "field": "code",
                 "visible": True,
                 "required": True,
                 "ord": 10,
@@ -1332,7 +1332,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "text",
             },
             {
-                "field": "nombre",
+                "field": "name",
                 "visible": True,
                 "required": True,
                 "ord": 20,
@@ -1341,11 +1341,11 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "text",
             },
             {
-                "field": "tipo",
+                "field": "type",
                 "visible": True,
                 "required": True,
                 "ord": 25,
-                "label": "Tipo",
+                "label": "type",
                 "type": "select",
                 "options": ["Repuesto", "Mano de obra", "Servicio"],
             },
@@ -1428,7 +1428,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "options": ["21"],
             },
             {
-                "field": "activo",
+                "field": "active",
                 "visible": True,
                 "required": False,
                 "ord": 80,
@@ -1438,11 +1438,11 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
         ],
         "suppliers": [
             {
-                "field": "nombre",
+                "field": "name",
                 "visible": True,
                 "required": True,
                 "ord": 10,
-                "label": "Nombre comercial",
+                "label": "name comercial",
                 "type": "text",
             },
             {
@@ -1502,11 +1502,11 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "textarea",
             },
             {
-                "field": "activo",
+                "field": "active",
                 "visible": True,
                 "required": False,
                 "ord": 70,
-                "label": "Activo",
+                "label": "active",
                 "type": "boolean",
             },
         ],
@@ -1695,7 +1695,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "select",
             },
             {
-                "field": "descripcion",
+                "field": "description",
                 "visible": True,
                 "required": True,
                 "ord": 20,
@@ -1854,8 +1854,8 @@ def get_sector_defaults(module: str, sector: str = "default") -> list[dict[str, 
     Obtiene la configuración de campos por defecto para un módulo y sector.
 
     Args:
-        module: Nombre del módulo (productos, proveedores, etc.)
-        sector: Nombre del sector (panaderia, retail, restaurante, taller)
+        module: name del módulo (productos, proveedores, etc.)
+        sector: name del sector (panaderia, retail, restaurante, taller)
 
     Returns:
         Lista de configuraciones de campos
@@ -1875,8 +1875,8 @@ def get_sector_categories(sector: str, module: str = "productos") -> list[str]:
     Obtiene las categorías por defecto para un sector y módulo.
 
     Args:
-        sector: Nombre del sector
-        module: Nombre del módulo (default: productos)
+        sector: name del sector
+        module: name del módulo (default: productos)
 
     Returns:
         Lista de categorías

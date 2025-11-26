@@ -1,5 +1,5 @@
 """
-Workers Celery para notificaciones multi-canal
+Workers Celery para notifications multi-canal
 Soporta: Email (SMTP), WhatsApp (Twilio/API), Telegram (Bot API)
 """
 
@@ -11,11 +11,10 @@ from email.mime.text import MIMEText
 from typing import Any
 
 import requests
-from celery import shared_task
-from sqlalchemy import text
-
 from app.db.session import get_db_context
 from app.models.ai.incident import NotificationChannel, NotificationLog, StockAlert
+from celery import shared_task
+from sqlalchemy import text
 
 
 @shared_task(bind=True, max_retries=3)
@@ -25,7 +24,7 @@ def send_notification_task(
     channel_type: str,
     destinatario: str,
     asunto: str,
-    mensaje: str,
+    message: str,
     ref_type: str | None = None,
     ref_id: str | None = None,
     config_override: dict[str, Any] | None = None,
@@ -37,8 +36,8 @@ def send_notification_task(
         tenant_id: UUID del tenant
         tipo: 'email', 'whatsapp', 'telegram'
         destinatario: email/phone/chat_id
-        asunto: Asunto del mensaje
-        mensaje: Cuerpo del mensaje (HTML para email)
+        asunto: Asunto del message
+        message: Cuerpo del message (HTML para email)
         ref_type: Tipo de referencia ('invoice', 'stock_alert', etc)
         ref_id: UUID del documento relacionado
         config_override: Configuración custom (opcional)
@@ -67,11 +66,11 @@ def send_notification_task(
             # 2. Enviar según tipo
             result = None
             if channel_type == "email":
-                result = send_email(config, destinatario, asunto, mensaje)
+                result = send_email(config, destinatario, asunto, message)
             elif channel_type == "whatsapp":
-                result = send_whatsapp(config, destinatario, mensaje)
+                result = send_whatsapp(config, destinatario, message)
             elif channel_type == "telegram":
-                result = send_telegram(config, destinatario, mensaje)
+                result = send_telegram(config, destinatario, message)
             else:
                 raise ValueError(f"Unsupported notification type: {channel_type}")
 
@@ -81,9 +80,9 @@ def send_notification_task(
                 channel_type=channel_type,
                 destinatario=destinatario,
                 asunto=asunto,
-                mensaje=mensaje,
+                message=message,
                 canal=channel_type,
-                estado="sent",
+                status="sent",
                 ref_type=ref_type,
                 ref_id=ref_id,
                 metadata=result,
@@ -101,9 +100,9 @@ def send_notification_task(
                 channel_type=channel_type,
                 destinatario=destinatario,
                 asunto=asunto,
-                mensaje=mensaje,
+                message=message,
                 canal=channel_type,
-                estado="failed",
+                status="failed",
                 error_message=str(e),
                 ref_type=ref_type,
                 ref_id=ref_id,
@@ -137,7 +136,7 @@ def send_email(config: dict[str, Any], to: str, subject: str, body: str) -> dict
     if not smtp_user or not smtp_pass:
         raise ValueError("SMTP credentials no configurados")
 
-    # Crear mensaje
+    # Crear message
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = from_email
@@ -226,7 +225,7 @@ def send_whatsapp(config: dict[str, Any], phone: str, message: str) -> dict[str,
 
 def send_telegram(config: dict[str, Any], chat_id: str, message: str) -> dict[str, Any]:
     """
-    Envía mensaje vía Telegram Bot API
+    Envía message vía Telegram Bot API
 
     Config:
     - bot_token: Token del bot (obtener de @BotFather)
@@ -264,7 +263,7 @@ def send_telegram(config: dict[str, Any], chat_id: str, message: str) -> dict[st
 @shared_task
 def check_and_notify_low_stock():
     """
-    Tarea programada: revisar stock bajo y notificar
+    task programada: revisar stock bajo y notificar
     Ejecuta cada hora vía Celery Beat
     """
     with get_db_context() as db:
@@ -306,7 +305,7 @@ def check_and_notify_low_stock():
             if not channels:
                 continue
 
-            # Construir mensaje
+            # Construir message
             productos_list = []
             for alert in tenant_alerts:
                 productos_list.append(
@@ -314,7 +313,7 @@ def check_and_notify_low_stock():
                     f"(mínimo: {alert.nivel_minimo})"
                 )
 
-            mensaje = f"""
+            message = f"""
 <b>⚠️ Alerta de Stock Bajo</b>
 
 Tienes {len(tenant_alerts)} producto(s) con stock bajo:
@@ -337,13 +336,13 @@ Tienes {len(tenant_alerts)} producto(s) con stock bajo:
                         channel_type=channel.channel_type,
                         destinatario=default_recipient,
                         asunto="⚠️ Alerta Stock Bajo",
-                        mensaje=mensaje,
+                        message=message,
                         ref_type="stock_alert",
                         ref_id=None,
                     )
                     channels_used.append(channel.channel_type)
                 except Exception as e:
-                    print(f"Error enviando alerta por {channel.channel_type}: {e}")
+                    print(f"error enviando alerta por {channel.channel_type}: {e}")
 
             # Marcar como notificadas
             if channels_used:
@@ -360,10 +359,10 @@ Tienes {len(tenant_alerts)} producto(s) con stock bajo:
 @shared_task
 def send_invoice_notification(invoice_id: str, channel_type: str = "email"):
     """
-    Notifica al cliente sobre una factura
+    Notifica al cliente sobre una invoice
 
     Args:
-        invoice_id: UUID de la factura
+        invoice_id: UUID de la invoice
         tipo: 'email', 'whatsapp', 'telegram'
     """
     with get_db_context() as db:
@@ -371,20 +370,20 @@ def send_invoice_notification(invoice_id: str, channel_type: str = "email"):
 
         invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
         if not invoice:
-            raise ValueError(f"Factura {invoice_id} no encontrada")
+            raise ValueError(f"invoice {invoice_id} no encontrada")
 
-        # Construir mensaje
-        asunto = f"Factura {invoice.numero} - {invoice.empresa.name}"
-        mensaje = f"""
-<h2>Factura #{invoice.numero}</h2>
+        # Construir message
+        asunto = f"invoice {invoice.numero} - {invoice.empresa.name}"
+        message = f"""
+<h2>invoice #{invoice.numero}</h2>
 
 <p><b>Fecha:</b> {invoice.fecha.strftime("%d/%m/%Y")}</p>
 <p><b>Cliente:</b> {invoice.cliente.name if invoice.cliente else "N/A"}</p>
 <p><b>Total:</b> {invoice.total} €</p>
 
-<p><b>Estado:</b> {invoice.status}</p>
+<p><b>status:</b> {invoice.status}</p>
 
-<a href="https://app.gestiqcloud.com/invoices/{invoice.id}">Ver Factura Completa</a>
+<a href="https://app.gestiqcloud.com/invoices/{invoice.id}">Ver invoice Completa</a>
         """.strip()
 
         # Destinatario
@@ -403,7 +402,7 @@ def send_invoice_notification(invoice_id: str, channel_type: str = "email"):
             channel_type=channel_type,
             destinatario=destinatario,
             asunto=asunto,
-            mensaje=mensaje,
+            message=message,
             ref_type="invoice",
             ref_id=str(invoice.id),
         )
@@ -414,7 +413,7 @@ def send_invoice_notification(invoice_id: str, channel_type: str = "email"):
 @shared_task
 def cleanup_old_logs(days: int = 90):
     """
-    Limpia logs de notificaciones antiguos
+    Limpia logs de notifications antiguos
     Ejecutar mensualmente vía Celery Beat
     """
     with get_db_context() as db:

@@ -83,7 +83,7 @@ class TemplateConcept(BaseModel):
 class PayrollTemplateBase(BaseModel):
     """Base para plantillas de nómina"""
 
-    name: str = Field(..., max_length=100, description="Nombre de la plantilla")
+    name: str = Field(..., max_length=100, description="name de la plantilla")
     description: str | None = Field(None, description="Descripción de la plantilla")
     template_concepts: list[TemplateConcept] = Field(
         default_factory=list, description="Lista de concepts estándar"
@@ -94,7 +94,7 @@ class PayrollTemplateBase(BaseModel):
 class PayrollTemplateCreate(PayrollTemplateBase):
     """Schema para crear plantilla"""
 
-    employee_id: UUID = Field(..., description="ID del empleado")
+    employee_id: UUID = Field(..., description="ID del employee")
 
 
 class PayrollTemplateUpdate(BaseModel):

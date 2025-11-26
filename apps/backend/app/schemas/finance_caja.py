@@ -29,7 +29,7 @@ class CashMovementBase(BaseModel):
     currency: str = Field(default="EUR", alias="moneda", max_length=3, description="Currency code")
     description: str = Field(
         ...,
-        alias="descripcion",
+        alias="description",
         max_length=255,
         description="Description",
     )

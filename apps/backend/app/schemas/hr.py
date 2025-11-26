@@ -1,4 +1,4 @@
-"""Schemas Pydantic para Recursos Humanos (Empleados y Vacaciones)"""
+"""Schemas Pydantic para Recursos Humanos (employees y Vacaciones)"""
 
 from datetime import date, datetime
 from uuid import UUID
@@ -6,15 +6,15 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 # ============================================================================
-# EMPLEADOS
+# employees
 # ============================================================================
 
 
 # Base schema
 class EmpleadoBase(BaseModel):
-    """Campos comunes de Empleado"""
+    """fields comunes de employee"""
 
-    name: str = Field(..., max_length=100, description="Nombre completo")
+    name: str = Field(..., max_length=100, description="name completo")
     email: EmailStr | None = Field(None, description="Email corporativo")
     phone: str | None = Field(None, max_length=20, pattern=r"^\+?[\d\s\-()]+$")
     identificacion: str | None = Field(None, max_length=20, description="DNI/RUC/Cédula")
@@ -32,14 +32,14 @@ class EmpleadoBase(BaseModel):
 
 # Create schema
 class EmpleadoCreate(EmpleadoBase):
-    """Schema para crear empleado"""
+    """Schema para crear employee"""
 
     pass
 
 
 # Update schema
 class EmpleadoUpdate(BaseModel):
-    """Schema para actualizar empleado (todos campos opcionales)"""
+    """Schema para actualizar employee (todos fields opcionales)"""
 
     name: str | None = Field(None, max_length=100)
     email: EmailStr | None = None
@@ -61,7 +61,7 @@ class EmpleadoUpdate(BaseModel):
 
 # Response schema
 class EmpleadoResponse(EmpleadoBase):
-    """Schema de respuesta de empleado"""
+    """Schema de respuesta de employee"""
 
     id: UUID
     tenant_id: UUID
@@ -73,7 +73,7 @@ class EmpleadoResponse(EmpleadoBase):
 
 # List schema
 class EmpleadoList(BaseModel):
-    """Schema para lista paginada de empleados"""
+    """Schema para lista paginada de employees"""
 
     items: list[EmpleadoResponse]
     total: int
@@ -88,16 +88,16 @@ class EmpleadoList(BaseModel):
 
 # Base schema
 class VacacionBase(BaseModel):
-    """Campos comunes de Vacación"""
+    """fields comunes de Vacación"""
 
-    empleado_id: UUID = Field(..., description="ID del empleado")
+    empleado_id: UUID = Field(..., description="ID del employee")
     fecha_inicio: date = Field(..., description="Fecha de inicio")
     fecha_fin: date = Field(..., description="Fecha de fin")
     dias_totales: int = Field(..., ge=1, description="Días totales de vacación")
     tipo: str = Field(default="annual", pattern="^(annual|sick|personal|unpaid)$")
     estado: str = Field(default="pending", pattern="^(pending|approved|rejected|cancelled)$")
     motivo: str | None = Field(None, max_length=500)
-    aprobado_por: UUID | None = Field(None, description="ID del usuario que aprobó")
+    aprobado_por: UUID | None = Field(None, description="ID del user que aprobó")
     fecha_aprobacion: datetime | None = None
     notas: str | None = None
 

@@ -1,4 +1,4 @@
-"""Module: configuracion.py
+"""Module: configuration.py
 
 Auto-generated module docstring."""
 
