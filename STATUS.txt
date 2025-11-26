@@ -22,12 +22,20 @@ Field Names:            ✅ COMPLETADO (idioma->default_language, zona_horaria->
 Tests Arreglados:       ✅ 146 PASADOS, 37 SKIPPED, 35 FAILED
 Git Commits:            ✅ 8 commits principales
 
-ESTADO: 🟢 100% COMPLETADO - Refactoring TOTAL, TODO EN INGLÉS, LISTO PARA PRODUCCIÓN
+ESTADO: 🟡 EN PROGRESO - Refactoring de términos españoles restantes
 
-SESIÓN 3 (Final):
-✅ Remover aliases españoles de modelos (RolEmpresa->CompanyRole, UsuarioEmpresa->CompanyUser, etc.)
-✅ Traducir términos en payments (proveedor->provider)
-✅ Total: 114 cambios en 15+ archivos en esta sesión final
+SESIÓN 4 (En progreso):
+  ✅ Refactor "Proveedor" → "Supplier"
+     - handlers.py, handlers_complete.py, canonical_schema.py
+     - sector_defaults.py (10+ campos)
+     - excel_analyzer.py
+     - templates/pdf/invoice_base.html
+     - 3 commits, ~30 cambios
+  ✅ Refactor "Gasto" → "Expense"
+     - canonical_schema.py comments
+     - handlers_complete.py literals
+     - 1 commit, ~10 cambios
+  ⏳ Pendiente: Nómina → Payroll (REN), Empresa → Company refs
 
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
