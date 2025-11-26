@@ -226,7 +226,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "date",
             },
             {
-                "field": "proveedor",
+                "field": "supplier",
                 "visible": True,
                 "required": True,
                 "ord": 20,
@@ -267,7 +267,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "date",
             },
             {
-                "field": "lote_proveedor",
+                "field": "supplier_batch",
                 "visible": True,
                 "required": False,
                 "ord": 50,
@@ -395,7 +395,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "textarea",
             },
             {
-                "field": "proveedor",
+                "field": "supplier",
                 "visible": True,
                 "required": False,
                 "ord": 25,
@@ -676,7 +676,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "date",
             },
             {
-                "field": "proveedor",
+                "field": "supplier",
                 "visible": True,
                 "required": True,
                 "ord": 20,
@@ -859,7 +859,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "textarea",
             },
             {
-                "field": "proveedor",
+                "field": "supplier",
                 "visible": True,
                 "required": False,
                 "ord": 25,
@@ -1091,7 +1091,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "date",
             },
             {
-                "field": "proveedor",
+                "field": "supplier",
                 "visible": True,
                 "required": True,
                 "ord": 20,
@@ -1250,7 +1250,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "textarea",
             },
             {
-                "field": "proveedor",
+                "field": "supplier",
                 "visible": True,
                 "required": False,
                 "ord": 25,
@@ -1377,11 +1377,11 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "text",
             },
             {
-                "field": "proveedor_ref",
+                "field": "supplier_ref",
                 "visible": True,
                 "required": False,
                 "ord": 45,
-                "label": "Ref. proveedor",
+                "label": "Supplier Reference",
                 "type": "text",
             },
             {
@@ -1528,7 +1528,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "date",
             },
             {
-                "field": "proveedor",
+                "field": "supplier",
                 "visible": True,
                 "required": True,
                 "ord": 20,
@@ -1703,7 +1703,7 @@ SECTOR_DEFAULTS: dict[str, dict[str, list[dict[str, Any]]]] = {
                 "type": "textarea",
             },
             {
-                "field": "proveedor",
+                "field": "supplier",
                 "visible": True,
                 "required": False,
                 "ord": 25,

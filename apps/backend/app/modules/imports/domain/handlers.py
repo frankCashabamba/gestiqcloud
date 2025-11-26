@@ -102,7 +102,7 @@ class InvoiceHandler:
                 or (subtotal + iva)
             )
 
-            # Buscar o crear cliente/proveedor
+            # Search or create client/supplier
             cliente = (
                 db.query(Cliente)
                 .filter(Cliente.tenant_id == tenant_id, Cliente.nombre == vendor_name)
@@ -112,7 +112,7 @@ class InvoiceHandler:
                 cliente = Cliente(
                     tenant_id=tenant_id,
                     nombre=vendor_name,
-                    tipo="proveedor",
+                    tipo="supplier",
                     email=None,
                     telefono=None,
                 )
@@ -125,7 +125,7 @@ class InvoiceHandler:
                 tenant_id=tenant_id,
                 cliente_id=cliente.id,
                 numero=invoice_number,
-                proveedor=vendor_name,
+                supplier=vendor_name,
                 tx_date_emision=tx_date_emision,
                 subtotal=subtotal,
                 iva=iva,
@@ -442,7 +442,7 @@ class ExpenseHandler:
                 or None
             )
 
-            # Proveedor (opcional)
+            # Supplier (optional)
             proveedor_nombre = str(
                 normalized.get("vendor")
                 or normalized.get("proveedor")

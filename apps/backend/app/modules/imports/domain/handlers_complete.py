@@ -502,19 +502,19 @@ class ExpenseHandler:
             )
 
             # Vendor (optional)
-            proveedor_nombre = str(
+            supplier_name = str(
                 normalized.get("vendor") or normalized.get("vendor", {}).get("name") or ""
             ).strip()
 
             supplier_id = None
-            if proveedor_nombre:
-                # Intentar buscar supplier existente
+            if supplier_name:
+                # Try to find existing supplier
                 try:
                     from app.models.suppliers import Supplier
 
                     supplier = (
                         db.query(Supplier)
-                        .filter(Supplier.tenant_id == tenant_id, Supplier.name == proveedor_nombre)
+                        .filter(Supplier.tenant_id == tenant_id, Supplier.name == supplier_name)
                         .first()
                     )
                     if supplier:

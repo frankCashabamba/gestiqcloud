@@ -172,7 +172,7 @@ def suggest_column_mapping(headers: list[str]) -> dict[str, str]:
             "ean",
         ],
         "costo": ["costo", "cost", "compra", "purchase", "adquisicion"],
-        "proveedor": ["proveedor", "supplier", "vendor", "fabricante"],
+        "supplier": ["proveedor", "supplier", "vendor", "fabricante"],
         "unidad": ["unidad", "unit", "medida", "uom", "u/m"],
     }
 
