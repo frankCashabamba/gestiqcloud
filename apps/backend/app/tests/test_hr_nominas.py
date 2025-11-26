@@ -15,8 +15,8 @@ from app.schemas.payroll import PayrollConceptCreate, PayrollCreate
 class TestPayrollSchemas:
     """Payroll schema tests"""
 
-    def test_nomina_create_schema(self):
-         """Payroll creation schema"""
+    def test_payroll_create_schema(self):
+        """Payroll creation schema"""
         employee_id = uuid4()
 
         data = PayrollCreate(
@@ -32,8 +32,8 @@ class TestPayrollSchemas:
         assert data.period_year == 2025
         assert data.base_salary == Decimal("1200.00")
 
-    def test_nomina_create_validates_mes(self):
-         """Month must be between 1 and 12"""
+    def test_payroll_create_validates_month(self):
+        """Month must be between 1 and 12"""
         employee_id = uuid4()
 
         # Valid month
@@ -90,8 +90,8 @@ class TestPayrollSchemas:
         assert data2.concept_type == "DEDUCTION"
 
 
-class TestNominaCalculations:
-    """Tests de cálculos de nóminas"""
+class TestPayrollCalculations:
+    """Tests for payroll calculations"""
 
     def test_total_devengado_calculation(self):
         """Total devengado = salario_base + complementos + horas_extra + otros"""
@@ -145,12 +145,12 @@ class TestNominaCalculations:
 class TestPayrollStatus:
     """Payroll status tests"""
 
-    def test_nomina_status_draft(self):
+    def test_payroll_status_draft(self):
         """Payroll starts in DRAFT"""
         status = "DRAFT"
         assert status in ["DRAFT", "APPROVED", "PAID", "CANCELLED"]
 
-    def test_nomina_status_transitions(self):
+    def test_payroll_status_transitions(self):
         """Allowed statuses"""
         valid_statuses = ["DRAFT", "APPROVED", "PAID", "CANCELLED"]
 
@@ -168,12 +168,12 @@ class TestPayrollStatus:
 class TestPayrollIntegration:
     """Integration tests with sector config"""
 
-    def test_nominas_universal_across_sectors(self):
+    def test_payroll_universal_across_sectors(self):
         """Payroll should work for all sectors"""
         from app.services.sector_defaults import SECTOR_DEFAULTS
 
-        # Nóminas es universal, no depende de sector
-        # Todos los sectores tienen empleados
+        # Payroll is universal, does not depend on sector
+        # All sectors have employees
         assert "panaderia" in SECTOR_DEFAULTS
         assert "retail" in SECTOR_DEFAULTS
         assert "restaurante" in SECTOR_DEFAULTS
