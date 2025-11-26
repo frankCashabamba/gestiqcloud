@@ -2,16 +2,17 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.middleware.tenant import ensure_tenant
 from app.models.core.product_category import ProductCategory
 from app.models.core.products import Product
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/products",
@@ -34,8 +35,9 @@ def _empresa_id_from_request(request: Request) -> str | None:
             # DEV MODE fallback
             dev_mode = os.getenv("ENVIRONMENT", "production") != "production"
             if dev_mode:
-                from app.config.database import SessionLocal
                 from sqlalchemy import text
+
+                from app.config.database import SessionLocal
 
                 with SessionLocal() as db_temp:
                     result = db_temp.execute(text("SELECT id FROM tenants LIMIT 1")).fetchone()
@@ -72,8 +74,7 @@ class ProductOut(BaseModel):
     precio_compra: float | None = None
     product_metadata: dict | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 # ============================================================================
@@ -93,8 +94,7 @@ class CategoryOut(BaseModel):
     description: str | None = None
     parent_id: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 def get_categories_for_request(request: Request, db: Session) -> list[CategoryOut]:

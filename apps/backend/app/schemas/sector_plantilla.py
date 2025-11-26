@@ -2,7 +2,7 @@
 Schemas para SectorPlantilla y su config_json validado con Pydantic
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ModuleConfig(BaseModel):
@@ -78,8 +78,8 @@ class SectorConfigJSON(BaseModel):
         default_factory=InventoryConfig, description="Configuración de inventario"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "modules": {
                     "pos": {"enabled": True, "order": 5},
@@ -111,8 +111,9 @@ class SectorConfigJSON(BaseModel):
                 },
             }
         }
+    )
 
-    @validator("modules", pre=True)
+    @field_validator("modules", mode="before")
     def validate_modules(cls, v):
         """Validar que los módulos sean válidos"""
         valid_modules = {
@@ -149,8 +150,7 @@ class SectorPlantillaRead(BaseModel):
     tipo_negocio_id: int
     config_json: SectorConfigJSON
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SectorPlantillaCreate(BaseModel):

@@ -81,8 +81,7 @@ class CashMovementResponse(CashMovementBase):
     closing_id: UUID | None = Field(None, alias="cierre_id")
     created_at: dt.datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CashMovementList(BaseModel):
@@ -195,8 +194,7 @@ class CashClosingResponse(CashClosingBase):
     created_at: dt.datetime
     updated_at: dt.datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CashClosingList(BaseModel):

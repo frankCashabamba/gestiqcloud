@@ -5,7 +5,7 @@ Schemas Pydantic para Recetas
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ============================================================================
 # INGREDIENTES DE RECETA
@@ -28,7 +28,8 @@ class RecipeIngredientBase(BaseModel):
     notas: str | None = None
     orden: int = Field(default=0, ge=0)
 
-    @validator("unidad_medida", "unidad_presentacion")
+    @field_validator("unidad_medida", "unidad_presentacion")
+    @classmethod
     def validate_unit(cls, v):
         valid_units = [
             "kg",
@@ -82,8 +83,7 @@ class RecipeIngredientResponse(RecipeIngredientBase):
     # Info del producto (join)
     producto_nombre: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -107,7 +107,8 @@ class RecipeCreate(RecipeBase):
         default_factory=list, description="Lista de ingredientes (opcional en creación)"
     )
 
-    @validator("ingredientes")
+    @field_validator("ingredientes")
+    @classmethod
     def validate_ingredients(cls, v):
         if len(v) == 0:
             # Permitir crear receta sin ingredientes inicialmente
@@ -144,8 +145,7 @@ class RecipeResponse(RecipeBase):
     # Info del producto (join)
     producto_nombre: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RecipeDetailResponse(RecipeResponse):
@@ -153,8 +153,7 @@ class RecipeDetailResponse(RecipeResponse):
 
     ingredientes: list[RecipeIngredientResponse] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -226,8 +225,8 @@ class RecipeProfitabilityResponse(BaseModel):
 class RecipeComparisonResponse(BaseModel):
     recipes: list[dict]
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "recipes": [
                     {
@@ -240,6 +239,7 @@ class RecipeComparisonResponse(BaseModel):
                 ]
             }
         }
+    )
 
 
 # ============================================================================

@@ -44,14 +44,9 @@ from .middleware.security_headers import security_headers_middleware
 from .platform.http.router import build_api_router
 from .telemetry.otel import init_fastapi
 
-app = FastAPI(
-    title="GestiqCloud API",
-    version="1.0.0",
-    docs_url=None,
-    redoc_url=None,
-    swagger_ui_oauth2_redirect_url="/docs/oauth2-redirect",
-)
-init_fastapi(app)
+# ============================================================================
+# DOCS ASSETS SETUP
+# ============================================================================
 
 DOCS_ASSETS_DIR = Path(__file__).parent / "static" / "docs"
 DOCS_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
@@ -84,13 +79,128 @@ async def _ensure_docs_assets() -> None:
             raise
 
 
-@app.on_event("startup")
-async def _bootstrap_docs_assets() -> None:
+# ============================================================================
+# GLOBAL STATE
+# ============================================================================
+
+_imports_job_runner = None
+
+
+def _imports_enabled() -> bool:
+    return str(os.getenv("IMPORTS_ENABLED", "0")).lower() in ("1", "true")
+
+
+def _imports_tables_ready() -> bool:
+    if _engine is None:
+        return False
+    try:
+        from sqlalchemy import inspect
+
+        insp = inspect(_engine)
+        _REQUIRED_IMPORTS_TABLES = [
+            "import_batches",
+            "import_items",
+            "import_mappings",
+            "import_item_corrections",
+            "import_lineage",
+            "auditoria_importacion",
+            "import_ocr_jobs",
+        ]
+        return all(insp.has_table(t) for t in _REQUIRED_IMPORTS_TABLES)
+    except Exception:
+        return False
+
+
+# Lazy load engine
+_engine = None
+try:
+    from app.config.database import engine
+
+    _engine = engine
+except Exception:
+    try:
+        from apps.backend.app.config.database import engine
+
+        _engine = engine
+    except Exception:
+        pass
+
+
+# ============================================================================
+# LIFESPAN EVENTS (replaces deprecated on_event)
+# ============================================================================
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    start_after_bind = False
+    runner_to_start = None
+    global _imports_job_runner
+
     try:
         await _ensure_docs_assets()
     except Exception as exc:
         logging.getLogger("app.docs").warning("Could not prepare Swagger/ReDoc assets: %s", exc)
 
+    try:
+        if _imports_job_runner is None and _imports_enabled() and _imports_tables_ready():
+            try:
+                from app.modules.imports.application.job_runner import job_runner as _jr
+
+                runner_to_start = _jr
+                start_after_bind = True
+            except Exception:
+                logging.getLogger("app.startup").info(
+                    "Imports runner not available (import failed)"
+                )
+        else:
+            logging.getLogger("app.startup").info(
+                "Imports runner skipped (disabled or missing tables)"
+            )
+    except Exception:
+        logging.getLogger("app.startup").exception(
+            "Failed preparing imports runner; continuing without it"
+        )
+
+    yield
+
+    # Post-startup
+    if start_after_bind and runner_to_start is not None:
+        try:
+
+            def _start_runner():
+                try:
+                    runner_to_start.start()
+                finally:
+                    globals()["_imports_job_runner"] = runner_to_start
+
+            loop = asyncio.get_event_loop()
+            loop.run_in_executor(None, _start_runner)
+        except Exception:
+            logging.getLogger("app.startup").exception("Failed starting imports runner post-bind")
+
+    # Shutdown
+    if _imports_job_runner:
+        try:
+            _imports_job_runner.stop()
+        except Exception:
+            pass
+
+
+# ============================================================================
+# FASTAPI APPLICATION
+# ============================================================================
+
+app = FastAPI(
+    title="GestiqCloud API",
+    version="1.0.0",
+    docs_url=None,
+    redoc_url=None,
+    swagger_ui_oauth2_redirect_url="/docs/oauth2-redirect",
+    lifespan=lifespan,
+)
+init_fastapi(app)
 
 app.mount("/docs/assets", StaticFiles(directory=str(DOCS_ASSETS_DIR)), name="docs-assets")
 
@@ -308,6 +418,11 @@ def root():
         "health": "/health",
         "api": "/api/v1",
     }
+
+
+@app.head("/", include_in_schema=False)
+def root_head():
+    return Response(status_code=200)
 
 
 # Static uploads
@@ -572,97 +687,3 @@ try:
     app.include_router(_tenant_auth.router, prefix="/api/v1/tenant")
 except Exception:
     pass
-
-
-# Imports runner gating and lifespan
-_imports_job_runner = None
-from sqlalchemy import inspect  # type: ignore # noqa: E402
-
-try:
-    from app.config.database import engine  # type: ignore
-except Exception:
-    try:
-        from apps.backend.app.config.database import engine  # type: ignore
-    except Exception:
-        engine = None  # type: ignore
-
-_REQUIRED_IMPORTS_TABLES = [
-    "import_batches",
-    "import_items",
-    "import_mappings",
-    "import_item_corrections",
-    "import_lineage",
-    "auditoria_importacion",
-    "import_ocr_jobs",
-]
-
-
-def _imports_enabled() -> bool:
-    return str(os.getenv("IMPORTS_ENABLED", "0")).lower() in ("1", "true")
-
-
-def _imports_tables_ready() -> bool:
-    if engine is None:
-        return False
-    try:
-        insp = inspect(engine)
-        return all(insp.has_table(t) for t in _REQUIRED_IMPORTS_TABLES)
-    except Exception:
-        return False
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    start_after_bind = False
-    runner_to_start = None
-    global _imports_job_runner
-    try:
-        if _imports_job_runner is None and _imports_enabled() and _imports_tables_ready():
-            try:
-                from app.modules.imports.application.job_runner import job_runner as _jr
-
-                runner_to_start = _jr
-                start_after_bind = True
-            except Exception:
-                logging.getLogger("app.startup").info(
-                    "Imports runner not available (import failed)"
-                )
-        else:
-            logging.getLogger("app.startup").info(
-                "Imports runner skipped (disabled or missing tables)"
-            )
-    except Exception:
-        logging.getLogger("app.startup").exception(
-            "Failed preparing imports runner; continuing without it"
-        )
-    # startup done
-    yield
-    # post-start
-    if start_after_bind and runner_to_start is not None:
-        try:
-
-            def _start_runner():
-                try:
-                    runner_to_start.start()
-                finally:
-                    globals()["_imports_job_runner"] = runner_to_start
-
-            loop = asyncio.get_event_loop()
-            loop.run_in_executor(None, _start_runner)
-        except Exception:
-            logging.getLogger("app.startup").exception("Failed starting imports runner post-bind")
-    # shutdown
-    if _imports_job_runner:
-        try:
-            _imports_job_runner.stop()
-        except Exception:
-            pass
-
-
-@app.head("/", include_in_schema=False)
-def root_head():
-    return Response(status_code=200)
-
-
-# Attach lifespan
-app.router.lifespan_context = lifespan

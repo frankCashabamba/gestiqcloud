@@ -1,6 +1,6 @@
 """Schemas for company roles management."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CompanyRoleBase(BaseModel):
@@ -31,5 +31,4 @@ class CompanyRoleOut(CompanyRoleBase):
     rol_base_id: int | None = None
     created_by_company: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

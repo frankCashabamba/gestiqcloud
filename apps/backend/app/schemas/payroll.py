@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ============================================================================
 # CONCEPTOS DE NÓMINA
@@ -29,14 +29,16 @@ class PayrollConceptBase(BaseModel):
     amount: Decimal = Field(..., ge=0, description="Concept amount")
     is_base: bool = Field(default=True, description="Counts toward contribution base")
 
-    @validator("concept_type")
+    @field_validator("concept_type")
+    @classmethod
     def validate_concept_type(cls, v):
         valid = ["EARNING", "DEDUCTION"]
         if v not in valid:
             raise ValueError(f"concept_type must be one of: {', '.join(valid)}")
         return v
 
-    @validator("code")
+    @field_validator("code")
+    @classmethod
     def validate_code(cls, v):
         return v.upper().strip()
 
@@ -54,8 +56,7 @@ class PayrollConceptResponse(PayrollConceptBase):
     payroll_id: UUID
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -72,7 +73,8 @@ class TemplateConcept(BaseModel):
     amount: Decimal = Field(..., ge=0, description="Default amount")
     is_base: bool = Field(default=True)
 
-    @validator("concept_type")
+    @field_validator("concept_type")
+    @classmethod
     def validate_concept_type(cls, v):
         valid = ["EARNING", "DEDUCTION"]
         if v not in valid:
@@ -115,8 +117,7 @@ class PayrollTemplateResponse(PayrollTemplateBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -147,7 +148,8 @@ class PayrollBase(BaseModel):
     payment_method: str | None = Field(None, description="cash, transfer, etc.")
     notes: str | None = Field(None, description="Internal notes")
 
-    @validator("payroll_type")
+    @field_validator("payroll_type")
+    @classmethod
     def validate_payroll_type(cls, v):
         valid = ["MONTHLY", "BONUS", "SEVERANCE", "SPECIAL"]
         if v not in valid:
@@ -196,8 +198,7 @@ class PayrollResponse(PayrollBase):
     updated_at: datetime
     concepts: list[PayrollConceptResponse] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PayrollList(BaseModel):
@@ -232,7 +233,8 @@ class PayrollCalculateRequest(BaseModel):
     # Additional concepts
     concepts: list[PayrollConceptCreate] | None = Field(default_factory=list)
 
-    @validator("payroll_type")
+    @field_validator("payroll_type")
+    @classmethod
     def validate_payroll_type_calc(cls, v):
         valid = ["MONTHLY", "BONUS", "SEVERANCE", "SPECIAL"]
         if v not in valid:
@@ -295,7 +297,8 @@ class PayrollPayRequest(BaseModel):
     payment_method: str = Field(..., description="cash, transfer, etc.")
     payment_reference: str | None = Field(None, description="Bank reference")
 
-    @validator("payment_method")
+    @field_validator("payment_method")
+    @classmethod
     def validate_metodo(cls, v):
         valid_methods = ["cash", "transfer", "check", "other"]
         if v.lower() not in valid_methods:

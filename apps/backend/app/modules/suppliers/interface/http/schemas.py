@@ -96,8 +96,7 @@ class SupplierOut(SupplierBase):
     contacts: list[SupplierContactOut] = Field(default_factory=list)
     addresses: list[SupplierAddressOut] = Field(default_factory=list)
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class SupplierListOut(BaseModel):

@@ -6,83 +6,83 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.modules.admin_config.application.dias_semana.dto import DiaSemanaIn
 from app.modules.admin_config.application.dias_semana.use_cases import (
-    ActualizarDiaSemana,
-    CrearDiaSemana,
-    EliminarDiaSemana,
-    ListarDiasSemana,
-    ObtenerDiaSemana,
+    CreateWeekDay,
+    DeleteWeekDay,
+    GetWeekDay,
+    ListWeekDays,
+    UpdateWeekDay,
 )
 from app.modules.admin_config.application.horarios_atencion.dto import HorarioAtencionIn
 from app.modules.admin_config.application.horarios_atencion.use_cases import (
-    ActualizarHorarioAtencion,
-    CrearHorarioAtencion,
-    EliminarHorarioAtencion,
-    ListarHorariosAtencion,
-    ObtenerHorarioAtencion,
+    CreateAttentionSchedule,
+    DeleteAttentionSchedule,
+    GetAttentionSchedule,
+    ListAttentionSchedules,
+    UpdateAttentionSchedule,
 )
 from app.modules.admin_config.application.idiomas.dto import IdiomaIn
 from app.modules.admin_config.application.idiomas.use_cases import (
-    ActualizarIdioma,
-    CrearIdioma,
-    EliminarIdioma,
-    ListarIdiomas,
-    ObtenerIdioma,
+    CreateLanguage,
+    DeleteLanguage,
+    GetLanguage,
+    ListLanguages,
+    UpdateLanguage,
 )
 from app.modules.admin_config.application.locales.dto import LocaleIn
 from app.modules.admin_config.application.locales.use_cases import (
-    ActualizarLocale,
-    CrearLocale,
-    EliminarLocale,
-    ListarLocales,
-    ObtenerLocale,
+    CreateLocale,
+    DeleteLocale,
+    GetLocale,
+    ListLocales,
+    UpdateLocale,
 )
 from app.modules.admin_config.application.monedas.dto import MonedaIn
 from app.modules.admin_config.application.monedas.use_cases import (
-    ActualizarMoneda,
-    CrearMoneda,
-    EliminarMoneda,
-    ListarMonedas,
-    ObtenerMoneda,
+    CreateCurrency,
+    DeleteCurrency,
+    GetCurrency,
+    ListCurrencies,
+    UpdateCurrency,
 )
 from app.modules.admin_config.application.paises.dto import PaisIn
 from app.modules.admin_config.application.paises.use_cases import (
-    ActualizarPais,
-    CrearPais,
-    EliminarPais,
-    ListarPaises,
-    ObtenerPais,
+    CreateCountry,
+    DeleteCountry,
+    GetCountry,
+    ListCountries,
+    UpdateCountry,
 )
 from app.modules.admin_config.application.sectores_plantilla.dto import SectorPlantillaIn
 from app.modules.admin_config.application.sectores_plantilla.use_cases import (
-    ActualizarSectorPlantilla,
-    CrearSectorPlantilla,
-    EliminarSectorPlantilla,
-    ListarSectoresPlantilla,
-    ObtenerSectorPlantilla,
+    CreateTemplateSector,
+    DeleteTemplateSector,
+    GetTemplateSector,
+    ListTemplateSectors,
+    UpdateTemplateSector,
 )
 from app.modules.admin_config.application.timezones.dto import TimezoneIn
 from app.modules.admin_config.application.timezones.use_cases import (
-    ActualizarTimezone,
-    CrearTimezone,
-    EliminarTimezone,
-    ListarTimezones,
-    ObtenerTimezone,
+    CreateTimezone,
+    DeleteTimezone,
+    GetTimezone,
+    ListTimezones,
+    UpdateTimezone,
 )
 from app.modules.admin_config.application.tipos_empresa.dto import TipoEmpresaIn
 from app.modules.admin_config.application.tipos_empresa.use_cases import (
-    ActualizarTipoEmpresa,
-    CrearTipoEmpresa,
-    EliminarTipoEmpresa,
-    ListarTiposEmpresa,
-    ObtenerTipoEmpresa,
+    CreateCompanyType,
+    DeleteCompanyType,
+    GetCompanyType,
+    ListCompanyTypes,
+    UpdateCompanyType,
 )
 from app.modules.admin_config.application.tipos_negocio.dto import TipoNegocioIn
 from app.modules.admin_config.application.tipos_negocio.use_cases import (
-    ActualizarTipoNegocio,
-    CrearTipoNegocio,
-    EliminarTipoNegocio,
-    ListarTiposNegocio,
-    ObtenerTipoNegocio,
+    CreateBusinessType,
+    DeleteBusinessType,
+    GetBusinessType,
+    ListBusinessTypes,
+    UpdateBusinessType,
 )
 from app.modules.admin_config.infrastructure.dias_semana.repository import SqlAlchemyDiaSemanaRepo
 from app.modules.admin_config.infrastructure.horarios_atencion.repository import (
@@ -134,20 +134,20 @@ from app.modules.admin_config.schemas import (  # Reusar MonedaRead para listas 
 router = APIRouter(prefix="/config", tags=["admin:config"])
 
 
-def _moneda_repo(db: Session) -> SqlAlchemyMonedaRepo:
+def _currency_repo(db: Session) -> SqlAlchemyMonedaRepo:
     return SqlAlchemyMonedaRepo(db)
 
 
-def _moneda_schema(out) -> MonedaRead:
+def _currency_schema(out) -> MonedaRead:
     return MonedaRead.model_validate(out.__dict__)
 
 
-def _moneda_in_from_create(payload: MonedaCreate) -> MonedaIn:
+def _currency_in_from_create(payload: MonedaCreate) -> MonedaIn:
     data = payload.model_dump()
     return MonedaIn(**data)
 
 
-def _moneda_in_from_update(payload: MonedaUpdate, current) -> MonedaIn:
+def _currency_in_from_update(payload: MonedaUpdate, current) -> MonedaIn:
     data = payload.model_dump(exclude_unset=True)
     return MonedaIn(
         code=data.get("code", current.code),
@@ -157,53 +157,53 @@ def _moneda_in_from_update(payload: MonedaUpdate, current) -> MonedaIn:
     )
 
 
-def _idioma_repo(db: Session) -> SqlAlchemyIdiomaRepo:
+def _language_repo(db: Session) -> SqlAlchemyIdiomaRepo:
     return SqlAlchemyIdiomaRepo(db)
 
 
-def _idioma_schema(out) -> IdiomaRead:
+def _language_schema(out) -> IdiomaRead:
     return IdiomaRead.model_validate(
         {
             "id": out.id,
-            "codigo": out.codigo,
-            "name": out.nombre,
+            "code": out.code,
+            "name": out.name,
             "active": out.active,
         }
     )
 
 
-def _idioma_in_from_create(payload: IdiomaCreate) -> IdiomaIn:
+def _language_in_from_create(payload: IdiomaCreate) -> IdiomaIn:
     data = payload.model_dump()
     return IdiomaIn(
-        codigo=data["codigo"],
-        nombre=data["name"],
+        code=data["code"],
+        name=data["name"],
         active=data.get("active", True),
     )
 
 
-def _idioma_in_from_update(payload: IdiomaUpdate, current) -> IdiomaIn:
+def _language_in_from_update(payload: IdiomaUpdate, current) -> IdiomaIn:
     data = payload.model_dump(exclude_unset=True)
     return IdiomaIn(
-        codigo=data.get("codigo", current.codigo),
-        nombre=data.get("name", current.nombre),
+        code=data.get("code", current.code),
+        name=data.get("name", current.name),
         active=data.get("active", current.active),
     )
 
 
-def _pais_repo(db: Session) -> SqlAlchemyPaisRepo:
+def _country_repo(db: Session) -> SqlAlchemyPaisRepo:
     return SqlAlchemyPaisRepo(db)
 
 
-def _pais_schema(out) -> PaisRead:
+def _country_schema(out) -> PaisRead:
     return PaisRead.model_validate(out.__dict__)
 
 
-def _pais_in_from_create(payload: PaisCreate) -> PaisIn:
+def _country_in_from_create(payload: PaisCreate) -> PaisIn:
     data = payload.model_dump()
     return PaisIn(**data)
 
 
-def _pais_in_from_update(payload: PaisUpdate, current) -> PaisIn:
+def _country_in_from_update(payload: PaisUpdate, current) -> PaisIn:
     data = payload.model_dump(exclude_unset=True)
     return PaisIn(
         code=data.get("code", current.code),
@@ -212,20 +212,20 @@ def _pais_in_from_update(payload: PaisUpdate, current) -> PaisIn:
     )
 
 
-def _dias_repo(db: Session) -> SqlAlchemyDiaSemanaRepo:
+def _weekday_repo(db: Session) -> SqlAlchemyDiaSemanaRepo:
     return SqlAlchemyDiaSemanaRepo(db)
 
 
-def _dias_schema(out) -> DiaSemanaRead:
+def _weekday_schema(out) -> DiaSemanaRead:
     return DiaSemanaRead.model_validate(out.__dict__)
 
 
-def _dias_in_from_create(payload: DiaSemanaCreate) -> DiaSemanaIn:
+def _weekday_in_from_create(payload: DiaSemanaCreate) -> DiaSemanaIn:
     data = payload.model_dump()
     return DiaSemanaIn(**data)
 
 
-def _dias_in_from_update(payload: DiaSemanaUpdate, current) -> DiaSemanaIn:
+def _weekday_in_from_update(payload: DiaSemanaUpdate, current) -> DiaSemanaIn:
     data = payload.model_dump(exclude_unset=True)
     return DiaSemanaIn(
         clave=data.get("clave", current.clave),
@@ -234,20 +234,22 @@ def _dias_in_from_update(payload: DiaSemanaUpdate, current) -> DiaSemanaIn:
     )
 
 
-def _horarios_repo(db: Session) -> SqlAlchemyHorarioAtencionRepo:
+def _attention_schedule_repo(db: Session) -> SqlAlchemyHorarioAtencionRepo:
     return SqlAlchemyHorarioAtencionRepo(db)
 
 
-def _horarios_schema(out) -> HorarioAtencionRead:
+def _attention_schedule_schema(out) -> HorarioAtencionRead:
     return HorarioAtencionRead.model_validate(out.__dict__)
 
 
-def _horarios_in_from_create(payload: HorarioAtencionCreate) -> HorarioAtencionIn:
+def _attention_schedule_in_from_create(payload: HorarioAtencionCreate) -> HorarioAtencionIn:
     data = payload.model_dump()
     return HorarioAtencionIn(**data)
 
 
-def _horarios_in_from_update(payload: HorarioAtencionUpdate, current) -> HorarioAtencionIn:
+def _attention_schedule_in_from_update(
+    payload: HorarioAtencionUpdate, current
+) -> HorarioAtencionIn:
     data = payload.model_dump(exclude_unset=True)
     return HorarioAtencionIn(
         dia_id=data.get("dia_id", current.dia_id),
@@ -256,20 +258,20 @@ def _horarios_in_from_update(payload: HorarioAtencionUpdate, current) -> Horario
     )
 
 
-def _sectores_repo(db: Session) -> SqlAlchemySectorPlantillaRepo:
+def _template_sector_repo(db: Session) -> SqlAlchemySectorPlantillaRepo:
     return SqlAlchemySectorPlantillaRepo(db)
 
 
-def _sectores_schema(out) -> SectorPlantillaRead:
+def _template_sector_schema(out) -> SectorPlantillaRead:
     return SectorPlantillaRead.model_validate(out.__dict__)
 
 
-def _sectores_in_from_create(payload: SectorPlantillaCreate) -> SectorPlantillaIn:
+def _template_sector_in_from_create(payload: SectorPlantillaCreate) -> SectorPlantillaIn:
     data = payload.model_dump()
     return SectorPlantillaIn(**data)
 
 
-def _sectores_in_from_update(payload: SectorPlantillaUpdate, current) -> SectorPlantillaIn:
+def _template_sector_in_from_update(payload: SectorPlantillaUpdate, current) -> SectorPlantillaIn:
     data = payload.model_dump(exclude_unset=True)
     return SectorPlantillaIn(
         sector_name=data.get("sector_name", current.sector_name),
@@ -280,20 +282,20 @@ def _sectores_in_from_update(payload: SectorPlantillaUpdate, current) -> SectorP
     )
 
 
-def _tipos_empresa_repo(db: Session) -> SqlAlchemyTipoCompanyRepo:
+def _business_type_repo(db: Session) -> SqlAlchemyTipoCompanyRepo:
     return SqlAlchemyTipoCompanyRepo(db)
 
 
-def _tipos_empresa_schema(out) -> TipoEmpresaRead:
+def _business_type_schema(out) -> TipoEmpresaRead:
     return TipoEmpresaRead.model_validate(out.__dict__)
 
 
-def _tipos_empresa_in_from_create(payload: TipoEmpresaCreate) -> TipoEmpresaIn:
+def _business_type_in_from_create(payload: TipoEmpresaCreate) -> TipoEmpresaIn:
     data = payload.model_dump()
     return TipoEmpresaIn(**data)
 
 
-def _tipos_empresa_in_from_update(payload: TipoEmpresaUpdate, current) -> TipoEmpresaIn:
+def _business_type_in_from_update(payload: TipoEmpresaUpdate, current) -> TipoEmpresaIn:
     data = payload.model_dump(exclude_unset=True)
     return TipoEmpresaIn(
         name=data.get("name", current.name),
@@ -302,20 +304,20 @@ def _tipos_empresa_in_from_update(payload: TipoEmpresaUpdate, current) -> TipoEm
     )
 
 
-def _tipos_negocio_repo(db: Session) -> SqlAlchemyTipoNegocioRepo:
+def _business_category_repo(db: Session) -> SqlAlchemyTipoNegocioRepo:
     return SqlAlchemyTipoNegocioRepo(db)
 
 
-def _tipos_negocio_schema(out) -> TipoNegocioRead:
+def _business_category_schema(out) -> TipoNegocioRead:
     return TipoNegocioRead.model_validate(out.__dict__)
 
 
-def _tipos_negocio_in_from_create(payload: TipoNegocioCreate) -> TipoNegocioIn:
+def _business_category_in_from_create(payload: TipoNegocioCreate) -> TipoNegocioIn:
     data = payload.model_dump()
     return TipoNegocioIn(**data)
 
 
-def _tipos_negocio_in_from_update(payload: TipoNegocioUpdate, current) -> TipoNegocioIn:
+def _business_category_in_from_update(payload: TipoNegocioUpdate, current) -> TipoNegocioIn:
     data = payload.model_dump(exclude_unset=True)
     return TipoNegocioIn(
         name=data.get("name", current.name),
@@ -365,128 +367,128 @@ def _locales_in_from_update(data: dict, current) -> LocaleIn:
     )
 
 
-# Idiomas
-@router.get("/idioma", response_model=list[IdiomaRead])
-def list_idiomas(db: Session = Depends(get_db)):
-    use = ListarIdiomas(_idioma_repo(db))
+# Languages
+@router.get("/language", response_model=list[IdiomaRead])
+def list_languages(db: Session = Depends(get_db)):
+    use = ListLanguages(_language_repo(db))
     items = use.execute()
-    return [_idioma_schema(item) for item in items]
+    return [_language_schema(item) for item in items]
 
 
-@router.post("/idioma", response_model=IdiomaRead)
-def create_idioma(data: IdiomaCreate, db: Session = Depends(get_db)):
-    use = CrearIdioma(_idioma_repo(db))
-    created = use.execute(_idioma_in_from_create(data))
-    return _idioma_schema(created)
+@router.post("/language", response_model=IdiomaRead)
+def create_language(data: IdiomaCreate, db: Session = Depends(get_db)):
+    use = CreateLanguage(_language_repo(db))
+    created = use.execute(_language_in_from_create(data))
+    return _language_schema(created)
 
 
-@router.put("/idioma/{id}", response_model=IdiomaRead)
-def update_idioma(id: int, data: IdiomaUpdate, db: Session = Depends(get_db)):
-    repo = _idioma_repo(db)
+@router.put("/language/{id}", response_model=IdiomaRead)
+def update_language(id: int, data: IdiomaUpdate, db: Session = Depends(get_db)):
+    repo = _language_repo(db)
     try:
-        current = ObtenerIdioma(repo).execute(id)
-        payload = _idioma_in_from_update(data, current)
-        updated = ActualizarIdioma(repo).execute(id, payload)
-        return _idioma_schema(updated)
+        current = GetLanguage(repo).execute(id)
+        payload = _language_in_from_update(data, current)
+        updated = UpdateLanguage(repo).execute(id, payload)
+        return _language_schema(updated)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Idioma no encontrado")
+        raise HTTPException(status_code=404, detail="Language not found")
 
 
-@router.delete("/idioma/{id}")
-def delete_idioma(id: int, db: Session = Depends(get_db)):
-    repo = _idioma_repo(db)
+@router.delete("/language/{id}")
+def delete_language(id: int, db: Session = Depends(get_db)):
+    repo = _language_repo(db)
     try:
-        EliminarIdioma(repo).execute(id)
+        DeleteLanguage(repo).execute(id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Idioma no encontrado")
+        raise HTTPException(status_code=404, detail="Language not found")
     return {"ok": True}
 
 
-# Monedas
-@router.get("/moneda", response_model=list[MonedaRead])
-def list_monedas(db: Session = Depends(get_db)):
-    use = ListarMonedas(_moneda_repo(db))
+# Currencies
+@router.get("/currency", response_model=list[MonedaRead])
+def list_currencies(db: Session = Depends(get_db)):
+    use = ListCurrencies(_currency_repo(db))
     items = use.execute()
-    return [_moneda_schema(item) for item in items]
+    return [_currency_schema(item) for item in items]
 
 
-@router.post("/moneda", response_model=MonedaRead)
-def create_moneda(data: MonedaCreate, db: Session = Depends(get_db)):
-    use = CrearMoneda(_moneda_repo(db))
-    created = use.execute(_moneda_in_from_create(data))
-    return _moneda_schema(created)
+@router.post("/currency", response_model=MonedaRead)
+def create_currency(data: MonedaCreate, db: Session = Depends(get_db)):
+    use = CreateCurrency(_currency_repo(db))
+    created = use.execute(_currency_in_from_create(data))
+    return _currency_schema(created)
 
 
-@router.put("/moneda/{id}", response_model=MonedaRead)
-def update_moneda(id: int, data: MonedaUpdate, db: Session = Depends(get_db)):
-    repo = _moneda_repo(db)
+@router.put("/currency/{id}", response_model=MonedaRead)
+def update_currency(id: int, data: MonedaUpdate, db: Session = Depends(get_db)):
+    repo = _currency_repo(db)
     try:
-        current = ObtenerMoneda(repo).execute(id)
-        payload = _moneda_in_from_update(data, current)
-        updated = ActualizarMoneda(repo).execute(id, payload)
-        return _moneda_schema(updated)
+        current = GetCurrency(repo).execute(id)
+        payload = _currency_in_from_update(data, current)
+        updated = UpdateCurrency(repo).execute(id, payload)
+        return _currency_schema(updated)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Moneda no encontrada")
+        raise HTTPException(status_code=404, detail="Currency not found")
 
 
-@router.delete("/moneda/{id}")
-def delete_moneda(id: int, db: Session = Depends(get_db)):
-    repo = _moneda_repo(db)
+@router.delete("/currency/{id}")
+def delete_currency(id: int, db: Session = Depends(get_db)):
+    repo = _currency_repo(db)
     try:
-        EliminarMoneda(repo).execute(id)
+        DeleteCurrency(repo).execute(id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Moneda no encontrada")
+        raise HTTPException(status_code=404, detail="Currency not found")
     return {"ok": True}
 
 
-# Países
-@router.get("/pais", response_model=list[PaisRead])
-def list_paises(db: Session = Depends(get_db)):
-    use = ListarPaises(_pais_repo(db))
+# Countries
+@router.get("/country", response_model=list[PaisRead])
+def list_countries(db: Session = Depends(get_db)):
+    use = ListCountries(_country_repo(db))
     items = use.execute()
-    return [_pais_schema(item) for item in items]
+    return [_country_schema(item) for item in items]
 
 
-@router.post("/pais", response_model=PaisRead)
-def create_pais(data: PaisCreate, db: Session = Depends(get_db)):
-    use = CrearPais(_pais_repo(db))
-    created = use.execute(_pais_in_from_create(data))
-    return _pais_schema(created)
+@router.post("/country", response_model=PaisRead)
+def create_country(data: PaisCreate, db: Session = Depends(get_db)):
+    use = CreateCountry(_country_repo(db))
+    created = use.execute(_country_in_from_create(data))
+    return _country_schema(created)
 
 
-@router.put("/pais/{id}", response_model=PaisRead)
-def update_pais(id: int, data: PaisUpdate, db: Session = Depends(get_db)):
-    repo = _pais_repo(db)
+@router.put("/country/{id}", response_model=PaisRead)
+def update_country(id: int, data: PaisUpdate, db: Session = Depends(get_db)):
+    repo = _country_repo(db)
     try:
-        current = ObtenerPais(repo).execute(id)
-        payload = _pais_in_from_update(data, current)
-        updated = ActualizarPais(repo).execute(id, payload)
-        return _pais_schema(updated)
+        current = GetCountry(repo).execute(id)
+        payload = _country_in_from_update(data, current)
+        updated = UpdateCountry(repo).execute(id, payload)
+        return _country_schema(updated)
     except ValueError:
-        raise HTTPException(status_code=404, detail="País no encontrado")
+        raise HTTPException(status_code=404, detail="Country not found")
 
 
-@router.delete("/pais/{id}")
-def delete_pais(id: int, db: Session = Depends(get_db)):
-    repo = _pais_repo(db)
+@router.delete("/country/{id}")
+def delete_country(id: int, db: Session = Depends(get_db)):
+    repo = _country_repo(db)
     try:
-        EliminarPais(repo).execute(id)
+        DeleteCountry(repo).execute(id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="País no encontrado")
+        raise HTTPException(status_code=404, detail="Country not found")
     return {"ok": True}
 
 
 # Timezones (CRUD simple)
 @router.get("/timezone")
 def list_timezones(db: Session = Depends(get_db)):
-    use = ListarTimezones(_timezones_repo(db))
+    use = ListTimezones(_timezones_repo(db))
     items = use.execute()
     return [_timezones_schema(item) for item in items]
 
 
 @router.post("/timezone")
 def create_timezone(data: dict, db: Session = Depends(get_db)):
-    use = CrearTimezone(_timezones_repo(db))
+    use = CreateTimezone(_timezones_repo(db))
     created = use.execute(_timezones_in_from_create(data))
     return _timezones_schema(created)
 
@@ -495,9 +497,9 @@ def create_timezone(data: dict, db: Session = Depends(get_db)):
 def update_timezone(name: str, data: dict, db: Session = Depends(get_db)):
     repo = _timezones_repo(db)
     try:
-        current = ObtenerTimezone(repo).execute(name)
+        current = GetTimezone(repo).execute(name)
         payload = _timezones_in_from_update(data, current)
-        updated = ActualizarTimezone(repo).execute(name, payload)
+        updated = UpdateTimezone(repo).execute(name, payload)
         return _timezones_schema(updated)
     except ValueError:
         raise HTTPException(status_code=404, detail="Timezone no encontrado")
@@ -507,7 +509,7 @@ def update_timezone(name: str, data: dict, db: Session = Depends(get_db)):
 def delete_timezone(name: str, db: Session = Depends(get_db)):
     repo = _timezones_repo(db)
     try:
-        EliminarTimezone(repo).execute(name)
+        DeleteTimezone(repo).execute(name)
     except ValueError:
         raise HTTPException(status_code=404, detail="Timezone no encontrado")
     return {"ok": True}
@@ -516,14 +518,14 @@ def delete_timezone(name: str, db: Session = Depends(get_db)):
 # Locales (CRUD simple)
 @router.get("/locale")
 def list_locales(db: Session = Depends(get_db)):
-    use = ListarLocales(_locales_repo(db))
+    use = ListLocales(_locales_repo(db))
     items = use.execute()
     return [_locales_schema(item) for item in items]
 
 
 @router.post("/locale")
 def create_locale(data: dict, db: Session = Depends(get_db)):
-    use = CrearLocale(_locales_repo(db))
+    use = CreateLocale(_locales_repo(db))
     created = use.execute(_locales_in_from_create(data))
     return _locales_schema(created)
 
@@ -532,9 +534,9 @@ def create_locale(data: dict, db: Session = Depends(get_db)):
 def update_locale(code: str, data: dict, db: Session = Depends(get_db)):
     repo = _locales_repo(db)
     try:
-        current = ObtenerLocale(repo).execute(code)
+        current = GetLocale(repo).execute(code)
         payload = _locales_in_from_update(data, current)
-        updated = ActualizarLocale(repo).execute(code, payload)
+        updated = UpdateLocale(repo).execute(code, payload)
         return _locales_schema(updated)
     except ValueError:
         raise HTTPException(status_code=404, detail="Locale no encontrado")
@@ -544,214 +546,214 @@ def update_locale(code: str, data: dict, db: Session = Depends(get_db)):
 def delete_locale(code: str, db: Session = Depends(get_db)):
     repo = _locales_repo(db)
     try:
-        EliminarLocale(repo).execute(code)
+        DeleteLocale(repo).execute(code)
     except ValueError:
         raise HTTPException(status_code=404, detail="Locale no encontrado")
     return {"ok": True}
 
 
-# Días de semana (ruta moderna `/dias`)
-@router.get("/dias", response_model=list[DiaSemanaRead])
-def list_dias(db: Session = Depends(get_db)):
-    use = ListarDiasSemana(_dias_repo(db))
+# Weekdays
+@router.get("/weekday", response_model=list[DiaSemanaRead])
+def list_weekdays(db: Session = Depends(get_db)):
+    use = ListWeekDays(_weekday_repo(db))
     items = use.execute()
-    return [_dias_schema(item) for item in items]
+    return [_weekday_schema(item) for item in items]
 
 
-@router.post("/dias", response_model=DiaSemanaRead)
-def create_dia(data: DiaSemanaCreate, db: Session = Depends(get_db)):
-    use = CrearDiaSemana(_dias_repo(db))
-    created = use.execute(_dias_in_from_create(data))
-    return _dias_schema(created)
+@router.post("/weekday", response_model=DiaSemanaRead)
+def create_weekday(data: DiaSemanaCreate, db: Session = Depends(get_db)):
+    use = CreateWeekDay(_weekday_repo(db))
+    created = use.execute(_weekday_in_from_create(data))
+    return _weekday_schema(created)
 
 
-@router.put("/dias/{id}", response_model=DiaSemanaRead)
-def update_dia(id: int, data: DiaSemanaUpdate, db: Session = Depends(get_db)):
-    repo = _dias_repo(db)
+@router.put("/weekday/{id}", response_model=DiaSemanaRead)
+def update_weekday(id: int, data: DiaSemanaUpdate, db: Session = Depends(get_db)):
+    repo = _weekday_repo(db)
     try:
-        current = ObtenerDiaSemana(repo).execute(id)
-        payload = _dias_in_from_update(data, current)
-        updated = ActualizarDiaSemana(repo).execute(id, payload)
-        return _dias_schema(updated)
+        current = GetWeekDay(repo).execute(id)
+        payload = _weekday_in_from_update(data, current)
+        updated = UpdateWeekDay(repo).execute(id, payload)
+        return _weekday_schema(updated)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Día no encontrado")
+        raise HTTPException(status_code=404, detail="Weekday not found")
 
 
-@router.delete("/dias/{id}")
-def delete_dia(id: int, db: Session = Depends(get_db)):
-    repo = _dias_repo(db)
+@router.delete("/weekday/{id}")
+def delete_weekday(id: int, db: Session = Depends(get_db)):
+    repo = _weekday_repo(db)
     try:
-        EliminarDiaSemana(repo).execute(id)
+        DeleteWeekDay(repo).execute(id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Día no encontrado")
+        raise HTTPException(status_code=404, detail="Weekday not found")
     return {"ok": True}
 
 
-# Horario de atención (ruta moderna `/horario_atencion`)
-@router.get("/horario_atencion", response_model=list[HorarioAtencionRead])
-def list_horarios(db: Session = Depends(get_db)):
-    use = ListarHorariosAtencion(_horarios_repo(db))
+# Attention Schedules
+@router.get("/attention-schedule", response_model=list[HorarioAtencionRead])
+def list_attention_schedules(db: Session = Depends(get_db)):
+    use = ListAttentionSchedules(_attention_schedule_repo(db))
     items = use.execute()
-    return [_horarios_schema(item) for item in items]
+    return [_attention_schedule_schema(item) for item in items]
 
 
-@router.post("/horario_atencion", response_model=HorarioAtencionRead)
-def create_horario(data: HorarioAtencionCreate, db: Session = Depends(get_db)):
-    use = CrearHorarioAtencion(_horarios_repo(db))
-    created = use.execute(_horarios_in_from_create(data))
-    return _horarios_schema(created)
+@router.post("/attention-schedule", response_model=HorarioAtencionRead)
+def create_attention_schedule(data: HorarioAtencionCreate, db: Session = Depends(get_db)):
+    use = CreateAttentionSchedule(_attention_schedule_repo(db))
+    created = use.execute(_attention_schedule_in_from_create(data))
+    return _attention_schedule_schema(created)
 
 
-@router.put("/horario_atencion/{id}", response_model=HorarioAtencionRead)
-def update_horario(id: int, data: HorarioAtencionUpdate, db: Session = Depends(get_db)):
-    repo = _horarios_repo(db)
+@router.put("/attention-schedule/{id}", response_model=HorarioAtencionRead)
+def update_attention_schedule(id: int, data: HorarioAtencionUpdate, db: Session = Depends(get_db)):
+    repo = _attention_schedule_repo(db)
     try:
-        current = ObtenerHorarioAtencion(repo).execute(id)
-        payload = _horarios_in_from_update(data, current)
-        updated = ActualizarHorarioAtencion(repo).execute(id, payload)
-        return _horarios_schema(updated)
+        current = GetAttentionSchedule(repo).execute(id)
+        payload = _attention_schedule_in_from_update(data, current)
+        updated = UpdateAttentionSchedule(repo).execute(id, payload)
+        return _attention_schedule_schema(updated)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Horario no encontrado")
+        raise HTTPException(status_code=404, detail="Attention schedule not found")
 
 
-@router.delete("/horario_atencion/{id}")
-def delete_horario(id: int, db: Session = Depends(get_db)):
-    repo = _horarios_repo(db)
+@router.delete("/attention-schedule/{id}")
+def delete_attention_schedule(id: int, db: Session = Depends(get_db)):
+    repo = _attention_schedule_repo(db)
     try:
-        EliminarHorarioAtencion(repo).execute(id)
+        DeleteAttentionSchedule(repo).execute(id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Horario no encontrado")
+        raise HTTPException(status_code=404, detail="Attention schedule not found")
     return {"ok": True}
 
 
-# Sectores (plantillas)
-@router.get("/sectores", response_model=list[SectorPlantillaRead])
-def list_sectores(db: Session = Depends(get_db)):
-    use = ListarSectoresPlantilla(_sectores_repo(db))
+# Template Sectors
+@router.get("/template-sector", response_model=list[SectorPlantillaRead])
+def list_template_sectors(db: Session = Depends(get_db)):
+    use = ListTemplateSectors(_template_sector_repo(db))
     items = use.execute()
-    return [_sectores_schema(item) for item in items]
+    return [_template_sector_schema(item) for item in items]
 
 
-@router.post("/sectores", response_model=SectorPlantillaRead)
-def create_sector(data: SectorPlantillaCreate, db: Session = Depends(get_db)):
-    use = CrearSectorPlantilla(_sectores_repo(db))
-    created = use.execute(_sectores_in_from_create(data))
-    return _sectores_schema(created)
+@router.post("/template-sector", response_model=SectorPlantillaRead)
+def create_template_sector(data: SectorPlantillaCreate, db: Session = Depends(get_db)):
+    use = CreateTemplateSector(_template_sector_repo(db))
+    created = use.execute(_template_sector_in_from_create(data))
+    return _template_sector_schema(created)
 
 
-@router.get("/sectores/{id}", response_model=SectorPlantillaRead)
-def get_sector(id: int, db: Session = Depends(get_db)):
-    use = ObtenerSectorPlantilla(_sectores_repo(db))
+@router.get("/template-sector/{id}", response_model=SectorPlantillaRead)
+def get_template_sector(id: int, db: Session = Depends(get_db)):
+    use = GetTemplateSector(_template_sector_repo(db))
     try:
         sector = use.execute(id)
-        return _sectores_schema(sector)
+        return _template_sector_schema(sector)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Sector no encontrado")
+        raise HTTPException(status_code=404, detail="Template sector not found")
 
 
-@router.put("/sectores/{id}", response_model=SectorPlantillaRead)
-def update_sector(id: int, data: SectorPlantillaUpdate, db: Session = Depends(get_db)):
-    repo = _sectores_repo(db)
+@router.put("/template-sector/{id}", response_model=SectorPlantillaRead)
+def update_template_sector(id: int, data: SectorPlantillaUpdate, db: Session = Depends(get_db)):
+    repo = _template_sector_repo(db)
     try:
-        current = ObtenerSectorPlantilla(repo).execute(id)
-        payload = _sectores_in_from_update(data, current)
-        updated = ActualizarSectorPlantilla(repo).execute(id, payload)
-        return _sectores_schema(updated)
+        current = GetTemplateSector(repo).execute(id)
+        payload = _template_sector_in_from_update(data, current)
+        updated = UpdateTemplateSector(repo).execute(id, payload)
+        return _template_sector_schema(updated)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Sector no encontrado")
+        raise HTTPException(status_code=404, detail="Template sector not found")
 
 
-@router.delete("/sectores/{id}")
-def delete_sector(id: int, db: Session = Depends(get_db)):
-    repo = _sectores_repo(db)
+@router.delete("/template-sector/{id}")
+def delete_template_sector(id: int, db: Session = Depends(get_db)):
+    repo = _template_sector_repo(db)
     try:
-        EliminarSectorPlantilla(repo).execute(id)
+        DeleteTemplateSector(repo).execute(id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Sector no encontrado")
+        raise HTTPException(status_code=404, detail="Template sector not found")
     return {"ok": True}
 
 
-# Tipo empresa
-@router.get("/tipo-empresa", response_model=list[TipoEmpresaRead])
-def list_tipo_empresa(db: Session = Depends(get_db)):
-    use = ListarTiposEmpresa(_tipos_empresa_repo(db))
+# Business Types (Company)
+@router.get("/business-type", response_model=list[TipoEmpresaRead])
+def list_business_types(db: Session = Depends(get_db)):
+    use = ListCompanyTypes(_business_type_repo(db))
     items = use.execute()
-    return [_tipos_empresa_schema(item) for item in items]
+    return [_business_type_schema(item) for item in items]
 
 
-@router.post("/tipo-empresa", response_model=TipoEmpresaRead)
-def create_tipo_empresa(data: TipoEmpresaCreate, db: Session = Depends(get_db)):
-    use = CrearTipoEmpresa(_tipos_empresa_repo(db))
-    created = use.execute(_tipos_empresa_in_from_create(data))
-    return _tipos_empresa_schema(created)
+@router.post("/business-type", response_model=TipoEmpresaRead)
+def create_business_type(data: TipoEmpresaCreate, db: Session = Depends(get_db)):
+    use = CreateCompanyType(_business_type_repo(db))
+    created = use.execute(_business_type_in_from_create(data))
+    return _business_type_schema(created)
 
 
-@router.put("/tipo-empresa/{id}", response_model=TipoEmpresaRead)
-def update_tipo_empresa(id: str, data: TipoEmpresaUpdate, db: Session = Depends(get_db)):
+@router.put("/business-type/{id}", response_model=TipoEmpresaRead)
+def update_business_type(id: str, data: TipoEmpresaUpdate, db: Session = Depends(get_db)):
     from uuid import UUID as _UUID
 
     try:
         uid = _UUID(id)
     except ValueError:
         uid = id
-    repo = _tipos_empresa_repo(db)
+    repo = _business_type_repo(db)
     try:
-        current = ObtenerTipoEmpresa(repo).execute(uid)
-        payload = _tipos_empresa_in_from_update(data, current)
-        updated = ActualizarTipoEmpresa(repo).execute(uid, payload)
-        return _tipos_empresa_schema(updated)
+        current = GetCompanyType(repo).execute(uid)
+        payload = _business_type_in_from_update(data, current)
+        updated = UpdateCompanyType(repo).execute(uid, payload)
+        return _business_type_schema(updated)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Tipo de empresa no encontrado")
+        raise HTTPException(status_code=404, detail="Business type not found")
 
 
-@router.delete("/tipo-empresa/{id}")
-def delete_tipo_empresa(id: str, db: Session = Depends(get_db)):
+@router.delete("/business-type/{id}")
+def delete_business_type(id: str, db: Session = Depends(get_db)):
     from uuid import UUID as _UUID
 
     try:
         uid = _UUID(id)
     except ValueError:
         uid = id
-    repo = _tipos_empresa_repo(db)
+    repo = _business_type_repo(db)
     try:
-        EliminarTipoEmpresa(repo).execute(uid)
+        DeleteCompanyType(repo).execute(uid)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Tipo de empresa no encontrado")
+        raise HTTPException(status_code=404, detail="Business type not found")
     return {"ok": True}
 
 
-# Tipo negocio
-@router.get("/tipo-negocio", response_model=list[TipoNegocioRead])
-def list_tipo_negocio(db: Session = Depends(get_db)):
-    use = ListarTiposNegocio(_tipos_negocio_repo(db))
+# Business Categories
+@router.get("/business-category", response_model=list[TipoNegocioRead])
+def list_business_categories(db: Session = Depends(get_db)):
+    use = ListBusinessTypes(_business_category_repo(db))
     items = use.execute()
-    return [_tipos_negocio_schema(item) for item in items]
+    return [_business_category_schema(item) for item in items]
 
 
-@router.post("/tipo-negocio", response_model=TipoNegocioRead)
-def create_tipo_negocio(data: TipoNegocioCreate, db: Session = Depends(get_db)):
-    use = CrearTipoNegocio(_tipos_negocio_repo(db))
-    created = use.execute(_tipos_negocio_in_from_create(data))
-    return _tipos_negocio_schema(created)
+@router.post("/business-category", response_model=TipoNegocioRead)
+def create_business_category(data: TipoNegocioCreate, db: Session = Depends(get_db)):
+    use = CreateBusinessType(_business_category_repo(db))
+    created = use.execute(_business_category_in_from_create(data))
+    return _business_category_schema(created)
 
 
-@router.put("/tipo-negocio/{id}", response_model=TipoNegocioRead)
-def update_tipo_negocio(id: int, data: TipoNegocioUpdate, db: Session = Depends(get_db)):
-    repo = _tipos_negocio_repo(db)
+@router.put("/business-category/{id}", response_model=TipoNegocioRead)
+def update_business_category(id: int, data: TipoNegocioUpdate, db: Session = Depends(get_db)):
+    repo = _business_category_repo(db)
     try:
-        current = ObtenerTipoNegocio(repo).execute(id)
-        payload = _tipos_negocio_in_from_update(data, current)
-        updated = ActualizarTipoNegocio(repo).execute(id, payload)
-        return _tipos_negocio_schema(updated)
+        current = GetBusinessType(repo).execute(id)
+        payload = _business_category_in_from_update(data, current)
+        updated = UpdateBusinessType(repo).execute(id, payload)
+        return _business_category_schema(updated)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Tipo de negocio no encontrado")
+        raise HTTPException(status_code=404, detail="Business category not found")
 
 
-@router.delete("/tipo-negocio/{id}")
-def delete_tipo_negocio(id: int, db: Session = Depends(get_db)):
-    repo = _tipos_negocio_repo(db)
+@router.delete("/business-category/{id}")
+def delete_business_category(id: int, db: Session = Depends(get_db)):
+    repo = _business_category_repo(db)
     try:
-        EliminarTipoNegocio(repo).execute(id)
+        DeleteBusinessType(repo).execute(id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Tipo de negocio no encontrado")
+        raise HTTPException(status_code=404, detail="Business category not found")
     return {"ok": True}

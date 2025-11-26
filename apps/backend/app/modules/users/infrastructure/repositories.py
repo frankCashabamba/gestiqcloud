@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from sqlalchemy.orm import Session
 
 from app.models import AssignedModule, CompanyModule, CompanyRole, CompanyUser, CompanyUserRole
-from app.modules.usuarios.infrastructure.schemas import CompanyUserCreate
+from app.modules.users.infrastructure.schemas import CompanyUserCreate
 
 
 def get_users_by_tenant(

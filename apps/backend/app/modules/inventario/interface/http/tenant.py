@@ -44,8 +44,7 @@ class WarehouseOut(WarehouseIn):
     # Map SQLAlchemy attribute 'extra_metadata' to API field 'metadata'
     metadata: dict | None = Field(default=None, validation_alias="extra_metadata")
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 @router.get("/warehouses", response_model=list[WarehouseOut])

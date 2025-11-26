@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.email.email_utils import reenviar_correo_reset
 from app.config.database import get_db
 from app.models.company.company_user import CompanyUser
-from app.modules.usuarios.infrastructure.schemas import CompanyUserOut
+from app.modules.users.infrastructure.schemas import CompanyUserOut
 
 router = APIRouter()
 

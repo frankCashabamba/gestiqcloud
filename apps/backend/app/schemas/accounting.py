@@ -13,7 +13,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ============================================================================
 # PLAN DE CUENTAS
@@ -32,14 +32,16 @@ class PlanCuentasBase(BaseModel):
     imputable: bool = Field(default=True, description="Permite movimientos directos")
     activo: bool = Field(default=True, description="Cuenta activa")
 
-    @validator("tipo")
+    @field_validator("tipo")
+    @classmethod
     def validate_tipo(cls, v):
         valid = ["ACTIVO", "PASIVO", "PATRIMONIO", "INGRESO", "GASTO"]
         if v not in valid:
             raise ValueError(f"Tipo debe ser uno de: {', '.join(valid)}")
         return v
 
-    @validator("codigo")
+    @field_validator("codigo")
+    @classmethod
     def validate_codigo(cls, v):
         # Eliminar espacios y convertir a mayúsculas
         return v.strip().upper()
@@ -71,8 +73,7 @@ class PlanCuentasResponse(PlanCuentasBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PlanCuentasList(BaseModel):
@@ -108,13 +109,14 @@ class AsientoLineaBase(BaseModel):
     descripcion: str | None = Field(None, max_length=255)
     orden: int = Field(default=0, ge=0, description="Orden en el asiento")
 
-    @validator("haber")
-    def validate_debe_o_haber(cls, v, values):
+    @field_validator("haber")
+    @classmethod
+    def validate_debe_o_haber(cls, v, info):
         """Solo puede tener debe O haber, no ambos"""
-        if "debe" in values:
-            if values["debe"] > 0 and v > 0:
+        if "debe" in info.data:
+            if info.data["debe"] > 0 and v > 0:
                 raise ValueError("Una línea solo puede tener debe O haber, no ambos")
-            if values["debe"] == 0 and v == 0:
+            if info.data["debe"] == 0 and v == 0:
                 raise ValueError("Una línea debe tener debe O haber mayor a 0")
         return v
 
@@ -134,8 +136,7 @@ class AsientoLineaResponse(AsientoLineaBase):
     cuenta_codigo: str | None = None
     cuenta_nombre: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AsientoContableBase(BaseModel):
@@ -147,7 +148,8 @@ class AsientoContableBase(BaseModel):
     ref_doc_type: str | None = Field(None, description="Tipo documento origen")
     ref_doc_id: UUID | None = Field(None, description="ID documento origen")
 
-    @validator("tipo")
+    @field_validator("tipo")
+    @classmethod
     def validate_tipo(cls, v):
         valid = ["APERTURA", "OPERACIONES", "REGULARIZACION", "CIERRE"]
         if v not in valid:
@@ -160,9 +162,10 @@ class AsientoContableCreate(AsientoContableBase):
 
     number: str | None = Field(None, description="Legacy alias for asiento number")
 
-    lineas: list[AsientoLineaCreate] = Field(..., min_items=2, description="Mínimo 2 líneas")
+    lineas: list[AsientoLineaCreate] = Field(..., min_length=2, description="Mínimo 2 líneas")
 
-    @validator("lineas")
+    @field_validator("lineas")
+    @classmethod
     def validate_cuadrado(cls, v):
         """Validar que debe = haber"""
         total_debe = sum(linea.debe for linea in v)
@@ -199,8 +202,7 @@ class AsientoContableResponse(AsientoContableBase):
     updated_at: datetime
     lineas: list[AsientoLineaResponse] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AsientoContableList(BaseModel):

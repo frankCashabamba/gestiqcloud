@@ -189,7 +189,7 @@ class Settings(BaseSettings):
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
-    SECRET_KEY: SecretStr = Field(..., env="SECRET_KEY")
+    SECRET_KEY: SecretStr = Field(..., json_schema_extra={"env": "SECRET_KEY"})
 
     @field_validator("SECRET_KEY")
     @classmethod

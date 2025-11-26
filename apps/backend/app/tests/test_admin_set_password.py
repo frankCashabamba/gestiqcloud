@@ -5,7 +5,7 @@ from uuid import uuid4
 from app.models.auth.useradmis import SuperUser
 from app.models.company.company_user import CompanyUser
 from app.models.tenant import Tenant
-from app.modules.usuarios.interface.http.admin import SetPasswordIn, set_password
+from app.modules.users.interface.http.admin import SetPasswordIn, set_password
 
 
 def test_admin_set_password_updates_company_user_only(db):

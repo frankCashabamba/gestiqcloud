@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.modules.usuarios.infrastructure import repositories as repo
+from app.modules.users.infrastructure import repositories as repo
 
 
 def ensure_email_unique(db: Session, email: str, *, exclude_user_id: int | None = None) -> None:

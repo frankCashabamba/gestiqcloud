@@ -8,8 +8,8 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
-from app.modules.usuarios.application import permissions, services
-from app.modules.usuarios.infrastructure.schemas import (
+from app.modules.users.application import permissions, services
+from app.modules.users.infrastructure.schemas import (
     CompanyRoleOption,
     CompanyUserCreate,
     CompanyUserOut,

@@ -67,6 +67,7 @@ def test_session_middleware_falls_back_to_memory_store(client: TestClient) -> No
     cookie = first.cookies.get("sess")
     assert cookie is not None
 
-    second = client.get("/read", cookies={"sess": cookie})
+    client.cookies.set("sess", cookie)
+    second = client.get("/read")
     assert second.status_code == 200
     assert second.json()["session"].get("foo") == "bar"

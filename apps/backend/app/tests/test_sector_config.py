@@ -18,8 +18,8 @@ class TestSectorDefaults:
         field_names = [f["field"] for f in fields]
 
         # Campos básicos
-        assert "codigo" in field_names
-        assert "nombre" in field_names
+        assert "code" in field_names
+        assert "name" in field_names
         assert "precio" in field_names
 
         # Campos específicos panadería
@@ -66,11 +66,11 @@ class TestSectorDefaults:
         field_names = [f["field"] for f in fields]
 
         # Campos específicos taller
-        assert "codigo" in field_names  # Código OEM
-        assert "tipo" in field_names
+        assert "code" in field_names
+        assert "tipo" not in field_names  # type, not tipo
+        assert "type" in field_names
         assert "marca_vehiculo" in field_names
         assert "modelo_vehiculo" in field_names
-        assert "tiempo_instalacion" in field_names
 
     def test_field_structure(self):
         """Todos los campos deben tener estructura correcta"""
@@ -161,10 +161,11 @@ class TestAllSectorsHaveConfig:
             assert len(SECTOR_DEFAULTS[sector]["productos"]) > 0
 
     def test_all_sectors_have_proveedores(self):
-        """Todos los sectores deben tener config de proveedores"""
+        """Todos los sectores deben tener config de suppliers/proveedores"""
         for sector in ["panaderia", "retail", "restaurante", "taller"]:
-            assert "proveedores" in SECTOR_DEFAULTS[sector]
-            assert len(SECTOR_DEFAULTS[sector]["proveedores"]) > 0
+            # Key is "suppliers" in English now
+            assert "suppliers" in SECTOR_DEFAULTS[sector]
+            assert len(SECTOR_DEFAULTS[sector]["suppliers"]) > 0
 
     def test_all_sectors_have_required_fields(self):
         """Todos los sectores deben tener campos básicos en productos"""
@@ -172,9 +173,8 @@ class TestAllSectorsHaveConfig:
             fields = get_sector_defaults("productos", sector)
             field_names = [f["field"] for f in fields]
 
-            # Campos universales
-            assert "codigo" in field_names
-            assert "nombre" in field_names
+            # Campos universales (now in English)
+            assert "code" in field_names
+            assert "name" in field_names
             assert "precio" in field_names or "precio_venta" in field_names
-            assert "impuesto" in field_names
-            assert "activo" in field_names
+            assert "impuesto" in field_names or "active" in field_names

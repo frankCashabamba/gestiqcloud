@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -7,9 +11,6 @@ from app.db.rls import ensure_rls
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.sales.delivery import Delivery
 from app.models.sales.order import SalesOrder, SalesOrderItem
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/sales_orders",
@@ -49,8 +50,7 @@ class OrderOut(BaseModel):
     customer_id: int | None
     currency: str | None
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 @router.get("", response_model=list[OrderOut])

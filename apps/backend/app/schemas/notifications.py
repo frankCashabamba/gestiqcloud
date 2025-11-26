@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ============================================================================
 # NOTIFICATION CHANNELS
@@ -44,8 +44,7 @@ class NotificationChannelResponse(NotificationChannelBase):
     created_at: datetime
     updated_at: datetime | None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -69,8 +68,7 @@ class NotificationLogResponse(BaseModel):
     sent_at: datetime | None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -93,8 +91,7 @@ class StockAlertResponse(BaseModel):
     resolved_by: uuid.UUID | None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -119,8 +116,8 @@ class NotificationSendRequest(BaseModel):
     ref_type: str | None = None
     ref_id: uuid.UUID | None = None
 
-    @validator("tipo")
-    def validate_tipo(cls, v):
+    @field_validator("tipo")
+    def validate_tipo(cls, v: str):
         if v not in ["email", "whatsapp", "telegram"]:
             raise ValueError("tipo debe ser: email, whatsapp o telegram")
         return v
@@ -151,5 +148,4 @@ class NotificationTemplateResponse(NotificationTemplateBase):
     created_at: datetime
     updated_at: datetime | None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

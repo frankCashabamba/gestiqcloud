@@ -1,10 +1,11 @@
 """
-Parser para facturas en formato XML (estándar UBL/CFDI).
+Analizador de facturas en formato XML (estándar UBL/CFDI).
 
 Soporta:
 - Facturas electrónicas ecuatorianas (XML de SRI)
 - CFDI (México)
 - UBL estándar
+- Facturas españolas
 
 Salida: CanonicalDocument con doc_type='invoice'
 """
@@ -15,13 +16,13 @@ from typing import Any
 
 def parse_xml_invoice(file_path: str) -> dict[str, Any]:
     """
-    Parse XML invoice file.
+    Analiza un archivo de factura en XML.
 
     Args:
-        file_path: Path to XML file
+        file_path: Ruta al archivo XML
 
     Returns:
-        Dict with 'invoices' list and metadata
+        Dict con lista de 'invoices' y metadatos
     """
     invoices = []
     errors = []
@@ -30,7 +31,7 @@ def parse_xml_invoice(file_path: str) -> dict[str, Any]:
         tree = ET.parse(file_path)
         root = tree.getroot()
 
-        # Detectar namespace
+        # Detectar namespaces
         namespaces = _detect_namespaces(root)
 
         # Extraer factura según tipo
@@ -59,7 +60,7 @@ def parse_xml_invoice(file_path: str) -> dict[str, Any]:
 
 
 def _detect_namespaces(root: ET.Element) -> dict[str, str]:
-    """Detectar namespaces del elemento raíz."""
+    """Detecta los namespaces del elemento raíz."""
     ns = {}
     if root.tag.startswith("{"):
         # UBL
@@ -74,7 +75,7 @@ def _detect_namespaces(root: ET.Element) -> dict[str, str]:
 
 
 def _extract_invoice_data(root: ET.Element, namespaces: dict) -> dict[str, Any] | None:
-    """Extraer datos de factura según el namespace."""
+    """Extrae datos de factura según el namespace."""
 
     # Intenta primero UBL (Ecuador/España/etc)
     if "ubl" in namespaces:
@@ -85,12 +86,12 @@ def _extract_invoice_data(root: ET.Element, namespaces: dict) -> dict[str, Any] 
         if "cfdi" in attr_value:
             return _extract_cfdi_invoice(root, attr_value)
 
-    # Fallback: generic XML parsing
+    # Fallback: análisis genérico de XML
     return _extract_generic_invoice(root)
 
 
 def _extract_ubl_invoice(root: ET.Element, ns: str) -> dict[str, Any] | None:
-    """Extraer datos de factura UBL."""
+    """Extrae datos de factura en formato UBL."""
 
     def tag(name: str) -> str:
         return f"{{{ns}}}{name}"
@@ -101,7 +102,7 @@ def _extract_ubl_invoice(root: ET.Element, ns: str) -> dict[str, Any] | None:
         issue_date = _get_text(root, f".//{tag('IssueDate')}")
         due_date = _get_text(root, f".//{tag('DueDate')}")
 
-        # Vendor/Supplier (AccountingSupplierParty)
+        # Proveedor/Vendedor (AccountingSupplierParty)
         supplier_elem = root.find(f".//{tag('AccountingSupplierParty')}")
         vendor = {}
         if supplier_elem is not None:
@@ -112,7 +113,7 @@ def _extract_ubl_invoice(root: ET.Element, ns: str) -> dict[str, Any] | None:
                     "tax_id": _get_text(vendor_party, f".//{tag('CompanyID')}"),
                 }
 
-        # Buyer/Customer (AccountingCustomerParty)
+        # Comprador/Cliente (AccountingCustomerParty)
         customer_elem = root.find(f".//{tag('AccountingCustomerParty')}")
         buyer = {}
         if customer_elem is not None:
@@ -123,7 +124,7 @@ def _extract_ubl_invoice(root: ET.Element, ns: str) -> dict[str, Any] | None:
                     "tax_id": _get_text(buyer_party, f".//{tag('CompanyID')}"),
                 }
 
-        # Totals
+        # Totales
         legal_total = root.find(f".//{tag('LegalMonetaryTotal')}")
         totals = {}
         if legal_total is not None:
@@ -135,15 +136,15 @@ def _extract_ubl_invoice(root: ET.Element, ns: str) -> dict[str, Any] | None:
                 "total": _to_float(_get_text(legal_total, f".//{tag('PayableAmount')}")),
             }
 
-        # Currency
+        # Moneda
         currency = _get_text(root, f".//{tag('DocumentCurrencyCode')}") or "USD"
 
-        # Lines
+        # Líneas
         lines = []
         for line_elem in root.findall(f".//{tag('InvoiceLine')}"):
             line = {
-                "desc": _get_text(line_elem, f".//{tag('Item')}/{tag('Description')}"),
-                "qty": _to_float(_get_text(line_elem, f".//{tag('InvoicedQuantity')}")),
+                "description": _get_text(line_elem, f".//{tag('Item')}/{tag('Description')}"),
+                "quantity": _to_float(_get_text(line_elem, f".//{tag('InvoicedQuantity')}")),
                 "unit_price": _to_float(
                     _get_text(line_elem, f".//{tag('Price')}/{tag('PriceAmount')}")
                 ),
@@ -169,7 +170,7 @@ def _extract_ubl_invoice(root: ET.Element, ns: str) -> dict[str, Any] | None:
 
 
 def _extract_cfdi_invoice(root: ET.Element, ns: str) -> dict[str, Any] | None:
-    """Extract CFDI invoice data (Mexico)."""
+    """Extrae datos de factura en formato CFDI (México)."""
     try:
         # Implementar parsing de CFDI aquí
         # Por ahora, retorna estructura básica
@@ -186,7 +187,7 @@ def _extract_cfdi_invoice(root: ET.Element, ns: str) -> dict[str, Any] | None:
 
 
 def _extract_generic_invoice(root: ET.Element) -> dict[str, Any] | None:
-    """Fallback: extract generic data."""
+    """Fallback: extrae datos genéricos."""
     try:
         return {
             "doc_type": "invoice",
@@ -202,7 +203,7 @@ def _extract_generic_invoice(root: ET.Element) -> dict[str, Any] | None:
 
 
 def _get_text(elem: ET.Element, xpath: str) -> str | None:
-    """Obtener texto de un elemento."""
+    """Obtiene el texto de un elemento."""
     try:
         found = elem.findtext(xpath)
         return found if found else None
@@ -211,7 +212,7 @@ def _get_text(elem: ET.Element, xpath: str) -> str | None:
 
 
 def _to_float(val) -> float | None:
-    """Convertir a float."""
+    """Convierte un valor a float."""
     if val is None or val == "":
         return None
     try:

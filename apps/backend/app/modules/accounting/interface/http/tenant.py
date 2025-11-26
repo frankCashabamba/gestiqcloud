@@ -97,7 +97,7 @@ def _recalcular_saldos_cuenta(db: Session, cuenta_id: UUID):
 @router.get("/plan-cuentas", response_model=PlanCuentasList)
 async def list_cuentas(
     nivel: int | None = Query(None, ge=1, le=4),
-    tipo: str | None = Query(None, regex="^(ACTIVO|PASIVO|PATRIMONIO|INGRESO|GASTO)$"),
+    tipo: str | None = Query(None, pattern="^(ACTIVO|PASIVO|PATRIMONIO|INGRESO|GASTO)$"),
     activo: bool | None = None,
     imputable: bool | None = None,
     buscar: str | None = Query(None, description="Buscar en código o nombre"),
@@ -233,7 +233,7 @@ async def list_asientos(
     page_size: int = Query(50, ge=1, le=100),
     fecha_desde: date | None = None,
     fecha_hasta: date | None = None,
-    status: str | None = Query(None, regex="^(BORRADOR|CONTABILIZADO)$"),
+    status: str | None = Query(None, pattern="^(BORRADOR|CONTABILIZADO)$"),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):

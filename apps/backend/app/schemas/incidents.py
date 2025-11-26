@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 
 class IncidentCreate(BaseModel):
@@ -17,8 +17,8 @@ class IncidentCreate(BaseModel):
     stack_trace: str | None = Field(None, description="Stack trace if technical error")
     context: dict[str, Any] | None = Field(None, description="Additional context (JSON)")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "type": "error",
                 "severity": "high",
@@ -28,6 +28,7 @@ class IncidentCreate(BaseModel):
                 "context": {"file_id": "abc-123", "line": 45},
             }
         }
+    )
 
 
 class IncidentUpdate(BaseModel):
@@ -56,8 +57,7 @@ class IncidentResponse(BaseModel):
     created_at: datetime
     updated_at: datetime | None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class IncidentAnalysisRequest(BaseModel):
@@ -98,8 +98,7 @@ class StockAlertResponse(BaseModel):
     resolved_at: datetime | None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class NotificationChannelCreate(BaseModel):
@@ -111,9 +110,9 @@ class NotificationChannelCreate(BaseModel):
     is_active: bool = True
     priority: int = Field(0, ge=0, le=100)
 
-    @validator("config")
-    def validate_config(cls, v, values):
-        channel_type = values.get("channel_type")
+    @field_validator("config")
+    def validate_config(cls, v: dict[str, Any], info: ValidationInfo):
+        channel_type = (info.data or {}).get("channel_type")
         if channel_type == "email":
             if "smtp_host" not in v or "from_email" not in v:
                 raise ValueError("Email config requires smtp_host and from_email")
@@ -128,8 +127,8 @@ class NotificationChannelCreate(BaseModel):
                 raise ValueError("Slack config requires webhook_url")
         return v
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "channel_type": "telegram",
                 "name": "Primary Stock Alerts",
@@ -141,6 +140,7 @@ class NotificationChannelCreate(BaseModel):
                 "priority": 10,
             }
         }
+    )
 
 
 class NotificationChannelUpdate(BaseModel):
@@ -161,8 +161,7 @@ class NotificationChannelResponse(BaseModel):
     created_at: datetime
     updated_at: datetime | None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class NotificationLogResponse(BaseModel):
@@ -179,8 +178,7 @@ class NotificationLogResponse(BaseModel):
     sent_at: datetime | None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SendNotificationRequest(BaseModel):

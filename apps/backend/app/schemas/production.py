@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ============================================================================
 # ORDER LINES
@@ -36,8 +36,7 @@ class ProductionOrderLineResponse(ProductionOrderLineBase):
     cost_total: Decimal
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -64,7 +63,8 @@ class ProductionOrderCreate(ProductionOrderBase):
         description="Ingredient lines (optional, auto-generated from recipe)",
     )
 
-    @validator("qty_planned")
+    @field_validator("qty_planned")
+    @classmethod
     def validate_qty_planned(cls, v):
         if v <= 0:
             raise ValueError("Planned quantity must be greater than 0")
@@ -103,7 +103,8 @@ class ProductionOrderCompleteRequest(BaseModel):
     )
     notes: str | None = Field(None, description="Closing notes")
 
-    @validator("qty_produced")
+    @field_validator("qty_produced")
+    @classmethod
     def validate_qty_produced(cls, v):
         if v <= 0:
             raise ValueError("Produced quantity must be greater than 0")
@@ -131,8 +132,7 @@ class ProductionOrderResponse(ProductionOrderBase):
     # Relationships
     lines: list[ProductionOrderLineResponse] = Field(default_factory=list)
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProductionOrderList(BaseModel):

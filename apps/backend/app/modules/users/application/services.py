@@ -3,10 +3,10 @@ from sqlalchemy.orm import Session
 
 from app.core.security import get_password_hash
 from app.models import CompanyUser
-from app.modules.usuarios.application import validators as val
-from app.modules.usuarios.domain.models import CompanyUserAggregate
-from app.modules.usuarios.infrastructure import repositories as repo
-from app.modules.usuarios.infrastructure.schemas import (
+from app.modules.users.application import validators as val
+from app.modules.users.domain.models import CompanyUserAggregate
+from app.modules.users.infrastructure import repositories as repo
+from app.modules.users.infrastructure.schemas import (
     CompanyRoleOption,
     CompanyUserCreate,
     CompanyUserOut,
