@@ -1123,6 +1123,33 @@ CREATE TABLE IF NOT EXISTS stock_alerts (
 );
 
 
+CREATE TABLE IF NOT EXISTS stock_items (
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
+	tenant_id UUID,
+	warehouse_id UUID NOT NULL,
+	product_id UUID NOT NULL,
+	qty NUMERIC DEFAULT 0,
+	location VARCHAR(50),
+	lot VARCHAR(100),
+	PRIMARY KEY (id)
+);
+
+
+CREATE TABLE IF NOT EXISTS stock_moves (
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
+	tenant_id UUID,
+	product_id UUID NOT NULL,
+	warehouse_id UUID NOT NULL,
+	qty NUMERIC NOT NULL,
+	kind VARCHAR NOT NULL,
+	tentative BOOLEAN DEFAULT false NOT NULL,
+	posted BOOLEAN DEFAULT false NOT NULL,
+	ref_type VARCHAR,
+	ref_id VARCHAR,
+	PRIMARY KEY (id)
+);
+
+
 CREATE TABLE IF NOT EXISTS store_credit_events (
 	id UUID NOT NULL,
 	credit_id UUID NOT NULL,
