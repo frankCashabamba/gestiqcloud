@@ -1,0 +1,47 @@
+ > [tenant build 8/8] RUN npm run build:
+0.610
+0.610 > tenant-app@0.1.0 build
+0.610 > tsc -b && vite build
+0.610
+8.038 ../packages/ui/src/withPermiso.tsx(19,13): error TS2322: Type 'TProps' is not assignable to type 'IntrinsicAttributes & TProps'.
+8.038   Type 'TProps' is not assignable to type 'IntrinsicAttributes'.
+8.039 src/modules/clientes/List.tsx(9,10): error TS2451: Cannot redeclare block-scoped variable 'error'.
+8.039 src/modules/clientes/List.tsx(11,20): error TS2451: Cannot redeclare block-scoped variable 'error'.
+8.039 src/modules/clientes/List.tsx(16,67): error TS2349: This expression is not callable.
+8.039   Type 'String' has no call signatures.
+8.039 src/modules/clientes/List.tsx(16,67): error TS2721: Cannot invoke an object which is possibly 'null'.
+8.040 src/modules/clientes/List.tsx(41,236): error TS2349: This expression is not callable.
+8.040   Type 'String' has no call signatures.
+8.040 src/modules/clientes/List.tsx(41,236): error TS2721: Cannot invoke an object which is possibly 'null'.
+8.040 src/modules/compras/List.tsx(9,10): error TS2451: Cannot redeclare block-scoped variable 'error'.
+8.040 src/modules/compras/List.tsx(11,20): error TS2451: Cannot redeclare block-scoped variable 'error'.
+8.040 src/modules/compras/List.tsx(16,67): error TS2349: This expression is not callable.
+8.040   Type 'String' has no call signatures.
+8.040 src/modules/compras/List.tsx(16,67): error TS2721: Cannot invoke an object which is possibly 'null'.
+8.041 src/modules/compras/List.tsx(41,233): error TS2349: This expression is not callable.
+8.041   Type 'String' has no call signatures.
+8.041 src/modules/compras/List.tsx(41,233): error TS2721: Cannot invoke an object which is possibly 'null'.
+8.041 src/modules/proveedores/List.tsx(9,10): error TS2451: Cannot redeclare block-scoped variable 'error'.
+8.041 src/modules/proveedores/List.tsx(11,20): error TS2451: Cannot redeclare block-scoped variable 'error'.
+8.041 src/modules/proveedores/List.tsx(16,67): error TS2349: This expression is not callable.
+8.041   Type 'String' has no call signatures.
+8.041 src/modules/proveedores/List.tsx(16,67): error TS2721: Cannot invoke an object which is possibly 'null'.
+8.042 src/modules/proveedores/List.tsx(41,242): error TS2349: This expression is not callable.
+8.042   Type 'String' has no call signatures.
+8.042 src/modules/proveedores/List.tsx(41,242): error TS2721: Cannot invoke an object which is possibly 'null'.
+8.042 src/modules/usuarios/List.tsx(10,10): error TS2451: Cannot redeclare block-scoped variable 'error'.
+8.042 src/modules/usuarios/List.tsx(12,20): error TS2451: Cannot redeclare block-scoped variable 'error'.
+8.042 src/modules/usuarios/List.tsx(17,67): error TS2349: This expression is not callable.
+8.042   Type 'String' has no call signatures.
+8.042 src/modules/usuarios/List.tsx(17,67): error TS2721: Cannot invoke an object which is possibly 'null'.
+8.042 src/modules/usuarios/List.tsx(43,236): error TS2349: This expression is not callable.
+8.042   Type 'String' has no call signatures.
+8.042 src/modules/usuarios/List.tsx(43,236): error TS2721: Cannot invoke an object which is possibly 'null'.
+8.043 src/modules/ventas/List.tsx(9,10): error TS2451: Cannot redeclare block-scoped variable 'error'.
+8.043 src/modules/ventas/List.tsx(11,20): error TS2451: Cannot redeclare block-scoped variable 'error'.
+8.043 src/modules/ventas/List.tsx(16,67): error TS2349: This expression is not callable.
+8.043   Type 'String' has no call signatures.
+8.043 src/modules/ventas/List.tsx(16,67): error TS2721: Cannot invoke an object which is possibly 'null'.
+8.043 src/modules/ventas/List.tsx(41,230): error TS2349: This expression is not callable.
+8.043   Type 'String' has no call signatures.
+8.043 src/modules/ventas/List.tsx(41,230): error TS2721: Cannot invoke an object which is possibly 'null'.
