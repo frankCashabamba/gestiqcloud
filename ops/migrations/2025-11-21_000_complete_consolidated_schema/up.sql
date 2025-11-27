@@ -310,7 +310,7 @@ CREATE TABLE IF NOT EXISTS auth_refresh_token (
 -- Foreign keys for refresh tokens/families
 ALTER TABLE auth_refresh_family
     DROP CONSTRAINT IF EXISTS auth_refresh_family_user_id_fkey,
-    ADD CONSTRAINT auth_refresh_family_user_fk FOREIGN KEY (user_id) REFERENCES auth_user(id) ON DELETE SET NULL;
+    ADD CONSTRAINT auth_refresh_family_user_fk FOREIGN KEY (user_id) REFERENCES company_users(id) ON DELETE SET NULL;
 
 ALTER TABLE auth_refresh_token
     DROP CONSTRAINT IF EXISTS auth_refresh_token_family_id_fkey,
