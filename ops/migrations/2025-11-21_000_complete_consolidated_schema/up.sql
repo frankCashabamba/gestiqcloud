@@ -1196,7 +1196,7 @@ CREATE TABLE IF NOT EXISTS pos_payments (
 
 
 CREATE TABLE IF NOT EXISTS pos_receipt_lines (
-	id UUID NOT NULL,
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
 	receipt_id UUID NOT NULL,
 	product_id UUID NOT NULL,
 	qty NUMERIC(12, 3) NOT NULL,
