@@ -4,24 +4,42 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.types import String as SQLString
+from sqlalchemy.types import TypeDecorator
 
 from app.db.base import Base
+
+
+class GUID(TypeDecorator):
+    """Platform-independent GUID type."""
+
+    impl = SQLString(36)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        if not isinstance(value, uuid.UUID):
+            return str(uuid.UUID(value))
+        return str(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        if isinstance(value, uuid.UUID):
+            return value
+        return uuid.UUID(value)
 
 
 class RefreshFamily(Base):
     __tablename__ = "auth_refresh_family"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    # Si auth_user.id es INTEGER (como tu SuperUser), usa Integer aquí o quítale la FK.
-    user_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
-    # Si tus tenants son UUID, mantenlo UUID (si no, cambia al tipo real)
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), index=True, nullable=True
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(GUID, index=True, nullable=True)
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(GUID, index=True, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -36,22 +54,19 @@ class RefreshFamily(Base):
 class RefreshToken(Base):
     __tablename__ = "auth_refresh_token"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(GUID, primary_key=True, default=uuid.uuid4)
 
     family_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         ForeignKey("auth_refresh_family.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
     )
 
-    # identificadores de token en UUID (evita colisiones y es consistente)
-    jti: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), unique=True, index=True, default=uuid.uuid4
-    )
-    prev_jti: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), index=True)
+    jti: Mapped[uuid.UUID] = mapped_column(GUID, unique=True, index=True, default=uuid.uuid4)
+    prev_jti: Mapped[uuid.UUID | None] = mapped_column(GUID, index=True)
 
-    ua_hash: Mapped[str | None] = mapped_column(Text)  # hashes largos → Text
+    ua_hash: Mapped[str | None] = mapped_column(Text)
     ip_hash: Mapped[str | None] = mapped_column(Text)
 
     token: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
@@ -64,6 +79,5 @@ class RefreshToken(Base):
     family: Mapped[RefreshFamily] = relationship(back_populates="tokens")
 
 
-# Índices útiles (igual que tenías):
 Index("ix_auth_refresh_token_expires_at", RefreshToken.expires_at)
 Index("ix_auth_refresh_family_revoked_at", RefreshFamily.revoked_at)

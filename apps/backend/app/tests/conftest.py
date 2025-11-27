@@ -4,6 +4,7 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 
 
 # MUST run this before any other imports that might load settings
@@ -26,17 +27,30 @@ def _ensure_test_env():
     os.environ.setdefault("SECRET_KEY", test_secret)
     os.environ.setdefault("JWT_SECRET_KEY", test_secret)
 
+    # Clean up old SQLite test database to prevent stale schema issues
+    _recreate_sqlite_db_if_needed()
+
 
 def _recreate_sqlite_db_if_needed():
+    """Ensure SQLite test database is clean before running tests."""
     db_url = os.environ.get("DATABASE_URL", "")
     if db_url.startswith("sqlite") and ":memory:" not in db_url:
         prefix = "sqlite:///"
         if db_url.startswith(prefix):
             path = db_url[len(prefix) :]
             db_path = os.path.abspath(path)
+            # Always remove the old DB file to ensure a clean state
             if os.path.exists(db_path):
                 try:
                     os.remove(db_path)
+                except Exception as e:
+                    print(f"Warning: Could not remove {db_path}: {e}")
+        # Also remove any journal/backup files
+        for ext in ["-journal", "-wal", "-shm"]:
+            journal_path = db_path + ext if "db_path" in locals() else None
+            if journal_path and os.path.exists(journal_path):
+                try:
+                    os.remove(journal_path)
                 except Exception:
                     pass
 
@@ -104,6 +118,18 @@ def _register_sqlite_uuid_handlers(engine):
 
         # Make SQLite handle UUID by converting to string
         sqlite3.register_adapter(UUID, adapt_uuid)
+
+        # Configure SQLite pragmas for testing
+        @event.listens_for(engine, "connect")
+        def set_sqlite_pragma(dbapi_conn, connection_record):
+            if str(engine.url).startswith("sqlite"):
+                cursor = dbapi_conn.cursor()
+                # Disable foreign key constraints for SQLite tests
+                # (PostgreSQL will enforce them in production)
+                cursor.execute("PRAGMA foreign_keys=OFF")
+                # Enable auto_vacuum to clean up deleted records
+                cursor.execute("PRAGMA auto_vacuum=FULL")
+                cursor.close()
 
 
 def _create_tables_in_order(engine, metadata):
