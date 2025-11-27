@@ -124,26 +124,6 @@ CREATE TABLE IF NOT EXISTS auth_audit (
 );
 
 
-CREATE TABLE IF NOT EXISTS auth_refresh_family (
-    id UUID NOT NULL,
-    user_id UUID,
-    tenant_id UUID,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    revoked_at TIMESTAMP WITH TIME ZONE,
-    PRIMARY KEY (id)
-);
-
-ALTER TABLE auth_refresh_family
-  DROP CONSTRAINT IF EXISTS auth_refresh_family_user_id_fkey,
-  ADD CONSTRAINT auth_refresh_family_user_fk
-    FOREIGN KEY (user_id) REFERENCES auth_user(id) ON DELETE SET NULL;
-
-ALTER TABLE auth_refresh_token
-  DROP CONSTRAINT IF EXISTS auth_refresh_token_family_id_fkey,
-  ADD CONSTRAINT auth_refresh_token_family_fk
-    FOREIGN KEY (family_id) REFERENCES auth_refresh_family(id) ON DELETE CASCADE;
-
-
 CREATE TABLE IF NOT EXISTS auth_user (
 	id UUID DEFAULT gen_random_uuid() NOT NULL,
 	username VARCHAR(150) NOT NULL,
@@ -298,6 +278,16 @@ CREATE TABLE IF NOT EXISTS weekdays (
 	"order" INTEGER NOT NULL,
 	PRIMARY KEY (id),
 	UNIQUE (key)
+);
+
+
+CREATE TABLE IF NOT EXISTS auth_refresh_family (
+	id UUID NOT NULL,
+	user_id UUID,
+	tenant_id UUID,
+	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	revoked_at TIMESTAMP WITH TIME ZONE,
+	PRIMARY KEY (id)
 );
 
 
