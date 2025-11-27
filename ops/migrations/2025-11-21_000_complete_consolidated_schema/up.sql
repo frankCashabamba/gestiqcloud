@@ -1209,6 +1209,18 @@ CREATE TABLE IF NOT EXISTS pos_receipt_lines (
 );
 
 
+CREATE TABLE IF NOT EXISTS pos_items (
+	id SERIAL NOT NULL,
+	receipt_id UUID NOT NULL,
+	product_id UUID NOT NULL,
+	qty NUMERIC(12, 3) NOT NULL,
+	unit_price NUMERIC(12, 4) NOT NULL,
+	tax NUMERIC(12, 4) DEFAULT 0 NOT NULL,
+	created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
+	PRIMARY KEY (id)
+);
+
+
 CREATE TABLE IF NOT EXISTS public.production_orders (
 	id UUID NOT NULL,
 	tenant_id UUID NOT NULL,
