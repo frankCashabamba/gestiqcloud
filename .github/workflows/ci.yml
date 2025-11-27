@@ -102,7 +102,7 @@ jobs:
         run: pytest -q app/tests
 
       - name: Validate FE/BE endpoints
-        run: python ../../scripts/check_endpoints.py
+        run: python ../../ops/scripts/check_endpoints.py
 
   frontend:
     needs: changes
