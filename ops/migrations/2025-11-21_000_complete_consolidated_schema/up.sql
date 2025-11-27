@@ -1043,7 +1043,7 @@ CREATE TABLE IF NOT EXISTS invoice_lines (
 
 
 CREATE TABLE IF NOT EXISTS pos_receipts (
-	id UUID NOT NULL,
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
 	tenant_id UUID NOT NULL,
 	register_id UUID NOT NULL,
 	shift_id UUID NOT NULL,
@@ -1055,7 +1055,7 @@ CREATE TABLE IF NOT EXISTS pos_receipts (
 	tax_total NUMERIC(12, 2) NOT NULL,
 	currency VARCHAR(3) NOT NULL,
 	paid_at TIMESTAMP WITHOUT TIME ZONE,
-	created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+	created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
 	PRIMARY KEY (id)
 );
 
