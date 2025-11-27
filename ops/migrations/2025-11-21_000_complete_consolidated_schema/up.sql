@@ -308,14 +308,7 @@ CREATE TABLE IF NOT EXISTS auth_refresh_token (
 );
 
 -- Foreign keys for refresh tokens/families
-ALTER TABLE auth_refresh_family
-    DROP CONSTRAINT IF EXISTS auth_refresh_family_user_id_fkey,
-    ADD CONSTRAINT auth_refresh_family_user_fk FOREIGN KEY (user_id) REFERENCES company_users(id) ON DELETE SET NULL;
-
-ALTER TABLE auth_refresh_token
-    DROP CONSTRAINT IF EXISTS auth_refresh_token_family_id_fkey,
-    ADD CONSTRAINT auth_refresh_token_family_fk FOREIGN KEY (family_id) REFERENCES auth_refresh_family(id) ON DELETE CASCADE;
-
+-- Foreign keys moved after company_users creation
 
 CREATE TABLE IF NOT EXISTS bank_movements (
 	id UUID NOT NULL,
@@ -470,6 +463,16 @@ CREATE TABLE IF NOT EXISTS company_users (
 	CONSTRAINT uq_company_user_tenant_email UNIQUE (tenant_id, email),
 	CONSTRAINT uq_company_user_tenant_username UNIQUE (tenant_id, username)
 );
+
+
+-- Foreign keys for refresh tokens/families (requires company_users to exist)
+ALTER TABLE auth_refresh_family
+    DROP CONSTRAINT IF EXISTS auth_refresh_family_user_id_fkey,
+    ADD CONSTRAINT auth_refresh_family_user_fk FOREIGN KEY (user_id) REFERENCES company_users(id) ON DELETE SET NULL;
+
+ALTER TABLE auth_refresh_token
+    DROP CONSTRAINT IF EXISTS auth_refresh_token_family_id_fkey,
+    ADD CONSTRAINT auth_refresh_token_family_fk FOREIGN KEY (family_id) REFERENCES auth_refresh_family(id) ON DELETE CASCADE;
 
 
 CREATE TABLE IF NOT EXISTS employees (
