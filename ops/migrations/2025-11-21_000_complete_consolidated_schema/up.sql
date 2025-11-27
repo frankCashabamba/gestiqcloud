@@ -766,10 +766,10 @@ CREATE TABLE IF NOT EXISTS invoices_temp (
 
 
 CREATE TABLE IF NOT EXISTS pos_shifts (
-	id UUID NOT NULL,
+	id UUID DEFAULT gen_random_uuid() NOT NULL,
 	register_id UUID NOT NULL,
 	opened_by UUID NOT NULL,
-	opened_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+	opened_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
 	closed_at TIMESTAMP WITHOUT TIME ZONE,
 	opening_float NUMERIC(12, 2) NOT NULL,
 	closing_total NUMERIC(12, 2),
