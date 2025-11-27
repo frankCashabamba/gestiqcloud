@@ -466,9 +466,9 @@ CREATE TABLE IF NOT EXISTS company_users (
 
 
 -- Foreign keys for refresh tokens/families (requires company_users to exist)
+-- Note: user_id may point to auth_user (admins) or company_users (tenant users), so no FK here
 ALTER TABLE auth_refresh_family
-    DROP CONSTRAINT IF EXISTS auth_refresh_family_user_id_fkey,
-    ADD CONSTRAINT auth_refresh_family_user_fk FOREIGN KEY (user_id) REFERENCES company_users(id) ON DELETE SET NULL;
+    DROP CONSTRAINT IF EXISTS auth_refresh_family_user_id_fkey;
 
 ALTER TABLE auth_refresh_token
     DROP CONSTRAINT IF EXISTS auth_refresh_token_family_id_fkey,
@@ -529,7 +529,7 @@ CREATE TABLE IF NOT EXISTS pos_registers (
 	store_id UUID,
 	name VARCHAR(100) NOT NULL,
 	active BOOLEAN NOT NULL,
-	created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+	created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
 	PRIMARY KEY (id)
 );
 
