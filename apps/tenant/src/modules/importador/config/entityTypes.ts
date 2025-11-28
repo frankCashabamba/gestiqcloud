@@ -54,7 +54,7 @@ export type EntityTypeConfig = {
  * Configuración de todos los tipos de entidades importables
  */
 export const ENTITY_TYPES: Record<EntityType, EntityTypeConfig> = {
-  productos: {
+  products: {
     type: 'products',
     label: 'Productos',
     icon: '📦',
