@@ -29,14 +29,14 @@ export default function Login() {
       } as any)
       const token = data?.access_token
       const target = token ? `${adminOrigin}/#access_token=${encodeURIComponent(token)}` : adminOrigin
-      // Fallback deshabilitado por política: evita iniciar sesión de admin desde tenant
+      // Fallback disabled by policy: prevents admin login from tenant
       throw new Error('fallback_disabled')
     } catch (res: any) {
       if (res?.status === 429) {
-        const wait = res?.retryAfter || 'unos'
-        throw new Error(`Demasiados intentos. Intenta en ${wait} segundos.`)
+        const wait = res?.retryAfter || 'a few'
+        throw new Error(`Too many attempts. Try again in ${wait} seconds.`)
       }
-      throw new Error('Credenciales inválidas')
+      throw new Error('Invalid credentials')
     }
   }
 
@@ -49,14 +49,14 @@ export default function Login() {
       navigate('/')
     } catch (err: any) {
       if (err?.status && err.status !== 401) {
-        setError(err?.message || 'Error de servidor')
+        setError(err?.message || 'Server error')
         setSubmitting(false)
         return
       }
       try {
         throw new Error('fallback_disabled')
       } catch (fallbackErr: any) {
-        setError(fallbackErr?.message || 'Credenciales inválidas')
+        setError(fallbackErr?.message || 'Invalid credentials')
         setSubmitting(false)
       }
     }
@@ -74,56 +74,56 @@ export default function Login() {
                   GestiqCloud Platform
                 </span>
                 <h1 className="mt-4 text-3xl font-semibold leading-tight text-white">
-                  Impulsa tu ERP y CRM en una plataforma modular.
+                  Power your ERP and CRM on a modular platform.
                 </h1>
                 <p className="mt-3 max-w-xl text-sm text-slate-200">
-                  Conecta equipos, procesos y datos en un solo lugar. Configura los módulos que tu negocio necesita y escálalos a tu ritmo.
+                  Connect teams, processes and data in one place. Configure the modules your business needs and scale them at your own pace.
                 </p>
               </div>
               <ul className="space-y-4 text-sm text-slate-100">
                 <li className="flex items-start gap-3">
-                  <span className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/30 text-xs font-semibold text-blue-100">
-                    1
-                  </span>
-                  Orquesta operaciones, ventas y finanzas con flujos conectados.
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/30 text-xs font-semibold text-blue-100">
-                    2
-                  </span>
-                  Activa módulos por área y personaliza permisos para cada equipo.
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/30 text-xs font-semibold text-blue-100">
-                    3
-                  </span>
-                  Obtén indicadores en tiempo real para tomar decisiones informadas.
-                </li>
+                   <span className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/30 text-xs font-semibold text-blue-100">
+                     1
+                   </span>
+                   Orchestrate operations, sales and finance with connected workflows.
+                 </li>
+                 <li className="flex items-start gap-3">
+                   <span className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/30 text-xs font-semibold text-blue-100">
+                     2
+                   </span>
+                   Activate modules by area and customize permissions for each team.
+                 </li>
+                 <li className="flex items-start gap-3">
+                   <span className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/30 text-xs font-semibold text-blue-100">
+                     3
+                   </span>
+                   Get real-time indicators to make informed decisions.
+                 </li>
               </ul>
             </div>
             <div className="relative z-10 flex flex-wrap items-center gap-4 text-xs text-slate-300">
               <span className="rounded-full border border-white/15 px-3 py-1">
-                Seguridad empresarial
+                Enterprise security
               </span>
               <span className="rounded-full border border-white/15 px-3 py-1">
-                Roles y módulos configurables
+                Configurable roles and modules
               </span>
             </div>
           </aside>
 
           <section className="flex flex-col justify-center rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
             <header className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-blue-600">Bienvenido</span>
-              <h2 className="text-2xl font-semibold text-slate-900">Inicia sesión en GestiqCloud</h2>
+              <span className="text-xs font-semibold uppercase tracking-wide text-blue-600">Welcome</span>
+              <h2 className="text-2xl font-semibold text-slate-900">Sign in to GestiqCloud</h2>
               <p className="text-sm text-slate-500">
-                Accede con tus credenciales corporativas para continuar. Si tienes permisos globales te redirigiremos automáticamente al panel administrativo.
+                Sign in with your corporate credentials to continue. If you have global permissions, we will automatically redirect you to the admin panel.
               </p>
             </header>
 
             <form onSubmit={onSubmit} className="mt-8 space-y-6" noValidate>
               <div className="space-y-1.5">
                 <label htmlFor="identificador" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Usuario o email
+                  Username or email
                 </label>
                 <input
                   id="identificador"
@@ -133,14 +133,14 @@ export default function Login() {
                   className={inputClass}
                   value={identificador}
                   onChange={(event) => setIdentificador(event.target.value)}
-                  placeholder="usuario@empresa.com"
+                  placeholder="user@company.com"
                   required
                 />
               </div>
 
               <div className="space-y-1.5">
                 <label htmlFor="password" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Contraseña
+                  Password
                 </label>
                 <input
                   id="password"
@@ -166,13 +166,13 @@ export default function Login() {
                 className="gc-button gc-button--primary w-full py-3 text-sm font-semibold"
                 disabled={submitting}
               >
-                {submitting ? 'Ingresando…' : 'Entrar'}
+                {submitting ? 'Signing in…' : 'Sign in'}
               </button>
             </form>
 
             <footer className="mt-10 text-center text-xs text-slate-400">
-              <p>© GestiqCloud {year}. Todos los derechos reservados.</p>
-              <p className="mt-1">ERP · CRM · Plataforma modular para tu empresa.</p>
+              <p>© GestiqCloud {year}. All rights reserved.</p>
+              <p className="mt-1">ERP · CRM · Modular platform for your business.</p>
             </footer>
           </section>
         </div>
