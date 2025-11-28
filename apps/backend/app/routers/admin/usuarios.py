@@ -55,10 +55,10 @@ def reenviar_reset(
     """
     usuario = db.query(CompanyUser).filter(CompanyUser.id == usuario_id).first()
     if not usuario:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        raise HTTPException(status_code=404, detail="User not found")
 
     if not getattr(usuario, "email", None):
-        raise HTTPException(status_code=400, detail="Usuario sin email")
+        raise HTTPException(status_code=400, detail="User without email")
 
     reenviar_correo_reset(usuario.email, background_tasks)
     return {"msg": "ok"}
@@ -68,7 +68,7 @@ def reenviar_reset(
 def activar_usuario(usuario_id: UUID, db: Session = Depends(get_db)):
     u = db.query(CompanyUser).filter(CompanyUser.id == usuario_id).first()
     if not u:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        raise HTTPException(status_code=404, detail="User not found")
     if not bool(getattr(u, "is_company_admin", False)):
         raise HTTPException(status_code=403, detail="not_tenant_admin")
     u.active = True
@@ -81,7 +81,7 @@ def activar_usuario(usuario_id: UUID, db: Session = Depends(get_db)):
 def desactivar_usuario(usuario_id: UUID, db: Session = Depends(get_db)):
     u = db.query(CompanyUser).filter(CompanyUser.id == usuario_id).first()
     if not u:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        raise HTTPException(status_code=404, detail="User not found")
     if not bool(getattr(u, "is_company_admin", False)):
         raise HTTPException(status_code=403, detail="not_tenant_admin")
     u.active = False
@@ -94,10 +94,10 @@ def desactivar_usuario(usuario_id: UUID, db: Session = Depends(get_db)):
 def desactivar_empresa(usuario_id: UUID, db: Session = Depends(get_db)):
     u = db.query(CompanyUser).filter(CompanyUser.id == usuario_id).first()
     if not u:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        raise HTTPException(status_code=404, detail="User not found")
     e = db.query(Empresa).filter(Empresa.id == u.tenant_id).first()
     if not e:
-        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+        raise HTTPException(status_code=404, detail="Company not found")
     e.active = False
     db.add(e)
     db.commit()
