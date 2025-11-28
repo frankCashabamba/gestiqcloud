@@ -97,7 +97,7 @@ export const AITelemetryDashboard: React.FC = () => {
                   : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
               }`}
             >
-              {range === '24h' ? 'Hoy' : range === '7d' ? '7 días' : '30 días'}
+              {range === '24h' ? 'Today' : range === '7d' ? '7 días' : '30 días'}
             </button>
           ))}
         </div>

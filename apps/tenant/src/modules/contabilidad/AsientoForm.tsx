@@ -60,8 +60,8 @@ export default function AsientoForm() {
     const onSubmit: React.FormEventHandler = async (e) => {
         e.preventDefault()
         try {
-            if (!form.numero || !form.fecha) throw new Error('Número y fecha son obligatorios')
-            if (!form.lineas || form.lineas.length === 0) throw new Error('Debe agregar al menos una línea')
+            if (!form.numero || !form.fecha) throw new Error('Number and date are required')
+            if (!form.lineas || form.lineas.length === 0) throw new Error('Must add at least one line')
 
             const { debe, haber, balance } = calcularTotales()
             if (Math.abs(balance) > 0.01) throw new Error(`Asiento descuadrado: Debe=${debe.toFixed(2)}, Haber=${haber.toFixed(2)}`)
@@ -75,7 +75,7 @@ export default function AsientoForm() {
             if (id) await updateAsiento(id, payload)
             else await createAsiento(payload)
 
-            success('Asiento guardado')
+            success('Entry saved')
             nav('..')
         } catch (e: any) {
             error(getErrorMessage(e))
@@ -86,7 +86,7 @@ export default function AsientoForm() {
 
     return (
         <div className="p-4">
-            <h3 className="text-xl font-semibold mb-3">{id ? 'Editar asiento' : 'Nuevo asiento'}</h3>
+            <h3 className="text-xl font-semibold mb-3">{id ? 'Edit Entry' : 'New Entry'}</h3>
             <form onSubmit={onSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                     <div>

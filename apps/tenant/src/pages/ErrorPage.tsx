@@ -4,7 +4,7 @@ import { useNavigate, useRouteError } from 'react-router-dom'
 export default function ErrorPage() {
   const navigate = useNavigate()
   const err: any = useRouteError?.() || {}
-  const message = err?.statusText || err?.message || 'Ha ocurrido un error inesperado'
+  const message = err?.statusText || err?.message || 'An unexpected error occurred'
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="bg-white p-8 rounded-lg shadow w-full max-w-md text-center">

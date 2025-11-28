@@ -66,7 +66,7 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
 
   // Permisos comunes
   const permisosDisponibles = [
-    { key: 'ver_ventas', label: 'Ver Ventas' },
+    { key: 'ver_ventas', label: 'View Sales' },
     { key: 'crear_ventas', label: 'Crear Ventas' },
     { key: 'editar_ventas', label: 'Editar Ventas' },
     { key: 'eliminar_ventas', label: 'Eliminar Ventas' },
@@ -75,7 +75,7 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
     { key: 'editar_compras', label: 'Editar Compras' },
     { key: 'ver_inventario', label: 'Ver Inventario' },
     { key: 'editar_inventario', label: 'Editar Inventario' },
-    { key: 'ver_clientes', label: 'Ver Clientes' },
+    { key: 'ver_clientes', label: 'View Customers' },
     { key: 'editar_clientes', label: 'Editar Clientes' },
     { key: 'ver_proveedores', label: 'Ver Proveedores' },
     { key: 'editar_proveedores', label: 'Editar Proveedores' },

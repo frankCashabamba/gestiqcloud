@@ -264,7 +264,7 @@ export default function ImportadosList() {
                             onClick={() => onSave(item)}
                             disabled={state.saving}
                           >
-                            {state.saving ? 'Guardando...' : 'Guardar'}
+                            {state.saving ? 'Guardando...' : 'Save'}
                           </button>
                           <button
                             type="button"
@@ -280,7 +280,7 @@ export default function ImportadosList() {
                             onClick={() => onDelete(item.id)}
                             disabled={state.deleting}
                           >
-                            {state.deleting ? 'Eliminando...' : 'Eliminar'}
+                            {state.deleting ? 'Eliminando...' : 'Delete'}
                           </button>
                         </div>
                       </td>

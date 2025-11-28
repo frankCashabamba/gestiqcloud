@@ -40,7 +40,7 @@ export default function SectorLayout({ title, subtitle, topNav = [], sideNav = [
           </div>
 
           {topNav.length > 0 && (
-            <nav aria-label="Acciones rápidas" className="flex flex-wrap gap-2">
+            <nav aria-label="Quick Actions" className="flex flex-wrap gap-2">
               {topNav.map((item) => (
                 <NavLink
                   key={item.to}

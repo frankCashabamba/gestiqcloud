@@ -8,7 +8,7 @@ export interface ImportTemplate {
     id: string
     tenant_id: string
     name: string
-    source_type: string // 'productos', 'facturas', 'gastos', etc.
+    source_type: string // 'products', 'facturas', 'gastos', etc.
     mappings: Record<string, string>
     is_system: boolean
     created_at: string

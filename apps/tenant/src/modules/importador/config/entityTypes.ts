@@ -4,7 +4,7 @@
  */
 
 export type EntityType =
-  | 'productos'
+  | 'products'
   | 'clientes'
   | 'proveedores'
   | 'inventario'
@@ -55,7 +55,7 @@ export type EntityTypeConfig = {
  */
 export const ENTITY_TYPES: Record<EntityType, EntityTypeConfig> = {
   productos: {
-    type: 'productos',
+    type: 'products',
     label: 'Productos',
     icon: '📦',
     endpoint: '/api/v1/imports/batches',
@@ -180,14 +180,14 @@ export const ENTITY_TYPES: Record<EntityType, EntityTypeConfig> = {
         aliases: ['telefono', 'phone', 'movil', 'celular', 'tel'],
         required: false,
         type: 'string',
-        description: 'Teléfono',
+        description: 'Phone',
       },
       {
         field: 'direccion',
         aliases: ['direccion', 'address', 'calle'],
         required: false,
         type: 'string',
-        description: 'Dirección',
+        description: 'Address',
       },
       {
         field: 'ciudad',
@@ -249,14 +249,14 @@ export const ENTITY_TYPES: Record<EntityType, EntityTypeConfig> = {
         aliases: ['telefono', 'phone', 'tel'],
         required: false,
         type: 'string',
-        description: 'Teléfono',
+        description: 'Phone',
       },
       {
         field: 'direccion',
         aliases: ['direccion', 'address'],
         required: false,
         type: 'string',
-        description: 'Dirección',
+        description: 'Address',
       },
       {
         field: 'condiciones_pago',
@@ -271,7 +271,7 @@ export const ENTITY_TYPES: Record<EntityType, EntityTypeConfig> = {
 
   inventario: {
     type: 'inventario',
-    label: 'Inventario',
+    label: 'Inventory',
     icon: '📊',
     endpoint: '/api/v1/imports/batches',
     fields: [
@@ -515,7 +515,7 @@ export const ENTITY_TYPES: Record<EntityType, EntityTypeConfig> = {
         aliases: ['telefono', 'phone', 'movil'],
         required: false,
         type: 'string',
-        description: 'Teléfono',
+        description: 'Phone',
       },
       {
         field: 'puesto',

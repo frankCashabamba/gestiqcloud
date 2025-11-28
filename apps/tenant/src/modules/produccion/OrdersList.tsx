@@ -48,7 +48,7 @@ export default function OrdersList() {
 
     const statusLabel = (s?: string) => {
         const map: Record<string, string> = {
-            draft: 'Borrador',
+            draft: 'Draft',
             scheduled: 'Programada',
             in_progress: 'En Proceso',
             completed: 'Completada',

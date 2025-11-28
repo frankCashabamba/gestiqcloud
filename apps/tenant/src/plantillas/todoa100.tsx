@@ -68,7 +68,7 @@ const TodoA100Plantilla: React.FC<{ slug?: string }> = ({ slug }) => {
       items.push(
         kpiCard(
           'ventas',
-          'Ventas del día',
+          'Daily Sales',
           kpisData ? formatCurrency(kpisData.ventas.total) : '--',
           'Total de ventas registradas hoy.',
           kpisLoading

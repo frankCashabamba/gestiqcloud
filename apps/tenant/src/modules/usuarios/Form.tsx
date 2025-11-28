@@ -126,7 +126,7 @@ export default function UsuarioForm() {
         throw new Error('Email inválido')
       }
       if (!form.nombre_encargado?.trim()) {
-        throw new Error('Nombre es requerido')
+        throw new Error('Name is required')
       }
       if (!editMode && !form.password) {
         throw new Error('La contraseña es obligatoria para nuevos usuarios')

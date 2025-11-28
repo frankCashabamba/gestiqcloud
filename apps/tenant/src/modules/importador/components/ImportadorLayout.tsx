@@ -7,7 +7,7 @@ const navItems = [
   { to: 'preview', label: 'Vista previa' },
   { to: 'batches', label: 'Lotes' },
   { to: 'pendientes', label: 'Pendientes' },
-  { to: 'productos', label: 'Productos' },
+  { to: 'products', label: 'Productos' },
 ]
 
 type ImportadorLayoutProps = {

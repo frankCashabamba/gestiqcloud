@@ -23,7 +23,7 @@ import { useParserRegistry } from './hooks/useParserRegistry'
 
 type Row = Record<string, string>
 type Step = 'upload' | 'preview' | 'mapping' | 'validate' | 'summary' | 'importing'
-type DocType = 'generico' | 'productos'
+type DocType = 'generico' | 'products'
 
 function parseCSV(text: string): { headers: string[]; rows: Row[] } {
     const lines = text.split(/\r?\n/).filter(Boolean)
@@ -53,7 +53,7 @@ export default function ImportadorWizard() {
     const [rows, setRows] = useState<Row[]>([])
     const [mapa, setMapa] = useState<Partial<Record<CampoObjetivo, string>>>({})
     const [errores, setErrores] = useState<string[]>([])
-    const [docType, setDocType] = useState<DocType>('productos')
+    const [docType, setDocType] = useState<DocType>('products')
     const [currentFile, setCurrentFile] = useState<File | null>(null)
 
     const [saving, setSaving] = useState(false)
@@ -91,7 +91,7 @@ export default function ImportadorWizard() {
         // Auto-mapeo inicial y tipo
         const sugeridos = autoMapeoColumnas(hs, getAliasSugeridos())
         setMapa(sugeridos as any)
-        setDocType(detectarTipoDocumento(hs) as DocType || 'productos')
+        setDocType(detectarTipoDocumento(hs) as DocType || 'products')
 
         // Clasificar archivo con IA
         try {
@@ -138,7 +138,7 @@ export default function ImportadorWizard() {
             const docs = normalizarDocumento(rows, mapa as any)
             // 1) Crear batch real con clasificación
             const batchPayload: any = {
-                source_type: 'productos',
+                source_type: 'products',
                 origin: 'excel_ui'
             }
             // Incluir campos de clasificación si están disponibles

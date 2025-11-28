@@ -137,7 +137,7 @@ export default function TaxSettings() {
                 disabled={saving}
                 style={{ padding: '8px 14px', background: '#0ea5e9', color: 'white', borderRadius: 6 }}
               >
-                {saving ? 'Guardando…' : 'Guardar cambios'}
+                {saving ? 'Saving…' : 'Guardar cambios'}
               </button>
             </div>
           </div>

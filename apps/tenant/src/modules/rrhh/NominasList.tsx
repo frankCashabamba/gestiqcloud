@@ -47,7 +47,7 @@ export default function NominasList() {
 
     const statusLabel = (s?: string) => {
         const map: Record<string, string> = {
-            draft: 'Borrador',
+            draft: 'Draft',
             calculated: 'Calculada',
             approved: 'Aprobada',
             paid: 'Pagada',

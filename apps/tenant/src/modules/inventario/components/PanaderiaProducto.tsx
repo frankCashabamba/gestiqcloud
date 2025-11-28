@@ -31,7 +31,7 @@ export default function PanaderiaProducto() {
         {ingredientes.map((ing, idx) => (
           <div key={idx} className="flex gap-2 my-1">
             <input placeholder="Ingrediente" value={ing.name} onChange={(e)=> onIngChange(idx, 'name', e.target.value)} className="border p-1 flex-1" />
-            <input placeholder="Cantidad" value={ing.cantidad} onChange={(e)=> onIngChange(idx, 'cantidad', e.target.value)} className="border p-1 w-20" />
+            <input placeholder="Quantity" value={ing.cantidad} onChange={(e)=> onIngChange(idx, 'cantidad', e.target.value)} className="border p-1 w-20" />
             <input placeholder="Unidad (g, kg, L)" value={ing.unidad} onChange={(e)=> onIngChange(idx, 'unidad', e.target.value)} className="border p-1 w-24" />
           </div>
         ))}

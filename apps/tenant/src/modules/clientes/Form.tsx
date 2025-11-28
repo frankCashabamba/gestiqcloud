@@ -56,7 +56,7 @@ export default function ClienteForm() {
     const base: FieldCfg[] = [
       { field: 'name', visible: true, required: true, ord: 10, label: 'Nombre' },
       { field: 'email', visible: true, required: false, ord: 20, label: 'Email' },
-      { field: 'phone', visible: true, required: false, ord: 21, label: 'Teléfono' },
+      { field: 'phone', visible: true, required: false, ord: 21, label: 'Phone' },
     ]
 
     // Merge base configuration with remote overrides (if any) so required fields never disappear.
@@ -96,7 +96,7 @@ export default function ClienteForm() {
 
   return (
     <div className="p-4">
-      <h3 className="text-xl font-semibold mb-3">{id ? 'Editar cliente' : 'Nuevo cliente'}</h3>
+      <h3 className="text-xl font-semibold mb-3">{id ? 'Editar cliente' : 'New Customer'}</h3>
       <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
         {loadingCfg && <div className="text-sm text-gray-500">Cargando campos…</div>}
         {fieldList.map((f) => {

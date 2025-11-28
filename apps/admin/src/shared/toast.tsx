@@ -45,10 +45,10 @@ export function getErrorMessage(e: any): string {
   if (Array.isArray(detail)) {
     const msgs = detail.map((it: any) => {
       const loc = (it?.loc || []).filter((x: any) => x !== 'body').join('.')
-      return loc ? `${loc}: ${it?.msg || 'valor inválido'}` : (it?.msg || 'valor inválido')
+      return loc ? `${loc}: ${it?.msg || 'invalid value'}` : (it?.msg || 'invalid value')
     })
     return msgs.join('; ')
   }
   if (typeof detail === 'string') return detail
-  return e?.message || 'Error desconocido'
+  return e?.message || 'Unknown error'
 }

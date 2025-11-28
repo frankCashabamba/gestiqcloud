@@ -64,7 +64,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
 
       alert(`Precio actualizado a $${newPrice.toFixed(2)} (margen ${((multiplier - 1) * 100).toFixed(0)}%)`);
     } catch (err: any) {
-      alert('Error al actualizar precio: ' + (err.message || 'Error desconocido'));
+      alert('Error al actualizar precio: ' + (err.message || 'Unknown error'));
     } finally {
       setUpdating(false);
     }

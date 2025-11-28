@@ -129,7 +129,7 @@ export default function StockList() {
   useEffect(() => setPerPage(per), [per, setPerPage])
 
   const exportCSV = () => {
-    const headers = ['Almacén', 'Código', 'Producto', 'Stock', 'Ubicación', 'Lote', 'Caducidad']
+    const headers = ['Almacén', 'Code', 'Product', 'Stock', 'Ubicación', 'Lote', 'Caducidad']
     const rows = sorted.map((item) => [
       item.warehouse?.code || '',
       item.product?.sku || '',

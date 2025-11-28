@@ -5,7 +5,7 @@ export interface Empleado {
   codigo?: string
   name: string
   apellidos: string
-  tipo_documento: 'DNI' | 'NIE' | 'PASAPORTE' | 'CEDULA'
+  tipo_documento: 'ID' | 'Foreigner ID' | 'PASAPORTE' | 'CEDULA'
   numero_documento: string
   email?: string
   phone?: string
@@ -79,7 +79,7 @@ export interface EmpleadoCreate {
   codigo?: string
   name: string
   apellidos: string
-  tipo_documento: 'DNI' | 'NIE' | 'PASAPORTE' | 'CEDULA'
+  tipo_documento: 'ID' | 'Foreigner ID' | 'PASAPORTE' | 'CEDULA'
   numero_documento: string
   email?: string
   phone?: string

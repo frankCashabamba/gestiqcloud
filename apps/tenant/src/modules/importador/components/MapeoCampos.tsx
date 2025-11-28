@@ -282,7 +282,7 @@ export default function MapeoCampos({
                                 disabled={saving || !templateName.trim()}
                                 className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition disabled:opacity-50"
                             >
-                                {saving ? 'Guardando...' : 'Guardar'}
+                                {saving ? 'Guardando...' : 'Save'}
                             </button>
                             <button
                                 onClick={() => {

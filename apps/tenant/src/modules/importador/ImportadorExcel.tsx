@@ -654,7 +654,7 @@ export default function ImportadorPage() {
 
             // Para productos, normalizar a shape de producto; en otros casos, documento genérico
             let docs: any[]
-            if ((item.docType || '').toLowerCase() === 'productos') {
+            if ((item.docType || '').toLowerCase() === 'products') {
                 const { normalizarProductos } = await import('./utils/normalizarProductosSections')
                 docs = normalizarProductos(item.rows)
             } else {

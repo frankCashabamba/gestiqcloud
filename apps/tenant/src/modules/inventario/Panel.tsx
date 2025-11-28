@@ -8,7 +8,7 @@ import AlertConfigManager from './components/AlertConfigManager'
 
 function Index() {
   // Redirigir directo a productos
-  return <Navigate to="productos" replace />
+  return <Navigate to="products" replace />
 }
 
 const PanaderiaProducto = React.lazy(() => import('./components/PanaderiaProducto'))
@@ -17,9 +17,9 @@ export default function InventarioPanel() {
   return (
     <Routes>
       <Route index element={<Index />} />
-      <Route path="productos" element={<ProductosList />} />
+      <Route path="products" element={<ProductosList />} />
       <Route path="alerts" element={<AlertConfigManager />} />
-      <Route path="*" element={<Navigate to="productos" replace />} />
+      <Route path="*" element={<Navigate to="products" replace />} />
     </Routes>
   )
 }

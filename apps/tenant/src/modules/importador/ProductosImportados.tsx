@@ -82,7 +82,7 @@ const ProductosImportados: React.FC = () => {
       setError(null)
     } catch (err: any) {
       console.error('Error al cargar productos:', err)
-      setError(err.message || 'Error desconocido')
+      setError(err.message || 'Unknown error')
     } finally {
       setLoading(false)
     }
@@ -222,7 +222,7 @@ const ProductosImportados: React.FC = () => {
         }),
       })
 
-      if (!res.ok) throw new Error('Error al promover')
+      if (!res.ok) throw new Error('Error promoting')
 
       const result = await res.json()
       console.log('🎯 Resultado de promoción:', result)

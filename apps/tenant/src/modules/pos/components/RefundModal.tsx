@@ -86,7 +86,7 @@ export default function RefundModal({
                   onChange={() => line.id && handleToggleLine(line.id)}
                   className="w-4 h-4"
                 />
-                <span className="flex-1">{line.product_name || 'Producto'} x{line.qty}</span>
+                <span className="flex-1">{line.product_name || 'Product'} x{line.qty}</span>
                 <span className="font-semibold">{line.line_total.toFixed(2)} {receipt.currency}</span>
               </label>
             ))}

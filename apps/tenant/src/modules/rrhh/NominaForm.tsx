@@ -51,7 +51,7 @@ export default function NominaForm() {
             { field: 'empleado_id', visible: true, required: true, ord: 20, label: 'Empleado ID' },
             { field: 'periodo_mes', visible: true, required: true, ord: 30, label: 'Mes' },
             { field: 'periodo_ano', visible: true, required: true, ord: 40, label: 'Año' },
-            { field: 'tipo', visible: true, required: false, ord: 50, label: 'Tipo' },
+            { field: 'tipo', visible: true, required: false, ord: 50, label: 'Type' },
             { field: 'salario_base', visible: true, required: true, ord: 60, label: 'Salario Base' },
             { field: 'complementos', visible: true, required: false, ord: 70, label: 'Complementos' },
             { field: 'horas_extra', visible: true, required: false, ord: 80, label: 'Horas Extra' },

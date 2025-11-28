@@ -145,12 +145,12 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
     e.preventDefault();
 
     if (!productId) {
-      setError('Debe seleccionar un producto');
+      setError('Must select a product');
       return;
     }
 
     if (rendimiento <= 0) {
-      setError('Rendimiento debe ser mayor a 0');
+      setError('Yield must be greater than 0');
       return;
     }
 
@@ -177,7 +177,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
 
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Error al guardar receta');
+      setError(err.message || 'Error saving recipe');
     } finally {
       setLoading(false);
     }
@@ -294,7 +294,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                     value={products.find(p => p.id === ing.producto_id) || null}
                     onChange={(_, val) => handleIngredientChange(index, 'producto_id', val?.id || '')}
                     renderInput={(params) => (
-                      <TextField {...params} label="Producto" />
+                      <TextField {...params} label="Product" />
                     )}
                   />
                 </Grid>
@@ -304,7 +304,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                     size="small"
                     fullWidth
                     type="number"
-                    label="Cantidad"
+                    label="Quantity"
                     value={ing.qty}
                     onChange={(e) => handleIngredientChange(index, 'qty', Number(e.target.value))}
                   />
@@ -380,7 +380,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
         <DialogActions>
           <Button onClick={onClose}>Cancelar</Button>
           <Button type="submit" variant="contained" disabled={loading}>
-            {loading ? 'Guardando...' : 'Guardar'}
+            {loading ? 'Guardando...' : 'Save'}
           </Button>
         </DialogActions>
       </form>

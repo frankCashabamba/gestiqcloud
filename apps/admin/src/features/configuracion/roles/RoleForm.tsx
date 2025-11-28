@@ -138,7 +138,7 @@ const RoleForm: React.FC<RoleFormProps> = ({ mode, initialData, onSubmit }) => {
           disabled={isSubmitting}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded disabled:opacity-50"
         >
-          💾 {isSubmitting ? 'Guardando...' : 'Guardar'}
+          💾 {isSubmitting ? 'Guardando...' : 'Save'}
         </button>
         <button
           onClick={() => navigate(-1)}

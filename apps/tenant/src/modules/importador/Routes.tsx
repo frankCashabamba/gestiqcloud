@@ -19,7 +19,7 @@ export default function ImportadorRoutes() {
         <Route path="wizard" element={<ImportadorWizard />} />
         <Route path="pendientes" element={<ImportadosList />} />
         <Route path="preview" element={<PreviewPage />} />
-        <Route path="productos" element={<ProductosImportados />} />
+        <Route path="products" element={<ProductosImportados />} />
         <Route path="batches" element={<BatchesList />} />
         <Route path="batches/:id" element={<BatchDetail />} />
       </Routes>

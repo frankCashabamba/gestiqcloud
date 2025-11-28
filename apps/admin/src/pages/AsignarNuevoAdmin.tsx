@@ -36,7 +36,7 @@ export default function AsignarNuevoAdmin() {
           <input className="w-full border px-3 py-2 rounded" type="email" value={email} onChange={(e)=> setEmail(e.target.value)} required />
         </div>
         <div className="flex gap-2">
-          <button type="submit" disabled={saving} className="bg-blue-600 disabled:opacity-60 text-white px-4 py-2 rounded">{saving ? 'Guardando…' : 'Asignar'}</button>
+          <button type="submit" disabled={saving} className="bg-blue-600 disabled:opacity-60 text-white px-4 py-2 rounded">{saving ? 'Saving…' : 'Asignar'}</button>
           <button type="button" className="px-4 py-2" onClick={()=> nav('/admin/usuarios')}>Cancelar</button>
         </div>
       </form>

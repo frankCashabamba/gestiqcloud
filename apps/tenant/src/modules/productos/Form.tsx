@@ -63,7 +63,7 @@ export default function ProductoForm() {
     ;(async () => {
       try {
         setLoadingCfg(true)
-        const q = new URLSearchParams({ module: 'productos', ...(empresa ? { empresa } : {}) }).toString()
+        const q = new URLSearchParams({ module: 'products', ...(empresa ? { empresa } : {}) }).toString()
         const data = await apiFetch<{ items?: FieldCfg[] }>(`/api/v1/tenant/settings/fields?${q}`)
         if (!cancelled) setFields((data?.items || []).filter((it) => it.visible !== false))
       } catch {
@@ -79,10 +79,10 @@ export default function ProductoForm() {
 
   const fieldList = useMemo(() => {
     const base: FieldCfg[] = [
-      { field: 'sku', visible: true, required: false, ord: 10, label: 'Código', type: 'text', help: 'Dejar vacío para generar automáticamente' },
+      { field: 'sku', visible: true, required: false, ord: 10, label: 'Code', type: 'text', help: 'Dejar vacío para generar automáticamente' },
       { field: 'name', visible: true, required: true, ord: 20, label: 'Nombre', type: 'text' },
       { field: 'categoria', visible: true, required: false, ord: 22, label: 'Categoría', type: 'select' },
-      { field: 'descripcion', visible: true, required: false, ord: 25, label: 'Descripción', type: 'textarea' },
+      { field: 'descripcion', visible: true, required: false, ord: 25, label: 'Description', type: 'textarea' },
       { field: 'price', visible: true, required: true, ord: 30, label: `Precio de venta (${currencySymbol})`, type: 'number' },
       { field: 'stock', visible: true, required: false, ord: 35, label: 'Stock inicial', type: 'number' },
       { field: 'iva_tasa', visible: true, required: false, ord: 40, label: 'IVA (%)', type: 'number' },

@@ -90,7 +90,7 @@ export default function CajaList() {
           className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
           onClick={() => setShowForm(!showForm)}
         >
-          {showForm ? 'Cancelar' : '+ Nuevo Movimiento'}
+          {showForm ? 'Cancel' : '+ Nuevo Movimiento'}
         </button>
       </div>
 

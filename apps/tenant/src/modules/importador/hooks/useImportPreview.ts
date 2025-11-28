@@ -18,7 +18,7 @@ export function useImportPreview() {
       setPreview(result);
       return result;
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Error desconocido';
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
       setError(errorMsg);
       throw err;
     } finally {

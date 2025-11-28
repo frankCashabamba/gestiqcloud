@@ -316,7 +316,7 @@ export const CrearEmpresa: React.FC = () => {
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
                 </svg>
               )}
-              {loading ? 'Guardando…' : 'Crear empresa y usuario'}
+              {loading ? 'Saving…' : 'Crear empresa y usuario'}
             </button>
 
             {!canSubmit && (

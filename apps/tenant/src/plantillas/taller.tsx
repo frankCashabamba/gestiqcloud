@@ -68,18 +68,18 @@ const TallerPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
       items.push(
         kpiCard(
           'ordenes',
-          'Órdenes activas',
+          'Active Orders',
           kpisData ? formatNumber(kpisData.ordenes_trabajo_activas) : '--',
-          'Órdenes de trabajo en curso.',
+          'Work orders in progress.',
           kpisLoading
         )
       )
       items.push(
         kpiCard(
           'servicios',
-          'Servicios hoy',
+          'Services today',
           kpisData ? formatNumber(kpisData.servicios_completados_hoy) : '--',
-          'Servicios completados en el día.',
+          'Services completed today.',
           kpisLoading
         )
       )
@@ -87,17 +87,17 @@ const TallerPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
     if (allowedSlugs.has('compras')) {
       items.push(
         kpiCard(
-          'repuestos',
-          'Repuestos pendientes',
+          'parts',
+          'Pending Parts',
           kpisData ? formatNumber(kpisData.repuestos_pendientes) : '--',
-          'Órdenes de compra en espera.',
+          'Purchase orders pending.',
           kpisLoading
         )
       )
     }
     if (!items.length) {
       items.push(
-        kpiCard('placeholder', 'KPIs por configurar', '--', 'Añade métricas de productividad y facturación.')
+        kpiCard('placeholder', 'KPIs to configure', '--', 'Add productivity and billing metrics.')
       )
     }
     return items
@@ -105,7 +105,7 @@ const TallerPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
 
   return (
     <SectorLayout
-      title="Sector Taller"
+      title="Workshop Sector"
       subtitle="Gestiona ?rdenes de trabajo, repuestos y tiempos de servicio desde un solo lugar."
       topNav={sideNav.slice(0, 3)}
       sideNav={sideNav}

@@ -35,7 +35,7 @@ export default function SetPassword() {
         <form onSubmit={onSubmit} className="space-y-4">
           <input type="password" value={pwd} onChange={(e)=> setPwd(e.target.value)} className="w-full px-3 py-2 border rounded" placeholder="Nueva contraseña" required />
           <input type="password" value={pwd2} onChange={(e)=> setPwd2(e.target.value)} className="w-full px-3 py-2 border rounded" placeholder="Confirmar contraseña" required />
-          <button type="submit" disabled={saving} className="bg-blue-600 disabled:opacity-60 text-white px-4 py-2 rounded">{saving ? 'Guardando…' : 'Guardar'}</button>
+          <button type="submit" disabled={saving} className="bg-blue-600 disabled:opacity-60 text-white px-4 py-2 rounded">{saving ? 'Saving…' : 'Save'}</button>
         </form>
       </div>
     </div>

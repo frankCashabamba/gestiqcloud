@@ -91,7 +91,7 @@ export default function PreviewPage() {
                 setCategories(items)
             }
         } catch (err) {
-            console.error('Error al cargar categorías:', err)
+            console.error('Error loading categories:', err)
         }
     }, [token])
 
@@ -106,14 +106,14 @@ export default function PreviewPage() {
                 setCategories(data)
             }
         } catch (err) {
-            console.error('Error al cargar categorías:', err)
+            console.error('Error loading categories:', err)
         }
     }, [token])
 
     // Cargar lotes pendientes de validación
     const fetchBatches = useCallback(async () => {
         if (!profile?.tenant_id) {
-            setError('No se encontró tenant_id')
+            setError('tenant_id not found')
             setLoading(false)
             return
         }
@@ -124,7 +124,7 @@ export default function PreviewPage() {
                 `/api/v1/imports/batches?tenant_id=${profile.tenant_id}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             )
-            if (!res.ok) throw new Error('Error al cargar lotes')
+            if (!res.ok) throw new Error('Error loading batches')
             const data = await res.json()
             setBatches(data.items || data)
 
@@ -160,7 +160,7 @@ export default function PreviewPage() {
                 `/api/v1/imports/batches/${selectedBatch}/items/products?limit=${limit}&offset=${offset}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             )
-            if (!res.ok) throw new Error('Error al cargar productos')
+            if (!res.ok) throw new Error('Error loading products')
             const data = await res.json()
             setProductos(data.items || [])
             setTotalProductos(Number(data.total ?? (data.items ? data.items.length : 0)))
@@ -268,7 +268,7 @@ export default function PreviewPage() {
     // Promover lote a producción
     const handlePromote = async () => {
         if (!selectedBatch) return
-        const confirmed = confirm('¿Promover este lote a producción? Esto creará/actualizará productos en el sistema.')
+        const confirmed = confirm('Promote this batch to production? This will create/update products in the system.')
         if (!confirmed) return
 
         setPromoting(true)
@@ -284,8 +284,8 @@ export default function PreviewPage() {
                     warehouse_code: 'ALM-1',
                 }),
             })
-            if (!res.ok) throw new Error('Error al promover')
-            alert('Lote promovido exitosamente')
+            if (!res.ok) throw new Error('Error promoting')
+            alert('Batch promoted successfully')
             navigate('../productos')
         } catch (err: any) {
             alert(`Error: ${err.message}`)

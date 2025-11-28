@@ -22,7 +22,7 @@ export default function TipoEmpresaForm() {
   const onSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault()
     try {
-      if (!form.name?.trim()) throw new Error('Nombre es requerido')
+      if (!form.name?.trim()) throw new Error('Name is required')
       const payload: FormT = { ...form, name: form.name.trim() }
       if (id) await updateTipoEmpresa(id, payload)
       else await createTipoEmpresa(payload)

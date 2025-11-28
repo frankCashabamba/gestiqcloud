@@ -641,7 +641,7 @@ export default function POSView() {
                                     </button>
                                 </div>
                                 <div className="sum">{lineTotal.toFixed(2)}{currencySymbol}</div>
-                                <button className="del" aria-label="Eliminar" onClick={() => removeItem(idx)}>
+                                <button className="del" aria-label="Delete" onClick={() => removeItem(idx)}>
                                     ✕
                                 </button>
                             </div>

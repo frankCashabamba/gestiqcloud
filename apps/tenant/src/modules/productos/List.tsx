@@ -89,7 +89,7 @@ export default function ProductosList() {
   useEffect(() => setPerPage(per), [per, setPerPage])
 
   const exportCSV = () => {
-    const headers = ['Código', 'Nombre', 'Precio', 'IVA', 'Estado']
+    const headers = ['Code', 'Nombre', 'Precio', 'IVA', 'Status']
     const rows = sorted.map((p) => [p.sku || '', p.name, p.price?.toFixed(2) || '0', `${p.iva_tasa || 0}%`, p.active ? 'Activo' : 'Inactivo'])
 
     const csv = [headers, ...rows].map((row) => row.join(';')).join('\n')

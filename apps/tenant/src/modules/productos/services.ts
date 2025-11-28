@@ -138,7 +138,7 @@ export async function searchProductos(q: string): Promise<Producto[]> {
 export async function importProductosExcel(file: File): Promise<{ batch_id: string; items_count: number }> {
   const formData = new FormData()
   formData.append('file', file)
-  formData.append('entity_type', 'productos')
+  formData.append('entity_type', 'products')
 
   return apiFetch<{ batch_id: string; items_count: number }>('/api/v1/imports/upload', {
     method: 'POST',

@@ -43,8 +43,8 @@ export default function CajaForm() {
 
     const fieldList = useMemo(() => {
         const base: FieldCfg[] = [
-            { field: 'fecha', visible: true, required: true, ord: 10, label: 'Fecha' },
-            { field: 'tipo', visible: true, required: true, ord: 20, label: 'Tipo' },
+            { field: 'fecha', visible: true, required: true, ord: 10, label: 'Date' },
+            { field: 'tipo', visible: true, required: true, ord: 20, label: 'Type' },
             { field: 'concepto', visible: true, required: true, ord: 30, label: 'Concepto' },
             { field: 'monto', visible: true, required: true, ord: 40, label: 'Monto' },
             { field: 'referencia', visible: true, required: false, ord: 50, label: 'Referencia' },

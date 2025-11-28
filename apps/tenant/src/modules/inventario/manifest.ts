@@ -1,7 +1,7 @@
 // apps/tenant/src/modules/inventario/manifest.ts
 export const inventarioManifest = {
   id: 'inventario',
-  name: 'Inventario',
+  name: 'Inventory',
   icon: '📦',
   path: '/inventario',
   enabled: true,

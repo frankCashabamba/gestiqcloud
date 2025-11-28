@@ -110,7 +110,7 @@ export default function ProveedorForm() {
     event.preventDefault()
     try {
       if (!form.name?.trim()) {
-        throw new Error('Nombre es requerido')
+        throw new Error('Name is required')
       }
       if (form.iban && form.iban !== form.iban_confirmacion) {
         throw new Error('Los IBAN no coinciden')

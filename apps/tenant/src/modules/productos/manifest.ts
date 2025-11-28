@@ -1,6 +1,6 @@
 // apps/tenant/src/modules/productos/manifest.ts
 export const productosManifest = {
-  id: 'productos',
+  id: 'products',
   name: 'Productos',
   icon: '📦',
   path: '/productos',

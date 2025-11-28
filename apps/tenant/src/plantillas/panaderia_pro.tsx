@@ -69,7 +69,7 @@ const PanaderiaDashboard: React.FC = () => {
   const prefix = empresa ? `/${empresa}` : ''
   const customLinks = [
     isModuleEnabled('produccion') && { label: 'Recetas', href: `${prefix}/produccion/recetas`, icon: '🍞' },
-    isModuleEnabled('inventario') && { label: 'Inventario', href: `${prefix}/inventario`, icon: '📦' },
+    isModuleEnabled('inventario') && { label: 'Inventory', href: `${prefix}/inventario`, icon: '📦' },
     isModuleEnabled('compras') && { label: 'Compras', href: `${prefix}/compras`, icon: '🛍️' }
   ].filter(Boolean) as Array<{ label: string; href: string; icon: string }>
 

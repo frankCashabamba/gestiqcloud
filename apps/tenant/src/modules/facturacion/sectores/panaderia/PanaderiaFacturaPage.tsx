@@ -27,7 +27,7 @@ export default function PanaderiaFacturaPage() {
   const onSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault()
     try {
-      if (lineas.length === 0) throw new Error('Agrega al menos una línea')
+      if (lineas.length === 0) throw new Error('Add at least one line')
       await createFactura({ fecha, total: Number(totals.total.toFixed(2)), estado, cliente_id: undefined })
       success('Factura creada (panadería)')
       nav('/facturacion')

@@ -37,7 +37,7 @@ export default function Onboarding() {
     try {
       setSaving(true)
       await submit({ idioma_predeterminado: idioma, zona_horaria: zonaHoraria, moneda, logo_empresa: logo })
-      success('Configuración guardada')
+      success('Configuration saved')
       navigate('/settings')
     } catch (e:any) {
       error(getErrorMessage(e))
@@ -62,14 +62,14 @@ export default function Onboarding() {
             <option value="es">Español</option>
             <option value="en">English</option>
           </select>
-          <input value={zonaHoraria} onChange={(e)=> setZonaHoraria(e.target.value)} className="w-full px-3 py-2 border rounded" placeholder="Zona horaria" required />
-          <input value={moneda} onChange={(e)=> setMoneda(e.target.value)} className="w-full px-3 py-2 border rounded" placeholder="Moneda (p.ej. USD)" required />
+          <input value={zonaHoraria} onChange={(e)=> setZonaHoraria(e.target.value)} className="w-full px-3 py-2 border rounded" placeholder="Time zone" required />
+          <input value={moneda} onChange={(e)=> setMoneda(e.target.value)} className="w-full px-3 py-2 border rounded" placeholder="Currency (e.g. USD)" required />
           <div>
             <label className="block mb-1 text-sm">Logo (opcional)</label>
             <input type="file" accept="image/*" onChange={onFile} />
           </div>
           <div className="flex gap-2">
-            <button type="submit" disabled={saving} className="bg-blue-600 disabled:opacity-60 text-white px-4 py-2 rounded">{saving ? 'Guardando…' : 'Guardar'}</button>
+            <button type="submit" disabled={saving} className="bg-blue-600 disabled:opacity-60 text-white px-4 py-2 rounded">{saving ? 'Saving…' : 'Save'}</button>
             <button type="button" onClick={onSkip} disabled={saving} className="px-4 py-2">Omitir</button>
           </div>
         </form>

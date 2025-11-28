@@ -69,7 +69,7 @@ export async function exportLogs(filters: LogFilters): Promise<Blob> {
     limit: Math.min(filters.limit || 50, 500)
   })
 
-  const headers = ['Fecha', 'Tipo', 'Estado', 'Canal', 'Destinatario', 'Asunto', 'Referencia', 'Error']
+  const headers = ['Date', 'Type', 'Status', 'Canal', 'Destinatario', 'Asunto', 'Referencia', 'Error']
   const escape = (value: unknown) => {
     if (value === null || value === undefined) return ''
     const str = String(value).replace(/"/g, '""')

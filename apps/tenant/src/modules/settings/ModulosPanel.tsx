@@ -27,7 +27,7 @@ const AVAILABLE_MODULES: Module[] = [
   { id: 'expenses', name: 'Gastos', icon: '💳', description: 'Control de gastos y justificantes', category: 'Compras', enabled: true },
 
   // OPERACIONES
-  { id: 'inventory', name: 'Inventario', icon: '📊', description: 'Control de stock, lotes y almacenes', category: 'Operaciones', enabled: true },
+  { id: 'inventory', name: 'Inventory', icon: '📊', description: 'Control de stock, lotes y almacenes', category: 'Operaciones', enabled: true },
   { id: 'imports', name: 'Importaciones', icon: '📥', description: 'Carga masiva de productos y catálogos', category: 'Operaciones', enabled: true },
   { id: 'warehouse', name: 'Almacenes', icon: '🏭', description: 'Gestión multi-almacén', category: 'Operaciones', enabled: false, dependencies: ['inventory'] },
 

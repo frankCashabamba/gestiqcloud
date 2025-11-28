@@ -43,7 +43,7 @@ export default function FieldConfigManager() {
       } else {
         await api.put(`/v1/admin/field-config/sector`, { sector, module: moduleKey, items })
       }
-      setMsg('Configuración guardada')
+      setMsg('Configuration saved')
     } catch (e: any) {
       setMsg(e?.message || 'Error guardando configuración')
     } finally {
@@ -80,7 +80,7 @@ export default function FieldConfigManager() {
         </div>
         <div>
           <label>Módulo</label>
-          <select id="module-select" name="module" aria-label="Módulo" value={moduleKey} onChange={(e) => setModuleKey(e.target.value)} className="input">
+          <select id="module-select" name="module" aria-label="Module" value={moduleKey} onChange={(e) => setModuleKey(e.target.value)} className="input">
             <option value="clientes">Clientes</option>
           </select>
         </div>

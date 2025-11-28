@@ -30,7 +30,7 @@ const getModuleIcon = (slug: string): string => {
   const icons: Record<string, string> = {
     'ventas': '📊',
     'clientes': '👥',
-    'productos': '📦',
+    'products': '📦',
     'inventario': '📋',
     'facturacion': '🧾',
     'facturación': '🧾',

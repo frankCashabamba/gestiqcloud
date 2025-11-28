@@ -8,8 +8,8 @@ interface DeleteConfirmProps {
 }
 
 export default function DeleteConfirm({
-  title = '¿Confirmar eliminación?',
-  message = 'Esta acción no se puede deshacer.',
+  title = 'Confirm deletion?',
+  message = 'This action cannot be undone.',
   onConfirm,
   onCancel
 }: DeleteConfirmProps) {

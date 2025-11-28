@@ -20,7 +20,7 @@ const NAME_MAP: Record<string, string> = {
   finanzas: 'Finanzas',
   proveedores: 'Proveedores',
   gastos: 'Gastos',
-  inventario: 'Inventario',
+  inventario: 'Inventory',
 }
 
 function formatNombre(raw: string) {

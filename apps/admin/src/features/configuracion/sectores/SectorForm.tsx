@@ -92,7 +92,7 @@ export default function SectorForm() {
   const onSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault()
     try {
-      if (!form.sector_name?.trim()) throw new Error('Nombre es requerido')
+      if (!form.sector_name?.trim()) throw new Error('Name is required')
       if (!form.business_type_id || !form.business_category_id)
         throw new Error('Seleccione tipo de empresa y de negocio')
       let parsedConfig: SectorTemplateConfig

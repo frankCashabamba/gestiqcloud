@@ -364,7 +364,7 @@ export default function TenantConfiguracion() {
         >
           <Tab label="General" />
           <Tab label="POS" />
-          <Tab label="Inventario" />
+          <Tab label="Inventory" />
           <Tab label="Facturación" />
           <Tab label="E-Factura" />
           <Tab label="Otros Módulos" />

@@ -1,5 +1,5 @@
-// Mejora: detección robusta para "productos" considerando sinónimos y acentos
-export function detectarTipoDocumento(headers: string[]): 'generico' | 'factura' | 'recibo' | 'transferencia' | 'productos' {
+// Mejora: detección robusta para "products" considerando sinónimos y acentos
+export function detectarTipoDocumento(headers: string[]): 'generico' | 'factura' | 'recibo' | 'transferencia' | 'products' {
   const normalize = (s: string) =>
     (s || '')
       .toLowerCase()
@@ -30,7 +30,7 @@ export function detectarTipoDocumento(headers: string[]): 'generico' | 'factura'
     // Heurística adicional: presencia combinada de categoría o impuestos junto a nombre
     (hasAny(NAME_FIELDS) && (hasAny(CATEGORY_FIELDS) || hasAny(TAX_FIELDS)))
 
-  if (isProductos) return 'productos'
+  if (isProductos) return 'products'
 
   // Otros tipos (básicos)
   if (hasAny(['invoice', 'nro factura', 'factura', 'cliente', 'nif', 'ruc'])) return 'factura'

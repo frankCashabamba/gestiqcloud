@@ -4,7 +4,7 @@ export interface Proveedor {
   codigo?: string
   name: string
   nombre_comercial?: string
-  tipo_documento: 'NIF' | 'CIF' | 'NIE' | 'RUC' | 'CEDULA' | 'PASAPORTE'
+  tipo_documento: 'NIF' | 'CIF' | 'Foreigner ID' | 'RUC' | 'CEDULA' | 'PASAPORTE'
   numero_documento: string
   tax_id?: string
   email?: string
@@ -51,7 +51,7 @@ export interface ProveedorCreate {
   codigo?: string
   name: string
   nombre_comercial?: string
-  tipo_documento: 'NIF' | 'CIF' | 'NIE' | 'RUC' | 'CEDULA' | 'PASAPORTE'
+  tipo_documento: 'NIF' | 'CIF' | 'Foreigner ID' | 'RUC' | 'CEDULA' | 'PASAPORTE'
   numero_documento: string
   tax_id?: string
   email?: string

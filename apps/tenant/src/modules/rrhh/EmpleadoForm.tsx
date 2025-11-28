@@ -8,7 +8,7 @@ const INITIAL_FORM: EmpleadoCreate = {
   sku: '',
   name: '',
   apellidos: '',
-  tipo_documento: 'DNI',
+  tipo_documento: 'ID',
   numero_documento: '',
   email: '',
   phone: '',
@@ -70,11 +70,11 @@ export default function EmpleadoForm() {
     e.preventDefault()
 
     try {
-      if (!form.name.trim()) throw new Error('Nombre es requerido')
-      if (!form.apellidos.trim()) throw new Error('Apellidos es requerido')
-      if (!form.numero_documento.trim()) throw new Error('Número de documento es requerido')
-      if (!form.fecha_ingreso) throw new Error('Fecha de ingreso es requerida')
-      if (form.salario_base <= 0) throw new Error('Salario base debe ser mayor a 0')
+      if (!form.name.trim()) throw new Error('Name is required')
+      if (!form.apellidos.trim()) throw new Error('Last names is required')
+      if (!form.numero_documento.trim()) throw new Error('Document number is required')
+      if (!form.fecha_ingreso) throw new Error('Start date is required')
+      if (form.salario_base <= 0) throw new Error('Base salary must be greater than 0')
 
       setLoading(true)
 
@@ -84,7 +84,7 @@ export default function EmpleadoForm() {
         await createEmpleado(form)
       }
 
-      success('Empleado guardado')
+      success('Employee saved')
       nav('..')
     } catch (e: any) {
       error(getErrorMessage(e))
@@ -96,7 +96,7 @@ export default function EmpleadoForm() {
   return (
     <div className="p-4">
       <h3 className="text-xl font-semibold mb-3">
-        {id ? 'Editar empleado' : 'Nuevo empleado'}
+        {id ? 'Edit Employee' : 'New Employee'}
       </h3>
 
       <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 900 }}>
@@ -154,8 +154,8 @@ export default function EmpleadoForm() {
                 required
                 disabled={loading}
               >
-                <option value="DNI">DNI</option>
-                <option value="NIE">NIE</option>
+                <option value="ID">DNI</option>
+                <option value="Foreigner ID">NIE</option>
                 <option value="PASAPORTE">Pasaporte</option>
                 <option value="CEDULA">Cédula</option>
               </select>
@@ -364,7 +364,7 @@ export default function EmpleadoForm() {
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
             disabled={loading}
           >
-            {loading ? 'Guardando...' : 'Guardar'}
+            {loading ? 'Guardando...' : 'Save'}
           </button>
           <button
             type="button"

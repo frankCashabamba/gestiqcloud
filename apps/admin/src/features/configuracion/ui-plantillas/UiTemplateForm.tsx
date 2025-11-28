@@ -71,7 +71,7 @@ export default function UiTemplateForm() {
         </div>
         <div className="flex gap-2 justify-end pt-2">
           <button type="button" className="btn" onClick={() => nav('..')} disabled={loading}>Cancelar</button>
-          <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Guardando…' : 'Guardar'}</button>
+          <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Saving…' : 'Save'}</button>
         </div>
       </form>
     </div>

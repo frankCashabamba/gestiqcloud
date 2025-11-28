@@ -250,7 +250,7 @@ export default function RecetasList() {
                         </div>
                       )}
                       <div>
-                        <div className="text-sm text-gray-500">{r.producto_nombre || 'Producto'}</div>
+                        <div className="text-sm text-gray-500">{r.producto_nombre || 'Product'}</div>
                         <div className="font-semibold text-gray-900">{r.name}</div>
                       </div>
                     </div>
