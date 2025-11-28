@@ -1,82 +1,42 @@
-# Ops
+# Operaciones / Infra
 
-This directory hosts database migrations, CI helpers, and operational scripts.
+Infraestructura, migraciones SQL y scripts de soporte para despliegue y mantenimiento.
 
-- migrations/: timestamped, declarative migrations (SQL/py) grouped by folder
-- ci/: lightweight checks and a smoke migration runner for CI
-- scripts/: convenience scripts for local/ops usage
+## Estructura
+- `ci/`: utilidades para pipelines (checks, migrate helpers).
+- `dns/`: configuraciones DNS (Cloudflare) y registros.
+- `migrations/`: migraciones SQL manuales (snapshot consolidado en `2025-11-21_000_complete_consolidated_schema`).
+- `scripts/`: automatizaciones (migraciones idempotentes, generación de SQL, checks de endpoints).
+- `systemd/`: unidades de servicio (ej. `gestiq-worker-imports.service`).
+- `requirements.txt`: dependencias para scripts.
 
-Refer to .github/workflows/db-pipeline.yml for how CI invokes these tools.
+## Pipelines CI/CD
+- `.github/workflows/ci.yml`: detecta cambios frontend/backend y ejecuta:
+  - Backend: instala deps, recrea `test.db`, `Base.metadata.create_all`, pytest, `ops/scripts/check_endpoints.py`.
+  - Frontend: `npm ci`/`npm install`, `npm run typecheck`, `npm run build` para admin y tenant.
 
-## Production Deploy Flow (Render + Cloudflare)
+## Scripts clave (`ops/scripts`)
+- `migrate_all_migrations_idempotent.py`: aplica migraciones SQL en orden, saltando las ya aplicadas (requiere `DATABASE_URL`).
+- `migrate_all_migrations.py`: versión simple no idempotente.
+- `generate_migration_from_models.py`: genera SQL desde modelos actuales para comparar con DB.
+- `check_endpoints.py`: smoke test de endpoints FE/BE (usado en CI backend).
 
-Goal: keep web startup fast and run DB changes only when needed.
+## Migraciones SQL
+- `migrations/2025-11-21_000_complete_consolidated_schema/`: snapshot completo con `up.sql`/`down.sql` y README descriptivo.
+- Usar los scripts anteriores para aplicarlas; tomar backups previos (`pg_dump`).
 
-1) Web Service (apps/backend)
-- Start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-- Do NOT run migrations on boot (keep `RUN_ALEMBIC=0`, `RUN_LEGACY_MIGRATIONS=0`, `RUN_RLS_APPLY=0`).
-- Health: `/health` (FastAPI) and `/health` on API host via Worker.
+## DNS y despliegues
+- `dns/*.txt`: registros Cloudflare para dominios `gestiqcloud.com` y subdominios.
+- Despliegue de API en Render (ver `render.yaml` en raíz). Worker en Cloudflare (ver `workers/README.md`).
 
-2) Migrations Job (Render)
-- Job name: `gestiqcloud-migrate` (see `render.yaml`).
-- Command: only upgrades Alembic if pending; then applies RLS defaults/policies idempotently.
-- Env: `DATABASE_URL`, `ENV=production`, `RLS_SCHEMAS=public`, `RLS_SET_DEFAULT=1`.
+## Systemd / servicios
+- Unidades ejemplo para workers (imports). Ajustar rutas/env antes de desplegar en servidores.
 
-3) CI trigger (GitHub Actions)
-- Preferred: use the Admin button to trigger migrations (see below). It calls Render Jobs from the backend.
-- Optional workflow: `.github/workflows/migrate-on-migrations.yml` is manual‑only (`workflow_dispatch`) to avoid unintended costs.
-  - You can run it on‑demand from the Actions tab.
-  - Future: it can be re‑enabled on push once budgets/limits are approved.
+## Backups y seguridad
+- Respaldar DB antes de migraciones manuales.
+- Manejar secretos vía variables de entorno (no commitear `.env`).
+- Revisar dominios permitidos en CORS/worker antes de exponer endpoints.
 
-4) Cloudflare Worker (Edge Gateway)
-- Routes include `api.gestiqcloud.com/*` and admin/www `*/api/*`.
-- Accepts clean `/v1/*` and rewrites to backend `/api/v1/*`.
-- CORS allow-list and secure Set-Cookie rewriting for `.gestiqcloud.com`.
-
-5) Backend env (prod)
-- `PUBLIC_API_ORIGIN=https://api.gestiqcloud.com`
-- `ADMIN_URL=https://admin.gestiqcloud.com`
-- `FRONTEND_URL=https://www.gestiqcloud.com`
-- `ALLOWED_HOSTS=["api.gestiqcloud.com","*.onrender.com"]`
-- `CORS_ORIGINS=["https://gestiqcloud.com","https://www.gestiqcloud.com","https://admin.gestiqcloud.com"]`
-- `CORS_ALLOW_ORIGIN_REGEX=^https://(www\.)?(gestiqcloud\.com|admin\.gestiqcloud\.com|gestiqcloud-(admin|tenant)\.onrender\.com)$`
-- `COOKIE_DOMAIN=.gestiqcloud.com`, `COOKIE_SAMESITE=none`, `COOKIE_SECURE=true`
-
-6) Frontends (Vite)
-- `VITE_API_URL=https://api.gestiqcloud.com`
-- `VITE_ADMIN_ORIGIN=https://admin.gestiqcloud.com`
-- `VITE_TENANT_ORIGIN=https://www.gestiqcloud.com`
-- HTTP client sends cookies (Axios `withCredentials: true` / fetch `credentials: 'include'`).
-
-## Applying migrations locally
-
-- PostgreSQL (manual):
-  - Apply: `psql -d <db> -f ops/migrations/<folder>/up.sql`
-  - Rollback: `psql -d <db> -f ops/migrations/<folder>/down.sql`
-
-- Python helper:
-  - `python scripts/py/apply_migration.py --dsn postgresql://user:pass@localhost/dbname --dir ops/migrations/2025-09-22_004_imports_batch_pipeline --action up`
-  - Or rollback with `--action down`.
-
-## API Gateway
-
-Backend can be fronted by a Cloudflare Worker at `api.gestiqcloud.com` to:
-- Enforce restrictive CORS with credentials
-- Harden cookies (Domain, Secure, HttpOnly, SameSite)
-- Propagate `X-Request-Id` and security headers
-
-See `workers/README.md` for configuration, `wrangler publish`, route setup and curl tests.
-
-## Migrations trigger (Admin‑first)
-
-- Admin UI → “Ejecutar migraciones” dispara el Job de Render desde el backend.
-  - Requiere en Render: `RENDER_API_KEY` y `RENDER_MIGRATE_JOB_ID`.
-  - El panel muestra estado en vivo e historial persistente.
-- El workflow de GitHub queda solo como alternativa manual.
-  - Futuro: volver a activar automático en push cuando se apruebe automatización de costes.
-
-## Imports pipeline migration
-
-- Folder: `ops/migrations/2025-09-22_004_imports_batch_pipeline`
-- Creates: import_batches, import_items (+idx), import_mappings, import_item_corrections, import_lineage
-- Alters: auditoria_importacion (adds batch_id, item_id)
+## Pendientes
+- Documentar pipeline de despliegue a Render/Cloudflare con pasos exactos.
+- Añadir checklist post-migración.

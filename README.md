@@ -1,70 +1,87 @@
-# GestiQCloud (monorepo ERP/CRM)
+# GestiQCloud - ERP/CRM Multi-Tenant
 
-Estado: en refactor y re-documentación (nov 2025). Las notas antiguas de fases “100%” ya no aplican.
+Sistema ERP/CRM multi-tenant para España y Ecuador.
 
-## 🚀 Quick Start (local)
-```bash
-# 1. Levantar stack (ejemplo simple)
-docker compose up -d
-```
-- Backend: http://localhost:8000
-- Frontend Tenant: http://localhost:8082
-- Frontend Admin: http://localhost:8081
+**Estado actual:** En refactor y re-documentación (nov 2025). Las notas de “FASES 1-6 100%” ya no aplican.
 
-## 📁 Estructura
-- `apps/backend`: FastAPI + SQLAlchemy (Py 3.11). Alembic en `apps/backend/alembic/`.
-- `apps/admin`: React + Vite (npm).
-- `apps/tenant`: React + Vite (npm).
-- `packages/`: libs compartidas (ui/shared).
-- `ops/`: infra y migraciones SQL (`ops/migrations/`), scripts en `ops/scripts/`.
-- `scripts/`, `workers/`, `docs/`: utilidades, workers, documentación.
+---
 
-## 🛠 Requisitos
-- Python 3.11 + pip/venv.
-- Node.js 18+ y npm.
-- PostgreSQL (config en `.env.local` de backend).
+## 🚀 Arranque rápido (local)
+- Requisitos: Python 3.11 + venv, PostgreSQL, Node 18+.
+- Comando (Windows, PowerShell):
+  ```powershell
+  scripts/start_local.ps1
+  ```
+  Servicios por defecto: Backend http://localhost:8000, Admin http://localhost:8081, Tenant http://localhost:8082.
+- Si 8000 está ocupado: `uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload`.
 
-## Backend (dev)
-```bash
+## 📁 Estructura principal
+- `apps/backend` (FastAPI + SQLAlchemy + Alembic) — ver `apps/backend/README.md`.
+- `apps/admin` (React + Vite) — ver `apps/admin/README.md`.
+- `apps/tenant` (React + Vite, PWA) — ver `apps/tenant/README.md`.
+- `apps/packages` (ui/shared/etc.) — ver `apps/packages/README.md`.
+- `ops` (infra, migraciones SQL, scripts) — ver `ops/README.md`.
+- `workers` (edge workers) — ver `workers/README.md`.
+
+## 🗃️ Migraciones y base de datos
+- Alembic: `apps/backend/alembic/`.
+- SQL sueltas: `ops/migrations/`.
+- Ejecutar migraciones idempotentes:
+  ```powershell
+  python ops/scripts/migrate_all_migrations_idempotent.py
+  ```
+  Ajusta `DATABASE_URL` en `.env` del backend.
+
+## 🔧 Backend (dev)
+```powershell
 cd apps/backend
-python -m venv .venv
-# Win: .venv\Scripts\activate   |  Linux/Mac: source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.local .env   # revisa credenciales DB
-uvicorn app.main:app --reload
+# activar venv y deps instaladas
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+pytest
 ```
-API: http://localhost:8000
 
-## Frontend Admin
-```bash
+## 🎨 Frontend
+Admin:
+```powershell
 cd apps/admin
 npm install
 npm run dev -- --host --port 8081
 ```
-
-## Frontend Tenant
-```bash
+Tenant:
+```powershell
 cd apps/tenant
 npm install
 npm run dev -- --host --port 8082
 ```
 
-## Base de datos y migraciones
-- Alembic: `apps/backend/alembic`.
-- SQL sueltas: `ops/migrations/`.
-- Ejecución idempotente que usas:
-  ```powershell
-  python ops/scripts/migrate_all_migrations_idempotent.py
-  ```
-- Ajusta `DATABASE_URL` en `.env`.
+## 📌 Notas y mantenimiento
+- Limpiar caches: `.mypy_cache/`, `.pytest_cache/`, `.ruff_cache/`, `__pycache__/`.
+- Scripts de ops: backups, migraciones, clamav en `ops/scripts/` (detalles en `ops/README.md`).
+- Troubleshooting: puertos ocupados → `netstat -ano | findstr :8000` y `taskkill /PID <PID> /F`.
 
-## Tests backend
-```bash
-cd apps/backend
-pytest
-```
-
-## Pendiente
-- Reescribir documentación funcional y de despliegue.
-- Validar migraciones SQL/Alembic vigentes antes de producción.
-- Completar guías de CI/CD en `ops/` y `scripts/`.
+## 📚 Documentación
+- docs/arquitectura.md
+- docs/dev-experience.md
+- docs/seguridad.md
+- docs/backend.md
+- docs/datos-migraciones.md
+- docs/runbooks/README.md
+- docs/deploy.md
+- docs/examples-curl.md
+- docs/payments-einvoicing.md
+- docs/observabilidad.md
+- docs/entornos.md
+- docs/adr/README.md
+- docs/frontend-structure.md
+- docs/frontend-commands.md
+- docs/release-checklist.md
+- docs/api-contracts.md
+- docs/cache-uploads.md
+- apps/backend/README.md
+- apps/backend/alembic/README.md
+- apps/admin/README.md
+- apps/tenant/README.md
+- apps/packages/README.md
+- ops/README.md
+- importacion/README.md
+- docs/deploy.md

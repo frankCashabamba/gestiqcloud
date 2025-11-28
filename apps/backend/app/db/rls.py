@@ -56,26 +56,6 @@ def ensure_rls(
         return
 
     try:
-        # Si tenant_id parece entero (legacy tenant_id), tradúcelo a UUID
-        if isinstance(t_id, str) and t_id.isdigit():
-            try:
-                # Translate legacy tenant_id (int) to tenant UUID
-                res = db.execute(
-                    text("SELECT id::text FROM public.tenants WHERE tenant_id = :eid"),
-                    {"eid": int(t_id)},
-                )
-                row = res.first()
-                if row and row[0]:
-                    t_id = row[0]
-                else:
-                    import logging
-
-                    logging.warning(f"No tenant found for tenant_id = {t_id}")
-            except Exception as e:
-                import logging
-
-                logging.warning(f"Error converting tenant_id to tenant_id: {e}")
-
         # Usa SET LOCAL para scope de transacción/request
         # Pero solo en PostgreSQL (SQLite no lo soporta)
         try:

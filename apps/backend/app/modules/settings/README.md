@@ -1,6 +1,63 @@
 # Settings Module - Sistema de Configuración Modular
 
-Sistema completo de gestión de configuración por tenant y módulo para GestiQCloud ERP.
+Config multi-tenant de módulos/campos. No cubre catálogos globales (ver `admin_config`) ni permisos/roles.
+
+## Alcance rápido
+- Cubre: settings generales/branding/fiscal/POS/horarios/limites por tenant (`tenant/settings/*`), defaults por país, catálogo de módulos, field-config por sector/tenant (admin), theming tokens y form modes.
+- No cubre: gestión de módulos obligatorios (se valida en `SettingsManager` pero no expone admin público), migraciones de datos legacy.
+
+## Endpoints relevantes (`app/modules/settings/interface/http/tenant.py`)
+- Base tenant: `/api/v1/tenant/settings/*`
+  - `GET/PUT /general`, `/branding`, `/fiscal`, `/pos`, `/horarios`, `/limites`
+  - `GET /fields?module=clientes&empresa=<slug>` → devuelve visibilidad/orden de campos (resuelve defaults por sector); `PUT` no expuesto en tenant (solo admin).
+  - `GET /theme?empresa=<slug>` → tokens de UI (colores, logo, sector).
+- Admin field-config (sin prefijo tenant): `/api/v1/admin/field-config/*`
+  - `GET /sector?module=<mod>&sector=<slug>` / `PUT /sector`
+  - `PUT /tenant` (override por empresa/slug), `PUT /tenant/mode` (form_mode `mixed|tenant|sector|basic`)
+  - `GET /ui-plantillas` y `/ui-plantillas/health`
+
+### Ejemplos
+```
+GET /api/v1/tenant/settings/general
+→ 200 { "locale": "es_EC", "timezone": "America/Guayaquil", "currency": "USD", ... }
+
+PUT /api/v1/tenant/settings/pos
+{ "tax": { "enabled": true, "default_rate": 0.12 }, "receipt_width_mm": 58 }
+→ 200 { "ok": true }
+
+GET /api/v1/admin/field-config/sector?module=clientes&sector=retail
+→ 200 { "module":"clientes","sector":"retail","items":[{"field":"nombre","visible":true,...}, ...] }
+```
+
+### Errores comunes
+- `401` si faltan claims, `403 admin_required` al modificar fiscal/pos sin `is_company_admin`, `400` si faltan `module/sector`, `404 empresa not found` en overrides por tenant.
+
+## Modelos/DB y migraciones
+- Tablas: `tenant_settings`, `tenant_field_config`, `sector_field_default`, `tenant_module_settings`, `ui_template` creadas en `001_initial_schema`. No hay migraciones específicas posteriores (revisar `004_config_tables.py` placeholder).
+- Repositorio principal: `SettingsRepo` (JSONB por key). Field config usa `TenantFieldConfig` y `SectorFieldDefault`.
+
+## Flujos críticos
+- `SettingsRepo.get/put` lee/escribe JSONB por clave (general/branding/fiscal/pos/horarios/limites) scoped por tenant_id (vía claims/GUC).
+- `fields`: resuelve defaults por sector (`_default_fields_by_sector`) → aplica overrides de `SectorFieldDefault` → overrides por tenant (`TenantFieldConfig`).
+- `theme`: compone tokens desde `ConfiguracionEmpresa` y `Tenant`, normaliza sector.
+- `pos` y `fiscal` se usan por POS para validar impuestos y defaults de tasa.
+
+## Dependencias y env vars
+- DB (`DATABASE_URL`) con RLS (usa `ensure_rls` en montado).
+- Se apoya en `app/services/field_config.py` y modelos `Tenant`, `ConfiguracionEmpresa`.
+- Entornos: ver `docs/entornos.md` (RLS flags, dominios).
+
+## Pruebas mínimas
+- Feliz: `GET/PUT /general` persiste cambios; `GET /fields` devuelve defaults según sector; `GET /theme` entrega tokens con logo/color si empresa existe.
+- Validación: `PUT /fiscal` con usuario sin `is_company_admin` → 403; `PUT /tenant` sin `module` → error.
+- Auth/tenancy: llamadas sin claims → 401; overrides por empresa slug desconocido → 404.
+- Estados límite: `pos.tax.default_rate` >1 se normaliza a porcentaje; `theme` con empresa sin logos retorna defaults seguros.
+- Idempotencia: `PUT` repetidos con mismo payload no cambian resultado; `GET /ui-plantillas/health` siempre `{ok: true}`.
+
+## Consumidores y compatibilidad
+- Front tenant: módulos POS/inventory/settings leen `general/fiscal/pos/fields`.
+- Admin: panel de field-config usa rutas `/api/v1/admin/field-config/*`.
+- Documentar nuevos campos como opcionales y reflejar en `apps/packages/api-types/settings.ts` y `docs/api-contracts.md` antes de volverlos obligatorios.
 
 ## Estructura
 
