@@ -1,4 +1,5 @@
 import api from '../../shared/api/client'
+import { TENANT_PROVEEDORES } from '@shared/endpoints'
 
 export async function listProveedores(params?: {
   page?: number
@@ -7,46 +8,46 @@ export async function listProveedores(params?: {
   active?: boolean
   [key: string]: any
 }) {
-  const response = await api.get('/api/v1/suppliers', { params })
+  const response = await api.get(TENANT_PROVEEDORES.base, { params })
   return response.data
 }
 
 export async function getProveedor(id: string) {
-  const response = await api.get(`/api/v1/suppliers/${id}`)
+  const response = await api.get(TENANT_PROVEEDORES.byId(id))
   return response.data
 }
 
 export async function createProveedor(data: any) {
-  const response = await api.post('/api/v1/suppliers', data)
+  const response = await api.post(TENANT_PROVEEDORES.base, data)
   return response.data
 }
 
 export async function updateProveedor(id: string, data: any) {
-  const response = await api.put(`/api/v1/suppliers/${id}`, data)
+  const response = await api.put(TENANT_PROVEEDORES.byId(id), data)
   return response.data
 }
 
 export async function deleteProveedor(id: string) {
-  await api.delete(`/api/v1/suppliers/${id}`)
+  await api.delete(TENANT_PROVEEDORES.byId(id))
 }
 
 export async function listContactos(proveedorId: string) {
-  const response = await api.get(`/api/v1/suppliers/${proveedorId}/contactos`)
+  const response = await api.get(`${TENANT_PROVEEDORES.byId(proveedorId)}/contactos`)
   return response.data
 }
 
 export async function createContacto(proveedorId: string, data: any) {
-  const response = await api.post(`/api/v1/suppliers/${proveedorId}/contactos`, data)
+  const response = await api.post(`${TENANT_PROVEEDORES.byId(proveedorId)}/contactos`, data)
   return response.data
 }
 
 export async function updateContacto(proveedorId: string, contactoId: string, data: any) {
-  const response = await api.put(`/api/v1/suppliers/${proveedorId}/contactos/${contactoId}`, data)
+  const response = await api.put(`${TENANT_PROVEEDORES.byId(proveedorId)}/contactos/${contactoId}`, data)
   return response.data
 }
 
 export async function deleteContacto(proveedorId: string, contactoId: string) {
-  await api.delete(`/api/v1/suppliers/${proveedorId}/contactos/${contactoId}`)
+  await api.delete(`${TENANT_PROVEEDORES.byId(proveedorId)}/contactos/${contactoId}`)
 }
 
 export async function getComprasByProveedor(proveedorId: string, params?: {
@@ -55,6 +56,6 @@ export async function getComprasByProveedor(proveedorId: string, params?: {
   startDate?: string
   endDate?: string
 }) {
-  const response = await api.get(`/api/v1/suppliers/${proveedorId}/purchases`, { params })
+  const response = await api.get(`${TENANT_PROVEEDORES.byId(proveedorId)}/purchases`, { params })
   return response.data
 }

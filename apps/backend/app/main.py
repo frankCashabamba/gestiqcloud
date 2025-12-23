@@ -194,7 +194,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="GestiqCloud API",
-    version="1.0.0",
+    version="1.1.0",
     docs_url=None,
     redoc_url=None,
     swagger_ui_oauth2_redirect_url="/docs/oauth2-redirect",
@@ -477,40 +477,37 @@ app.include_router(build_api_router(), prefix="/api/v1")
 # Si necesitas restaurar alguno, ver git history antes de 2025-11-06
 # ============================================================================
 
-# Sector Templates (Plantillas de Sector) - MANTENER (único no migrado)
+# Tenant Settings (Configuración centralizada del Tenant)
+# Consolidado en CompanySettings - única fuente de verdad para configuración por tenant
+try:
+    from app.routers.tenant_settings import (
+        router as tenant_settings_router,
+        router_compat as tenant_settings_router_compat,
+    )
+
+    app.include_router(tenant_settings_router)  # Prefix="/api/v1/company/*"
+    app.include_router(tenant_settings_router_compat)  # Compat: /api/v1/tenants/*, /api/v1/admin/empresas/*
+    _router_logger.info("Tenant Settings routers mounted")
+except Exception as e:
+    _router_logger.error(f"Error mounting Tenant Settings router: {e}")
+
+# Sector Templates (Plantillas de Sector)
 try:
     from app.routers.sector_plantillas import router as sector_plantillas_router
 
-    app.include_router(sector_plantillas_router)  # Ya tiene prefix="/api/v1/sectores"
-    _router_logger.info("Sector Templates router mounted at /api/v1/sectores")
+    app.include_router(sector_plantillas_router)  # Prefix="/api/v1/sectores"
+    _router_logger.info("Sector Templates router mounted")
 except Exception as e:
     _router_logger.error(f"Error mounting Sector Templates router: {e}")
 
-# Tenant Configuration (Configuración del Tenant)
+# Sectors (FASE 1 - Consolidación)
 try:
-    from app.routers.tenant_config import router as tenant_config_router
+    from app.routers.sectors import router as sectors_router
 
-    app.include_router(tenant_config_router)  # Ya tiene prefix="/api/v1/settings"
-    _router_logger.info("Tenant Config router mounted at /api/v1/settings")
+    app.include_router(sectors_router)  # Prefix="/api/v1/sectors"
+    _router_logger.info("Sectors router mounted")
 except Exception as e:
-    _router_logger.error(f"Error mounting Tenant Config router: {e}")
-
-# Admin field configuration (nuevos endpoints de settings)
-try:
-    from app.modules.settings.interface.http.tenant import admin_router as _admin_field_router
-
-    app.include_router(_admin_field_router, prefix="/api/v1")
-except Exception:
-    # Silenciar si el módulo aún no está disponible en entornos parciales
-    pass
-
-# Tenant field config (lectura pública por tenant)
-try:
-    from app.modules.settings.interface.http.tenant import router as _tenant_settings_router
-
-    app.include_router(_tenant_settings_router, prefix="/api/v1/tenant/settings")
-except Exception:
-    pass
+    _router_logger.error(f"Error mounting Sectors router: {e}")
 
 # ============================================================================
 # TODOS LOS MÓDULOS PROFESIONALES YA ESTÁN EN app/modules/
@@ -655,6 +652,24 @@ try:
     _router_logger.info("IA Classification router mounted at /api/v1/imports/ai")
 except Exception as e:
     _router_logger.warning(f"IA Classification router mount failed: {e}")
+
+# Feedback router for classification improvement
+try:
+    from app.modules.imports.interface.http.feedback import router as feedback_router
+
+    app.include_router(feedback_router, prefix="/api/v2/imports")
+    _router_logger.info("Feedback router mounted at /api/v2/imports/feedback")
+except Exception as e:
+    _router_logger.warning(f"Feedback router mount failed: {e}")
+
+# OCR router for PDF/image text extraction
+try:
+    from app.modules.imports.interface.http.ocr import router as ocr_router
+
+    app.include_router(ocr_router, prefix="/api/v1/imports")
+    _router_logger.info("OCR router mounted at /api/v1/imports/ocr")
+except Exception as e:
+    _router_logger.warning(f"OCR router mount failed: {e}")
 
 # Ensure admin routes
 try:

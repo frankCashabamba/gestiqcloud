@@ -15,6 +15,8 @@ import { useAuth } from './auth/AuthContext'
 import { EnvProvider } from '@ui/env'
 import { ConflictResolver } from '@shared/ui'
 import { env } from './env'
+import { TenantProvider } from './contexts/TenantContext'
+import { fetchTenantTheme } from './services/theme'
 
 function IdleBridge() {
   const { logout } = useAuth()
@@ -40,7 +42,7 @@ setupPWA((ev) => {
 // Load tenant theme tokens (non-blocking)
 ;(async () => {
   try {
-    const t = await apiFetch<any>('/api/v1/tenant/settings/theme')
+    const t = await fetchTenantTheme()
     if (t) applyTheme(t)
   } catch {}
 })()
@@ -50,14 +52,16 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <EnvProvider value={env}>
       <BrowserRouter>
         <AuthProvider>
-          <I18nProvider defaultLang="es">
-          <ToastProvider>
-            <App />
-            <IdleBridge />
-            <ConflictBridge />
-            <OutboxIndicator />
-          </ToastProvider>
-          </I18nProvider>
+          <TenantProvider>
+            <I18nProvider defaultLang="es">
+            <ToastProvider>
+              <App />
+              <IdleBridge />
+              <ConflictBridge />
+              <OutboxIndicator />
+            </ToastProvider>
+            </I18nProvider>
+          </TenantProvider>
         </AuthProvider>
       </BrowserRouter>
     </EnvProvider>

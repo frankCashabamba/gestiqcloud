@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import time
@@ -49,6 +50,7 @@ from app.modules.imports.schemas import (
     UpdateClassificationRequest,
 )
 from app.services.excel_analyzer import analyze_excel_stream
+from app.modules.imports.parsers.dispatcher import select_parser_for_file
 
 
 def _get_claims(request: Request) -> dict:
@@ -96,6 +98,13 @@ def _throttle_ingest(tenant_id: str | int):
         raise HTTPException(status_code=429, detail="Too many ingests; try later")
     buf.append(now)
     _ingest_rate_state[key] = buf
+
+
+def _file_path_from_key(file_key: str) -> str:
+    """Resolver ruta local a partir de file_key almacenado en ImportBatch."""
+    if file_key.startswith("imports/"):
+        return os.path.join("uploads", file_key.replace("/", os.sep))
+    return file_key
 
 
 # ------------------------------
@@ -300,6 +309,7 @@ class CreateBatchFromUploadDTO(BaseModel):
     source_type: str | None = "products"  # domain-specific; default products
     mapping_id: str | None = None
     original_filename: str | None = None
+    parser_id: str | None = None
 
 
 @router.post("/batches/from-upload", response_model=BatchOut)
@@ -352,6 +362,7 @@ def create_batch_from_upload(
         source_type=(dto.source_type or "products"),
         origin="excel",
         file_key=dto.file_key,
+        parser_id=dto.parser_id,
         mapping_id=(
             UUID(dto.mapping_id or auto_mapping_id) if (dto.mapping_id or auto_mapping_id) else None
         ),
@@ -361,12 +372,47 @@ def create_batch_from_upload(
     db.add(batch)
     db.commit()
     db.refresh(batch)
+
+    # Try to auto-detect parser/doc_type from the uploaded file
+    try:
+        file_path = _file_path_from_key(batch.file_key)
+        parser_id, detected_doc_type = select_parser_for_file(
+            file_path,
+            hinted_doc_type=dto.source_type,
+            original_filename=dto.original_filename,
+        )
+        batch.parser_id = parser_id
+        batch.source_type = detected_doc_type or batch.source_type
+        db.add(batch)
+        db.commit()
+        db.refresh(batch)
+    except Exception:
+        db.rollback()
+
     return batch
+
+
+@router.get("/batches", response_model=list[BatchOut])
+def list_batches_private(
+    request: Request,
+    db: Session = Depends(get_db),
+    status: str | None = None,
+):
+    """Lista batches del tenant autenticado (equivalente al public pero con auth/tenant_id del token)."""
+    claims = _get_claims(request)
+    tenant_id = claims.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="tenant_id_missing")
+
+    q = db.query(ImportBatch).filter(ImportBatch.tenant_id == tenant_id)
+    if status:
+        q = q.filter(ImportBatch.status == status)
+    return q.order_by(ImportBatch.created_at.desc()).all()
 
 
 @router.post("/batches/{batch_id}/start-excel-import")
 def start_excel_import(batch_id: UUID, request: Request, db: Session = Depends(get_db)):
-    """Enqueue Celery task to import a large Excel pointed by batch.file_key."""
+    """Encola importación genérica de archivo usando dispatcher de parsers."""
     from app.models.core.modelsimport import ImportBatch
     from app.modules.imports.application.celery_app import celery_app
 
@@ -383,15 +429,36 @@ def start_excel_import(batch_id: UUID, request: Request, db: Session = Depends(g
     if not batch or not batch.file_key:
         raise HTTPException(status_code=404, detail="batch_not_found_or_no_file")
 
-    # Send task
+    file_path = _file_path_from_key(batch.file_key)
+    parser_id, detected_doc_type = select_parser_for_file(
+        file_path,
+        hinted_doc_type=batch.source_type,
+        original_filename=getattr(batch, "original_filename", None),
+    )
+
+    # Persistimos sugerencia de parser y doc_type detectado en batch si no está seteado
+    try:
+        batch.parser_id = parser_id
+        if detected_doc_type:
+            batch.source_type = detected_doc_type
+        db.add(batch)
+        db.commit()
+    except Exception:
+        db.rollback()
+
     args = {
         "tenant_id": str(tenant_id),
         "batch_id": str(batch.id),
         "file_key": batch.file_key,
-        "source_type": batch.source_type,
+        "parser_id": parser_id,
     }
-    result = celery_app.send_task("imports.import_products_excel", kwargs=args)
-    return {"task_id": result.id, "status": "enqueued"}
+    result = celery_app.send_task("imports.import_file", kwargs=args)
+    return {
+        "task_id": result.id,
+        "status": "enqueued",
+        "parser_id": parser_id,
+        "doc_type": detected_doc_type,
+    }
 
 
 # ------------------------------
@@ -696,10 +763,25 @@ def imports_health(request: Request, db: Session = Depends(get_db)):
             "application/pdf",
         ],
     }
+    deps = {}
+    try:
+        import openpyxl  # noqa: F401
+
+        deps["openpyxl"] = "ok"
+    except Exception as e:  # pragma: no cover - entorno
+        deps["openpyxl"] = f"missing: {e}"
+    try:
+        import pandas  # noqa: F401
+
+        deps["pandas"] = "ok"
+    except Exception as e:  # pragma: no cover
+        deps["pandas"] = f"missing: {e}"
+
     return {
         "ok": not (missing["tables"] or missing["columns"]),
         "missing": missing,
         "limits": limits,
+        "dependencies": deps,
     }
 
 
@@ -1012,6 +1094,31 @@ def ingest_rows_endpoint(
             status_code=413, detail=f"Too many rows: {len(payload.rows)} > {max_items}"
         )
 
+    # Recipe fast-path: parse server-side file and persist recipes/ingredients
+    if batch.source_type == "recipes" or batch.parser_id == "xlsx_recipes":
+        from app.modules.imports.parsers.xlsx_recipes import parse_xlsx_recipes
+        from app.modules.imports.application.tasks.task_import_file import (
+            _file_path_from_key,
+            _persist_recipes,
+        )
+
+        file_path = _file_path_from_key(batch.file_key) if batch.file_key else None
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(status_code=400, detail="Recipe file not found for batch")
+
+        parsed = parse_xlsx_recipes(file_path)
+        result = _persist_recipes(db, tenant_id, parsed)
+        batch.status = "READY" if result.get("errors", 0) == 0 else "PARTIAL"
+        db.add(batch)
+        db.commit()
+        return [
+            {
+                "batch_id": str(batch.id),
+                "doc_type": "recipes",
+                "summary": result,
+            }
+        ]
+
     items = use_cases.ingest_rows(
         db,
         tenant_id,  # <-- pasa el tenant_id tal cual (int o string, segÃƒÆ’Ã‚Âºn tu modelo)
@@ -1053,6 +1160,7 @@ def get_batch_endpoint(batch_id: UUID, request: Request, db: Session = Depends(g
 @router.get("/batches/{batch_id}/status")
 def get_batch_status_endpoint(batch_id: UUID, request: Request, db: Session = Depends(get_db)):
     from app.models.core.modelsimport import ImportItem
+    from app.modules.imports.application.status import ImportBatchStatus, ImportItemStatus
 
     claims = _get_claims(request)
     # tenant_id is now UUID, not int
@@ -1077,15 +1185,37 @@ def get_batch_status_endpoint(batch_id: UUID, request: Request, db: Session = De
     )
 
     total = sum(status_counts.values())
-    completed = status_counts.get("published", 0)
-    failed = sum(v for k, v in status_counts.items() if "failed" in k)
-    processing = sum(
-        v
-        for k, v in status_counts.items()
-        if k not in ("published", "pending") and "failed" not in k
+    completed = status_counts.get(ImportItemStatus.PROMOTED, 0)
+    failed = status_counts.get(ImportItemStatus.ERROR_VALIDATION, 0) + status_counts.get(
+        ImportItemStatus.ERROR_PROMOTION, 0
     )
+    pending = status_counts.get(ImportItemStatus.PENDING, 0) + status_counts.get(
+        ImportItemStatus.OK, 0
+    )
+    processing = max(0, total - (completed + failed + pending))
+    progress_pct = round((completed / total) * 100, 1) if total > 0 else 0.0
 
     from datetime import datetime as _dt
+
+    # Si no quedan pendientes/en proceso, actualizar estado del batch según resultado
+    if (total == 0) or (pending == 0 and processing == 0):
+        if completed == total and total > 0:
+            target_status = ImportBatchStatus.PROMOTED
+        elif total == 0:
+            target_status = ImportBatchStatus.EMPTY
+        elif failed > 0 and completed == 0:
+            target_status = ImportBatchStatus.ERROR
+        elif failed > 0 and completed > 0:
+            target_status = ImportBatchStatus.PARTIAL
+        else:
+            target_status = ImportBatchStatus.READY
+        if batch.status != target_status:
+            batch.status = target_status
+            try:
+                db.add(batch)
+                db.commit()
+            except Exception:
+                db.rollback()
 
     return {
         "batch_id": str(batch_id),
@@ -1094,8 +1224,8 @@ def get_batch_status_endpoint(batch_id: UUID, request: Request, db: Session = De
         "completed": completed,
         "processing": processing,
         "failed": failed,
-        "pending": status_counts.get("pending", 0),
-        "progress": round(completed / total * 100, 1) if total > 0 else 0,
+        "pending": pending,
+        "progress": progress_pct,
         "status_breakdown": status_counts,
         "server_time": _dt.utcnow().isoformat() + "Z",
     }
@@ -1317,9 +1447,13 @@ def list_all_products_endpoint(
     repo = ImportsRepository()
     # List items from ALL batches of type 'productos'
     all_items = []
+    # Aceptar tanto 'products' (nuevo) como 'productos' (legacy) para no dejar fuera lotes recientes
     batches = (
         db.query(ImportBatch)
-        .filter_by(tenant_id=tenant_id, source_type="productos")
+        .filter(
+            ImportBatch.tenant_id == tenant_id,
+            ImportBatch.source_type.in_(("products", "productos", "product")),
+        )
         .order_by(ImportBatch.created_at.desc())
         .all()
     )
@@ -1381,6 +1515,31 @@ def list_all_products_endpoint(
     }
 
 
+# Variante autenticada bajo /tenant (usa tenant_id del token)
+@router.get("/items/products")
+def list_all_products_private_endpoint(
+    request: Request,
+    db: Session = Depends(get_db),
+    status: str | None = None,
+    q: str | None = None,
+    limit: int = Query(default=5000, le=10000),
+    offset: int = Query(default=0, ge=0),
+):
+    claims = _get_claims(request)
+    tenant_id = claims.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="tenant_id_missing")
+    return list_all_products_endpoint(
+        request=request,
+        db=db,
+        status=status,
+        q=q,
+        limit=limit,
+        offset=offset,
+        tenant_id=str(tenant_id),
+    )
+
+
 @router.get("/batches/{batch_id}/items/products")
 def list_batch_items_products_endpoint(
     batch_id: UUID,
@@ -1409,8 +1568,14 @@ def list_batch_items_products_endpoint(
     # Format items as products
     products = []
     for item in items[offset : offset + limit]:
-        # Merge raw and normalized data (normalized overrides raw)
-        data = {**(item.raw or {}), **(item.normalized or {})}
+        # Merge raw and normalized data (normalized overrides raw) and flatten nested "datos"
+        data = {}
+        raw = item.raw or {}
+        if isinstance(raw, dict) and isinstance(raw.get("datos"), dict):
+            data.update(raw.get("datos") or {})
+        data.update(raw)
+        if isinstance(item.normalized, dict):
+            data.update(item.normalized)
         nmap = _build_norm_map(data)
 
         codigo = _first(nmap, _ALIASES.get("codigo", []))
@@ -1813,6 +1978,19 @@ def promote_items_endpoint(
 
     _tenant_uuid = UUID(tenant_id_str)
     ensure_rls(request, db)
+    # Asegurar que la sesión arranca limpia por si viene de un intento previo fallido
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    # Reaplicar GUC de RLS después del rollback inicial
+    try:
+        db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_id)})
+        _uid = claims.get("user_id") or claims.get("tenant_user_id")
+        if _uid:
+            db.execute(text("SET LOCAL app.user_id = :uid"), {"uid": str(_uid)})
+    except Exception:
+        pass
 
     # Set RLS context for product inserts
     db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_id)})
@@ -1833,44 +2011,92 @@ def promote_items_endpoint(
 
     for item_id in item_ids:
         try:
-            item = db.query(ImportItem).filter_by(id=UUID(item_id)).first()
-            if not item:
-                errors.append({"item_id": item_id, "error": "not_found"})
-                continue
+            # Usar savepoint por item para que un fallo no aborte toda la transacción
+            with db.begin_nested():
+                item = db.query(ImportItem).filter_by(id=UUID(item_id)).first()
+                if not item:
+                    errors.append({"item_id": item_id, "error": "not_found"})
+                    continue
 
-            # Promote individual item using ProductHandler
-            # Normalize keys to lowercase for handler compatibility
-            raw = item.raw or {}
-            normalized = item.normalized or {}
-            src = {k.lower(): v for k, v in raw.items()}
-            src.update({k.lower(): v for k, v in normalized.items()})
+                # Promote individual item using ProductHandler
+                # Normalize keys to lowercase for handler compatibility
+                raw = item.raw or {}
+                normalized = item.normalized or {}
+                src = {k.lower(): v for k, v in raw.items()}
+                src.update({k.lower(): v for k, v in normalized.items()})
 
-            # Map common Spanish column names
-            if "producto" in src and "name" not in src:
-                src["name"] = src["producto"]
-            if "precio unitario venta" in src and "precio" not in src:
-                src["precio"] = src["precio unitario venta"]
-            if "cantidad" not in src and "sobrante diario" in src:
-                src["cantidad"] = src["sobrante diario"]
+                # Map common Spanish column names
+                if "producto" in src and "name" not in src:
+                    src["name"] = src["producto"]
+                if "precio unitario venta" in src and "precio" not in src:
+                    src["precio"] = src["precio unitario venta"]
+                if "cantidad" not in src and "sobrante diario" in src:
+                    src["cantidad"] = src["sobrante diario"]
 
-            # Skip rows without name (category headers)
-            if not src.get("name") or not src.get("name").strip():
-                errors.append({"item_id": item_id, "error": "missing_name", "raw": src})
-                continue
+                # Skip rows without name (category headers)
+                if not src.get("name") or not src.get("name").strip():
+                    errors.append(
+                        {
+                            "item_id": item_id,
+                            "error": "missing_name",
+                            "sku": src.get("sku") or src.get("codigo"),
+                            "name": src.get("name"),
+                        }
+                    )
+                    continue
 
-            result = ProductHandler.promote(
-                db, tenant_id, src, promoted_id=item.promoted_id, options=opts
+                result = ProductHandler.promote(
+                    db, tenant_id, src, promoted_id=item.promoted_id, options=opts
+                )
+
+                if result.domain_id:
+                    item.status = ImportItemStatus.PROMOTED
+                    item.promoted_id = result.domain_id
+                    db.add(item)
+                    # Detectar fallos de integridad en el acto (no esperar al commit global)
+                    db.flush()
+                    promoted_count += 1
+                else:
+                    errors.append(
+                        {
+                            "item_id": item_id,
+                            "error": "promotion_failed",
+                            "sku": src.get("sku") or src.get("codigo"),
+                            "name": src.get("name"),
+                        }
+                    )
+        except Exception as e:
+            # El savepoint se revierte automáticamente; limpiamos el estado de sesión y continuamos
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            # Intenta exponer la causa real (e.orig en SQLAlchemy)
+            real_error = getattr(e, "orig", None) or e
+            trace = None
+            try:
+                import traceback as _tb
+
+                trace = _tb.format_exc()
+            except Exception:
+                trace = None
+            errors.append(
+                {
+                    "item_id": item_id,
+                    "error": str(real_error),
+                    "sku": locals().get("src", {}).get("sku") if "src" in locals() else None,
+                    "name": locals().get("src", {}).get("name") if "src" in locals() else None,
+                    "trace": trace,
+                }
             )
 
-            if result.domain_id:
-                item.status = ImportItemStatus.PROMOTED
-                item.promoted_id = result.domain_id
-                db.add(item)
-                promoted_count += 1
-            else:
-                errors.append({"item_id": item_id, "error": "promotion_failed", "src": src})
-        except Exception as e:
-            errors.append({"item_id": item_id, "error": str(e)})
+    # Log para depurar qué falló en producción/dev sin depender del cliente
+    if errors:
+        logging.error(
+            "Import promote items: %s errores (primeros 3: %s)",
+            len(errors),
+            errors[:3],
+        )
 
     db.commit()
     return {"promoted": promoted_count, "total": len(item_ids), "errors": errors}

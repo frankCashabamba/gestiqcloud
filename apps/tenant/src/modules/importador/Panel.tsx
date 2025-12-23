@@ -1,6 +1,6 @@
 import React from 'react'
-import ImportadorExcel from './ImportadorExcel'
+import ImportadorExcelWithQueue from './ImportadorExcelWithQueue'
 
 export default function ImportadorPanel() {
-  return <ImportadorExcel />
+  return <ImportadorExcelWithQueue />
 }

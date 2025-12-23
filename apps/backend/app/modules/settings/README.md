@@ -3,8 +3,9 @@
 Config multi-tenant de módulos/campos. No cubre catálogos globales (ver `admin_config`) ni permisos/roles.
 
 ## Alcance rápido
-- Cubre: settings generales/branding/fiscal/POS/horarios/limites por tenant (`tenant/settings/*`), defaults por país, catálogo de módulos, field-config por sector/tenant (admin), theming tokens y form modes.
+- Cubre: settings generales/branding/fiscal/POS/horarios/limites por tenant (`tenant/settings/*`), catalogo de modulos, field-config por sector/tenant (admin), theming tokens y form modes.
 - No cubre: gestión de módulos obligatorios (se valida en `SettingsManager` pero no expone admin público), migraciones de datos legacy.
+- Fuente de datos: `/api/v1/company/settings` y `/api/v1/tenants/{tenant_id}/settings` leen/escriben `company_settings` (alias `TenantSettings` para compat).
 
 ## Endpoints relevantes (`app/modules/settings/interface/http/tenant.py`)
 - Base tenant: `/api/v1/tenant/settings/*`
@@ -19,7 +20,7 @@ Config multi-tenant de módulos/campos. No cubre catálogos globales (ver `admin
 ### Ejemplos
 ```
 GET /api/v1/tenant/settings/general
-→ 200 { "locale": "es_EC", "timezone": "America/Guayaquil", "currency": "USD", ... }
+→ 200 { "locale": "<db>", "timezone": "<db>", "currency": "<db>", ... }
 
 PUT /api/v1/tenant/settings/pos
 { "tax": { "enabled": true, "default_rate": 0.12 }, "receipt_width_mm": 58 }
@@ -33,14 +34,14 @@ GET /api/v1/admin/field-config/sector?module=clientes&sector=retail
 - `401` si faltan claims, `403 admin_required` al modificar fiscal/pos sin `is_company_admin`, `400` si faltan `module/sector`, `404 empresa not found` en overrides por tenant.
 
 ## Modelos/DB y migraciones
-- Tablas: `tenant_settings`, `tenant_field_config`, `sector_field_default`, `tenant_module_settings`, `ui_template` creadas en `001_initial_schema`. No hay migraciones específicas posteriores (revisar `004_config_tables.py` placeholder).
+- Tabla principal: `company_settings` (sustituye a la legacy `tenant_settings`, ver migración `2025-12-03_000_migrate_tenant_settings_to_company`). Field-config: `tenant_field_config`, `sector_field_default`, `tenant_module_settings`, `ui_template`.
 - Repositorio principal: `SettingsRepo` (JSONB por key). Field config usa `TenantFieldConfig` y `SectorFieldDefault`.
 
 ## Flujos críticos
 - `SettingsRepo.get/put` lee/escribe JSONB por clave (general/branding/fiscal/pos/horarios/limites) scoped por tenant_id (vía claims/GUC).
 - `fields`: resuelve defaults por sector (`_default_fields_by_sector`) → aplica overrides de `SectorFieldDefault` → overrides por tenant (`TenantFieldConfig`).
-- `theme`: compone tokens desde `ConfiguracionEmpresa` y `Tenant`, normaliza sector.
-- `pos` y `fiscal` se usan por POS para validar impuestos y defaults de tasa.
+- `theme`: compone tokens desde `ConfiguracionEmpresa` y `Tenant`, normaliza sector; si no hay branding, retorna `null`.
+- `pos` y `fiscal` se usan por POS para validar impuestos y tasas configuradas.
 
 ## Dependencias y env vars
 - DB (`DATABASE_URL`) con RLS (usa `ensure_rls` en montado).
@@ -48,10 +49,10 @@ GET /api/v1/admin/field-config/sector?module=clientes&sector=retail
 - Entornos: ver `docs/entornos.md` (RLS flags, dominios).
 
 ## Pruebas mínimas
-- Feliz: `GET/PUT /general` persiste cambios; `GET /fields` devuelve defaults según sector; `GET /theme` entrega tokens con logo/color si empresa existe.
+- Feliz: `GET/PUT /general` persiste cambios; `GET /fields` devuelve config según sector; `GET /theme` entrega tokens con logo/color si empresa existe.
 - Validación: `PUT /fiscal` con usuario sin `is_company_admin` → 403; `PUT /tenant` sin `module` → error.
 - Auth/tenancy: llamadas sin claims → 401; overrides por empresa slug desconocido → 404.
-- Estados límite: `pos.tax.default_rate` >1 se normaliza a porcentaje; `theme` con empresa sin logos retorna defaults seguros.
+- Estados límite: `pos.tax.default_rate` >1 se normaliza a porcentaje; `theme` con empresa sin logos retorna `null`.
 - Idempotencia: `PUT` repetidos con mismo payload no cambian resultado; `GET /ui-plantillas/health` siempre `{ok: true}`.
 
 ## Consumidores y compatibilidad
@@ -64,7 +65,6 @@ GET /api/v1/admin/field-config/sector?module=clientes&sector=retail
 ```
 app/modules/settings/
 ├── application/
-│   ├── defaults.py          # Configuración por defecto ES/EC
 │   ├── modules_catalog.py   # Catálogo de módulos disponibles
 │   └── use_cases.py         # SettingsManager (lógica de negocio)
 └── README.md
@@ -72,21 +72,7 @@ app/modules/settings/
 
 ## Uso Básico
 
-### 1. Inicializar Settings para un Tenant
-
-```python
-from app.modules.settings.application.use_cases import SettingsManager
-
-manager = SettingsManager(db)
-
-# Crear settings con defaults según país
-result = manager.init_default_settings(
-    tenant_id=tenant_uuid,
-    country="ES"  # o "EC"
-)
-```
-
-### 2. Obtener Configuración Completa
+### 1. Obtener Configuración Completa
 
 ```python
 settings = manager.get_all_settings(tenant_id)
@@ -95,9 +81,9 @@ settings = manager.get_all_settings(tenant_id)
 {
     "id": "uuid-settings",
     "tenant_id": "uuid-tenant",
-    "locale": "es_ES",
-    "timezone": "Europe/Madrid",
-    "currency": "EUR",
+    "locale": "<db>",
+    "timezone": "<db>",
+    "currency": "<db>",
     "modules": {
         "pos": {"enabled": True, "receipt_width_mm": 58, ...},
         "inventory": {"enabled": True, ...},
@@ -107,7 +93,7 @@ settings = manager.get_all_settings(tenant_id)
 }
 ```
 
-### 3. Configuración de Módulo Específico
+### 2. Configuración de Módulo Específico
 
 ```python
 # Obtener config de POS
@@ -124,7 +110,7 @@ manager.update_module_settings(
 )
 ```
 
-### 4. Habilitar/Deshabilitar Módulos
+### 3. Habilitar/Deshabilitar Módulos
 
 ```python
 # Habilitar módulo (valida dependencias)
@@ -138,7 +124,7 @@ else:
 result = manager.disable_module(tenant_id, "hr")
 ```
 
-### 5. Listar Módulos Disponibles
+### 4. Listar Módulos Disponibles
 
 ```python
 # Sin tenant_id (solo catálogo)
@@ -151,29 +137,9 @@ for module in modules:
     print(f"{module['icon']} {module['name']}: {module['is_enabled']}")
 ```
 
-## Defaults por País
-
-### España (ES)
-
-- **Moneda**: EUR
-- **Timezone**: Europe/Madrid
-- **IVA**: 21% (general), 10% (reducido), 4% (superreducido)
-- **E-factura**: Facturae 3.2.2
-- **Formato facturas**: `{year}-{series}-{number:05d}`
-- **Retención IRPF**: 15%
-
-### Ecuador (EC)
-
-- **Moneda**: USD
-- **Timezone**: America/Guayaquil
-- **IVA**: 15%
-- **E-factura**: SRI XML
-- **Formato facturas**: `{establishment}-{point}-{number:09d}` (001-001-000000001)
-- **Retenciones**: IVA (30%, 70%, 100%), IR (1%, 2%, 8%, 10%)
-
 ## Módulos Disponibles
 
-| Módulo | Nombre | Categoría | Obligatorio | Default |
+| Módulo | Nombre | Categoría | Obligatorio | Disponible |
 |--------|--------|-----------|-------------|---------|
 | `pos` | Punto de Venta | sales | No | ✅ |
 | `inventory` | Inventario | operations | No | ✅ |
@@ -199,18 +165,6 @@ for module in modules:
 - **Sales** → requiere `inventory`, `invoicing`
 - **Manufacturing** → requiere `inventory`
 - **E-commerce** → requiere `inventory`, `sales`
-
-## Seed Script
-
-Para crear settings por defecto para todos los tenants existentes:
-
-```bash
-# Crear settings
-python scripts/seed_default_settings.py
-
-# Solo verificar
-python scripts/seed_default_settings.py --verify
-```
 
 ## Ejemplo de Configuración POS
 
@@ -258,7 +212,7 @@ Los settings son multi-tenant automáticamente:
 
 ```python
 # El tenant_id está en la foreign key
-settings = TenantSettings(
+settings = CompanySettings(
     tenant_id=tenant_uuid,
     settings={...}
 )
@@ -278,9 +232,7 @@ POST   /api/v1/settings/modules/:module/disable
 ## Notas Técnicas
 
 - **JSONB**: Configuración flexible y extendible
-- **Auto-create**: Settings se crean automáticamente si no existen
-- **Type-safe defaults**: Configuración completa para todos los módulos
-- **Country-aware**: Defaults específicos para ES/EC
+- **No hardcoded defaults**: Los valores deben existir en DB (`company_settings` / catálogos admin)
 - **Validation**: Dependencias y módulos obligatorios validados
 
 ---

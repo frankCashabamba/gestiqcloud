@@ -228,7 +228,7 @@ class Settings(BaseSettings):
 
     # CORS
     CORS_ORIGINS: str | list[str] = Field(
-        default=["http://localhost:5173", "http://localhost:5174", "http://localhost:8081"],
+        default=["http://localhost:5173", "http://localhost:5174", "http://localhost:8081", "http://localhost:8082"],
         description="Orígenes permitidos (lista o string con comas).",
     )
     CORS_ALLOW_ORIGIN_REGEX: str | None = None
@@ -319,6 +319,10 @@ class Settings(BaseSettings):
     IMPORT_AI_CACHE_TTL: int = Field(default=86400, description="Cache TTL in seconds")  # 24 hours
     IMPORT_AI_LOG_TELEMETRY: bool = Field(
         default=True, description="Log AI classification telemetry for accuracy tracking"
+    )
+    IMPORT_CONFIRMATION_THRESHOLD: float = Field(
+        default=0.7,
+        description="Confidence threshold below which user confirmation is required before processing",
     )
 
     @field_validator("CORS_ORIGINS", mode="before")

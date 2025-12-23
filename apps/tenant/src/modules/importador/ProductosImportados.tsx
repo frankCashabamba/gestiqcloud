@@ -1,7 +1,10 @@
-﻿import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 import ImportadorLayout from './components/ImportadorLayout'
+import { apiFetch } from '../../lib/http'
+import { listAllProductItems, listProductItems } from './services/importsApi'
+import { patchItem } from './services/importsApi'
 
 interface ProductoImportado {
   id: string
@@ -45,9 +48,17 @@ const ProductosImportados: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<Partial<ProductoImportado>>({})
+  const [showZeroStockNotice, setShowZeroStockNotice] = useState(false)
 
   const batchId = searchParams.get('batch_id')
-  const status = searchParams.get('status') || 'OK'
+  const statusParam = searchParams.get('status')
+  const isZeroStockFilter = statusParam === 'SIN_STOCK'
+  // Por defecto, filtrar a OK para no mostrar promovidos ya procesados
+  const status = isZeroStockFilter
+    ? undefined
+    : statusParam
+      ? (statusParam !== 'all' ? statusParam : undefined)
+      : 'OK'
   const offset = parseInt(searchParams.get('offset') || '0', 10)
   const limit = parseInt(searchParams.get('limit') || '5000', 10)
 
@@ -55,30 +66,21 @@ const ProductosImportados: React.FC = () => {
     try {
       setLoading(true)
       // Si hay batchId, usar endpoint específico; sino, listar todos
-      const endpoint = batchId
-        ? `/api/v1/imports/batches/${batchId}/items/products`
-        : '/api/v1/imports/items/products'
-
-      const url = new URL(endpoint, window.location.origin)
-      if (status) url.searchParams.set('status', status)
-      url.searchParams.set('offset', offset.toString())
-      url.searchParams.set('limit', limit.toString())
-      // Public endpoint requires tenant_id when RLS GUC is not set
-      if (!batchId && profile?.tenant_id) {
-        url.searchParams.set('tenant_id', profile.tenant_id)
+      if (batchId) {
+        const data = await listProductItems(batchId, { status, limit, offset, authToken: token || undefined })
+        setProductos(data.items)
+        setTotal(data.total || data.items.length)
+      } else {
+        const data = await listAllProductItems({
+          status,
+          limit,
+          offset,
+          tenantId: profile?.tenant_id,
+          authToken: token || undefined,
+        })
+        setProductos(data.items)
+        setTotal(data.total || data.items.length)
       }
-
-      const res = await fetch(url.toString(), {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      if (!res.ok) throw new Error(`Error ${res.status}: ${res.statusText}`)
-
-      const data: ProductosResponse = await res.json()
-      setProductos(data.items)
-      setTotal(data.total)
       setError(null)
     } catch (err: any) {
       console.error('Error al cargar productos:', err)
@@ -92,9 +94,29 @@ const ProductosImportados: React.FC = () => {
     fetchProductos()
   }, [fetchProductos])
 
+  const zeroStockCount = useMemo(() => {
+    return productos.filter((p) => (p.stock ?? 0) <= 0).length
+  }, [productos])
+
+  const displayedProductos = useMemo(() => {
+    if (!isZeroStockFilter) return productos
+    return productos.filter((p) => (p.stock ?? 0) <= 0)
+  }, [productos, isZeroStockFilter])
+
+  const editingBatchId = useMemo(() => {
+    if (batchId) return batchId
+    if (!editingId) return null
+    const item = productos.find((p) => p.id === editingId)
+    return item?.batch_id || null
+  }, [batchId, editingId, productos])
+
+  useEffect(() => {
+    setShowZeroStockNotice(zeroStockCount > 0)
+  }, [zeroStockCount])
+
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(new Set(productos.map((p) => p.id)))
+      setSelectedIds(new Set(displayedProductos.map((p) => p.id)))
     } else {
       setSelectedIds(new Set())
     }
@@ -127,21 +149,16 @@ const ProductosImportados: React.FC = () => {
   }
 
   const handleSaveEdit = async () => {
-    if (!editingId || !batchId) return
+    if (!editingId) return
+    if (!editingBatchId) {
+      alert('No se pudo determinar el lote del item para guardar los cambios')
+      return
+    }
 
     try {
-      const res = await fetch(`/api/v1/imports/batches/${batchId}/items/${editingId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          normalized: editValues,
-        }),
-      })
-
-      if (!res.ok) throw new Error('Error al guardar')
+      for (const [field, value] of Object.entries(editValues)) {
+        await patchItem(editingBatchId, editingId, field, value as any)
+      }
 
       setEditingId(null)
       setEditValues({})
@@ -165,20 +182,13 @@ const ProductosImportados: React.FC = () => {
     if (!confirm(`¿Eliminar ${selectedIds.size} productos? Esta acción no se puede deshacer.`)) return
 
     try {
-      const res = await fetch('/api/v1/imports/items/delete-multiple', {
+      const result = await apiFetch<{ deleted: number }>('/api/v1/tenant/imports/items/delete-multiple', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        authToken: token || undefined,
         body: JSON.stringify({
           item_ids: Array.from(selectedIds),
         }),
       })
-
-      if (!res.ok) throw new Error('Error al eliminar')
-
-      const result = await res.json()
       alert(`✅ ${result.deleted} productos eliminados`)
 
       setSelectedIds(new Set())
@@ -194,13 +204,18 @@ const ProductosImportados: React.FC = () => {
       return
     }
 
+    const zeroStockSelected = productos.filter((p) => selectedIds.has(p.id) && (p.stock ?? 0) <= 0).length
+    if (zeroStockSelected > 0) {
+      if (!confirm(`Hay ${zeroStockSelected} productos sin stock. Desea promover productos sin stock?`)) return
+    }
+
     if (!confirm(`¿Promover ${selectedIds.size} productos al catálogo?`)) return
 
     try {
       // Si hay batchId, promover todo el batch; sino, promover items individuales
       const endpoint = batchId
-        ? `/api/v1/imports/batches/${batchId}/promote`
-        : '/api/v1/imports/items/promote'
+        ? `/api/v1/tenant/imports/batches/${batchId}/promote`
+        : '/api/v1/tenant/imports/items/promote'
 
       const url = new URL(endpoint, window.location.origin)
       if (autoMode) {
@@ -211,20 +226,13 @@ const ProductosImportados: React.FC = () => {
         url.searchParams.set('activate', '1')
       }
 
-      const res = await fetch(url.toString(), {
+      const result = await apiFetch<{ promoted: number; total: number; errors?: any[] }>(url.pathname + url.search, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        authToken: token || undefined,
         body: JSON.stringify({
           item_ids: Array.from(selectedIds),
         }),
       })
-
-      if (!res.ok) throw new Error('Error promoting')
-
-      const result = await res.json()
       console.log('🎯 Resultado de promoción:', result)
 
       if (result.errors && result.errors.length > 0) {
@@ -242,7 +250,13 @@ const ProductosImportados: React.FC = () => {
   }
 
   const handlePageChange = (newOffset: number) => {
-    setSearchParams({ batch_id: batchId!, status, offset: newOffset.toString(), limit: limit.toString() })
+    const params: Record<string, string> = {
+      offset: newOffset.toString(),
+      limit: limit.toString(),
+      status: statusParam || 'OK',
+    }
+    if (batchId) params.batch_id = batchId
+    setSearchParams(params)
   }
 
   if (loading && productos.length === 0) {
@@ -270,7 +284,8 @@ const ProductosImportados: React.FC = () => {
     )
   }
 
-  const allSelected = productos.length > 0 && selectedIds.size === productos.length
+  const displayedTotal = isZeroStockFilter ? displayedProductos.length : total
+  const allSelected = displayedProductos.length > 0 && selectedIds.size === displayedProductos.length
 
   return (
     <ImportadorLayout>
@@ -282,7 +297,7 @@ const ProductosImportados: React.FC = () => {
               {batchId ? 'Productos del Lote' : 'Todos los Productos Importados'}
             </h1>
             <p className="text-sm text-neutral-600 mt-1">
-              {total} productos · {selectedIds.size} seleccionados
+              {displayedTotal} productos · {selectedIds.size} seleccionados
               {batchId && <span className="ml-2 text-xs font-mono text-neutral-500">({batchId.slice(0, 8)})</span>}
             </p>
           </div>
@@ -315,7 +330,7 @@ const ProductosImportados: React.FC = () => {
         <div className="flex gap-2 items-center flex-wrap">
           <label className="text-sm font-medium text-neutral-700">Estado:</label>
           <select
-            value={status}
+            value={statusParam || 'OK'}
             onChange={(e) => {
               const params: Record<string, string> = { status: e.target.value, offset: '0', limit: limit.toString() }
               if (batchId) params.batch_id = batchId
@@ -323,10 +338,12 @@ const ProductosImportados: React.FC = () => {
             }}
             className="border border-neutral-300 rounded px-3 py-1.5 text-sm"
           >
+            <option value="all">Todos</option>
             <option value="OK">OK</option>
             <option value="READY">Listo</option>
             <option value="ERROR_VALIDATION">Con errores</option>
             <option value="PROMOTED">Promovidos</option>
+            <option value="SIN_STOCK">Sin stock</option>
           </select>
 
           {!batchId && (
@@ -348,6 +365,21 @@ const ProductosImportados: React.FC = () => {
             <input value={targetWarehouse} onChange={(e) => setTargetWarehouse(e.target.value)} className="border rounded px-2 py-1 text-sm w-28" placeholder="ALM-1" />
           </div>
         </div>
+
+        {showZeroStockNotice && (
+          <div className="flex items-center justify-between gap-3 p-3 border border-amber-200 bg-amber-50 rounded">
+            <div className="text-sm text-amber-800">
+              Hay {zeroStockCount} productos sin stock. Actualice para continuar.
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowZeroStockNotice(false)}
+              className="text-xs text-amber-800 hover:underline"
+            >
+              Ocultar
+            </button>
+          </div>
+        )}
 
         {/* Table */}
         <div className="bg-white border border-neutral-200 rounded-lg overflow-hidden">
@@ -377,7 +409,7 @@ const ProductosImportados: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100">
-                {productos.map((producto) => {
+                {displayedProductos.map((producto) => {
                   const isEditing = editingId === producto.id
                   const isSelected = selectedIds.has(producto.id)
 
@@ -536,10 +568,10 @@ const ProductosImportados: React.FC = () => {
         </div>
 
         {/* Pagination */}
-        {total > limit && (
+        {displayedTotal > limit && (
           <div className="flex items-center justify-between">
             <div className="text-sm text-neutral-600">
-              Mostrando {offset + 1}-{Math.min(offset + limit, total)} de {total}
+              Mostrando {offset + 1}-{Math.min(offset + limit, displayedTotal)} de {displayedTotal}
             </div>
             <div className="flex gap-2">
               <button

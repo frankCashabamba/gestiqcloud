@@ -1,4 +1,6 @@
-import { apiFetch } from '../../../lib/http';
+import { apiFetch } from '../../../lib/http'
+import { IMPORTS } from '@endpoints/imports'
+import { ImportMapping } from '@api-types/imports'
 
 export interface AnalyzeFileResponse {
   headers: string[]
@@ -7,18 +9,7 @@ export interface AnalyzeFileResponse {
   suggested_mapping: Record<string, string>
   total_rows: number
   total_columns: number
-  saved_mappings: SavedColumnMapping[]
-}
-
-export interface SavedColumnMapping {
-  id: string
-  name: string
-  description?: string
-  mapping: Record<string, string>
-  file_pattern?: string
-  use_count: number
-  last_used_at?: string
-  created_at: string
+  saved_mappings: ImportMapping[]
 }
 
 export interface CreateColumnMappingRequest {
@@ -28,45 +19,31 @@ export interface CreateColumnMappingRequest {
   file_pattern?: string
 }
 
-/**
- * Analiza un archivo Excel y detecta columnas automáticamente
- */
-export async function analyzeExcelFile(
-  file: File
-): Promise<AnalyzeFileResponse> {
+export async function analyzeExcelFile(file: File): Promise<AnalyzeFileResponse> {
   const formData = new FormData()
   formData.append('file', file)
 
-  return apiFetch<AnalyzeFileResponse>('/api/v1/imports/analyze-file', {
+  return apiFetch<AnalyzeFileResponse>(IMPORTS.analyzeFile, {
     method: 'POST',
-    body: formData
+    body: formData,
   })
 }
 
-/**
- * Lista mapeos de columnas guardados
- */
-export async function listColumnMappings(): Promise<SavedColumnMapping[]> {
-  return apiFetch<SavedColumnMapping[]>('/api/v1/imports/column-mappings')
+export async function listColumnMappings(): Promise<ImportMapping[]> {
+  return apiFetch<ImportMapping[]>(IMPORTS.mappings.list)
 }
 
-/**
- * Crea un nuevo mapeo de columnas
- */
 export async function createColumnMapping(
   data: CreateColumnMappingRequest
-): Promise<SavedColumnMapping> {
-  return apiFetch<SavedColumnMapping>('/api/v1/imports/column-mappings', {
+): Promise<ImportMapping> {
+  return apiFetch<ImportMapping>(IMPORTS.mappings.create, {
     method: 'POST',
-    body: JSON.stringify(data)
+    body: JSON.stringify(data),
   })
 }
 
-/**
- * Elimina un mapeo de columnas
- */
 export async function deleteColumnMapping(id: string): Promise<void> {
-  return apiFetch<void>(`/api/v1/imports/column-mappings/${id}`, {
-    method: 'DELETE'
+  return apiFetch<void>(`${IMPORTS.mappings.create}/${id}`, {
+    method: 'DELETE',
   })
 }

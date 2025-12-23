@@ -10,11 +10,11 @@ from sqlalchemy.orm import Session
 from app.models.core.settings import TenantSettings
 from app.models.tenant import Tenant
 
-from .defaults import get_default_settings
 from .modules_catalog import get_available_modules, get_module_by_id, validate_module_dependencies
 
 
 class SettingsManager:
+
     """Settings Manager for Tenant and Module Configuration"""
 
     def __init__(self, db: Session):
@@ -299,20 +299,16 @@ class SettingsManager:
         # Detect tenant country if not provided
         if not country:
             tenant = self.db.query(Tenant).filter(Tenant.id == tenant_id).first()
-            country = tenant.country if tenant else "ES"
+            if tenant:
+                country = tenant.country_code or tenant.country
 
-        # Get defaults by country
-        defaults = get_default_settings(country)
-        global_config = defaults.pop("global", {})
+        settings_kwargs: dict[str, Any] = {"tenant_id": tenant_id}
+        if tenant and getattr(tenant, "base_currency", None):
+            settings_kwargs["currency"] = tenant.base_currency
+        settings_kwargs["settings"] = {}
 
         # Create settings
-        settings = TenantSettings(
-            tenant_id=tenant_id,
-            locale=global_config.get("locale", "es"),
-            timezone=global_config.get("timezone", "Europe/Madrid"),
-            currency=global_config.get("currency", "EUR"),
-            settings=defaults,  # All modules
-        )
+        settings = TenantSettings(**settings_kwargs)
 
         self.db.add(settings)
         try:

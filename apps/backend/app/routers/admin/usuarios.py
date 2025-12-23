@@ -29,17 +29,18 @@ def listar_usuarios(db: Session = Depends(get_db)):
     )
 
     def to_item(u: CompanyUser):
-        nombre = (
-            f"{getattr(u, 'nombre_encargado', '')} {getattr(u, 'apellido_encargado', '')}".strip()
-        )
+        full_name = " ".join(
+            [
+                getattr(u, "first_name", "") or "",
+                getattr(u, "last_name", "") or "",
+            ]
+        ).strip()
         return {
-            # Forzar string para evitar clientes que tiparon number
-            "id": str(u.id) if hasattr(u, "id") else None,
-            "nombre": nombre,
+            "id": str(getattr(u, "id", None)) if hasattr(u, "id") else None,
+            "name": full_name or None,
             "email": getattr(u, "email", None),
-            "es_admin": False,
-            "is_company_admin": True,
-            "activo": bool(getattr(u, "activo", False)),
+            "is_company_admin": bool(getattr(u, "is_company_admin", False)),
+            "active": bool(getattr(u, "is_active", True)),
         }
 
     return [to_item(u) for u in rows]

@@ -162,7 +162,7 @@
 **Evidencia**:
 - Webhooks: `POST {webhook_url}` en eventos batch
 - SSE: `GET /batches/{id}/events` (Server-Sent Events)
-- Config: `tenant_settings.import_webhook_url`
+- Config: `company_settings.settings.import_webhook_url`
 
 ### ✅ S6: Catálogo de errores
 **Status**: ✅ Completo

@@ -30,6 +30,7 @@ Cookie: refresh_token=<jwt>
 
 ## Modelos/DB y migraciones
 - Tablas `auth_refresh_family`, `auth_refresh_token` (creadas en `001_initial_schema` vía metadata); guardan familia y tokens con hashes de UA/IP.
+- Nota: no existen tablas `tenant_refresh_*`; tenant y admin comparten `auth_refresh_*`.
 - Usuarios: `company_user` (tenant) y `auth_super_user` (admin) creados también en `001_initial_schema`.
 - No hay migraciones específicas posteriores; revisar `alembic/versions/005_pos_extensions.py` y siguientes para cambios generales si se añaden campos.
 

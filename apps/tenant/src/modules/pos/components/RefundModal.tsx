@@ -5,6 +5,8 @@
 import React, { useState } from 'react'
 import { refundReceipt } from '../services'
 import type { POSReceipt, RefundRequest } from '../../../types/pos'
+import { useSectorPlaceholder } from '../../../hooks/useSectorPlaceholders'
+import { useTenant } from '../../../contexts/TenantContext'
 
 interface RefundModalProps {
   receipt: POSReceipt | null
@@ -24,6 +26,13 @@ export default function RefundModal({
   const [linesToRefund, setLinesToRefund] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [restock, setRestock] = useState(true)
+  const { sector } = useTenant()
+
+  const { placeholder: reasonPlaceholder } = useSectorPlaceholder(
+    sector?.plantilla || null,
+    'motivo_devolucion',
+    'pos'
+  )
 
   const handleRefund = async () => {
     if (!receipt) return
@@ -161,7 +170,7 @@ export default function RefundModal({
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Ej: Producto defectuoso, cliente insatisfecho..."
+            placeholder={reasonPlaceholder || 'Ej: Producto defectuoso, cliente insatisfecho...'}
           />
         </div>
 

@@ -14,12 +14,10 @@ export default function GastosList() {
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
 
-  const [categoria, setCategoria] = useState('')
-  const [estado, setEstado] = useState('')
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
   const [q, setQ] = useState('')
-  const [sortKey, setSortKey] = useState<'fecha' | 'monto' | 'categoria' | 'estado'>('fecha')
+  const [sortKey, setSortKey] = useState<'fecha' | 'monto'>('fecha')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [per, setPer] = useState(10)
 
@@ -44,29 +42,33 @@ export default function GastosList() {
   }, [desde, hasta])
 
   const filtered = useMemo(() => items.filter(v => {
-    if (categoria && v.categoria !== categoria) return false
-    if (estado && v.estado !== estado) return false
-    if (desde && v.fecha < desde) return false
-    if (hasta && v.fecha > hasta) return false
+    if (desde && v.date < desde) return false
+    if (hasta && v.date > hasta) return false
     if (q) {
       const search = q.toLowerCase()
       const matches =
         String(v.id).includes(search) ||
-        v.concepto.toLowerCase().includes(search) ||
-        v.categoria.toLowerCase().includes(search) ||
-        (v.proveedor_nombre || '').toLowerCase().includes(search) ||
-        (v.factura_numero || '').toLowerCase().includes(search)
+        (v.concept || '').toLowerCase().includes(search)
       if (!matches) return false
     }
     return true
-  }), [items, categoria, estado, desde, hasta, q])
+  }), [items, desde, hasta, q])
 
   const sorted = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1
     return [...filtered].sort((a, b) => {
-      const av = (a as any)[sortKey] || ''
-      const bv = (b as any)[sortKey] || ''
-      if (sortKey === 'monto') return ((av as number) - (bv as number)) * dir
+      let av, bv
+      if (sortKey === 'fecha') {
+        av = a.date || ''
+        bv = b.date || ''
+      } else if (sortKey === 'monto') {
+        av = a.amount || 0
+        bv = b.amount || 0
+        return ((av as number) - (bv as number)) * dir
+      } else {
+        av = (a as any)[sortKey] || ''
+        bv = (b as any)[sortKey] || ''
+      }
       return (av < bv ? -1 : av > bv ? 1 : 0) * dir
     })
   }, [filtered, sortKey, sortDir])
@@ -84,15 +86,12 @@ export default function GastosList() {
   }
 
   function exportCSV(rows: Gasto[]) {
-    const header = ['id', 'fecha', 'categoria', 'concepto', 'monto', 'estado', 'proveedor']
+    const header = ['id', 'date', 'concept', 'amount']
     const body = rows.map(r => [
       r.id,
-      r.fecha,
-      r.categoria,
-      r.concepto,
-      r.monto,
-      r.estado,
-      r.proveedor_nombre || ''
+      r.date,
+      r.concept || '',
+      r.amount
     ])
     const csv = [header, ...body].map(line => line.join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -103,8 +102,6 @@ export default function GastosList() {
     a.click()
     URL.revokeObjectURL(url)
   }
-
-  const categorias = Array.from(new Set(items.map(g => g.categoria))).sort()
 
   return (
     <div className="p-4">
@@ -127,55 +124,21 @@ export default function GastosList() {
       </div>
 
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <StatsCard
-            title="Total Período"
-            value={`$${stats.total_periodo.toFixed(2)}`}
+            title="Total"
+            value={`$${stats.total.toFixed(2)}`}
             color="blue"
           />
           <StatsCard
-            title="Pendiente de Pago"
-            value={`$${stats.pendiente_pago.toFixed(2)}`}
+            title="Pendiente"
+            value={`$${stats.pending.toFixed(2)}`}
             color="red"
           />
-          {stats.por_categoria.slice(0, 2).map((cat) => (
-            <StatsCard
-              key={cat.categoria}
-              title={cat.categoria}
-              value={`$${cat.total.toFixed(2)}`}
-              color="gray"
-            />
-          ))}
         </div>
       )}
 
       <div className="mb-3 flex flex-wrap items-end gap-3">
-        <div>
-          <label className="text-sm mr-2">Categoría</label>
-          <select
-            value={categoria}
-            onChange={(e) => setCategoria(e.target.value)}
-            className="border px-2 py-1 rounded text-sm"
-          >
-            <option value="">Todas</option>
-            {categorias.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-sm mr-2">Estado</label>
-          <select
-            value={estado}
-            onChange={(e) => setEstado(e.target.value)}
-            className="border px-2 py-1 rounded text-sm"
-          >
-            <option value="">Todos</option>
-            <option value="pendiente">Pendiente</option>
-            <option value="pagado">Pagado</option>
-            <option value="anulado">Anulado</option>
-          </select>
-        </div>
         <div>
           <label className="text-sm mr-2">Desde</label>
           <input
@@ -197,7 +160,7 @@ export default function GastosList() {
         <div>
           <label className="text-sm mr-2">Buscar</label>
           <input
-            placeholder="Concepto, proveedor..."
+            placeholder="Concepto..."
             value={q}
             onChange={(e) => setQ(e.target.value)}
             className="border px-2 py-1 rounded text-sm"
@@ -230,68 +193,46 @@ export default function GastosList() {
                   Fecha {sortKey === 'fecha' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
-              <th className="py-2 px-2">
-                <button className="underline" onClick={() => toggleSort('categoria')}>
-                  Categoría {sortKey === 'categoria' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-                </button>
-              </th>
               <th className="py-2 px-2">Concepto</th>
               <th className="py-2 px-2">
                 <button className="underline" onClick={() => toggleSort('monto')}>
                   Importe {sortKey === 'monto' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
-              <th className="py-2 px-2">
-                <button className="underline" onClick={() => toggleSort('estado')}>
-                  Estado {sortKey === 'estado' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-                </button>
-              </th>
-              <th className="py-2 px-2">Proveedor</th>
               <th className="py-2 px-2">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {view.map((v) => (
               <tr key={v.id} className="border-b hover:bg-gray-50">
-                <td className="py-2 px-2">{v.fecha}</td>
-                <td className="py-2 px-2">
-                  <span className="bg-gray-100 px-2 py-1 rounded text-xs">
-                    {v.categoria}
-                  </span>
-                </td>
-                <td className="py-2 px-2">{v.concepto}</td>
-                <td className="py-2 px-2 font-medium">${v.monto.toFixed(2)}</td>
-                <td className="py-2 px-2">
-                  <StatusBadge estado={v.estado} />
-                </td>
-                <td className="py-2 px-2">{v.proveedor_nombre || '-'}</td>
+                <td className="py-2 px-2">{v.date}</td>
+                <td className="py-2 px-2">{v.concept || '-'}</td>
+                <td className="py-2 px-2 font-medium">${v.amount.toFixed(2)}</td>
                 <td className="py-2 px-2">
                   <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline mr-3">
                     Editar
                   </Link>
-                  {v.estado === 'pendiente' && (
-                    <button
-                      className="text-red-700 hover:underline"
-                      onClick={async () => {
-                        if (!confirm('¿Eliminar gasto?')) return
-                        try {
-                          await removeGasto(v.id)
-                          setItems((p) => p.filter(x => x.id !== v.id))
-                          success('Gasto eliminado')
-                        } catch (e: any) {
-                          toastError(getErrorMessage(e))
-                        }
-                      }}
-                    >
-                      Eliminar
-                    </button>
-                  )}
+                  <button
+                    className="text-red-700 hover:underline"
+                    onClick={async () => {
+                      if (!confirm('¿Eliminar gasto?')) return
+                      try {
+                        await removeGasto(v.id)
+                        setItems((p) => p.filter(x => x.id !== v.id))
+                        success('Gasto eliminado')
+                      } catch (e: any) {
+                        toastError(getErrorMessage(e))
+                      }
+                    }}
+                  >
+                    Eliminar
+                  </button>
                 </td>
               </tr>
             ))}
             {!loading && view.length === 0 && (
               <tr>
-                <td className="py-3 px-3 text-center text-gray-500" colSpan={7}>
+                <td className="py-3 px-3 text-center text-gray-500" colSpan={4}>
                   Sin registros
                 </td>
               </tr>

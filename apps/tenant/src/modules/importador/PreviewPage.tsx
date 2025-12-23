@@ -2,6 +2,21 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 import ImportadorLayout from './components/ImportadorLayout'
+import {
+    listBatchesByTenant,
+    listCategories,
+    listProductItems,
+    startExcelImport,
+    promoteBatch,
+    validateBatch,
+    getBatchStatus,
+    patchItem,
+    resetBatch,
+    deleteBatch,
+    cancelBatch,
+    setBatchMapping,
+    listMappings,
+} from './services/importsApi'
 
 interface Batch {
     id: string
@@ -43,8 +58,12 @@ export default function PreviewPage() {
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
 
-    const [batches, setBatches] = useState<Batch[]>([])
-    const [selectedBatch, setSelectedBatch] = useState<string | null>(null)
+  const [batches, setBatches] = useState<Batch[]>([])
+  const [selectedBatch, setSelectedBatch] = useState<string | null>(null)
+  const selectedBatchObj = useMemo(
+    () => batches.find((b) => b.id === selectedBatch) || null,
+    [batches, selectedBatch]
+  )
     const [productos, setProductos] = useState<ProductoPreview[]>([])
     const [totalProductos, setTotalProductos] = useState<number>(0)
     const [page, setPage] = useState<number>(1)
@@ -53,13 +72,13 @@ export default function PreviewPage() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-    const [categoryAssignment, setCategoryAssignment] = useState<string>('')
-    const [promoting, setPromoting] = useState(false)
-    const [newCategory, setNewCategory] = useState<string>('')
-    const [expandedErrors, setExpandedErrors] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [categoryAssignment, setCategoryAssignment] = useState<string>('')
+  const [promoting, setPromoting] = useState(false)
+  const [newCategory, setNewCategory] = useState<string>('')
+  const [expandedErrors, setExpandedErrors] = useState<string | null>(null)
 
-    // Categorías detectadas en el lote (por frecuencia)
+    // Detected categories in the batch (by frequency)
     const detectedCategories = useMemo(() => {
         const map = new Map<string, number>()
         for (const p of productos) {
@@ -72,24 +91,14 @@ export default function PreviewPage() {
             .map(([name]) => name)
     }, [productos])
 
-    // Nuevo cargador de categorías desde products/product-categories (con fallback)
+    // Categories loader with products/product-categories fallback
     const fetchCategoriesModern = useCallback(async () => {
         try {
-            let res = await fetch('/api/v1/products/product-categories', {
-                headers: { Authorization: `Bearer ${token}` },
-            })
-            if (!res.ok) {
-                res = await fetch('/api/v1/categorias', {
-                    headers: { Authorization: `Bearer ${token}` },
-                })
-            }
-            if (res.ok) {
-                const data = await res.json()
-                const items = Array.isArray(data)
-                    ? data.map((c: any) => ({ id: String(c.id ?? c.name ?? c), name: String(c.name ?? c) }))
-                    : []
-                setCategories(items)
-            }
+            const data = await listCategories(token || undefined)
+            const items = Array.isArray(data)
+                ? data.map((c: any) => ({ id: String(c.id ?? c.name ?? c), name: String(c.name ?? c) }))
+                : []
+            setCategories(items)
         } catch (err) {
             console.error('Error loading categories:', err)
         }
@@ -98,13 +107,12 @@ export default function PreviewPage() {
     // Cargar categorías
     const fetchCategories = useCallback(async () => {
         try {
-            const res = await fetch('/api/v1/categorias', {
-                headers: { Authorization: `Bearer ${token}` },
-            })
-            if (res.ok) {
-                const data = await res.json()
-                setCategories(data)
-            }
+            const data = await listCategories(token || undefined)
+            setCategories(
+                Array.isArray(data)
+                    ? data.map((c: any) => ({ id: String(c.id ?? c.name ?? c), name: String(c.name ?? c) }))
+                    : []
+            )
         } catch (err) {
             console.error('Error loading categories:', err)
         }
@@ -119,23 +127,18 @@ export default function PreviewPage() {
         }
         try {
             setLoading(true)
-            // Traer todos los lotes del tenant; la UI prioriza los no listos primero
-            const res = await fetch(
-                `/api/v1/imports/batches?tenant_id=${profile.tenant_id}`,
-                { headers: { Authorization: `Bearer ${token}` } }
-            )
-            if (!res.ok) throw new Error('Error loading batches')
-            const data = await res.json()
-            setBatches(data.items || data)
+            const data = await listBatchesByTenant(profile.tenant_id, token || undefined)
+            const items = Array.isArray(data) ? data : (data as any).items || []
+            setBatches(items)
 
             // Auto-seleccionar si hay batch_id en URL o priorizar PARSING/PENDING/READY
             const urlBatchId = searchParams.get('batch_id')
             if (urlBatchId) {
                 setSelectedBatch(urlBatchId)
             } else {
-                const arr = (data.items || data) as any[]
+                const arr = items as any[]
                 if (Array.isArray(arr) && arr.length > 0) {
-                    const prio = (s: string) => (s === 'PARSING' ? 0 : s === 'PENDING' ? 1 : s === 'READY' ? 2 : 3)
+                    const prio = (s: string) => (s === 'PARSING' ? 0 : s === 'PENDING' ? 1 : s === 'READY' ? 2 : s === 'EMPTY' ? 3 : 4)
                     const sorted = [...arr].sort((a, b) => prio(a.status) - prio(b.status))
                     setSelectedBatch(sorted[0].id)
                 }
@@ -156,14 +159,14 @@ export default function PreviewPage() {
         try {
             const limit = pageSize
             const offset = (page - 1) * pageSize
-            const res = await fetch(
-                `/api/v1/imports/batches/${selectedBatch}/items/products?limit=${limit}&offset=${offset}`,
-                { headers: { Authorization: `Bearer ${token}` } }
-            )
-            if (!res.ok) throw new Error('Error loading products')
-            const data = await res.json()
-            setProductos(data.items || [])
-            setTotalProductos(Number(data.total ?? (data.items ? data.items.length : 0)))
+            const data = await listProductItems(selectedBatch, {
+                status: 'ERROR_VALIDATION',
+                limit,
+                offset,
+                authToken: token || undefined,
+            })
+            setProductos((data as any).items || [])
+            setTotalProductos(Number((data as any).total ?? ((data as any).items ? (data as any).items.length : 0)))
         } catch (err: any) {
             console.error(err)
             setProductos([])
@@ -177,35 +180,57 @@ export default function PreviewPage() {
     const [etaSeconds, setEtaSeconds] = useState<number | null>(null)
     const lastSampleRef = React.useRef<{ progress: number; serverTime: number } | null>(null)
     useEffect(() => {
+        const isTerminalStatus = (s?: string | null) => ['READY', 'ERROR', 'PARTIAL', 'PROMOTED', 'VALIDATED', 'EMPTY'].includes(String(s || ''))
         if (!selectedBatch) return
         const current = batches.find(b => b.id === selectedBatch)
         if (!current) return
+        // Solo lanzar start-excel si el batch tiene file_key (lotes creados desde upload)
+        const hasFile = Boolean((current as any).file_key)
         // Auto-iniciar importación si el lote está PENDING y aún no lo hemos intentado
-        if (current.status === 'PENDING' && kickStarted !== selectedBatch) {
+        if (current.status === 'PENDING' && kickStarted !== selectedBatch && hasFile) {
             ; (async () => {
                 try {
-                    await fetch(`/api/v1/imports/batches/${selectedBatch}/start-excel-import`, {
-                        method: 'POST',
-                        headers: { Authorization: `Bearer ${token}` },
-                    })
+                    // start-excel-import solo aplica a lotes con archivo (p.ej. recetas subidas)
+                    await startExcelImport(selectedBatch, token || undefined)
                     setKickStarted(selectedBatch)
-                } catch { }
+                } catch (err: any) {
+                    // Ignorar 404 (batch sin archivo) para no romper el polling
+                    if (err?.status !== 404) {
+                        console.warn('startExcelImport failed', err)
+                    }
+                }
             })()
         }
-        if (current.status === 'READY') { setBatchStatus(null); return }
+        // Para recipes con archivo: si está PENDING/EMPTY y no hay items, dispara ingest vacío (fast-path recetas)
+        if (
+            hasFile &&
+            (current as any).source_type === 'recipes' &&
+            (current.status === 'PENDING' || current.status === 'EMPTY') &&
+            kickStarted === selectedBatch // ya intentamos start-excel
+        ) {
+            ; (async () => {
+                try {
+                    await ingestBatch(selectedBatch, { rows: [] }, token || undefined)
+                } catch (err) {
+                    console.warn('ingestBatch recipes failed', err)
+                }
+            })()
+        }
+        if (isTerminalStatus(current.status)) { setBatchStatus(null); return }
         let cancelled = false
         let lastProgress = -1
         const interval = setInterval(async () => {
             try {
-                const res = await fetch(`/api/v1/imports/batches/${selectedBatch}/status`, { headers: { Authorization: `Bearer ${token}` } })
-                if (!res.ok) return
-                const data = await res.json()
+                const data = await getBatchStatus(selectedBatch, token || undefined)
                 if (!cancelled) {
                     setBatchStatus(data)
-                    if (data && data.status === 'READY') {
+                    if (data && isTerminalStatus(data.status)) {
                         clearInterval(interval)
                         await fetchBatches()
-                        await fetchProductos()
+                        if (data.status === 'READY') {
+                            await fetchProductos()
+                        }
+                        return
                     }
                     const p = Number(data?.progress ?? 0)
                     const serverTs = Date.parse(String(data?.server_time || '')) || Date.now()
@@ -229,7 +254,7 @@ export default function PreviewPage() {
             } catch {
                 // ignore transient errors
             }
-        }, 1000)
+        }, 3000) // poll cada 3s para evitar rate limit
         return () => { cancelled = true; clearInterval(interval) }
     }, [selectedBatch, batches, token, fetchBatches, fetchProductos])
 
@@ -247,14 +272,7 @@ export default function PreviewPage() {
         if (!categoryAssignment || selectedIds.size === 0 || !selectedBatch) return
         try {
             const promises = Array.from(selectedIds).map(id =>
-                fetch(`/api/v1/imports/batches/${selectedBatch}/items/${id}`, {
-                    method: 'PATCH',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({ field: 'categoria', value: categoryAssignment }),
-                })
+                patchItem(selectedBatch, id, 'categoria', categoryAssignment)
             )
             await Promise.all(promises)
             fetchProductos()
@@ -273,18 +291,7 @@ export default function PreviewPage() {
 
         setPromoting(true)
         try {
-            const res = await fetch(`/api/v1/imports/batches/${selectedBatch}/promote`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                    auto_activate: true,
-                    warehouse_code: 'ALM-1',
-                }),
-            })
-            if (!res.ok) throw new Error('Error promoting')
+            await promoteBatch(selectedBatch)
             alert('Batch promoted successfully')
             navigate('../productos')
         } catch (err: any) {
@@ -297,11 +304,7 @@ export default function PreviewPage() {
     const handleRevalidate = async () => {
         if (!selectedBatch) return
         try {
-            const res = await fetch(`/api/v1/imports/batches/${selectedBatch}/validate`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-            })
-            if (!res.ok) throw new Error('Error al revalidar el lote')
+            await validateBatch(selectedBatch)
             await fetchProductos()
         } catch (err: any) {
             alert(`Error: ${err.message}`)
@@ -311,15 +314,7 @@ export default function PreviewPage() {
     const patchField = async (itemId: string, field: string, value: any) => {
         if (!selectedBatch) return
         try {
-            const res = await fetch(`/api/v1/imports/batches/${selectedBatch}/items/${itemId}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ field, value }),
-            })
-            if (!res.ok) throw new Error('No se pudo actualizar el item')
+            await patchItem(selectedBatch, itemId, field, value)
             await fetchProductos()
         } catch (err: any) {
             alert(`Error: ${err.message}`)
@@ -331,14 +326,7 @@ export default function PreviewPage() {
         if (!newCategory || selectedIds.size === 0 || !selectedBatch) return
         try {
             const promises = Array.from(selectedIds).map(id =>
-                fetch(`/api/v1/imports/batches/${selectedBatch}/items/${id}`, {
-                    method: 'PATCH',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({ field: 'categoria', value: newCategory }),
-                })
+                patchItem(selectedBatch, id, 'categoria', newCategory)
             )
             await Promise.all(promises)
             setNewCategory('')
@@ -385,10 +373,10 @@ export default function PreviewPage() {
 
     return (
         <ImportadorLayout
-            title="Vista previa"
-            description="Valida, categoriza y promueve lotes de productos a producción."
+            title="Preview"
+            description="Validate, categorize, and promote product batches to production."
         >
-            {loading && <div className="text-slate-600">Cargando lotes...</div>}
+            {loading && <div className="text-slate-600">Loading batches...</div>}
             {error && (
                 <div className="rounded border border-rose-200 bg-rose-50 p-3 text-rose-800">{error}</div>
             )}
@@ -398,22 +386,22 @@ export default function PreviewPage() {
 
             {!loading && batches.length === 0 && (
                 <div className="rounded-lg border border-slate-200 bg-white p-6">
-                    <p className="text-slate-600">No hay lotes pendientes de validación.</p>
+                    <p className="text-slate-600">No pending batches to validate.</p>
                     <button
                         onClick={() => navigate('../')}
                         className="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-500"
                     >
-                        Importar archivos
+                        Import files
                     </button>
                 </div>
             )}
 
             {!loading && batches.length > 0 && (
                 <>
-                    {/* Tarjetas de lotes */}
+                    {/* Batch cards */}
                     <div className="space-y-3">
                         <h3 className="text-sm font-semibold text-slate-700">
-                            Seleccionar lote para validar
+                            Select a batch to validate
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                             {batches.map(b => {
@@ -423,7 +411,16 @@ export default function PreviewPage() {
                                     'PARSING': 'bg-blue-50 border-blue-200 text-blue-700',
                                     'READY': 'bg-emerald-50 border-emerald-200 text-emerald-700',
                                     'PROMOTED': 'bg-slate-50 border-slate-200 text-slate-500',
-                                    'ERROR': 'bg-rose-50 border-rose-200 text-rose-700'
+                                    'ERROR': 'bg-rose-50 border-rose-200 text-rose-700',
+                                    'EMPTY': 'bg-slate-50 border-slate-200 text-slate-500',
+                                }
+                                const statusLabels: Record<string, string> = {
+                                    EMPTY: 'VACÍO',
+                                    READY: 'READY',
+                                    PARSING: 'PARSING',
+                                    PENDING: 'PENDING',
+                                    PROMOTED: 'PROMOTED',
+                                    ERROR: 'ERROR',
                                 }
                                 const statusColor = statusColors[b.status as keyof typeof statusColors] || 'bg-slate-50 border-slate-200 text-slate-700'
 
@@ -471,7 +468,7 @@ export default function PreviewPage() {
 
                                             <div className="pt-1">
                                                 <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${statusColor}`}>
-                                                    {b.status}
+                                                    {statusLabels[b.status] || b.status}
                                                 </span>
                                             </div>
                                         </div>
@@ -488,7 +485,9 @@ export default function PreviewPage() {
                                 <span className="h-2 w-2 animate-ping rounded-full bg-amber-500" />
                                 <span>Procesando lote, esto puede tardar unos minutos...</span>
                                 {typeof batchStatus?.progress === 'number' && (
-                                    <span className="ml-auto text-sm font-medium">{Math.round(Number(batchStatus.progress) * 100)}%</span>
+                                    <span className="ml-auto text-sm font-medium">
+                                        {Math.round(Number(batchStatus.progress ?? 0))}%
+                                    </span>
                                 )}
                             </div>
                             <div className="mt-1 text-[11px] text-amber-700">
@@ -512,19 +511,31 @@ export default function PreviewPage() {
                                         className="rounded border border-blue-300 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50"
                                         onClick={async () => {
                                             if (!selectedBatch) return
-                                            await fetch(`/api/v1/imports/batches/${selectedBatch}/start-excel-import`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
-                                            setKickStarted(selectedBatch)
-                                            setStuckSince(Date.now())
+                                            const cur = batches.find(b => b.id === selectedBatch)
+                                            if (!cur || !(cur as any).file_key) return
+                                            try {
+                                                await startExcelImport(selectedBatch, token || undefined)
+                                                setKickStarted(selectedBatch)
+                                                setStuckSince(Date.now())
+                                            } catch (err: any) {
+                                                if (err?.status !== 404) throw err
+                                            }
                                         }}
                                     >Reintentar</button>
                                     <button
                                         className="rounded border border-amber-300 px-2 py-1 text-xs text-amber-700 hover:bg-amber-50"
                                         onClick={async () => {
                                             if (!selectedBatch) return
-                                            await fetch(`/api/v1/imports/batches/${selectedBatch}/reset?clear_items=1&new_status=PENDING`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
-                                            await fetch(`/api/v1/imports/batches/${selectedBatch}/start-excel-import`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
-                                            setKickStarted(selectedBatch)
-                                            setStuckSince(Date.now())
+                                            await resetBatch(selectedBatch, { clearItems: true, newStatus: 'PENDING' }, token || undefined)
+                                            try {
+                                                const cur = batches.find(b => b.id === selectedBatch)
+                                                if (!cur || !(cur as any).file_key) return
+                                                await startExcelImport(selectedBatch, token || undefined)
+                                                setKickStarted(selectedBatch)
+                                                setStuckSince(Date.now())
+                                            } catch (err: any) {
+                                                if (err?.status !== 404) throw err
+                                            }
                                         }}
                                     >Resetear y relanzar</button>
                                     <button
@@ -533,8 +544,8 @@ export default function PreviewPage() {
                                             if (!selectedBatch) return
                                             const ok = confirm('¿Eliminar lote forzado?')
                                             if (!ok) return
-                                            const res = await fetch(`/api/v1/imports/batches/${selectedBatch}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
-                                            if (res.ok) { await fetchBatches(); setSelectedBatch(null); setProductos([]) }
+                                            await deleteBatch(selectedBatch, token || undefined)
+                                            await fetchBatches(); setSelectedBatch(null); setProductos([])
                                         }}
                                     >Eliminar forzado</button>
                                 </div>
@@ -636,11 +647,7 @@ export default function PreviewPage() {
                                 const ok = confirm('¿Eliminar este lote y todos sus items? Esta acción no se puede deshacer.')
                                 if (!ok) return
                                 try {
-                                    const res = await fetch(`/api/v1/imports/batches/${selectedBatch}`, {
-                                        method: 'DELETE',
-                                        headers: { Authorization: `Bearer ${token}` },
-                                    })
-                                    if (!res.ok) throw new Error('No se pudo eliminar el lote')
+                                    await deleteBatch(selectedBatch, token || undefined)
                                     // Refresh lists
                                     await fetchBatches()
                                     setProductos([])
@@ -659,7 +666,7 @@ export default function PreviewPage() {
                                     className="rounded-md border border-amber-300 px-3 py-2 text-sm text-amber-700 hover:bg-amber-50"
                                     onClick={async () => {
                                         if (!selectedBatch) return
-                                        await fetch(`/api/v1/imports/batches/${selectedBatch}/cancel`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+                                        await cancelBatch(selectedBatch, token || undefined)
                                     }}
                                 >
                                     Cancelar tarea
@@ -670,8 +677,8 @@ export default function PreviewPage() {
                                         if (!selectedBatch) return
                                         const ok = confirm('¿Eliminar forzado este lote en procesamiento?')
                                         if (!ok) return
-                                        const res = await fetch(`/api/v1/imports/batches/${selectedBatch}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
-                                        if (res.ok) { await fetchBatches(); setProductos([]); setSelectedBatch(null) }
+                                        await deleteBatch(selectedBatch, token || undefined)
+                                        await fetchBatches(); setProductos([]); setSelectedBatch(null)
                                     }}
                                 >
                                     Eliminar forzado
@@ -744,14 +751,7 @@ export default function PreviewPage() {
                                                 // asignación directa a seleccionados
                                                 const doAssign = async () => {
                                                     const promises = Array.from(selectedIds).map(id =>
-                                                        fetch(`/api/v1/imports/batches/${selectedBatch}/items/${id}`, {
-                                                            method: 'PATCH',
-                                                            headers: {
-                                                                'Content-Type': 'application/json',
-                                                                Authorization: `Bearer ${token}`,
-                                                            },
-                                                            body: JSON.stringify({ field: 'categoria', value: cat }),
-                                                        })
+                                                        patchItem(selectedBatch!, id, 'categoria', cat)
                                                     )
                                                     await Promise.all(promises)
                                                     await fetchProductos()
@@ -770,14 +770,7 @@ export default function PreviewPage() {
                                             if (selectedIds.size === 0) { setNewCategory('OTROS'); return }
                                             const doAssign = async () => {
                                                 const promises = Array.from(selectedIds).map(id =>
-                                                    fetch(`/api/v1/imports/batches/${selectedBatch}/items/${id}`, {
-                                                        method: 'PATCH',
-                                                        headers: {
-                                                            'Content-Type': 'application/json',
-                                                            Authorization: `Bearer ${token}`,
-                                                        },
-                                                        body: JSON.stringify({ field: 'categoria', value: 'OTROS' }),
-                                                    })
+                                                    patchItem(selectedBatch!, id, 'categoria', 'OTROS')
                                                 )
                                                 await Promise.all(promises)
                                                 await fetchProductos()
@@ -793,8 +786,13 @@ export default function PreviewPage() {
                     </div>
 
                     {/* Tabla de productos */}
-                    {productos.length > 0 && (
+                    {productos.length > 0 && selectedBatchObj?.source_type === 'products' && (
                         <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+                            {selectedBatchObj && selectedBatchObj.source_type !== 'products' && (
+                                <div className="bg-amber-50 px-4 py-2 text-xs text-amber-700 border-b border-amber-200">
+                                    Lote de tipo {selectedBatchObj.source_type}. La vista de tabla se muestra en formato producto solo para editar/visualizar; la promoción debería usarse para productos.
+                                </div>
+                            )}
                             <div className="overflow-x-auto">
                                 <table className="min-w-full divide-y divide-slate-200 text-sm">
                                     <thead className="bg-slate-50">
@@ -941,7 +939,79 @@ export default function PreviewPage() {
                     )}
                 </>
             )}
-            {/* Paginación */}
+                    {/* Tabla alternativa para lotes no-producto */}
+                    {productos.length > 0 && selectedBatchObj && selectedBatchObj.source_type !== 'products' && (
+                        <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+                            <div className="bg-amber-50 px-4 py-2 text-xs text-amber-700 border-b border-amber-200">
+                                Lote de tipo {selectedBatchObj.source_type || 'desconocido'}: vista bancaria/gastos.
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                                    <thead className="bg-slate-50">
+                                        <tr>
+                                            <th className="px-3 py-3 text-left font-medium text-slate-600">#</th>
+                                            <th className="px-3 py-3 text-left font-medium text-slate-600">Fecha</th>
+                                            <th className="px-3 py-3 text-left font-medium text-slate-600">Importe</th>
+                                            <th className="px-3 py-3 text-left font-medium text-slate-600">Concepto</th>
+                                            <th className="px-3 py-3 text-left font-medium text-slate-600">Cuenta</th>
+                                            <th className="px-3 py-3 text-left font-medium text-slate-600">Cliente</th>
+                                            <th className="px-3 py-3 text-left font-medium text-slate-600">Errores</th>
+                                            <th className="px-3 py-3 text-left font-medium text-slate-600">Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 bg-white">
+                                        {visibleProductos.map((p, i) => {
+                                            const merged = { ...(p.raw?.datos || {}), ...(p.raw || {}), ...(p.normalized || {}) }
+                                            return (
+                                                <>
+                                                    <tr key={p.id} className="hover:bg-slate-50">
+                                                        <td className="px-3 py-2 text-slate-500">{i + 1}</td>
+                                                        <td className="px-3 py-2">{merged.fecha || merged.transaction_date || '-'}</td>
+                                                        <td className="px-3 py-2">{merged.importe || merged.amount || 0}</td>
+                                                        <td className="px-3 py-2">{merged.concepto || merged.concept || '-'}</td>
+                                                        <td className="px-3 py-2">{merged.cuenta || merged.account || '-'}</td>
+                                                        <td className="px-3 py-2">{merged.cliente || merged.customer || '-'}</td>
+                                                        <td className="px-3 py-2">
+                                                            {p.errors && p.errors.length > 0 ? (
+                                                                <button
+                                                                    className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
+                                                                    onClick={() => setExpandedErrors(expandedErrors === p.id ? null : p.id)}
+                                                                >
+                                                                    {p.errors.length} error{p.errors.length === 1 ? '' : 'es'}
+                                                                </button>
+                                                            ) : (
+                                                                <span className="text-xs text-emerald-700">Sin errores</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-3 py-2">
+                                                            <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                                                                {p.status}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                    {expandedErrors === p.id && (
+                                                        <tr>
+                                                            <td colSpan={8} className="bg-rose-50 px-6 py-3 text-xs text-rose-700">
+                                                                <ul className="list-disc pl-5">
+                                                                    {(p.errors || []).map((e: any, idx2: number) => {
+                                                                        const msg = typeof e === 'string' ? e : (e?.msg || e?.message || JSON.stringify(e))
+                                                                        const field = typeof e === 'string' ? '' : (e?.field ? ` [${e.field}]` : '')
+                                                                        return <li key={idx2}>{msg}{field}</li>
+                                                                    })}
+                                                                </ul>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </>
+                                            )
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Paginación */}
             {totalProductos > pageSize && (
                 <div className="mt-4 flex items-center justify-between text-sm text-slate-700">
                     <div>
@@ -977,9 +1047,8 @@ function ReassignMappingInline({ batchId, onAfter }: { batchId: string; onAfter?
         let cancelled = false
             ; (async () => {
                 try {
-                    const res = await fetch('/api/v1/imports/column-mappings', { headers: { Authorization: `Bearer ${token}` } })
-                    const data = await res.json()
-                    if (!cancelled) setMappings(data || [])
+                    const data = await listMappings(token || undefined)
+                    if (!cancelled) setMappings((data || []).map((m) => ({ id: m.id, name: m.name })))
                 } catch { }
             })()
         return () => { cancelled = true }
@@ -988,15 +1057,14 @@ function ReassignMappingInline({ batchId, onAfter }: { batchId: string; onAfter?
         if (!selected) return
         setLoading(true)
         try {
-            await fetch(`/api/v1/imports/batches/${batchId}/set-mapping`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ mapping_id: selected }),
-            })
-            await fetch(`/api/v1/imports/batches/${batchId}/reset?clear_items=1&new_status=PENDING`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
-            await fetch(`/api/v1/imports/batches/${batchId}/start-excel-import`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+            await setBatchMapping(batchId, selected, token || undefined)
+            await resetBatch(batchId, { clearItems: true, newStatus: 'PENDING' }, token || undefined)
+            await startExcelImport(batchId, token || undefined)
             setOpen(false)
             if (onAfter) onAfter()
+        } catch (err: any) {
+            console.error('Reasignar mapping falló', err)
+            alert(err?.message || 'No se pudo reasignar el mapping. Revisa la consola para más detalles.')
         } finally {
             setLoading(false)
         }

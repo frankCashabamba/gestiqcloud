@@ -3,7 +3,6 @@ Servicio de aplicación de plantillas de sector
 Aplica configuración completa de un SectorPlantilla a un Tenant
 """
 
-import json
 import logging
 from typing import Any
 
@@ -28,9 +27,9 @@ def apply_sector_template(
     Aplica una plantilla de sector completa a un tenant.
 
     Acciones realizadas:
-    1. Actualiza Tenant.config_json con la configuración del sector
-    2. Aplica branding (color_primario, plantilla_inicio)
-    3. Crea configuración de TenantSettings
+    1. Aplica branding (color_primario, plantilla_inicio)
+    2. Guarda la plantilla aplicada en CompanySettings.settings.template_config
+    3. Crea configuracion de TenantSettings
     4. Habilita/deshabilita módulos según la plantilla
     5. Crea categorías por defecto
 
@@ -98,24 +97,29 @@ def apply_sector_template(
                 tenant.base_currency = config.defaults.currency
                 result["changes"].append(f"Moneda: {config.defaults.currency}")
 
-            # Guardar template_config completo en el tenant
-            if override_existing or not tenant.config_json:
-                tenant.config_json = sector.template_config
-                result["changes"].append("Configuración actualizada")
-            else:
-                # Merge parcial
-                existing_config = tenant.config_json or {}
-                existing_config.update(
-                    {
-                        "sector_template_applied": sector.sector_name,
-                        "branding": config.branding.model_dump(),
-                        "defaults": config.defaults.model_dump(),
-                    }
-                )
-                tenant.config_json = existing_config
-                result["changes"].append("Configuración mergeada")
+                        # Guardar template_config en CompanySettings
+            try:
+                from app.models.company.company_settings import CompanySettings
 
-            logger.info("✅ Configuración del tenant actualizada")
+                company_settings = (
+                    db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+                )
+                if not company_settings:
+                    company_settings = CompanySettings(tenant_id=tenant_id)
+                    db.add(company_settings)
+                    db.flush()
+
+                current_settings = company_settings.settings or {}
+                if not isinstance(current_settings, dict):
+                    current_settings = {}
+                current_settings["template_config"] = sector.template_config
+                company_settings.settings = current_settings
+                result["changes"].append("Template config guardado en CompanySettings")
+            except Exception as e:
+                logger.error(f"Error guardando template_config en CompanySettings: {e}")
+                result["errors"].append(f"CompanySettings template_config: {str(e)}")
+
+            logger.info("Tenant branding actualizado")
 
         except Exception as e:
             logger.error(f"Error actualizando tenant: {e}")
@@ -126,76 +130,61 @@ def apply_sector_template(
             logger.info("Design-only sector template applied (branding + slug)")
             return result
 
-        # 4. Crear/actualizar TenantSettings
+        # 4. Crear/actualizar CompanySettings
         try:
+            from app.models.company.company_settings import CompanySettings
+
             # Buscar settings existentes
-            settings = db.execute(
-                text("SELECT id FROM tenant_settings WHERE tenant_id = :tid"),
-                {"tid": tenant_id},
-            ).scalar()
+            company_settings = (
+                db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+            )
 
             settings_config = {
                 "pos": config.pos.model_dump(),
                 "inventory": config.inventory.model_dump(),
                 "modules": {k: v.model_dump() for k, v in config.modules.items()},
+                "defaults": config.defaults.model_dump(),
+                "branding": config.branding.model_dump(),
+                "template_config": sector.template_config,
             }
 
-            if not settings:
+            if not company_settings:
                 # Crear nuevo
-                create_settings_sql = text(
-                    """
-                    INSERT INTO tenant_settings (tenant_id, settings, pos_config, locale, timezone, currency)
-                    VALUES (:tenant_id, :settings, :pos_config, :locale, :timezone, :currency)
-                """
+                company_settings = CompanySettings(
+                    tenant_id=tenant_id,
+                    default_language=config.defaults.locale,
+                    timezone=config.defaults.timezone,
+                    currency=config.defaults.currency,
+                    settings=settings_config,
+                    pos_config=config.pos.model_dump(),
+                    secondary_color=None,
+                    primary_color=config.branding.color_primario,
+                    allow_custom_roles=True,
+                    user_limit=10,
+                    operation_type="sales",
                 )
+                db.add(company_settings)
 
-                db.execute(
-                    create_settings_sql,
-                    {
-                        "tenant_id": tenant_id,
-                        "settings": json.dumps(settings_config),
-                        "pos_config": json.dumps(config.pos.model_dump()),
-                        "locale": config.defaults.locale,
-                        "timezone": config.defaults.timezone,
-                        "currency": config.defaults.currency,
-                    },
-                )
-
-                result["changes"].append("TenantSettings creado")
-                logger.info("✅ TenantSettings creado")
+                result["changes"].append("CompanySettings creado")
+                logger.info("✅ CompanySettings creado")
             else:
                 # Actualizar existente
-                update_settings_sql = text(
-                    """
-                    UPDATE tenant_settings
-                    SET settings = :settings,
-                        pos_config = :pos_config,
-                        locale = :locale,
-                        timezone = :timezone,
-                        currency = :currency,
-                        updated_at = NOW()
-                    WHERE tenant_id = :tenant_id
-                """
-                )
+                company_settings.default_language = config.defaults.locale
+                company_settings.timezone = config.defaults.timezone
+                company_settings.currency = config.defaults.currency
+                current_settings = company_settings.settings or {}
+                if not isinstance(current_settings, dict):
+                    current_settings = {}
+                current_settings.update(settings_config)
+                company_settings.settings = current_settings
+                company_settings.pos_config = config.pos.model_dump()
 
-                db.execute(
-                    update_settings_sql,
-                    {
-                        "tenant_id": tenant_id,
-                        "settings": json.dumps(settings_config),
-                        "pos_config": json.dumps(config.pos.model_dump()),
-                        "locale": config.defaults.locale,
-                        "timezone": config.defaults.timezone,
-                        "currency": config.defaults.currency,
-                    },
-                )
-
-                result["changes"].append("TenantSettings actualizado")
-                logger.info("✅ TenantSettings actualizado")
+                result["changes"].append("CompanySettings actualizado")
+                logger.info("✅ CompanySettings actualizado")
 
         except Exception as e:
-            logger.error(f"Error creando TenantSettings: {e}")
-            result["errors"].append(f"TenantSettings: {str(e)}")
+            logger.error(f"Error actualizando CompanySettings: {e}")
+            result["errors"].append(f"CompanySettings: {str(e)}")
 
         # 5. Procesar módulos habilitados/deshabilitados
         for module_key, module_config in config.modules.items():

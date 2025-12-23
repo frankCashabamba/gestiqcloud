@@ -9,6 +9,7 @@ class ImportItemStatus:
 class ImportBatchStatus:
     PENDING = "PENDING"
     PARSING = "PARSING"
+    EMPTY = "EMPTY"
     READY = "READY"
     VALIDATED = "VALIDATED"
     PARTIAL = "PARTIAL"

@@ -46,10 +46,10 @@ export default function MonedaList() {
         <tbody>
           {items.map((it) => (
             <tr key={it.id} className="border-t">
-              <td className="py-2 px-3">{it.codigo}</td>
-              <td className="py-2 px-3">{it.nombre}</td>
-              <td className="py-2 px-3">{it.simbolo}</td>
-              <td className="py-2 px-3">{it.activo ? 'Activo' : 'Inactivo'}</td>
+              <td className="py-2 px-3">{it.code}</td>
+              <td className="py-2 px-3">{it.name}</td>
+              <td className="py-2 px-3">{it.symbol}</td>
+              <td className="py-2 px-3">{it.active ? 'Activo' : 'Inactivo'}</td>
               <td className="py-2 px-3">
                 <Link to={`${it.id}/editar`} className="text-blue-600 hover:underline mr-3">Editar</Link>
                 <button className="text-red-700" onClick={async () => {

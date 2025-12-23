@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from uuid import UUID
 
 from app.modules.admin_config.application.tipos_negocio.dto import TipoNegocioIn, TipoNegocioOut
 from app.modules.admin_config.application.tipos_negocio.ports import TipoNegocioRepo
@@ -13,7 +14,7 @@ class ListBusinessTypes(BaseUseCase[TipoNegocioRepo]):
 
 
 class GetBusinessType(BaseUseCase[TipoNegocioRepo]):
-    def execute(self, id: int) -> TipoNegocioOut:
+    def execute(self, id: UUID) -> TipoNegocioOut:
         business_type = self.repo.get(id)
         if not business_type:
             raise ValueError("business_type_not_found")
@@ -26,10 +27,10 @@ class CreateBusinessType(BaseUseCase[TipoNegocioRepo]):
 
 
 class UpdateBusinessType(BaseUseCase[TipoNegocioRepo]):
-    def execute(self, id: int, data: TipoNegocioIn) -> TipoNegocioOut:
+    def execute(self, id: UUID, data: TipoNegocioIn) -> TipoNegocioOut:
         return self.repo.update(id, data)
 
 
 class DeleteBusinessType(BaseUseCase[TipoNegocioRepo]):
-    def execute(self, id: int) -> None:
+    def execute(self, id: UUID) -> None:
         self.repo.delete(id)

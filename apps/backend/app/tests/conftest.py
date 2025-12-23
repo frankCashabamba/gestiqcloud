@@ -272,6 +272,157 @@ def db():
             Base.metadata.drop_all(bind=engine)
 
 
+@pytest.fixture(autouse=True)
+def seed_sector_config(db):
+    """Seed mínimo para sectores/templates cuando la BD de pruebas no tiene datos."""
+    from app.models.company.company import SectorTemplate
+    from app.models.core.ui_field_config import SectorFieldDefault
+
+    existing_templates = {tpl.code for tpl in db.query(SectorTemplate).all()}
+    sectors = {
+        "panaderia": {
+            "name": "Panadería",
+            "defaults": {
+                "categories": ["Pan", "Bollería", "Pastelería", "Bebidas", "Otros"],
+                "expenses_categories": ["Materias Primas", "Suministros", "Servicios"],
+            },
+            "fields": {
+                "productos": [
+                    {"field": "code", "required": True, "ord": 10, "label": "Código PLU"},
+                    {"field": "name", "required": True, "ord": 20, "label": "Nombre"},
+                    {"field": "precio", "required": True, "ord": 30, "label": "Precio de venta"},
+                    {"field": "peso_unitario", "required": False, "ord": 40, "label": "Peso unitario"},
+                    {"field": "caducidad_dias", "required": False, "ord": 50, "label": "Días de caducidad"},
+                    {"field": "ingredientes", "required": False, "ord": 60, "label": "Ingredientes"},
+                    {"field": "receta_id", "required": False, "ord": 70, "label": "Receta asociada"},
+                    {"field": "impuesto", "required": True, "ord": 80, "label": "IVA"},
+                ],
+                "suppliers": [
+                    {"field": "name", "required": True, "ord": 10, "label": "Nombre comercial"},
+                    {"field": "ruc", "required": True, "ord": 20, "label": "RUC/NIF"},
+                    {"field": "email", "required": False, "ord": 30, "label": "Email"},
+                ],
+            },
+        },
+        "retail": {
+            "name": "Retail",
+            "defaults": {
+                "categories": ["Ropa", "Electrónica", "Hogar", "Juguetes", "Deportes", "Otros"],
+                "expenses_categories": ["Mercancía", "Embalaje", "Marketing"],
+            },
+            "fields": {
+                "productos": [
+                    {"field": "code", "required": True, "ord": 10, "label": "Código"},
+                    {"field": "name", "required": True, "ord": 20, "label": "Nombre"},
+                    {"field": "precio", "required": True, "ord": 30, "label": "Precio"},
+                    {"field": "marca", "required": False, "ord": 40, "label": "Marca"},
+                    {"field": "modelo", "required": False, "ord": 50, "label": "Modelo"},
+                    {"field": "talla", "required": False, "ord": 60, "label": "Talla"},
+                    {"field": "color", "required": False, "ord": 70, "label": "Color"},
+                    {"field": "margen", "required": False, "ord": 80, "label": "Margen"},
+                    {"field": "stock_minimo", "required": False, "ord": 90, "label": "Stock mínimo"},
+                    {"field": "impuesto", "required": True, "ord": 100, "label": "IVA"},
+                ],
+                "suppliers": [
+                    {"field": "name", "required": True, "ord": 10, "label": "Nombre"},
+                    {"field": "ruc", "required": True, "ord": 20, "label": "RUC/NIF"},
+                    {"field": "email", "required": False, "ord": 30, "label": "Email"},
+                ],
+            },
+        },
+        "restaurante": {
+            "name": "Restaurante",
+            "defaults": {
+                "categories": ["Entrantes", "Principales", "Postres", "Bebidas", "Menús", "Otros"],
+                "expenses_categories": ["Alimentos", "Bebidas", "Suministros Cocina"],
+            },
+            "fields": {
+                "productos": [
+                    {"field": "code", "required": True, "ord": 10, "label": "Código"},
+                    {"field": "name", "required": True, "ord": 20, "label": "Nombre"},
+                    {"field": "precio", "required": True, "ord": 30, "label": "Precio"},
+                    {"field": "ingredientes", "required": False, "ord": 40, "label": "Ingredientes"},
+                    {"field": "receta_id", "required": False, "ord": 50, "label": "Receta"},
+                    {"field": "tiempo_preparacion", "required": False, "ord": 60, "label": "Tiempo preparación"},
+                    {"field": "raciones", "required": False, "ord": 70, "label": "Raciones"},
+                    {"field": "impuesto", "required": True, "ord": 80, "label": "IVA"},
+                ],
+                "suppliers": [
+                    {"field": "name", "required": True, "ord": 10, "label": "Nombre"},
+                    {"field": "ruc", "required": True, "ord": 20, "label": "RUC/NIF"},
+                    {"field": "email", "required": False, "ord": 30, "label": "Email"},
+                ],
+            },
+        },
+        "taller": {
+            "name": "Taller",
+            "defaults": {
+                "categories": ["Motor", "Frenos", "Suspensión", "Transmisión", "Servicios", "Otros"],
+                "expenses_categories": ["Repuestos", "Herramientas", "Consumibles"],
+            },
+            "fields": {
+                "productos": [
+                    {"field": "code", "required": True, "ord": 10, "label": "Código"},
+                    {"field": "name", "required": True, "ord": 20, "label": "Nombre"},
+                    {"field": "precio", "required": True, "ord": 30, "label": "Precio"},
+                    {"field": "type", "required": False, "ord": 40, "label": "Tipo"},
+                    {"field": "marca_vehiculo", "required": False, "ord": 50, "label": "Marca vehículo"},
+                    {"field": "modelo_vehiculo", "required": False, "ord": 60, "label": "Modelo vehículo"},
+                    {"field": "impuesto", "required": True, "ord": 70, "label": "IVA"},
+                ],
+                "suppliers": [
+                    {"field": "name", "required": True, "ord": 10, "label": "Nombre"},
+                    {"field": "ruc", "required": True, "ord": 20, "label": "RUC/NIF"},
+                    {"field": "email", "required": False, "ord": 30, "label": "Email"},
+                ],
+            },
+        },
+    }
+
+    # Crear templates si faltan
+    for code, cfg in sectors.items():
+        if code not in existing_templates:
+            tpl = SectorTemplate(
+                code=code,
+                name=cfg["name"],
+                description=f"Plantilla {cfg['name']}",
+                template_config={"defaults": cfg["defaults"], "fields": cfg["fields"]},
+                is_active=True,
+            )
+            db.add(tpl)
+
+    db.flush()
+
+    # Insertar sector_field_defaults si faltan
+    for code, cfg in sectors.items():
+        for module, fields in cfg["fields"].items():
+            for field in fields:
+                exists = (
+                    db.query(SectorFieldDefault)
+                    .filter(
+                        SectorFieldDefault.sector == code,
+                        SectorFieldDefault.module == module,
+                        SectorFieldDefault.field == field["field"],
+                    )
+                    .first()
+                )
+                if exists:
+                    continue
+                db.add(
+                    SectorFieldDefault(
+                        sector=code,
+                        module=module,
+                        field=field["field"],
+                        visible=field.get("visible", True),
+                        required=field.get("required", False),
+                        ord=field.get("ord"),
+                        label=field.get("label"),
+                        help=field.get("help"),
+                    )
+                )
+    db.commit()
+
+
 @pytest.fixture
 def superuser_factory(db):
     def _create(

@@ -14,13 +14,65 @@ class ModuleConfig(BaseModel):
     config: dict | None = None
 
 
-class BrandingConfig(BaseModel):
-    """Configuración de branding por sector"""
+class SectorUnit(BaseModel):
+    """Unidad de medida para un sector"""
 
+    code: str = Field(..., description="Código de la unidad (unit, kg, l, etc.)")
+    label: str = Field(..., description="Etiqueta para mostrar (Unidad, Kilogramo, etc.)")
+
+
+class FormatRule(BaseModel):
+    """Regla de formateo para un sector"""
+
+    decimals: int = 0
+    suffix: str = ""
+    metric: str | None = None
+
+
+class BrandingConfig(BaseModel):
+    """Configuración de branding y visualización por sector"""
+
+    # Branding visual
     color_primario: str = "#4f46e5"
     logo: str | None = None
     plantilla_inicio: str = "default"  # panaderia, taller, retail, etc.
     dashboard_template: str = "default"  # Plantilla HTML a usar
+
+    # NUEVO: Configuración visual del sector (elimina hardcoding)
+    icon: str = "🏢"  # Emoji representativo del sector
+    displayName: str = "General"  # Nombre legible del sector
+
+    # NUEVO: Unidades de medida por sector
+    units: list[SectorUnit] = Field(
+        default_factory=lambda: [
+            SectorUnit(code="unit", label="Unidad"),
+            SectorUnit(code="kg", label="Kilogramo"),
+            SectorUnit(code="l", label="Litro"),
+        ],
+        description="Unidades de medida disponibles para este sector",
+    )
+
+    # NUEVO: Reglas de formateo específicas del sector
+    format_rules: dict[str, FormatRule] = Field(
+        default_factory=dict, description="Reglas de formateo (quantity, weight, date, etc.)"
+    )
+
+    # NUEVO: Configuración de impresión
+    print_config: dict = Field(
+        default_factory=lambda: {
+            "width": 58,
+            "fontSize": 10,
+            "showLogo": True,
+            "showDetails": False,
+        },
+        description="Configuración de impresión por sector",
+    )
+
+    # NUEVO: Validaciones específicas del sector
+    required_fields: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Campos requeridos por contexto (product, inventory, sale)",
+    )
 
 
 class DefaultsConfig(BaseModel):
@@ -92,6 +144,26 @@ class SectorConfigJSON(BaseModel):
                     "color_primario": "#8B4513",
                     "plantilla_inicio": "panaderia",
                     "dashboard_template": "panaderia_dashboard.html",
+                    "icon": "🥐",
+                    "displayName": "Panadería",
+                    "units": [
+                        {"code": "unit", "label": "Unidad"},
+                        {"code": "kg", "label": "Kilogramo"},
+                        {"code": "g", "label": "Gramo"},
+                        {"code": "dozen", "label": "Docena"},
+                    ],
+                    "format_rules": {
+                        "quantity": {"decimals": 0, "suffix": "uds"},
+                        "weight": {"metric": "kg"},
+                        "date": {"suffix": "dd/MMM"},
+                    },
+                    "print_config": {
+                        "width": 58,
+                        "fontSize": 9,
+                        "showLogo": False,
+                        "showDetails": False,
+                    },
+                    "required_fields": {"product": ["expires_at"], "inventory": ["expires_at"]},
                 },
                 "defaults": {
                     "categories": ["Pan", "Pasteles", "Bollería", "Bebidas"],
@@ -168,3 +240,36 @@ class ApplySectorTemplateRequest(BaseModel):
     tenant_id: str
     sector_plantilla_id: int
     override_existing: bool = False
+
+
+class SectorConfigUpdateRequest(BaseModel):
+    """Request para actualizar configuración de sector (Admin UI - FASE 6)"""
+
+    config: SectorConfigJSON = Field(..., description="Nueva configuración completa del sector")
+    reason: str | None = Field(None, description="Razón del cambio (opcional, para auditoría)")
+
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "config": {
+                "branding": {"icon": "🥐", "displayName": "Panadería", "color_primario": "#8B4513"},
+                "defaults": {"tax_rate": 0.15, "currency": "EUR"},
+                "modules": {"pos": {"enabled": True}},
+                "pos": {"receipt_width_mm": 58},
+                "inventory": {"enable_expiry_tracking": True}
+            },
+            "reason": "Actualizar color primario y cambiar configuración de inventario"
+        }
+    })
+
+
+class SectorConfigResponse(BaseModel):
+    """Response con configuración actual de un sector"""
+
+    code: str
+    name: str
+    config: SectorConfigJSON
+    last_modified: str | None = None
+    modified_by: str | None = None
+    config_version: int = 1
+
+    model_config = ConfigDict(from_attributes=True)

@@ -1,8 +1,9 @@
-﻿/**
+/**
  * Facturación Services - API calls para facturas y e-invoicing
  */
 
 import tenantApi from '../../shared/api/client'
+import { TENANT_FACTURACION } from '@shared/endpoints'
 import { ensureArray } from '../../shared/utils/array'
 
 // ============================================================================
@@ -46,27 +47,27 @@ export async function listInvoices(params?: {
   desde?: string
   hasta?: string
 }): Promise<Invoice[]> {
-  const { data } = await tenantApi.get('/facturacion/', { params })
+  const { data } = await tenantApi.get(TENANT_FACTURACION.base, { params })
   return ensureArray<Invoice>(data)
 }
 
 export async function getInvoice(id: number | string): Promise<Invoice> {
-  const { data } = await tenantApi.get(`/facturacion/${id}`)
+  const { data } = await tenantApi.get(TENANT_FACTURACION.byId(id))
   return data
 }
 
 export async function createInvoice(invoice: InvoiceCreate | Partial<InvoiceCreate>): Promise<Invoice> {
-  const { data } = await tenantApi.post('/facturacion/', invoice)
+  const { data } = await tenantApi.post(TENANT_FACTURACION.base, invoice)
   return data
 }
 
 export async function updateInvoice(id: number | string, invoice: Partial<Invoice>): Promise<Invoice> {
-  const { data } = await tenantApi.put(`/facturacion/${id}`, invoice)
+  const { data } = await tenantApi.put(TENANT_FACTURACION.byId(id), invoice)
   return data
 }
 
 export async function deleteInvoice(id: number | string): Promise<void> {
-  await tenantApi.delete(`/facturacion/${id}`)
+  await tenantApi.delete(TENANT_FACTURACION.byId(id))
 }
 
 // ============================================================================

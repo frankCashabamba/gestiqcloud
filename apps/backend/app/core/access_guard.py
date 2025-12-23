@@ -44,12 +44,24 @@ def with_access_claims(request: Request) -> dict[str, Any]:
         request.state.access_claims = claims
         return claims
 
-    # 1) extrae Authorization
+    # 1) extrae Authorization (o usa access_token en cookie/sesión como fallback para admin UI)
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
+    token = None
+    if auth.startswith("Bearer "):
+        token = auth.split(" ", 1)[1].strip()
+    else:
+        cookie_token = request.cookies.get("access_token")
+        session_token = getattr(getattr(request, "state", object()), "session", {}).get(
+            "access_token"
+        )
+        token_source = cookie_token or session_token
+        if token_source:
+            token = str(token_source).strip()
+
+    if not token:
         logger.error("Missing bearer token")
         raise HTTPException(status_code=401, detail="Missing bearer token")
-    token = auth.split(" ", 1)[1].strip()
+
     try:
         logger.debug(f"Attempting to decode token, token_service_id={id(token_service)}")
         logger.debug(f"Token (first 50 chars): {token[:50]}...")

@@ -34,16 +34,52 @@ export type AsientoLinea = {
     descripcion?: string
 }
 
+// =========================
+// POS Contable (config)
+// =========================
+
+export type PosAccountingSettings = {
+    cash_account_id: string
+    bank_account_id: string
+    sales_bakery_account_id: string
+    vat_output_account_id: string
+    loss_account_id?: string | null
+}
+
+export type PaymentMethod = {
+    id: string
+    name: string
+    description?: string | null
+    account_id: string
+    is_active: boolean
+}
+
+export type DailyCount = {
+    id: string
+    register_id: string
+    shift_id: string
+    count_date: string
+    total_sales: number
+    cash_sales?: number | null
+    card_sales?: number | null
+    other_sales?: number | null
+    counted_cash?: number | null
+    discrepancy?: number | null
+}
+
 export async function listCuentas(): Promise<PlanCuenta[]> {
-    return apiFetch<PlanCuenta[]>('/api/v1/accounting/cuentas')
+    const data = await apiFetch<PlanCuenta[] | { items?: PlanCuenta[] }>('/api/v1/tenant/accounting/plan-cuentas')
+    if (Array.isArray(data)) return data
+    if (data && Array.isArray((data as any).items)) return (data as any).items as PlanCuenta[]
+    return []
 }
 
 export async function getCuenta(id: string): Promise<PlanCuenta> {
-    return apiFetch<PlanCuenta>(`/api/v1/accounting/cuentas/${id}`)
+    return apiFetch<PlanCuenta>(`/api/v1/tenant/accounting/plan-cuentas/${id}`)
 }
 
 export async function createCuenta(data: Partial<PlanCuenta>): Promise<PlanCuenta> {
-    return apiFetch<PlanCuenta>('/api/v1/accounting/cuentas', {
+    return apiFetch<PlanCuenta>('/api/v1/tenant/accounting/plan-cuentas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -51,7 +87,7 @@ export async function createCuenta(data: Partial<PlanCuenta>): Promise<PlanCuent
 }
 
 export async function updateCuenta(id: string, data: Partial<PlanCuenta>): Promise<PlanCuenta> {
-    return apiFetch<PlanCuenta>(`/api/v1/accounting/cuentas/${id}`, {
+    return apiFetch<PlanCuenta>(`/api/v1/tenant/accounting/plan-cuentas/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -59,7 +95,7 @@ export async function updateCuenta(id: string, data: Partial<PlanCuenta>): Promi
 }
 
 export async function removeCuenta(id: string): Promise<void> {
-    await apiFetch(`/api/v1/accounting/cuentas/${id}`, { method: 'DELETE' })
+    await apiFetch(`/api/v1/tenant/accounting/plan-cuentas/${id}`, { method: 'DELETE' })
 }
 
 export async function listAsientos(): Promise<AsientoContable[]> {
@@ -102,4 +138,54 @@ export async function getBalance(fecha: string): Promise<any> {
 
 export async function getPyG(fecha_desde: string, fecha_hasta: string): Promise<any> {
     return apiFetch(`/api/v1/accounting/perdidas-ganancias?fecha_desde=${fecha_desde}&fecha_hasta=${fecha_hasta}`)
+}
+
+// POS contable
+export async function getPosAccountingSettings(): Promise<PosAccountingSettings> {
+    return apiFetch<PosAccountingSettings>('/api/v1/tenant/accounting/pos/settings')
+}
+
+export async function savePosAccountingSettings(payload: PosAccountingSettings): Promise<PosAccountingSettings> {
+    return apiFetch<PosAccountingSettings>('/api/v1/tenant/accounting/pos/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    })
+}
+
+export async function listPaymentMethods(): Promise<PaymentMethod[]> {
+    return apiFetch<PaymentMethod[]>('/api/v1/tenant/accounting/pos/payment-methods')
+}
+
+export async function createPaymentMethod(payload: Partial<PaymentMethod>): Promise<PaymentMethod> {
+    return apiFetch<PaymentMethod>('/api/v1/tenant/accounting/pos/payment-methods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    })
+}
+
+export async function updatePaymentMethod(id: string, payload: Partial<PaymentMethod>): Promise<PaymentMethod> {
+    return apiFetch<PaymentMethod>(`/api/v1/tenant/accounting/pos/payment-methods/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    })
+}
+
+export async function deletePaymentMethod(id: string): Promise<void> {
+    await apiFetch(`/api/v1/tenant/accounting/pos/payment-methods/${id}`, { method: 'DELETE' })
+}
+
+// POS daily counts (cierres de caja) y asiento contable manual
+export async function listDailyCounts(limit: number = 10): Promise<DailyCount[]> {
+    return apiFetch<DailyCount[]>(`/api/v1/tenant/pos/daily_counts?limit=${limit}`)
+}
+
+export async function generateAccountingForShift(shiftId: string): Promise<any> {
+    return apiFetch(`/api/v1/tenant/pos/shifts/${shiftId}/accounting`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+    })
 }

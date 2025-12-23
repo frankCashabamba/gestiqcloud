@@ -15,6 +15,7 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.modules.imports.parsers.products_excel import normalize_product_row, parse_products_excel
 from app.modules.imports.services.classifier import classifier
+from app.modules.imports.services.smart_router import smart_router
 from app.modules.imports.validators.products import validate_product
 from app.services.excel_analyzer import analyze_excel_stream
 
@@ -254,8 +255,10 @@ async def classify_file(
         raise HTTPException(status_code=422, detail="Nombre de archivo requerido")
 
     ext = file.filename.lower().split(".")[-1]
-    if ext not in ["xlsx", "xls", "csv", "xml"]:
-        raise HTTPException(status_code=422, detail="Solo se aceptan archivos Excel, CSV o XML")
+    allowed = ["xlsx", "xls", "csv", "xml", "pdf", "png", "jpg", "jpeg", "heic"]
+    use_ocr_router = ext in {"pdf", "png", "jpg", "jpeg", "heic"}
+    if ext not in allowed:
+        raise HTTPException(status_code=422, detail="Extensión no soportada")
 
     try:
         # Guardar temporalmente para análisis
@@ -265,9 +268,29 @@ async def classify_file(
             tmp_path = tmp.name
 
         try:
-            # Clasificar archivo
-            result = classifier.classify_file(tmp_path, file.filename)
+            if use_ocr_router:
+                # Para PDF/imagen, usar smart_router (incluye OCR) para sugerir parser/doc_type
+                claims = _get_claims(request)
+                tenant_id = claims.get("tenant_id")
+                result = await smart_router.analyze_file(
+                    file_path=tmp_path,
+                    filename=file.filename,
+                    content_type=file.content_type,
+                    tenant_id=tenant_id,
+                )
+                return ClassifyResponse(
+                    suggested_parser=result.suggested_parser,
+                    confidence=result.confidence,
+                    reason=result.explanation,
+                    available_parsers=result.available_parsers,
+                    content_analysis={"doc_type": result.suggested_doc_type},
+                    probabilities=result.probabilities,
+                    enhanced_by_ai=result.ai_enhanced,
+                    ai_provider=result.ai_provider,
+                )
 
+            # Clasificar archivo estructurado (Excel/CSV/XML)
+            result = classifier.classify_file(tmp_path, file.filename)
             return ClassifyResponse(**result)
 
         finally:
@@ -307,8 +330,10 @@ async def classify_file_with_ai(
         raise HTTPException(status_code=422, detail="Nombre de archivo requerido")
 
     ext = file.filename.lower().split(".")[-1]
-    if ext not in ["xlsx", "xls", "csv", "xml"]:
-        raise HTTPException(status_code=422, detail="Solo se aceptan archivos Excel, CSV o XML")
+    allowed = ["xlsx", "xls", "csv", "xml", "pdf", "png", "jpg", "jpeg", "heic"]
+    use_ocr_router = ext in {"pdf", "png", "jpg", "jpeg", "heic"}
+    if ext not in allowed:
+        raise HTTPException(status_code=422, detail="Extensión no soportada")
 
     try:
         # Guardar temporalmente para análisis
@@ -318,7 +343,27 @@ async def classify_file_with_ai(
             tmp_path = tmp.name
 
         try:
-            # Clasificar con IA
+            if use_ocr_router:
+                claims = _get_claims(request)
+                tenant_id = claims.get("tenant_id")
+                result = await smart_router.analyze_file(
+                    file_path=tmp_path,
+                    filename=file.filename,
+                    content_type=file.content_type,
+                    tenant_id=tenant_id,
+                )
+                return ClassifyResponse(
+                    suggested_parser=result.suggested_parser,
+                    confidence=result.confidence,
+                    reason=result.explanation,
+                    available_parsers=result.available_parsers,
+                    content_analysis={"doc_type": result.suggested_doc_type},
+                    probabilities=result.probabilities,
+                    enhanced_by_ai=result.ai_enhanced,
+                    ai_provider=result.ai_provider,
+                )
+
+            # Clasificar con IA (estructurado)
             result = await classifier.classify_file_with_ai(tmp_path, file.filename)
 
             return ClassifyResponse(**result)

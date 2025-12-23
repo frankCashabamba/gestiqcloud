@@ -74,7 +74,7 @@ export function useDashboardKPIs(options: UseDashboardKPIsOptions = {}) {
 
     try {
       setError(null)
-      const response = await fetch(`/api/v1/dashboard/kpis?periodo=${periodo}`, {
+      const response = await fetch(`/api/v1/dashboard/kpis`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -130,7 +130,7 @@ export function useTallerKPIs(options: { enabled?: boolean } = {}) {
 
     const fetchTallerKPIs = async () => {
       try {
-        const response = await fetch('/api/v1/dashboard/kpis/taller', {
+        const response = await fetch('/api/v1/dashboard/kpis?sector=taller', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -174,7 +174,7 @@ export function usePanaderiaKPIs(options: { enabled?: boolean } = {}) {
 
     const fetchPanaderiaKPIs = async () => {
       try {
-        const response = await fetch('/api/v1/dashboard/kpis/panaderia', {
+        const response = await fetch('/api/v1/dashboard/kpis?sector=panaderia', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',

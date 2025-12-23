@@ -28,21 +28,13 @@ export function useMisModulos() {
       try {
         let mods: Modulo[] = []
         if (empresa) {
-          // Público por empresa (módulos contratados por la empresa)
-          try {
-            mods = await listModulosSeleccionablesPorEmpresa(empresa)
-          } catch (e) {
-            // Fallback a endpoint autenticado si falla o no existe público
-            if (token) {
-              try { mods = await listMisModulos(token) } catch {}
-            }
+          // Preferimos siempre el endpoint autenticado (más consistente)
+          if (token) {
+            try { mods = await listMisModulos(token) } catch {}
           }
-          // Si el endpoint público respondió pero viene vacío, intenta también el autenticado
-          if ((mods?.length ?? 0) === 0 && token) {
-            try {
-              const authMods = await listMisModulos(token)
-              if (authMods?.length) mods = authMods
-            } catch {}
+          // Si no hay token, probamos el público por empresa
+          if ((mods?.length ?? 0) === 0) {
+            try { mods = await listModulosSeleccionablesPorEmpresa(empresa) } catch {}
           }
         } else if (token) {
           // Autenticado por usuario (módulos asignados al usuario)

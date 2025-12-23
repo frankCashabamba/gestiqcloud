@@ -1,12 +1,17 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
 import { useAuth } from '../../../auth/AuthContext'
-import { procesarDocumento, pollOcrJob } from '../services'
+import { pollOcrJob, processDocument } from '../services/importsApi'
 import { parseExcelFile } from '../services/parseExcelFile'
 import { uploadExcelViaChunks, createBatch, ingestBatch, type ImportMapping } from '../services/importsApi'
-import { detectarTipoDocumento } from '../utils/detectarTipoDocumento'
-import { guardarPendiente, type DatosImportadosCreate } from '../services'
+import { detectarTipoDocumento, type ImportDocType } from '../utils/detectarTipoDocumento'
+import { normalizeOCRRows } from '../utils/normalizeOCRFields'
+import { analyzeFile } from '../services/analyzeApi'
 
-const OCR_RECHECK_DELAY_MS = Number(import.meta.env.VITE_IMPORTS_JOB_RECHECK_INTERVAL ?? 2000)
+const env =
+  (typeof import.meta !== 'undefined' && (import.meta as any)?.env)
+    ? (import.meta as any).env
+    : ((globalThis as any).__IMPORTS_ENV__ || {})
+const OCR_RECHECK_DELAY_MS = Number(env.VITE_IMPORTS_JOB_RECHECK_INTERVAL ?? 2000)
 
 type Row = Record<string, string>
 type ItemStatus = 'pending' | 'processing' | 'ready' | 'saving' | 'saved' | 'duplicate' | 'error'
@@ -22,7 +27,7 @@ export type QueueItem = {
   info?: string | null
   headers?: string[]
   rows?: Row[]
-  docType?: string
+  docType?: ImportDocType
   mappingId?: string
   jobId?: string
   batchId?: string
@@ -41,20 +46,7 @@ const ImportQueueContext = createContext<ImportQueueContextType | undefined>(und
 
 const STORAGE_KEY = 'importador_queue_state'
 
-function parseCSV(text: string): { headers: string[]; rows: Row[] } {
-  const lines = text.split(/\r?\n/).filter(Boolean)
-  if (lines.length === 0) return { headers: [], rows: [] }
-  const headers = lines[0].split(',').map((h) => h.trim())
-  const rows = lines.slice(1).map((line) => {
-    const cols = line.split(',')
-    const row: Row = {}
-    headers.forEach((header, idx) => {
-      row[header] = (cols[idx] || '').trim()
-    })
-    return row
-  })
-  return { headers, rows }
-}
+import { parseCSV } from '../services/parseCSVFile'
 
 export function ImportQueueProvider({ children }: { children: React.ReactNode }) {
   const { token } = useAuth() as { token: string | null }
@@ -62,6 +54,15 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
   const queueRef = useRef<QueueItem[]>([])
   const processingRef = useRef<Set<string>>(new Set())
   const [isProcessing, setIsProcessing] = useState(false)
+
+  const normalizeDocType = useCallback((value?: string | null): ImportDocType => {
+    const v = (value || '').toLowerCase()
+    if (v === 'products' || v === 'product') return 'products'
+    if (v === 'invoice' || v === 'invoices' || v === 'factura') return 'invoices'
+    if (v === 'bank' || v === 'transferencia' || v === 'banco') return 'bank'
+    if (v === 'recipe' || v === 'recipes' || v === 'receta' || v === 'recetas') return 'recipes'
+    return 'expenses'
+  }, [])
 
   // Persistir cola en localStorage
   useEffect(() => {
@@ -96,6 +97,20 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
     setQueue((prev) => prev.map((item) => (item.id === id ? { ...item, ...updates } : item)))
   }, [])
 
+  const applyMappingSuggestion = useCallback((rows: Row[], mapping?: Record<string, string> | null) => {
+    if (!mapping || Object.keys(mapping).length === 0) return rows
+    return rows.map((row) => {
+      const mapped: Row = {}
+      Object.entries(mapping).forEach(([src, dest]) => {
+        if (dest && dest !== 'ignore' && src in row) {
+          mapped[dest] = row[src]
+        }
+      })
+      // Si no se mapeó nada, devolver original para no perder datos
+      return Object.keys(mapped).length ? mapped : row
+    })
+  }, [])
+
   const processItem = useCallback(
     async (item: QueueItem, mappings?: ImportMapping[], defaultMappingId?: string) => {
       if (processingRef.current.has(item.id)) return
@@ -103,9 +118,9 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
 
       updateQueue(item.id, { status: 'processing', error: null })
 
-      const isCSV = item.name.toLowerCase().endsWith('.csv')
-      const isExcel = item.name.toLowerCase().endsWith('.xlsx') || item.name.toLowerCase().endsWith('.xls')
-      const isDoc = item.type.includes('pdf') || item.type.includes('image')
+          const isCSV = item.name.toLowerCase().endsWith('.csv')
+          const isExcel = item.name.toLowerCase().endsWith('.xlsx') || item.name.toLowerCase().endsWith('.xls')
+          const isDoc = item.type.includes('pdf') || item.type.includes('image')
 
       try {
         if (isCSV) {
@@ -133,32 +148,79 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
               effectiveMappingId = matched.id
               updateQueue(item.id, { mappingId: matched.id, info: `Usando mapping: ${matched.name}` })
             }
-          }
+            }
 
-          const thresholdMb = Number(import.meta.env.VITE_IMPORTS_CHUNK_THRESHOLD_MB ?? 8)
-          if (item.size > thresholdMb * 1024 * 1024) {
-            updateQueue(item.id, { info: 'Subiendo archivo por partes...' })
-            const res = await uploadExcelViaChunks(item.file, {
-              sourceType: 'products',
-              mappingId: effectiveMappingId || undefined,
-              onProgress: (pct) => updateQueue(item.id, { info: `Subiendo... ${pct}%` }),
-            })
-            updateQueue(item.id, { status: 'saved', info: 'Procesando en segundo plano...', batchId: res.batchId })
-            processingRef.current.delete(item.id)
+            // Intentar análisis rápido (headers) para determinar docType antes de decidir chunking
+            let docType: ImportDocType = 'products'
+            let mappingSuggestion: Record<string, string> | null | undefined
+            try {
+              const analysis = await analyzeFile(item.file, token || undefined)
+              if (analysis?.suggested_doc_type) {
+                docType = normalizeDocType(analysis.suggested_doc_type)
+              } else if (analysis?.headers) {
+                docType = detectarTipoDocumento(analysis.headers)
+              }
+              if (analysis?.mapping_suggestion) {
+                mappingSuggestion = analysis.mapping_suggestion
+              }
+            } catch {
+              // fallback: infer from filename if analysis no disponible
+              docType = detectarTipoDocumento([item.name])
+            }
+
+            // Recetas requieren archivo en servidor para el fast-path del backend
+            const thresholdMb = Number(env.VITE_IMPORTS_CHUNK_THRESHOLD_MB ?? 8)
+            if (docType === 'recipes' || item.size > thresholdMb * 1024 * 1024) {
+              updateQueue(item.id, { info: 'Subiendo archivo por partes...' })
+              const res = await uploadExcelViaChunks(item.file, {
+                sourceType: docType || 'products',
+                mappingId: effectiveMappingId || undefined,
+                onProgress: (pct) => updateQueue(item.id, { info: `Subiendo... ${pct}%` }),
+                authToken: token || undefined,
+              })
+              updateQueue(item.id, {
+                status: 'saved',
+                info: 'Procesando en segundo plano...',
+                batchId: res.batchId,
+                docType,
+              })
+              processingRef.current.delete(item.id)
+              return
+            }
+
+            const { headers, rows } = await parseExcelFile(item.file)
+            // Intentar análisis con IA para obtener doc_type y mapping sugerido
+            let docTypeLocal: ImportDocType = docType || detectarTipoDocumento(headers)
+            let mappedRows = rows
+            try {
+              const analysis = await analyzeFile(item.file, token || undefined)
+              if (analysis?.suggested_doc_type) {
+                docTypeLocal = normalizeDocType(analysis.suggested_doc_type)
+              }
+              if (analysis?.mapping_suggestion) {
+                mappedRows = applyMappingSuggestion(rows, analysis.mapping_suggestion)
+              } else if (mappingSuggestion) {
+                mappedRows = applyMappingSuggestion(rows, mappingSuggestion)
+              }
+            } catch {
+              // Si falla el análisis, seguir con heurística
+            }
+
+            // Recalcular headers tras el mapping sugerido (si aplica)
+            const effectiveHeaders =
+              mappedRows.length > 0 ? Object.keys(mappedRows[0]) : headers
+
+            // Propagar docType final al estado y al guardado
+            docType = docTypeLocal
+            updateQueue(item.id, { status: 'ready', headers: effectiveHeaders, rows: mappedRows, docType, error: null, info: null })
+            await saveItem(item, effectiveHeaders, mappedRows, docType)
             return
           }
-
-          const { headers, rows } = await parseExcelFile(item.file)
-          const docType = detectarTipoDocumento(headers)
-          updateQueue(item.id, { status: 'ready', headers, rows, docType, error: null, info: null })
-          await saveItem(item, headers, rows, docType)
-          return
-        }
 
         if (isDoc) {
           const response = item.jobId
             ? await pollOcrJob(item.jobId, token || undefined)
-            : await procesarDocumento(item.file, token || undefined)
+            : await processDocument(item.file, token || undefined)
 
           if (response.status === 'pending') {
             updateQueue(item.id, {
@@ -187,7 +249,7 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
             return result
           })
 
-          const docType = (documentos[0]?.documentoTipo as string) || 'generico'
+          const docType = normalizeDocType(documentos[0]?.documentoTipo as string)
           updateQueue(item.id, { status: 'ready', headers, rows, docType, error: null, info: null, jobId: response.jobId })
           await saveItem(item, headers, rows, docType)
           return
@@ -207,21 +269,25 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
     [token, updateQueue]
   )
 
-  const saveItem = async (item: QueueItem, headers: string[], rows: Row[], docType: string) => {
+  const saveItem = async (item: QueueItem, headers: string[], rows: Row[], docType: ImportDocType) => {
     if (!headers || !rows) return false
 
     updateQueue(item.id, { status: 'saving' })
 
     try {
+      // Normalizar campos OCR al schema canónico antes de enviar al backend
+      const normalizedRows = normalizeOCRRows(rows, docType)
+
+      // Pasar token de autenticación
       const batch = await createBatch({
         origin: item.name || 'importador-tenant',
         source_type: docType,
-      })
+      }, token || undefined)
 
       const batchId = batch.id
 
       const payload = {
-        rows: rows.map((row) => ({
+        rows: normalizedRows.map((row) => ({
           tipo: docType,
           origen: 'ocr' as const,
           datos: row,
@@ -230,7 +296,8 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
         }))
       }
 
-      await ingestBatch(batchId, payload)
+      // Pasar token de autenticación
+      await ingestBatch(batchId, payload, token || undefined)
       updateQueue(item.id, { status: 'saved', batchId })
       return true
     } catch (err: any) {

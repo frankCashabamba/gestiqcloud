@@ -15,7 +15,7 @@ def auto_setup_tenant(
     db: Session,
     tenant_id: str,
     country: str = "EC",
-    sector_plantilla_id: int | None = None,
+    sector_template_id: str | None = None,
 ) -> dict:
     """
     Configura automáticamente un nuevo tenant con:
@@ -104,16 +104,20 @@ def auto_setup_tenant(
 
         except Exception as e:
             logger.error(f"Error creando series: {e}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
             result["errors"].append(f"Series: {str(e)}")
 
         # 3. Aplicar plantilla de sector (si se proporciona)
-        if sector_plantilla_id:
+        if sector_template_id:
             try:
                 from app.services.sector_templates import apply_sector_template
 
-                logger.info(f"🎨 Aplicando plantilla de sector {sector_plantilla_id}")
+                logger.info(f"🎨 Aplicando plantilla de sector {sector_template_id}")
                 template_result = apply_sector_template(
-                    db, tenant_id, sector_plantilla_id, override_existing=True
+                    db, tenant_id, sector_template_id, override_existing=True
                 )
 
                 result["sector_template_applied"] = template_result
@@ -123,6 +127,10 @@ def auto_setup_tenant(
 
             except Exception as e:
                 logger.error(f"Error aplicando plantilla de sector: {e}")
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
                 result["errors"].append(f"Sector template: {str(e)}")
 
         # 4. NO hacer commit - dejar que el caller lo maneje

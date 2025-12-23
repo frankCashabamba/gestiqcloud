@@ -49,15 +49,19 @@ class Tenant(Base):
     # ============================================================
     # MULTI-TENANT CONFIG
     # ============================================================
-    base_currency: Mapped[str] = mapped_column(String(3), default="EUR", comment="ISO 4217")
-    country_code: Mapped[str] = mapped_column(String(2), default="ES", comment="ISO 3166-1 alpha-2")
+    base_currency: Mapped[str | None] = mapped_column(
+        String(3), nullable=True, comment="ISO 4217"
+    )
+    country_code: Mapped[str | None] = mapped_column(
+        String(2), nullable=True, comment="ISO 3166-1 alpha-2"
+    )
 
     # ============================================================
     # BRANDING & CUSTOMIZATION
     # ============================================================
     logo: Mapped[str | None] = mapped_column(String(500), comment="Logo URL or path")
-    primary_color: Mapped[str] = mapped_column(String(7), default="#4f46e5")
-    default_template: Mapped[str] = mapped_column(String(100), default="client")
+    primary_color: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    default_template: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # ============================================================
     # SECTOR & TEMPLATE

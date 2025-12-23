@@ -42,6 +42,11 @@ export default function SaldosView() {
     )
   }
 
+  const cajaTotal = saldos.caja_total ?? 0
+  const bancosTotal = saldos.bancos_total ?? 0
+  const totalDisponible = saldos.total_disponible ?? 0
+  const pendienteConciliar = saldos.pendiente_conciliar ?? 0
+
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
@@ -66,7 +71,7 @@ export default function SaldosView() {
         >
           <div className="text-sm text-gray-600 mb-2">Caja</div>
           <div className="text-3xl font-bold text-blue-900">
-            ${saldos.caja_total.toFixed(2)}
+            ${cajaTotal.toFixed(2)}
           </div>
           <div className="text-xs text-blue-600 mt-2">Ver movimientos →</div>
         </div>
@@ -77,7 +82,7 @@ export default function SaldosView() {
         >
           <div className="text-sm text-gray-600 mb-2">Bancos</div>
           <div className="text-3xl font-bold text-green-900">
-            ${saldos.bancos_total.toFixed(2)}
+            ${bancosTotal.toFixed(2)}
           </div>
           <div className="text-xs text-green-600 mt-2">Ver movimientos →</div>
         </div>
@@ -85,7 +90,7 @@ export default function SaldosView() {
         <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
           <div className="text-sm text-gray-600 mb-2">Total Disponible</div>
           <div className="text-3xl font-bold text-purple-900">
-            ${saldos.total_disponible.toFixed(2)}
+            ${totalDisponible.toFixed(2)}
           </div>
           <div className="text-xs text-gray-500 mt-2">Caja + Bancos</div>
         </div>
@@ -93,7 +98,7 @@ export default function SaldosView() {
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
           <div className="text-sm text-gray-600 mb-2">Pendiente Conciliar</div>
           <div className="text-3xl font-bold text-yellow-900">
-            ${saldos.pendiente_conciliar.toFixed(2)}
+            ${pendienteConciliar.toFixed(2)}
           </div>
           <div className="text-xs text-yellow-600 mt-2">Requiere atención</div>
         </div>

@@ -114,14 +114,15 @@ class TestCajaCalculations:
 class TestCajaIntegration:
     """Tests de integración con otros módulos"""
 
-    def test_caja_universal_across_sectors(self):
+    def test_caja_universal_across_sectors(self, db):
         """Caja funciona en todos los sectores"""
-        from app.services.sector_defaults import SECTOR_DEFAULTS
+        from app.models.company.company import SectorTemplate
 
-        # Todos los sectores usan caja
-        assert "panaderia" in SECTOR_DEFAULTS
-        assert "retail" in SECTOR_DEFAULTS
-        # Caja es universal, no depende de sector
+        codes = {tpl.code for tpl in db.query(SectorTemplate).all()}
+        assert "panaderia" in codes
+        assert "retail" in codes
+        assert "restaurante" in codes
+        assert "taller" in codes
 
     def test_caja_integrates_with_pos(self):
         """Caja recibe movimientos automáticos del POS"""

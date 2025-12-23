@@ -58,13 +58,15 @@ class SqlCompanyRepo(SqlAlchemyRepo, CompanyRepo):
             state=data.get("state"),
             postal_code=data.get("cp"),
             country=data.get("country"),
+            country_code=data.get("country_code"),
             logo=data.get("logo"),
-            primary_color=data.get("primary_color") or "#4f46e5",
+            primary_color=data.get("primary_color"),
             active=bool(data.get("active", True)),
             deactivation_reason=data.get("deactivation_reason"),
-            default_template=data.get("initial_template") or "client",
+            default_template=data.get("initial_template"),
             website=data.get("website"),
             config_json=data.get("config_json"),
+            base_currency=(data.get("base_currency") or data.get("currency")),
         )
         self.db.add(m)
         # No commit here: allow caller to wrap company+admin user in a single transaction

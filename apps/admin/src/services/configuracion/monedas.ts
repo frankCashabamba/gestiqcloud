@@ -3,27 +3,27 @@ import { ADMIN_CONFIG } from '@shared/endpoints'
 
 export type Moneda = {
   id: number
-  codigo: string
-  nombre: string
-  simbolo: string
-  activo: boolean
+  code: string
+  name: string
+  symbol: string
+  active: boolean
 }
 
-type MonedaPayload = Pick<Moneda, 'codigo' | 'nombre' | 'simbolo' | 'activo'>
+type MonedaPayload = Pick<Moneda, 'code' | 'name' | 'symbol' | 'active'>
 
 const normalizeMoneda = (input: Partial<Moneda>): Moneda => ({
   id: input.id ?? 0,
-  codigo: input.codigo ?? '',
-  nombre: input.nombre ?? '',
-  simbolo: input.simbolo ?? '',
-  activo: input.activo ?? true,
+  code: input.code ?? (input as any).codigo ?? '',
+  name: input.name ?? (input as any).nombre ?? '',
+  symbol: input.symbol ?? (input as any).simbolo ?? '',
+  active: input.active ?? (input as any).activo ?? true,
 })
 
 const buildPayload = (payload: MonedaPayload) => ({
-  codigo: payload.codigo,
-  nombre: payload.nombre,
-  simbolo: payload.simbolo,
-  activo: payload.activo,
+  code: payload.code,
+  name: payload.name,
+  symbol: payload.symbol,
+  active: payload.active,
 })
 
 export async function listMonedas(): Promise<Moneda[]> {

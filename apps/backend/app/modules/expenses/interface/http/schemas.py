@@ -1,4 +1,5 @@
 from datetime import date
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
@@ -6,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 class ExpenseBase(BaseModel):
     date: date
     amount: float
-    supplier_id: int | None = None
+    supplier_id: UUID | None = None
     concept: str | None = None
 
 
@@ -19,6 +20,6 @@ class ExpenseUpdate(ExpenseBase):
 
 
 class ExpenseOut(ExpenseBase):
-    id: int
+    id: UUID
 
     model_config = ConfigDict(from_attributes=True)

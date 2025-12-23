@@ -33,7 +33,7 @@ export function useImportProgress(batchId: string | null) {
         let timer: any
         const poll = async () => {
             try {
-                const { data } = await api.get<any>(`/api/v1/imports/batches/${batchId}/status`)
+                const { data } = await api.get<any>(`/api/v1/tenant/imports/batches/${batchId}/status`)
                 if (cancelled) return
                 const current = Number(data?.processed || 0)
                 const total = Number(data?.total || 0)

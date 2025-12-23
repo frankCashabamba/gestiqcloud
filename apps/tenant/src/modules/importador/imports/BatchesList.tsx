@@ -9,11 +9,15 @@ const statusOptions = [
   { value: 'READY', label: 'Listos' },
   { value: 'VALIDATED', label: 'Validados' },
   { value: 'PROMOTED', label: 'Promovidos' },
+  { value: 'EMPTY', label: 'Vacíos' },
   { value: 'ERROR', label: 'Con errores' },
 ]
+const statusLabels: Record<string, string> = {
+  EMPTY: 'Vacío',
+}
 
 export default function BatchesList() {
-  const { token } = useAuth() as { token: string | null }
+  const { token, profile } = useAuth() as { token: string | null; profile: any }
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -27,7 +31,7 @@ export default function BatchesList() {
     setLoading(true)
     setError(null)
     try {
-      const data = await listBatches(status || undefined)
+      const data = await listBatches(status || undefined, profile?.tenant_id)
       setRows(data)
     } catch (err: any) {
       setError(err?.message || 'No se pudieron obtener los lotes')
@@ -111,7 +115,7 @@ export default function BatchesList() {
                     <div className="font-medium text-neutral-900">{batch.source_type}</div>
                     <div className="text-xs text-neutral-500">{batch.origin || 'sin origen'}</div>
                   </td>
-                  <td className="px-4 py-3 text-neutral-700">{batch.status}</td>
+                  <td className="px-4 py-3 text-neutral-700">{statusLabels[batch.status] || batch.status}</td>
                   <td className="px-4 py-3 text-neutral-700">
                     {new Date(batch.created_at).toLocaleString()}
                   </td>

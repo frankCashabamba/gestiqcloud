@@ -40,7 +40,7 @@ def _classify_document(ocr_result: dict) -> str:
     Clasifica tipo de documento basado en palabras clave del OCR.
 
     Returns:
-        'factura', 'recibo', 'banco', 'transferencia', 'desconocido'
+        'factura', 'recibo', 'banco', 'transferencia', 'ticket_pos', 'desconocido'
     """
     documentos = ocr_result.get("documentos", [])
     if not documentos:
@@ -56,15 +56,30 @@ def _classify_document(ocr_result: dict) -> str:
             text += str(doc).lower() + " "
 
     keywords = {
-        "factura": ["factura", "invoice", "nif", "cif", "iva"],
-        "recibo": ["recibo", "receipt", "comprobante"],
-        "banco": ["extracto", "saldo", "iban", "banco", "bank statement"],
-        "transferencia": ["transferencia", "transfer", "wire", "swift"],
+        "ticket_pos": [
+            "ticket de venta",
+            "ticket venta",
+            "nº r-",
+            "n° r-",
+            "gracias por su compra",
+            "gracias por tu compra",
+            "productos",
+            "estado: paid",
+        ],
+        "factura": ["factura", "invoice", "nif", "cif", "iva", "ruc", "nit"],
+        "recibo": ["recibo", "receipt", "comprobante", "paid"],
+        "banco": ["extracto", "saldo", "iban", "banco", "bank statement", "movimientos"],
+        "transferencia": ["transferencia", "transfer", "wire", "swift", "ordenante", "beneficiario"],
     }
 
     scores = {}
     for doc_type, words in keywords.items():
         scores[doc_type] = sum(1 for w in words if w in text)
+
+    # Bonus para ticket_pos si tiene formato de línea de producto (10x producto - $1.50)
+    import re
+    if re.search(r"\d+[.,]?\d*\s*x\s+.+", text):
+        scores["ticket_pos"] = scores.get("ticket_pos", 0) + 2
 
     max_score = max(scores.values())
     if max_score == 0:

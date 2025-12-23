@@ -91,7 +91,7 @@ export default function StockList() {
 
       if (filterAlerta === 'bajo') {
         const min = item.product?.product_metadata?.reorder_point
-        if (!min || item.qty >= min) return false
+        if (!min || item.qty > min) return false
       }
 
       if (filterAlerta === 'sobre') {
@@ -152,7 +152,7 @@ export default function StockList() {
     const min = item.product?.product_metadata?.reorder_point
     const max = item.product?.product_metadata?.max_stock
 
-    if (min && item.qty < min) {
+    if (min && item.qty <= min) {
       return { tipo: 'bajo', texto: 'Stock bajo', color: 'bg-red-100 text-red-800' }
     }
     if (max && item.qty > max) {
@@ -221,7 +221,7 @@ export default function StockList() {
           <div className="text-2xl font-bold text-red-600">
             {items.filter(i => {
               const reorderPoint = i.product?.product_metadata?.reorder_point
-              return reorderPoint && i.qty < reorderPoint
+              return reorderPoint && i.qty <= reorderPoint
             }).length}
           </div>
         </div>

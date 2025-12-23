@@ -40,7 +40,7 @@ export const useImportProgress = ({
     // Construir URL del WebSocket
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
-    const wsUrl = `${protocol}//${host}/api/v1/imports/batches/${id}/progress?token=${token}`
+    const wsUrl = `${protocol}//${host}/api/v1/tenant/imports/batches/${id}/progress?token=${token}`
 
     try {
       wsRef.current = new WebSocket(wsUrl)

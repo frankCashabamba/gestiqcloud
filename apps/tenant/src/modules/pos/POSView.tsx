@@ -21,7 +21,9 @@ import {
     type ReceiptTotals,
 } from './services'
 import { listProductos, type Producto } from '../productos/services'
+import { getTenantSettings, getDefaultReorderPoint, getDefaultTaxRate } from '../../services/tenantSettings'
 import './pos-styles.css'
+import PendingReceiptsModal from './components/PendingReceiptsModal'
 
 type CartItem = {
     product_id: string
@@ -35,19 +37,31 @@ type CartItem = {
     categoria?: string
 }
 
+type HeldTicket = {
+    id: string
+    cart: CartItem[]
+    globalDiscountPct: number
+    ticketNotes?: string
+}
+
 export default function POSView() {
     const navigate = useNavigate()
     const { symbol: currencySymbol } = useCurrency()
     const { profile } = useAuth()
-    const esAdminEmpresa = !!profile?.es_admin_empresa
+    const esAdminEmpresa = !!(profile?.es_admin_empresa || (profile as any)?.is_company_admin)
     const [registers, setRegisters] = useState<any[]>([])
     const [selectedRegister, setSelectedRegister] = useState<any>(null)
     const [currentShift, setCurrentShift] = useState<any>(null)
     const [products, setProducts] = useState<Producto[]>([])
     const [cart, setCart] = useState<CartItem[]>([])
+    const [defaultTaxPct, setDefaultTaxPct] = useState<number>(0) // fallback neutral hasta cargar settings
     const [searchQuery, setSearchQuery] = useState('')
     const [barcodeInput, setBarcodeInput] = useState('')
     const [selectedCategory, setSelectedCategory] = useState<string>('*')
+    const [inventoryConfig, setInventoryConfig] = useState<{ reorderPoint: number; allowNegative: boolean }>({
+        reorderPoint: 0,
+        allowNegative: false,
+    })
     const [viewMode, setViewMode] = useState<'categories' | 'all'>('categories')
     const [globalDiscountPct, setGlobalDiscountPct] = useState(0)
     const [ticketNotes, setTicketNotes] = useState('')
@@ -55,6 +69,8 @@ export default function POSView() {
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [showInvoiceModal, setShowInvoiceModal] = useState(false)
     const [loading, setLoading] = useState(false)
+    const [heldTickets, setHeldTickets] = useState<HeldTicket[]>([])
+    const [showPendingModal, setShowPendingModal] = useState(false)
 
     const userLabel = useMemo(() => {
         if (!profile) return ''
@@ -70,6 +86,7 @@ export default function POSView() {
 
     useEffect(() => {
         loadRegisters()
+        loadSettings()
         loadProducts()
             ; (async () => {
                 try {
@@ -83,6 +100,23 @@ export default function POSView() {
             })()
     }, [])
 
+    // Persistir tickets en espera en localStorage para sobrevivir recargas
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem('posHeldTickets')
+            if (raw) {
+                const parsed = JSON.parse(raw)
+                if (Array.isArray(parsed)) setHeldTickets(parsed)
+            }
+        } catch { }
+    }, [])
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('posHeldTickets', JSON.stringify(heldTickets))
+        } catch { }
+    }, [heldTickets])
+
     const loadRegisters = async () => {
         try {
             const data = await listRegisters()
@@ -90,6 +124,28 @@ export default function POSView() {
             if (data.length > 0) setSelectedRegister(data[0])
         } catch (error) {
             console.error('Error loading registers:', error)
+        }
+    }
+
+    const loadSettings = async () => {
+        try {
+            const settings = await getTenantSettings()
+            // Para POS, si no hay configuración explícita, preferimos 0 (no forzar 15% por defecto)
+            const defaultTaxRate = getDefaultTaxRate(settings, 0)
+            setInventoryConfig({
+                reorderPoint: getDefaultReorderPoint(settings),
+                allowNegative: !!(
+                    settings?.inventory?.allow_negative ||
+                    settings?.inventory?.allow_negative_stock ||
+                    settings?.pos_config?.allow_negative
+                ),
+            })
+            if (typeof defaultTaxRate === 'number' && Number.isFinite(defaultTaxRate)) {
+                // defaultTaxRate viene en decimal (0.12). Convertimos a porcentaje
+                setDefaultTaxPct(Math.max(0, defaultTaxRate * 100))
+            }
+        } catch (error) {
+            console.error('Error loading settings:', error)
         }
     }
 
@@ -115,6 +171,7 @@ export default function POSView() {
 
     const filteredProducts = useMemo(() => {
         let result = products
+        const globalReorderPoint = Number(inventoryConfig.reorderPoint || 0)
 
         // En modo categorías, filtrar por categoría seleccionada
         if (viewMode === 'categories' && selectedCategory !== '*') {
@@ -122,6 +179,15 @@ export default function POSView() {
                 (p) => p.categoria === selectedCategory || (p.product_metadata?.categoria || '') === selectedCategory
             )
         }
+
+        // Ocultar productos con stock por debajo del punto de reorden
+        result = result.filter((p) => {
+            const min = Number((p.product_metadata?.reorder_point ?? globalReorderPoint) || 0)
+            if (min > 0) {
+                return Number(p.stock ?? 0) >= min
+            }
+            return true
+        })
 
         // Búsqueda por texto siempre activa
         if (searchQuery.trim()) {
@@ -135,10 +201,32 @@ export default function POSView() {
         }
 
         return result
-    }, [products, selectedCategory, searchQuery, viewMode])
+    }, [products, selectedCategory, searchQuery, viewMode, inventoryConfig.reorderPoint])
+
+    const violatesStockPolicy = (product: Producto, desiredQty: number) => {
+        const stock = Number(product.stock ?? 0)
+        const remaining = stock - desiredQty
+
+        if (!inventoryConfig.allowNegative && remaining < 0) {
+            alert(`Stock insuficiente. Disponible: ${stock}`)
+            return true
+        }
+
+        const reorderPoint = Number(
+            product.product_metadata?.reorder_point ?? inventoryConfig.reorderPoint ?? 0
+        )
+        if (reorderPoint > 0 && remaining < reorderPoint) {
+            alert(`Stock bajará del punto de reorden (${reorderPoint}). No se puede vender.`)
+            return true
+        }
+        return false
+    }
 
     const addToCart = (product: Producto) => {
         const existing = cart.find((item) => item.product_id === product.id)
+        const nextQty = existing ? existing.qty + 1 : 1
+        if (violatesStockPolicy(product, nextQty)) return
+
         if (existing) {
             setCart(
                 cart.map((item) =>
@@ -151,8 +239,8 @@ export default function POSView() {
                 sku: product.sku || '',
                 name: product.name,
                 price: product.price || 0,
-                // Preservar 0% si el producto lo tiene; solo usar fallback si es null/undefined
-                iva_tasa: (product as any).iva_tasa ?? 21,
+                // Preservar 0% si el producto lo tiene; solo usar fallback de configuración cuando viene null/undefined
+                iva_tasa: (product as any).iva_tasa ?? defaultTaxPct,
                 qty: 1,
                 discount_pct: 0,
                 categoria: product.categoria || (product.product_metadata?.categoria as any),
@@ -163,9 +251,15 @@ export default function POSView() {
 
     const updateQty = (index: number, delta: number) => {
         setCart(
-            cart.map((item, i) =>
-                i === index ? { ...item, qty: Math.max(1, item.qty + delta) } : item
-            )
+            cart.map((item, i) => {
+                if (i !== index) return item
+                const newQty = Math.max(1, item.qty + delta)
+                const product = products.find((p) => p.id === item.product_id)
+                if (delta > 0 && product && violatesStockPolicy(product, newQty)) {
+                    return item
+                }
+                return { ...item, qty: newQty }
+            })
         )
     }
 
@@ -357,6 +451,57 @@ export default function POSView() {
         setShowInvoiceModal(true)
     }
 
+    const handleHoldTicket = () => {
+        if (cart.length === 0) {
+            alert('No hay líneas en el carrito')
+            return
+        }
+        const id = `T${String(Date.now()).slice(-6)}`
+        const snapshot: HeldTicket = {
+            id,
+            cart: JSON.parse(JSON.stringify(cart)),
+            globalDiscountPct,
+            ticketNotes,
+        }
+        setHeldTickets((prev) => [...prev, snapshot])
+        setCart([])
+        setGlobalDiscountPct(0)
+        setTicketNotes('')
+        setCurrentReceiptId(null)
+        alert(`Ticket en espera: ${id}\nUsa Reimprimir para recuperar.`)
+    }
+
+    const handleResumeTicket = () => {
+        if (heldTickets.length === 0) {
+            alert('No hay tickets en espera')
+            return
+        }
+        const list = heldTickets.map((t) => t.id).join(', ')
+        const pick = prompt(`Tickets en espera:\n${list}\nEscribe ID para recuperar`)
+        if (!pick) return
+        const trimmed = pick.trim()
+        const idx = heldTickets.findIndex((t) => t.id === trimmed)
+        if (idx < 0) {
+            alert('ID no encontrado')
+            return
+        }
+        const ticket = heldTickets[idx]
+        setHeldTickets([...heldTickets.slice(0, idx), ...heldTickets.slice(idx + 1)])
+        setCart(ticket.cart)
+        setGlobalDiscountPct(ticket.globalDiscountPct || 0)
+        setTicketNotes(ticket.ticketNotes || '')
+        setCurrentReceiptId(null)
+        alert(`Ticket recuperado: ${trimmed}`)
+    }
+
+    const handlePayPending = async () => {
+        if (!currentShift) {
+            alert('Abre un turno primero')
+            return
+        }
+        setShowPendingModal(true)
+    }
+
     if (!selectedRegister) {
         const crearCajaRapida = async () => {
             try {
@@ -444,16 +589,19 @@ export default function POSView() {
                 </button>
                 <button className="btn sm" onClick={() => {
                       const url = selectedRegister ? `/pos/daily-counts?register_id=${selectedRegister.id}` : '/pos/daily-counts'
-                      navigate(url)
+                    navigate(url)
                     }}>
                         📊 Reportes Diarios
                     </button>
-                <button className="btn sm" onClick={() => alert('Función en desarrollo')}>
+                <button className="btn sm" onClick={handleHoldTicket}>
                 Ticket en espera
                 </button>
-                    <button className="btn sm" onClick={() => alert('Función en desarrollo')}>
+                    <button className="btn sm" onClick={handleResumeTicket}>
                         Reimprimir
                     </button>
+                <button className="btn sm" onClick={handlePayPending}>
+                    Cobrar pendientes
+                </button>
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span className={`badge ${isOnline ? 'ok' : 'off'}`}>
@@ -731,6 +879,16 @@ export default function POSView() {
                     onCancel={() => setShowInvoiceModal(false)}
                 />
             )}
+
+            <PendingReceiptsModal
+                isOpen={showPendingModal}
+                shiftId={currentShift?.id || undefined}
+                onClose={() => setShowPendingModal(false)}
+                canManage={esAdminEmpresa}
+                onPaid={() => {
+                    // Hook para refrescar datos si es necesario
+                }}
+            />
         </div>
     )
 }

@@ -259,15 +259,55 @@ class CRMService:
             )
             opportunities_by_stage[stage.value] = count
 
+        # Get recent activities
+        recent_activities = (
+            self.db.query(Activity)
+            .filter(Activity.tenant_id == tenant_id)
+            .order_by(Activity.created_at.desc())
+            .limit(5)
+            .all()
+        )
+
+        activities_pending = (
+            self.db.query(func.count(Activity.id))
+            .filter(
+                Activity.tenant_id == tenant_id,
+                Activity.status == ActivityStatus.PENDING,
+            )
+            .scalar()
+            or 0
+        )
+
+        activities_overdue = (
+            self.db.query(func.count(Activity.id))
+            .filter(
+                Activity.tenant_id == tenant_id,
+                Activity.status == ActivityStatus.OVERDUE,
+            )
+            .scalar()
+            or 0
+        )
+
         return DashboardMetrics(
-            total_leads=total_leads,
-            total_opportunities=total_opportunities,
-            total_pipeline_value=float(total_pipeline_value),
-            conversion_rate=float(conversion_rate),
-            won_opportunities=won_opportunities,
-            lost_opportunities=lost_opportunities,
-            leads_by_status=leads_by_status,
-            opportunities_by_stage=opportunities_by_stage,
+            leads={
+                "total": total_leads,
+                "by_status": leads_by_status,
+                "by_source": {},
+                "recent": [],
+            },
+            opportunities={
+                "total": total_opportunities,
+                "total_value": float(total_pipeline_value),
+                "by_stage": opportunities_by_stage,
+                "win_rate": float(conversion_rate),
+                "recent": [],
+            },
+            activities={
+                "total": len(recent_activities),
+                "pending": activities_pending,
+                "overdue": activities_overdue,
+                "recent": [],
+            },
         )
 
     def list_activities(

@@ -1,5 +1,13 @@
 """
-Router para gestión de plantillas de sector
+Router para gestión de plantillas de sector.
+
+⚠️ CONSOLIDACIÓN EN PROGRESO:
+- Los endpoints de configuración (/{code}/config, /{code}/full-config, /{code}/features, /{code}/fields/{module})
+  están siendo consolidados en app/routers/sectors.py según PLAN_ELIMINACION_HARDCODING_COMPLETO.md
+- Este archivo mantiene endpoints de aplicación de plantillas y gestión de UI templates
+- Backward compatibility: get_sector_config sigue funcionando pero está deprecado
+
+📌 Ver: app/routers/sectors.py para endpoints consolidados (FASE 1)
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -10,7 +18,8 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.models.core.ui_template import UiTemplate
-from app.schemas.sector_plantilla import ApplySectorTemplateRequest
+from app.schemas.sector_plantilla import ApplySectorTemplateRequest, SectorConfigJSON
+from app.services.sector_service import get_sector_or_404  # Helper centralizado
 from app.services.sector_templates import (
     apply_sector_template,
     get_available_templates,
@@ -19,6 +28,46 @@ from app.services.sector_templates import (
 
 # Old URL: /api/v1/sectores (deprecated, kept for backward compatibility reference)
 router = APIRouter(prefix="/api/v1/sectors", tags=["Plantillas de Sector"])
+
+
+@router.get("/{code}/config", summary="Obtener branding del sector (DEPRECATED)")
+async def get_sector_config_deprecated(code: str, db: Session = Depends(get_db)):
+    """
+    ⚠️ DEPRECATED - Usar GET /api/v1/sectors/{code}/config en su lugar.
+
+    Este endpoint mantiene backward compatibility pero retorna branding únicamente.
+    Se recomienda usar el endpoint consolidado en app/routers/sectors.py que retorna
+    configuración completa según PLAN_ELIMINACION_HARDCODING_COMPLETO.md
+
+    Obtiene solo la configuración de branding del sector.
+
+    Args:
+        code: Código del sector (panaderia, taller, retail, etc.)
+
+    Returns:
+        Configuración de branding del sector
+
+    Ejemplo:
+        GET /api/v1/sectors/panaderia/config
+    """
+    try:
+        # Usar helper centralizado para búsqueda
+        sector = get_sector_or_404(code, db)
+
+        # Validar y parsear template_config
+        config = SectorConfigJSON(**sector.template_config)
+        return {
+            "ok": True,
+            "code": code.lower(),
+            "sector_name": sector.name,
+            "branding": config.branding.model_dump(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=400, detail=f"Error en configuración del sector: {str(e)}"
+        ) from e
 
 
 @router.get("/", summary="Listar plantillas de sector disponibles")

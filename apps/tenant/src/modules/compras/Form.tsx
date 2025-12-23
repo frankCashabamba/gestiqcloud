@@ -19,7 +19,7 @@ export default function CompraForm() {
     subtotal: 0,
     impuesto: 0,
     total: 0,
-    estado: 'borrador',
+    estado: 'draft',
     lineas: [],
     notas: ''
   })
@@ -68,11 +68,11 @@ export default function CompraForm() {
     e.preventDefault()
 
     try {
-      if (!form.fecha) throw new Error('Fecha es requerida')
+      if (!form.fecha) throw new Error('Date is required')
       if (!form.lineas || form.lineas.length === 0) {
-        throw new Error('Debe añadir al menos una línea')
+        throw new Error('Must add at least one line')
       }
-      if (form.total < 0) throw new Error('Total debe ser >= 0')
+      if (form.total < 0) throw new Error('Total must be >= 0')
 
       setLoading(true)
 
@@ -82,7 +82,7 @@ export default function CompraForm() {
         await createCompra(form as Omit<Compra, 'id'>)
       }
 
-      success('Compra guardada')
+      success('Purchase saved')
       nav('..')
     } catch (e: any) {
       error(getErrorMessage(e))
@@ -94,13 +94,13 @@ export default function CompraForm() {
   return (
     <div className="p-4">
       <h3 className="text-xl font-semibold mb-3">
-        {id ? 'Editar compra' : 'Nueva compra'}
+        {id ? 'Edit Purchase' : 'New Purchase'}
       </h3>
 
       <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 900 }}>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block mb-1 font-medium">Fecha *</label>
+            <label className="block mb-1 font-medium">Date *</label>
             <input
               type="date"
               value={form.fecha}
@@ -112,7 +112,7 @@ export default function CompraForm() {
           </div>
 
           <div>
-            <label className="block mb-1 font-medium">Fecha Entrega</label>
+            <label className="block mb-1 font-medium">Delivery Date</label>
             <input
               type="date"
               value={form.fecha_entrega || ''}
@@ -125,10 +125,10 @@ export default function CompraForm() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block mb-1 font-medium">Proveedor ID</label>
+            <label className="block mb-1 font-medium">Supplier ID</label>
             <input
               type="text"
-              placeholder="ID del proveedor"
+              placeholder="Supplier ID"
               value={form.proveedor_id || ''}
               onChange={(e) => setForm({ ...form, proveedor_id: e.target.value })}
               className="border px-2 py-1 w-full rounded"
@@ -137,10 +137,10 @@ export default function CompraForm() {
           </div>
 
           <div>
-            <label className="block mb-1 font-medium">Nombre Proveedor</label>
+            <label className="block mb-1 font-medium">Supplier Name</label>
             <input
               type="text"
-              placeholder="Nombre del proveedor"
+              placeholder="Supplier name"
               value={form.proveedor_nombre || ''}
               onChange={(e) => setForm({ ...form, proveedor_nombre: e.target.value })}
               className="border px-2 py-1 w-full rounded"
@@ -150,17 +150,17 @@ export default function CompraForm() {
         </div>
 
         <div>
-          <label className="block mb-1 font-medium">Estado</label>
+          <label className="block mb-1 font-medium">Status</label>
           <select
             value={form.estado}
             onChange={(e) => setForm({ ...form, estado: e.target.value as any })}
             className="border px-2 py-1 w-full rounded"
             disabled={loading}
           >
-            <option value="borrador">Borrador</option>
-            <option value="enviada">Enviada</option>
-            <option value="recibida">Recibida</option>
-            <option value="anulada">Anulada</option>
+            <option value="draft">Draft</option>
+            <option value="sent">Sent</option>
+            <option value="received">Received</option>
+            <option value="cancelled">Cancelled</option>
           </select>
         </div>
 
@@ -175,7 +175,7 @@ export default function CompraForm() {
             <span className="font-medium">${form.subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span>Impuesto (15%):</span>
+            <span>Tax (15%):</span>
             <span className="font-medium">${form.impuesto.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-lg font-bold border-t pt-2">
@@ -185,13 +185,13 @@ export default function CompraForm() {
         </div>
 
         <div>
-          <label className="block mb-1 font-medium">Notas</label>
+          <label className="block mb-1 font-medium">Notes</label>
           <textarea
             value={form.notas || ''}
             onChange={(e) => setForm({ ...form, notas: e.target.value })}
             className="border px-2 py-1 w-full rounded"
             rows={3}
-            placeholder="Notas adicionales..."
+            placeholder="Additional notes..."
             disabled={loading}
           />
         </div>
@@ -202,7 +202,7 @@ export default function CompraForm() {
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
             disabled={loading}
           >
-            {loading ? 'Guardando...' : 'Save'}
+            {loading ? 'Saving...' : 'Save'}
           </button>
           <button
             type="button"
@@ -210,7 +210,7 @@ export default function CompraForm() {
             onClick={() => nav('..')}
             disabled={loading}
           >
-            Cancelar
+            Cancel
           </button>
         </div>
       </form>

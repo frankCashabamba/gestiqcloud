@@ -23,6 +23,7 @@ celery_app = Celery(
         "app.modules.imports.application.tasks.task_publish",
         "app.modules.imports.application.tasks.task_import_file",
         "app.modules.imports.application.tasks.task_import_excel",  # Keep for backward compatibility
+        "app.modules.imports.application.tasks.task_ocr_job",
     ],
 )
 
@@ -42,6 +43,7 @@ celery_app.conf.update(
     task_routes={
         "app.modules.imports.application.tasks.task_preprocess.*": {"queue": "imports_pre"},
         "app.modules.imports.application.tasks.task_ocr.*": {"queue": "imports_ocr"},
+        "app.modules.imports.application.tasks.task_ocr_job.*": {"queue": "imports_ocr"},
         "app.modules.imports.application.tasks.task_classify.*": {"queue": "imports_ml"},
         "app.modules.imports.application.tasks.task_extract.*": {"queue": "imports_etl"},
         "app.modules.imports.application.tasks.task_validate.*": {"queue": "imports_val"},

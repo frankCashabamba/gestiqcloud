@@ -28,11 +28,11 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
   const [products, setProducts] = useState<Product[]>([]);
 
   // Datos de receta
-  const [nombre, setNombre] = useState('');
+  const [name, setName] = useState('');
   const [productId, setProductId] = useState<string | null>(null);
-  const [rendimiento, setRendimiento] = useState<number>(1);
-  const [tiempoPreparacion, setTiempoPreparacion] = useState<number | null>(null);
-  const [instrucciones, setInstrucciones] = useState('');
+  const [yieldQty, setYieldQty] = useState<number>(1);
+  const [prepTimeMinutes, setPrepTimeMinutes] = useState<number | null>(null);
+  const [instructions, setInstructions] = useState('');
 
   // Ingredientes
   const [ingredientes, setIngredientes] = useState<RecipeIngredient[]>([]);
@@ -45,23 +45,23 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
   // Cargar datos de receta si es edición
   useEffect(() => {
     if (recipe) {
-      setNombre(recipe.name);
+      setName(recipe.name);
       setProductId(recipe.product_id);
-      setRendimiento(recipe.rendimiento);
-      setTiempoPreparacion(recipe.tiempo_preparacion || null);
-      setInstrucciones(recipe.instrucciones || '');
+      setYieldQty(recipe.yield_qty);
+      setPrepTimeMinutes(recipe.prep_time_minutes || null);
+      setInstructions(recipe.instructions || '');
 
-      if (recipe.ingredientes) {
-        setIngredientes(recipe.ingredientes.map(ing => ({
-          producto_id: ing.producto_id,
+      if (recipe.ingredients) {
+        setIngredientes(recipe.ingredients.map(ing => ({
+          product_id: ing.product_id,
           qty: ing.qty,
-          unidad_medida: ing.unidad_medida,
-          presentacion_compra: ing.presentacion_compra,
-          qty_presentacion: ing.qty_presentacion,
-          unidad_presentacion: ing.unidad_presentacion,
-          costo_presentacion: ing.costo_presentacion,
-          notas: ing.notas,
-          orden: ing.orden || 0
+          unit: ing.unit,
+          purchase_packaging: ing.purchase_packaging,
+          qty_per_package: ing.qty_per_package,
+          package_unit: ing.package_unit,
+          package_cost: ing.package_cost,
+          notes: ing.notes,
+          line_order: ing.line_order || 0
         })));
       }
     }
@@ -88,14 +88,14 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
     setIngredientes([
       ...ingredientes,
       {
-        producto_id: '',
+        product_id: '',
         qty: 0,
-        unidad_medida: 'kg',
-        presentacion_compra: '',
-        qty_presentacion: 0,
-        unidad_presentacion: 'kg',
-        costo_presentacion: 0,
-        orden: ingredientes.length
+        unit: 'kg',
+        purchase_packaging: '',
+        qty_per_package: 0,
+        package_unit: 'kg',
+        package_cost: 0,
+        line_order: ingredientes.length
       }
     ]);
   };
@@ -109,12 +109,12 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
     (updated[index] as any)[field] = value;
 
     // Si se selecciona un producto, autocompletar datos de compra
-    if (field === 'producto_id' && value) {
+    if (field === 'product_id' && value) {
       const producto = products.find(p => p.id === value);
       if (producto) {
         // Autocompletar con valores del producto
-        updated[index].unidad_medida = producto.unit || 'kg';
-        updated[index].unidad_presentacion = producto.unit || 'kg';
+        updated[index].unit = producto.unit || 'kg';
+        updated[index].package_unit = producto.unit || 'kg';
 
         // Valores por defecto según la unidad
         const defaultPresentaciones: Record<string, { qty: number, desc: string }> = {
@@ -130,10 +130,10 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
         const unit = (producto.unit || 'kg').toLowerCase();
         const defaultPres = defaultPresentaciones[unit] || { qty: 1, desc: 'Unidad' };
 
-        updated[index].qty_presentacion = defaultPres.qty;
-        updated[index].presentacion_compra = defaultPres.desc;
+        updated[index].qty_per_package = defaultPres.qty;
+        updated[index].purchase_packaging = defaultPres.desc;
         // Costo: usar cost_price si existe, sino dejar en 0 para que el usuario lo ingrese
-        updated[index].costo_presentacion = producto.cost_price ?
+        updated[index].package_cost = producto.cost_price ?
           Number(producto.cost_price) * defaultPres.qty : 0;
       }
     }
@@ -149,7 +149,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
       return;
     }
 
-    if (rendimiento <= 0) {
+    if (yieldQty <= 0) {
       setError('Yield must be greater than 0');
       return;
     }
@@ -159,12 +159,12 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
       setError(null);
 
       const data = {
-        name: nombre,
+        name,
         product_id: productId,
-        rendimiento,
-        tiempo_preparacion: tiempoPreparacion || undefined,
-        instrucciones: instrucciones || undefined,
-        ingredientes: ingredientes.filter(ing => ing.producto_id && ing.qty > 0)
+        yield_qty: yieldQty,
+        prep_time_minutes: prepTimeMinutes || undefined,
+        instructions: instructions || undefined,
+        ingredients: ingredientes.filter(ing => ing.product_id && ing.qty > 0)
       };
 
       if (recipe) {
@@ -216,8 +216,8 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
               <TextField
                 fullWidth
                 label="Nombre de Receta"
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 required
               />
             </Grid>
@@ -239,8 +239,8 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                 fullWidth
                 type="number"
                 label="Rendimiento (uds)"
-                value={rendimiento}
-                onChange={(e) => setRendimiento(Number(e.target.value))}
+                value={yieldQty}
+                onChange={(e) => setYieldQty(Number(e.target.value))}
                 required
                 inputProps={{ min: 1 }}
               />
@@ -251,8 +251,8 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                 fullWidth
                 type="number"
                 label="Tiempo (min)"
-                value={tiempoPreparacion || ''}
-                onChange={(e) => setTiempoPreparacion(e.target.value ? Number(e.target.value) : null)}
+                value={prepTimeMinutes || ''}
+                onChange={(e) => setPrepTimeMinutes(e.target.value ? Number(e.target.value) : null)}
                 inputProps={{ min: 0 }}
               />
             </Grid>
@@ -263,8 +263,8 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                 multiline
                 rows={3}
                 label="Instrucciones"
-                value={instrucciones}
-                onChange={(e) => setInstrucciones(e.target.value)}
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
               />
             </Grid>
           </Grid>
@@ -291,8 +291,8 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                     size="small"
                     options={products}
                     getOptionLabel={(opt) => opt.name}
-                    value={products.find(p => p.id === ing.producto_id) || null}
-                    onChange={(_, val) => handleIngredientChange(index, 'producto_id', val?.id || '')}
+                    value={products.find(p => p.id === ing.product_id) || null}
+                    onChange={(_, val) => handleIngredientChange(index, 'product_id', val?.id || '')}
                     renderInput={(params) => (
                       <TextField {...params} label="Product" />
                     )}
@@ -315,8 +315,8 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                     size="small"
                     fullWidth
                     label="Unidad"
-                    value={ing.unidad_medida}
-                    onChange={(e) => handleIngredientChange(index, 'unidad_medida', e.target.value)}
+                    value={ing.unit}
+                    onChange={(e) => handleIngredientChange(index, 'unit', e.target.value)}
                   />
                 </Grid>
 
@@ -325,8 +325,8 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                     size="small"
                     fullWidth
                     label="Presentación (ej: Saco 110 lbs)"
-                    value={ing.presentacion_compra}
-                    onChange={(e) => handleIngredientChange(index, 'presentacion_compra', e.target.value)}
+                    value={ing.purchase_packaging}
+                    onChange={(e) => handleIngredientChange(index, 'purchase_packaging', e.target.value)}
                   />
                 </Grid>
 
@@ -336,8 +336,8 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                     fullWidth
                     type="number"
                     label="Cant. Present."
-                    value={ing.qty_presentacion}
-                    onChange={(e) => handleIngredientChange(index, 'qty_presentacion', Number(e.target.value))}
+                    value={ing.qty_per_package}
+                    onChange={(e) => handleIngredientChange(index, 'qty_per_package', Number(e.target.value))}
                   />
                 </Grid>
 
@@ -346,8 +346,8 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                     size="small"
                     fullWidth
                     label="Unidad Pres."
-                    value={ing.unidad_presentacion}
-                    onChange={(e) => handleIngredientChange(index, 'unidad_presentacion', e.target.value)}
+                    value={ing.package_unit}
+                    onChange={(e) => handleIngredientChange(index, 'package_unit', e.target.value)}
                   />
                 </Grid>
 
@@ -357,8 +357,8 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                     fullWidth
                     type="number"
                     label="Costo Present."
-                    value={ing.costo_presentacion}
-                    onChange={(e) => handleIngredientChange(index, 'costo_presentacion', Number(e.target.value))}
+                    value={ing.package_cost}
+                    onChange={(e) => handleIngredientChange(index, 'package_cost', Number(e.target.value))}
                     InputProps={{ startAdornment: '$' }}
                   />
                 </Grid>

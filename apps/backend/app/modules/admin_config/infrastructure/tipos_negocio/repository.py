@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -36,11 +37,11 @@ class SqlAlchemyTipoNegocioRepo(TipoNegocioRepo):
         self.db.refresh(obj)
         return self._to_dto(obj)
 
-    def get(self, id: int) -> TipoNegocioOut | None:
+    def get(self, id: UUID) -> TipoNegocioOut | None:
         obj = self.db.query(TipoNegocioORM).filter(TipoNegocioORM.id == id).first()
         return self._to_dto(obj) if obj else None
 
-    def update(self, id: int, data: TipoNegocioIn) -> TipoNegocioOut:
+    def update(self, id: UUID, data: TipoNegocioIn) -> TipoNegocioOut:
         obj = self.db.query(TipoNegocioORM).filter(TipoNegocioORM.id == id).first()
         if not obj:
             raise ValueError("tipo_negocio_no_encontrado")
@@ -52,7 +53,7 @@ class SqlAlchemyTipoNegocioRepo(TipoNegocioRepo):
         self.db.refresh(obj)
         return self._to_dto(obj)
 
-    def delete(self, id: int) -> None:
+    def delete(self, id: UUID) -> None:
         obj = self.db.query(TipoNegocioORM).filter(TipoNegocioORM.id == id).first()
         if not obj:
             raise ValueError("tipo_negocio_no_encontrado")

@@ -1,8 +1,10 @@
-﻿import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { createVacacion, listEmpleados } from '../../services/api/rrhh'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import type { VacacionCreate, Empleado } from '../../types/rrhh'
+import { useSectorPlaceholder } from '../../hooks/useSectorPlaceholders'
+import { useTenant } from '../../contexts/TenantContext'
 
 const INITIAL_FORM: VacacionCreate = {
   empleado_id: '',
@@ -17,11 +19,18 @@ export default function VacacionForm() {
   const nav = useNavigate()
   const location = useLocation()
   const { success, error } = useToast()
+  const { sector } = useTenant()
 
   const [empleados, setEmpleados] = useState<Empleado[]>([])
   const [form, setForm] = useState<VacacionCreate>(INITIAL_FORM)
   const [loading, setLoading] = useState(false)
   const [dias, setDias] = useState(0)
+
+  const { placeholder: motivoPlaceholder } = useSectorPlaceholder(
+    sector?.plantilla || null,
+    'motivo',
+    'vacation'
+  )
 
   useEffect(() => {
     listEmpleados()
@@ -158,7 +167,7 @@ export default function VacacionForm() {
             value={form.motivo}
             onChange={(e) => setForm({ ...form, motivo: e.target.value })}
             className="border px-2 py-1 w-full rounded"
-            placeholder="Ej: Vacaciones anuales, asunto personal, etc."
+            placeholder={motivoPlaceholder || 'Ej: Vacaciones anuales, asunto personal, etc.'}
             disabled={loading}
           />
         </div>

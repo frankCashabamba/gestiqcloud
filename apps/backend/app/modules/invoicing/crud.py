@@ -105,23 +105,23 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
         query = (
             db.query(self.model)
             .options(
-                joinedload(self.model.cliente),
+                joinedload(self.model.customer),
                 # Invoice no longer has empresa relationship (Tenant is primary now)
-                joinedload(self.model.lineas),
+                joinedload(self.model.lines),
             )
             .filter_by(tenant_id=tenant_uuid)
         )
 
         # Filtro por estado
         if estado:
-            query = query.filter(self.model.estado == estado)
+            query = query.filter(self.model.status == estado)
 
         # Filtro de búsqueda por número, nombre o email
         if q:
             like_pattern = f"%{q.lower()}%"
-            query = query.join(self.model.cliente).filter(
+            query = query.join(self.model.customer).filter(
                 or_(
-                    self.model.numero.ilike(like_pattern),
+                    self.model.number.ilike(like_pattern),
                     Cliente.name.ilike(like_pattern),
                     Cliente.email.ilike(like_pattern),
                 )
@@ -131,7 +131,7 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
         if desde:
             try:
                 desde_date = datetime.strptime(desde, "%Y-%m-%d").date()
-                query = query.filter(self.model.fecha_emision >= desde_date)
+                query = query.filter(self.model.issue_date >= desde_date)
             except ValueError:
                 pass
 
@@ -139,12 +139,12 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
         if hasta:
             try:
                 hasta_date = datetime.strptime(hasta, "%Y-%m-%d").date()
-                query = query.filter(self.model.fecha_emision <= hasta_date)
+                query = query.filter(self.model.issue_date <= hasta_date)
             except ValueError:
                 pass
 
         # Ordena por fecha más reciente primero
-        return query.order_by(self.model.fecha_emision.desc()).all()
+        return query.order_by(self.model.issue_date.desc()).all()
 
     def obtener_facturas_temporales(self, db: Session, tenant_id: Any):
         """Function obtener_facturas_temporales - auto-generated docstring."""
@@ -169,21 +169,21 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
         """Function mover_facturas_a_principal - auto-generated docstring."""
         temporales = (
             db.query(InvoiceTemp)
-            .filter_by(tenant_id=_tenant_uuid(tenant_id), estado="pendiente")
+            .filter_by(tenant_id=_tenant_uuid(tenant_id), status="pending")
             .all()
         )
         for temp in temporales:
-            data = temp.datos
+            data = temp.data
             nueva = Invoice(
-                numero=data.get("numero"),
+                number=data.get("number"),
                 supplier=data.get("supplier"),
-                fecha_emision=data.get("fecha_emision"),
-                monto=data.get("monto"),
-                estado=data.get("estado", "pendiente"),
+                issue_date=data.get("issue_date"),
+                amount=data.get("amount"),
+                status=data.get("status", "pending"),
                 tenant_id=_tenant_uuid(tenant_id),
             )
             db.add(nueva)
-            temp.estado = "importado"
+            temp.status = "imported"
         db.commit()
 
     def emitir_factura(self, db: Session, tenant_id: Any, factura_id) -> Invoice:
@@ -195,16 +195,16 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
         factura = db.query(self.model).filter_by(id=factura_uuid, tenant_id=tenant_uuid).first()
 
         if not factura:
-            raise HTTPException(status_code=404, detail="Factura no encontrada")
+            raise HTTPException(status_code=404, detail="Invoice not found")
 
-        if factura.estado != "borrador":
+        if factura.status != "draft":
             raise HTTPException(
                 status_code=400,
-                detail="Solo se pueden emitir facturas en estado 'borrador'",
+                detail="Only invoices in 'draft' status can be issued",
             )
 
-        factura.numero = generar_numero_documento(db, tenant_uuid, "invoice")
-        factura.estado = "emitida"
+        factura.number = generar_numero_documento(db, tenant_uuid, "invoice")
+        factura.status = "issued"
         db.commit()
         db.refresh(factura)
 
@@ -212,9 +212,9 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
         try:
             payload = {
                 "id": factura.id,
-                "numero": factura.numero,
-                "total": getattr(factura, "total", getattr(factura, "monto", None)),
-                "cliente_id": getattr(factura, "cliente_id", None),
+                "number": factura.number,
+                "total": getattr(factura, "total", getattr(factura, "amount", None)),
+                "customer_id": getattr(factura, "customer_id", None),
             }
             # Insert delivery row (one per active subscription will be created via API normally; here push a generic)
             db.execute(

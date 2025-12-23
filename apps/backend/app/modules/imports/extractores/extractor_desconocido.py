@@ -1,8 +1,14 @@
+import asyncio
 from app.modules.imports.extractores.extractor_factura import extraer_factura
 from app.modules.imports.extractores.extractor_recibo import extraer_recibo
 from app.modules.imports.extractores.extractor_transferencia import extraer_transferencias
 from app.modules.imports.extractores.utilidades import buscar_multiple, es_concepto_valido
 from app.modules.imports.schemas import DocumentoProcesado
+
+try:
+    from app.modules.imports.ai import get_ai_provider_singleton
+except Exception:  # pragma: no cover
+    get_ai_provider_singleton = None  # type: ignore
 
 
 def extraer_desconocido(texto: str) -> list[DocumentoProcesado]:
@@ -85,20 +91,76 @@ def extraer_por_tipos_combinados(texto: str) -> list[DocumentoProcesado]:
             continue
 
     if not candidatos:
-        return extraer_desconocido(texto)
+        candidatos = extraer_desconocido(texto)
 
-    # ✅ Elegir el mejor documento según puntuación
+    if candidatos:
+        mejor = _pick_best(candidatos)
+        if _es_documento_valido(mejor):
+            return [mejor]
+
+    # Fallback IA: intenta extraer campos básicos con LLM si está configurado
+    doc_ai = _extraer_con_ia(texto)
+    if doc_ai:
+        return [doc_ai]
+
+    return []
+
+
+def _pick_best(documentos: list[DocumentoProcesado]) -> DocumentoProcesado:
     def puntuar(doc: DocumentoProcesado) -> int:
         score = 0
-        if doc.importe and doc.importe > 0:
+        if getattr(doc, "importe", 0) and doc.importe > 0:
             score += 2
-        if doc.fecha and doc.fecha != "desconocida":
+        if getattr(doc, "fecha", "") and doc.fecha != "desconocida":
             score += 1
-        if doc.concepto and doc.concepto != "Documento sin concepto":
+        if getattr(doc, "concepto", "") and doc.concepto != "Documento sin concepto":
             score += 1
-        if doc.cliente and doc.cliente != "desconocido":
+        if getattr(doc, "cliente", "") and doc.cliente != "desconocido":
             score += 1
         return score
 
-    mejor = max(candidatos, key=puntuar)
-    return [mejor]
+    return max(documentos, key=puntuar)
+
+
+def _es_documento_valido(doc: DocumentoProcesado | dict) -> bool:
+    try:
+        fecha = getattr(doc, "fecha", None) or (doc.get("fecha") if isinstance(doc, dict) else None)
+        importe = getattr(doc, "importe", None) or (doc.get("importe") if isinstance(doc, dict) else None)
+        concepto = getattr(doc, "concepto", None) or (doc.get("concepto") if isinstance(doc, dict) else None)
+        if importe and float(importe) != 0:
+            return True
+        if fecha and fecha != "desconocida":
+            return True
+        if concepto and concepto != "Documento sin concepto":
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _extraer_con_ia(texto: str) -> DocumentoProcesado | None:
+    if not get_ai_provider_singleton:
+        return None
+    try:
+        provider = asyncio.run(get_ai_provider_singleton())  # type: ignore
+        expected_fields = ["fecha", "importe", "cliente", "concepto", "categoria", "tipo"]
+        extracted = asyncio.run(provider.extract_fields(texto[:4000], "desconocido", expected_fields))
+        if not extracted:
+            return None
+        doc_ai = DocumentoProcesado(
+            fecha=extracted.get("fecha") or extracted.get("date") or "desconocida",
+            concepto=extracted.get("concepto") or extracted.get("concept") or "Documento sin concepto",
+            tipo=extracted.get("tipo") or "gasto",
+            importe=float(extracted.get("importe") or extracted.get("amount") or 0) or 0,
+            cuenta=extracted.get("cuenta") or "desconocida",
+            categoria=extracted.get("categoria") or extracted.get("category") or "otros",
+            cliente=extracted.get("cliente") or extracted.get("customer") or "desconocido",
+            invoice=extracted.get("invoice"),
+            documentoTipo=extracted.get("documentoTipo") or "desconocido",
+            origen="ocr_ai",
+        )
+        if _es_documento_valido(doc_ai):
+            return doc_ai
+    except Exception:
+        return None
+    return None

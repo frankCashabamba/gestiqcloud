@@ -45,7 +45,7 @@ from app.models.core.invoiceLine import BakeryLine, InvoiceLine, LineaFactura, W
 from app.models.core.modulo import AssignedModule, CompanyModule, Module
 from app.models.core.product_category import ProductCategory
 from app.models.core.products import Product
-from app.models.core.settings import TenantSettings
+from app.models.company.settings import CompanySettings, InventorySettings
 from app.models.expenses import Expense
 from app.models.finance import BankMovement, CashClosing, CashMovement
 from app.models.hr import Employee, Vacation
@@ -66,6 +66,7 @@ from app.models.pos import (
     StoreCredit,
     StoreCreditEvent,
 )
+from app.models.accounting.pos_settings import TenantAccountingSettings, PaymentMethod
 
 # Nuevos módulos profesionales
 from app.models.production import ProductionOrder, ProductionOrderLine
@@ -149,6 +150,8 @@ __all__ = [
     "StoreCredit",
     "StoreCreditEvent",
     "DocSeries",
+    "TenantAccountingSettings",
+    "PaymentMethod",
     # IA & Notificaciones
     "Incident",
     "StockAlert",

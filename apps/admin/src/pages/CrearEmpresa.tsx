@@ -3,24 +3,30 @@ import ModuloSelector from '../modulos/ModuloSelector'
 import { useCrearEmpresa } from '../hooks/useCrearEmpresa'
 import type { FormularioEmpresa } from '../typesall/empresa'
 import SectorPlantillaSelector, { type SectorTemplate } from '../components/SectorPlantillaSelector'
+import { listPaises, type Pais } from '../services/configuracion/paises'
+import { listMonedas, type Moneda } from '../services/configuracion/monedas'
+import { listLocales, type Locale } from '../services/configuracion/locales'
+import { listTimezones, type Timezone } from '../services/configuracion/timezones'
 
 const INITIAL_STATE: FormularioEmpresa = {
   nombre_empresa: '',
-  tipo_empresa: '',
-  tipo_negocio: '',
   sector_plantilla_id: null,
   ruc: '',
   telefono: '',
   direccion: '',
   pais: '',
+  country_code: '',
   provincia: '',
   ciudad: '',
   cp: '',
   sitio_web: '',
   logo: null,
-  color_primario: '#4f46e5',
+  color_primario: '',
   plantilla_inicio: '',
   config_json: '',
+  default_language: '',
+  timezone: '',
+  currency: '',
   nombre_encargado: '',
   apellido_encargado: '',
   email: '',
@@ -32,6 +38,11 @@ const INITIAL_STATE: FormularioEmpresa = {
 export const CrearEmpresa: React.FC = () => {
   const [formData, setFormData] = useState<FormularioEmpresa>(INITIAL_STATE)
   const [localError, setLocalError] = useState<string | null>(null)
+  const [catalogError, setCatalogError] = useState<string | null>(null)
+  const [paises, setPaises] = useState<Pais[]>([])
+  const [monedas, setMonedas] = useState<Moneda[]>([])
+  const [locales, setLocales] = useState<Locale[]>([])
+  const [timezones, setTimezones] = useState<Timezone[]>([])
   const { crear, loading, error, success, fieldErrors, needSecondSurname } = useCrearEmpresa()
 
   // Habilitar el submit solo cuando los campos mínimos estén completos
@@ -43,9 +54,23 @@ export const CrearEmpresa: React.FC = () => {
       nonEmpty(formData.nombre_encargado) &&
       nonEmpty(formData.apellido_encargado) &&
       emailOk &&
-      !!formData.sector_plantilla_id
+      !!formData.sector_plantilla_id &&
+      nonEmpty(formData.country_code) &&
+      nonEmpty(formData.currency) &&
+      nonEmpty(formData.timezone) &&
+      nonEmpty(formData.default_language)
     )
-  }, [formData.nombre_empresa, formData.nombre_encargado, formData.apellido_encargado, formData.email, formData.sector_plantilla_id])
+  }, [
+    formData.nombre_empresa,
+    formData.nombre_encargado,
+    formData.apellido_encargado,
+    formData.email,
+    formData.sector_plantilla_id,
+    formData.country_code,
+    formData.currency,
+    formData.timezone,
+    formData.default_language,
+  ])
 
   // Autogenerar username visual (no editable) nombre.apellido
   useEffect(() => {
@@ -54,6 +79,32 @@ export const CrearEmpresa: React.FC = () => {
     const sugerido = nombre && apellido ? `${nombre}.${apellido}`.replace(/\s+/g, '') : ''
     setFormData((prev) => ({ ...prev, username: sugerido }))
   }, [formData.nombre_encargado, formData.apellido_encargado])
+
+  useEffect(() => {
+    let active = true
+    async function loadCatalogs() {
+      try {
+        const [paisesData, monedasData, localesData, timezonesData] = await Promise.all([
+          listPaises(),
+          listMonedas(),
+          listLocales(),
+          listTimezones(),
+        ])
+        if (!active) return
+        setPaises((paisesData || []).filter((p) => p.active))
+        setMonedas((monedasData || []).filter((m) => m.active))
+        setLocales((localesData || []).filter((l) => l.active !== false))
+        setTimezones((timezonesData || []).filter((t) => t.active !== false))
+      } catch (err) {
+        if (!active) return
+        setCatalogError('No se pudieron cargar los catálogos de configuración.')
+      }
+    }
+    loadCatalogs()
+    return () => {
+      active = false
+    }
+  }, [])
 
   function onChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -66,7 +117,17 @@ export const CrearEmpresa: React.FC = () => {
     }
   }
 
-  function onModuloChange(moduloId: number) {
+  function onCountryChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const code = e.target.value
+    const selected = paises.find((p) => p.code === code)
+    setFormData((prev) => ({
+      ...prev,
+      country_code: code,
+      pais: selected?.name || '',
+    }))
+  }
+
+  function onModuloChange(moduloId: string) {
     setFormData((prev) => ({
       ...prev,
       modulos: prev.modulos.includes(moduloId)
@@ -76,39 +137,35 @@ export const CrearEmpresa: React.FC = () => {
   }
 
   function validateRucByCountry(country: string, ruc: string): string | null {
-    const c = (country || '').trim().toLowerCase()
+    const raw = (country || '').trim()
+    const code = raw.toUpperCase()
+    const c = raw.toLowerCase()
     const v = (ruc || '').trim()
     if (!v) return null
-    // Perú: RUC 11 dígitos
-    if (/(peru|perú)/.test(c)) {
-      if (!/^\d{11}$/.test(v)) return 'RUC (Perú) debe tener 11 dígitos.'
+    if (code === 'PE' || /(peru|peru)/.test(c)) {
+      if (!/^\d{11}$/.test(v)) return 'RUC (Peru) debe tener 11 digitos.'
       return null
     }
-    // Ecuador: RUC 13 dígitos
-    if (/ecuador/.test(c)) {
-      if (!/^\d{13}$/.test(v)) return 'RUC (Ecuador) debe tener 13 dígitos.'
+    if (code === 'EC' || /ecuador/.test(c)) {
+      if (!/^\d{13}$/.test(v)) return 'RUC (Ecuador) debe tener 13 digitos.'
       return null
     }
-    // Argentina: CUIT/CUIL 11 dígitos
-    if (/argentina/.test(c)) {
-      if (!/^\d{11}$/.test(v)) return 'CUIT/CUIL (Argentina) debe tener 11 dígitos.'
+    if (code === 'AR' || /argentina/.test(c)) {
+      if (!/^\d{11}$/.test(v)) return 'CUIT/CUIL (Argentina) debe tener 11 digitos.'
       return null
     }
-    // Chile: RUT NN.NNN.NNN-D (permitimos formateado o compacto con dígito verificador)
-    if (/chile/.test(c)) {
+    if (code === 'CL' || /chile/.test(c)) {
       if (!/^[0-9]{7,8}-[0-9kK]$/.test(v) && !/^[0-9]{7,8}[0-9kK]$/.test(v)) {
-        return 'RUT (Chile) debe ser 8 dígitos + dígito verificador (ej: 12345678-9)'
+        return 'RUT (Chile) debe ser 8 digitos + digito verificador (ej: 12345678-9)'
       }
       return null
     }
-    // España: CIF/NIF básicos (muy simplificado)
-    if (/(españa|espana|spain)/.test(c)) {
+    if (code === 'ES' || /(espana|spain)/.test(c)) {
       if (!/^([A-Z]\d{7}[A-Z0-9]|\d{8}[A-Z])$/.test(v.toUpperCase())) {
-        return 'CIF/NIF (España) con formato básico inválido.'
+        return 'CIF/NIF (Espana) con formato basico invalido.'
       }
       return null
     }
-    // Otros países: sin validación estricta
     return null
   }
 
@@ -132,8 +189,12 @@ export const CrearEmpresa: React.FC = () => {
     if (!formData.email.trim()) return 'El correo es obligatorio.'
     if (!isEmail.test(formData.email.trim())) return 'El correo no tiene un formato válido.'
     if (!isPhone(formData.telefono || '')) return 'Teléfono inválido.'
-    if (!formData.sector_plantilla_id) return 'Selecciona un sector para aplicar la configuración base.'
-    const rucErr = validateRucByCountry(formData.pais, formData.ruc)
+    if (!formData.sector_plantilla_id) return 'Selecciona un sector para aplicar la configuracion base.'
+    if (!formData.country_code) return 'Selecciona un pais.'
+    if (!formData.default_language) return 'Selecciona un idioma/locale.'
+    if (!formData.timezone) return 'Selecciona una zona horaria.'
+    if (!formData.currency) return 'Selecciona una moneda.'
+    const rucErr = validateRucByCountry(formData.country_code || formData.pais, formData.ruc)
     if (rucErr) return rucErr
     if (!isUrl(formData.sitio_web || '')) return 'El sitio web no es una URL válida.'
     return null
@@ -186,9 +247,9 @@ export const CrearEmpresa: React.FC = () => {
         </header>
 
         <form onSubmit={onSubmit} className="px-6 py-6 space-y-10">
-          {(localError || error) && (
+          {(localError || error || catalogError) && (
             <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {localError || error}
+              {localError || error || catalogError}
             </div>
           )}
 
@@ -213,8 +274,20 @@ export const CrearEmpresa: React.FC = () => {
                 <input name="direccion" value={formData.direccion} onChange={onChange} className="border border-slate-300 rounded-lg px-4 py-2 text-sm" />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-slate-600">País</label>
-                <input name="pais" value={formData.pais} onChange={onChange} className="border border-slate-300 rounded-lg px-4 py-2 text-sm" />
+                <label className="text-xs font-semibold text-slate-600">Pais *</label>
+                <select
+                  name="country_code"
+                  value={formData.country_code || ''}
+                  onChange={onCountryChange}
+                  className="border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white"
+                >
+                  <option value="">Selecciona un pais</option>
+                  {paises.map((p) => (
+                    <option key={p.code} value={p.code}>
+                      {p.name} ({p.code})
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-slate-600">Provincia</label>
@@ -227,6 +300,54 @@ export const CrearEmpresa: React.FC = () => {
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-slate-600">Código postal</label>
                 <input name="cp" value={formData.cp} onChange={onChange} className="border border-slate-300 rounded-lg px-4 py-2 text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-600">Idioma / Locale *</label>
+                <select
+                  name="default_language"
+                  value={formData.default_language || ''}
+                  onChange={onChange}
+                  className="border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white"
+                >
+                  <option value="">Selecciona un idioma</option>
+                  {locales.map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.name} ({l.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-600">Zona horaria *</label>
+                <select
+                  name="timezone"
+                  value={formData.timezone || ''}
+                  onChange={onChange}
+                  className="border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white"
+                >
+                  <option value="">Selecciona una zona horaria</option>
+                  {timezones.map((tz) => (
+                    <option key={tz.name} value={tz.name}>
+                      {tz.display_name || tz.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-600">Moneda *</label>
+                <select
+                  name="currency"
+                  value={formData.currency || ''}
+                  onChange={onChange}
+                  className="border border-slate-300 rounded-lg px-4 py-2 text-sm bg-white"
+                >
+                  <option value="">Selecciona una moneda</option>
+                  {monedas.map((m) => (
+                    <option key={m.code} value={m.code}>
+                      {m.name} ({m.code})
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex flex-col gap-1 md:col-span-2">
                 <label className="text-xs font-semibold text-slate-600">Sitio web</label>
@@ -321,7 +442,7 @@ export const CrearEmpresa: React.FC = () => {
 
             {!canSubmit && (
               <div className="text-xs text-slate-600">
-                Completa: nombre de empresa, nombre y apellido del administrador, correo válido y sector base.
+                Completa: empresa, admin, correo valido, pais, idioma, zona horaria, moneda y sector base.
               </div>
             )}
 

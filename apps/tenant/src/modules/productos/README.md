@@ -151,16 +151,16 @@ Campos específicos para talleres:
 El sistema soporta 4 modos configurables:
 
 ### 1. **mixed** (por defecto)
-Fusiona defaults del sector con overrides del tenant. Nuevos campos definidos a nivel sector se incorporan automáticamente.
+Fusiona configuración del sector con overrides del tenant. Nuevos campos definidos a nivel sector se incorporan automáticamente.
 
 ### 2. **tenant**
 Usa solo la lista del tenant. Si está vacía, cae a sector y luego base.
 
 ### 3. **sector**
-Usa solo defaults del sector. Si no hay, cae a base.
+Usa solo configuración del sector. Si no hay, cae a base.
 
 ### 4. **basic**
-Usa la lista base codificada en el backend.
+Usa la lista base administrada.
 
 **Cambiar modo:**
 ```sql

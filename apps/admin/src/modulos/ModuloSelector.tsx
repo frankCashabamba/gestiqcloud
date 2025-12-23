@@ -2,8 +2,8 @@ import { useMemo } from 'react'
 import { useModulos } from './useModulos'
 
 interface Props {
-  selected: number[]
-  onChange: (moduloId: number) => void
+  selected: string[]
+  onChange: (moduloId: string) => void
   showTitle?: boolean
 }
 
@@ -35,10 +35,10 @@ export default function ModuloSelector({ selected, onChange, showTitle = false }
     () =>
       modulos.map((m) => ({
         ...m,
-        nombreFmt: formatNombre(m.nombre),
+        nombreFmt: formatNombre(m.name),
         descripcionFmt:
-          m.descripcion ||
-          `Activar acceso al módulo ${formatNombre(m.nombre) || 'seleccionado'}.`,
+          m.description ||
+          `Activar acceso al módulo ${formatNombre(m.name) || 'seleccionado'}.`,
       })),
     [modulos],
   )
@@ -110,7 +110,7 @@ export default function ModuloSelector({ selected, onChange, showTitle = false }
                 }`}
                 aria-hidden
               >
-                <span>{m.icono || '🧩'}</span>
+                <span>{m.icon || '🧩'}</span>
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-3">

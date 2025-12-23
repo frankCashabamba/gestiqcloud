@@ -2,9 +2,14 @@
  * ConditionalProductFields
  *
  * Campos de producto que aparecen/desaparecen según la configuración del sector
+ *
+ * FASE 4 PASO 4: Placeholders dinámicos desde BD
+ * - Reemplaza hardcoded placeholders con valores desde template_config
+ * - Usa useSectorPlaceholders para cargar dinámicamente
  */
 import React from 'react'
 import { useTenantFeatures, useTenantSector } from '../contexts/TenantConfigContext'
+import { useSectorPlaceholders, getFieldPlaceholder } from '../hooks/useSectorPlaceholders'
 
 interface ConditionalProductFieldsProps {
   formData: any
@@ -19,6 +24,7 @@ export function ConditionalProductFields({
 }: ConditionalProductFieldsProps) {
   const features = useTenantFeatures()
   const sector = useTenantSector()
+  const { placeholders } = useSectorPlaceholders(sector?.plantilla, 'products')
 
   return (
     <>
@@ -30,7 +36,7 @@ export function ConditionalProductFields({
       {features.inventory_expiry_tracking && (
         <div className="form-field">
           <label htmlFor="expires_at" className="form-label">
-            Fecha de Caducidad {sector.is_panaderia && '*'}
+            Fecha de Caducidad {features.inventory_expiry_tracking && '*'}
           </label>
           <input
             type="date"
@@ -39,10 +45,10 @@ export function ConditionalProductFields({
             value={formData.expires_at || ''}
             onChange={onChange}
             min={new Date().toISOString().split('T')[0]}
-            required={sector.is_panaderia}
+            required={features.inventory_expiry_tracking}
             className="form-input"
           />
-          {sector.is_panaderia && (
+          {features.inventory_expiry_tracking && (
             <small className="form-help">
               Productos perecederos requieren fecha de caducidad
             </small>
@@ -54,9 +60,7 @@ export function ConditionalProductFields({
       {features.inventory_lot_tracking && (
         <div className="form-field">
           <label htmlFor="lot" className="form-label">
-            {sector.is_panaderia ? 'Lote/Hornada' :
-             sector.is_taller ? 'Lote de Fabricación' :
-             'Número de Lote'}
+            Número de Lote
           </label>
           <input
             type="text"
@@ -64,18 +68,12 @@ export function ConditionalProductFields({
             name="lot"
             value={formData.lot || ''}
             onChange={onChange}
-            placeholder={
-              sector.is_panaderia ? 'Ej: H-2025-001' :
-              sector.is_taller ? 'Ej: LOT-ABC-123' :
-              'Número de lote'
-            }
+            placeholder={getFieldPlaceholder(placeholders, 'lote', 'Número de lote')}
             className="form-input"
           />
-          {sector.is_panaderia && (
-            <small className="form-help">
-              Identifica la hornada de producción
-            </small>
-          )}
+          <small className="form-help">
+            Identifica el lote de producción
+          </small>
         </div>
       )}
 
@@ -91,7 +89,7 @@ export function ConditionalProductFields({
             name="serial_number"
             value={formData.serial_number || ''}
             onChange={onChange}
-            placeholder="Ej: SN-123456789"
+            placeholder={getFieldPlaceholder(placeholders, 'numero_serie', 'Ej: SN-123456789')}
             className="form-input"
           />
           <small className="form-help">
@@ -145,216 +143,7 @@ export function ConditionalProductFields({
       {/* CAMPOS ESPECÍFICOS POR SECTOR */}
       {/* ============================================ */}
 
-      {/* PANADERÍA */}
-      {sector.is_panaderia && (
-        <>
-          <div className="form-field">
-            <label htmlFor="temperatura_horneado" className="form-label">
-              Temperatura de Horneado (°C)
-            </label>
-            <input
-              type="number"
-              id="temperatura_horneado"
-              name="temperatura_horneado"
-              value={formData.temperatura_horneado || ''}
-              onChange={onChange}
-              placeholder="180"
-              min="0"
-              max="300"
-              className="form-input"
-            />
-          </div>
 
-          <div className="form-field">
-            <label htmlFor="tipo_masa" className="form-label">
-              Tipo de Masa
-            </label>
-            <select
-              id="tipo_masa"
-              name="tipo_masa"
-              value={formData.tipo_masa || ''}
-              onChange={onChange}
-              className="form-input"
-            >
-              <option value="">-- Seleccionar --</option>
-              <option value="masa_madre">Masa Madre</option>
-              <option value="levadura">Masa de Levadura</option>
-              <option value="quebrada">Masa Quebrada</option>
-              <option value="hojaldre">Hojaldre</option>
-              <option value="fermentada">Masa Fermentada</option>
-            </select>
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="tiempo_fermentacion" className="form-label">
-              Tiempo de Fermentación (horas)
-            </label>
-            <input
-              type="number"
-              id="tiempo_fermentacion"
-              name="tiempo_fermentacion"
-              value={formData.tiempo_fermentacion || ''}
-              onChange={onChange}
-              placeholder="2"
-              min="0"
-              max="72"
-              step="0.5"
-              className="form-input"
-            />
-          </div>
-        </>
-      )}
-
-      {/* TALLER MECÁNICO */}
-      {sector.is_taller && (
-        <>
-          <div className="form-field">
-            <label htmlFor="codigo_oem" className="form-label">
-              Código OEM
-            </label>
-            <input
-              type="text"
-              id="codigo_oem"
-              name="codigo_oem"
-              value={formData.codigo_oem || ''}
-              onChange={onChange}
-              placeholder="Código del fabricante"
-              className="form-input"
-            />
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="marca_vehiculo" className="form-label">
-              Marca de Vehículo Compatible
-            </label>
-            <input
-              type="text"
-              id="marca_vehiculo"
-              name="marca_vehiculo"
-              value={formData.marca_vehiculo || ''}
-              onChange={onChange}
-              placeholder="Ej: Toyota, Ford, Volkswagen"
-              className="form-input"
-            />
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="modelo_compatible" className="form-label">
-              Modelo Compatible
-            </label>
-            <input
-              type="text"
-              id="modelo_compatible"
-              name="modelo_compatible"
-              value={formData.modelo_compatible || ''}
-              onChange={onChange}
-              placeholder="Ej: Corolla, Focus, Golf"
-              className="form-input"
-            />
-          </div>
-
-          <div className="form-row">
-            <div className="form-field">
-              <label htmlFor="año_desde" className="form-label">
-                Año Desde
-              </label>
-              <input
-                type="number"
-                id="año_desde"
-                name="año_desde"
-                value={formData.año_desde || ''}
-                onChange={onChange}
-                placeholder="2015"
-                min="1950"
-                max={new Date().getFullYear() + 1}
-                className="form-input"
-              />
-            </div>
-
-            <div className="form-field">
-              <label htmlFor="año_hasta" className="form-label">
-                Año Hasta
-              </label>
-              <input
-                type="number"
-                id="año_hasta"
-                name="año_hasta"
-                value={formData.año_hasta || ''}
-                onChange={onChange}
-                placeholder="2024"
-                min="1950"
-                max={new Date().getFullYear() + 1}
-                className="form-input"
-              />
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* RETAIL */}
-      {sector.is_retail && (
-        <>
-          <div className="form-field">
-            <label htmlFor="marca" className="form-label">
-              Marca
-            </label>
-            <input
-              type="text"
-              id="marca"
-              name="marca"
-              value={formData.marca || ''}
-              onChange={onChange}
-              placeholder="Marca del producto"
-              className="form-input"
-            />
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="modelo" className="form-label">
-              Modelo
-            </label>
-            <input
-              type="text"
-              id="modelo"
-              name="modelo"
-              value={formData.modelo || ''}
-              onChange={onChange}
-              placeholder="Modelo/Referencia"
-              className="form-input"
-            />
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="color" className="form-label">
-              Color/Variante
-            </label>
-            <input
-              type="text"
-              id="color"
-              name="color"
-              value={formData.color || ''}
-              onChange={onChange}
-              placeholder="Ej: Negro, Azul, Rojo"
-              className="form-input"
-            />
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="talla" className="form-label">
-              Talla/Tamaño
-            </label>
-            <input
-              type="text"
-              id="talla"
-              name="talla"
-              value={formData.talla || ''}
-              onChange={onChange}
-              placeholder="Ej: M, L, XL, 42"
-              className="form-input"
-            />
-          </div>
-        </>
-      )}
 
       <style>{`
         .form-field {

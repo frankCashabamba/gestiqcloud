@@ -83,7 +83,7 @@ def actualizar_factura(
     if not invoice:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
 
-    if invoice.estado not in ["draft", "borrador"]:
+    if invoice.status not in ["draft", "borrador"]:
         raise HTTPException(status_code=400, detail="Solo se pueden editar facturas en borrador")
 
     # Actualizar campos permitidos
@@ -111,16 +111,16 @@ def anular_factura(factura_id: UUID, request: Request, db: Session = Depends(get
     if not invoice:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
 
-    if invoice.estado == "paid":
+    if invoice.status == "paid":
         raise HTTPException(
             status_code=400,
             detail="No se puede anular una factura pagada. Use abonos/créditos.",
         )
 
-    invoice.estado = "void"
+    invoice.status = "void"
     db.commit()
 
-    return {"status": "ok", "message": f"Factura {invoice.numero} anulada"}
+    return {"status": "ok", "message": f"Factura {invoice.number} anulada"}
 
 
 @router.post("/{factura_id}/emitir", response_model=schemas.InvoiceOut)
@@ -174,7 +174,7 @@ def descargar_pdf(
         template = env.get_template(tmpl_name)
 
         # Relación de líneas si está mapeada en ORM
-        lineas = getattr(factura, "lineas", [])
+        lineas = getattr(factura, "lines", [])
         html = template.render(factura=factura, lineas=lineas)
         pdf_bytes = HTML(string=html).write_pdf()
         return Response(

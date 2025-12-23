@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 from uuid import UUID
 
@@ -619,6 +620,7 @@ class ProductHandler:
             existing.product_metadata = meta
             db.flush()
             # Inicializar stock_items si procede (sólo primera vez y si hay cantidad)
+            nested = db.begin_nested()
             try:
                 if float(stock or 0) > 0:
                     from app.models.inventory.stock import StockItem
@@ -675,8 +677,8 @@ class ProductHandler:
                         try:
                             db.execute(
                                 text(
-                                    "INSERT INTO stock_moves (tenant_id, product_id, warehouse_id, qty, kind) "
-                                    "VALUES (:tid, :pid, :wid, :qty, :kind)"
+                                    "INSERT INTO stock_moves (tenant_id, product_id, warehouse_id, qty, kind, tentative, posted) "
+                                    "VALUES (:tid, :pid, :wid, :qty, :kind, :tentative, :posted)"
                                 ),
                                 {
                                     "tid": str(tenant_id),
@@ -684,14 +686,27 @@ class ProductHandler:
                                     "wid": str(wh.id),
                                     "qty": float(stock),
                                     "kind": "receipt",
+                                    "tentative": False,
+                                    "posted": False,
                                 },
                             )
-                        except Exception:
-                            # si la tabla/columnas difieren, continuar sin move
-                            pass
-            except Exception:
-                # No bloquear import si falla la inicialización de stock por alguna razón
-                pass
+                        except Exception as move_err:
+                            logging.warning("Stock move insert skipped: %s", move_err)
+            except Exception as stock_err:
+                nested.rollback()
+                logging.warning(
+                    "Stock initialization skipped for product %s: %s", existing.id, stock_err
+                )
+            else:
+                try:
+                    nested.commit()
+                except Exception as stock_err:
+                    nested.rollback()
+                    logging.warning(
+                        "Stock initialization commit skipped for product %s: %s",
+                        existing.id,
+                        stock_err,
+                    )
             return PromoteResult(domain_id=str(existing.id), skipped=False)
 
         # Create new product
@@ -716,6 +731,7 @@ class ProductHandler:
         db.add(product)
         db.flush()
         # Inicializar stock_items si procede (sólo si hay cantidad y aún no existen)
+        nested = db.begin_nested()
         try:
             if float(stock or 0) > 0:
                 from app.models.inventory.stock import StockItem
@@ -769,8 +785,8 @@ class ProductHandler:
                     try:
                         db.execute(
                             text(
-                                "INSERT INTO stock_moves (tenant_id, product_id, warehouse_id, qty, kind) "
-                                "VALUES (:tid, :pid, :wid, :qty, :kind)"
+                                "INSERT INTO stock_moves (tenant_id, product_id, warehouse_id, qty, kind, tentative, posted) "
+                                "VALUES (:tid, :pid, :wid, :qty, :kind, :tentative, :posted)"
                             ),
                             {
                                 "tid": str(tenant_id),
@@ -778,12 +794,27 @@ class ProductHandler:
                                 "wid": str(wh.id),
                                 "qty": float(stock),
                                 "kind": "receipt",
+                                "tentative": False,
+                                "posted": False,
                             },
                         )
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+                    except Exception as move_err:
+                        logging.warning("Stock move insert skipped: %s", move_err)
+        except Exception as stock_err:
+            nested.rollback()
+            logging.warning(
+                "Stock initialization skipped for new product %s: %s", product.id, stock_err
+            )
+        else:
+            try:
+                nested.commit()
+            except Exception as stock_err:
+                nested.rollback()
+                logging.warning(
+                    "Stock initialization commit skipped for new product %s: %s",
+                    product.id,
+                    stock_err,
+                )
         return PromoteResult(domain_id=str(product.id), skipped=False)
 
 

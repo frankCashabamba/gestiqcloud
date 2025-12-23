@@ -1,4 +1,5 @@
 import api from '../../shared/api/client'
+import { TENANT_RRHH } from '@shared/endpoints'
 
 // === EMPLEADOS ===
 export async function listEmpleados(params?: {
@@ -9,27 +10,27 @@ export async function listEmpleados(params?: {
   departmentId?: string
   [key: string]: any
 }) {
-  const response = await api.get('/api/v1/rrhh/empleados', { params })
+  const response = await api.get(TENANT_RRHH.empleados.base, { params })
   return response.data
 }
 
 export async function getEmpleado(id: string) {
-  const response = await api.get(`/api/v1/rrhh/empleados/${id}`)
+  const response = await api.get(TENANT_RRHH.empleados.byId(id))
   return response.data
 }
 
 export async function createEmpleado(data: any) {
-  const response = await api.post('/api/v1/rrhh/empleados', data)
+  const response = await api.post(TENANT_RRHH.empleados.base, data)
   return response.data
 }
 
 export async function updateEmpleado(id: string, data: any) {
-  const response = await api.put(`/api/v1/rrhh/empleados/${id}`, data)
+  const response = await api.put(TENANT_RRHH.empleados.byId(id), data)
   return response.data
 }
 
 export async function deleteEmpleado(id: string) {
-  await api.delete(`/api/v1/rrhh/empleados/${id}`)
+  await api.delete(TENANT_RRHH.empleados.byId(id))
 }
 
 // === VACACIONES ===
@@ -42,26 +43,26 @@ export async function listVacaciones(params?: {
   endDate?: string
   [key: string]: any
 }) {
-  const response = await api.get('/api/v1/rrhh/vacaciones', { params })
+  const response = await api.get(TENANT_RRHH.vacaciones.base, { params })
   return response.data
 }
 
 export async function getVacacion(id: string) {
-  const response = await api.get(`/api/v1/rrhh/vacaciones/${id}`)
+  const response = await api.get(TENANT_RRHH.vacaciones.byId(id))
   return response.data
 }
 
 export async function createVacacion(data: any) {
-  const response = await api.post('/api/v1/rrhh/vacaciones', data)
+  const response = await api.post(TENANT_RRHH.vacaciones.base, data)
   return response.data
 }
 
 export async function aprobarVacacion(id: string, data?: any) {
-  const response = await api.post(`/api/v1/rrhh/vacaciones/${id}/aprobar`, data)
+  const response = await api.post(TENANT_RRHH.vacaciones.approve(id), data)
   return response.data
 }
 
 export async function rechazarVacacion(id: string, data: any) {
-  const response = await api.post(`/api/v1/rrhh/vacaciones/${id}/rechazar`, data)
+  const response = await api.post(TENANT_RRHH.vacaciones.reject(id), data)
   return response.data
 }

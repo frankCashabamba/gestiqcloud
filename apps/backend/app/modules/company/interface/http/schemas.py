@@ -16,10 +16,10 @@ class CompanyInSchema(BaseModel):
     postal_code: str | None = Field(default=None, validation_alias="cp")
     country: str | None = Field(default=None, validation_alias="pais")
     logo: str | None = None
-    primary_color: str | None = Field(default="#4f46e5", validation_alias="color_primario")
+    primary_color: str | None = Field(default=None, validation_alias="color_primario")
     active: bool | None = True
     deactivation_reason: str | None = Field(default=None, validation_alias="motivo_desactivacion")
-    initial_template: str | None = Field(default="client", validation_alias="plantilla_inicio")
+    initial_template: str | None = Field(default=None, validation_alias="plantilla_inicio")
     website: str | None = Field(default=None, validation_alias="sitio_web")
     config_json: dict | None = None
 

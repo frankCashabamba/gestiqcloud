@@ -1,9 +1,6 @@
 import api from '../../shared/api/client'
 import { ADMIN_CONFIG } from '@shared/endpoints'
 
-export type TipoEmpresa = { id: number; name: string }
-export type TipoNegocio = { id: number; name: string }
-
 export type ModuleConfig = {
   enabled?: boolean
   order?: number
@@ -27,12 +24,13 @@ export type SectorTemplateConfig = {
 }
 
 export type Sector = {
-  id: number
-  sector_name: string
-  business_type_id: number | null
-  business_category_id: number | null
+  id: string
+  name: string
+  code?: string | null
+  description?: string | null
   template_config: SectorTemplateConfig
   active?: boolean
+  config_version?: number | null
 }
 
 export type SectorPayload = Omit<Sector, 'id'>
@@ -72,14 +70,4 @@ export async function updateSector(id: number | string, payload: SectorPayload):
 
 export async function removeSector(id: number | string): Promise<void> {
   await api.delete(ADMIN_CONFIG.sectores.byId(id))
-}
-
-export async function listTipoEmpresa(): Promise<TipoEmpresa[]> {
-  const { data } = await api.get<TipoEmpresa[]>(ADMIN_CONFIG.tipoEmpresa.base)
-  return data || []
-}
-
-export async function listTipoNegocio(): Promise<TipoNegocio[]> {
-  const { data } = await api.get<TipoNegocio[]>(ADMIN_CONFIG.tipoNegocio.base)
-  return data || []
 }

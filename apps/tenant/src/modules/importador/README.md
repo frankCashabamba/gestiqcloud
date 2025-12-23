@@ -2,6 +2,11 @@
 
 **Un solo módulo de importación para todas las plantillas y tipos de datos.**
 
+## 📌 Estado actual
+
+- **UI principal**: `ImportadorExcelWithQueue` (ruta `/imports`), usa contexto `ImportQueueContext`, soporta Excel/CSV, PDFs/imagenes vía OCR y carga chunked.
+- **UI legacy**: removida. El manifest/panel ahora apuntan a la UI principal.
+
 ## 🎯 Objetivo
 
 Proporcionar un sistema de importación **universal y configurable** que sirva para:
@@ -25,7 +30,7 @@ importador/
 ├── utils/
 │   ├── aliasCampos.ts          # Aliases de columnas
 │   └── detectarTipoDocumento.ts
-├── ImportadorExcel.tsx         # Componente principal
+├── ImportadorExcelWithQueue.tsx# Componente principal
 ├── Panel.tsx                   # Vista de batches
 └── manifest.ts                 # Registro del módulo
 ```
@@ -173,6 +178,12 @@ npm run test -- importador
 # Backend
 pytest apps/backend/app/tests/test_imports.py
 ```
+
+## 🔍 Duplicados y pendientes
+
+- Servicios legacy y rutas `/pendientes` eliminadas; todo pasa por `importsApi`.
+- Alinear `source_type` con backend: usar `products`, `invoices`, `bank`, `expenses`.
+- Tests: cola (CSV/Excel, OCR retry, chunk threshold) y auto-mapeo de columnas.
 
 ## 📝 Notas de Implementación
 

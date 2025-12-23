@@ -2,10 +2,13 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { createCuenta, getCuenta, updateCuenta, listCuentas, type PlanCuenta } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
+import { useSectorPlaceholder } from '../../hooks/useSectorPlaceholders'
+import { useTenant } from '../../contexts/TenantContext'
 
 export default function PlanCuentasForm() {
     const { id } = useParams()
     const nav = useNavigate()
+    const { sector } = useTenant()
     const [form, setForm] = useState<Partial<PlanCuenta>>({
         codigo: '',
         nombre: '',
@@ -15,6 +18,12 @@ export default function PlanCuentasForm() {
     })
     const { success, error } = useToast()
     const [cuentasPadre, setCuentasPadre] = useState<PlanCuenta[]>([])
+
+    const { placeholder: codigoPlaceholder } = useSectorPlaceholder(
+        sector?.plantilla || null,
+        'codigos_cuenta',
+        'accounting_plan'
+    )
 
     useEffect(() => {
         if (!id) return
@@ -50,7 +59,7 @@ export default function PlanCuentasForm() {
                         onChange={(e) => setForm({ ...form, codigo: e.target.value })}
                         className="border px-2 py-1 w-full rounded"
                         required
-                        placeholder="Ej: 1000, 2000"
+                        placeholder={codigoPlaceholder || 'Ej: 1000, 2000'}
                     />
                 </div>
 

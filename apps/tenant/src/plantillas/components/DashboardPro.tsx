@@ -5,7 +5,7 @@
 import React, { useState, useEffect, ReactNode } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useMisModulos } from '../../hooks/useMisModulos'
-import { apiFetch } from '../../lib/http'
+import { fetchTenantTheme } from '../../services/theme'
 
 interface ThemeData {
   colors?: {
@@ -67,7 +67,7 @@ const DashboardPro: React.FC<DashboardProProps> = ({
   useEffect(() => {
     const loadTheme = async () => {
       try {
-        const themeData = await apiFetch<ThemeData>(`/api/v1/tenant/settings/theme?empresa=${empresa}`)
+        const themeData = await fetchTenantTheme(empresa)
         if (themeData?.colors) {
           setTheme(themeData)
           // Aplicar color primario a todo el tema

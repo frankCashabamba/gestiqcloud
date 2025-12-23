@@ -3,18 +3,18 @@ import { Link, useNavigate } from 'react-router-dom'
 import {
   listSectores,
   removeSector,
-  listTipoEmpresa,
-  listTipoNegocio,
   type Sector,
 } from '../../../services/configuracion/sectores'
+import { listTipoEmpresa, type TipoEmpresa } from '../../../services/configuracion/tipo-empresa'
+import { listTipoNegocio, type TipoNegocio } from '../../../services/configuracion/tipo-negocio'
 import { useToast, getErrorMessage } from '../../../shared/toast'
 
 export default function SectorList() {
   const [items, setItems] = useState<Sector[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [empresas, setEmpresas] = useState<Record<number, string>>({})
-  const [negocios, setNegocios] = useState<Record<number, string>>({})
+  const [empresas, setEmpresas] = useState<Record<string, string>>({})
+  const [negocios, setNegocios] = useState<Record<string, string>>({})
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
 
@@ -28,8 +28,8 @@ export default function SectorList() {
           listTipoNegocio(),
         ])
         setItems(sectoresData)
-        setEmpresas(Object.fromEntries(empresasData.map((e) => [e.id, e.name])))
-        setNegocios(Object.fromEntries(negociosData.map((n) => [n.id, n.name])))
+        setEmpresas(Object.fromEntries((empresasData as TipoEmpresa[]).map((e) => [e.id, e.name])))
+        setNegocios(Object.fromEntries((negociosData as TipoNegocio[]).map((n) => [n.id, n.name])))
         setError(null)
       } catch (e: any) {
         const m = getErrorMessage(e)
@@ -42,11 +42,11 @@ export default function SectorList() {
   }, [])
 
   const getEmpresaNombre = useCallback(
-    (id: number | null) => (id && empresas[id] ? empresas[id] : '—'),
+    (id?: string | null) => (id && empresas[id] ? empresas[id] : '—'),
     [empresas]
   )
   const getNegocioNombre = useCallback(
-    (id: number | null) => (id && negocios[id] ? negocios[id] : '—'),
+    (id?: string | null) => (id && negocios[id] ? negocios[id] : '—'),
     [negocios]
   )
 
@@ -64,8 +64,11 @@ export default function SectorList() {
         <thead className="bg-gray-50">
           <tr>
             <th className="text-left py-2 px-3">Nombre</th>
+            <th className="text-left py-2 px-3">Código</th>
+            <th className="text-left py-2 px-3">Descripción</th>
             <th className="text-left py-2 px-3">Tipo Empresa</th>
             <th className="text-left py-2 px-3">Tipo Negocio</th>
+            <th className="text-left py-2 px-3">Activo</th>
             <th className="text-left py-2 px-3">Branding</th>
             <th className="text-left py-2 px-3">Acciones</th>
           </tr>
@@ -75,9 +78,16 @@ export default function SectorList() {
             const color = it.template_config?.branding?.color_primario
             return (
               <tr key={it.id} className="border-t">
-                <td className="py-2 px-3">{it.sector_name}</td>
-                <td className="py-2 px-3">{getEmpresaNombre(it.business_type_id)}</td>
-                <td className="py-2 px-3">{getNegocioNombre(it.business_category_id)}</td>
+                <td className="py-2 px-3">{it.name}</td>
+                <td className="py-2 px-3">{it.code || '—'}</td>
+                <td className="py-2 px-3">{it.description || '—'}</td>
+                <td className="py-2 px-3">
+                  {getEmpresaNombre(it.template_config?.defaults?.business_type_id as string)}
+                </td>
+                <td className="py-2 px-3">
+                  {getNegocioNombre(it.template_config?.defaults?.business_category_id as string)}
+                </td>
+                <td className="py-2 px-3">{it.active ? 'Sí' : 'No'}</td>
                 <td className="py-2 px-3">
                   {color ? (
                     <span className="inline-flex items-center gap-2">
@@ -122,7 +132,7 @@ export default function SectorList() {
           })}
           {!loading && items.length === 0 && (
             <tr>
-              <td className="py-3 px-3" colSpan={5}>
+              <td className="py-3 px-3" colSpan={7}>
                 Sin sectores
               </td>
             </tr>

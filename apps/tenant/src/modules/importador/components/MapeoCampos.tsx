@@ -9,6 +9,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { getSuggestions, type ColumnSuggestion } from '../utils/levenshtein'
 import { getAliasSugeridos } from '../utils/aliasCampos'
+import type { EntityTypeConfig } from '../config/entityTypes'
 import TemplateManager from './TemplateManager'
 import { saveImportTemplate, type ImportTemplate } from '../services/templates'
 
@@ -19,6 +20,7 @@ type Props = {
     onChange: (m: Partial<Record<string, string>>) => void
     sourceType?: string
     previewData?: Record<string, any>[]
+    fieldConfig?: EntityTypeConfig
 }
 
 export default function MapeoCampos({
@@ -27,7 +29,8 @@ export default function MapeoCampos({
     mapa,
     onChange,
     sourceType = 'generico',
-    previewData = []
+    previewData = [],
+    fieldConfig
 }: Props) {
     const [suggestions, setSuggestions] = useState<Record<string, ColumnSuggestion[]>>({})
     const [draggedColumn, setDraggedColumn] = useState<string | null>(null)
@@ -36,9 +39,9 @@ export default function MapeoCampos({
     const [templateName, setTemplateName] = useState('')
     const [saving, setSaving] = useState(false)
 
-    const aliasMap = useMemo(() => getAliasSugeridos(), [])
+    const aliasMap = useMemo(() => getAliasSugeridos(fieldConfig), [fieldConfig])
 
-    // Auto-detectar al montar o cambiar headers
+    // Auto-detect on mount or when headers change
     useEffect(() => {
         runAutoDetect()
     }, [headers, camposObjetivo])
@@ -52,7 +55,7 @@ export default function MapeoCampos({
             const fieldSuggestions = getSuggestions(campo, headers, aliases)
             newSuggestions[campo] = fieldSuggestions
 
-            // Auto-seleccionar si confianza >= 80%
+            // Auto-select if confidence >= 80%
             if (fieldSuggestions.length > 0 && fieldSuggestions[0].confidence >= 80) {
                 newMapa[campo] = fieldSuggestions[0].sourceColumn
             }
@@ -79,7 +82,7 @@ export default function MapeoCampos({
 
     const handleLoadTemplate = (template: ImportTemplate) => {
         onChange(template.mappings)
-        alert(`✓ Plantilla "${template.name}" cargada`)
+        alert(`✓ Template "${template.name}" loaded`)
     }
 
     const handleSaveTemplate = async () => {
@@ -95,11 +98,11 @@ export default function MapeoCampos({
                 source_type: sourceType,
                 mappings: mapa as Record<string, string>
             })
-            alert(`✓ Plantilla "${templateName}" guardada`)
+            alert(`✓ Template "${templateName}" saved`)
             setShowSaveTemplate(false)
             setTemplateName('')
         } catch (err: any) {
-            alert(err?.message || 'Error al guardar')
+            alert(err?.message || 'Error saving template')
         } finally {
             setSaving(false)
         }
@@ -110,40 +113,40 @@ export default function MapeoCampos({
 
     return (
         <div className="space-y-4">
-            {/* Header con acciones */}
+            {/* Header with actions */}
             <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-lg">📊 Mapeo de Campos</h3>
+                <h3 className="font-semibold text-lg">📊 Field Mapping</h3>
                 <div className="flex gap-2">
                     <button
                         onClick={runAutoDetect}
                         className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded text-sm transition"
                     >
-                        🔍 Auto-detectar
+                        🔍 Auto-detect
                     </button>
                     <button
                         onClick={() => setShowTemplateManager(true)}
                         className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-sm transition"
                     >
-                        📋 Cargar Plantilla
+                        📋 Load Template
                     </button>
                     <button
                         onClick={() => setShowSaveTemplate(true)}
                         disabled={Object.keys(mapa).length === 0}
                         className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        💾 Guardar Plantilla
+                        💾 Save Template
                     </button>
                 </div>
             </div>
 
-            {/* Alerta de campos sin mapear */}
+            {/* Unmapped fields alert */}
             {unmappedFields.length > 0 && (
                 <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded text-sm">
-                    ⚠️ {unmappedFields.length} campo(s) sin mapear: <strong>{unmappedFields.join(', ')}</strong>
+                    ⚠️ {unmappedFields.length} field(s) unmapped: <strong>{unmappedFields.join(', ')}</strong>
                 </div>
             )}
 
-            {/* Grid de mapeo */}
+            {/* Mapping grid */}
             <div className="grid md:grid-cols-2 gap-4">
                 {camposObjetivo.map((campo) => {
                     const fieldSuggestions = suggestions[campo] || []
@@ -160,7 +163,7 @@ export default function MapeoCampos({
                             onDragOver={handleDragOver}
                             onDrop={() => handleDrop(campo)}
                         >
-                            {/* Campo objetivo */}
+                            {/* Target field */}
                             <label className="block text-sm font-medium mb-2 text-gray-700">
                                 {campo}
                                 {isMapped && <span className="ml-2 text-green-600">✓</span>}
@@ -172,19 +175,19 @@ export default function MapeoCampos({
                                 value={mapa[campo] || ''}
                                 onChange={(e) => onChange({ ...mapa, [campo]: e.target.value })}
                             >
-                                <option value="">-- Seleccionar columna --</option>
+                                <option value="">-- Select column --</option>
                                 {headers.map((h) => {
                                     const suggestion = fieldSuggestions.find(s => s.sourceColumn === h)
                                     return (
                                         <option key={h} value={h}>
                                             {h}
-                                            {suggestion && ` (${suggestion.confidence}% coincidencia)`}
+                                            {suggestion && ` (${suggestion.confidence}% match)`}
                                         </option>
                                     )
                                 })}
                             </select>
 
-                            {/* Sugerencia */}
+                            {/* Suggestion */}
                             {!isMapped && topSuggestion && (
                                 <div className="mt-2 text-xs">
                                     <button
@@ -194,7 +197,7 @@ export default function MapeoCampos({
                                                 : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
                                             }`}
                                     >
-                                        💡 Sugerido: {topSuggestion.sourceColumn}
+                                        💡 Suggested: {topSuggestion.sourceColumn}
                                         <span className="font-semibold">({topSuggestion.confidence}%)</span>
                                     </button>
                                 </div>
@@ -204,10 +207,10 @@ export default function MapeoCampos({
                 })}
             </div>
 
-            {/* Preview en vivo */}
+            {/* Live preview */}
             {previewRows.length > 0 && (
                 <div className="mt-4">
-                    <h4 className="font-medium text-sm mb-2">👁️ Preview del Mapeo (3 filas)</h4>
+                    <h4 className="font-medium text-sm mb-2">👁️ Mapping Preview (first 3 rows)</h4>
                     <div className="overflow-x-auto border border-gray-200 rounded">
                         <table className="min-w-full text-xs">
                             <thead className="bg-gray-100">
@@ -231,7 +234,7 @@ export default function MapeoCampos({
                                                     key={campo}
                                                     className={`px-3 py-2 ${!value ? 'bg-red-50 text-red-500' : ''}`}
                                                 >
-                                                    {value || '(vacío)'}
+                                                    {value || '(empty)'}
                                                 </td>
                                             )
                                         })}
@@ -243,9 +246,9 @@ export default function MapeoCampos({
                 </div>
             )}
 
-            {/* Columnas disponibles (drag source) */}
+            {/* Available columns (drag source) */}
             <div className="mt-4 border-t pt-4">
-                <h4 className="font-medium text-sm mb-2">📋 Columnas del Archivo</h4>
+                <h4 className="font-medium text-sm mb-2">📋 File Columns</h4>
                 <div className="flex flex-wrap gap-2">
                     {headers.map(header => (
                         <div
@@ -259,18 +262,18 @@ export default function MapeoCampos({
                     ))}
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
-                    💡 Arrastra las columnas a los campos destino
+                    💡 Drag columns to target fields
                 </p>
             </div>
 
-            {/* Modal guardar plantilla */}
+            {/* Save template modal */}
             {showSaveTemplate && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-                        <h3 className="text-lg font-semibold mb-4">💾 Guardar Plantilla</h3>
+                        <h3 className="text-lg font-semibold mb-4">💾 Save Template</h3>
                         <input
                             type="text"
-                            placeholder="Nombre de la plantilla..."
+                            placeholder="Template name..."
                             value={templateName}
                             onChange={(e) => setTemplateName(e.target.value)}
                             className="w-full border border-gray-300 px-3 py-2 rounded mb-4 focus:ring-2 focus:ring-blue-500"
@@ -282,7 +285,7 @@ export default function MapeoCampos({
                                 disabled={saving || !templateName.trim()}
                                 className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition disabled:opacity-50"
                             >
-                                {saving ? 'Guardando...' : 'Save'}
+                                {saving ? 'Saving...' : 'Save'}
                             </button>
                             <button
                                 onClick={() => {
@@ -291,7 +294,7 @@ export default function MapeoCampos({
                                 }}
                                 className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded transition"
                             >
-                                Cancelar
+                                Cancel
                             </button>
                         </div>
                     </div>

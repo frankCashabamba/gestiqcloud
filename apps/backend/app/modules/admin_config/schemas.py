@@ -118,26 +118,29 @@ class HorarioAtencionRead(BaseModel):
 
 
 class SectorPlantillaCreate(BaseModel):
-    sector_name: str
-    business_type_id: int | None = None
-    business_category_id: int | None = None
+    name: str
+    code: str | None = None
+    description: str | None = None
     template_config: dict[str, Any] = Field(default_factory=dict)
+    active: bool = True
 
 
 class SectorPlantillaUpdate(BaseModel):
-    sector_name: str | None = None
-    business_type_id: int | None = None
-    business_category_id: int | None = None
+    name: str | None = None
+    code: str | None = None
+    description: str | None = None
     template_config: dict[str, Any] | None = None
+    active: bool | None = None
 
 
 class SectorPlantillaRead(BaseModel):
-    id: int
-    sector_name: str
-    business_type_id: int | None = None
-    business_category_id: int | None = None
+    id: UUID
+    name: str
+    code: str | None = None
+    description: str | None = None
     template_config: dict[str, Any] = Field(default_factory=dict)
     active: bool = True
+    config_version: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -174,7 +177,7 @@ class TipoNegocioUpdate(BaseModel):
 
 
 class TipoNegocioRead(BaseModel):
-    id: int
+    id: UUID
     name: str
     description: str | None = None
     active: bool = True

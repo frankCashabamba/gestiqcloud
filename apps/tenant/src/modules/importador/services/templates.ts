@@ -25,7 +25,7 @@ export async function saveImportTemplate(
     data: SaveTemplateData,
     token?: string
 ): Promise<ImportTemplate> {
-    const { data: res } = await api.post<ImportTemplate>(`/api/v1/imports/mappings`, {
+    const { data: res } = await api.post<ImportTemplate>(`/api/v1/tenant/imports/mappings`, {
         name: data.name,
         source_type: data.source_type,
         mappings: data.mappings,
@@ -40,7 +40,7 @@ export async function listImportTemplates(
     sourceType?: string,
     token?: string
 ): Promise<ImportTemplate[]> {
-    const { data } = await api.get<ImportTemplate[]>(`/api/v1/imports/mappings`, { params: { source_type: sourceType } })
+    const { data } = await api.get<ImportTemplate[]>(`/api/v1/tenant/imports/mappings`, { params: { source_type: sourceType } })
     return data || []
 }
 
@@ -48,7 +48,7 @@ export async function getImportTemplate(
     id: string,
     token?: string
 ): Promise<ImportTemplate> {
-    const { data } = await api.get<ImportTemplate>(`/api/v1/imports/mappings/${id}`)
+    const { data } = await api.get<ImportTemplate>(`/api/v1/tenant/imports/mappings/${id}`)
     return data
 }
 
@@ -56,5 +56,5 @@ export async function deleteImportTemplate(
     id: string,
     token?: string
 ): Promise<void> {
-    await api.delete(`/api/v1/imports/mappings/${id}`)
+    await api.delete(`/api/v1/tenant/imports/mappings/${id}`)
 }

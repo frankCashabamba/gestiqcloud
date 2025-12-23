@@ -168,16 +168,12 @@ class TestPayrollStatus:
 class TestPayrollIntegration:
     """Integration tests with sector config"""
 
-    def test_payroll_universal_across_sectors(self):
+    def test_payroll_universal_across_sectors(self, db):
         """Payroll should work for all sectors"""
-        from app.services.sector_defaults import SECTOR_DEFAULTS
+        from app.models.company.company import SectorTemplate
 
-        # Payroll is universal, does not depend on sector
-        # All sectors have employees
-        assert "panaderia" in SECTOR_DEFAULTS
-        assert "retail" in SECTOR_DEFAULTS
-        assert "restaurante" in SECTOR_DEFAULTS
-        assert "taller" in SECTOR_DEFAULTS
+        codes = {tpl.code for tpl in db.query(SectorTemplate).all()}
+        assert {"panaderia", "retail", "restaurante", "taller"}.issubset(codes)
 
     def test_conceptos_differ_by_sector(self):
         """Concepts can vary by sector but structure is the same"""

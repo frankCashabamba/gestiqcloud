@@ -140,14 +140,9 @@ class ActivityOut(ActivityBase):
 
 
 class DashboardMetrics(BaseModel):
-    total_leads: int
-    total_opportunities: int
-    total_pipeline_value: float
-    conversion_rate: float
-    won_opportunities: int
-    lost_opportunities: int
-    leads_by_status: dict[str, int]
-    opportunities_by_stage: dict[str, int]
+    leads: dict
+    opportunities: dict
+    activities: dict
 
 
 class ConvertLeadRequest(BaseModel):

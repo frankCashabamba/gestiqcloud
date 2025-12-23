@@ -14,6 +14,7 @@ from app.models.company.company import (
     RolBase,
     SectorPlantilla,
     SectorTemplate,
+    SectorValidationRule,
     UserProfile,
     Weekday,
 )
@@ -37,12 +38,10 @@ __all__ = [
     "UserProfile",
     "RolBase",
     "SectorTemplate",
+    "SectorValidationRule",
     "SectorPlantilla",
-    "CompanyRole",
     "CompanyRole",
     "CompanySettings",
     "CompanyUser",
-    "CompanyUser",
-    "CompanyUserRole",
     "CompanyUserRole",
 ]

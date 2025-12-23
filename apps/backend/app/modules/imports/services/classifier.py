@@ -8,6 +8,14 @@ from typing import Any
 
 import openpyxl
 
+from app.modules.imports.services.decision_logger import (
+    DecisionLog,
+    DecisionStep,
+    StepTimer,
+    decision_logger,
+)
+from app.modules.imports.services.header_classifier import header_classifier
+
 
 class FileClassifier:
     """Classifies uploaded files to determine appropriate parser."""
@@ -48,7 +56,13 @@ class FileClassifier:
             },
         }
 
-    def classify_file(self, file_path: str, filename: str) -> dict[str, Any]:
+    def classify_file(
+        self,
+        file_path: str,
+        filename: str,
+        tenant_id: str | None = None,
+        decision_log: DecisionLog | None = None,
+    ) -> dict[str, Any]:
         """
         Classify a file to suggest the best parser.
 
@@ -57,29 +71,76 @@ class FileClassifier:
         Args:
             file_path: Path to the file
             filename: Original filename
+            tenant_id: Optional tenant ID for logging
+            decision_log: Optional existing decision log to append to
 
         Returns:
             Dict with classification results
         """
-        # Get file extension
+        if decision_log is None:
+            decision_log = decision_logger.create_log(
+                tenant_id=tenant_id, filename=filename
+            )
+
         ext = Path(filename).suffix.lower()
 
-        # Dispatch by extension
+        with StepTimer() as timer:
+            ext_result = {"extension": ext, "mime_hint": self._get_mime_hint(ext)}
+
+        decision_log.add_step(
+            step=DecisionStep.EXTENSION_CHECK,
+            input_data={"filename": filename},
+            output_data=ext_result,
+            duration_ms=timer.duration_ms,
+        )
+
         if ext in [".xlsx", ".xls"]:
-            return self._classify_excel(file_path, filename)
+            result = self._classify_excel(file_path, filename, decision_log)
         elif ext == ".csv":
-            return self._classify_csv(file_path, filename)
+            result = self._classify_csv(file_path, filename, decision_log)
         elif ext == ".xml":
-            return self._classify_xml(file_path, filename)
+            result = self._classify_xml(file_path, filename, decision_log)
         else:
-            return {
+            result = {
                 "suggested_parser": None,
                 "confidence": 0.0,
                 "reason": f"Unsupported file type: {ext}",
                 "available_parsers": list(self.parsers_info.keys()),
             }
 
-    async def classify_file_with_ai(self, file_path: str, filename: str) -> dict[str, Any]:
+        decision_log.final_parser = result.get("suggested_parser")
+        decision_log.final_confidence = result.get("confidence")
+
+        decision_log.add_step(
+            step=DecisionStep.FINAL_DECISION,
+            input_data={"extension": ext},
+            output_data={
+                "parser": result.get("suggested_parser"),
+                "reason": result.get("reason"),
+            },
+            confidence=result.get("confidence"),
+        )
+
+        decision_logger.save_log(decision_log)
+        result["decision_log_id"] = decision_log.id
+        return result
+
+    def _get_mime_hint(self, ext: str) -> str:
+        """Get MIME type hint from extension."""
+        hints = {
+            ".xlsx": "spreadsheet",
+            ".xls": "spreadsheet",
+            ".csv": "text/csv",
+            ".xml": "text/xml",
+        }
+        return hints.get(ext, "unknown")
+
+    async def classify_file_with_ai(
+        self,
+        file_path: str,
+        filename: str,
+        tenant_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         Classify file with AI enhancement (Fase D).
 
@@ -88,25 +149,26 @@ class FileClassifier:
         Args:
             file_path: Path to the file
             filename: Original filename
+            tenant_id: Optional tenant ID for logging
 
         Returns:
             Dict with classification results (potentially enhanced by AI)
         """
         from app.config.settings import settings
 
-        # Step 1: Get base classification (heuristics)
-        base_result = self.classify_file(file_path, filename)
+        decision_log = decision_logger.create_log(tenant_id=tenant_id, filename=filename)
 
-        # Step 2: If confidence is low, try to improve with IA
+        base_result = self.classify_file(
+            file_path, filename, tenant_id=tenant_id, decision_log=decision_log
+        )
+
         if base_result.get("confidence", 0) < settings.IMPORT_AI_CONFIDENCE_THRESHOLD:
             try:
-                # Extract text from file
                 text = self._extract_text(file_path, filename)
                 if not text or len(text.strip()) < 10:
                     self.logger.debug("Not enough text to classify with AI, using base result")
                     return base_result
 
-                # Get AI provider (singleton)
                 try:
                     from app.modules.imports.ai import get_ai_provider_singleton
 
@@ -115,20 +177,36 @@ class FileClassifier:
                     self.logger.warning(f"Could not load AI provider: {e}, using base result")
                     return base_result
 
-                # Classify with IA
-                ai_result = await ai_provider.classify_document(
-                    text=text,
-                    available_parsers=list(self.parsers_info.keys()),
-                    doc_metadata={"filename": filename},
+                with StepTimer() as ai_timer:
+                    ai_result = await ai_provider.classify_document(
+                        text=text,
+                        available_parsers=list(self.parsers_info.keys()),
+                        doc_metadata={"filename": filename},
+                    )
+
+                decision_log.add_step(
+                    step=DecisionStep.AI_ENHANCEMENT,
+                    input_data={"text_length": len(text)},
+                    output_data={
+                        "parser": ai_result.suggested_parser,
+                        "reasoning": ai_result.reasoning,
+                        "provider": ai_result.provider,
+                    },
+                    confidence=ai_result.confidence,
+                    duration_ms=ai_timer.duration_ms,
                 )
 
-                # Compare: use AI result if more confident
                 if ai_result.confidence > base_result.get("confidence", 0):
                     self.logger.info(
                         f"AI enhanced classification: {ai_result.suggested_parser} "
                         f"(base: {base_result.get('suggested_parser')}, "
                         f"confidence: {ai_result.confidence:.2f})"
                     )
+
+                    decision_log.final_parser = ai_result.suggested_parser
+                    decision_log.final_confidence = ai_result.confidence
+                    decision_logger.save_log(decision_log)
+
                     return {
                         "suggested_parser": ai_result.suggested_parser,
                         "confidence": ai_result.confidence,
@@ -137,6 +215,7 @@ class FileClassifier:
                         "enhanced_by_ai": True,
                         "ai_provider": ai_result.provider,
                         "available_parsers": list(self.parsers_info.keys()),
+                        "decision_log_id": decision_log.id,
                     }
                 else:
                     self.logger.debug(
@@ -145,7 +224,12 @@ class FileClassifier:
                         f"ai: {ai_result.confidence:.2f})"
                     )
             except Exception as e:
-                # Fallback gracefully if AI fails
+                decision_log.add_step(
+                    step=DecisionStep.AI_ENHANCEMENT,
+                    input_data={},
+                    output_data={},
+                    error=str(e),
+                )
                 self.logger.warning(f"AI classification failed: {e}, using base result")
 
         return base_result
@@ -192,13 +276,57 @@ class FileClassifier:
         except Exception:
             return ""
 
-    def _classify_excel(self, file_path: str, filename: str) -> dict[str, Any]:
-        """Classify Excel files."""
+    def _classify_excel(
+        self, file_path: str, filename: str, decision_log: DecisionLog
+    ) -> dict[str, Any]:
+        """Classify Excel files using ML header classifier."""
         try:
-            content_analysis = self._analyze_excel_content(file_path)
+            ext = Path(filename).suffix.lower().lstrip(".")
 
-            # Simple rule-based classification
-            if self._looks_like_products(content_analysis):
+            with StepTimer() as header_timer:
+                content_analysis = self._analyze_excel_content(file_path)
+
+            headers = content_analysis.get("headers", [])
+
+            decision_log.add_step(
+                step=DecisionStep.HEADER_EXTRACTION,
+                input_data={"file_path": file_path},
+                output_data={
+                    "headers": headers[:10],
+                    "row_count": content_analysis.get("total_rows", 0),
+                },
+                duration_ms=header_timer.duration_ms,
+            )
+
+            with StepTimer() as ml_timer:
+                ml_result = header_classifier.classify(
+                    headers=headers,
+                    file_extension=ext,
+                )
+
+            decision_log.add_step(
+                step=DecisionStep.HEURISTIC_CLASSIFICATION,
+                input_data={
+                    "headers": headers[:10],
+                    "method": ml_result.method,
+                },
+                output_data={
+                    "parser": ml_result.suggested_parser,
+                    "doc_type": ml_result.doc_type,
+                    "probabilities": ml_result.probabilities,
+                },
+                confidence=ml_result.confidence,
+                duration_ms=ml_timer.duration_ms,
+            )
+
+            if ml_result.confidence >= 0.7:
+                suggested_parser = ml_result.suggested_parser
+                confidence = ml_result.confidence
+                reason = (
+                    f"ML classifier detected {ml_result.doc_type} "
+                    f"(method: {ml_result.method})"
+                )
+            elif self._looks_like_products(content_analysis):
                 suggested_parser = "products_excel"
                 confidence = 0.8
                 reason = "Detected product-related columns (name, price, quantity)"
@@ -213,23 +341,76 @@ class FileClassifier:
                 "reason": reason,
                 "available_parsers": list(self.parsers_info.keys()),
                 "content_analysis": content_analysis,
+                "ml_classification": {
+                    "doc_type": ml_result.doc_type,
+                    "probabilities": ml_result.probabilities,
+                    "method": ml_result.method,
+                },
             }
 
         except Exception as e:
+            decision_log.add_step(
+                step=DecisionStep.HEURISTIC_CLASSIFICATION,
+                input_data={"file_path": file_path},
+                output_data={},
+                error=str(e),
+            )
             return {
-                "suggested_parser": "generic_excel",  # Fallback
+                "suggested_parser": "generic_excel",
                 "confidence": 0.3,
                 "reason": f"Error analyzing file: {str(e)}",
                 "available_parsers": list(self.parsers_info.keys()),
             }
 
-    def _classify_csv(self, file_path: str, filename: str) -> dict[str, Any]:
-        """Classify CSV files."""
+    def _classify_csv(
+        self, file_path: str, filename: str, decision_log: DecisionLog
+    ) -> dict[str, Any]:
+        """Classify CSV files using ML header classifier."""
         try:
-            content_analysis = self._analyze_csv_content(file_path)
+            with StepTimer() as header_timer:
+                content_analysis = self._analyze_csv_content(file_path)
 
-            # Check if it looks like invoices or bank transactions
-            if self._looks_like_bank_csv(content_analysis):
+            headers = content_analysis.get("headers", [])
+
+            decision_log.add_step(
+                step=DecisionStep.HEADER_EXTRACTION,
+                input_data={"file_path": file_path},
+                output_data={
+                    "headers": headers,
+                    "row_count": content_analysis.get("rows_count", 0),
+                },
+                duration_ms=header_timer.duration_ms,
+            )
+
+            with StepTimer() as ml_timer:
+                ml_result = header_classifier.classify(
+                    headers=headers,
+                    file_extension="csv",
+                )
+
+            decision_log.add_step(
+                step=DecisionStep.HEURISTIC_CLASSIFICATION,
+                input_data={
+                    "headers": headers[:10],
+                    "method": ml_result.method,
+                },
+                output_data={
+                    "parser": ml_result.suggested_parser,
+                    "doc_type": ml_result.doc_type,
+                    "probabilities": ml_result.probabilities,
+                },
+                confidence=ml_result.confidence,
+                duration_ms=ml_timer.duration_ms,
+            )
+
+            if ml_result.confidence >= 0.7:
+                suggested_parser = ml_result.suggested_parser
+                confidence = ml_result.confidence
+                reason = (
+                    f"ML classifier detected {ml_result.doc_type} "
+                    f"(method: {ml_result.method})"
+                )
+            elif self._looks_like_bank_csv(content_analysis):
                 suggested_parser = "csv_bank"
                 confidence = 0.85
                 reason = "Detected bank transaction columns (amount, direction, date)"
@@ -238,7 +419,7 @@ class FileClassifier:
                 confidence = 0.8
                 reason = "Detected invoice columns (invoice_number, total, vendor)"
             else:
-                suggested_parser = "csv_invoices"  # Default
+                suggested_parser = "csv_invoices"
                 confidence = 0.5
                 reason = "CSV file; assuming invoices (can override)"
 
@@ -252,8 +433,19 @@ class FileClassifier:
                     if ".csv" in str(self.parsers_info[p].get("supported_extensions", []))
                 ],
                 "content_analysis": content_analysis,
+                "ml_classification": {
+                    "doc_type": ml_result.doc_type,
+                    "probabilities": ml_result.probabilities,
+                    "method": ml_result.method,
+                },
             }
         except Exception as e:
+            decision_log.add_step(
+                step=DecisionStep.HEURISTIC_CLASSIFICATION,
+                input_data={"file_path": file_path},
+                output_data={},
+                error=str(e),
+            )
             return {
                 "suggested_parser": "csv_invoices",
                 "confidence": 0.4,
@@ -261,25 +453,48 @@ class FileClassifier:
                 "available_parsers": list(self.parsers_info.keys()),
             }
 
-    def _classify_xml(self, file_path: str, filename: str) -> dict[str, Any]:
+    def _classify_xml(
+        self, file_path: str, filename: str, decision_log: DecisionLog
+    ) -> dict[str, Any]:
         """Classify XML files."""
         try:
-            content_analysis = self._analyze_xml_content(file_path)
+            with StepTimer() as header_timer:
+                content_analysis = self._analyze_xml_content(file_path)
 
-            # Check if it's a CAMT.053 bank statement
-            if content_analysis.get("is_camt053"):
-                suggested_parser = "xml_camt053_bank"
-                confidence = 0.95
-                reason = "Detected ISO 20022 CAMT.053 bank statement"
-            # Check if it's an invoice (UBL/CFDI)
-            elif content_analysis.get("is_invoice"):
-                suggested_parser = "xml_invoice"
-                confidence = 0.9
-                reason = "Detected UBL/CFDI invoice structure"
-            else:
-                suggested_parser = "xml_invoice"
-                confidence = 0.5
-                reason = "XML file; assuming invoice (can override)"
+            decision_log.add_step(
+                step=DecisionStep.HEADER_EXTRACTION,
+                input_data={"file_path": file_path},
+                output_data={
+                    "root_tag": content_analysis.get("root_tag", ""),
+                    "element_count": content_analysis.get("element_count", 0),
+                },
+                duration_ms=header_timer.duration_ms,
+            )
+
+            with StepTimer() as heuristic_timer:
+                if content_analysis.get("is_camt053"):
+                    suggested_parser = "xml_camt053_bank"
+                    confidence = 0.95
+                    reason = "Detected ISO 20022 CAMT.053 bank statement"
+                elif content_analysis.get("is_invoice"):
+                    suggested_parser = "xml_invoice"
+                    confidence = 0.9
+                    reason = "Detected UBL/CFDI invoice structure"
+                else:
+                    suggested_parser = "xml_invoice"
+                    confidence = 0.5
+                    reason = "XML file; assuming invoice (can override)"
+
+            decision_log.add_step(
+                step=DecisionStep.HEURISTIC_CLASSIFICATION,
+                input_data={
+                    "is_camt053": content_analysis.get("is_camt053"),
+                    "is_invoice": content_analysis.get("is_invoice"),
+                },
+                output_data={"parser": suggested_parser, "reason": reason},
+                confidence=confidence,
+                duration_ms=heuristic_timer.duration_ms,
+            )
 
             return {
                 "suggested_parser": suggested_parser,
@@ -293,6 +508,12 @@ class FileClassifier:
                 "content_analysis": content_analysis,
             }
         except Exception as e:
+            decision_log.add_step(
+                step=DecisionStep.HEURISTIC_CLASSIFICATION,
+                input_data={"file_path": file_path},
+                output_data={},
+                error=str(e),
+            )
             return {
                 "suggested_parser": "xml_invoice",
                 "confidence": 0.3,

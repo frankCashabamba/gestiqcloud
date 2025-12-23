@@ -95,6 +95,17 @@ def extraer_texto_ocr_hibrido_paginas(file_bytes: bytes) -> list[str]:
     try:
         doc = fitz.open(tmp_path)
         for page in doc:
+            # 0) Intento rápido: extraer texto vectorial sin OCR
+            try:
+                text_direct = page.get_text("text") or ""
+            except Exception:
+                text_direct = ""
+
+            if text_direct and text_direct.strip():
+                paginas.append(limpiar_texto_ocr(text_direct.strip()))
+                continue
+
+            # 1) Rasterizar la página y aplicar OCR
             try:
                 pix = page.get_pixmap(dpi=300)
                 img_path = f"{tmp_path}_p{page.number}.png"
@@ -114,7 +125,16 @@ def extraer_texto_ocr_hibrido_paginas(file_bytes: bytes) -> list[str]:
                 if _Image is not None and _pytesseract is not None:
                     try:
                         image = _Image.open(img_path)  # type: ignore[attr-defined]
-                        text_page = _pytesseract.image_to_string(image, lang="eng") or ""  # type: ignore[attr-defined]
+                        langs = "+".join(getattr(settings, "IMPORTS_OCR_LANGS", ["es", "en"]) or ["es", "en"])
+                        # psm 6: assume a uniform block of text; works well for facturas/recibos
+                        text_page = (
+                            _pytesseract.image_to_string(
+                                image,
+                                lang=langs,
+                                config="--psm 6",
+                            )
+                            or ""
+                        )  # type: ignore[attr-defined]
                     except Exception:
                         text_page = ""
 
@@ -165,11 +185,14 @@ def procesar_documento(file_bytes: bytes, filename: str) -> list[DocumentoProces
     # Debug opcional: dejar descomentado solo en desarrollo
     # print("📄 Tipo detectado:", tipo)
 
+    from app.modules.imports.extractores.extractor_ticket import extraer_ticket_documentos
+
     extractor_map: dict[str, Callable[[str], list[DocumentoProcesado]]] = {
         "factura": extraer_factura,
         "recibo": extraer_recibo,
         "transferencia": extraer_transferencias,
         "bancario": extraer_transferencias,
+        "ticket_pos": extraer_ticket_documentos,
         "desconocido": extraer_por_tipos_combinados,
     }
 

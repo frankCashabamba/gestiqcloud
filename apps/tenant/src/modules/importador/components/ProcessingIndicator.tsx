@@ -72,7 +72,7 @@ export default function ProcessingIndicator() {
 
         <div className="border-t border-neutral-100 px-4 py-2 text-center">
           <Link
-            to={`/${empresaFromUrl}/mod/imports`}
+            to={`/${empresaFromUrl}/importador`}
             className="text-xs font-medium text-blue-600 hover:text-blue-700"
           >
             Ver detalles →

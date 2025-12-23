@@ -4,8 +4,14 @@ import MonedaList from './monedas/MonedaList'
 import MonedaForm from './monedas/MonedaForm'
 import IdiomaList from './idiomas/IdiomaList'
 import IdiomaForm from './idiomas/IdiomaForm'
+import LocaleList from './locales/LocaleList'
+import LocaleForm from './locales/LocaleForm'
+import TimezoneList from './timezones/TimezoneList'
+import TimezoneForm from './timezones/TimezoneForm'
 import SectorList from './sectores/SectorList'
 import SectorForm from './sectores/SectorForm'
+import PaisList from './paises/PaisList'
+import PaisForm from './paises/PaisForm'
 import TipoEmpresaList from './tipo-empresa/TipoEmpresaList'
 import TipoEmpresaForm from './tipo-empresa/TipoEmpresaForm'
 import TipoNegocioList from './tipo-negocio/TipoNegocioList'
@@ -75,6 +81,27 @@ function Index() {
             description="Define las monedas permitidas para operaciones."
             iconSize="sm"
           />
+          <AdminCard
+            href="paises"
+            iconSrc="/icons/configuracion.jpeg"
+            title="Paises"
+            description="Gestiona el catalogo de paises disponibles."
+            iconSize="sm"
+          />
+          <AdminCard
+            href="locales"
+            iconSrc="/icons/configuracion.jpeg"
+            title="Locales"
+            description="Gestiona los locales/idiomas del sistema."
+            iconSize="sm"
+          />
+          <AdminCard
+            href="timezones"
+            iconSrc="/icons/configuracion.jpeg"
+            title="Zonas horarias"
+            description="Gestiona el catalogo de zonas horarias."
+            iconSize="sm"
+          />
         </div>
       </section>
 
@@ -111,6 +138,15 @@ export default function ConfiguracionSistema() {
       <Route path="monedas" element={<MonedaList />} />
       <Route path="monedas/nuevo" element={<MonedaForm />} />
       <Route path="monedas/:id/editar" element={<MonedaForm />} />
+      <Route path="paises" element={<PaisList />} />
+      <Route path="paises/nuevo" element={<PaisForm />} />
+      <Route path="paises/:id/editar" element={<PaisForm />} />
+      <Route path="locales" element={<LocaleList />} />
+      <Route path="locales/nuevo" element={<LocaleForm />} />
+      <Route path="locales/:id/editar" element={<LocaleForm />} />
+      <Route path="timezones" element={<TimezoneList />} />
+      <Route path="timezones/nuevo" element={<TimezoneForm />} />
+      <Route path="timezones/:id/editar" element={<TimezoneForm />} />
       <Route path="sectores" element={<SectorList />} />
       <Route path="sectores/nuevo" element={<SectorForm />} />
       <Route path="sectores/:id/editar" element={<SectorForm />} />

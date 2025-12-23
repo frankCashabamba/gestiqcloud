@@ -27,6 +27,23 @@ router = APIRouter(
 )
 
 
+def _module_to_response(m: Module) -> dict:
+    """Map Module ORM to response (english only)."""
+    return {
+        "id": m.id,
+        "name": m.name,
+        "url": getattr(m, "url", None),
+        "icon": getattr(m, "icon", None),
+        "category": getattr(m, "category", None),
+        "active": m.active,
+        "description": getattr(m, "description", None),
+        "initial_template": getattr(m, "initial_template", None),
+        "context_type": getattr(m, "context_type", None),
+        "target_model": getattr(m, "target_model", None),
+        "context_filters": getattr(m, "context_filters", None) or {},
+    }
+
+
 def _resolve_modules_dir() -> str:
     """Resolve a readable frontend modules directory in dev/compose.
 
@@ -78,67 +95,12 @@ def _resolve_modules_dir() -> str:
     )
 
 
-def _guess_defaults_v2(slug: str) -> tuple[str | None, str | None]:
-    """Infer default icon and category for well-known module slugs.
-
-    Defaults:
-    - ventas/compras/facturacion -> icon: 🧾, categoría: operaciones
-    - inventario -> icon: 📦, categoría: operaciones
-    - rrhh -> icon: 👤, categoría: operaciones
-    - importador -> icon: None, categoría: herramientas
-
-    For other slugs, leave both as None to allow manual edit.
+def _guess_defaults(_slug: str) -> tuple[str | None, str | None]:
     """
-    s = slug.lower()
-    icon_map: dict[str, str | None] = {
-        "ventas": "🧾",
-        "compras": "🧾",
-        "facturacion": "🧾",
-        "inventario": "📦",
-        "rrhh": "👤",
-        "imports": "📥",
-    }
-    cat_map: dict[str, str | None] = {
-        "ventas": "operaciones",
-        "compras": "operaciones",
-        "facturacion": "operaciones",
-        "inventario": "operaciones",
-        "rrhh": "operaciones",
-        "imports": "tools",
-    }
-    return icon_map.get(s), cat_map.get(s)
-
-
-def _guess_defaults(slug: str) -> tuple[str, str | None]:
-    """Infer icon and category from common slug names when no manifest is present."""
-    s = slug.lower()
-    icon_map = {
-        "sales": "🧾",
-        "purchases": "🧾",
-        "invoicing": "🧾",
-        "inventory": "📦",
-        "accounting": "📒",
-        "finance": "💳",
-        "suppliers": "🏷️",
-        "clients": "👥",
-        "hr": "👤",
-        "imports": "📥",
-        "settings": "⚙️",
-    }
-    cat_map = {
-        "sales": "operations",
-        "purchases": "operations",
-        "invoicing": "operations",
-        "inventory": "operations",
-        "accounting": "finance",
-        "finance": "finance",
-        "suppliers": "masters",
-        "clients": "masters",
-        "hr": "operations",
-        "imports": "tools",
-        "settings": "configuration",
-    }
-    return icon_map.get(s, "📦"), cat_map.get(s)
+    Deprecated fallback. We no longer infer icon/categoría; return (None, None)
+    so callers rely on manifest or DB data only.
+    """
+    return None, None
 
 
 @router.get("/ping")
@@ -175,9 +137,8 @@ def listar_modulos_de_usuario(
 
 @router.get("/", response_model=list[ModuloOutSchema])
 def listar_modulos_admin(db: Session = Depends(get_db)):
-    use = ListarModulosAdmin(SqlModuloRepo(db))
-    items = use.execute()
-    return [ModuloOutSchema.model_construct(**i) for i in items]
+    modules = db.query(Module).filter(Module.active).order_by(Module.id.asc()).all()  # noqa: E712
+    return [ModuloOutSchema.model_validate(_module_to_response(m)) for m in modules]
 
 
 # Evitar redirección 307 por barra final: expone también la ruta sin barra
@@ -191,9 +152,17 @@ def crear_modulo(modulo_in: mod_schemas.ModuloCreate, db: Session = Depends(get_
     return mod_crud.crear_modulo(db, modulo_in)
 
 
-@router.get("/publicos", response_model=list[mod_schemas.ModuloOut])
+@router.get("/publicos", response_model=list[ModuloOutSchema])
 def obtener_modulos_publicos(db: Session = Depends(get_db)):
-    return mod_crud.listar_modulos_publicos(db)
+    """
+    Devuelve módulos públicos en formato ligero que espera el panel admin.
+
+    El modelo `Module` usa campos en inglés (`initial_template`, `target_model`, etc.)
+    mientras que los schemas legacy esperan nombres en español. Para evitar errores de
+    validación, mapeamos manualmente solo los campos expuestos en `ModuloOutSchema`.
+    """
+    modules = mod_crud.listar_modulos_publicos(db)
+    return [ModuloOutSchema.model_validate(_module_to_response(m)) for m in modules]
 
 
 @router.post("/registrar-modulos")
@@ -228,13 +197,8 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
         return {
             "status": "skipped",
             "reason": "FRONTEND_MODULES_PATH not configured",
-            "hint": "Define FRONTEND_MODULES_PATH en apps/backend/.env (p.ej. apps/tenant/src/modules)",
+            "hint": "Define FRONTEND_MODULES_PATH en apps/backend/.env (ruta absoluta, p.ej. C:\\Users\\...\\apps\\tenant\\src\\modules)",
         }
-    if not modules_dir:
-        raise HTTPException(
-            status_code=500,
-            detail="FRONTEND_MODULES_PATH no está configurado en el backend",
-        )
     # Si el path no es válido, evitar 500 y dar pista
     if modules_dir and not os.path.isdir(modules_dir):
         return {
@@ -287,7 +251,7 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
                         except Exception as me:
                             errores.append({"modulo": name, "error": f"manifest invalido: {me}"})
                     # Defaults v2
-                    default_icon, default_cat = _guess_defaults_v2(name)
+                    default_icon, default_cat = _guess_defaults(name)
                     # Deducir una plantilla_inicial si hace falta
                     plantilla_detectada = None
                     try:
@@ -339,7 +303,7 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
                     errores.append({"modulo": name, "error": f"manifest invalido: {me}"})
             # Construir payload combinando defaults + manifest
             # Use v2 defaults (emoji + categories) when no manifest is present
-            default_icon, default_cat = _guess_defaults_v2(name)
+            default_icon, default_cat = _guess_defaults(name)
             # Si no hay manifest, intente usar como plantilla el primer .tsx encontrado
             plantilla_detectada = None
             try:
@@ -352,21 +316,18 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
             payload = {
                 "name": name,
                 "url": (manifest.get("url") if manifest else name) or name,
-                "icono": (manifest.get("icono") if manifest else None),
-                # Mantener compatibilidad con manifests antiguos (activo) y nuevos (active)
-                "active": (
-                    manifest.get("active", manifest.get("activo", True)) if manifest else True
-                ),
-                "plantilla_inicial": (
-                    manifest.get("plantilla_inicial", plantilla_detectada or name)
+                "icon": (manifest.get("icon") if manifest else None),
+                "active": manifest.get("active", True) if manifest else True,
+                "initial_template": (
+                    manifest.get("initial_template", plantilla_detectada or name)
                     if manifest
                     else (plantilla_detectada or name)
                 ),
                 "context_type": manifest.get("context_type", "none") if manifest else "none",
-                "filtros_contexto": manifest.get("filtros_contexto", {}) if manifest else {},
-                "descripcion": manifest.get("descripcion") if manifest else None,
-                "modelo_objetivo": manifest.get("modelo_objetivo") if manifest else None,
-                "categoria": manifest.get("categoria", default_cat) if manifest else default_cat,
+                "context_filters": manifest.get("context_filters", {}) if manifest else {},
+                "description": manifest.get("description") if manifest else None,
+                "target_model": manifest.get("target_model") if manifest else None,
+                "category": manifest.get("category", default_cat) if manifest else default_cat,
             }
             try:
                 modulo = mod_schemas.ModuloCreate(**payload)  # type: ignore[arg-type]
@@ -390,11 +351,25 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
 
 @router.post("/empresa/{tenant_id}", response_model=mod_schemas.EmpresaModuloOut)
 def asignar_modulo_a_empresa(
-    tenant_id: int,
+    tenant_id: str,
     modulo_in: mod_schemas.EmpresaModuloCreate,
     db: Session = Depends(get_db),
 ):
-    return mod_services.asignar_modulo_a_empresa_si_no_existe(db, tenant_id, modulo_in)
+    asignacion = mod_services.asignar_modulo_a_empresa_si_no_existe(db, tenant_id, modulo_in)
+    db.refresh(asignacion)
+    _ = asignacion.tenant
+    _ = asignacion.module
+    return {
+        "id": asignacion.id,
+        "tenant_id": asignacion.tenant_id,
+        "company_slug": getattr(asignacion.tenant, "slug", None),
+        "active": asignacion.active,
+        "activation_date": getattr(asignacion, "activation_date", None),
+        "expiration_date": getattr(asignacion, "expiration_date", None),
+        "initial_template": getattr(asignacion, "initial_template", None),
+        "module_id": asignacion.module_id,
+        "module": _module_to_response(asignacion.module) if asignacion.module else None,
+    }
 
 
 @router.get("/empresa/{tenant_id}", response_model=list[mod_schemas.EmpresaModuloOut])
@@ -402,16 +377,18 @@ def listar_modulos_de_empresa(tenant_id: str, db: Session = Depends(get_db)):
     registros = mod_crud.obtener_modulos_de_empresa(db, tenant_id)
     resultado = []
     for r in registros:
+        modulo_payload = _module_to_response(r.module) if r.module else None
         resultado.append(
             {
                 "id": r.id,
                 "tenant_id": r.tenant_id,
-                "empresa_slug": r.tenant.slug if r.tenant else None,
-                "active": r.activo,
-                "fecha_activacion": r.fecha_activacion,
-                "modulo_id": r.modulo_id,
-                "modulo": r.modulo,
-                "fecha_expiracion": r.fecha_expiracion,
+                "company_slug": r.tenant.slug if r.tenant else None,
+                "active": getattr(r, "active", None),
+                "activation_date": getattr(r, "activation_date", None),
+                "module_id": r.module_id,
+                "module": modulo_payload,
+                "expiration_date": getattr(r, "expiration_date", None),
+                "initial_template": getattr(r, "initial_template", None),
             }
         )
     return resultado
@@ -427,7 +404,7 @@ def upsert_modulo_empresa(
 
 
 @router.delete("/empresa/{tenant_id}/modulo/{modulo_id}")
-def eliminar_modulo_de_empresa(tenant_id: str, modulo_id: int, db: Session = Depends(get_db)):
+def eliminar_modulo_de_empresa(tenant_id: str, modulo_id: str, db: Session = Depends(get_db)):
     empresa_modulo = (
         db.query(CompanyModule).filter_by(tenant_id=tenant_id, module_id=modulo_id).first()
     )

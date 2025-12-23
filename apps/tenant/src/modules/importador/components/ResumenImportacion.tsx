@@ -24,9 +24,9 @@ export default function ResumenImportacion({
 }: ResumenImportacionProps) {
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Resumen de Importación</h3>
+      <h3 className="text-lg font-semibold">Import Summary</h3>
 
-      {/* Sprint 2: Mostrar card de clasificación */}
+      {/* Sprint 2: classification card */}
       {classificationResult && (
         <ClassificationCard
           suggestedParser={classificationResult.suggested_parser}
@@ -39,13 +39,13 @@ export default function ResumenImportacion({
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <div className="text-sm text-gray-700">
-          <strong>Filas a importar:</strong> {total.toLocaleString()}
+          <strong>Rows to import:</strong> {total.toLocaleString()}
         </div>
       </div>
 
       <div className="mt-4 flex gap-2">
-        <button className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded" onClick={onBack}>← Volver</button>
-        <button className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded font-semibold" onClick={onImport}>✓ Importar</button>
+        <button className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded" onClick={onBack}>← Back</button>
+        <button className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded font-semibold" onClick={onImport}>✓ Import</button>
       </div>
     </div>
   )

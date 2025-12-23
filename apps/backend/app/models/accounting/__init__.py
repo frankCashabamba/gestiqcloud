@@ -9,6 +9,7 @@ from app.models.accounting.chart_of_accounts import (  # noqa: E402
     JournalEntry,
     JournalEntryLine,
 )
+from app.models.accounting.pos_settings import TenantAccountingSettings, PaymentMethod
 
 # Backward compatibility aliases (Spanish names)
 PlanCuentas = ChartOfAccounts
@@ -19,6 +20,8 @@ __all__ = [
     "ChartOfAccounts",
     "JournalEntry",
     "JournalEntryLine",
+    "TenantAccountingSettings",
+    "PaymentMethod",
     "PlanCuentas",
     "AsientoContable",
     "AsientoLinea",

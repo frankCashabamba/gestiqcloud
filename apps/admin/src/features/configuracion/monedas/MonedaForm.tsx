@@ -8,19 +8,19 @@ type FormT = Omit<MonedaT, 'id'>
 export default function MonedaForm() {
   const { id } = useParams()
   const nav = useNavigate()
-  const [form, setForm] = useState<FormT>({ codigo: '', nombre: '', simbolo: '', activo: true })
+  const [form, setForm] = useState<FormT>({ code: '', name: '', symbol: '', active: true })
   const { success, error } = useToast()
 
   useEffect(() => {
     if (id) {
-      getMoneda(id).then((m) => setForm({ codigo: m.codigo, nombre: m.nombre, simbolo: m.simbolo, activo: m.activo })).catch(() => {})
+      getMoneda(id).then((m) => setForm({ code: m.code, name: m.name, symbol: m.symbol, active: m.active })).catch(() => {})
     }
   }, [id])
 
   const onSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault()
     try {
-      if (!form.codigo?.trim() || !form.nombre?.trim() || !form.simbolo?.trim()) throw new Error('Complete código, nombre y símbolo')
+      if (!form.code?.trim() || !form.name?.trim() || !form.symbol?.trim()) throw new Error('Complete código, nombre y símbolo')
       if (id) await updateMoneda(id, form)
       else await createMoneda(form)
       success('Moneda guardada')
@@ -36,18 +36,18 @@ export default function MonedaForm() {
       <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
         <div>
           <label className="block mb-1">Código</label>
-          <input value={form.codigo} onChange={(e) => setForm({ ...form, codigo: e.target.value })} className="border px-2 py-1 w-full rounded" required />
+          <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} className="border px-2 py-1 w-full rounded" required />
         </div>
         <div>
           <label className="block mb-1">Nombre</label>
-          <input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} className="border px-2 py-1 w-full rounded" required />
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="border px-2 py-1 w-full rounded" required />
         </div>
         <div>
           <label className="block mb-1">Símbolo</label>
-          <input value={form.simbolo} onChange={(e) => setForm({ ...form, simbolo: e.target.value })} className="border px-2 py-1 w-full rounded" required />
+          <input value={form.symbol} onChange={(e) => setForm({ ...form, symbol: e.target.value })} className="border px-2 py-1 w-full rounded" required />
         </div>
         <label className="flex items-center gap-2">
-          <input type="checkbox" checked={form.activo} onChange={(e) => setForm({ ...form, activo: e.target.checked })} />
+          <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
           Activo
         </label>
         <div className="pt-2">

@@ -2,26 +2,16 @@ import tenantApi from '../../shared/api/client'
 import { TENANT_GASTOS } from '@shared/endpoints'
 
 export type Gasto = {
-  id: number | string
-  fecha: string
-  categoria: string
-  subcategoria?: string
-  concepto: string
-  monto: number
-  forma_pago: 'efectivo' | 'transferencia' | 'tarjeta' | 'cheque'
-  proveedor_id?: number | string
-  proveedor_nombre?: string
-  estado: 'pendiente' | 'pagado' | 'anulado'
-  factura_numero?: string
-  notas?: string
-  created_at?: string
-  updated_at?: string
+  id: string
+  date: string
+  amount: number
+  concept?: string
+  supplier_id?: string
 }
 
 export type GastoStats = {
-  total_periodo: number
-  por_categoria: Array<{ categoria: string; total: number }>
-  pendiente_pago: number
+  total: number
+  pending: number
 }
 
 export async function listGastos(): Promise<Gasto[]> {

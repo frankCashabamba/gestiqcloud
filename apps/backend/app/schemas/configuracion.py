@@ -8,22 +8,41 @@ from pydantic import BaseModel, ConfigDict
 
 
 class CompanyCategoryBase(BaseModel):
-    """Class CompanyCategoryBase - auto-generated docstring."""
+    """
+    DEPRECATED: Use BusinessCategory instead.
+
+    Base schema for company categories. Keep for backward compatibility only.
+    """
 
     name: str
 
 
 class CompanyCategoryCreate(CompanyCategoryBase):
-    """Class CompanyCategoryCreate - auto-generated docstring."""
+    """
+    DEPRECATED: Use BusinessCategory instead.
+
+    Schema for creating company categories. Keep for backward compatibility only.
+    """
 
     pass
 
 
 class CompanyCategory(CompanyCategoryBase):
-    """Class CompanyCategory - auto-generated docstring."""
+    """
+    DEPRECATED: Use BusinessCategory instead.
+
+    Schema for company categories. Keep for backward compatibility only.
+    Will be removed in Q1 2026.
+    """
 
     id: int
     model_config = ConfigDict(from_attributes=True)
+
+
+# DEPRECATED Aliases for backward compatibility (Spanish naming)
+CategoriaEmpresaBase = CompanyCategoryBase
+CategoriaEmpresaCreate = CompanyCategoryCreate
+CategoriaEmpresa = CompanyCategory
 
 
 # Role schemas

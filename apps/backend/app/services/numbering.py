@@ -131,37 +131,34 @@ def create_default_series(db: Session, tenant_id: str, register_id: UUID | None 
 
     current_year = datetime.now().year
 
-    # Tipos de documento según estructura real de tabla
+    # Tipos de documento según nueva estructura (doc_type, name, current_no, reset_policy)
     default_series = [
         {
-            "tipo": "recibo",
-            "serie": "R001" if register_id else "RBO",
-            "prefix": "REC",
-            "description": "Recibos POS" if register_id else "Recibos Backoffice",
+            "doc_type": "R",  # receipt
+            "name": "RBO" if register_id is None else "R001",
+            "description": "Recibos Backoffice" if register_id is None else "Recibos POS",
         },
         {
-            "tipo": "factura",
-            "serie": "F001" if register_id else "F",
-            "prefix": "FAC",
+            "doc_type": "F",  # invoice
+            "name": "F",
             "description": "Facturas",
         },
         {
-            "tipo": "abono",
-            "serie": "C001" if register_id else "C",
-            "prefix": "CRE",
+            "doc_type": "C",  # credit note
+            "name": "C",
             "description": "Abonos/Créditos",
         },
     ]
 
     for series_data in default_series:
-        # Verificar si ya existe para este tenant/tipo/año/serie
+        # Verificar si ya existe para este tenant/doc_type/registro
         check_query = text(
             """
             SELECT id FROM doc_series
             WHERE tenant_id = :tenant_id
-              AND tipo = :tipo
-              AND anio = :anio
-              AND serie = :serie
+              AND doc_type = :doc_type
+              AND (:register_id IS NULL OR register_id = CAST(:register_id AS uuid) OR register_id IS NULL)
+              AND name = :name
         """
         )
 
@@ -169,20 +166,23 @@ def create_default_series(db: Session, tenant_id: str, register_id: UUID | None 
             check_query,
             {
                 "tenant_id": tenant_id,
-                "tipo": series_data["tipo"],
-                "anio": current_year,
-                "serie": series_data["serie"],
+                "doc_type": series_data["doc_type"],
+                "register_id": str(register_id) if register_id else None,
+                "name": series_data["name"],
             },
         ).first()
 
         if not exists:
+            import uuid
+
+            series_id = uuid.uuid4()
             insert_query = text(
                 """
                 INSERT INTO doc_series (
-                    tenant_id, tipo, anio, serie, next_number, prefix
+                    id, tenant_id, register_id, doc_type, name, current_no, reset_policy, active, created_at
                 )
                 VALUES (
-                    :tenant_id, :tipo, :anio, :serie, 1, :prefix
+                    :id, :tenant_id, CAST(:register_id AS uuid), :doc_type, :name, 0, 'yearly', true, NOW()
                 )
             """
             )
@@ -190,17 +190,17 @@ def create_default_series(db: Session, tenant_id: str, register_id: UUID | None 
             db.execute(
                 insert_query,
                 {
+                    "id": str(series_id),
                     "tenant_id": tenant_id,
-                    "tipo": series_data["tipo"],
-                    "anio": current_year,
-                    "serie": series_data["serie"],
-                    "prefix": series_data.get("prefix", ""),
+                    "register_id": str(register_id) if register_id else None,
+                    "doc_type": series_data["doc_type"],
+                    "name": series_data["name"],
                 },
             )
 
             logger.info(
-                f"Serie creada: {series_data['serie']} "
-                f"(tenant={tenant_id[:8]}, tipo={series_data['tipo']}, año={current_year})"
+                f"Serie creada: {series_data['name']} "
+                f"(tenant={tenant_id[:8]}, doc_type={series_data['doc_type']}, registro={register_id})"
             )
 
     # No hacer commit aquí - dejar que el caller lo maneje

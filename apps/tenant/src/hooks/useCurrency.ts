@@ -33,12 +33,13 @@ export function useCurrency() {
     ;(async () => {
       try {
         const tenant = await apiFetch<TenantInfo>('/api/v1/me/tenant')
-        const curr = tenant?.base_currency || 'USD'
-        const sym = CURRENCY_SYMBOLS[curr] || '$'
+        const rawCurr = (tenant?.base_currency || 'USD').toUpperCase()
+        const normalized = CURRENCY_LOCALE[rawCurr] ? rawCurr : 'USD'
+        const sym = CURRENCY_SYMBOLS[normalized] || '$'
 
-        console.log('[useCurrency] Tenant currency:', curr, 'Symbol:', sym)
+        console.log('[useCurrency] Tenant currency:', rawCurr, 'Normalized:', normalized, 'Symbol:', sym)
 
-        setCurrency(curr)
+        setCurrency(normalized)
         setSymbol(sym)
       } catch (e) {
         console.error('Error cargando moneda del tenant:', e)

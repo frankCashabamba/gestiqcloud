@@ -122,6 +122,10 @@ export async function getReceipt(id: string): Promise<POSReceipt> {
     return data
 }
 
+export async function deleteReceipt(id: string): Promise<void> {
+    await tenantApi.delete(`${BASE_URL}/receipts/${id}`, { headers: authHeaders() })
+}
+
 export async function listReceipts(params?: { shift_id?: string; status?: string }): Promise<POSReceipt[]> {
     const { data } = await tenantApi.get<POSReceipt[] | { items?: POSReceipt[] }>(`${BASE_URL}/receipts`, { params, headers: authHeaders() })
     if (Array.isArray(data)) return data

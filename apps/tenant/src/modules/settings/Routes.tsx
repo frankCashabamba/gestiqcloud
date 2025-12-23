@@ -6,6 +6,8 @@ import FiscalSettings from './Fiscal'
 import HorariosSettings from './Horarios'
 import LimitesSettings from './Limites'
 import ModulosPanel from './ModulosPanel'
+import NotificacionesSettings from './Notificaciones'
+import AvanzadoSettings from './Avanzado'
 
 function Index() {
   return (
@@ -18,6 +20,8 @@ function Index() {
         <li><Link to="fiscal">Fiscal</Link></li>
         <li><Link to="horarios">Horarios</Link></li>
         <li><Link to="limites">Límites</Link></li>
+        <li><Link to="notificaciones">Notificaciones</Link></li>
+        <li><Link to="avanzado">Avanzado</Link></li>
       </ul>
     </div>
   )
@@ -33,6 +37,8 @@ export default function SettingsRoutes() {
       <Route path="fiscal" element={<FiscalSettings />} />
       <Route path="horarios" element={<HorariosSettings />} />
       <Route path="limites" element={<LimitesSettings />} />
+      <Route path="notificaciones" element={<NotificacionesSettings />} />
+      <Route path="avanzado" element={<AvanzadoSettings />} />
       <Route path="*" element={<Navigate to="." replace />} />
     </Routes>
   )

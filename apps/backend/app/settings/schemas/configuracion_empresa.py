@@ -1,39 +1,14 @@
-"""Module: configuracion_empresa.py
+"""Legacy alias for company settings schemas (English source of truth)."""
 
-Auto-generated module docstring."""
-
-# schemas/configuracion_empresa.py
-
-from pydantic import BaseModel, ConfigDict
-
-
-class ConfiguracionEmpresaBase(BaseModel):
-    """Class ConfiguracionEmpresaBase - auto-generated docstring."""
-
-    default_language: str | None = "es"
-    timezone: str | None = "UTC"
-    currency: str | None = "USD"
-    company_logo: str | None = None
-    primary_color: str | None = "#4f46e5"
-    secondary_color: str | None = "#6c757d"
-
-
-class ConfiguracionEmpresaCreate(ConfiguracionEmpresaBase):
-    """Class ConfiguracionEmpresaCreate - auto-generated docstring."""
-
-    tenant_id: int
-
-
-class ConfiguracionEmpresaUpdate(ConfiguracionEmpresaBase):
-    """Class ConfiguracionEmpresaUpdate - auto-generated docstring."""
-
-    pass
-
-
-class ConfiguracionEmpresaOut(ConfiguracionEmpresaBase):
-    """Class ConfiguracionEmpresaOut - auto-generated docstring."""
-
-    id: int
-    tenant_id: int
-
-    model_config = ConfigDict(from_attributes=True)
+from app.settings.schemas.company_settings import (  # noqa: F401
+    CompanySettingsBase as ConfiguracionEmpresaBase,
+)
+from app.settings.schemas.company_settings import (  # noqa: F401
+    CompanySettingsCreate as ConfiguracionEmpresaCreate,
+)
+from app.settings.schemas.company_settings import (  # noqa: F401
+    CompanySettingsUpdate as ConfiguracionEmpresaUpdate,
+)
+from app.settings.schemas.company_settings import (  # noqa: F401
+    CompanySettingsOut as ConfiguracionEmpresaOut,
+)

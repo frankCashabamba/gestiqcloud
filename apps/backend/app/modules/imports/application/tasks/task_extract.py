@@ -82,6 +82,7 @@ def _impl(item_id: str, tenant_id: str, batch_id: str, task_id: str | None = Non
                 extractor_desconocido,
                 extractor_factura,
                 extractor_recibo,
+                extractor_ticket,
                 extractor_transferencia,
             )
 
@@ -97,6 +98,9 @@ def _impl(item_id: str, tenant_id: str, batch_id: str, task_id: str | None = Non
                 "recibo": extractor_recibo.extraer,
                 "banco": extractor_banco.extraer,
                 "transferencia": extractor_transferencia.extraer,
+                "ticket": extractor_ticket.extraer,
+                "ticket_pos": extractor_ticket.extraer,
+                "expense_receipt": extractor_ticket.extraer,
                 "desconocido": extractor_desconocido.extraer,
             }
 

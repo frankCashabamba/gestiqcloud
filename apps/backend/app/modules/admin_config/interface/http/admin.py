@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -273,12 +275,13 @@ def _template_sector_in_from_create(payload: SectorPlantillaCreate) -> SectorPla
 
 def _template_sector_in_from_update(payload: SectorPlantillaUpdate, current) -> SectorPlantillaIn:
     data = payload.model_dump(exclude_unset=True)
+    new_active = current.active if "active" not in data else data.get("active", current.active)
     return SectorPlantillaIn(
-        sector_name=data.get("sector_name", current.sector_name),
-        business_type_id=data.get("business_type_id", current.business_type_id),
-        business_category_id=data.get("business_category_id", current.business_category_id),
+        name=data.get("name", current.name),
+        code=data.get("code", current.code),
+        description=data.get("description", current.description),
         template_config=data.get("template_config", current.template_config),
-        active=data.get("active", current.active),
+        active=new_active,
     )
 
 
@@ -368,6 +371,7 @@ def _locales_in_from_update(data: dict, current) -> LocaleIn:
 
 
 # Languages
+
 @router.get("/language", response_model=list[IdiomaRead])
 def list_languages(db: Session = Depends(get_db)):
     use = ListLanguages(_language_repo(db))
@@ -642,7 +646,7 @@ def create_template_sector(data: SectorPlantillaCreate, db: Session = Depends(ge
 
 
 @router.get("/template-sector/{id}", response_model=SectorPlantillaRead)
-def get_template_sector(id: int, db: Session = Depends(get_db)):
+def get_template_sector(id: UUID, db: Session = Depends(get_db)):
     use = GetTemplateSector(_template_sector_repo(db))
     try:
         sector = use.execute(id)
@@ -652,7 +656,7 @@ def get_template_sector(id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/template-sector/{id}", response_model=SectorPlantillaRead)
-def update_template_sector(id: int, data: SectorPlantillaUpdate, db: Session = Depends(get_db)):
+def update_template_sector(id: UUID, data: SectorPlantillaUpdate, db: Session = Depends(get_db)):
     repo = _template_sector_repo(db)
     try:
         current = GetTemplateSector(repo).execute(id)
@@ -664,7 +668,7 @@ def update_template_sector(id: int, data: SectorPlantillaUpdate, db: Session = D
 
 
 @router.delete("/template-sector/{id}")
-def delete_template_sector(id: int, db: Session = Depends(get_db)):
+def delete_template_sector(id: UUID, db: Session = Depends(get_db)):
     repo = _template_sector_repo(db)
     try:
         DeleteTemplateSector(repo).execute(id)
@@ -729,6 +733,25 @@ def list_business_categories(db: Session = Depends(get_db)):
     items = use.execute()
     return [_business_category_schema(item) for item in items]
 
+# --------------------------------------------------------------------
+# Spanish aliases (compat) for frontend expecting legacy paths
+# --------------------------------------------------------------------
+
+
+@router.get("/tipo-empresa", response_model=list[TipoEmpresaRead])
+def list_business_types_es(db: Session = Depends(get_db)):
+    return list_business_types(db)
+
+
+@router.get("/tipo-negocio", response_model=list[TipoNegocioRead])
+def list_business_categories_es(db: Session = Depends(get_db)):
+    return list_business_categories(db)
+
+
+@router.get("/sectores", response_model=list[SectorPlantillaRead])
+def list_template_sectors_es(db: Session = Depends(get_db)):
+    return list_template_sectors(db)
+
 
 @router.post("/business-category", response_model=TipoNegocioRead)
 def create_business_category(data: TipoNegocioCreate, db: Session = Depends(get_db)):
@@ -738,7 +761,7 @@ def create_business_category(data: TipoNegocioCreate, db: Session = Depends(get_
 
 
 @router.put("/business-category/{id}", response_model=TipoNegocioRead)
-def update_business_category(id: int, data: TipoNegocioUpdate, db: Session = Depends(get_db)):
+def update_business_category(id: UUID, data: TipoNegocioUpdate, db: Session = Depends(get_db)):
     repo = _business_category_repo(db)
     try:
         current = GetBusinessType(repo).execute(id)
@@ -750,7 +773,7 @@ def update_business_category(id: int, data: TipoNegocioUpdate, db: Session = Dep
 
 
 @router.delete("/business-category/{id}")
-def delete_business_category(id: int, db: Session = Depends(get_db)):
+def delete_business_category(id: UUID, db: Session = Depends(get_db)):
     repo = _business_category_repo(db)
     try:
         DeleteBusinessType(repo).execute(id)

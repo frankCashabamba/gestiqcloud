@@ -3,6 +3,7 @@ import { Navigate, useParams } from 'react-router-dom'
 import { apiFetch } from '../lib/http'
 import { applyTheme } from '@shared/ui'
 import { useAuth } from '../auth/AuthContext'
+import { fetchTenantTheme } from '../services/theme'
 
 type LazyComp = React.LazyExoticComponent<React.ComponentType<any>>
 type ThemeResp = { sector?: string } & Record<string, any>
@@ -21,7 +22,7 @@ export default function EmpresaLoader() {
     ;(async () => {
       try {
         if (!empresa) return
-        const t = await apiFetch<ThemeResp>(`/api/v1/tenant/settings/theme?empresa=${encodeURIComponent(empresa)}`)
+        const t = await fetchTenantTheme(empresa)
         if (t) {
           try { applyTheme(t as any) } catch {}
           const s = t.sector || 'default'

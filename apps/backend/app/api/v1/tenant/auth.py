@@ -10,12 +10,7 @@ from app.config.database import get_db
 from app.config.settings import settings
 from app.core.audit import audit as audit_log
 from app.core.auth_http import refresh_cookie_path_tenant  # <- IMPORT NECESARIO
-from app.core.auth_http import (
-    best_effort_family_revoke,
-    delete_auth_cookies,
-    set_access_cookie,
-    set_refresh_cookie,
-)
+from app.core.auth_http import delete_auth_cookies, set_access_cookie, set_refresh_cookie
 from app.core.auth_shared import ensure_session, issue_csrf_and_cookie, rotate_refresh
 from app.core.csrf import issue_csrf_token
 from app.core.deps import set_tenant_scope
@@ -25,7 +20,7 @@ from app.core.perm_loader import build_tenant_claims
 from app.models.company.company_user import CompanyUser
 from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
 from app.modules.identity.infrastructure.rate_limit import SimpleRateLimiter
-from app.modules.identity.infrastructure.refresh_repo import SqlRefreshTokenRepo
+from app.modules.identity.infrastructure.tenant_refresh_repo import TenantSqlRefreshTokenRepo
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 log = logging.getLogger("app.auth.tenant")
@@ -192,7 +187,7 @@ def tenant_login(
         raise HTTPException(status_code=401, detail=t(request, "invalid_credentials"))
 
     # 5) Refresh family + primer token
-    repo = SqlRefreshTokenRepo(db)
+    repo = TenantSqlRefreshTokenRepo(db)
     try:
         family_id = repo.create_family(user_id=str(user.id), tenant_id=tenant_uuid_for_family)
         jti = repo.issue_token(
@@ -262,7 +257,7 @@ def tenant_login(
 
 @router.post("/refresh")
 def tenant_refresh(request: Request, response: Response, db: Session = Depends(get_db)):
-    repo = SqlRefreshTokenRepo(db)
+    repo = TenantSqlRefreshTokenRepo(db)
     try:
         log.debug(
             "tenant.refresh.attempt ua=%s ip=%s",
@@ -308,7 +303,10 @@ def tenant_logout(request: Request, response: Response):
     """Logout y revocación de refresh token para tenant (best-effort)."""
     token = request.cookies.get("refresh_token")
     if token:
-        best_effort_family_revoke(token)
+        try:
+            _best_effort_tenant_family_revoke(token)
+        except Exception:
+            pass
 
     delete_auth_cookies(response, path=refresh_cookie_path_tenant())
 
@@ -317,6 +315,27 @@ def tenant_logout(request: Request, response: Response):
         request.state.session_dirty = True
 
     return {"ok": True}
+
+
+def _best_effort_tenant_family_revoke(refresh_token: str) -> None:
+    """
+    Revoca la familia referida por un refresh token de tenant (tablas tenant_refresh_*).
+    No lanza.
+    """
+    try:
+        from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
+        from app.config.database import SessionLocal
+
+        payload = PyJWTTokenService().decode_and_validate(refresh_token, expected_type="refresh")
+        jti = payload.get("jti")
+        if not isinstance(jti, str) or not jti:
+            return
+        with SessionLocal() as db:
+            fam = TenantSqlRefreshTokenRepo(db).get_family(jti=jti)
+            if fam:
+                TenantSqlRefreshTokenRepo(db).revoke_family(family_id=fam)
+    except Exception:
+        pass
 
 
 token_service = get_shared_token_service()

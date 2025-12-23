@@ -18,6 +18,7 @@ import TenantConfiguracion from '../pages/TenantConfiguracion'
 import Migraciones from '../pages/Migraciones'
 import LogsViewer from '../pages/LogsViewer'
 import IncidenciasPanel from '../pages/IncidenciasPanel'
+import { SectorConfigAdmin } from '../pages/SectorConfigAdmin'
 
 import SessionKeepAlive from '@shared/ui'
 import { useAuth } from '../auth/AuthContext'
@@ -61,8 +62,9 @@ export default function App() {
           <Route path="empresas/modulos/:id" element={<EmpresaModulos />} />
           <Route path="empresas/:id/configuracion" element={<TenantConfiguracion />} />
           <Route path="ops/migraciones" element={<Migraciones />} />
-          <Route path="logs" element={<LogsViewer />} />
-          <Route path="incidencias" element={<IncidenciasPanel />} />
+           <Route path="logs" element={<LogsViewer />} />
+           <Route path="incidencias" element={<IncidenciasPanel />} />
+           <Route path="sector-config" element={<SectorConfigAdmin />} />
         </Route>
       </Route>
 

@@ -1,27 +1,49 @@
 """Module: categories.py
 
+DEPRECATED: This router is deprecated. Use /api/v1/business-categories/ instead.
+
 Auto-generated module docstring."""
 
-from app.config.database import get_db
-from app.models import CategoriaEmpresa as CategoryModel
-from app.schemas.configuracion import CategoriaEmpresa as CompanyCategory
-from app.schemas.configuracion import CategoriaEmpresaCreate as CompanyCategoryCreate
+import warnings
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-# Old URL: /api/categorias-empresa (deprecated, use new endpoint for backward compatibility if needed)
+from app.config.database import get_db
+from app.models import CompanyCategory as CategoryModel
+from app.schemas.configuracion import CompanyCategory, CompanyCategoryCreate
+
+# DEPRECATED: Old URL /api/categorias-empresa - use /api/v1/business-categories instead
 router = APIRouter(prefix="/api/v1/categories", tags=["categories"])
 
 
-@router.get("/", response_model=list[CompanyCategory])
+@router.get("/", response_model=list[CompanyCategory], deprecated=True)
 def list_categories(db: Session = Depends(get_db)):
-    """Function list_categories - auto-generated docstring."""
+    """
+    DEPRECATED: Use GET /api/v1/business-categories/ instead.
+
+    This endpoint will be removed in Q1 2026.
+    """
+    warnings.warn(
+        "GET /api/v1/categories/ is deprecated. Use /api/v1/business-categories/ instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return db.query(CategoryModel).all()
 
 
-@router.post("/", response_model=CompanyCategory)
+@router.post("/", response_model=CompanyCategory, deprecated=True)
 def create_category(data: CompanyCategoryCreate, db: Session = Depends(get_db)):
-    """Function create_category - auto-generated docstring."""
+    """
+    DEPRECATED: Use POST /api/v1/business-categories/ instead.
+
+    This endpoint will be removed in Q1 2026.
+    """
+    warnings.warn(
+        "POST /api/v1/categories/ is deprecated. Use /api/v1/business-categories/ instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     payload = data.model_dump(exclude_none=True)
     nueva = CategoryModel(**payload)
     db.add(nueva)
@@ -30,9 +52,18 @@ def create_category(data: CompanyCategoryCreate, db: Session = Depends(get_db)):
     return nueva
 
 
-@router.put("/{id}", response_model=CompanyCategory)
+@router.put("/{id}", response_model=CompanyCategory, deprecated=True)
 def update_category(id: int, data: CompanyCategoryCreate, db: Session = Depends(get_db)):
-    """Function update_category - auto-generated docstring."""
+    """
+    DEPRECATED: Use PUT /api/v1/business-categories/{id} instead.
+
+    This endpoint will be removed in Q1 2026.
+    """
+    warnings.warn(
+        "PUT /api/v1/categories/{id} is deprecated. Use /api/v1/business-categories/ instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     cat = db.get(CategoryModel, id)  # avoid query().get() (legacy)
     if not cat:
         raise HTTPException(status_code=404)
@@ -46,9 +77,18 @@ def update_category(id: int, data: CompanyCategoryCreate, db: Session = Depends(
     return cat
 
 
-@router.delete("/{id}")
+@router.delete("/{id}", deprecated=True)
 def delete_category(id: int, db: Session = Depends(get_db)):
-    """Function delete_category - auto-generated docstring."""
+    """
+    DEPRECATED: Use DELETE /api/v1/business-categories/{id} instead.
+
+    This endpoint will be removed in Q1 2026.
+    """
+    warnings.warn(
+        "DELETE /api/v1/categories/{id} is deprecated. Use /api/v1/business-categories/ instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     cat = db.get(CategoryModel, id)
     if not cat:
         raise HTTPException(status_code=404)

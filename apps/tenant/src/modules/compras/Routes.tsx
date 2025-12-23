@@ -8,8 +8,10 @@ export default function ComprasRoutes() {
   return (
     <Routes>
       <Route index element={<ComprasList />} />
+      <Route path="new" element={<CompraForm />} />
       <Route path="nueva" element={<CompraForm />} />
       <Route path=":id" element={<CompraDetail />} />
+      <Route path=":id/edit" element={<CompraForm />} />
       <Route path=":id/editar" element={<CompraForm />} />
       <Route path="*" element={<Navigate to="." replace />} />
     </Routes>

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { listEmpresaModulos, listModulosPublicos, upsertEmpresaModulo, removeEmpresaModulo, type EmpresaModulo, type Modulo } from '../services/modulos'
+import { listEmpresaModulos, listModulosPublicos, upsertEmpresaModulo, removeEmpresaModulo } from '../services/modulos'
+import type { CompanyModule, Module } from '../modulos/types'
 import { useToast, getErrorMessage } from '../shared/toast'
 
 export function EmpresaModulos() {
@@ -9,11 +10,11 @@ export function EmpresaModulos() {
   const { success, error } = useToast()
 
   const [loading, setLoading] = useState(true)
-  const [catalogo, setCatalogo] = useState<Modulo[]>([])
-  const [asignados, setAsignados] = useState<EmpresaModulo[]>([])
+  const [catalogo, setCatalogo] = useState<Module[]>([])
+  const [asignados, setAsignados] = useState<CompanyModule[]>([])
   const [seleccion, setSeleccion] = useState<string>('')
 
-  const asignadosIds = useMemo(() => new Set(asignados.map(a => a.modulo_id)), [asignados])
+  const asignadosIds = useMemo(() => new Set(asignados.map(a => a.module_id)), [asignados])
   const candidatos = useMemo(() => catalogo.filter(m => !asignadosIds.has(m.id)), [catalogo, asignadosIds])
 
   useEffect(() => {
@@ -26,8 +27,8 @@ export function EmpresaModulos() {
         ])
         const moduloLookup = new Map(mods.map(m => [m.id, m]))
         const enrichedAsignados = empMods.map((registro) => {
-          if (registro.modulo?.nombre) return registro
-          const moduloInfo = moduloLookup.get(registro.modulo_id)
+          if (registro.modulo?.name) return registro
+          const moduloInfo = moduloLookup.get(registro.module_id)
           return moduloInfo ? { ...registro, modulo: moduloInfo } : registro
         })
         setCatalogo(mods)
@@ -43,11 +44,20 @@ export function EmpresaModulos() {
   const onAgregar = async () => {
     if (!seleccion) return
     try {
-      const moduloId = Number(seleccion)
+      const moduloId = seleccion
       await upsertEmpresaModulo(empresaId, moduloId)
       const nuevo = catalogo.find(m => m.id === moduloId)
       if (nuevo) {
-        setAsignados(prev => [...prev, { id: Date.now(), empresa_id: Number(empresaId), activo: true, modulo_id: moduloId, modulo: nuevo } as any])
+        setAsignados(prev => [
+          ...prev,
+          {
+            id: Date.now(),
+            tenant_id: empresaId,
+            active: true,
+            module_id: moduloId,
+            module: nuevo,
+          } as any,
+        ])
       }
       setSeleccion('')
       success('Módulo asignado')
@@ -56,11 +66,11 @@ export function EmpresaModulos() {
     }
   }
 
-  const onEliminar = async (moduloId: number) => {
+  const onEliminar = async (moduloId: number | string) => {
     if (!confirm('¿Eliminar módulo de la empresa?')) return
     try {
       await removeEmpresaModulo(empresaId, moduloId)
-      setAsignados(prev => prev.filter(x => x.modulo_id !== moduloId))
+      setAsignados(prev => prev.filter(x => x.module_id !== moduloId))
       success('Módulo eliminado')
     } catch (e: any) {
       error(getErrorMessage(e))
@@ -84,7 +94,7 @@ export function EmpresaModulos() {
               <select value={seleccion} onChange={e => setSeleccion(e.target.value)} className="border px-2 py-1 rounded min-w-[240px]">
                 <option value="">Selecciona un módulo</option>
                 {candidatos.map(m => (
-                  <option key={m.id} value={m.id}>{m.icono || ''} {m.nombre}</option>
+                  <option key={m.id} value={m.id}>{m.icon || ''} {m.name}</option>
                 ))}
               </select>
             </div>
@@ -101,11 +111,11 @@ export function EmpresaModulos() {
             </thead>
             <tbody>
               {asignados.map(a => (
-                <tr key={a.modulo_id} className="border-t">
-                  <td className="py-2 px-3">{a.modulo?.icono || ''} {a.modulo?.nombre || a.modulo_id}</td>
-                  <td className="py-2 px-3">{a.activo ? 'Sí' : 'No'}</td>
+                <tr key={a.module_id} className="border-t">
+                  <td className="py-2 px-3">{a.module?.icon || ''} {a.module?.name || a.module_id}</td>
+                  <td className="py-2 px-3">{a.active ? 'Yes' : 'No'}</td>
                   <td className="py-2 px-3">
-                    <button onClick={() => onEliminar(a.modulo_id)} className="text-red-700">Eliminar</button>
+                    <button onClick={() => onEliminar(a.module_id)} className="text-red-700">Remove</button>
                   </td>
                 </tr>
               ))}

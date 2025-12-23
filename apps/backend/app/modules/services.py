@@ -24,7 +24,7 @@ def asignar_modulo_a_empresa_si_no_existe(
         db.query(CompanyModule)
         .filter_by(
             tenant_id=tenant_id,
-            module_id=modulo_in.modulo_id,
+            module_id=modulo_in.module_id,
         )
         .first()
     )
@@ -122,25 +122,25 @@ def upsert_modulo_a_empresa(
         db.query(CompanyModule)
         .filter_by(
             tenant_id=tenant_uuid,
-            module_id=modulo_in.modulo_id,
+            module_id=modulo_in.module_id,
         )
         .first()
     )
 
     if existente:
         existente.active = modulo_in.active  # type: ignore[assignment]
-        existente.expiration_date = modulo_in.fecha_expiracion  # type: ignore[assignment]
-        existente.initial_template = modulo_in.plantilla_inicial  # type: ignore[assignment]
+        existente.expiration_date = modulo_in.expiration_date  # type: ignore[assignment]
+        existente.initial_template = modulo_in.initial_template  # type: ignore[assignment]
         db.commit()
         db.refresh(existente)
         asignacion = existente
     else:
         asignacion = CompanyModule(
             tenant_id=tenant_uuid,
-            module_id=modulo_in.modulo_id,
+            module_id=modulo_in.module_id,
             active=modulo_in.active,
-            expiration_date=modulo_in.fecha_expiracion,
-            initial_template=modulo_in.plantilla_inicial,
+            expiration_date=modulo_in.expiration_date,
+            initial_template=modulo_in.initial_template,
         )
         db.add(asignacion)
         db.commit()
@@ -152,7 +152,7 @@ def upsert_modulo_a_empresa(
     _ = asignacion.module
 
     # Coalesce de slug profesional: preferir slug, luego nombre, luego tenant_id
-    empresa_slug = (
+    company_slug = (
         getattr(asignacion.tenant, "slug", None)
         or getattr(asignacion.tenant, "name", None)
         or str(asignacion.tenant_id)
@@ -161,11 +161,11 @@ def upsert_modulo_a_empresa(
     return schemas.EmpresaModuloOutAdmin(
         id=asignacion.id,  # type: ignore[arg-type]
         tenant_id=asignacion.tenant_id,  # type: ignore[arg-type]
-        modulo_id=asignacion.module_id,  # type: ignore[arg-type]
+        module_id=asignacion.module_id,  # type: ignore[arg-type]
         active=asignacion.active,  # type: ignore[arg-type]
-        fecha_activacion=asignacion.activation_date,  # type: ignore[arg-type]
-        fecha_expiracion=asignacion.expiration_date,  # type: ignore[arg-type]
-        plantilla_inicial=asignacion.initial_template,  # type: ignore[arg-type]
-        empresa_slug=empresa_slug,
-        modulo=schemas.ModuloOut.from_orm(asignacion.module),
+        activation_date=asignacion.activation_date,  # type: ignore[arg-type]
+        expiration_date=asignacion.expiration_date,  # type: ignore[arg-type]
+        initial_template=asignacion.initial_template,  # type: ignore[arg-type]
+        company_slug=company_slug,
+        module=schemas.ModuloOut.from_orm(asignacion.module),
     )

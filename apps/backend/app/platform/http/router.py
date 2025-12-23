@@ -286,6 +286,17 @@ def build_api_router() -> APIRouter:
     include_router_safe(
         r, ("app.modules.imports.interface.http.preview", "files_router"), prefix="/imports"
     )
+
+    # Smart Router analyze endpoint
+    include_router_safe(
+        r, ("app.modules.imports.interface.http.analyze", "router"), prefix="/imports"
+    )
+
+    # Batch confirmation endpoint
+    include_router_safe(
+        r, ("app.modules.imports.interface.http.confirm", "router"), prefix="/imports"
+    )
+
     # Imports public (health) router
     if os.getenv("IMPORTS_ENABLED", "0") in ("1", "true", "True"):
         _mounted_public = include_router_safe(
@@ -377,6 +388,18 @@ def build_api_router() -> APIRouter:
     # Legacy endpoints: removed (modern routers in use)
 
     # Legacy routers retirados: no intentar montarlos para evitar ruido en logs
+
+    # Business Categories (Tipos de negocio) - dinámico desde BD
+    include_router_safe(r, ("app.routers.business_categories", "router"))
+
+    # Tenant Settings (Configuración consolidada por tenant)
+    include_router_safe(r, ("app.routers.tenant_settings", "router"))
+
+    # Sectors (Plantillas de negocio) - Units, Config, etc.
+    include_router_safe(r, ("app.routers.sectors", "router"))
+    
+    # Admin: Sector Config Editor (FASE 6)
+    include_router_safe(r, ("app.routers.admin_sector_config", "router"))
 
     # E-invoicing (SRI/SII)
     include_router_safe(

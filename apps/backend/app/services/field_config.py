@@ -5,8 +5,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-# Importar defaults por sector
-from app.services.sector_defaults import get_sector_defaults
+from app.models.company.company import SectorTemplate
 
 
 def _normalize(items: list[dict]) -> list[dict]:
@@ -23,6 +22,12 @@ def _normalize(items: list[dict]) -> list[dict]:
                 "ord": (it or {}).get("ord"),
                 "label": (it or {}).get("label"),
                 "help": (it or {}).get("help"),
+                # Campos opcionales para importador dinámico
+                "aliases": (it or {}).get("aliases"),
+                "field_type": (it or {}).get("field_type"),
+                "validation_pattern": (it or {}).get("validation_pattern"),
+                "validation_rules": (it or {}).get("validation_rules"),
+                "transform_expression": (it or {}).get("transform_expression"),
             }
         )
     return out
@@ -50,6 +55,40 @@ def _merge(base_items: list[dict], overrides: list[dict]) -> list[dict]:
             str(x.get("field")),
         ),
     )
+
+
+def _template_required_fields(db: Session, sector: str | None, module: str) -> list[dict]:
+    """Carga campos requeridos definidos en template_config del sector (si existen)."""
+    if not sector:
+        return []
+    try:
+        tpl = (
+            db.query(SectorTemplate)
+            .filter(
+                SectorTemplate.code == sector.lower(),
+                SectorTemplate.is_active == True,  # noqa: E712
+            )
+            .first()
+        )
+        if not tpl:
+            return []
+        config = tpl.template_config or {}
+        branding = config.get("branding", {}) or {}
+        required = (branding.get("required_fields", {}) or {}).get(module, [])
+        if not isinstance(required, list):
+            return []
+        return _normalize(
+            [
+                {
+                    "field": f,
+                    "required": True,
+                    "visible": True,
+                }
+                for f in required
+            ]
+        )
+    except Exception:
+        return []
 
 
 def resolve_fields(
@@ -89,6 +128,11 @@ def resolve_fields(
                 "ord": getattr(r, "ord", None),
                 "label": getattr(r, "label", None),
                 "help": getattr(r, "help", None),
+                "aliases": getattr(r, "aliases", None),
+                "field_type": getattr(r, "field_type", None),
+                "validation_pattern": getattr(r, "validation_pattern", None),
+                "validation_rules": getattr(r, "validation_rules", None),
+                "transform_expression": getattr(r, "transform_expression", None),
             }
             for r in rows
         ]
@@ -116,18 +160,24 @@ def resolve_fields(
                     "ord": getattr(r, "ord", None),
                     "label": getattr(r, "label", None),
                     "help": getattr(r, "help", None),
+                    "aliases": getattr(r, "aliases", None),
+                    "field_type": getattr(r, "field_type", None),
+                    "validation_pattern": getattr(r, "validation_pattern", None),
+                    "validation_rules": getattr(r, "validation_rules", None),
+                    "transform_expression": getattr(r, "transform_expression", None),
                 }
                 for r in srows
             ]
         except Exception:
             sector_items = []
 
-    # Base code defaults
-    # Si defaults_fn es None, usar get_sector_defaults
+    # Base code defaults (prioriza config de template del sector)
+    template_items = _template_required_fields(db, sector, module)
+    # Evitar hardcoding: si no hay datos en template ni defaults_fn, retorna vacío
     if defaults_fn is None:
-        base_items = _normalize(get_sector_defaults(module, sector or "panaderia"))
+        base_items = template_items
     else:
-        base_items = _normalize(defaults_fn(module, sector or "default"))
+        base_items = template_items or _normalize(defaults_fn(module, sector or "default"))
 
     # Read mode
     mode = "mixed"

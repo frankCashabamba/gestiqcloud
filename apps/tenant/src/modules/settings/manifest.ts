@@ -5,6 +5,8 @@ const BrandingSettings = React.lazy(() => import('./Branding'))
 const FiscalSettings = React.lazy(() => import('./Fiscal'))
 const LimitsSettings = React.lazy(() => import('./Limites'))
 const HorariosSettings = React.lazy(() => import('./Horarios'))
+const AvanzadoSettings = React.lazy(() => import('./Avanzado'))
+const NotificacionesSettings = React.lazy(() => import('./Notificaciones'))
 
 export const manifest = {
   id: 'settings',
@@ -16,7 +18,9 @@ export const manifest = {
     { path: '/settings/branding', element: BrandingSettings },
     { path: '/settings/fiscal', element: FiscalSettings },
     { path: '/settings/limits', element: LimitsSettings },
-    { path: '/settings/horarios', element: HorariosSettings }
+    { path: '/settings/horarios', element: HorariosSettings },
+    { path: '/settings/avanzado', element: AvanzadoSettings },
+    { path: '/settings/notificaciones', element: NotificacionesSettings }
   ],
   menu: {
     title: 'Configuración',

@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,8 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.models.company.company_user import CompanyUser
+from app.models.company.company_settings import CompanySettings
+from app.models.company.company import Country, Currency, Language, RefLocale, RefTimezone
 from app.models.core.modulo import CompanyModule, Module
 from app.models.tenant import Tenant
 from app.modules.company.application.use_cases import ListCompaniesAdmin, create_company_admin_user
@@ -24,7 +26,8 @@ from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
 from app.shared.utils import slugify
 
 router = APIRouter(
-    prefix="/admin/companies",
+    # Spanish-friendly prefix expected by frontend/endpoints (`/v1/admin/empresas`)
+    prefix="/admin/empresas",
     tags=["Admin Companies"],
     dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))],
 )
@@ -82,133 +85,6 @@ def update_company(tenant_id: str, payload: CompanyInSchema, db: Session = Depen
     if not updated:
         raise HTTPException(status_code=404, detail="company_not_found")
     return CompanyOutSchema.model_construct(**updated)
-
-
-@router.get("/{tenant_id}/settings")
-def get_tenant_settings(tenant_id: str, db: Session = Depends(get_db)):
-    """Retrieve full tenant settings"""
-    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-    if not tenant:
-        raise HTTPException(status_code=404, detail="tenant_not_found")
-
-    # Get tenant_settings
-    from app.models.core.settings import TenantSettings
-
-    tenant_settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
-    if not tenant_settings:
-        tenant_settings = TenantSettings(tenant_id=tenant_id)
-        db.add(tenant_settings)
-        db.commit()
-        db.refresh(tenant_settings)
-
-    return {
-        "locale": tenant_settings.locale,
-        "timezone": tenant_settings.timezone,
-        "currency": tenant_settings.currency,
-        "sector_id": getattr(tenant, "sector_id", None),
-        # Return both modern and legacy key for FE compatibility
-        "sector_template_name": getattr(tenant, "sector_template_name", None),
-        "sector_plantilla_name": getattr(tenant, "sector_template_name", None),
-        "settings": tenant_settings.settings or {},
-    }
-
-
-@router.put("/{tenant_id}/settings")
-def update_tenant_settings(tenant_id: str, settings: dict, db: Session = Depends(get_db)):
-    """Update tenant settings"""
-    from app.models.core.settings import TenantSettings
-
-    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-    if not tenant:
-        raise HTTPException(status_code=404, detail="tenant_not_found")
-
-    # Get or create tenant_settings
-    tenant_settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
-    if not tenant_settings:
-        tenant_settings = TenantSettings(tenant_id=tenant_id)
-        db.add(tenant_settings)
-        db.flush()
-
-    # Update TenantSettings fields
-    if "locale" in settings:
-        tenant_settings.locale = settings["locale"]
-    if "timezone" in settings:
-        tenant_settings.timezone = settings["timezone"]
-    if "currency" in settings:
-        tenant_settings.currency = settings["currency"]
-
-    # Persist sector metadata on tenant when provided
-    if "sector_id" in settings:
-        try:
-            tenant.sector_id = (
-                int(settings.get("sector_id")) if settings.get("sector_id") is not None else None
-            )
-        except Exception:
-            tenant.sector_id = None
-    # Accept both names for template name
-    if (
-        "sector_template_name" in settings
-        or "sector_plantilla_nombre" in settings
-        or "sector_plantilla_name" in settings
-    ):
-        tpl_name = settings.get("sector_template_name")
-        if tpl_name is None:
-            tpl_name = settings.get("sector_plantilla_nombre")
-        if tpl_name is None:
-            tpl_name = settings.get("sector_plantilla_name")
-        tenant.sector_template_name = tpl_name
-
-    # Merge other settings into JSONB (exclude keys handled above)
-    other_settings = {
-        k: v
-        for k, v in settings.items()
-        if k
-        not in (
-            "locale",
-            "timezone",
-            "currency",
-            "sector_plantilla_id",
-            "sector_id",
-            "sector_template_name",
-            "sector_plantilla_nombre",
-            "sector_plantilla_name",
-        )
-    }
-    if other_settings:
-        current = tenant_settings.settings or {}
-        current.update(other_settings)
-        tenant_settings.settings = current
-
-    # Apply sector template if provided
-    sector_tpl_id = settings.get("sector_plantilla_id")
-    if sector_tpl_id:
-        try:
-            from app.services.sector_templates import apply_sector_template
-
-            apply_sector_template(
-                db,
-                tenant_id,
-                int(sector_tpl_id),
-                override_existing=True,
-                design_only=True,
-            )
-        except Exception:
-            pass
-
-    db.commit()
-    db.refresh(tenant_settings)
-
-    return {
-        "ok": True,
-        "locale": tenant_settings.locale,
-        "timezone": tenant_settings.timezone,
-        "currency": tenant_settings.currency,
-        "sector_id": getattr(tenant, "sector_id", None),
-        # Return both keys for FE compatibility
-        "sector_template_name": getattr(tenant, "sector_template_name", None),
-        "sector_plantilla_name": getattr(tenant, "sector_template_name", None),
-        "settings": tenant_settings.settings or {},
-    }
 
 
 @router.post("/{tenant_id}/impersonate")
@@ -453,22 +329,51 @@ class CompanyPayload(BaseModel):
     state: str | None = None
     cp: str | None = None
     country: str | None = None
+    country_code: str | None = None
     logo: str | None = None
     primary_color: str | None = None
     active: bool | None = True
     deactivation_reason: str | None = None
     website: str | None = None
     config_json: dict | None = None
+    default_language: str | None = None
+    timezone: str | None = None
+    currency: str | None = None
+    base_currency: str | None = None
 
 
 class CompanyFullIn(BaseModel):
     company: CompanyPayload
     admin: AdminUserIn
-    modules: list[int] = Field(
+    modules: list[uuid.UUID] = Field(
         default_factory=list, validation_alias="modulos", serialization_alias="modulos"
     )
     logo: LogoPayload | None = None
-    sector_plantilla_id: int | None = None  # Plantilla de sector a aplicar
+    sector_template_id: uuid.UUID | None = Field(
+        default=None,
+        validation_alias="sector_plantilla_id",
+        serialization_alias="sector_plantilla_id",
+    )  # Plantilla de sector a aplicar
+
+    @field_validator("modules", mode="before")
+    @classmethod
+    def _coerce_modules(cls, v: object) -> list[uuid.UUID]:
+        """
+        Acepta módulos como UUID, str o int (legacy) y los normaliza a UUID.
+        Evita errores de validación cuando el FE envía strings.
+        """
+        if v is None:
+            return []
+        items = v if isinstance(v, list) else [v]
+        normalized: list[uuid.UUID] = []
+        for item in items:
+            if item is None or item == "":
+                continue
+            try:
+                normalized.append(uuid.UUID(str(item)))
+            except Exception as exc:  # pragma: no cover - defensive
+                raise ValueError("invalid_module_id") from exc
+        return normalized
 
 
 def _decode_data_url(data: str) -> tuple[bytes, str | None]:
@@ -551,6 +456,43 @@ async def create_company_full_json(
             raise HTTPException(status_code=400, detail="db_error_check_user_unique") from e
 
     tenant_uuid: uuid.UUID | None = None
+    default_language = payload.company.default_language
+    timezone = payload.company.timezone
+    currency = payload.company.currency or payload.company.base_currency
+    country_code = payload.company.country_code
+
+    if default_language:
+        locale_exists = (
+            db.query(RefLocale).filter(RefLocale.code == default_language, RefLocale.active.is_(True)).first()
+        )
+        language_exists = (
+            db.query(Language).filter(Language.code == default_language, Language.active.is_(True)).first()
+        )
+        if not locale_exists and not language_exists:
+            raise HTTPException(status_code=400, detail="default_language_not_found")
+
+    if timezone:
+        tz_exists = (
+            db.query(RefTimezone)
+            .filter(RefTimezone.name == timezone, RefTimezone.active.is_(True))
+            .first()
+        )
+        if not tz_exists:
+            raise HTTPException(status_code=400, detail="timezone_not_found")
+
+    if currency:
+        currency_exists = (
+            db.query(Currency).filter(Currency.code == currency, Currency.active.is_(True)).first()
+        )
+        if not currency_exists:
+            raise HTTPException(status_code=400, detail="currency_not_found")
+
+    if country_code:
+        country_exists = (
+            db.query(Country).filter(Country.code == country_code, Country.active.is_(True)).first()
+        )
+        if not country_exists:
+            raise HTTPException(status_code=400, detail="country_code_not_found")
     try:
         # Company (Tenant)
         repo = SqlCompanyRepo(db)
@@ -620,14 +562,29 @@ async def create_company_full_json(
                     )
                 )
 
+        if tenant_uuid and (default_language or timezone or currency):
+            company_settings = (
+                db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_uuid).first()
+            )
+            if not company_settings:
+                company_settings = CompanySettings(tenant_id=tenant_uuid)
+                db.add(company_settings)
+                db.flush()
+            if default_language is not None:
+                company_settings.default_language = default_language
+            if timezone is not None:
+                company_settings.timezone = timezone
+            if currency is not None:
+                company_settings.currency = currency
+
         # AUTO-SETUP (con plantilla de sector opcional)
         if tid:
             try:
                 from app.services.tenant_onboarding import auto_setup_tenant
 
-                country = company_data.get("pais", "EC")
+                country = company_data.get("country_code") or company_data.get("country") or "ES"
                 setup_result = auto_setup_tenant(
-                    db, tid, country, sector_plantilla_id=payload.sector_plantilla_id
+                    db, tid, country, sector_template_id=payload.sector_template_id
                 )
                 logger.info(f"✅ Tenant auto-setup: {setup_result}")
             except Exception as e:

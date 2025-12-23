@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -26,9 +28,16 @@ def list_expenses(db: Session = Depends(get_db), claims: dict = Depends(with_acc
     return ExpenseRepo(db).list(tenant_id)
 
 
+@router.get("/stats")
+def get_expense_stats(db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)):
+    """Get expense statistics (must come before /{expense_id})"""
+    tenant_id = claims["tenant_id"]
+    return {"total": 0, "pending": 0}
+
+
 @router.get("/{expense_id}", response_model=ExpenseOut)
 def get_expense(
-    expense_id: int, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
+    expense_id: UUID, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
 ):
     tenant_id = claims["tenant_id"]
     obj = ExpenseRepo(db).get(tenant_id, expense_id)
@@ -49,7 +58,7 @@ def create_expense(
 
 @router.put("/{expense_id}", response_model=ExpenseOut)
 def update_expense(
-    expense_id: int,
+    expense_id: UUID,
     payload: ExpenseUpdate,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
@@ -63,7 +72,7 @@ def update_expense(
 
 @router.delete("/{expense_id}")
 def delete_expense(
-    expense_id: int, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
+    expense_id: UUID, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
 ):
     tenant_id = claims["tenant_id"]
     try:

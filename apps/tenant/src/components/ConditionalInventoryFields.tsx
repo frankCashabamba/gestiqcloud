@@ -3,9 +3,14 @@
  *
  * Campos de movimiento de inventario que aparecen según configuración del sector
  * Similar a ConditionalProductFields pero para stock movements
+ *
+ * FASE 4 PASO 4: Placeholders dinámicos desde BD
+ * - Reemplaza hardcoded placeholders con valores desde template_config
+ * - Usa useSectorPlaceholders para cargar dinámicamente
  */
 import React from 'react'
 import { useTenantFeatures, useTenantSector } from '../contexts/TenantConfigContext'
+import { useSectorPlaceholders, getFieldPlaceholder } from '../hooks/useSectorPlaceholders'
 
 interface ConditionalInventoryFieldsProps {
   formData: any
@@ -20,6 +25,7 @@ export function ConditionalInventoryFields({
 }: ConditionalInventoryFieldsProps) {
   const features = useTenantFeatures()
   const sector = useTenantSector()
+  const { placeholders } = useSectorPlaceholders(sector?.plantilla, 'inventory')
 
   const isIncoming = moveType === 'in' || moveType === 'adjustment'
 
@@ -32,9 +38,9 @@ export function ConditionalInventoryFields({
       {features.inventory_expiry_tracking && isIncoming && (
         <div className="inventory-field">
           <label htmlFor="expires_at" className="field-label">
-            Fecha de Caducidad {sector.is_panaderia && '*'}
+            Fecha de Caducidad {features.inventory_expiry_tracking && '*'}
             <span className="label-badge expiry">
-              {sector.is_panaderia ? '🥐 Requerido' : 'Opcional'}
+              {features.inventory_expiry_tracking ? '🥐 Requerido' : 'Opcional'}
             </span>
           </label>
           <input
@@ -44,11 +50,11 @@ export function ConditionalInventoryFields({
             value={formData.expires_at || ''}
             onChange={onChange}
             min={new Date().toISOString().split('T')[0]}
-            required={sector.is_panaderia}
+            required={features.inventory_expiry_tracking}
             className="field-input"
             aria-label="Fecha de caducidad del producto"
           />
-          {sector.is_panaderia && (
+          {features.inventory_expiry_tracking && (
             <small className="field-help warning">
               ⚠️ Productos perecederos requieren fecha de caducidad obligatoria
             </small>
@@ -63,9 +69,7 @@ export function ConditionalInventoryFields({
       {features.inventory_lot_tracking && isIncoming && (
         <div className="inventory-field">
           <label htmlFor="lot" className="field-label">
-            {sector.is_panaderia ? '🥐 Lote/Hornada' :
-             sector.is_taller ? '🔧 Lote de Fabricación' :
-             '📦 Número de Lote'}
+            📦 Número de Lote
           </label>
           <input
             type="text"
@@ -73,24 +77,13 @@ export function ConditionalInventoryFields({
             name="lot"
             value={formData.lot || ''}
             onChange={onChange}
-            placeholder={
-              sector.is_panaderia ? 'Ej: H-2025-028' :
-              sector.is_taller ? 'Ej: LOT-BRK-2025-001' :
-              'Número de lote'
-            }
+            placeholder={getFieldPlaceholder(placeholders, 'lote', 'Número de lote')}
             className="field-input"
             aria-label="Número de lote o hornada"
           />
-          {sector.is_panaderia && (
-            <small className="field-help">
-              Identifica la hornada de producción (formato sugerido: H-AÑO-NNN)
-            </small>
-          )}
-          {sector.is_taller && (
-            <small className="field-help">
-              Lote del fabricante para trazabilidad de repuestos
-            </small>
-          )}
+          <small className="field-help">
+            Identifica el lote de producción para trazabilidad
+          </small>
         </div>
       )}
 
@@ -101,8 +94,7 @@ export function ConditionalInventoryFields({
       {features.inventory_serial_tracking && (
         <div className="inventory-field">
           <label htmlFor="serial_number" className="field-label">
-            {sector.is_taller ? '🔧 Número de Serie' : '📱 Número de Serie'}
-            {sector.is_taller && <span className="label-badge serial">Repuestos</span>}
+            📱 Número de Serie
           </label>
           <input
             type="text"
@@ -110,18 +102,12 @@ export function ConditionalInventoryFields({
             name="serial_number"
             value={formData.serial_number || ''}
             onChange={onChange}
-            placeholder={
-              sector.is_taller
-                ? 'Ej: SN-ALT-123456789'
-                : 'Ej: SN-123456789'
-            }
+            placeholder={getFieldPlaceholder(placeholders, 'numero_serie', 'Ej: SN-123456789')}
             className="field-input"
             aria-label="Número de serie para tracking individual"
           />
           <small className="field-help">
-            {sector.is_taller
-              ? 'Permite tracking individual de repuestos garantizados'
-              : 'Para seguimiento individual del producto'}
+            Para seguimiento individual del producto
           </small>
         </div>
       )}
@@ -141,11 +127,7 @@ export function ConditionalInventoryFields({
           name="location"
           value={formData.location || ''}
           onChange={onChange}
-          placeholder={
-            sector.is_panaderia ? 'Ej: Vitrina-A, Horno-2' :
-            sector.is_taller ? 'Ej: Estantería-C3, Zona-Motor' :
-            'Ej: Pasillo-A-Estante-3'
-          }
+          placeholder={getFieldPlaceholder(placeholders, 'ubicacion', 'Ej: Pasillo-A-Estante-3')}
           className="field-input"
           aria-label="Ubicación física en el almacén"
         />
@@ -204,84 +186,11 @@ export function ConditionalInventoryFields({
             <option value="">-- Seleccionar almacén --</option>
             <option value="main">Almacén Principal</option>
             <option value="retail">Tienda/Punto de Venta</option>
-            {sector.is_panaderia && <option value="production">Zona de Producción</option>}
-            {sector.is_taller && <option value="workshop">Taller/Zona de Trabajo</option>}
           </select>
         </div>
       )}
 
-      {/* ============================================ */}
-      {/* CAMPOS ESPECÍFICOS PANADERÍA */}
-      {/* ============================================ */}
 
-      {sector.is_panaderia && moveType === 'in' && (
-        <>
-          <div className="inventory-field">
-            <label htmlFor="production_date" className="field-label">
-              🥐 Fecha de Producción
-            </label>
-            <input
-              type="date"
-              id="production_date"
-              name="production_date"
-              value={formData.production_date || new Date().toISOString().split('T')[0]}
-              onChange={onChange}
-              max={new Date().toISOString().split('T')[0]}
-              className="field-input"
-              aria-label="Fecha de producción de la hornada"
-            />
-            <small className="field-help">
-              Fecha en que se horneó el producto
-            </small>
-          </div>
-
-          <div className="inventory-field">
-            <label htmlFor="batch_size" className="field-label">
-              🥐 Tamaño de Hornada
-            </label>
-            <input
-              type="number"
-              id="batch_size"
-              name="batch_size"
-              value={formData.batch_size || ''}
-              onChange={onChange}
-              placeholder="Cantidad producida"
-              min="1"
-              step="1"
-              className="field-input"
-              aria-label="Tamaño de la hornada producida"
-            />
-            <small className="field-help">
-              Cantidad total producida en esta hornada
-            </small>
-          </div>
-        </>
-      )}
-
-      {/* ============================================ */}
-      {/* CAMPOS ESPECÍFICOS TALLER */}
-      {/* ============================================ */}
-
-      {sector.is_taller && (
-        <div className="inventory-field">
-          <label htmlFor="supplier_reference" className="field-label">
-            🔧 Referencia del Proveedor
-          </label>
-          <input
-            type="text"
-            id="supplier_reference"
-            name="supplier_reference"
-            value={formData.supplier_reference || ''}
-            onChange={onChange}
-            placeholder="Albarán, factura, orden de compra..."
-            className="field-input"
-            aria-label="Referencia del documento del proveedor"
-          />
-          <small className="field-help">
-            Número de albarán o factura del proveedor
-          </small>
-        </div>
-      )}
 
       <style>{`
         .inventory-field {

@@ -147,8 +147,9 @@ def asignar_modulo_a_empresa(
     # Use tenant_id directly (Tenant is now primary entity)
     asignacion = CompanyModule(
         tenant_id=tenant_id,
-        modulo_id=modulo_in.modulo_id,
-        fecha_expiracion=modulo_in.fecha_expiracion,
+        module_id=modulo_in.module_id,
+        expiration_date=modulo_in.expiration_date,
+        initial_template=modulo_in.initial_template,
     )
     db.add(asignacion)
     db.commit()
@@ -209,12 +210,25 @@ def listar_modulo_admins(db: Session) -> list[Module]:
 
 def crear_modulo_db_only(db: Session, modulo_data: schemas.ModuloCreate) -> Module:
     """Crear solo el registro del módulo en BD (sin tocar el filesystem)."""
-    existente = db.query(Module).filter(Module.name.ilike(modulo_data.name.strip())).first()
+    name = (modulo_data.name or "").strip()
+    existente = db.query(Module).filter(Module.name.ilike(name)).first()
 
     if existente:
-        raise ValueError(f"Ya existe un mA3dulo con el nombre '{modulo_data.name}'")
+        raise ValueError(f"Ya existe un módulo con el nombre '{name}'")
 
-    nuevo_modulo = Module(**modulo_data.model_dump())
+    data = modulo_data.model_dump()
+    nuevo_modulo = Module(
+        name=name,
+        description=data.get("description"),
+        active=bool(data.get("active") if data.get("active") is not None else True),
+        icon=data.get("icon"),
+        url=data.get("url"),
+        initial_template=data.get("initial_template") or name,
+        context_type=data.get("context_type") or "none",
+        target_model=data.get("target_model"),
+        context_filters=data.get("context_filters") or {},
+        category=data.get("category"),
+    )
     db.add(nuevo_modulo)
     db.commit()
     db.refresh(nuevo_modulo)

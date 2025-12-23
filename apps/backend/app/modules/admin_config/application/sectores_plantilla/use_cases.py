@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from uuid import UUID
 
 from app.modules.admin_config.application.sectores_plantilla.dto import (
     SectorPlantillaIn,
@@ -16,7 +17,7 @@ class ListTemplateSectors(BaseUseCase[SectorPlantillaRepo]):
 
 
 class GetTemplateSector(BaseUseCase[SectorPlantillaRepo]):
-    def execute(self, id: int) -> SectorPlantillaOut:
+    def execute(self, id: UUID) -> SectorPlantillaOut:
         sector = self.repo.get(id)
         if not sector:
             raise ValueError("sector_not_found")
@@ -29,10 +30,10 @@ class CreateTemplateSector(BaseUseCase[SectorPlantillaRepo]):
 
 
 class UpdateTemplateSector(BaseUseCase[SectorPlantillaRepo]):
-    def execute(self, id: int, data: SectorPlantillaIn) -> SectorPlantillaOut:
+    def execute(self, id: UUID, data: SectorPlantillaIn) -> SectorPlantillaOut:
         return self.repo.update(id, data)
 
 
 class DeleteTemplateSector(BaseUseCase[SectorPlantillaRepo]):
-    def execute(self, id: int) -> None:
+    def execute(self, id: UUID) -> None:
         self.repo.delete(id)

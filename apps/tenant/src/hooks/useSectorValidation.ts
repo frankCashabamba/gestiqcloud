@@ -1,10 +1,21 @@
 /**
  * useSectorValidation
  *
- * Hook para validaciones específicas del sector activo
- * Retorna función de validación que aplica reglas según plantilla
+ * Hook para validaciones específicas del sector activo.
+ * Carga reglas dinámicas desde BD (Fase 4 - NUEVO)
+ * Con fallback a validaciones hardcodeadas para backward compatibility.
+ *
+ * Flujo:
+ * 1. Intenta cargar reglas dinámicas desde /api/v1/sectors/{code}/validations
+ * 2. Si hay error o no hay reglas, usa validaciones hardcodeadas
+ * 3. Combina ambas para máxima cobertura
  */
 import { useTenantFeatures, useTenantSector } from '../contexts/TenantConfigContext'
+import {
+  useSectorValidationRules,
+  executeFormValidation,
+  SectorValidationRule,
+} from './useSectorValidationRules'
 
 export interface ValidationError {
   field: string
@@ -21,9 +32,11 @@ export interface ValidationResult {
 /**
  * Hook que retorna función de validación personalizada por sector
  *
+ * Carga reglas dinámicas desde BD y las combina con hardcodeadas
+ *
  * @example
  * ```tsx
- * const { validate } = useSectorValidation()
+ * const { validate, dynamicRulesLoading } = useSectorValidation()
  *
  * const result = validate(formData, 'product')
  * if (!result.valid) {
@@ -35,11 +48,21 @@ export function useSectorValidation() {
   const features = useTenantFeatures()
   const sector = useTenantSector()
 
+  // Cargar reglas dinámicas desde BD (Fase 4)
+  const { rules: dynamicRules, loading: dynamicRulesLoading } = useSectorValidationRules(
+    sector?.plantilla
+  )
+
   /**
    * Valida un formulario según las reglas del sector
    *
+   * Prioridad:
+   * 1. Reglas dinámicas desde BD (si están disponibles)
+   * 2. Validaciones hardcodeadas (fallback)
+   * 3. Combinación de ambas para máxima cobertura
+   *
    * @param formData - Datos del formulario a validar
-   * @param context - Contexto de validación ('product', 'inventory', 'sale')
+   * @param context - Contexto de validación ('product', 'inventory', 'sale', 'customer')
    * @returns Resultado de validación con errores y warnings
    */
   const validate = (
@@ -50,15 +73,37 @@ export function useSectorValidation() {
     const warnings: ValidationError[] = []
 
     // ============================================
+    // FASE 4: VALIDACIONES DINÁMICAS (NUEVAS)
+    // ============================================
+    if (dynamicRules && dynamicRules.length > 0) {
+      // Filtrar reglas para el contexto actual
+      const contextRules = dynamicRules.filter((r) => r.context === context)
+
+      // Ejecutar validaciones dinámicas
+      const dynamicErrors = executeFormValidation(contextRules, formData)
+
+      // Convertir a ValidationError format
+      dynamicErrors.forEach((fieldErrors, field) => {
+        fieldErrors.forEach((err) => {
+          if (err.level === 'error') {
+            errors.push({ field, message: err.message, level: 'error' })
+          } else {
+            warnings.push({ field, message: err.message, level: 'warning' })
+          }
+        })
+      })
+    }
+
+    // ============================================
     // VALIDACIONES DE PRODUCTO
     // ============================================
     if (context === 'product') {
-      // Panadería: Fecha de caducidad obligatoria
-      if (sector.is_panaderia && features.inventory_expiry_tracking) {
+      // Fecha de caducidad requerida cuando feature habilitado
+      if (features.inventory_expiry_tracking) {
         if (!formData.expires_at) {
           errors.push({
             field: 'expires_at',
-            message: 'Productos de panadería requieren fecha de caducidad',
+            message: 'Fecha de caducidad es obligatoria',
             level: 'error'
           })
         } else {
@@ -77,40 +122,10 @@ export function useSectorValidation() {
           if (daysUntilExpiry > 30) {
             warnings.push({
               field: 'expires_at',
-              message: 'Fecha de caducidad inusualmente lejana para productos de panadería',
+              message: 'Fecha de caducidad inusualmente lejana',
               level: 'warning'
             })
           }
-        }
-      }
-
-      // Taller: Código OEM recomendado
-      if (sector.is_taller) {
-        if (!formData.codigo_oem) {
-          warnings.push({
-            field: 'codigo_oem',
-            message: 'Se recomienda añadir código OEM para repuestos',
-            level: 'warning'
-          })
-        }
-
-        if (!formData.marca_vehiculo || !formData.modelo_compatible) {
-          warnings.push({
-            field: 'marca_vehiculo',
-            message: 'Especificar compatibilidad facilita la búsqueda de repuestos',
-            level: 'warning'
-          })
-        }
-      }
-
-      // Retail: SKU único obligatorio
-      if (sector.is_retail) {
-        if (!formData.sku || formData.sku.trim() === '') {
-          errors.push({
-            field: 'sku',
-            message: 'El código SKU es obligatorio para productos de retail',
-            level: 'error'
-          })
         }
       }
 
@@ -153,22 +168,22 @@ export function useSectorValidation() {
     // ============================================
     if (context === 'inventory') {
       // Fecha de caducidad en movimientos de entrada
-      if (features.inventory_expiry_tracking && sector.is_panaderia) {
+      if (features.inventory_expiry_tracking) {
         if (!formData.expires_at) {
           errors.push({
             field: 'expires_at',
-            message: 'Fecha de caducidad obligatoria para productos de panadería',
+            message: 'Fecha de caducidad obligatoria',
             level: 'error'
           })
         }
       }
 
-      // Lote en movimientos de entrada (taller)
-      if (features.inventory_lot_tracking && sector.is_taller) {
+      // Lote en movimientos de entrada
+      if (features.inventory_lot_tracking) {
         if (!formData.lot) {
           warnings.push({
             field: 'lot',
-            message: 'Se recomienda registrar el lote de fabricación',
+            message: 'Se recomienda registrar el lote',
             level: 'warning'
           })
         }
@@ -301,7 +316,10 @@ export function useSectorValidation() {
   return {
     validate,
     features,
-    sector
+    sector,
+    // NUEVO (Fase 4): indicador de carga de reglas dinámicas
+    dynamicRulesLoading,
+    dynamicRules,
   }
 }
 

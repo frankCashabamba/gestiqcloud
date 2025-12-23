@@ -30,8 +30,8 @@ class EmpresaCreate(BaseModel):
     cp: str | None
     pais: str | None
     logo: str | None
-    color_primario: str | None = "#4f46e5"
-    plantilla_inicio: str | None = "cliente"
+    color_primario: str | None = None
+    plantilla_inicio: str | None = None
     sitio_web: str | None
     config_json: dict | None
     modulos: list[int] | None = []

@@ -1,7 +1,7 @@
-﻿// apps/tenant/src/modules/productos/Form.tsx
+// apps/tenant/src/modules/productos/Form.tsx
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { createProducto, getProducto, updateProducto, type Producto } from './services'
+import { createProducto, getProducto, updateProducto, listCategorias, type Producto, type Categoria } from './productsApi'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { apiFetch } from '../../lib/http'
 import { useCurrency } from '../../hooks/useCurrency'
@@ -15,12 +15,6 @@ type FieldCfg = {
   help?: string | null
   type?: string | null
   options?: string[] | null
-}
-
-type Categoria = {
-  id: string
-  name: string
-  description?: string | null
 }
 
 export default function ProductoForm() {
@@ -45,7 +39,7 @@ export default function ProductoForm() {
   useEffect(() => {
     ;(async () => {
       try {
-        const data = await apiFetch<Categoria[]>('/api/v1/tenant/products/product-categories')
+        const data = await listCategorias()
         setCategorias(data)
       } catch (e) {
         console.error('Error cargando categorías:', e)

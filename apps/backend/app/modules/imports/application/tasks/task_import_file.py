@@ -18,6 +18,8 @@ from decimal import Decimal
 
 from app.config.database import session_scope
 from app.db.rls import set_tenant_guc
+from app.models.core.products import Product
+from app.models.recipes import Recipe, RecipeIngredient
 from app.models.core.modelsimport import ImportBatch, ImportItem
 from app.modules.imports.domain.canonical_schema import validate_canonical
 from app.modules.imports.parsers import registry as parsers_registry
@@ -71,6 +73,22 @@ def _to_number(val) -> float | None:
     """Convert value to number."""
     if val is None or val == "":
         return None
+
+
+def _normalize_doc_type(doc_type: str | None) -> str:
+    """Mapear alias a doc_type canónico usado por el módulo."""
+    if not doc_type:
+        return "generic"
+    doc = str(doc_type).lower()
+    if doc in ("bank", "bank_tx", "bank_transactions"):
+        return "bank_transactions"
+    if doc in ("invoice", "invoices", "factura", "facturas"):
+        return "invoices"
+    if doc in ("expense", "expenses", "receipt", "receipts"):
+        return "expenses"
+    if doc in ("product", "products", "productos"):
+        return "products"
+    return doc
     try:
         return float(val)
     except (ValueError, TypeError):
@@ -81,6 +99,7 @@ def _extract_items_from_parsed_result(
     parsed_result: dict[str, Any], doc_type: str
 ) -> list[dict[str, Any]]:
     """Extract items list from parser result based on doc_type."""
+    # If parser embeds items in a top-level key, unwrap first
     if doc_type == "products":
         return parsed_result.get("products", parsed_result.get("rows", [parsed_result]))
     elif doc_type == "invoices":
@@ -89,6 +108,8 @@ def _extract_items_from_parsed_result(
         return parsed_result.get(
             "bank_transactions", parsed_result.get("transactions", [parsed_result])
         )
+    elif doc_type == "recipes":
+        return parsed_result.get("recipes", [parsed_result])
     elif "rows" in parsed_result:
         return parsed_result["rows"]
     else:
@@ -153,17 +174,181 @@ def _build_canonical_from_item(
             }
         )
 
-    else:  # products, generic, or other
+    elif doc_type == "recipes":
         return {
-            "doc_type": "other",
+            "doc_type": "product",
+            "product": {
+                "name": raw.get("name") or normalized.get("name"),
+                "category": raw.get("classification"),
+                "description": raw.get("recipe_type"),
+            },
             "metadata": {
                 "parser": parser_id,
-                "doc_type_detected": doc_type,
+                "detected_type": "recipes",
+                "raw_data": raw,
+            },
+            "source": "parser",
+            "confidence": raw.get("confidence", 0.6),
+        }
+
+    else:  # products, generic, or other
+        detected = raw.get("doc_type") or raw.get("detected_type") or doc_type
+        return {
+            "doc_type": detected if detected in ("products", "other") else "other",
+            "metadata": {
+                "parser": parser_id,
+                "doc_type_detected": detected,
                 "raw_data": raw,
             },
             "source": "parser",
             "confidence": raw.get("confidence", 0.5),
         }
+
+
+def _find_product_by_name(db, tenant_id: str, name: str) -> Product | None:
+    try:
+        return (
+            db.query(Product)
+            .filter(
+                Product.tenant_id == tenant_id,
+                Product.name.ilike(name),
+            )
+            .first()
+        )
+    except Exception:
+        return None
+
+
+def _get_or_create_product(
+    db,
+    tenant_id: str,
+    name: str | None,
+    *,
+    description: str | None = None,
+    category: str | None = None,
+) -> tuple[Product | None, bool]:
+    """Find or create a product by name within a tenant."""
+    if not name or str(name).strip() == "":
+        return None, False
+    normalized = str(name).strip()
+    existing = _find_product_by_name(db, tenant_id, normalized)
+    if existing:
+        return existing, False
+    product = Product(
+        tenant_id=tenant_id,
+        name=normalized,
+        description=description,
+        category=category,
+        active=True,
+        unit="unit",
+    )
+    db.add(product)
+    db.flush()
+    return product, True
+
+
+def _persist_recipes(db, tenant_id: str, parsed_result: dict[str, Any]) -> dict[str, int]:
+    recipes_data = parsed_result.get("recipes", [])
+    ingredients_rows = parsed_result.get("rows", [])
+    materials_rows = parsed_result.get("materials", [])
+    created = 0
+    errors = 0
+    created_ingredients = 0
+    created_materials = 0
+    auto_products = 0
+
+    for recipe_data in recipes_data:
+        name = recipe_data.get("name")
+        if not name:
+            errors += 1
+            continue
+
+        product, auto_created = _get_or_create_product(
+            db, tenant_id, name, description=recipe_data.get("recipe_type")
+        )
+        if auto_created:
+            auto_products += 1
+
+        if not product:
+            errors += 1
+            continue
+
+        recipe = Recipe(
+            tenant_id=tenant_id,
+            product_id=product.id,
+            name=name,
+            yield_qty=recipe_data.get("portions") or 1,
+            prep_time_minutes=None,
+            instructions=None,
+            is_active=True,
+            total_cost=recipe_data.get("total_ingredients_cost") or 0,
+        )
+        db.add(recipe)
+        db.flush()
+
+        recipe_ingredients = [
+            row for row in ingredients_rows if row.get("recipe_name") == name
+        ]
+        for idx, ing in enumerate(recipe_ingredients):
+            prod, auto_created_ing = _get_or_create_product(
+                db, tenant_id, ing.get("ingredient", ""), category=recipe_data.get("classification")
+            )
+            if auto_created_ing:
+                auto_products += 1
+            if not prod:
+                errors += 1
+                continue
+            ingredient = RecipeIngredient(
+                recipe_id=recipe.id,
+                product_id=prod.id,
+                qty=ing.get("quantity") or 0,
+                unit=ing.get("unit") or "unit",
+                purchase_packaging=None,
+                qty_per_package=ing.get("quantity") or 1,
+                package_unit=ing.get("unit") or "unit",
+                package_cost=ing.get("amount") or 0,
+                notes=None,
+                line_order=idx,
+            )
+            db.add(ingredient)
+            created_ingredients += 1
+
+        # Persist materials as additional ingredients (tagged in notes)
+        mats_for_recipe = [row for row in materials_rows if row.get("recipe_name") == name]
+        offset = len(recipe_ingredients)
+        for m_idx, mat in enumerate(mats_for_recipe):
+            prod, auto_created_mat = _get_or_create_product(
+                db, tenant_id, mat.get("description", ""), category=recipe_data.get("classification")
+            )
+            if auto_created_mat:
+                auto_products += 1
+            if not prod:
+                errors += 1
+                continue
+            ingredient = RecipeIngredient(
+                recipe_id=recipe.id,
+                product_id=prod.id,
+                qty=mat.get("quantity") or 0,
+                unit=mat.get("purchase_unit") or "unit",
+                purchase_packaging="material",
+                qty_per_package=mat.get("quantity") or 1,
+                package_unit=mat.get("purchase_unit") or "unit",
+                package_cost=mat.get("amount") or mat.get("purchase_price") or 0,
+                notes="material",
+                line_order=offset + m_idx,
+            )
+            db.add(ingredient)
+            created_materials += 1
+        created += 1
+
+    db.commit()
+    return {
+        "created": created,
+        "errors": errors,
+        "ingredients": created_ingredients,
+        "materials": created_materials,
+        "auto_products": auto_products,
+    }
 
 
 @celery_app.task(name="imports.import_file", bind=True)
@@ -213,6 +398,22 @@ def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id
         try:
             # Call parser
             parsed_result = parser_func(file_path)
+            # Si el parser devolvió un tipo detectado, úsalo cuando el parser sea genérico
+            detected_doc_type = (
+                parsed_result.get("detected_type")
+                or parsed_result.get("doc_type")
+                or parser_info.get("doc_type")
+            )
+            doc_type = _normalize_doc_type(detected_doc_type)
+            batch.source_type = batch.source_type or doc_type
+
+            # Special handling for recipes: persist to Recipe/RecipeIngredient
+            if doc_type == "recipes":
+                persisted = _persist_recipes(db, tenant_id, parsed_result)
+                batch.status = "READY" if persisted["errors"] == 0 else "PARTIAL"
+                db.add(batch)
+                db.commit()
+                return {"ok": True, **persisted, "doc_type": doc_type, "parser_id": parser_id}
 
             # Create ImportItems from parsed data
             idx_base = db.query(ImportItem).filter(ImportItem.batch_id == batch_id).count() or 0

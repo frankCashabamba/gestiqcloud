@@ -36,7 +36,10 @@ export default function UsuariosList() {
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
   const { profile } = useAuth()
-  const isAdminEmpresa = Boolean((profile as any)?.es_admin_empresa) || Boolean(profile?.roles?.includes('admin'))
+  const isAdminEmpresa =
+    Boolean((profile as any)?.es_admin_empresa) ||
+    Boolean((profile as any)?.is_company_admin) ||
+    Boolean(profile?.roles?.includes('admin'))
 
   useEffect(() => {
     let cancelled = false

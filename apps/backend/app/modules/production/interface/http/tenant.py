@@ -283,17 +283,17 @@ async def create_production_order(
         ingredients_stmt = select(RecipeIngredient).where(RecipeIngredient.recipe_id == recipe.id)
         ingredients_result = db.execute(ingredients_stmt)
         ingredients = ingredients_result.scalars().all()
-        rendimiento = float(recipe.rendimiento) if recipe.rendimiento else 1.0
-        scale_factor = float(order_in.qty_planned) / rendimiento if rendimiento > 0 else 1.0
+        yield_qty = float(recipe.yield_qty) if recipe.yield_qty else 1.0
+        scale_factor = float(order_in.qty_planned) / yield_qty if yield_qty > 0 else 1.0
         for ing in ingredients:
             qty_required = float(ing.qty) * scale_factor
             line = ProductionOrderLine(
                 order_id=order.id,
-                ingredient_product_id=ing.producto_id,
+                ingredient_product_id=ing.product_id,
                 qty_required=Decimal(str(qty_required)),
                 qty_consumed=Decimal("0"),
-                unit=ing.unidad_medida or "unit",
-                cost_unit=ing.costo_presentacion or Decimal("0"),
+                unit=ing.unit or "unit",
+                cost_unit=ing.package_cost or Decimal("0"),
             )
             line.cost_total = line.qty_required * line.cost_unit
             db.add(line)
@@ -506,8 +506,8 @@ async def calculate_production(
     ingredients_stmt = select(RecipeIngredient).where(RecipeIngredient.recipe_id == recipe.id)
     ingredients_result = db.execute(ingredients_stmt)
     ingredients = ingredients_result.scalars().all()
-    rendimiento = float(recipe.rendimiento) if recipe.rendimiento else 1.0
-    scale_factor = float(request.qty_desired) / rendimiento if rendimiento > 0 else 1.0
+    yield_qty = float(recipe.yield_qty) if recipe.yield_qty else 1.0
+    scale_factor = float(request.qty_desired) / yield_qty if yield_qty > 0 else 1.0
     all_ingredients = []
     missing_ingredients = []
     total_cost = Decimal("0")
@@ -516,19 +516,19 @@ async def calculate_production(
         qty_required = Decimal(str(float(ing.qty) * scale_factor))
         stock_stmt = select(func.sum(StockItem.qty_on_hand)).where(
             StockItem.tenant_id == tenant_id,
-            StockItem.product_id == ing.producto_id,
+            StockItem.product_id == ing.product_id,
         )
         stock_result = db.execute(stock_stmt)
         stock_available = stock_result.scalar() or Decimal("0")
         stock_sufficient = stock_available >= qty_required
         qty_to_purchase = max(Decimal("0"), qty_required - stock_available)
-        cost_unit = ing.costo_presentacion or Decimal("0")
+        cost_unit = ing.package_cost or Decimal("0")
         total_cost += qty_required * cost_unit
         ingredient_req = IngredientRequirement(
-            ingredient_id=ing.producto_id,
-            ingredient_name=ing.producto_id,
+            ingredient_id=ing.product_id,
+            ingredient_name=ing.product_id,
             qty_required=qty_required,
-            unit=ing.unidad_medida or "unit",
+            unit=ing.unit or "unit",
             stock_available=stock_available,
             stock_sufficient=stock_sufficient,
             qty_to_purchase=qty_to_purchase,
@@ -543,11 +543,11 @@ async def calculate_production(
         for ing_data in ingredients:
             stock_stmt = select(func.sum(StockItem.qty_on_hand)).where(
                 StockItem.tenant_id == tenant_id,
-                StockItem.product_id == ing_data.producto_id,
+                StockItem.product_id == ing_data.product_id,
             )
             stock_result = db.execute(stock_stmt)
             stock_qty = float(stock_result.scalar() or 0)
-            ing_qty_per_unit = float(ing_data.qty) / rendimiento if rendimiento > 0 else 0
+            ing_qty_per_unit = float(ing_data.qty) / yield_qty if yield_qty > 0 else 0
             if ing_qty_per_unit > 0:
                 ratio = stock_qty / ing_qty_per_unit
                 min_ratio = min(min_ratio, ratio)
@@ -561,7 +561,7 @@ async def calculate_production(
         missing_ingredients=missing_ingredients,
         all_ingredients=all_ingredients,
         estimated_cost=total_cost,
-        production_time_minutes=recipe.tiempo_preparacion,
+        production_time_minutes=recipe.prep_time_minutes,
     )
 
 
@@ -607,16 +607,17 @@ async def get_production_stats(
 # RECETAS
 @router.get("/recipes", response_model=list[RecipeResponse])
 def list_recipes(
-    activo: bool | None = None,
+    is_active: bool | None = None,
     product_id: UUID | None = None,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
-    query = db.query(Recipe)
-    if activo is not None:
-        query = query.filter(Recipe.activo == activo)
+    tenant_id = UUID(claims["tenant_id"])
+    query = db.query(Recipe).filter(Recipe.tenant_id == tenant_id)
+    if is_active is not None:
+        query = query.filter(Recipe.is_active == is_active)
     if product_id:
         query = query.filter(Recipe.product_id == product_id)
     recipes = query.offset(skip).limit(limit).all()
@@ -629,30 +630,32 @@ def create_recipe(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
+    tenant_id = UUID(claims["tenant_id"])
     recipe = Recipe(
+        tenant_id=tenant_id,
         product_id=recipe_data.product_id,
-        name=recipe_data.name or recipe_data.nombre,
-        rendimiento=recipe_data.rendimiento,
-        tiempo_preparacion=recipe_data.tiempo_preparacion,
-        instrucciones=recipe_data.instrucciones,
-        activo=recipe_data.activo if recipe_data.activo is not None else True,
-        costo_total=0,
+        name=recipe_data.name,
+        yield_qty=recipe_data.yield_qty,
+        prep_time_minutes=recipe_data.prep_time_minutes,
+        instructions=recipe_data.instructions,
+        is_active=recipe_data.is_active if recipe_data.is_active is not None else True,
+        total_cost=0,
     )
     db.add(recipe)
     db.flush()
-    if recipe_data.ingredientes:
-        for idx, ing_data in enumerate(recipe_data.ingredientes):
+    if recipe_data.ingredients:
+        for idx, ing_data in enumerate(recipe_data.ingredients):
             ingrediente = RecipeIngredient(
                 recipe_id=recipe.id,
-                producto_id=ing_data.producto_id,
+                product_id=ing_data.product_id,
                 qty=ing_data.qty,
-                unidad_medida=ing_data.unidad_medida,
-                presentacion_compra=ing_data.presentacion_compra,
-                qty_presentacion=ing_data.qty_presentacion,
-                unidad_presentacion=ing_data.unidad_presentacion,
-                costo_presentacion=ing_data.costo_presentacion,
-                notas=ing_data.notas,
-                orden=ing_data.orden if ing_data.orden is not None else idx,
+                unit=ing_data.unit,
+                purchase_packaging=ing_data.purchase_packaging,
+                qty_per_package=ing_data.qty_per_package,
+                package_unit=ing_data.package_unit,
+                package_cost=ing_data.package_cost,
+                notes=ing_data.notes,
+                line_order=ing_data.line_order if ing_data.line_order is not None else idx,
             )
             db.add(ingrediente)
     db.commit()
@@ -671,7 +674,12 @@ def get_recipe(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
-    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    tenant_id = UUID(claims["tenant_id"])
+    recipe = (
+        db.query(Recipe)
+        .filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id)
+        .first()
+    )
     if not recipe:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
     return recipe
@@ -684,7 +692,12 @@ def update_recipe(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
-    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    tenant_id = UUID(claims["tenant_id"])
+    recipe = (
+        db.query(Recipe)
+        .filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id)
+        .first()
+    )
     if not recipe:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
     update_data = recipe_data.dict(exclude_unset=True)
@@ -724,7 +737,12 @@ def add_recipe_ingredient(
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
-    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    tenant_id = UUID(claims["tenant_id"])
+    recipe = (
+        db.query(Recipe)
+        .filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id)
+        .first()
+    )
     if not recipe:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
 
@@ -732,7 +750,7 @@ def add_recipe_ingredient(
         db.query(RecipeIngredient)
         .filter(
             RecipeIngredient.recipe_id == recipe_id,
-            RecipeIngredient.producto_id == payload.producto_id,
+            RecipeIngredient.product_id == payload.product_id,
         )
         .first()
     )
@@ -742,10 +760,10 @@ def add_recipe_ingredient(
             detail="El ingrediente ya existe en la receta",
         )
 
-    next_order = payload.orden
+    next_order = payload.line_order
     if next_order is None:
         current_max = (
-            db.query(func.max(RecipeIngredient.orden))
+            db.query(func.max(RecipeIngredient.line_order))
             .filter(RecipeIngredient.recipe_id == recipe_id)
             .scalar()
         )
@@ -753,15 +771,15 @@ def add_recipe_ingredient(
 
     ingrediente = RecipeIngredient(
         recipe_id=recipe_id,
-        producto_id=payload.producto_id,
+        product_id=payload.product_id,
         qty=payload.qty,
-        unidad_medida=payload.unidad_medida,
-        presentacion_compra=payload.presentacion_compra,
-        qty_presentacion=payload.qty_presentacion,
-        unidad_presentacion=payload.unidad_presentacion,
-        costo_presentacion=payload.costo_presentacion,
-        notas=payload.notas,
-        orden=next_order,
+        unit=payload.unit,
+        purchase_packaging=payload.purchase_packaging,
+        qty_per_package=payload.qty_per_package,
+        package_unit=payload.package_unit,
+        package_cost=payload.package_cost,
+        notes=payload.notes,
+        line_order=next_order,
     )
     db.add(ingrediente)
     db.commit()
@@ -800,12 +818,12 @@ def update_recipe_ingredient(
         )
 
     data = payload.dict(exclude_unset=True)
-    if "producto_id" in data:
+    if "product_id" in data:
         duplicate = (
             db.query(RecipeIngredient)
             .filter(
                 RecipeIngredient.recipe_id == recipe_id,
-                RecipeIngredient.producto_id == data["producto_id"],
+                RecipeIngredient.product_id == data["product_id"],
                 RecipeIngredient.id != ingredient_id,
             )
             .first()

@@ -11,35 +11,34 @@ import { TENANT_RECIPES } from '@shared/endpoints';
 // ============================================================================
 
 export interface RecipeIngredient {
-  producto_id: string;
+  product_id: string;
   qty: number;
-  unidad_medida: string;
-  presentacion_compra: string;
-  qty_presentacion: number;
-  unidad_presentacion: string;
-  costo_presentacion: number;
-  notas?: string;
-  orden?: number;
+  unit: string;
+  purchase_packaging: string;
+  qty_per_package: number;
+  package_unit: string;
+  package_cost: number;
+  notes?: string;
+  line_order?: number;
 }
 
 export interface RecipeCreate {
   name: string;
-  nombre?: string;
   product_id: string;
-  rendimiento: number;
-  tiempo_preparacion?: number;
-  instrucciones?: string;
-  activo?: boolean;
-  ingredientes?: RecipeIngredient[];
+  yield_qty: number;
+  prep_time_minutes?: number;
+  instructions?: string;
+  is_active?: boolean;
+  ingredients?: RecipeIngredient[];
 }
 
 export interface RecipeUpdate {
-  nombre?: string;
+  name?: string;
   product_id?: string;
-  rendimiento?: number;
-  tiempo_preparacion?: number;
-  instrucciones?: string;
-  activo?: boolean;
+  yield_qty?: number;
+  prep_time_minutes?: number;
+  instructions?: string;
+  is_active?: boolean;
 }
 
 export interface Recipe {
@@ -47,24 +46,24 @@ export interface Recipe {
   tenant_id: string;
   product_id: string;
   name: string;
-  rendimiento: number;
-  costo_total: number;
-  costo_por_unidad: number;
-  tiempo_preparacion?: number;
-  instrucciones?: string;
-  active: boolean;
+  yield_qty: number;
+  total_cost: number;
+  unit_cost: number;
+  prep_time_minutes?: number;
+  instructions?: string;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
-  producto_nombre?: string;
-  ingredientes?: RecipeIngredientResponse[];
+  product_name?: string;
+  ingredients?: RecipeIngredientResponse[];
 }
 
 export interface RecipeIngredientResponse extends RecipeIngredient {
   id: string;
   recipe_id: string;
-  costo_ingrediente: number;
+  ingredient_cost: number;
   created_at: string;
-  producto_nombre?: string;
+  product_name?: string;
 }
 
 export interface CostBreakdown {

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { createRol, updateRol, type RolCreatePayload } from './services'
 import type { Rol } from './types'
 import { useToast, getErrorMessage } from '../../shared/toast'
+import { useSectorPlaceholder } from '../../hooks/useSectorPlaceholders'
+import { useTenant } from '../../contexts/TenantContext'
 
 type Props = {
   rol?: Rol | null
@@ -15,6 +17,12 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
   const [permisos, setPermisos] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(false)
   const { success, error: toastError } = useToast()
+  const { sector } = useTenant()
+  const { placeholder: nombrePlaceholder } = useSectorPlaceholder(
+    sector?.plantilla || null,
+    'nombre',
+    'roles'
+  )
 
   useEffect(() => {
     if (rol) {
@@ -103,7 +111,7 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
               type="text"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              placeholder="Ej: Cajero, Vendedor, Contador"
+              placeholder={nombrePlaceholder || 'Ej: Cajero, Vendedor, Contador'}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
               required
             />

@@ -22,6 +22,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const [token, setToken] = useState<string | null>(() => sessionStorage.getItem('access_token_tenant'))
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<MeTenant | null>(null)
+  const isUnauthorized = (e: any) => e?.status === 401 || e?.response?.status === 401
 
   useEffect(() => {
     (async () => {
@@ -41,29 +42,43 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           } catch {}
         }
         const t = token ?? sessionStorage.getItem('access_token_tenant') ?? (await refreshOnce())
-        if (t) {
-          setToken(t)
-          sessionStorage.setItem('access_token_tenant', t)
-          const me = await apiFetch<MeTenant>('/api/v1/me/tenant', { headers: { Authorization: `Bearer ${t}` }, retryOn401: false })
-          setProfile(me)
+        try {
+          if (t) {
+            setToken(t)
+            sessionStorage.setItem('access_token_tenant', t)
+            const me = await apiFetch<MeTenant>('/api/v1/me/tenant', { headers: { Authorization: `Bearer ${t}` }, retryOn401: false })
+            setProfile(me)
 
-           // Initialize ElectricSQL for offline sync
-           if (me?.tenant_id) {
-             try {
-               await initElectric(me.tenant_id)
-               setupOnlineSync(me.tenant_id)
-             } catch (error) {
-               console.warn('ElectricSQL init failed:', error)
+             // Initialize ElectricSQL for offline sync
+             if (me?.tenant_id) {
+               try {
+                 await initElectric(me.tenant_id)
+                 setupOnlineSync(me.tenant_id)
+               } catch (error) {
+                 console.warn('ElectricSQL init failed:', error)
+               }
              }
-           }
-        } else {
-          clear()
+          } else {
+            clear()
+          }
+        } catch (e: any) {
+          if (isUnauthorized(e)) {
+            clear()
+          } else {
+            throw e
+          }
         }
       } finally {
         setLoading(false)
       }
     })()
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const handler = () => clear()
+    window.addEventListener('tenant-auth-expired', handler as EventListener)
+    return () => window.removeEventListener('tenant-auth-expired', handler as EventListener)
   }, [])
 
   // Single-flight refresh to avoid concurrent rotations

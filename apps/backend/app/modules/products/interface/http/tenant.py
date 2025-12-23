@@ -55,8 +55,10 @@ class ProductIn(BaseModel):
     stock: float = Field(ge=0)
     unit: str = Field(min_length=1, default="unit")
     category: str | None = None
+    categoria: str | None = None
     sku: str | None = None
     activo: bool | None = True
+    active: bool | None = None
     product_metadata: dict | None = None
 
 
@@ -276,14 +278,17 @@ def create_product(payload: ProductIn, request: Request, db: Session = Depends(g
     if not sku or sku.strip() == "":
         sku = _generate_next_sku(db, tenant_id, payload.category)
 
+    category_value = payload.category if payload.category is not None else payload.categoria
+    active_value = payload.active if payload.active is not None else payload.activo
+
     obj = Product(
         name=payload.name,
         price=payload.price,
         stock=payload.stock,
         unit=payload.unit,
         sku=sku,
-        categoria=payload.category,
-        activo=payload.active if payload.active is not None else True,
+        category=category_value,
+        active=True if active_value is None else active_value,
         product_metadata=payload.product_metadata,
         tenant_id=tenant_id,
     )
@@ -321,12 +326,14 @@ def update_product(
     obj.price = payload.price
     obj.stock = payload.stock
     obj.unit = payload.unit
-    if payload.category is not None:
-        obj.categoria = payload.category
+    category_value = payload.category if payload.category is not None else payload.categoria
+    if category_value is not None:
+        obj.category = category_value
     if payload.sku is not None:
         obj.sku = payload.sku
-    if payload.active is not None:
-        obj.active = payload.active
+    active_value = payload.active if payload.active is not None else payload.activo
+    if active_value is not None:
+        obj.active = active_value
     if payload.product_metadata is not None:
         obj.product_metadata = payload.product_metadata
 

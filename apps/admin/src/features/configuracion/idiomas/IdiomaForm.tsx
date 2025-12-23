@@ -8,19 +8,19 @@ type FormT = Omit<IdiomaT, 'id'>
 export default function IdiomaForm() {
   const { id } = useParams()
   const nav = useNavigate()
-  const [form, setForm] = useState<FormT>({ codigo: '', nombre: '', activo: true })
+  const [form, setForm] = useState<FormT>({ code: '', name: '', active: true })
   const { success, error } = useToast()
 
   useEffect(() => {
     if (id) {
-      getIdioma(id).then((m) => setForm({ codigo: m.codigo, nombre: m.nombre, activo: m.activo })).catch(() => {})
+      getIdioma(id).then((m) => setForm({ code: m.code, name: m.name, active: m.active })).catch(() => {})
     }
   }, [id])
 
   const onSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault()
     try {
-      if (!form.codigo?.trim() || !form.nombre?.trim()) throw new Error('Complete código y nombre')
+      if (!form.code?.trim() || !form.name?.trim()) throw new Error('Complete codigo y nombre')
       if (id) await updateIdioma(id, form)
       else await createIdioma(form)
       success('Idioma guardado')
@@ -35,15 +35,15 @@ export default function IdiomaForm() {
       <h3 className="text-xl font-semibold mb-3">{id ? 'Editar Idioma' : 'Nuevo Idioma'}</h3>
       <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
         <div>
-          <label className="block mb-1">Código</label>
-          <input value={form.codigo} onChange={(e) => setForm({ ...form, codigo: e.target.value })} className="border px-2 py-1 w-full rounded" required />
+          <label className="block mb-1">Codigo</label>
+          <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} className="border px-2 py-1 w-full rounded" required />
         </div>
         <div>
           <label className="block mb-1">Nombre</label>
-          <input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} className="border px-2 py-1 w-full rounded" required />
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="border px-2 py-1 w-full rounded" required />
         </div>
         <label className="flex items-center gap-2">
-          <input type="checkbox" checked={form.activo} onChange={(e) => setForm({ ...form, activo: e.target.checked })} />
+          <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
           Activo
         </label>
         <div className="pt-2">

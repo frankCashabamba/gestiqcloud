@@ -8,12 +8,12 @@ from pydantic import BaseModel, ConfigDict
 class CompanySettingsBase(BaseModel):
     """Class CompanySettingsBase - auto-generated docstring."""
 
-    default_language: str | None = "en"
-    timezone: str | None = "UTC"
-    currency: str | None = "USD"
+    default_language: str | None = None
+    timezone: str | None = None
+    currency: str | None = None
     company_logo: str | None = None
-    primary_color: str | None = "#4f46e5"
-    secondary_color: str | None = "#6c757d"
+    primary_color: str | None = None
+    secondary_color: str | None = None
 
 
 class CompanySettingsCreate(CompanySettingsBase):

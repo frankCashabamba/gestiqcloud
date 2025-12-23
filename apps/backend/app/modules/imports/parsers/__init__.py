@@ -10,6 +10,7 @@ class DocType(Enum):
     BANK_TRANSACTIONS = "bank_transactions"
     INVOICES = "invoices"
     EXPENSES = "expenses"
+    RECIPES = "recipes"
     GENERIC = "generic"
 
 
@@ -53,9 +54,14 @@ def _register_parsers():
     from .generic_excel import parse_excel_generic
     from .pdf_qr import parse_pdf_qr
     from .products_excel import parse_products_excel
+    from .xlsx_bank import parse_xlsx_bank
     from .xlsx_expenses import parse_xlsx_expenses
+    from .xlsx_invoices import parse_xlsx_invoices
     from .xml_camt053_bank import parse_xml_camt053_bank
     from .xml_invoice import parse_xml_invoice
+    from .xlsx_recipes import parse_xlsx_recipes
+    from .pdf_ocr import parse_pdf_ocr
+    from .xml_facturae import parse_facturae
     from .xml_products import parse_xml_products
 
     registry.register(
@@ -80,6 +86,12 @@ def _register_parsers():
         "csv_products", DocType.PRODUCTS, parse_csv_products, "CSV parser for product data"
     )
     registry.register(
+        "xlsx_bank",
+        DocType.BANK_TRANSACTIONS,
+        parse_xlsx_bank,
+        "Excel/XLS parser for bank transactions",
+    )
+    registry.register(
         "xml_invoice", DocType.INVOICES, parse_xml_invoice, "XML parser for UBL/CFDI invoices"
     )
     registry.register(
@@ -98,10 +110,34 @@ def _register_parsers():
         "Excel parser for expense and receipt data",
     )
     registry.register(
+        "xlsx_invoices",
+        DocType.INVOICES,
+        parse_xlsx_invoices,
+        "Excel parser for invoices data",
+    )
+    registry.register(
         "pdf_qr",
         DocType.INVOICES,
         parse_pdf_qr,
         "PDF parser with QR code extraction for invoices and receipts",
+    )
+    registry.register(
+        "xlsx_recipes",
+        DocType.RECIPES,
+        parse_xlsx_recipes,
+        "Excel parser for recipe costing sheets with ingredients and pricing",
+    )
+    registry.register(
+        "xml_facturae",
+        DocType.INVOICES,
+        parse_facturae,
+        "Spanish Facturae XML parser for electronic invoices (gob.es format)",
+    )
+    registry.register(
+        "pdf_ocr",
+        DocType.GENERIC,
+        parse_pdf_ocr,
+        "PDF parser with OCR for tickets, receipts, invoices and general documents",
     )
 
 

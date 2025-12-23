@@ -73,7 +73,8 @@ export function createClient(cfg: ClientConfig): AxiosInstance {
       const resp = error.response
       const cfgRes = (error.config || {}) as Cfg
 
-      if (resp?.status === 401 && cfgRes.retryOn401 && !cfgRes._retry) {
+      const hadToken = !!getToken()
+      if (resp?.status === 401 && cfgRes.retryOn401 && !cfgRes._retry && hadToken) {
         cfgRes._retry = true
 
         if (isRefreshing) {

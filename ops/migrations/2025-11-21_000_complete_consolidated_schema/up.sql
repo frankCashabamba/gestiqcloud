@@ -125,6 +125,7 @@ CREATE TABLE IF NOT EXISTS auth_audit (
 
 
 CREATE TABLE IF NOT EXISTS auth_user (
+		--no debe tener tenant_id
 	id UUID DEFAULT gen_random_uuid() NOT NULL,
 	username VARCHAR(150) NOT NULL,
 	email VARCHAR(254) NOT NULL,
@@ -219,6 +220,7 @@ CREATE TABLE IF NOT EXISTS locales (
 
 
 CREATE TABLE IF NOT EXISTS modules (
+		--no debe tener tenant_id
 	id UUID NOT NULL,
 	name VARCHAR(100) NOT NULL,
 	description TEXT,
@@ -328,8 +330,8 @@ CREATE TABLE IF NOT EXISTS bank_movements (
 
 
 CREATE TABLE IF NOT EXISTS business_categories (
+	--no debe tener tenant_id
 	id UUID NOT NULL,
-	tenant_id UUID,
 	code VARCHAR(50),
 	name VARCHAR(100) NOT NULL,
 	description TEXT,
@@ -437,6 +439,9 @@ CREATE TABLE IF NOT EXISTS company_settings (
 	updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
 	language_id INTEGER,
 	currency_id INTEGER,
+	settings JSONB,
+	pos_config JSONB,
+	invoice_config JSONB,
 	PRIMARY KEY (id)
 );
 
@@ -574,8 +579,8 @@ CREATE TABLE IF NOT EXISTS public.cash_closings (
 
 
 CREATE TABLE IF NOT EXISTS sector_templates (
+	--no debe tener tenant_id
 	id UUID NOT NULL,
-	tenant_id UUID,
 	code VARCHAR(50),
 	name VARCHAR(100) NOT NULL,
 	description TEXT,
@@ -605,18 +610,7 @@ CREATE TABLE IF NOT EXISTS suppliers (
 );
 
 
-CREATE TABLE IF NOT EXISTS tenant_settings (
-	id UUID NOT NULL,
-	tenant_id UUID NOT NULL,
-	settings JSONB NOT NULL,
-	pos_config JSONB,
-	invoice_config JSONB,
-	locale VARCHAR(10) NOT NULL,
-	timezone VARCHAR(50) NOT NULL,
-	currency VARCHAR(3) NOT NULL,
-	updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-	PRIMARY KEY (id)
-);
+
 
 
 CREATE TABLE IF NOT EXISTS warehouses (
@@ -1335,10 +1329,8 @@ CREATE INDEX IF NOT EXISTS idx_pos_registers_tenant_id ON pos_registers(tenant_i
 CREATE INDEX IF NOT EXISTS idx_pos_receipts_tenant_id ON pos_receipts(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_tenant_id ON invoices(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_business_types_tenant_id ON business_types(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_business_categories_tenant_id ON business_categories(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_company_categories_tenant_id ON company_categories(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_user_profiles_tenant_id ON user_profiles(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_sector_templates_tenant_id ON sector_templates(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_purchase_lines_purchase_id ON purchase_lines(purchase_id);
 CREATE INDEX IF NOT EXISTS idx_purchase_lines_product_id ON purchase_lines(product_id);
 CREATE INDEX IF NOT EXISTS idx_pos_receipt_lines_receipt_id ON pos_receipt_lines(receipt_id);

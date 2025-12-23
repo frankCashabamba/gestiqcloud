@@ -128,6 +128,7 @@ export interface ShiftSummary {
   }>
   sales_total: number
   receipts_count: number
+  payments?: Record<string, number>
 }
 
 export interface ReceiptCreateRequest {

@@ -67,8 +67,8 @@ export default function ModuleManagement() {
         <tbody>
           {modulos.map((m) => (
             <tr key={m.id} className="border-t">
-              <td className="py-2 px-3">{m.nombre}</td>
-              <td className="py-2 px-3">{m.icono || '-'}</td>
+              <td className="py-2 px-3">{m.name}</td>
+              <td className="py-2 px-3">{m.icon || '-'}</td>
               <td className="py-2 px-3">
                 <Link to={`editar/${m.id}`} className="text-blue-600 hover:underline mr-3">Editar</Link>
                 {m.activo ? (

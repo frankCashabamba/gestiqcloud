@@ -14,28 +14,40 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.db.rls import set_tenant_guc, tenant_id_sql_expr_text
+from app.models.company.company import SectorTemplate
+from app.models.tenant import Tenant
 
 router = APIRouter(prefix="/dashboard/kpis", tags=["Dashboard KPIs"])
 logger = logging.getLogger("app.dashboard_kpis")
 
 
-@router.get("/{sector}")
-def get_sector_kpis(
-    sector: str,
-    db: Session = Depends(get_db),
-    claims: dict = Depends(with_access_claims),
-) -> dict[str, Any]:
-    """
-    Retorna KPIs específicos para cada sector de negocio.
-    Datos REALES desde las tablas del sistema.
-    """
-    tenant_id = claims.get("tenant_id")
-    if not tenant_id:
-        raise HTTPException(status_code=401, detail="tenant_id required")
+def _resolve_sector(sector: str | None, tenant: Tenant | None) -> str:
+    if sector:
+        return sector.lower()
+    if tenant and tenant.sector_template_name:
+        return tenant.sector_template_name.strip().lower()
+    return "default"
 
-    # Activar RLS
-    set_tenant_guc(db, tenant_id)
-    tenant_id = str(tenant_id)
+
+def _resolve_sector_currency(db: Session, sector_code: str, fallback: str = "EUR") -> str:
+    tpl = (
+        db.query(SectorTemplate)
+        .filter(SectorTemplate.code == sector_code, SectorTemplate.is_active == True)  # noqa: E712
+        .first()
+    )
+    if not tpl:
+        return fallback
+    config = tpl.template_config or {}
+    defaults = config.get("defaults", {}) or {}
+    return defaults.get("currency", fallback)
+
+
+def _sector_kpis_payload(
+    sector: str,
+    tenant_id: str,
+    db: Session,
+    currency: str,
+) -> dict[str, Any]:
     tenant_expr = tenant_id_sql_expr_text()
 
     def tenant_clause(field: str = "tenant_id") -> str:
@@ -149,7 +161,7 @@ def get_sector_kpis(
                 "hoy": float(ventas_hoy),
                 "ayer": float(ventas_ayer),
                 "variacion": round(variacion, 1),
-                "moneda": "EUR",
+                "moneda": currency,
             },
             "stock_critico": {
                 "items": stock_critico[0] if stock_critico else 0,
@@ -160,7 +172,7 @@ def get_sector_kpis(
                 "hoy": float(mermas[0]) if mermas else 0.0,
                 "unidad": "kg",
                 "valor_estimado": 0.0,
-                "moneda": "EUR",
+                "moneda": currency,
             },
             "produccion": {
                 "hornadas_completadas": 0,
@@ -259,7 +271,7 @@ def get_sector_kpis(
                 "actual": float(ingresos_mes),
                 "objetivo": 6000.00,
                 "progreso": round((ingresos_mes / 6000.00 * 100), 1) if ingresos_mes > 0 else 0.0,
-                "moneda": "EUR",
+                "moneda": currency,
             },
             "repuestos_bajo_stock": {
                 "items": repuestos[0] if repuestos else 0,
@@ -330,7 +342,7 @@ def get_sector_kpis(
                 "total": total_hoy,
                 "tickets": tickets_hoy,
                 "ticket_medio": round(ticket_medio, 2),
-                "moneda": "EUR",
+                "moneda": currency,
             },
             "stock_rotacion": {
                 "productos_alta_rotacion": 0,
@@ -341,7 +353,7 @@ def get_sector_kpis(
                 "actual": float(ventas_semana),
                 "anterior": 0.0,
                 "variacion": 0.0,
-                "moneda": "EUR",
+                "moneda": currency,
             },
         }
 
@@ -399,8 +411,54 @@ def get_sector_kpis(
             "ventas_hoy": {
                 "total": float(ventas_pos + ventas_facturas),
                 "tickets": int(tickets_count),
-                "moneda": "EUR",
+                "moneda": currency,
             },
             "clientes_nuevos": {"mes": 0, "semana": 0},
             "mensaje": "Dashboard genérico. Selecciona una plantilla de sector para KPIs específicos.",
         }
+
+
+@router.get("")
+def get_current_sector_kpis(
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+    sector: str | None = None,
+) -> dict[str, Any]:
+    """
+    KPIs para el sector del tenant actual (sin hardcodear la ruta).
+    """
+    tenant_id = claims.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="tenant_id required")
+
+    tenant = db.get(Tenant, tenant_id)
+    sector_code = _resolve_sector(sector, tenant)
+
+    # Activar RLS
+    set_tenant_guc(db, tenant_id)
+    currency = _resolve_sector_currency(db, sector_code)
+
+    return _sector_kpis_payload(sector_code, str(tenant_id), db, currency)
+
+
+@router.get("/{sector}")
+def get_sector_kpis(
+    sector: str,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+) -> dict[str, Any]:
+    """
+    Retorna KPIs específicos para cada sector de negocio.
+    Datos REALES desde las tablas del sistema.
+    """
+    tenant_id = claims.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="tenant_id required")
+
+    # Activar RLS
+    set_tenant_guc(db, tenant_id)
+    tenant = db.get(Tenant, tenant_id)
+    sector_code = _resolve_sector(sector, tenant)
+    currency = _resolve_sector_currency(db, sector_code)
+
+    return _sector_kpis_payload(sector_code, str(tenant_id), db, currency)

@@ -2,23 +2,26 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from uuid import UUID
 
 
 @dataclass
 class SectorPlantillaIn:
-    sector_name: str
-    business_type_id: int | None = None
-    business_category_id: int | None = None
+    name: str
+    code: str | None = None
+    description: str | None = None
     template_config: dict = field(default_factory=dict)
     active: bool = True
 
 
 @dataclass
 class SectorPlantillaOut:
-    id: int
-    sector_name: str
-    business_type_id: int | None
-    business_category_id: int | None
+    id: UUID
+    name: str
+    code: str | None
+    description: str | None
     template_config: dict
     active: bool
     created_at: datetime
+    updated_at: datetime
+    config_version: int | None = None

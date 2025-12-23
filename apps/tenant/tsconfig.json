@@ -44,6 +44,10 @@
       "@shared/utils/*": ["../packages/utils/src/*"],
       "@shared/telemetry": ["../packages/telemetry/src"],
       "@shared/telemetry/*": ["../packages/telemetry/src/*"],
+      "@endpoints": ["../packages/endpoints/src"],
+      "@endpoints/*": ["../packages/endpoints/src/*"],
+      "@api-types": ["../packages/api-types/src"],
+      "@api-types/*": ["../packages/api-types/src/*"],
 
       "zod": ["../packages/zod/index.ts"],
 

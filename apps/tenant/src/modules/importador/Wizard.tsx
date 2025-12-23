@@ -4,54 +4,52 @@
  * - Resumen con toggle "Modo automático" (activa, crea almacén y aplica stock)
  * - promote del batch con flags
  */
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../auth/AuthContext'
 
 import VistaPreviaTabla from './components/VistaPreviaTabla'
 import ResumenImportacion from './components/ResumenImportacion'
 import { ClassificationSuggestion } from './components/ClassificationSuggestion'
+import { AnalysisResult } from './components/AnalysisResult'
 import { AIProviderSettings } from './components/AIProviderSettings'
 import { ImportProgressIndicator } from './components/ImportProgressIndicator'
+import { ConfirmParserModal } from './components/ConfirmParserModal'
 import { useImportProgress } from './hooks/useImportProgress'
 import { getAliasSugeridos } from './utils/aliasCampos'
 import { autoMapeoColumnas } from './services/autoMapeoColumnas'
-import { detectarTipoDocumento } from './utils/detectarTipoDocumento'
+import { detectarTipoDocumento, type ImportDocType } from './utils/detectarTipoDocumento'
 import { normalizarDocumento } from './utils/normalizarDocumento'
-import { createBatch, ingestBatch } from './services/importsApi'
+import { createBatch, ingestBatch, confirmBatch, processDocument, pollOcrJob } from './services/importsApi'
 import { useClassifyFile } from './hooks/useClassifyFile'
+import { useAnalyzeFile } from './hooks/useAnalyzeFile'
 import { useParserRegistry } from './hooks/useParserRegistry'
+import { useEntityConfig } from './hooks/useEntityConfig'
 
 type Row = Record<string, string>
 type Step = 'upload' | 'preview' | 'mapping' | 'validate' | 'summary' | 'importing'
-type DocType = 'generico' | 'products'
+type DocType = ImportDocType
 
-function parseCSV(text: string): { headers: string[]; rows: Row[] } {
-    const lines = text.split(/\r?\n/).filter(Boolean)
-    if (lines.length === 0) return { headers: [], rows: [] }
-    const headers = lines[0].split(',').map((h) => h.trim())
-    const rows = lines.slice(1).map((line) => {
-        const cols = line.split(',')
-        const row: Row = {}
-        headers.forEach((h, i) => (row[h] = (cols[i] ?? '').trim()))
-        return row
-    })
-    return { headers, rows }
-}
+import { parseCSV } from './services/parseCSVFile'
 
 const CAMPOS_OBJETIVO = ['nombre', 'precio'] as const
-type CampoObjetivo = typeof CAMPOS_OBJETIVO[number]
 
-export default function ImportadorWizard() {
+function ImportadorWizard() {
     const { token } = useAuth() as { token: string | null }
     const { classify, loading: classifying, result: classificationResult, error: classificationError, confidence } = useClassifyFile()
+    const { analyze, loading: analyzing, result: analysisResult, error: analysisError, requiresConfirmation } = useAnalyzeFile()
     const { registry: parserRegistry } = useParserRegistry(token || undefined)
+    const { config: entityConfig } = useEntityConfig({ module: 'products' })
+
+    const camposObjetivo = useMemo(() => {
+        return entityConfig?.fields.map((f) => f.field) ?? Array.from(CAMPOS_OBJETIVO)
+    }, [entityConfig])
 
     // Estados del wizard
     const [step, setStep] = useState<Step>('upload')
     const [fileName, setFileName] = useState('')
     const [headers, setHeaders] = useState<string[]>([])
     const [rows, setRows] = useState<Row[]>([])
-    const [mapa, setMapa] = useState<Partial<Record<CampoObjetivo, string>>>({})
+    const [mapa, setMapa] = useState<Partial<Record<string, string>>>({})
     const [errores, setErrores] = useState<string[]>([])
     const [docType, setDocType] = useState<DocType>('products')
     const [currentFile, setCurrentFile] = useState<File | null>(null)
@@ -69,11 +67,27 @@ export default function ImportadorWizard() {
     // Sprint 2: Override manual del parser
     const [selectedParser, setSelectedParser] = useState<string | null>(null)
 
+    // Confirmation modal state
+    const [showConfirmModal, setShowConfirmModal] = useState(false)
+    const [pendingBatchId, setPendingBatchId] = useState<string | null>(null)
+
     // Sprint 3: WebSocket progress
     const { progress, progressPercent, isConnected, error: wsError } = useImportProgress({
         batchId: batchId || undefined,
         token: token || undefined
     })
+
+    // Estado para OCR de PDFs
+    const [ocrLoading, setOcrLoading] = useState(false)
+    const [ocrError, setOcrError] = useState<string | null>(null)
+
+    // Helper para detectar si es PDF/imagen
+    const isPdfOrImage = (file: File) => {
+        const name = file.name.toLowerCase()
+        const type = file.type.toLowerCase()
+        return name.endsWith('.pdf') || type === 'application/pdf' ||
+               type.startsWith('image/') || /\.(png|jpg|jpeg|tiff|bmp|gif)$/i.test(name)
+    }
 
     // Upload handler with AI classification
     const onFile: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
@@ -81,23 +95,89 @@ export default function ImportadorWizard() {
         if (!f) return
         setFileName(f.name)
         setCurrentFile(f)
+        setOcrError(null)
 
-        // Parse CSV
+        // Si es PDF o imagen, usar flujo OCR del backend
+        if (isPdfOrImage(f)) {
+            setOcrLoading(true)
+            try {
+                // 1) Enviar al backend para OCR
+                const result = await processDocument(f, token || undefined)
+                
+                // 2) Poll hasta que termine
+                let ocrResult = result
+                let attempts = 0
+                const maxAttempts = 30
+                while (ocrResult.status === 'pending' && attempts < maxAttempts) {
+                    await new Promise(r => setTimeout(r, 2000))
+                    ocrResult = await pollOcrJob(ocrResult.jobId, token || undefined)
+                    attempts++
+                }
+
+                if (ocrResult.status === 'done' && ocrResult.payload?.documentos?.length) {
+                    // Convertir documentos OCR a rows para el wizard
+                    const docs = ocrResult.payload.documentos
+                    const ocrRows = docs.map((doc: any, idx: number) => ({
+                        _idx: idx + 1,
+                        tipo: doc.tipo || doc.documentoTipo || 'ticket_pos',
+                        fecha: doc.fecha || doc.issue_date || '',
+                        importe: doc.importe || doc.total || 0,
+                        concepto: doc.concepto || doc.description || 'Documento OCR',
+                        invoice: doc.invoice || doc.invoice_number || '',
+                        categoria: doc.categoria || 'ventas',
+                        ...doc,
+                    }))
+                    
+                    const ocrHeaders = ocrRows.length > 0 ? Object.keys(ocrRows[0]) : ['fecha', 'importe', 'concepto']
+                    setHeaders(ocrHeaders)
+                    setRows(ocrRows)
+                    setDocType('expenses')
+                    
+                    // Auto-mapeo
+                    const sugeridos = autoMapeoColumnas(ocrHeaders, getAliasSugeridos(entityConfig || undefined))
+                    setMapa(sugeridos as any)
+                } else {
+                    throw new Error('OCR no devolvió documentos')
+                }
+            } catch (err: any) {
+                console.error('OCR failed:', err)
+                setOcrError(err?.message || 'Error procesando PDF/imagen')
+                setHeaders([])
+                setRows([])
+            } finally {
+                setOcrLoading(false)
+            }
+            setStep('preview')
+            return
+        }
+
+        // Para CSV/Excel, usar flujo normal
         const text = await f.text()
         const { headers: hs, rows: rs } = parseCSV(text)
         setHeaders(hs)
         setRows(rs)
 
         // Auto-mapeo inicial y tipo
-        const sugeridos = autoMapeoColumnas(hs, getAliasSugeridos())
+        const sugeridos = autoMapeoColumnas(hs, getAliasSugeridos(entityConfig || undefined))
         setMapa(sugeridos as any)
-        setDocType(detectarTipoDocumento(hs) as DocType || 'products')
+        setDocType(detectarTipoDocumento(hs) || 'products')
 
-        // Clasificar archivo con IA
+        // Analizar archivo con nuevo endpoint unificado
         try {
-            await classify(f)
+            const result = await analyze(f)
+            if (result?.mapping_suggestion) {
+                setMapa(prev => ({ ...prev, ...result.mapping_suggestion }))
+            }
+            if (result?.suggested_doc_type) {
+                setDocType(result.suggested_doc_type as DocType)
+            }
         } catch (err) {
-            console.warn('IA classification failed, using heuristic:', err)
+            console.warn('Analysis failed, falling back to classification:', err)
+            try {
+                await classify(f)
+            } catch (classifyErr) {
+                console.warn('Classification also failed:', classifyErr)
+            }
         }
 
         setStep('preview')
@@ -105,6 +185,13 @@ export default function ImportadorWizard() {
 
     const previewHeaders = useMemo(() => headers, [headers])
     const previewRows = useMemo(() => rows.slice(0, 50), [rows])
+
+    // Recalcular sugerencias si llega config dinámica después de haber cargado headers
+    useEffect(() => {
+        if (!headers.length || !entityConfig) return
+        const sugeridos = autoMapeoColumnas(headers, getAliasSugeridos(entityConfig))
+        setMapa((prev) => Object.keys(prev || {}).length ? prev : (sugeridos as any))
+    }, [headers, entityConfig])
 
     const continuar = () => {
         if (step === 'upload') setStep('preview')
@@ -123,13 +210,24 @@ export default function ImportadorWizard() {
 
     const runValidation = () => {
         const errs: string[] = []
-        CAMPOS_OBJETIVO.forEach((c) => { if (!mapa[c]) errs.push(`Falta mapear: ${c}`) })
-        if (rows.length === 0) errs.push('El archivo no contiene filas')
-        if (rows.length > 10000) errs.push('Máximo 10,000 filas por importación')
+        camposObjetivo.forEach((c) => { if (!mapa[c]) errs.push(`Missing mapping: ${c}`) })
+        if (rows.length === 0) errs.push('File has no rows')
+        if (rows.length > 10000) errs.push('Max 10,000 rows per import')
         setErrores(errs)
     }
 
     async function onImportAll() {
+        // Check if confirmation is required (low confidence and not yet confirmed via parser selection)
+        const needsConfirmation = requiresConfirmation && !selectedParser
+        if (needsConfirmation) {
+            setShowConfirmModal(true)
+            return
+        }
+
+        await executeImport()
+    }
+
+    async function executeImport(confirmedParser?: string) {
         setSaveError(null)
         setSavedCount(0)
         setSaving(true)
@@ -137,26 +235,40 @@ export default function ImportadorWizard() {
         try {
             const docs = normalizarDocumento(rows, mapa as any)
             // 1) Crear batch real con clasificación
+            // Usar doc_type detectado/sugerido en lugar de hardcodear 'products'
+            const effectiveDocType = analysisResult?.suggested_doc_type || docType || 'products'
+            const effectiveParser = confirmedParser || selectedParser
             const batchPayload: any = {
-                source_type: 'products',
+                source_type: effectiveDocType,
                 origin: 'excel_ui'
             }
-            // Incluir campos de clasificación si están disponibles
-             if (classificationResult) {
-                 // Sprint 2: usar override manual si existe, sino usar sugerencia
-                 batchPayload.suggested_parser = selectedParser || classificationResult.suggested_parser
-                 batchPayload.classification_confidence = classificationResult.confidence
-                 batchPayload.ai_enhanced = classificationResult.enhanced_by_ai
-                 batchPayload.ai_provider = classificationResult.ai_provider
-             }
+            // Incluir campos de clasificación/análisis si están disponibles
+            if (analysisResult) {
+                batchPayload.suggested_parser = effectiveParser || analysisResult.suggested_parser
+                batchPayload.classification_confidence = analysisResult.confidence
+                batchPayload.ai_enhanced = analysisResult.ai_enhanced
+                batchPayload.ai_provider = analysisResult.ai_provider
+                batchPayload.suggested_doc_type = analysisResult.suggested_doc_type
+            } else if (classificationResult) {
+                batchPayload.suggested_parser = effectiveParser || classificationResult.suggested_parser
+                batchPayload.classification_confidence = classificationResult.confidence
+                batchPayload.ai_enhanced = classificationResult.enhanced_by_ai
+                batchPayload.ai_provider = classificationResult.ai_provider
+            }
             const batch = await createBatch(batchPayload, token || undefined)
             setBatchId(batch.id)
+
+            // If batch requires confirmation, confirm it first
+            if (batch.requires_confirmation && effectiveParser) {
+                await confirmBatch(batch.id, { parser_id: effectiveParser }, token || undefined)
+            }
+
             // 2) Ingestar filas
             await ingestBatch(batch.id, { rows: docs }, token || undefined, null)
             setSavedCount(docs.length)
             // 3) Promover con flags automáticos
             try {
-                const url = new URL(`/api/v1/imports/batches/${batch.id}/promote`, window.location.origin)
+                const url = new URL(`/api/v1/tenant/imports/batches/${batch.id}/promote`, window.location.origin)
                 if (autoMode) {
                     url.searchParams.set('auto', '1')
                     url.searchParams.set('target_warehouse', targetWarehouse || 'ALM-1')
@@ -171,10 +283,16 @@ export default function ImportadorWizard() {
                 }
             } catch { /* ignore */ }
         } catch (e: any) {
-            setSaveError(e?.message || 'Error al importar')
+            setSaveError(e?.message || 'Import error')
         } finally {
             setSaving(false)
         }
+    }
+
+    async function handleConfirmParser(parserId: string, mappingId?: string | null) {
+        setSelectedParser(parserId)
+        setShowConfirmModal(false)
+        await executeImport(parserId)
     }
 
     const resetWizard = () => {
@@ -191,10 +309,10 @@ export default function ImportadorWizard() {
                     {[
                         { key: 'upload', label: '1. Upload' },
                         { key: 'preview', label: '2. Preview' },
-                        { key: 'mapping', label: '3. Mapeo' },
-                        { key: 'validate', label: '4. Validación' },
-                        { key: 'summary', label: '5. Resumen' },
-                        { key: 'importing', label: '6. Importando' },
+                        { key: 'mapping', label: '3. Mapping' },
+                        { key: 'validate', label: '4. Validation' },
+                        { key: 'summary', label: '5. Summary' },
+                        { key: 'importing', label: '6. Importing' },
                     ].map((s, idx) => (
                         <React.Fragment key={s.key}>
                             <div className={`flex items-center gap-2 ${step === s.key ? 'text-blue-600 font-semibold' : idx < ['upload', 'preview', 'mapping', 'validate', 'summary', 'importing'].indexOf(step) ? 'text-green-600' : 'text-gray-400'}`}>
@@ -210,22 +328,37 @@ export default function ImportadorWizard() {
             </div>
 
             <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold">Asistente de Importación</h2>
+                <h2 className="text-2xl font-bold">Import Assistant</h2>
                 <AIProviderSettings />
             </div>
 
             {/* Upload */}
             {step === 'upload' && (
                 <div className="space-y-4 max-w-xl">
-                    <p className="text-gray-600">Selecciona un archivo CSV (o exporta Excel como CSV) para comenzar.</p>
+                    <p className="text-gray-600">Select a file to import (CSV, Excel, PDF, or image).</p>
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition">
-                        <input type="file" accept=".csv" onChange={onFile} className="hidden" id="file-upload" />
-                        <label htmlFor="file-upload" className="cursor-pointer block">
-                            <div className="text-4xl mb-2">📥</div>
-                            <div className="text-blue-600 font-medium">Haz clic para seleccionar archivo</div>
-                            <div className="text-sm text-gray-500 mt-1">Formato: CSV (coma)</div>
+                        <input type="file" accept=".csv,.xlsx,.xls,.pdf,.png,.jpg,.jpeg,.tiff,.bmp" onChange={onFile} className="hidden" id="file-upload" disabled={ocrLoading} />
+                        <label htmlFor="file-upload" className={`cursor-pointer block ${ocrLoading ? 'opacity-50' : ''}`}>
+                            {ocrLoading ? (
+                                <>
+                                    <div className="text-4xl mb-2 animate-spin">⏳</div>
+                                    <div className="text-blue-600 font-medium">Processing with OCR...</div>
+                                    <div className="text-sm text-gray-500 mt-1">This may take a moment</div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="text-4xl mb-2">📥</div>
+                                    <div className="text-blue-600 font-medium">Click to choose file</div>
+                                    <div className="text-sm text-gray-500 mt-1">CSV, Excel, PDF, or images</div>
+                                </>
+                            )}
                         </label>
                     </div>
+                    {ocrError && (
+                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                            {ocrError}
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -233,16 +366,28 @@ export default function ImportadorWizard() {
             {step === 'preview' && (
                 <div className="space-y-4">
                     <div className="bg-blue-50 border border-blue-200 px-4 py-3 rounded">
-                        Archivo: <strong>{fileName}</strong> • {rows.length.toLocaleString()} filas • {headers.length} columnas
+                        File: <strong>{fileName}</strong> • {rows.length.toLocaleString()} rows • {headers.length} columns
                     </div>
 
-                    {/* AI Classification Suggestion */}
-                    <ClassificationSuggestion
-                        result={classificationResult}
-                        loading={classifying}
-                        error={classificationError}
-                        confidence={confidence}
-                    />
+                    {/* Unified Analysis Result (preferred) */}
+                    {(analysisResult || analyzing || analysisError) ? (
+                        <AnalysisResult
+                            result={analysisResult}
+                            loading={analyzing}
+                            error={analysisError}
+                            selectedParser={selectedParser}
+                            onParserChange={setSelectedParser}
+                            onConfirm={continuar}
+                        />
+                    ) : (
+                        /* Fallback: AI Classification Suggestion */
+                        <ClassificationSuggestion
+                            result={classificationResult}
+                            loading={classifying}
+                            error={classificationError}
+                            confidence={confidence}
+                        />
+                    )}
 
                     <VistaPreviaTabla headers={previewHeaders} rows={previewRows} />
                     <div className="flex gap-2">
@@ -381,6 +526,34 @@ export default function ImportadorWizard() {
                     )}
                 </div>
             )}
+
+            {/* Confirmation Modal for low confidence */}
+            <ConfirmParserModal
+                isOpen={showConfirmModal}
+                onClose={() => setShowConfirmModal(false)}
+                onConfirm={handleConfirmParser}
+                classificationResult={analysisResult ? {
+                    suggested_parser: analysisResult.suggested_parser,
+                    confidence: analysisResult.confidence,
+                    reason: analysisResult.explanation,
+                    enhanced_by_ai: analysisResult.ai_enhanced,
+                    ai_provider: analysisResult.ai_provider,
+                    probabilities: analysisResult.probabilities ?? undefined,
+                    available_parsers: analysisResult.available_parsers,
+                } : classificationResult ? {
+                    suggested_parser: classificationResult.suggested_parser,
+                    confidence: classificationResult.confidence,
+                    reason: classificationResult.reason,
+                    enhanced_by_ai: classificationResult.enhanced_by_ai,
+                    ai_provider: classificationResult.ai_provider,
+                    probabilities: classificationResult.probabilities ?? undefined,
+                    available_parsers: classificationResult.available_parsers,
+                } : null}
+                parserRegistry={parserRegistry}
+                loading={saving}
+            />
         </div>
     )
 }
+
+export default ImportadorWizard

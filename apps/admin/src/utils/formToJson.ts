@@ -8,13 +8,10 @@ export function buildEmpresaPayload(f: FormularioEmpresa) {
   if (f.config_json && f.config_json.trim()) {
     try { cfg = JSON.parse(f.config_json) } catch { cfg = undefined }
   }
-  const extra: any = {}
-  if (f.tipo_empresa) extra.tipo_empresa = f.tipo_empresa
-  if (f.tipo_negocio) extra.tipo_negocio = f.tipo_negocio
-  const config_json = { ...(cfg || {}), ...extra }
+  const config_json = { ...(cfg || {}) }
   return {
     name: f.nombre_empresa?.trim(),
-    initial_template: f.plantilla_inicio || 'cliente',
+    initial_template: f.plantilla_inicio || undefined,
     tax_id: f.ruc?.trim(),
     phone: f.telefono?.trim(),
     address: f.direccion?.trim(),
@@ -22,9 +19,13 @@ export function buildEmpresaPayload(f: FormularioEmpresa) {
     state: f.provincia?.trim(),
     cp: f.cp?.trim(),
     country: f.pais?.trim(),
+    country_code: f.country_code?.trim(),
     website: f.sitio_web?.trim(),
-    primary_color: f.color_primario || '#4f46e5',
+    primary_color: f.color_primario || undefined,
     config_json,
+    default_language: f.default_language?.trim(),
+    timezone: f.timezone?.trim(),
+    currency: f.currency?.trim(),
   }
 }
 
@@ -38,20 +39,23 @@ export async function fileToDataUrl(file: File): Promise<string> {
 }
 
 export async function buildEmpresaCompletaPayload(f: FormularioEmpresa) {
-  const empresa = buildEmpresaPayload(f)
+  const company = buildEmpresaPayload(f)
   const admin = {
-    nombre_encargado: f.nombre_encargado,
-    apellido_encargado: f.apellido_encargado,
-    email: f.email,
-    username: f.username,
+    first_name: f.nombre_encargado?.trim(),
+    last_name: [f.apellido_encargado, f.segundo_apellido_encargado].filter(Boolean).join(' ').trim(),
+    email: f.email?.trim(),
+    username: f.username?.trim(),
     password: f.password,
   }
-  const modulos = f.modulos || []
+  // IDs de módulos via API son UUID; normalizamos a strings para el backend (que ahora acepta UUID/str)
+  const modulos = (f.modulos || []).map((m) => (m == null ? '' : String(m).trim()))
+  // filtramos vacíos pero mantenemos el tipo string para que Pydantic los convierta a UUID
+  .filter((m) => !!m)
   let logo: { data: string; filename?: string; content_type?: string } | undefined
   if (f.logo instanceof File) {
     const data = await fileToDataUrl(f.logo)
     logo = { data, filename: f.logo.name }
   }
   const sectorPayload = f.sector_plantilla_id ? { sector_plantilla_id: f.sector_plantilla_id } : {}
-  return { empresa, admin, modulos, ...(logo ? { logo } : {}), ...sectorPayload }
+  return { company, admin, modulos, ...(logo ? { logo } : {}), ...sectorPayload }
 }

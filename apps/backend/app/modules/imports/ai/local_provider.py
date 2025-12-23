@@ -148,34 +148,76 @@ class LocalAIProvider(AIProvider):
         expected_fields: list[str],
     ) -> dict[str, Any]:
         """
-        Extract fields using regex patterns.
+        Extract fields using local heuristics (regex + simples reglas).
 
-        Args:
-            text: Document text
-            doc_type: Document type (invoice, receipt, etc.)
-            expected_fields: Field names to extract
-
-        Returns:
-            Dict with extracted values
+        Nota: esto es offline, sin coste, y sirve para rellenar campos mínimos
+        (fecha, importe, concepto, cliente, categoría) para evitar ERROR_VALIDATION.
         """
         extracted: dict[str, Any] = {}
-        text_lower = text.lower()
+        text_norm = text[:6000]  # limitar ruido
+        text_lower = text_norm.lower()
 
-        for field in expected_fields:
-            pattern = self.FIELD_PATTERNS.get(field)
-            if not pattern:
-                continue
+        # Fecha: varios formatos comunes
+        date_patterns = [
+            r"\b\d{2}[/-]\d{2}[/-]\d{4}\b",  # 12/08/2025
+            r"\b\d{4}[/-]\d{2}[/-]\d{2}\b",  # 2025-08-12
+            r"(?:\d{1,2})\s*(?:de)?\s*(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s*\d{4}",
+            r"(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}",
+        ]
+        for pat in date_patterns:
+            m = re.search(pat, text_norm, re.IGNORECASE)
+            if m:
+                extracted["fecha"] = m.group(0)
+                break
 
-            match = re.search(pattern, text_lower, re.IGNORECASE)
-            if match:
-                # Get last group (usually the value)
-                groups = match.groups()
-                if groups:
-                    extracted[field] = groups[-1]
-                else:
-                    extracted[field] = match.group(0)
+        # Importe: tomar el número con mayor valor absoluto con dos decimales
+        amount_pattern = r"-?\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})"
+        candidates = re.findall(amount_pattern, text_norm)
+        if candidates:
+            try:
+                # normalizar a float y escoger el máximo absoluto
+                parsed = [
+                    (c, float(c.replace(".", "").replace(",", ".") if c.count(",") == 1 else c.replace(",", "")))
+                    for c in candidates
+                ]
+                best = max(parsed, key=lambda x: abs(x[1]))
+                extracted["importe"] = best[1]
+            except Exception:
+                pass
 
-        return extracted
+        # Concepto: línea con "concepto"/"description"/"detalle" o primer texto largo
+        concept_match = re.search(
+            r"(?i)(concepto|descripcion|description|detalle)[:\-]?\s*(.+)", text_norm.splitlines().__str__()
+        )
+        if concept_match and concept_match.group(2):
+            extracted["concepto"] = concept_match.group(2)[:120].strip()
+        else:
+            # fallback: primera línea con letras y algo de longitud
+            for line in text_norm.splitlines():
+                l = line.strip()
+                if len(l) > 8 and re.search(r"[A-Za-z]", l):
+                    extracted["concepto"] = l[:120]
+                    break
+
+        # Cliente: email o línea tras "bill to"/"cliente"
+        email_match = re.search(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text_norm)
+        if email_match:
+            extracted["cliente"] = email_match.group(0)
+        else:
+            client_match = re.search(r"(?i)(bill to|cliente)[:\-]?\s*(.+)", text_norm)
+            if client_match and client_match.group(2):
+                extracted["cliente"] = client_match.group(2).splitlines()[0][:120].strip()
+
+        # Categoría tentativa según doc_type
+        if doc_type in ("invoice", "expense_receipt", "desconocido"):
+            extracted.setdefault("categoria", "gastos")
+            extracted.setdefault("tipo", "expense")
+        elif doc_type in ("bank_tx",):
+            extracted.setdefault("categoria", "banco")
+            extracted.setdefault("tipo", "transferencia")
+
+        # Filtrar solo los campos solicitados
+        return {k: v for k, v in extracted.items() if k in expected_fields or not expected_fields}
 
     def get_telemetry(self) -> dict[str, Any]:
         """Get telemetry metrics."""

@@ -77,6 +77,7 @@ DocumentoTipo = Literal[
     "factura",
     "recibo",
     "transferencia",
+    "ticket_pos",
     "nómina",
     "presupuesto",
     "contrato",
@@ -94,6 +95,15 @@ def detectar_tipo_documento(texto: str) -> DocumentoTipo:
     def hay(patrones: list[str]) -> bool:
         return any(re.search(p, texto) for p in patrones)
 
+    patrones_ticket_pos = [
+        r"ticket de venta",
+        r"ticket venta",
+        r"n[ºo°]?\s*r[-\s]*\d+",
+        r"gracias por su compra",
+        r"gracias por tu compra",
+        r"estado:\s*paid",
+        r"\d+[.,]?\d*\s*x\s+.+\s*[-–]\s*\$?\s*\d",
+    ]
     patrones_recibo = [
         r"recibo",
         r"recib[oi]",
@@ -159,6 +169,8 @@ def detectar_tipo_documento(texto: str) -> DocumentoTipo:
         r"rescision",
     ]
 
+    if hay(patrones_ticket_pos):
+        return "ticket_pos"
     if hay(patrones_recibo):
         return "recibo"
     if hay(patrones_transferencia):
@@ -292,7 +304,7 @@ def corregir_errores_ocr(texto: str) -> str:
         r"GASTOSPORGVENTA|GAsTOSPORCVENTADe|GasTOS PORCVENTA|GASTOS POR CVENTA": "GASTOS POR CUENTA DE",
         r"ALQULER|ALOULER|ALQUILER HES": "ALQUILER MES",
         r"Nuesta|Nuestra|Nvestra": "Nuestra",
-        r"feferencia|relerecia|[[]eferencia": "referencia",
+        r"feferencia|relerecia|referencia": "referencia",
         r"Imfone|Impone|iMporte": "Importe",
         r"liqidar|liquidr|bquidar": "liquidar",
         r"fecho": "fecha",
@@ -323,17 +335,36 @@ def es_concepto_valido(texto: str) -> bool:
 
 def dividir_bloques_transferencias(texto: str) -> list[str]:
     """
-    Divide el texto en bloques basados en encabezados de transferencia o fechas con errores comunes del OCR.
+    Divide el texto en bloques basados en encabezados de transferencia.
+    Detecta patrones típicos de Santander: "Oficina:" seguido de "TRANSFERENCIAS EMITIDAS".
     """
     texto = corregir_errores_ocr(texto)
 
-    # Patrón más tolerante para fechas y encabezados típicos OCR
-    patron = r"(?=(?:\d{2}[-/ ]{1,2}\d{2,3}[-/ ]{1,2}\d{4})|(?:TRANSFERENCIAS\s+EMITIDAS\s+-?\s+ORDEN\s+DE\s+TRANSFERENCIA))"
+    # Patrón principal: "Oficina:" indica inicio de nueva transferencia en Santander
+    # También detectamos "TRANSFERENCIAS EMITIDAS" como separador alternativo
+    patrones_separador = [
+        r"(?=O[fl]icina:\s*\n?\s*Santander)",  # "Oficina:" con posible OCR error (l/f)
+        r"(?=TRANSFERENCIAS\s+EMITIDAS\s*\n?\s*ORDEN\s+DE\s+TRANSFERENCIA)",
+    ]
 
-    bloques = re.split(patron, texto, flags=re.IGNORECASE)
-    bloques = [b.strip() for b in bloques if len(b.strip()) > 100]  # eliminamos ruido
+    # Primero intentamos dividir por "Oficina:"
+    patron_oficina = patrones_separador[0]
+    bloques = re.split(patron_oficina, texto, flags=re.IGNORECASE)
+    bloques = [b.strip() for b in bloques if len(b.strip()) > 100]
 
-    print(f"🧩 Bloques detectados: {len(bloques)}")
+    # Si solo hay un bloque, intentamos con el patrón de TRANSFERENCIAS EMITIDAS
+    if len(bloques) <= 1:
+        patron_transferencias = patrones_separador[1]
+        bloques = re.split(patron_transferencias, texto, flags=re.IGNORECASE)
+        bloques = [b.strip() for b in bloques if len(b.strip()) > 100]
+
+    # Fallback: dividir por "Fecha de envío:" que aparece al inicio de cada transferencia
+    if len(bloques) <= 1:
+        patron_fecha = r"(?=Fecha\s+de\s+env[ií]o:\s*\d{2}[-/ ]\d{2}[-/ ]\d{4})"
+        bloques = re.split(patron_fecha, texto, flags=re.IGNORECASE)
+        bloques = [b.strip() for b in bloques if len(b.strip()) > 100]
+
+    print(f"[INFO] Bloques detectados: {len(bloques)}")
     return bloques
 
 

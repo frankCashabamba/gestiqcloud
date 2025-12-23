@@ -31,7 +31,7 @@ export const AITelemetryDashboard: React.FC = () => {
     // Cargar telemetría del backend
     const fetchTelemetry = async () => {
       try {
-        const response = await fetch(`/api/v1/imports/telemetry?range=${timeRange}`)
+        const response = await fetch(`/api/v1/tenant/imports/telemetry?range=${timeRange}`)
         if (response.ok) {
           const data = await response.json()
           setStats(data)

@@ -42,6 +42,11 @@ export default defineConfig({
         __APP_BUILD_ID__: JSON.stringify(buildId),
         __APP_VERSION__: JSON.stringify(process.env.npm_package_version || '0.0.0')
     },
+    server: {
+        host: process.env.HOST || '0.0.0.0',
+        port: Number(process.env.PORT || 8081),
+        strictPort: false,
+    },
     resolve: { alias: alias },
     plugins: [
         react(),

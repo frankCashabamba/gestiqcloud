@@ -1,14 +1,9 @@
 // apps/tenant/src/modules/productos/CategoriasModal.tsx
 import React, { useEffect, useState } from 'react'
 import { useToast, getErrorMessage } from '../../shared/toast'
-import { apiFetch } from '../../lib/http'
-
-type Categoria = {
-  id: string
-  name: string
-  description?: string
-  parent_id?: string | null
-}
+import { listCategorias, createCategoria, deleteCategoria, type Categoria } from './productsApi'
+import { useSectorPlaceholder } from '../../hooks/useSectorPlaceholders'
+import { useTenant } from '../../contexts/TenantContext'
 
 type CategoriasModalProps = {
   onClose: () => void
@@ -21,6 +16,13 @@ export default function CategoriasModal({ onClose, onCategoryCreated }: Categori
   const [newCategoryName, setNewCategoryName] = useState('')
   const [newCategoryDesc, setNewCategoryDesc] = useState('')
   const { success, error } = useToast()
+  const { sector } = useTenant()
+
+  const { placeholder: nombrePlaceholder } = useSectorPlaceholder(
+    sector?.plantilla || null,
+    'nombre',
+    'categories'
+  )
 
   useEffect(() => {
     loadCategorias()
@@ -29,9 +31,9 @@ export default function CategoriasModal({ onClose, onCategoryCreated }: Categori
   const loadCategorias = async () => {
     try {
       setLoading(true)
-      const data = await apiFetch<Categoria[]>('/api/v1/tenant/products/product-categories')
+      const data = await listCategorias()
       console.log('Categorías recibidas:', data)
-      setCategorias(Array.isArray(data) ? data : [])
+      setCategorias(data)
     } catch (e: any) {
       console.error('Error cargando categorías:', e)
       error(getErrorMessage(e))
@@ -48,14 +50,7 @@ export default function CategoriasModal({ onClose, onCategoryCreated }: Categori
     }
 
     try {
-      await apiFetch('/api/v1/tenant/products/product-categories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newCategoryName.trim(),
-          description: newCategoryDesc.trim() || null,
-        }),
-      })
+      await createCategoria(newCategoryName, newCategoryDesc)
       success('Categoría creada')
       setNewCategoryName('')
       setNewCategoryDesc('')
@@ -70,7 +65,7 @@ export default function CategoriasModal({ onClose, onCategoryCreated }: Categori
     if (!confirm(`¿Eliminar categoría "${name}"?`)) return
 
     try {
-      await apiFetch(`/api/v1/tenant/products/product-categories/${id}`, { method: 'DELETE' })
+      await deleteCategoria(id)
       success('Categoría eliminada')
       loadCategorias()
       onCategoryCreated?.()
@@ -114,7 +109,7 @@ export default function CategoriasModal({ onClose, onCategoryCreated }: Categori
                   type="text"
                   value={newCategoryName}
                   onChange={(e) => setNewCategoryName(e.target.value)}
-                  placeholder="Ej: Pan, Bollería, Ropa..."
+                  placeholder={nombrePlaceholder || 'Ej: Pan, Bollería, Ropa...'}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   required
                 />

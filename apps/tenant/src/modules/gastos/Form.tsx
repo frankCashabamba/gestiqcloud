@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { createGasto, getGasto, updateGasto, type Gasto } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
+import { useTenantSector } from '../../contexts/TenantConfigContext'
+import { useSectorPlaceholders, getFieldPlaceholder } from '../../hooks/useSectorPlaceholders'
 
 type FormT = Omit<Gasto, 'id' | 'created_at' | 'updated_at'>
 
@@ -29,6 +31,8 @@ export default function GastoForm() {
   const { id } = useParams()
   const nav = useNavigate()
   const { success, error } = useToast()
+  const sector = useTenantSector()
+  const { placeholders } = useSectorPlaceholders(sector?.plantilla, 'expenses')
 
   const [form, setForm] = useState<FormT>({
     fecha: new Date().toISOString().slice(0, 10),
@@ -242,14 +246,14 @@ export default function GastoForm() {
 
         <div>
           <label className="block mb-1 font-medium">Número de Factura</label>
-          <input
-            type="text"
-            placeholder="Ej: FACT-2025-001"
-            value={form.factura_numero || ''}
-            onChange={(e) => setForm({ ...form, factura_numero: e.target.value })}
-            className="border px-2 py-1 w-full rounded"
-            disabled={loading}
-          />
+           <input
+             type="text"
+             placeholder={getFieldPlaceholder(placeholders, 'numero_factura', 'Ej: FACT-2025-001')}
+             value={form.factura_numero || ''}
+             onChange={(e) => setForm({ ...form, factura_numero: e.target.value })}
+             className="border px-2 py-1 w-full rounded"
+             disabled={loading}
+           />
         </div>
 
         <div>

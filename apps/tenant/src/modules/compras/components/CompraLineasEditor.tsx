@@ -35,13 +35,13 @@ export default function CompraLineasEditor({ lineas, onChange }: Props) {
   return (
     <div>
       <div className="flex justify-between items-center mb-2">
-        <label className="font-medium">Líneas de Compra</label>
+        <label className="font-medium">Purchase Lines</label>
         <button
           type="button"
           onClick={addLinea}
           className="bg-green-600 text-white px-3 py-1 rounded text-sm"
         >
-          + Añadir Línea
+          + Add Line
         </button>
       </div>
 
@@ -49,9 +49,9 @@ export default function CompraLineasEditor({ lineas, onChange }: Props) {
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="text-left px-2 py-2">Producto</th>
-              <th className="text-left px-2 py-2">Cantidad</th>
-              <th className="text-left px-2 py-2">Precio Unit.</th>
+              <th className="text-left px-2 py-2">Product</th>
+              <th className="text-left px-2 py-2">Quantity</th>
+              <th className="text-left px-2 py-2">Unit Price</th>
               <th className="text-left px-2 py-2">Subtotal</th>
               <th className="px-2 py-2"></th>
             </tr>
@@ -62,7 +62,7 @@ export default function CompraLineasEditor({ lineas, onChange }: Props) {
                 <td className="px-2 py-2">
                   <input
                     type="text"
-                    placeholder="ID o nombre producto"
+                    placeholder="Product ID or name"
                     value={linea.producto_id}
                     onChange={(e) => updateLinea(idx, 'producto_id', e.target.value)}
                     className="border px-2 py-1 rounded w-full"
@@ -100,7 +100,7 @@ export default function CompraLineasEditor({ lineas, onChange }: Props) {
                     onClick={() => removeLinea(idx)}
                     className="text-red-600 hover:underline"
                   >
-                    Eliminar
+                    Remove
                   </button>
                 </td>
               </tr>
@@ -108,7 +108,7 @@ export default function CompraLineasEditor({ lineas, onChange }: Props) {
             {lineas.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-2 py-4 text-center text-gray-500">
-                  No hay líneas. Añade al menos una.
+                  No lines. Add at least one.
                 </td>
               </tr>
             )}

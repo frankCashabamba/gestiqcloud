@@ -1,7 +1,15 @@
 // apps/tenant/src/modules/productos/List.tsx
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { listProductos, removeProducto, purgeProductos, bulkSetActive, bulkAssignCategory, type Producto } from './services'
+import {
+  listProductos,
+  removeProducto,
+  purgeProductos,
+  bulkSetActive,
+  bulkAssignCategory,
+  listCategorias,
+  type Producto,
+} from './productsApi'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import CategoriasModal from './CategoriasModal'
@@ -26,9 +34,8 @@ export default function ProductosList() {
   useEffect(() => {
     ;(async () => {
       try {
-        const { apiFetch } = await import('../../lib/http')
-        const cats = await apiFetch<Array<{ id: string; name: string }>>('/api/v1/tenant/products/product-categories')
-        setCategorias(Array.isArray(cats) ? cats : [])
+        const cats = await listCategorias()
+        setCategorias(cats)
       } catch (e) {
         console.error('Error cargando categorías:', e)
       }

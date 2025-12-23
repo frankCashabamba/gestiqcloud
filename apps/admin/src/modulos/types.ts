@@ -1,53 +1,40 @@
-export interface Modulo {
-  id: number;
-  nombre: string;
-  slug: string;
-  icono?: string;
-  descripcion?: string;
-  url?: string;
-  plantilla_inicial: string;
-  context_type?: string;
-  modelo_objetivo?: string;
-  filtros_contexto?: Record<string, any>;
-  activo: boolean;
-  categoria?: string;
-}
-export interface EmpresaModulo {
-  id: number;
-  empresa_id: number;
-  modulo_id: number;
-  fecha_activacion: string;
-  fecha_expiracion?: string | null;
-  activo: boolean;
-  modulo: Modulo;         // ✅ <- Esto soluciona el error 'modulo' no existe
-  empresa_slug: string;  // ✅ <- Solo si decides enviarlo desde el backend
+export interface Module {
+  id: string;
+  name: string;
+  description?: string | null;
+  url?: string | null;
+  icon?: string | null;
+  category?: string | null;
+  active: boolean;
+  initial_template: string;
+  context_type?: string | null;
+  target_model?: string | null;
+  context_filters?: Record<string, any> | null;
 }
 
+export interface CompanyModule {
+  id: string;
+  tenant_id: string;
+  company_slug?: string | null;
+  module_id: string;
+  active: boolean;
+  activation_date?: string | null;
+  expiration_date?: string | null;
+  initial_template?: string | null;
+  module: Module;
+}
 
-export interface ModuloComun {
-  id: number;
-  empresa_id: number;
-  empresa_slug: string;
-  modulo_id: number;
-  modulo: {
-    id: number;
-    nombre: string;
-    url?: string;    // ← ahora es string | undefined
-    icono?: string;  // ← también opcional
+export interface UserModule {
+  id: string;
+  tenant_id: string;
+  company_slug: string;
+  module_id: string;
+  module: {
+    id: string;
+    name: string;
+    url?: string | null;
+    icon?: string | null;
   };
-}
-
-export interface ModuloAsignado {
-  id: number;
-  empresa_id: number;
-  empresa_slug: string;
-  modulo_id: number;
-  fecha_activacion: string;
-  fecha_expiracion: string | null;
-  modulo: {
-    id: number;
-    nombre: string;
-    url: string;
-    icono?: string;
-  };
+  activation_date: string;
+  expiration_date: string | null;
 }

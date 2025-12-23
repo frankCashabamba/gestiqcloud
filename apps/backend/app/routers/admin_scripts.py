@@ -164,12 +164,12 @@ def _seed_pan_tapado(db: Session, tenant_id: str) -> None:
         recipe_id = db.execute(
             text(
                 """
-                INSERT INTO recipes (tenant_id, product_id, nombre, rendimiento, costo_total, tiempo_preparacion, instrucciones, activo)
-                VALUES (:tid, :pid, :nombre, :rend, 0, NULL, NULL, TRUE)
+                INSERT INTO recipes (tenant_id, product_id, name, yield_qty, total_cost, prep_time_minutes, instructions, is_active)
+                VALUES (:tid, :pid, :name, :yield_qty, 0, NULL, NULL, TRUE)
                 RETURNING id::text
                 """
             ),
-            {"tid": tenant_id, "pid": prod_final_id, "nombre": "Pan Tapado", "rend": 144},
+            {"tid": tenant_id, "pid": prod_final_id, "name": "Pan Tapado", "yield_qty": 144},
         ).scalar()
 
     # Ingredientes con costos por presentación
@@ -193,13 +193,13 @@ def _seed_pan_tapado(db: Session, tenant_id: str) -> None:
             text(
                 """
                 INSERT INTO recipe_ingredients (
-                    recipe_id, producto_id, qty, unidad_medida,
-                    presentacion_compra, qty_presentacion, unidad_presentacion, costo_presentacion,
-                    notas, orden
+                    recipe_id, product_id, qty, unit,
+                    purchase_packaging, qty_per_package, package_unit, package_cost,
+                    notes, line_order
                 ) VALUES (
                     :rid, :pid, :qty, :uom,
                     :pres, :qpres, :upres, :cpres,
-                    NULL, :orden
+                    NULL, :line_order
                 )
                 """
             ),
@@ -212,7 +212,7 @@ def _seed_pan_tapado(db: Session, tenant_id: str) -> None:
                 "qpres": qpres,
                 "upres": upres,
                 "cpres": cpres,
-                "orden": idx,
+                "line_order": idx,
             },
         )
     # Intentar recalcular costo si existe función

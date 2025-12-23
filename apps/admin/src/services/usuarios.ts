@@ -2,12 +2,11 @@ import api from '../shared/api/client'
 import { ADMIN_USUARIOS } from '@shared/endpoints'
 
 export type AdminUsuario = {
-  id: number | string
-  nombre?: string
-  email?: string
-  es_admin?: boolean
-  rol?: string
-  activo?: boolean
+  id: string | number
+  name?: string | null
+  email?: string | null
+  is_company_admin?: boolean
+  active?: boolean
 }
 
 export async function listUsuarios(): Promise<AdminUsuario[]> {

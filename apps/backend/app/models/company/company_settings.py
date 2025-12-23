@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -11,7 +12,7 @@ from app.config.database import Base
 
 
 class CompanySettings(Base):
-    """Company Settings model."""
+    """Company Settings model - consolidates all tenant settings."""
 
     __tablename__ = "company_settings"
     __table_args__ = {"extend_existing": True}
@@ -25,13 +26,14 @@ class CompanySettings(Base):
         nullable=True,
     )
 
-    default_language: Mapped[str] = mapped_column(String(10), default="es")
-    timezone: Mapped[str] = mapped_column(String(50), default="UTC")
-    currency: Mapped[str] = mapped_column(String(10), default="USD")
+    # Defaults come from DB settings; avoid hardcoded fallbacks here
+    default_language: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    timezone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
     company_logo: Mapped[str | None] = mapped_column(String(100))
-    secondary_color: Mapped[str] = mapped_column(String(7), default="#6c757d")
-    primary_color: Mapped[str] = mapped_column(String(7), default="#4f46e5")
+    secondary_color: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    primary_color: Mapped[str | None] = mapped_column(String(7), nullable=True)
 
     allow_custom_roles: Mapped[bool] = mapped_column(Boolean, default=True)
     user_limit: Mapped[int] = mapped_column(Integer, default=10)
@@ -47,6 +49,17 @@ class CompanySettings(Base):
     company_name: Mapped[str | None] = mapped_column(String)
     tax_id: Mapped[str | None] = mapped_column(String)
     tax_regime: Mapped[str | None] = mapped_column(String)
+
+    # Consolidated from TenantSettings
+    settings: Mapped[dict | None] = mapped_column(
+        JSONB().with_variant(JSON(), "sqlite"), nullable=True, default=dict
+    )
+    pos_config: Mapped[dict | None] = mapped_column(
+        JSONB().with_variant(JSON(), "sqlite"), nullable=True
+    )
+    invoice_config: Mapped[dict | None] = mapped_column(
+        JSONB().with_variant(JSON(), "sqlite"), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(

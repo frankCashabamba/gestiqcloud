@@ -673,33 +673,52 @@ def reconcile_transaction(
     }
 
 
-@router.get("/banco/saldos", response_model=list, summary="Get bank balances")
+@router.get("/banco/saldos", response_model=dict, summary="Resumen de saldos (caja + bancos)")
 def get_bank_balances(
     date_filter: str | None = None,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
-    """Get bank balances per account."""
+    """
+    Devuelve un resumen agregado para el dashboard de finanzas:
+    - caja_total: suma de movimientos de caja
+    - bancos_total: suma de movimientos bancarios
+    - pendiente_conciliar: suma de movimientos bancarios no conciliados
+    - total_disponible: caja + bancos
+    - ultimo_update: timestamp de cálculo
+    """
     tenant_id = UUID(claims["tenant_id"])
 
-    query = db.query(BankTransaction).filter(BankTransaction.tenant_id == tenant_id)
-
+    # Caja: suma de amount (positivo ingreso, negativo egreso)
+    caja_query = db.query(func.sum(CajaMovimiento.amount)).filter(CajaMovimiento.tenant_id == tenant_id)
     if date_filter:
-        query = query.filter(BankTransaction.date <= date_filter)
+        caja_query = caja_query.filter(CajaMovimiento.date <= date_filter)
+    caja_total = caja_query.scalar() or Decimal("0")
 
-    accounts_data = (
-        query.with_entities(
-            BankTransaction.account_id, func.sum(BankTransaction.amount).label("balance")
-        )
-        .group_by(BankTransaction.account_id)
-        .all()
+    # Bancos: suma total y pendiente de conciliar
+    bank_query = db.query(BankTransaction).filter(BankTransaction.tenant_id == tenant_id)
+    if date_filter:
+        bank_query = bank_query.filter(BankTransaction.date <= date_filter)
+
+    bancos_total = (
+        bank_query.with_entities(func.sum(BankTransaction.amount)).scalar() or Decimal("0")
     )
 
-    return [
-        {
-            "account_id": str(acc.account_id),
-            "balance": float(acc.balance or 0),
-            "date": date_filter or datetime.utcnow().date().isoformat(),
-        }
-        for acc in accounts_data
-    ]
+    from app.models.core.facturacion import TransactionStatus
+
+    pendiente_conciliar = (
+        bank_query.filter(BankTransaction.status != TransactionStatus.RECONCILED)
+        .with_entities(func.sum(BankTransaction.amount))
+        .scalar()
+        or Decimal("0")
+    )
+
+    total_disponible = caja_total + bancos_total
+
+    return {
+        "caja_total": float(caja_total),
+        "bancos_total": float(bancos_total),
+        "total_disponible": float(total_disponible),
+        "pendiente_conciliar": float(pendiente_conciliar),
+        "ultimo_update": datetime.utcnow().isoformat(),
+    }

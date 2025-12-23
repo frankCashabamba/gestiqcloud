@@ -13,6 +13,8 @@ var alias = {
     '@assets': pkgPath('../packages/assets'),
     '@pwa': pkgPath('../packages/pwa/src'),
     '@shared/http': pkgPath('../packages/http-core/src'),
+    '@endpoints': pkgPath('../packages/endpoints/src'),
+    '@api-types': pkgPath('../packages/api-types/src'),
     '@shared/endpoints': pkgPath('../packages/endpoints/src'),
     '@shared/auth-core': pkgPath('../packages/auth-core/src'),
     '@shared/ui': pkgPath('../packages/ui/src'),

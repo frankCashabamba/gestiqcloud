@@ -17,7 +17,7 @@
 - Production: `production_orders`, `production_order_lines`, `recipes`, `recipe_ingredients`.
 - Suppliers: `suppliers`, `supplier_contacts`, `supplier_addresses`.
 - Clients/CRM: `clients`, `leads`, `opportunities`.
-- Settings/Modulos: `modules`, `company_modules`, `assigned_modules`, `tenant_settings`, `tenant_module_settings`, `tenant_field_config`, `sector_field_defaults`.
+- Settings/Modulos: `modules`, `company_modules`, `assigned_modules`, `company_settings`, `tenant_module_settings`, `tenant_field_config`, `sector_field_defaults`.
 - Registry/Company: `companies/tenants` y relaciones con módulos y settings.
 - Imports: `import_batches`, `import_items`, `import_mappings`, `import_item_corrections`, `import_lineage`, `auditoria_importacion` (batch_id/item_id).
 - Payments: `pos_payments` y tablas por proveedor si existen.

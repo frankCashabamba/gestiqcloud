@@ -1,5 +1,7 @@
-// Mejora: detección robusta para "products" considerando sinónimos y acentos
-export function detectarTipoDocumento(headers: string[]): 'generico' | 'factura' | 'recibo' | 'transferencia' | 'products' {
+// Devuelve tipos alineados con backend: products | invoices | bank | expenses | recipes
+export type ImportDocType = 'products' | 'invoices' | 'bank' | 'expenses' | 'recipes'
+
+export function detectarTipoDocumento(headers: string[]): ImportDocType {
   const normalize = (s: string) =>
     (s || '')
       .toLowerCase()
@@ -14,6 +16,7 @@ export function detectarTipoDocumento(headers: string[]): 'generico' | 'factura'
   const hasAny = (keywords: string[]) =>
     H.some((h) => keywords.some((k) => h.includes(normalize(k))))
 
+  const recipeKeywords = ['ingredientes', 'receta', 'costo total ingredientes', 'porciones', 'temperatura de servicio', 'rendimiento']
   // Sinónimos por campo
   const NAME_FIELDS = ['producto', 'nombre', 'descripcion', 'articulo', 'item', 'detalle']
   const SKU_FIELDS = ['sku', 'codigo', 'cod', 'referencia', 'ref', 'barcode', 'ean', 'upc', 'cod barras', 'codigo barras']
@@ -30,11 +33,12 @@ export function detectarTipoDocumento(headers: string[]): 'generico' | 'factura'
     // Heurística adicional: presencia combinada de categoría o impuestos junto a nombre
     (hasAny(NAME_FIELDS) && (hasAny(CATEGORY_FIELDS) || hasAny(TAX_FIELDS)))
 
+  if (hasAny(recipeKeywords)) return 'recipes'
   if (isProductos) return 'products'
 
   // Otros tipos (básicos)
-  if (hasAny(['invoice', 'nro factura', 'factura', 'cliente', 'nif', 'ruc'])) return 'factura'
-  if (hasAny(['recibo', 'empleado'])) return 'recibo'
-  if (hasAny(['banco', 'iban', 'transferencia'])) return 'transferencia'
-  return 'generico'
+  if (hasAny(['invoice', 'nro factura', 'factura', 'cliente', 'nif', 'ruc'])) return 'invoices'
+  if (hasAny(['banco', 'iban', 'transferencia'])) return 'bank'
+  // Recibo/gasto -> expenses
+  return 'expenses'
 }

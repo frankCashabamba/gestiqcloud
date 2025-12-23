@@ -28,8 +28,14 @@ export default function Usuarios() {
     try {
       setLoading(true)
       const data = await listUsuarios()
-      const filtrados = (data || []).filter((u: any) => u.es_admin === true || u.es_admin_empresa === true)
-      setItems(filtrados)
+      const normalized = (data || []).map((u) => ({
+        ...u,
+        name: u.name || '',
+        email: u.email || '',
+        is_company_admin: u.is_company_admin ?? false,
+        active: u.active ?? false,
+      }))
+      setItems(normalized)
     } catch (e: any) {
       const m = getErrorMessage(e)
       setErrMsg(m)
@@ -42,7 +48,7 @@ export default function Usuarios() {
   useEffect(() => { load() }, [])
 
   const filtered = items.filter((u) => {
-    const name = `${u.nombre || ''}`.toLowerCase()
+    const name = `${u.name || ''}`.toLowerCase()
     const email = `${u.email || ''}`.toLowerCase()
     const q = query.toLowerCase()
     return name.includes(q) || email.includes(q)
@@ -76,17 +82,17 @@ export default function Usuarios() {
             >
               <div className="flex items-center gap-3">
                 <div className="grid h-10 w-10 place-items-center rounded-lg bg-slate-100 font-bold text-slate-600">
-                  {(u.nombre || u.email || '?').charAt(0).toUpperCase()}
+                  {(u.name || u.email || '?').charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900">{u.nombre}</p>
+                  <p className="font-semibold text-gray-900">{u.name}</p>
                   <p className="text-sm text-gray-500">{u.email || '-'}</p>
                   <span
                     className={`inline-block rounded px-2 py-0.5 text-[11px] ${
-                      u.activo ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'
+                      u.active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'
                     }`}
                   >
-                    {u.activo ? 'Activo' : 'Inactivo'}
+                    {u.active ? 'Active' : 'Inactive'}
                   </span>
                 </div>
               </div>
@@ -105,31 +111,31 @@ export default function Usuarios() {
                 >
                   Establecer contraseña
                 </button>
-                {u.activo ? (
+                {u.active ? (
                   <>
                     <button
                       onClick={async () => {
-                        try { await desactivarUsuario(u.id); success('Usuario desactivado'); load() } catch (e: any) { toastError(getErrorMessage(e)) }
+                        try { await desactivarUsuario(u.id); success('User deactivated'); load() } catch (e: any) { toastError(getErrorMessage(e)) }
                       }}
                       className="rounded-md bg-red-500 px-3 py-1.5 text-xs text-white hover:bg-red-600"
                     >
-                      Desactivar
+                      Deactivate
                     </button>
                     <button
                       onClick={() => setConfirmEmpresaId(u.id)}
                       className="rounded-md bg-gray-500 px-3 py-1.5 text-xs text-white hover:bg-gray-600"
                     >
-                      Eliminar
+                      Delete
                     </button>
                   </>
                 ) : (
                   <button
                     onClick={async () => {
-                      try { await activarUsuario(u.id); success('Usuario activado'); load() } catch (e: any) { toastError(getErrorMessage(e)) }
+                      try { await activarUsuario(u.id); success('User activated'); load() } catch (e: any) { toastError(getErrorMessage(e)) }
                     }}
                     className="rounded-md bg-green-600 px-3 py-1.5 text-xs text-white hover:bg-green-700"
                   >
-                    Activar
+                    Activate
                   </button>
                 )}
               </div>

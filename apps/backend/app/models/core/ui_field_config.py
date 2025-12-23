@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 
 from sqlalchemy import Boolean, ForeignKey, SmallInteger, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,6 +26,22 @@ class TenantFieldConfig(Base):
     ord: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     label: Mapped[str | None] = mapped_column(Text, nullable=True)
     help: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Nuevas columnas para importación dinámica
+    aliases: Mapped[dict | None] = mapped_column(
+        JSONB, nullable=True, comment="Array de aliases: ['precio', 'pvp', 'price']"
+    )
+    field_type: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, comment="'string', 'number', 'date', 'boolean'"
+    )
+    validation_pattern: Mapped[str | None] = mapped_column(
+        String(500), nullable=True, comment="Regex para validación"
+    )
+    validation_rules: Mapped[dict | None] = mapped_column(
+        JSONB, nullable=True, comment="Reglas complejas: {min, max, custom}"
+    )
+    transform_expression: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="parseFloat(v.replace(...)) como string"
+    )
 
 
 class SectorFieldDefault(Base):

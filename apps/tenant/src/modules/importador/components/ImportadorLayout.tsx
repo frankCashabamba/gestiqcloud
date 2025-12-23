@@ -3,11 +3,10 @@ import React from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 
 const navItems = [
-  { to: '.', label: 'Importar' },
-  { to: 'preview', label: 'Vista previa' },
-  { to: 'batches', label: 'Lotes' },
-  { to: 'pendientes', label: 'Pendientes' },
-  { to: 'products', label: 'Productos' },
+  { to: '.', label: 'Import' },
+  { to: 'preview', label: 'Preview' },
+  { to: 'batches', label: 'Batches' },
+  { to: 'products', label: 'Products' },
 ]
 
 type ImportadorLayoutProps = {
@@ -32,8 +31,8 @@ function joinPath(base: string, segment: string) {
 }
 
 export default function ImportadorLayout({
-  title = 'Importador de datos',
-  description = 'Carga documentos, revisa lotes y gestiona pendientes en un solo espacio.',
+  title = 'Data Importer',
+  description = 'Upload files, review batches, and manage pending items in one place.',
   actions,
   children,
 }: ImportadorLayoutProps) {
@@ -46,7 +45,7 @@ export default function ImportadorLayout({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
             <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-              Operaciones del Importador
+              Importer Operations
             </span>
             <div>
               <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>

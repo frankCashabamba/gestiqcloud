@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from datetime import datetime
 from typing import Any
@@ -14,6 +15,7 @@ from app.db.rls import set_tenant_guc
 from app.models.core.modelsimport import ImportOCRJob
 
 _LOGGER = logging.getLogger("imports.ocr_jobs")
+RUNNER_MODE = os.getenv("IMPORTS_RUNNER_MODE", "celery").lower()
 
 
 def _serialize_documentos(documentos: list[Any]) -> list[dict[str, Any]]:
@@ -40,6 +42,10 @@ class OCRJobRunner:
         self._thread: threading.Thread | None = None
 
     def start(self) -> None:
+        # En modo Celery no se lanza el hilo local; los workers procesan las tareas.
+        if RUNNER_MODE == "celery":
+            _LOGGER.info("OCR job runner skipped (IMPORTS_RUNNER_MODE=celery)")
+            return
         if self._thread and self._thread.is_alive():
             return
         self._stop_event.clear()
@@ -99,8 +105,6 @@ class OCRJobRunner:
     def _run(self) -> None:  # pragma: no cover - background thread
         while not self._stop_event.is_set():
             job_id: UUID | None = None
-            filename: str | None = None
-            payload: bytes | None = None
             try:
                 with session_scope() as db:
                     claimed = self._claim_next_job(db)
@@ -108,12 +112,10 @@ class OCRJobRunner:
                         claimed = None
                     else:
                         job_id = claimed.id
-                        filename = claimed.filename
-                        payload = bytes(claimed.payload or b"")
-                if job_id is None or payload is None or filename is None:
+                if job_id is None:
                     self._stop_event.wait(self._poll_interval)
                     continue
-                self._process_job(job_id, filename, payload)
+                process_ocr_job(job_id)
             except SATimeoutError:
                 # Pool exhausted or DB under pressure; back off briefly
                 _LOGGER.warning("DB pool timeout while polling jobs; backing off")
@@ -121,41 +123,57 @@ class OCRJobRunner:
             except Exception:
                 _LOGGER.exception("Unexpected error in OCR job runner loop")
                 self._stop_event.wait(self._poll_interval)
-            finally:
-                payload = None
 
-    def _process_job(self, job_id: UUID, filename: str, payload: bytes) -> None:
+def _update_job(
+    job_id: UUID,
+    *,
+    status: str,
+    result: dict[str, Any] | None,
+    error: str | None,
+) -> None:
+    with session_scope() as db:
+        job = db.query(ImportOCRJob).filter(ImportOCRJob.id == job_id).first()
+        if not job:
+            return
+        job.status = status
+        job.result = result
+        job.error = error
+        job.updated_at = datetime.utcnow()
+        db.add(job)
+
+
+def process_ocr_job(job_id: UUID) -> dict[str, Any]:
+    """Procesa un trabajo OCR (usado por Celery o runner inline)."""
+    try:
+        from app.modules.imports import services  # import pesado, lazy
+    except Exception as exc:  # pragma: no cover - best effort
+        _LOGGER.exception("OCR services import failed")
+        raise
+
+    with session_scope() as db:
+        job = db.query(ImportOCRJob).filter(ImportOCRJob.id == job_id).first()
+        if not job:
+            raise ValueError(f"OCR job {job_id} not found")
+        # Set tenant GUC if available
         try:
-            # Import lazily to avoid heavy OCR libs at process startup
-            from app.modules.imports import services
+            set_tenant_guc(db, str(job.tenant_id), persist=False)
+        except Exception:
+            pass
+        filename = job.filename or "documento.pdf"
+        payload = bytes(job.payload or b"")
 
-            documentos = services.procesar_documento(payload, filename)
-            result = {
-                "archivo": filename,
-                "documentos": _serialize_documentos(documentos),
-            }
-            self._update_job(job_id, status="done", result=result, error=None)
-        except Exception as exc:  # pragma: no cover - best effort logging
-            _LOGGER.exception("Failed to process OCR job %s", job_id)
-            self._update_job(job_id, status="failed", result=None, error=str(exc))
-
-    def _update_job(
-        self,
-        job_id: UUID,
-        *,
-        status: str,
-        result: dict[str, Any] | None,
-        error: str | None,
-    ) -> None:
-        with session_scope() as db:
-            job = db.query(ImportOCRJob).filter(ImportOCRJob.id == job_id).first()
-            if not job:
-                return
-            job.status = status
-            job.result = result
-            job.error = error
-            job.updated_at = datetime.utcnow()
-            db.add(job)
+    try:
+        documentos = services.procesar_documento(payload, filename)
+        result = {
+            "archivo": filename,
+            "documentos": _serialize_documentos(documentos),
+        }
+        _update_job(job_id, status="done", result=result, error=None)
+        return {"status": "done", "job_id": str(job_id), "documents": len(result["documentos"])}
+    except Exception as exc:  # pragma: no cover - best effort logging
+        _LOGGER.exception("Failed to process OCR job %s", job_id)
+        _update_job(job_id, status="failed", result=None, error=str(exc))
+        raise
 
 
 def enqueue_job(*, tenant_id: int, filename: str, content_type: str | None, payload: bytes) -> UUID:
@@ -181,7 +199,32 @@ def enqueue_job(*, tenant_id: int, filename: str, content_type: str | None, payl
         )
         db.add(job)
         db.flush()
-        return job.id
+        job_id = job.id
+
+    # Encolar al runner seleccionado
+    if RUNNER_MODE == "celery":
+        try:
+            from app.modules.imports.application.celery_app import celery_app
+
+            celery_app.send_task(
+                "imports.process_ocr_job",
+                args=[str(job_id)],
+                queue="imports_ocr",
+            )
+            _LOGGER.info("OCR job %s enqueued to Celery", job_id)
+        except Exception:
+            _LOGGER.exception("Failed to enqueue OCR job %s to Celery; fallback to inline runner", job_id)
+            try:
+                job_runner.start()
+            except Exception:
+                pass
+    else:
+        try:
+            job_runner.start()
+        except Exception:
+            pass
+
+    return job_id
 
 
 job_runner = OCRJobRunner()

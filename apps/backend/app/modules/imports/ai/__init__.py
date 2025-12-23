@@ -81,10 +81,15 @@ def reset_ai_provider():
     _ai_provider_instance = None
 
 
+from .mapping_suggester import MappingSuggester, MappingSuggestion, mapping_suggester
+
 __all__ = [
     "AIProvider",
     "LocalAIProvider",
     "get_ai_provider",
     "get_ai_provider_singleton",
     "reset_ai_provider",
+    "MappingSuggester",
+    "MappingSuggestion",
+    "mapping_suggester",
 ]

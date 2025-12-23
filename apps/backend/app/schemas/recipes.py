@@ -15,20 +15,20 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 class RecipeIngredientBase(BaseModel):
     # Rechazar campos extra en payload de ingredientes
     model_config = ConfigDict(extra="forbid")
-    producto_id: UUID
-    qty: float = Field(..., gt=0, description="Cantidad del ingrediente")
-    unidad_medida: str = Field(..., min_length=1, max_length=10)
+    product_id: UUID
+    qty: float = Field(..., gt=0, description="Ingredient quantity")
+    unit: str = Field(..., min_length=1, max_length=10)
 
-    # Info de compra
-    presentacion_compra: str = Field(..., description="Ej: 'Saco 110 lbs'")
-    qty_presentacion: float = Field(..., gt=0, description="Cantidad en presentación")
-    unidad_presentacion: str = Field(..., min_length=1, max_length=10)
-    costo_presentacion: float = Field(..., ge=0, description="Costo de la presentación")
+    # Purchase info
+    purchase_packaging: str = Field(..., description="e.g. 'Bag 110 lbs'")
+    qty_per_package: float = Field(..., gt=0, description="Quantity per package")
+    package_unit: str = Field(..., min_length=1, max_length=10)
+    package_cost: float = Field(..., ge=0, description="Package cost")
 
-    notas: str | None = None
-    orden: int = Field(default=0, ge=0)
+    notes: str | None = None
+    line_order: int = Field(default=0, ge=0)
 
-    @field_validator("unidad_medida", "unidad_presentacion")
+    @field_validator("unit", "package_unit")
     @classmethod
     def validate_unit(cls, v):
         valid_units = [
@@ -63,25 +63,25 @@ class RecipeIngredientCreate(RecipeIngredientBase):
 class RecipeIngredientUpdate(BaseModel):
     # Rechazar campos extra también en updates parciales
     model_config = ConfigDict(extra="forbid")
-    producto_id: UUID | None = None
+    product_id: UUID | None = None
     qty: float | None = Field(None, gt=0)
-    unidad_medida: str | None = None
-    presentacion_compra: str | None = None
-    qty_presentacion: float | None = Field(None, gt=0)
-    unidad_presentacion: str | None = None
-    costo_presentacion: float | None = Field(None, ge=0)
-    notas: str | None = None
-    orden: int | None = Field(None, ge=0)
+    unit: str | None = None
+    purchase_packaging: str | None = None
+    qty_per_package: float | None = Field(None, gt=0)
+    package_unit: str | None = None
+    package_cost: float | None = Field(None, ge=0)
+    notes: str | None = None
+    line_order: int | None = Field(None, ge=0)
 
 
 class RecipeIngredientResponse(RecipeIngredientBase):
     id: UUID
     recipe_id: UUID
-    costo_ingrediente: float | None = 0
+    ingredient_cost: float | None = 0
     created_at: datetime
 
     # Info del producto (join)
-    producto_nombre: str | None = None
+    product_name: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -94,20 +94,20 @@ class RecipeIngredientResponse(RecipeIngredientBase):
 class RecipeBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     product_id: UUID
-    rendimiento: int = Field(..., gt=0, description="Unidades producidas")
-    tiempo_preparacion: int | None = Field(None, ge=0, description="Minutos")
-    instrucciones: str | None = None
-    active: bool = True
+    yield_qty: int = Field(..., gt=0, description="Units produced")
+    prep_time_minutes: int | None = Field(None, ge=0, description="Minutes")
+    instructions: str | None = None
+    is_active: bool = True
 
 
 class RecipeCreate(RecipeBase):
     # Rechazar campos extra en la receta al crear
     model_config = ConfigDict(extra="forbid")
-    ingredientes: list[RecipeIngredientCreate] = Field(
-        default_factory=list, description="Lista de ingredientes (opcional en creación)"
+    ingredients: list[RecipeIngredientCreate] = Field(
+        default_factory=list, description="Ingredients list (optional on create)"
     )
 
-    @field_validator("ingredientes")
+    @field_validator("ingredients")
     @classmethod
     def validate_ingredients(cls, v):
         if len(v) == 0:
@@ -115,8 +115,8 @@ class RecipeCreate(RecipeBase):
             return v
 
         # Validar que no haya duplicados de productos
-        producto_ids = [ing.producto_id for ing in v]
-        if len(producto_ids) != len(set(producto_ids)):
+        product_ids = [ing.product_id for ing in v]
+        if len(product_ids) != len(set(product_ids)):
             raise ValueError("No puede haber ingredientes duplicados en la receta")
 
         return v
@@ -127,23 +127,23 @@ class RecipeUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str | None = Field(None, min_length=1, max_length=200)
     product_id: UUID | None = None
-    rendimiento: int | None = Field(None, gt=0)
-    tiempo_preparacion: int | None = Field(None, ge=0)
-    instrucciones: str | None = None
-    active: bool | None = None
-    ingredientes: list[RecipeIngredientCreate] | None = None
+    yield_qty: int | None = Field(None, gt=0)
+    prep_time_minutes: int | None = Field(None, ge=0)
+    instructions: str | None = None
+    is_active: bool | None = None
+    ingredients: list[RecipeIngredientCreate] | None = None
 
 
 class RecipeResponse(RecipeBase):
     id: UUID
     tenant_id: UUID
-    costo_total: float
-    costo_por_unidad: float | None = None
+    total_cost: float
+    unit_cost: float | None = None
     created_at: datetime
     updated_at: datetime
 
     # Info del producto (join)
-    producto_nombre: str | None = None
+    product_name: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -151,7 +151,7 @@ class RecipeResponse(RecipeBase):
 class RecipeDetailResponse(RecipeResponse):
     """Receta con ingredientes incluidos"""
 
-    ingredientes: list[RecipeIngredientResponse] = []
+    ingredients: list[RecipeIngredientResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -164,11 +164,11 @@ class RecipeDetailResponse(RecipeResponse):
 class RecipeCostBreakdownResponse(BaseModel):
     recipe_id: str
     name: str
-    rendimiento: int
-    costo_total: float
-    costo_por_unidad: float
-    ingredientes_count: int
-    desglose: list[dict]
+    yield_qty: int
+    total_cost: float
+    unit_cost: float
+    ingredients_count: int
+    breakdown: list[dict]
 
 
 class ProductionCalculationRequest(BaseModel):
@@ -180,12 +180,12 @@ class ProductionCalculationResponse(BaseModel):
     recipe: dict
     qty_to_produce: int
     batches_required: float
-    ingredientes: list[dict]
-    costo_total_produccion: float
-    costo_por_unidad: float
+    ingredients: list[dict]
+    total_production_cost: float
+    unit_cost: float
 
     # Opcional: tiempo estimado
-    tiempo_estimado: dict | None = None
+    estimated_time: dict | None = None
 
 
 class PurchaseOrderRequest(BaseModel):
@@ -195,11 +195,11 @@ class PurchaseOrderRequest(BaseModel):
 
 class PurchaseOrderResponse(BaseModel):
     recipe_id: str
-    recipe_nombre: str
+    recipe_name: str
     qty_to_produce: int
     supplier_id: str | None
-    total_estimado: float
-    lineas: list[dict]
+    estimated_total: float
+    lines: list[dict]
     metadata: dict
 
 
@@ -213,13 +213,13 @@ class RecipeProfitabilityRequest(BaseModel):
 class RecipeProfitabilityResponse(BaseModel):
     recipe_id: str
     name: str
-    costo_directo: float
-    costo_indirecto: float
-    costo_total: float
-    precio_venta: float
-    ganancia: float
-    margen_porcentaje: float
-    punto_equilibrio_unidades: int
+    direct_cost: float
+    indirect_cost: float
+    total_cost: float
+    selling_price: float
+    profit: float
+    margin_percentage: float
+    breakeven_units: int
 
 
 class RecipeComparisonResponse(BaseModel):
@@ -250,11 +250,13 @@ class RecipeComparisonResponse(BaseModel):
 class RecipeFilters(BaseModel):
     active: bool | None = None
     product_id: UUID | None = None
-    nombre_contains: str | None = None
-    costo_min: float | None = None
-    costo_max: float | None = None
+    name_contains: str | None = None
+    min_cost: float | None = None
+    max_cost: float | None = None
 
     skip: int = Field(0, ge=0)
     limit: int = Field(100, ge=1, le=500)
-    order_by: str = Field("nombre", pattern="^(nombre|costo_por_unidad|rendimiento|created_at)$")
+    order_by: str = Field(
+        "name", pattern="^(name|unit_cost|yield_qty|created_at)$"
+    )
     order_dir: str = Field("asc", pattern="^(asc|desc)$")

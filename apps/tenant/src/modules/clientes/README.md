@@ -15,18 +15,18 @@ Integración con configuración de campos
   - La respuesta incluye items: [{ field, visible, required, ord, label?, help? }]
   - El formulario filtra items con visible !== false y renderiza inputs en orden ascendente por ord.
 - Backend resuelve la configuración combinando:
-  - Defaults base de código para ‘clientes’
-  - Defaults por sector (sector_field_defaults)
+  - Configuración base administrada (catálogo)
+  - Configuración por sector (sector_field_defaults)
   - Overrides por tenant (tenant_field_config)
   - Modo por tenant+módulo (tenant_module_settings.form_mode): ‘mixed’ (por defecto), ‘tenant’, ‘sector’, ‘basic’.
   - Servicio: apps/backend/app/services/field_config.py
   - Endpoint: apps/backend/app/modules/settings/interface/http/tenant.py:217 (GET /fields)
 
 Modos de formulario (profesional y reutilizable)
-- mixed (por defecto): fusiona defaults del sector con overrides del tenant (gana tenant). Nuevos campos definidos a nivel sector se incorporan automáticamente.
+- mixed (por defecto): fusiona configuración del sector con overrides del tenant (gana tenant). Nuevos campos definidos a nivel sector se incorporan automáticamente.
 - tenant: usa solo la lista del tenant. Si está vacía, cae a sector y luego base.
-- sector: usa solo defaults del sector. Si no hay, cae a base.
-- basic: usa la lista base codificada en el backend.
+- sector: usa solo configuración del sector. Si no hay, cae a base.
+- basic: usa la lista base administrada.
 
 Cómo añadir un campo (ej. “catalogo”)
 1) Global para un sector (todos los tenants del sector):
@@ -51,7 +51,7 @@ Extender el formulario
 - Añadir una nueva columna “core” (persistida):
   - Agregar la propiedad en el tipo Cliente en apps/tenant/src/modules/clientes/services.ts
   - Asegurarse de que el backend persiste ese campo en el recurso de clientes.
-  - Añadirlo a defaults de sector/base si quieres que aparezca por defecto.
+  - Añadirlo a la configuración de sector/base administrada si quieres que aparezca por defecto.
 - Campo sólo UI / experimental:
   - Definirlo en la configuración de campos (sector o tenant) con un field único y usa help/label para guiar.
 

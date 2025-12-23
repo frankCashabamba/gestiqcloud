@@ -47,3 +47,4 @@ class ActivityStatus(str, Enum):
     PENDING = "pending"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+    OVERDUE = "overdue"

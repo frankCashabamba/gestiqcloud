@@ -17,8 +17,8 @@ class EmpresaConfiguracionOut(BaseModel):
     """Class EmpresaConfiguracionOut - auto-generated docstring."""
 
     logo_empresa: str | None = None
-    color_primario: str | None = "#4f46e5"
-    color_secundario: str | None = "#6c757d"
+    color_primario: str | None = None
+    color_secundario: str | None = None
     empresa_nombre: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

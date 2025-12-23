@@ -22,7 +22,7 @@ export default function ImportadorExcelWithQueue() {
   const empresaFromUrl = React.useMemo(() => {
     if (empresa) return empresa
     const match = location.pathname.match(/^\/([^/]+)\//)
-    return match ? match[1] : 'kusi-panaderia'
+    return match ? match[1] : ''
   }, [empresa, location.pathname])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -142,7 +142,7 @@ export default function ImportadorExcelWithQueue() {
                         {item.batchId && (
                           <div className="mt-2">
                             <Link
-                              to={`/${empresaFromUrl}/mod/imports/preview?batch_id=${item.batchId}`}
+                              to={`/${empresaFromUrl}/importador/preview?batch_id=${item.batchId}`}
                               className="text-xs font-medium text-blue-600 hover:text-blue-700"
                             >
                               Ver resultados →
@@ -202,22 +202,22 @@ export default function ImportadorExcelWithQueue() {
         {/* Enlaces rápidos */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Link
-            to={`/${empresaFromUrl}/mod/imports/pendientes`}
+            to={`/${empresaFromUrl}/importador/batches`}
             className="block rounded-lg border border-neutral-200 bg-white p-4 shadow-sm transition hover:border-blue-300 hover:shadow-md"
           >
             <h4 className="font-medium text-neutral-900">Importaciones pendientes</h4>
             <p className="mt-1 text-sm text-neutral-500">
-              Ver archivos guardados sin procesar
+              Revisa y continúa con los lotes creados
             </p>
           </Link>
 
           <Link
-            to={`/${empresaFromUrl}/mod/imports/batches`}
+            to={`/${empresaFromUrl}/importador/preview`}
             className="block rounded-lg border border-neutral-200 bg-white p-4 shadow-sm transition hover:border-blue-300 hover:shadow-md"
           >
-            <h4 className="font-medium text-neutral-900">Historial de lotes</h4>
+            <h4 className="font-medium text-neutral-900">Vista previa</h4>
             <p className="mt-1 text-sm text-neutral-500">
-              Revisar importaciones anteriores
+              Abre la pantalla de detalle pasando ?batch_id=...
             </p>
           </Link>
         </div>

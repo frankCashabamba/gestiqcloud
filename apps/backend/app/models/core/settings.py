@@ -1,53 +1,29 @@
-"""Modelo de Settings por Tenant"""
+"""Compatibility layer for legacy TenantSettings model.
 
-import uuid
-from datetime import datetime
+Historically the settings were stored in `TenantSettings` under
+`app.models.core`. The data was consolidated into `CompanySettings`
+(`app.models.company.company_settings`). This module re-exports that
+model so the existing routers and use cases can keep importing
+`TenantSettings` without failing.
+"""
 
-from sqlalchemy import JSON, ForeignKey, String
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.config.database import Base
+from app.models.company.company_settings import CompanySettings
 
 
-class TenantSettings(Base):
-    """Configuración por tenant (modular)"""
+def _get_locale(self) -> str | None:
+    """Expose legacy `locale` attribute (maps to default_language)."""
+    return getattr(self, "default_language", None)
 
-    __tablename__ = "tenant_settings"
-    __table_args__ = {"extend_existing": True}
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
-        nullable=False,
-        unique=True,
-        index=True,
-    )
-    settings: Mapped[dict] = mapped_column(
-        JSONB().with_variant(JSON(), "sqlite"),
-        nullable=False,
-        default=dict,
-        # Estructura: {"pos": {...}, "inventory": {...}, etc}
-    )
-    pos_config: Mapped[dict | None] = mapped_column(
-        JSONB().with_variant(JSON(), "sqlite"), nullable=True
-    )
-    invoice_config: Mapped[dict | None] = mapped_column(
-        JSONB().with_variant(JSON(), "sqlite"), nullable=True
-    )
-    locale: Mapped[str] = mapped_column(String(10), nullable=False, default="es")
-    timezone: Mapped[str] = mapped_column(String(50), nullable=False, default="Europe/Madrid")
-    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="EUR")
-    updated_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
-    )
+def _set_locale(self, value: str | None) -> None:
+    setattr(self, "default_language", value)
 
-    # Relationships
-    tenant = relationship("Tenant", foreign_keys=[tenant_id])
 
-    def __repr__(self):
-        return f"<TenantSettings {self.tenant_id}>"
+# Add the compatibility property only if it is not already present
+if not hasattr(CompanySettings, "locale"):
+    CompanySettings.locale = property(_get_locale, _set_locale)  # type: ignore[attr-defined]
+
+# Legacy alias
+TenantSettings = CompanySettings
+
+__all__ = ["TenantSettings"]

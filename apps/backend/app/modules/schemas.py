@@ -10,18 +10,18 @@ from pydantic import BaseModel, ConfigDict
 
 # ---------- MÓDULO ----------
 class ModuloBase(BaseModel):
-    """Class ModuloBase - auto-generated docstring."""
+    """Module base schema (english only)."""
 
     name: str
     description: str | None = None
     active: bool
-    icono: str | None = "📦"
-    url: str | None
-    plantilla_inicial: str
-    context_type: str | None
-    modelo_objetivo: str | None
-    filtros_contexto: dict | None
-    categoria: str | None
+    icon: str | None = None
+    url: str | None = None
+    initial_template: str
+    context_type: str | None = None
+    target_model: str | None = None
+    context_filters: dict | None = None
+    category: str | None = None
 
 
 class ModuloCreate(ModuloBase):
@@ -31,23 +31,21 @@ class ModuloCreate(ModuloBase):
 
 
 class ModuloOut(ModuloBase):
-    """Class ModuloOut - auto-generated docstring."""
+    """Module output schema."""
 
     id: UUID
-    name: str
-    active: bool
 
     model_config = ConfigDict(from_attributes=True)
 
 
 # ---------- EMPRESA-MÓDULO ----------
 class EmpresaModuloBase(BaseModel):
-    """Class EmpresaModuloBase - auto-generated docstring."""
+    """Company-module base schema (english only)."""
 
-    modulo_id: int
+    module_id: UUID | str
     active: bool = True
-    fecha_expiracion: date | None = None
-    plantilla_inicial: str | None = None
+    expiration_date: date | None = None
+    initial_template: str | None = None
 
 
 class EmpresaModuloCreate(EmpresaModuloBase):
@@ -57,17 +55,13 @@ class EmpresaModuloCreate(EmpresaModuloBase):
 
 
 class EmpresaModuloOut(EmpresaModuloBase):
-    """Class EmpresaModuloOut - auto-generated docstring."""
+    """Company-module output schema."""
 
     id: UUID
     tenant_id: UUID
-    empresa_slug: str | None
-    active: bool
-    fecha_expiracion: date | None = None
-    fecha_activacion: date | None = None
-    plantilla_inicial: str | None = None
-
-    modulo: ModuloOut
+    company_slug: str | None
+    activation_date: date | None = None
+    module: ModuloOut
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -76,7 +70,7 @@ class EmpresaModuloOut(EmpresaModuloBase):
 class ModuloAsignadoBase(BaseModel):
     """Class ModuloAsignadoBase - auto-generated docstring."""
 
-    modulo_id: int
+    modulo_id: UUID | str
 
 
 class ModuloAsignadoCreate(ModuloAsignadoBase):
@@ -99,17 +93,17 @@ class ModuloAsignadoOut(BaseModel):
 
 
 class EmpresaModuloOutAdmin(BaseModel):
-    """Class EmpresaModuloOutAdmin - auto-generated docstring."""
+    """Company-module output schema for admin."""
 
     id: UUID
     tenant_id: UUID
-    modulo_id: int
+    module_id: UUID | int
     active: bool
-    fecha_activacion: date
-    fecha_expiracion: date | None
-    plantilla_inicial: str | None
-    empresa_slug: str | None
-    modulo: ModuloOut
+    activation_date: date
+    expiration_date: date | None
+    initial_template: str | None
+    company_slug: str | None
+    module: ModuloOut
 
     model_config = ConfigDict(from_attributes=True)
 

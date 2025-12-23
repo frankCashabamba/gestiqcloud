@@ -11,6 +11,7 @@ import {
 } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
+import { getDefaultReorderPoint, getTenantSettings } from '../../services/tenantSettings'
 
 export default function StockList() {
   const [items, setItems] = useState<StockItem[]>([])
@@ -26,11 +27,14 @@ export default function StockList() {
   const [sortKey, setSortKey] = useState<'producto' | 'qty' | 'warehouse'>('producto')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [per, setPer] = useState(25)
+  const [defaultReorderPoint, setDefaultReorderPoint] = useState(0)
 
   useEffect(() => {
     (async () => {
       try {
         setLoading(true)
+        const settings = await getTenantSettings()
+        setDefaultReorderPoint(getDefaultReorderPoint(settings))
         const [stockData, warehousesData] = await Promise.all([
           listStockItems(),
           listWarehouses(),
@@ -46,6 +50,13 @@ export default function StockList() {
       }
     })()
   }, [])
+
+  const getReorderPoint = (item: StockItem) => {
+    const productPoint = item.product?.product_metadata?.reorder_point
+    const point = productPoint ?? defaultReorderPoint
+    const num = Number(point)
+    return Number.isFinite(num) ? num : 0
+  }
 
   const crearAlmacenDefecto = async () => {
     try {
@@ -102,8 +113,8 @@ export default function StockList() {
       if (filterWarehouse !== 'all' && String(item.warehouse_id) !== String(filterWarehouse)) return false
 
       if (filterAlerta === 'bajo') {
-        const min = item.product?.product_metadata?.reorder_point
-        if (!min || item.qty >= min) return false
+        const min = getReorderPoint(item)
+        if (min <= 0 || item.qty > min) return false
       }
 
       if (filterAlerta === 'sobre') {
@@ -113,7 +124,7 @@ export default function StockList() {
 
       return true
     })
-  }, [items, q, filterWarehouse, filterAlerta])
+  }, [items, q, filterWarehouse, filterAlerta, defaultReorderPoint])
 
   const sorted = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1
@@ -157,9 +168,9 @@ export default function StockList() {
   }
 
   const getAlertaInfo = (item: StockItem) => {
-    const min = item.product?.product_metadata?.reorder_point
+    const min = getReorderPoint(item)
     const max = item.product?.product_metadata?.max_stock
-    if (min && item.qty < min) return { tipo: 'bajo' as const, texto: 'Stock bajo', color: 'bg-red-100 text-red-800' }
+    if (min > 0 && item.qty <= min) return { tipo: 'bajo' as const, texto: 'Stock bajo', color: 'bg-red-100 text-red-800' }
     if (max && item.qty > max) return { tipo: 'sobre' as const, texto: 'Sobre-stock', color: 'bg-orange-100 text-orange-800' }
     return null
   }
@@ -212,7 +223,12 @@ export default function StockList() {
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
           <div className="text-sm text-gray-600">Alertas stock bajo</div>
-          <div className="text-2xl font-bold text-red-600">{items.filter((i) => i.product?.product_metadata?.reorder_point && i.qty < i.product.product_metadata.reorder_point).length}</div>
+          <div className="text-2xl font-bold text-red-600">
+            {items.filter((i) => {
+              const min = getReorderPoint(i)
+              return min > 0 && i.qty <= min
+            }).length}
+          </div>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
           <div className="text-sm text-gray-600">Sobre-stock</div>
@@ -329,10 +345,10 @@ export default function StockList() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="text-sm font-medium text-gray-900">{item.product?.name || '—'}</div>
-                        {item.product?.product_metadata?.reorder_point && (
+                        {getReorderPoint(item) > 0 && (
                           <div className="text-xs text-gray-500">
-                            Min: {item.product.product_metadata?.reorder_point}
-                            {item.product.product_metadata?.max_stock ? ` / Max: ${item.product.product_metadata?.max_stock}` : ''}
+                            Min: {getReorderPoint(item)}
+                            {item.product?.product_metadata?.max_stock ? ` / Max: ${item.product.product_metadata?.max_stock}` : ''}
                           </div>
                         )}
                       </td>

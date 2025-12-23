@@ -1,9 +1,7 @@
 import React from 'react'
 import { Routes, Route } from 'react-router-dom'
-import ImportadorExcel from './ImportadorExcel'
 import ImportadorExcelWithQueue from './ImportadorExcelWithQueue'
 import ImportadorWizard from './Wizard'
-import ImportadosList from './ImportadosList'
 import BatchesList from './imports/BatchesList'
 import BatchDetail from './imports/BatchDetail'
 import ProductosImportados from './ProductosImportados'
@@ -15,9 +13,7 @@ export default function ImportadorRoutes() {
     <ImportQueueProvider>
       <Routes>
         <Route index element={<ImportadorExcelWithQueue />} />
-        <Route path="legacy" element={<ImportadorExcel />} />
         <Route path="wizard" element={<ImportadorWizard />} />
-        <Route path="pendientes" element={<ImportadosList />} />
         <Route path="preview" element={<PreviewPage />} />
         <Route path="products" element={<ProductosImportados />} />
         <Route path="batches" element={<BatchesList />} />

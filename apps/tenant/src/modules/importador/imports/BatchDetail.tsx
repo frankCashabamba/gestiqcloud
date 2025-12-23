@@ -31,6 +31,7 @@ const statusTone: Record<string, string> = {
   OK: 'bg-emerald-50 text-emerald-700',
   READY: 'bg-blue-50 text-blue-700',
   VALIDATED: 'bg-blue-50 text-blue-700',
+  EMPTY: 'bg-neutral-100 text-neutral-600',
   ERROR_VALIDATION: 'bg-amber-50 text-amber-600',
   ERROR_PROMOTION: 'bg-amber-50 text-amber-600',
   PROMOTED: 'bg-blue-100 text-blue-800',

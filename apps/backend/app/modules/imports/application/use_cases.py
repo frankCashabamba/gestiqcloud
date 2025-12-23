@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import re
 from collections.abc import Iterable
 from datetime import datetime
 from typing import Any
@@ -134,6 +135,170 @@ def _merge_src(raw: dict[str, Any] | None, normalized: dict[str, Any] | None) ->
     return merged
 
 
+def _parse_amount_value(v: Any) -> float | None:
+    """Parses common OCR/Excel amount strings to float; tolerates currency symbols and thousands."""
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        try:
+            return float(v)
+        except Exception:
+            return None
+    s = str(v).strip()
+    if not s:
+        return None
+    # Remove currency/letters but keep signs, dots and commas
+    s = re.sub(r"[^0-9,.\-]", "", s)
+    if not s:
+        return None
+    # Determine decimal separator (use rightmost of . or ,)
+    last_dot = s.rfind(".")
+    last_comma = s.rfind(",")
+    decimal_sep = "," if last_comma > last_dot else "."
+    if decimal_sep == ",":
+        s = s.replace(".", "").replace(",", ".")
+    else:
+        s = s.replace(",", "")
+    try:
+        return float(s)
+    except Exception:
+        return None
+
+
+def _get_case_insensitive(raw: dict[str, Any], key: str) -> Any:
+    """Returns value for key ignoring case differences."""
+    for k, v in raw.items():
+        try:
+            if str(k).lower() == key.lower():
+                return v
+        except Exception:
+            continue
+    return None
+
+
+def _normalize_bank_row(raw: dict[str, Any]) -> dict[str, Any] | None:
+    """Best-effort normalization for bank OCR rows when no mapping is provided."""
+    if not isinstance(raw, dict):
+        return None
+    tx_date = (
+        raw.get("transaction_date")
+        or raw.get("fecha")
+        or raw.get("date")
+        or _get_case_insensitive(raw, "transaction_date")
+        or _get_case_insensitive(raw, "fecha")
+        or _get_case_insensitive(raw, "date")
+    )
+    amount = raw.get("amount") if raw.get("amount") is not None else raw.get("importe")
+    if amount is None:
+        amount = _get_case_insensitive(raw, "amount") or _get_case_insensitive(raw, "importe")
+    parsed_amount = _parse_amount_value(amount)
+    # As fallback, pick first numeric value in the row
+    if parsed_amount is None:
+        for v in raw.values():
+            parsed_amount = _parse_amount_value(v)
+            if parsed_amount is not None:
+                break
+    desc = (
+        raw.get("description")
+        or raw.get("descripcion")
+        or raw.get("concepto")
+        or raw.get("concept")
+        or _get_case_insensitive(raw, "description")
+        or _get_case_insensitive(raw, "descripcion")
+        or _get_case_insensitive(raw, "concepto")
+        or _get_case_insensitive(raw, "concept")
+    )
+    account = raw.get("account") or raw.get("cuenta") or raw.get("iban") or _get_case_insensitive(raw, "account")
+    reference = (
+        raw.get("entry_ref")
+        or raw.get("reference")
+        or raw.get("referencia")
+        or raw.get("invoice")
+        or _get_case_insensitive(raw, "entry_ref")
+        or _get_case_insensitive(raw, "reference")
+        or _get_case_insensitive(raw, "referencia")
+    )
+
+    normalized: dict[str, Any] = {}
+    if tx_date:
+        normalized["transaction_date"] = tx_date
+    if parsed_amount is not None:
+        normalized["amount"] = parsed_amount
+    if desc:
+        normalized["description"] = desc
+    if account:
+        normalized["account"] = account
+    if reference:
+        normalized["entry_ref"] = reference
+
+    # Extra fallback: if no description, try joining non-empty text fields
+    if not normalized.get("description"):
+        texts = [str(v) for v in raw.values() if isinstance(v, str) and v.strip()]
+        if texts:
+            normalized["description"] = texts[0][:120]
+
+    return normalized or None
+
+
+def _normalize_expense_row(raw: dict[str, Any]) -> dict[str, Any] | None:
+    """Best-effort normalization for expenses/receipts when mapping is missing (OCR uploads)."""
+    if not isinstance(raw, dict):
+        return None
+    exp_date = (
+        raw.get("expense_date")
+        or raw.get("fecha")
+        or raw.get("date")
+        or _get_case_insensitive(raw, "expense_date")
+        or _get_case_insensitive(raw, "fecha")
+        or _get_case_insensitive(raw, "date")
+    )
+    amount = raw.get("amount") if raw.get("amount") is not None else raw.get("importe")
+    if amount is None:
+        amount = _get_case_insensitive(raw, "amount") or _get_case_insensitive(raw, "importe")
+    parsed_amount = _parse_amount_value(amount)
+    # Fallback: scan any numeric field
+    if parsed_amount is None:
+        for v in raw.values():
+            parsed_amount = _parse_amount_value(v)
+            if parsed_amount is not None:
+                break
+    desc = (
+        raw.get("description")
+        or raw.get("descripcion")
+        or raw.get("concepto")
+        or raw.get("concept")
+        or _get_case_insensitive(raw, "description")
+        or _get_case_insensitive(raw, "descripcion")
+        or _get_case_insensitive(raw, "concepto")
+        or _get_case_insensitive(raw, "concept")
+    )
+    category = raw.get("category") or raw.get("categoria") or _get_case_insensitive(raw, "category")
+    counterparty = raw.get("cliente") or raw.get("customer") or _get_case_insensitive(raw, "cliente")
+
+    normalized: dict[str, Any] = {}
+    if exp_date:
+        normalized["expense_date"] = exp_date
+    if parsed_amount is not None:
+        normalized["amount"] = parsed_amount
+    if desc:
+        normalized["description"] = desc
+    if category:
+        normalized["category"] = category
+    if counterparty:
+        normalized["counterparty"] = counterparty
+
+    return normalized or None
+
+
+def _auto_normalize_row(source_type: str, raw: dict[str, Any]) -> dict[str, Any] | None:
+    """Auto-mapping fallback for OCR/excel rows when no ImportMapping is provided."""
+    if source_type == "bank":
+        return _normalize_bank_row(raw)
+    if source_type in ("expenses", "receipts"):
+        return _normalize_expense_row(raw)
+    return None
+
+
 def _normalize_product_row(raw: dict[str, Any]) -> dict[str, Any]:
     """Best-effort normalization for common product Excel headers when no mapping is provided.
 
@@ -155,32 +320,40 @@ def _normalize_product_row(raw: dict[str, Any]) -> dict[str, Any]:
         or raw.get("NOMBRE")
         or ""
     )
-    # Price
-    out["precio"] = (
+    # Price (map to canonical "price")
+    out_price = (
         lower.get("precio")
         or lower.get("price")
         or lower.get("pvp")
+        or lower.get("precio unitario")
         or lower.get("precio unitario venta")
         or raw.get("PRECIO UNITARIO VENTA")
         or raw.get("PRECIO")
-        or lower.get("precio unitario")
-        or ""
     )
-    # Quantity / stock
-    out["cantidad"] = (
-        lower.get("cantidad")
+    try:
+        out["price"] = float(str(out_price).replace(",", ".")) if out_price not in (None, "") else None
+    except Exception:
+        out["price"] = out_price
+
+    # Quantity / stock (prefer sobrante diario or cantidad)
+    stock_val = (
+        lower.get("sobrante diario")
+        or lower.get("cantidad")
         or lower.get("quantity")
         or lower.get("stock")
-        or lower.get("sobrante diario")
         or raw.get("CANTIDAD")
-        or ""
     )
+    try:
+        out["stock"] = float(str(stock_val).replace(",", ".")) if stock_val not in (None, "") else None
+    except Exception:
+        out["stock"] = stock_val
+
     # Category
     out["categoria"] = lower.get("categoria") or lower.get("category") or raw.get("CATEGORIA") or ""
-    # SKU/code
-    out["sku"] = (
-        lower.get("sku") or lower.get("codigo") or lower.get("code") or raw.get("CODIGO") or ""
-    )
+    # SKU/code (only set if present and non-empty)
+    sku_val = lower.get("sku") or lower.get("codigo") or lower.get("code") or raw.get("CODIGO")
+    if sku_val not in (None, "", "-"):
+        out["sku"] = sku_val
     # Unit
     out["unit"] = (
         lower.get("unit") or lower.get("unidad") or lower.get("uom") or raw.get("UNIDAD") or "unit"
@@ -394,11 +567,25 @@ def ingest_rows(
     repo = ImportsRepository()
     created: list[dict[str, Any]] = []
     for idx, raw in enumerate(rows_list):
-        normalized = apply_mapping(raw, mappings, transforms, defaults) if mappings else None
+        # Desempaquetar payloads que traen los datos en la clave "datos" manteniendo meta como fallback
+        raw_effective = raw
+        if isinstance(raw, dict) and "datos" in raw and isinstance(raw.get("datos"), dict):
+            # Copia los datos reales y conserva metadatos (tipo/origen) si no pisan claves
+            base = dict(raw.get("datos") or {})
+            for k, v in raw.items():
+                if k != "datos" and k not in base:
+                    base[k] = v
+            raw_effective = base
+
+        normalized = apply_mapping(raw_effective, mappings, transforms, defaults) if mappings else None
         # Fallback normalization for products when no mapping present
         if not normalized and (batch.source_type in ("products", "productos")):
-            normalized = _normalize_product_row(raw)
-        src = _merge_src(raw, normalized)
+            normalized = _normalize_product_row(raw_effective)
+        if not normalized:
+            auto_norm = _auto_normalize_row(batch.source_type, raw_effective)
+            if auto_norm:
+                normalized = auto_norm
+        src = _merge_src(raw_effective, normalized)
         errors = _validate_by_type(batch.source_type, src)
         status = ImportItemStatus.OK if not errors else ImportItemStatus.ERROR_VALIDATION
         dedupe = _dedupe_hash(batch.source_type, src, keys=dedupe_keys)
@@ -419,13 +606,32 @@ def ingest_rows(
     if created:
         # print(f"DEBUG: Calling bulk_add_items with {len(created)} items")
         repo.bulk_add_items(db, tenant_id, batch.id, created)  # tenant_id UUID
-        batch.status = ImportBatchStatus.READY
+        # Ajustar estado del batch según validaciones iniciales
+        total = len(created)
+        oks = sum(1 for it in created if it.get("status") == ImportItemStatus.OK)
+        errs = sum(
+            1
+            for it in created
+            if it.get("status") in (ImportItemStatus.ERROR_VALIDATION, ImportItemStatus.ERROR_PROMOTION, "ERROR")
+        )
+        if total == 0:
+            batch.status = ImportBatchStatus.PENDING
+        elif errs == 0 and oks == total:
+            batch.status = ImportBatchStatus.READY
+        elif oks > 0 and errs > 0:
+            batch.status = ImportBatchStatus.PARTIAL
+        else:
+            batch.status = ImportBatchStatus.ERROR
         db.add(batch)
         db.commit()
         db.refresh(batch)
         # print(f"DEBUG: Items committed, batch status={batch.status}")
     else:
-        pass  # No items created
+        # Si el parser no produjo items, marca el lote como vacío para evitar mostrarlo como listo
+        batch.status = ImportBatchStatus.EMPTY
+        db.add(batch)
+        db.commit()
+        db.refresh(batch)
     t1 = datetime.utcnow()
     try:
         logging.getLogger("imports").info(
@@ -467,7 +673,7 @@ def revalidate_batch(db: Session, tenant_id: int, batch_id: UUID | str):
         elif oks > 0 and errs > 0:
             batch.status = ImportBatchStatus.PARTIAL
         else:
-            batch.status = ImportBatchStatus.READY
+            batch.status = ImportBatchStatus.ERROR
         db.add(batch)
         db.commit()
     try:
@@ -672,6 +878,13 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
 
 def _detectar_tipo_por_texto(txt: str) -> str:
     t = txt.lower()
+    # Detectar tickets POS primero (más específico)
+    if "ticket de venta" in t or "ticket venta" in t or "gracias por su compra" in t:
+        return "ticket_pos"
+    if re.search(r"n[ºo°]?\s*r[-\s]*\d+", t):
+        return "ticket_pos"
+    if re.search(r"\d+[.,]?\d*\s*x\s+.+\s*[-–]\s*\$?\s*\d", t):
+        return "ticket_pos"
     if "iban" in t or "saldo" in t or "transferencia" in t:
         return "bank"
     if "factura" in t or "n° factura" in t or "invoice" in t:
@@ -700,6 +913,23 @@ def ingest_photo(
         raw = parse_texto_factura(texto)
     elif tipo == "bank":
         raw = parse_texto_banco(texto)
+    elif tipo == "ticket_pos":
+        from app.modules.imports.extractores.extractor_ticket import extraer_ticket
+        resultados = extraer_ticket(texto)
+        if resultados:
+            canonical = resultados[0]
+            totals = canonical.get("totals", {})
+            raw = {
+                "tipo": "ticket_pos",
+                "importe": totals.get("total", 0.0),
+                "fecha": canonical.get("issue_date"),
+                "invoice": canonical.get("invoice_number"),
+                "concepto": "Ticket de venta POS",
+                "categoria": "ventas",
+                "origen": "ocr",
+            }
+        else:
+            raw = parse_texto_recibo(texto)
     else:
         raw = parse_texto_recibo(texto)
 
@@ -749,6 +979,22 @@ def attach_photo_and_reocr(
         suger = parse_texto_factura(texto)
     elif tipo == "bank":
         suger = parse_texto_banco(texto)
+    elif tipo == "ticket_pos":
+        from app.modules.imports.extractores.extractor_ticket import extraer_ticket
+        resultados = extraer_ticket(texto)
+        if resultados:
+            canonical = resultados[0]
+            totals = canonical.get("totals", {})
+            suger = {
+                "tipo": "ticket_pos",
+                "importe": totals.get("total", 0.0),
+                "fecha": canonical.get("issue_date"),
+                "invoice": canonical.get("invoice_number"),
+                "concepto": "Ticket de venta POS",
+                "categoria": "ventas",
+            }
+        else:
+            suger = parse_texto_recibo(texto)
     else:
         suger = parse_texto_recibo(texto)
 

@@ -4,11 +4,12 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config.settings import settings
 from app.modules.imports.ai import get_ai_provider_singleton
 
+from .mapping_suggester import MappingSuggestion, mapping_suggester
 from .telemetry import telemetry
 
 logger = logging.getLogger("imports.ai.http")
@@ -260,3 +261,135 @@ async def health_check():
             "provider": settings.IMPORT_AI_PROVIDER,
             "error": str(e),
         }
+
+
+# ============================================================================
+# Mapping Suggestion Endpoints
+# ============================================================================
+
+
+class MappingSuggestRequest(BaseModel):
+    """Request to suggest column mappings."""
+
+    headers: list[str] = Field(..., description="Column headers from the file")
+    sample_rows: list[list[Any]] | None = Field(
+        None, description="Sample data rows for context"
+    )
+    doc_type: str = Field(
+        "products", description="Document type: products, bank_transactions, invoices, expenses"
+    )
+    use_ai: bool = Field(True, description="Whether to use AI if available")
+
+
+class MappingSuggestResponse(BaseModel):
+    """Response with mapping suggestions."""
+
+    mappings: dict[str, str] = Field(..., description="Suggested mappings {source: target}")
+    transforms: dict[str, str] | None = Field(
+        None, description="Suggested transforms per column"
+    )
+    defaults: dict[str, Any] | None = Field(
+        None, description="Default values for missing fields"
+    )
+    confidence: float = Field(..., description="Confidence score 0-1")
+    reasoning: str = Field(..., description="Explanation of the suggestion")
+    from_cache: bool = Field(False, description="Whether result came from cache")
+    provider: str = Field(..., description="Provider used: heuristics, openai, etc.")
+
+
+@router.post("/mappings/suggest", response_model=MappingSuggestResponse)
+async def suggest_mapping(
+    request: MappingSuggestRequest,
+    tenant_id: str | None = Query(None, description="Tenant ID for cache scoping"),
+):
+    """
+    Suggest column mappings using AI or heuristics.
+
+    Endpoint: POST /imports/ai/mappings/suggest
+
+    Uses AI (OpenAI/Azure) if available and enabled, otherwise falls back
+    to pattern-based heuristics. Results are cached for performance.
+
+    Args:
+        headers: Column headers from the uploaded file
+        sample_rows: Optional sample data for better AI suggestions
+        doc_type: Type of document (products, bank_transactions, invoices, expenses)
+        use_ai: Whether to attempt AI suggestion
+        tenant_id: Optional tenant ID for cache scoping
+
+    Returns:
+        MappingSuggestResponse with suggested mappings and confidence
+    """
+    try:
+        suggestion = await mapping_suggester.suggest_mapping(
+            headers=request.headers,
+            sample_rows=request.sample_rows,
+            doc_type=request.doc_type,
+            tenant_id=tenant_id,
+            use_ai=request.use_ai,
+        )
+
+        logger.info(
+            f"Mapping suggestion: {len(suggestion.mappings)} mappings, "
+            f"confidence={suggestion.confidence:.0%}, "
+            f"provider={suggestion.provider}, "
+            f"cached={suggestion.from_cache}"
+        )
+
+        return MappingSuggestResponse(
+            mappings=suggestion.mappings,
+            transforms=suggestion.transforms,
+            defaults=suggestion.defaults,
+            confidence=suggestion.confidence,
+            reasoning=suggestion.reasoning,
+            from_cache=suggestion.from_cache,
+            provider=suggestion.provider,
+        )
+
+    except Exception as e:
+        logger.error(f"Mapping suggestion error: {e}")
+        raise
+
+
+class MappingCacheStatsResponse(BaseModel):
+    """Response with cache statistics."""
+
+    in_memory_entries: int
+    redis_available: bool
+    redis_entries: int | str | None = None
+
+
+@router.get("/mappings/cache/stats", response_model=MappingCacheStatsResponse)
+async def get_mapping_cache_stats():
+    """
+    Get mapping cache statistics.
+
+    Endpoint: GET /imports/ai/mappings/cache/stats
+
+    Returns:
+        Cache statistics including entry counts
+    """
+    stats = mapping_suggester.get_stats()
+    return MappingCacheStatsResponse(**stats)
+
+
+@router.post("/mappings/cache/clear")
+async def clear_mapping_cache(
+    tenant_id: str | None = Query(None, description="Clear only for specific tenant"),
+):
+    """
+    Clear mapping suggestion cache.
+
+    Endpoint: POST /imports/ai/mappings/cache/clear
+
+    Args:
+        tenant_id: Optional tenant ID to clear only that tenant's cache
+
+    Returns:
+        Confirmation message
+    """
+    mapping_suggester.clear_cache(tenant_id=tenant_id)
+    return {
+        "status": "ok",
+        "message": f"Mapping cache cleared{f' for tenant {tenant_id}' if tenant_id else ''}",
+    }

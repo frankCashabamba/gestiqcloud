@@ -1,12 +1,14 @@
-﻿import api from './api';
+import api from './api';
 
 export interface TenantSettings {
   locale?: string;
   timezone?: string;
   currency?: string;
   country?: string;
-  sector_id?: number | null;
+  sector_id?: number | string | null;
   sector_plantilla_name?: string | null;
+  sector_template_name?: string | null;
+  sector_plantilla_nombre?: string | null; // alias para escribir/leer
   pos?: {
     receipt_width_mm?: number;
     tax_price_includes?: boolean;
@@ -54,13 +56,35 @@ export interface TenantSettings {
 }
 
 export async function getTenantSettings(tenantId: string): Promise<TenantSettings> {
-const response = await api.get(`/v1/admin/empresas/${tenantId}/settings`);
-return response.data;
+  // Use new consolidated endpoint
+  try {
+    const response = await api.get(`/v1/tenants/${tenantId}/settings`);
+    return response.data;
+  } catch (error: any) {
+    // Fallback to legacy endpoint for backward compatibility
+    if (error.response?.status === 404) {
+      console.warn(`[getTenantSettings] New endpoint not found, using legacy endpoint for ${tenantId}`);
+      const response = await api.get(`/v1/admin/empresas/${tenantId}/settings`);
+      return response.data;
+    }
+    throw error;
+  }
 }
 
 export async function updateTenantSettings(tenantId: string, settings: Partial<TenantSettings>) {
-const response = await api.put(`/v1/admin/empresas/${tenantId}/settings`, settings);
-  return response.data;
+  // Use new consolidated endpoint
+  try {
+    const response = await api.put(`/v1/tenants/${tenantId}/settings`, settings);
+    return response.data;
+  } catch (error: any) {
+    // Fallback to legacy endpoint for backward compatibility
+    if (error.response?.status === 404) {
+      console.warn(`[updateTenantSettings] New endpoint not found, using legacy endpoint for ${tenantId}`);
+      const response = await api.put(`/v1/admin/empresas/${tenantId}/settings`, settings);
+      return response.data;
+    }
+    throw error;
+  }
 }
 
 export async function updateModuleSettings(

@@ -9,6 +9,10 @@ export interface TenantSettings {
     empresa_nombre?: string
     pais?: string
   }
+  inventory?: {
+    reorder_point_default?: number
+    allow_negative?: boolean
+  }
   pos_config?: {
     tax?: {
       price_includes_tax?: boolean
@@ -38,36 +42,36 @@ export async function getTenantSettings(): Promise<TenantSettings> {
   }
 
   try {
-    const { data } = await tenantApi.get<TenantSettings>('/api/v1/settings/tenant')
+    // New endpoint (consolidated in backend)
+    // Fallback a ruta antigua si es necesario
+    let data: TenantSettings
+    try {
+      const response = await tenantApi.get<TenantSettings>('/api/v1/company/settings')
+      data = response.data
+    } catch {
+      // Fallbacks legacy si el endpoint nuevo no existe
+      try {
+        console.warn('Primary endpoint not available, trying legacy endpoint')
+        const response = await tenantApi.get<TenantSettings>('/api/v1/settings/tenant')
+        data = response.data
+      } catch {
+        const response = await tenantApi.get<TenantSettings>('/api/v1/tenants/self/settings')
+        data = response.data
+      }
+    }
+
     cachedSettings = data
     return data
   } catch (error) {
     console.error('Error loading tenant settings:', error)
-    // Fallback a valores por defecto
+    // No devolver datos de otro tenant ni hardcodear: responde estructura vacía y reintenta en siguientes llamadas
     return {
-      currency: 'USD',
-      locale: 'es-EC',
-      timezone: 'America/Guayaquil',
-      settings: {
-        iva_tasa_defecto: 15,
-        empresa_nombre: 'Panadería Kusi',
-        pais: 'EC'
-      },
-      pos_config: {
-        tax: {
-          price_includes_tax: true,
-          default_rate: 0.15
-        },
-        return_window_days: 15,
-        store_credit: {
-          single_use: true,
-          expiry_months: 12
-        },
-        receipt: {
-          width_mm: 58,
-          print_mode: 'system'
-        }
-      }
+      currency: '',
+      locale: '',
+      timezone: '',
+      settings: {},
+      inventory: {},
+      pos_config: {},
     }
   }
 }
@@ -105,6 +109,17 @@ export function getCurrencySymbol(settings?: TenantSettings): string {
 }
 
 // Helper para obtener tasa de IVA
-export function getDefaultTaxRate(settings?: TenantSettings): number {
-  return settings?.settings?.iva_tasa_defecto || settings?.pos_config?.tax?.default_rate || 0.15
+export function getDefaultTaxRate(settings?: TenantSettings, fallback: number = 0.15): number {
+  // Usa ?? para respetar ceros explícitos y evitar caer al 0.15 por falsy
+  const posRate = settings?.pos_config?.tax?.default_rate
+  const legacyRate = settings?.settings?.iva_tasa_defecto
+  return posRate ?? legacyRate ?? fallback
+}
+
+export function getDefaultReorderPoint(settings?: TenantSettings): number {
+  const inv =
+    settings?.inventory?.reorder_point_default ??
+    (settings?.settings as any)?.inventory?.reorder_point_default
+  const num = Number(inv)
+  return Number.isFinite(num) ? num : 0
 }

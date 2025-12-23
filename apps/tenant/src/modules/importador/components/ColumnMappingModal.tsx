@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react'
+import { useSectorPlaceholder } from '../../../hooks/useSectorPlaceholders'
+import { useTenant } from '../../../contexts/TenantContext'
 
 interface ColumnMappingModalProps {
   isOpen: boolean
@@ -28,15 +30,15 @@ interface TargetField {
 }
 
 const TARGET_FIELDS: TargetField[] = [
-  { value: 'name', label: 'Nombre Producto', required: true, icon: '📦' },
-  { value: 'precio', label: 'Precio Venta', icon: '💰' },
-  { value: 'cantidad', label: 'Stock/Cantidad', icon: '📊' },
-  { value: 'categoria', label: 'Categoría', icon: '🏷️' },
-  { value: 'codigo', label: 'Código/SKU', icon: '🔢' },
-  { value: 'costo', label: 'Costo Compra', icon: '💸' },
-  { value: 'proveedor', label: 'Proveedor', icon: '🏭' },
-  { value: 'unidad', label: 'Unidad Medida', icon: '📏' },
-  { value: 'ignore', label: 'Ignorar columna', icon: '❌' }
+  { value: 'name', label: 'Product Name', required: true, icon: '📦' },
+  { value: 'precio', label: 'Sale Price', icon: '💰' },
+  { value: 'cantidad', label: 'Stock/Quantity', icon: '📊' },
+  { value: 'categoria', label: 'Category', icon: '🏷️' },
+  { value: 'codigo', label: 'Code/SKU', icon: '🔢' },
+  { value: 'costo', label: 'Purchase Cost', icon: '💸' },
+  { value: 'proveedor', label: 'Supplier', icon: '🏭' },
+  { value: 'unidad', label: 'Unit', icon: '📏' },
+  { value: 'ignore', label: 'Ignore column', icon: '❌' }
 ]
 
 export default function ColumnMappingModal({
@@ -54,20 +56,27 @@ export default function ColumnMappingModal({
   const [shouldSave, setShouldSave] = useState(false)
   const [selectedSavedMapping, setSelectedSavedMapping] = useState<string>('')
   const [autoConfirming, setAutoConfirming] = useState(false)
+  const { sector } = useTenant()
 
-  // Actualizar mapping cuando cambian las sugerencias
+  const { placeholder: saveNamePlaceholder } = useSectorPlaceholder(
+    sector?.plantilla || null,
+    'nombre_lote',
+    'importing'
+  )
+
+  // Update mapping when suggestions change
   useEffect(() => {
     console.log('🔍 ColumnMappingModal - suggestedMapping:', suggestedMapping)
     console.log('🔍 ColumnMappingModal - detectedColumns:', detectedColumns)
 
-    // 🎯 Si el mapping tiene "name" y al menos 2 campos más, es bueno
+    // If mapping has "name" and at least 2 more fields, auto-confirm
     const mappedFields = Object.values(suggestedMapping).filter(v => v !== 'ignore')
     const hasName = mappedFields.includes('name')
 
     if (hasName && mappedFields.length >= 2) {
-      console.log('✅ Mapeo completo detectado, auto-confirmando...')
+      console.log('✅ Full mapping detected, auto-confirming...')
       setAutoConfirming(true)
-      // Auto-confirmar después de 1.5 segundos para que vea la preview
+      // Auto-confirm after 1.5s so user sees the preview
       setTimeout(() => {
         onConfirm(suggestedMapping)
       }, 1500)
@@ -87,10 +96,10 @@ export default function ColumnMappingModal({
   }
 
   const handleConfirm = () => {
-    // Validar que name esté mapeado
+    // Ensure name is mapped
     const hasName = Object.values(mapping).includes('name')
     if (!hasName) {
-      alert('Debes mapear al menos el campo "Nombre Producto"')
+      alert('You must map at least the "Product Name" field')
       return
     }
 
@@ -112,10 +121,10 @@ export default function ColumnMappingModal({
         <div className="flex items-center justify-between border-b px-6 py-4">
           <div>
             <h2 className="text-xl font-bold text-gray-900">
-              Mapeo de Columnas
+              Column Mapping
             </h2>
             <p className="text-sm text-gray-500 mt-1">
-              Archivo: <span className="font-medium">{fileName}</span>
+              File: <span className="font-medium">{fileName}</span>
             </p>
           </div>
           <button
@@ -130,7 +139,7 @@ export default function ColumnMappingModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
-          {/* Auto-confirmación banner */}
+          {/* Auto-confirmation banner */}
           {autoConfirming && (
             <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
               <div className="flex items-center gap-3">
@@ -141,21 +150,21 @@ export default function ColumnMappingModal({
                 </div>
                 <div className="flex-1">
                   <h3 className="text-sm font-medium text-green-900">
-                    ✅ Mapeo detectado automáticamente
+                    ✅ Mapping detected automatically
                   </h3>
                   <p className="text-xs text-green-700 mt-1">
-                    El sistema detectó correctamente las columnas. Procesando en 1.5 segundos...
+                    Columns detected correctly. Processing in 1.5 seconds...
                   </p>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Selector de mapeo guardado */}
+          {/* Saved mapping selector */}
           {savedMappings.length > 0 && (
             <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                💾 Cargar configuración guardada:
+                💾 Load saved mapping:
               </label>
               <select
                 value={selectedSavedMapping}
@@ -165,17 +174,17 @@ export default function ColumnMappingModal({
                 <option value="">Manual...</option>
                 {savedMappings.map(m => (
                   <option key={m.id} value={m.id}>
-                    {m.name} {m.use_count > 0 && `(usado ${m.use_count} veces)`}
+                    {m.name} {m.use_count > 0 && `(used ${m.use_count} times)`}
                   </option>
                 ))}
               </select>
             </div>
           )}
 
-          {/* Grid de mapeo */}
+          {/* Mapping grid */}
           <div className="space-y-3 mb-6">
             <h3 className="text-sm font-medium text-gray-700 mb-3">
-              Relaciona las columnas de tu Excel con los campos del sistema:
+              Map your Excel columns to system fields:
             </h3>
 
             {detectedColumns.map((excelCol, idx) => (
@@ -183,20 +192,20 @@ export default function ColumnMappingModal({
                 key={idx}
                 className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors bg-white"
               >
-                {/* Columna Excel */}
+                {/* Excel column */}
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-gray-900 truncate">
                     {excelCol}
                   </div>
                   <div className="text-sm text-gray-500 truncate mt-1">
-                    Ejemplo: <span className="font-mono text-xs">{sampleData[0]?.[excelCol] || '—'}</span>
+                    Example: <span className="font-mono text-xs">{sampleData[0]?.[excelCol] || '—'}</span>
                   </div>
                 </div>
 
                 {/* Arrow */}
                 <div className="text-2xl text-gray-400">→</div>
 
-                {/* Campo destino */}
+                {/* Target field */}
                 <div className="flex-1">
                   <select
                     value={mapping[excelCol] || ''}
@@ -211,7 +220,7 @@ export default function ColumnMappingModal({
                         : 'border-gray-300'
                     }`}
                   >
-                    <option value="">Seleccionar campo...</option>
+                    <option value="">Select field...</option>
                     {TARGET_FIELDS.map(f => (
                       <option
                         key={f.value}
@@ -227,14 +236,14 @@ export default function ColumnMappingModal({
             ))}
           </div>
 
-          {/* Vista previa */}
+          {/* Preview */}
           <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
             <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
               </svg>
-              Vista Previa (primeras 3 filas)
+              Preview (first 3 rows)
             </h4>
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
@@ -281,7 +290,7 @@ export default function ColumnMappingModal({
               <div className="mt-3">
                 <input
                   type="text"
-                  placeholder="Ej: Proveedor Lácteos - Mensual"
+                  placeholder={saveNamePlaceholder || 'Ej: Proveedor Lácteos - Mensual'}
                   value={saveName}
                   onChange={(e) => setSaveName(e.target.value)}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"

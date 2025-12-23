@@ -48,7 +48,7 @@ export default function PlanCuentasList() {
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-2xl font-semibold">Plan de Cuentas</h3>
                 <button
-                    onClick={() => nav('plan-cuentas/nuevo')}
+                    onClick={() => nav('../plan-cuentas/nuevo')}
                     className="bg-blue-600 text-white px-3 py-2 rounded"
                 >
                     + Nueva Cuenta
@@ -97,7 +97,7 @@ export default function PlanCuentasList() {
                                 </td>
                                 <td className="border px-3 py-2 text-center">
                                     <button
-                                        onClick={() => nav(`plan-cuentas/${c.id}/editar`)}
+                                        onClick={() => nav(`../plan-cuentas/${c.id}/editar`)}
                                         className="text-blue-600 hover:underline mr-2"
                                     >
                                         Editar
@@ -114,7 +114,7 @@ export default function PlanCuentasList() {
                         {!loading && filtered.length === 0 && (
                             <tr>
                                 <td colSpan={6} className="border px-3 py-8 text-center text-gray-500">
-                                    No hay cuentas. <button onClick={() => nav('plan-cuentas/nuevo')} className="text-blue-600 hover:underline">Crear la primera</button>
+                                    No hay cuentas. <button onClick={() => nav('../plan-cuentas/nuevo')} className="text-blue-600 hover:underline">Crear la primera</button>
                                 </td>
                             </tr>
                         )}

@@ -34,7 +34,7 @@ except ImportError as exc:
 else:
     _celery_import_exception = None
 
-router = APIRouter(prefix="/api/v1/notifications", tags=["Notifications"])
+router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 
 # ---------------------------------------------------------------------------
@@ -55,6 +55,27 @@ def _get_notification_task():
             detail=detail,
         )
     return send_notification_task
+
+
+def _resolve_channel_type(payload: Any) -> str | None:
+    return getattr(payload, "channel_type", None) or getattr(payload, "tipo", None)
+
+
+def _channel_to_response(channel: NotificationChannel) -> NotificationChannelResponse:
+    return NotificationChannelResponse(
+        id=channel.id,
+        tenant_id=channel.tenant_id,
+        tipo=channel.channel_type,
+        name=channel.name,
+        description=None,
+        config=channel.config,
+        active=channel.is_active,
+        use_for_alerts=True,
+        use_for_invoices=False,
+        use_for_marketing=False,
+        created_at=channel.created_at,
+        updated_at=channel.updated_at,
+    )
 
 
 # ============================================================================
@@ -80,7 +101,7 @@ def list_channels(
         query = query.filter(NotificationChannel.is_active == activo)
 
     channels = query.order_by(NotificationChannel.created_at.desc()).all()
-    return channels
+    return [_channel_to_response(c) for c in channels]
 
 
 @router.post(
@@ -101,34 +122,31 @@ def create_channel(
     - **whatsapp**: Twilio o API genérica
     - **telegram**: Bot API
     """
+    channel_type = _resolve_channel_type(payload)
     # Validar tipo
-    if payload.channel_type not in ["email", "whatsapp", "telegram"]:
+    if channel_type not in ["email", "whatsapp", "telegram"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Tipo debe ser: email, whatsapp o telegram",
         )
 
     # Validar config según tipo
-    _validate_channel_config(payload.channel_type, payload.config)
+    _validate_channel_config(channel_type, payload.config)
 
     # Crear canal
     channel = NotificationChannel(
         tenant_id=tenant_id,
-        channel_type=payload.channel_type,
-        nombre=payload.name,
-        descripcion=payload.description,
+        channel_type=channel_type,
+        name=payload.name,
         config=payload.config,
-        activo=payload.active,
-        use_for_alerts=payload.use_for_alerts,
-        use_for_invoices=payload.use_for_invoices,
-        use_for_marketing=payload.use_for_marketing,
+        is_active=payload.active,
     )
 
     db.add(channel)
     db.commit()
     db.refresh(channel)
 
-    return channel
+    return _channel_to_response(channel)
 
 
 @router.get("/channels/{channel_id}", response_model=NotificationChannelResponse)
@@ -150,7 +168,7 @@ def get_channel(
     if not channel:
         raise HTTPException(status_code=404, detail="Canal no encontrado")
 
-    return channel
+    return _channel_to_response(channel)
 
 
 @router.put("/channels/{channel_id}", response_model=NotificationChannelResponse)
@@ -180,6 +198,12 @@ def update_channel(
     if "config" in update_data:
         _validate_channel_config(channel.channel_type, update_data["config"])
 
+    if "active" in update_data:
+        channel.is_active = update_data.pop("active")
+    update_data.pop("description", None)
+    update_data.pop("use_for_alerts", None)
+    update_data.pop("use_for_invoices", None)
+    update_data.pop("use_for_marketing", None)
     for field, value in update_data.items():
         setattr(channel, field, value)
 
@@ -188,7 +212,7 @@ def update_channel(
     db.commit()
     db.refresh(channel)
 
-    return channel
+    return _channel_to_response(channel)
 
 
 @router.delete("/channels/{channel_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -290,14 +314,15 @@ def send_notification(
         )
 
     config = None
+    channel_type = _resolve_channel_type(payload)
     if payload.config_override:
-        _validate_channel_config(payload.channel_type, payload.config_override)
+        _validate_channel_config(channel_type, payload.config_override)
         config = payload.config_override
 
     # Enviar async
     task = _get_notification_task().delay(
         tenant_id=str(tenant_id),
-        channel_type=payload.channel_type,
+        channel_type=channel_type,
         destinatario=payload.destinatario,
         asunto=payload.asunto,
         mensaje=payload.mensaje,

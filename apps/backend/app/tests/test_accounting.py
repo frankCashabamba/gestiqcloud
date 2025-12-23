@@ -156,12 +156,12 @@ class TestAsientoLineaSchema:
 class TestAccountingIntegration:
     """Tests de integración"""
 
-    def test_contabilidad_universal(self):
+    def test_contabilidad_universal(self, db):
         """Contabilidad es universal (mismo plan contable PGC)"""
-        from app.services.sector_defaults import SECTOR_DEFAULTS
+        from app.models.company.company import SectorTemplate
 
-        # Plan contable es estándar para todos
-        assert len(SECTOR_DEFAULTS) >= 4  # 4 sectores mínimo
+        codes = {tpl.code for tpl in db.query(SectorTemplate).all()}
+        assert {"panaderia", "retail", "restaurante", "taller"}.issubset(codes)
 
     def test_cuentas_by_tipo(self):
         """Plan contable debe tener los 5 tipos"""

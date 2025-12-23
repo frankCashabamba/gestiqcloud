@@ -1,137 +1,51 @@
 """
-Tenant Configuration Router - Configuración por tenant
+DEPRECATED - Tenant Configuration Router
+
+⚠️ Este archivo está deprecado. Las funciones se movieron a:
+   app/routers/tenant_settings.py
+
+Mantiene backward compatibility redirectando a tenant_settings.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import text
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.middleware.tenant import ensure_tenant
+from app.routers.tenant_settings import get_tenant_settings_compat, update_tenant_settings_compat
 
-router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
+router = APIRouter(prefix="/api/v1/settings", tags=["settings [DEPRECATED]"])
 
 
-@router.get("/tenant")
+@router.get("/tenant", deprecated=True)
 def get_tenant_settings(db: Session = Depends(get_db), tenant_id: str = Depends(ensure_tenant)):
     """
+    ⚠️ DEPRECATED - Usar GET /api/v1/tenants/{tenant_id}/settings
+
     Obtener configuración del tenant (moneda, IVA, POS, etc.)
     """
-    query = text(
-        """
-        SELECT
-            currency,
-            locale,
-            timezone,
-            settings,
-            pos_config,
-            invoice_config
-        FROM tenant_settings
-        WHERE tenant_id = :tenant_id
-        LIMIT 1
-    """
-    )
-
-    result = db.execute(query, {"tenant_id": tenant_id}).first()
-
-    if not result:
-        # Crear configuración por defecto si no existe
-        insert_query = text(
-            """
-            INSERT INTO tenant_settings (
-                tenant_id,
-                currency,
-                locale,
-                timezone,
-                settings,
-                pos_config
-            ) VALUES (
-                :tenant_id,
-                'USD',
-                'es-EC',
-                'America/Guayaquil',
-                '{"iva_tasa_defecto": 15, "pais": "EC"}'::jsonb,
-                '{"tax": {"price_includes_tax": true, "default_rate": 0.15}}'::jsonb
-            )
-            RETURNING currency, locale, timezone, settings, pos_config, invoice_config
-        """
-        )
-
-        result = db.execute(insert_query, {"tenant_id": tenant_id}).first()
-        db.commit()
-
-    assert result is not None, "Failed to create/retrieve tenant settings"
-    return {
-        "currency": result[0],
-        "locale": result[1],
-        "timezone": result[2],
-        "settings": result[3] or {},
-        "pos_config": result[4] or {},
-        "invoice_config": result[5] or {},
-    }
+    return get_tenant_settings_compat(db, tenant_id)
 
 
-@router.put("/tenant")
+@router.put("/tenant", deprecated=True)
 def update_tenant_settings(
     settings: dict,
     db: Session = Depends(get_db),
     tenant_id: str = Depends(ensure_tenant),
 ):
     """
+    ⚠️ DEPRECATED - Usar PUT /api/v1/tenants/{tenant_id}/settings
+
     Actualizar configuración del tenant
     """
-    # Extraer campos permitidos
-    currency = settings.get("currency")
-    locale = settings.get("locale")
-    timezone = settings.get("timezone")
-    general_settings = settings.get("settings", {})
-    pos_config = settings.get("pos_config", {})
-    invoice_config = settings.get("invoice_config", {})
+    from app.routers.tenant_settings import TenantSettingsRequest
 
-    # Construir UPDATE dinámicamente
-    updates = []
-    params = {"tenant_id": tenant_id}
+    # Convert dict to Pydantic model
+    payload = TenantSettingsRequest(
+        locale=settings.get("locale"),
+        timezone=settings.get("timezone"),
+        currency=settings.get("currency"),
+        settings=settings.get("settings"),
+    )
 
-    if currency:
-        updates.append("currency = :currency")
-        params["currency"] = currency
-
-    if locale:
-        updates.append("locale = :locale")
-        params["locale"] = locale
-
-    if timezone:
-        updates.append("timezone = :timezone")
-        params["timezone"] = timezone
-
-    if general_settings:
-        updates.append("settings = :settings::jsonb")
-        import json
-
-        params["settings"] = json.dumps(general_settings)
-
-    if pos_config:
-        updates.append("pos_config = :pos_config::jsonb")
-        import json
-
-        params["pos_config"] = json.dumps(pos_config)
-
-    if invoice_config:
-        updates.append("invoice_config = :invoice_config::jsonb")
-        import json
-
-        params["invoice_config"] = json.dumps(invoice_config)
-
-    if not updates:
-        raise HTTPException(400, "No settings to update")
-
-    update_sql = f"""
-        UPDATE tenant_settings
-        SET {", ".join(updates)}, updated_at = NOW()
-        WHERE tenant_id = :tenant_id
-    """  # nosec B608 - updates are from known enum fields, not user input
-
-    db.execute(text(update_sql), params)
-    db.commit()
-
-    return {"ok": True}
+    return update_tenant_settings_compat(payload, db, tenant_id)

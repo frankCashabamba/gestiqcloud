@@ -24,17 +24,17 @@ def calculate_recipe_cost(db: Session, recipe_id: UUID) -> dict:
         {
             "recipe_id": UUID,
             "name": str,
-            "rendimiento": int,
-            "costo_total": float,
-            "costo_por_unidad": float,
-            "ingredientes_count": int,
-            "desglose": [
+            "yield_qty": int,
+            "total_cost": float,
+            "unit_cost": float,
+            "ingredients_count": int,
+            "breakdown": [
                 {
-                    "producto": str,
+                    "product": str,
                     "qty": float,
-                    "unidad": str,
-                    "costo": float,
-                    "porcentaje": float
+                    "unit": str,
+                    "cost": float,
+                    "percentage": float
                 }
             ]
         }
@@ -54,33 +54,33 @@ def calculate_recipe_cost(db: Session, recipe_id: UUID) -> dict:
     costo_total = Decimal("0")
 
     for ing in ingredientes:
-        producto = db.query(Product).filter(Product.id == ing.producto_id).first()
+        producto = db.query(Product).filter(Product.id == ing.product_id).first()
 
         # costo_ingrediente ya está calculado por la columna GENERATED
-        costo_ing = Decimal(str(ing.costo_ingrediente or 0))
+        costo_ing = Decimal(str(ing.ingredient_cost or 0))
         costo_total += costo_ing
 
         desglose.append(
             {
-                "producto_id": str(ing.producto_id),
-                "producto": producto.name if producto else "Desconocido",
+                "product_id": str(ing.product_id),
+                "product": producto.name if producto else "Unknown",
                 "qty": float(ing.qty),
-                "unidad": ing.unidad_medida,
-                "presentacion_compra": ing.presentacion_compra,
-                "costo": round(float(costo_ing), 4),
-                "porcentaje": 0,  # Se calculará después
+                "unit": ing.unit,
+                "purchase_packaging": ing.purchase_packaging,
+                "cost": round(float(costo_ing), 4),
+                "percentage": 0,  # Calculated later
             }
         )
 
     # Calcular porcentajes
     costo_total_float = float(costo_total)
     for item in desglose:
-        item["porcentaje"] = (
-            (item["costo"] / costo_total_float * 100) if costo_total_float > 0 else 0
+        item["percentage"] = (
+            (item["cost"] / costo_total_float * 100) if costo_total_float > 0 else 0
         )
 
     # Actualizar solo costo_total (costo_por_unidad se calcula automáticamente)
-    recipe.costo_total = costo_total
+    recipe.total_cost = costo_total
 
     db.commit()
     db.refresh(recipe)
@@ -88,25 +88,25 @@ def calculate_recipe_cost(db: Session, recipe_id: UUID) -> dict:
     return {
         "recipe_id": str(recipe.id),
         "name": recipe.name,
-        "rendimiento": recipe.rendimiento,
-        "costo_total": round(float(costo_total), 2),
-        "costo_por_unidad": round(float(recipe.costo_por_unidad), 4),
-        "ingredientes_count": len(ingredientes),
-        "desglose": sorted(desglose, key=lambda x: x["costo"], reverse=True),
+        "yield_qty": recipe.yield_qty,
+        "total_cost": round(float(costo_total), 2),
+        "unit_cost": round(float(recipe.unit_cost or 0), 4),
+        "ingredients_count": len(ingredientes),
+        "breakdown": sorted(desglose, key=lambda x: x["cost"], reverse=True),
     }
 
 
 def calculate_ingredient_cost(
-    qty: float, unidad: str, qty_presentacion: float, costo_presentacion: float
+    qty: float, unit: str, qty_per_package: float, package_cost: float
 ) -> float:
     """
     Calcula costo de ingrediente basado en presentación de compra
 
     Args:
         qty: Cantidad usada en receta
-        unidad: Unidad de medida
-        qty_presentacion: Cantidad en presentación (ej. 110 lb)
-        costo_presentacion: Costo de presentación (ej. $35)
+        unit: Unidad de medida
+        qty_per_package: Cantidad en presentación (ej. 110 lb)
+        package_cost: Costo de presentación (ej. $35)
 
     Returns:
         Costo del ingrediente usado
@@ -115,10 +115,10 @@ def calculate_ingredient_cost(
         calculate_ingredient_cost(50, "lb", 110, 35.00)
         -> 50 * (35 / 110) = $15.91
     """
-    if qty_presentacion <= 0:
+    if qty_per_package <= 0:
         raise ValueError("Cantidad de presentación debe ser > 0")
 
-    costo_unitario = costo_presentacion / qty_presentacion
+    costo_unitario = package_cost / qty_per_package
     costo_ingrediente = qty * costo_unitario
 
     return round(costo_ingrediente, 4)
@@ -163,7 +163,7 @@ def calculate_purchase_for_production(db: Session, recipe_id: UUID, qty_to_produ
         raise ValueError(f"Receta no encontrada: {recipe_id}")
 
     # Calcular batches
-    batches_required = qty_to_produce / recipe.rendimiento
+    batches_required = qty_to_produce / recipe.yield_qty
 
     # Usar función PostgreSQL
     result = db.execute(
@@ -177,13 +177,13 @@ def calculate_purchase_for_production(db: Session, recipe_id: UUID, qty_to_produ
     for row in result:
         ingredientes.append(
             {
-                "producto_id": str(row.producto_id),
-                "producto": row.producto_nombre,
-                "qty_necesaria": float(row.qty_necesaria),
-                "unidad": row.unidad_medida,
-                "presentaciones_necesarias": int(row.presentaciones_necesarias),
-                "presentacion_compra": row.presentacion_compra,
-                "costo_estimado": float(row.costo_estimado),
+                "product_id": str(row.producto_id),
+                "product": row.producto_nombre,
+                "required_qty": float(row.qty_necesaria),
+                "unit": row.unidad_medida,
+                "packages_required": int(row.presentaciones_necesarias),
+                "purchase_packaging": row.presentacion_compra,
+                "estimated_cost": float(row.costo_estimado),
             }
         )
         costo_total += float(row.costo_estimado)
@@ -191,14 +191,14 @@ def calculate_purchase_for_production(db: Session, recipe_id: UUID, qty_to_produ
     return {
         "recipe": {
             "id": str(recipe.id),
-            "nombre": recipe.name,
-            "rendimiento": recipe.rendimiento,
+            "name": recipe.name,
+            "yield_qty": recipe.yield_qty,
         },
         "qty_to_produce": qty_to_produce,
         "batches_required": round(batches_required, 2),
-        "ingredientes": ingredientes,
-        "costo_total_produccion": round(costo_total, 2),
-        "costo_por_unidad": round(costo_total / qty_to_produce, 4) if qty_to_produce > 0 else 0,
+        "ingredients": ingredientes,
+        "total_production_cost": round(costo_total, 2),
+        "unit_cost": round(costo_total / qty_to_produce, 4) if qty_to_produce > 0 else 0,
     }
 
 
@@ -226,8 +226,8 @@ def calculate_production_time(
     if not recipe:
         raise ValueError(f"Receta no encontrada: {recipe_id}")
 
-    batches = qty_to_produce / recipe.rendimiento
-    tiempo_por_batch = recipe.tiempo_preparacion or 0
+    batches = qty_to_produce / recipe.yield_qty
+    tiempo_por_batch = recipe.prep_time_minutes or 0
     tiempo_total = int(batches * tiempo_por_batch)
 
     # Ajustar por número de trabajadores (simplificado)
@@ -273,30 +273,30 @@ def create_purchase_order_from_recipe(
 
     # Preparar líneas de orden de compra
     purchase_lines = []
-    for ing in calculation["ingredientes"]:
+    for ing in calculation["ingredients"]:
         purchase_lines.append(
             {
-                "producto_id": ing["producto_id"],
-                "producto_nombre": ing["producto"],
-                "qty": ing["presentaciones_necesarias"],
-                "unidad": "presentacion",  # Comprar por presentación completa
+                "product_id": ing["product_id"],
+                "product_name": ing["product"],
+                "qty": ing["packages_required"],
+                "unit": "package",  # Comprar por presentación completa
                 "precio_estimado": (
-                    ing["costo_estimado"] / ing["presentaciones_necesarias"]
-                    if ing["presentaciones_necesarias"] > 0
+                    ing["estimated_cost"] / ing["packages_required"]
+                    if ing["packages_required"] > 0
                     else 0
                 ),
-                "total": ing["costo_estimado"],
-                "notas": f"Para producción de {qty_to_produce} {calculation['recipe']['nombre']}",
+                "total": ing["estimated_cost"],
+                "notes": f"To produce {qty_to_produce} {calculation['recipe']['name']}",
             }
         )
 
     return {
         "recipe_id": str(recipe_id),
-        "recipe_nombre": calculation["recipe"]["nombre"],
+        "recipe_name": calculation["recipe"]["name"],
         "qty_to_produce": qty_to_produce,
         "supplier_id": str(supplier_id) if supplier_id else None,
-        "total_estimado": calculation["costo_total_produccion"],
-        "lineas": purchase_lines,
+        "estimated_total": calculation["total_production_cost"],
+        "lines": purchase_lines,
         "metadata": {
             "batches_required": calculation["batches_required"],
             "created_from": "recipe_calculator",
@@ -326,18 +326,16 @@ def compare_recipe_costs(db: Session, recipe_ids: list[UUID]) -> list[dict]:
                 {
                     "recipe_id": cost_data["recipe_id"],
                     "name": recipe_name,
-                    # compatibilidad con usos antiguos
-                    "nombre": recipe_name,
-                    "costo_por_unidad": cost_data["costo_por_unidad"],
-                    "rendimiento": cost_data["rendimiento"],
-                    "ingredientes_count": cost_data["ingredientes_count"],
+                    "unit_cost": cost_data["unit_cost"],
+                    "yield_qty": cost_data["yield_qty"],
+                    "ingredients_count": cost_data["ingredients_count"],
                 }
             )
         except Exception:
             continue
 
     # Ordenar por costo por unidad
-    return sorted(comparisons, key=lambda x: x["costo_por_unidad"])
+    return sorted(comparisons, key=lambda x: x["unit_cost"])
 
 
 def get_recipe_profitability(
@@ -353,35 +351,35 @@ def get_recipe_profitability(
 
     Returns:
         {
-            "costo_directo": float,
-            "costo_indirecto": float,
-            "costo_total": float,
-            "precio_venta": float,
-            "ganancia": float,
-            "margen_porcentaje": float,
-            "punto_equilibrio_unidades": int
+            "direct_cost": float,
+            "indirect_cost": float,
+            "total_cost": float,
+            "selling_price": float,
+            "profit": float,
+            "margin_percentage": float,
+            "breakeven_units": int
         }
     """
     cost_data = calculate_recipe_cost(db, recipe_id)
 
-    costo_directo = cost_data["costo_por_unidad"]
-    costo_indirecto = costo_directo * indirect_costs_pct
-    costo_total = costo_directo + costo_indirecto
-    ganancia = selling_price - costo_total
-    margen = (ganancia / selling_price * 100) if selling_price > 0 else 0
+    direct_cost = cost_data["unit_cost"]
+    indirect_cost = direct_cost * indirect_costs_pct
+    total_cost = direct_cost + indirect_cost
+    profit = selling_price - total_cost
+    margin = (profit / selling_price * 100) if selling_price > 0 else 0
 
     # Punto de equilibrio (asumiendo costos fijos)
     # Simplificado: si margen > 0, punto equilibrio = 1 unidad
-    punto_equilibrio = 1 if ganancia > 0 else 0
+    breakeven_units = 1 if profit > 0 else 0
 
     return {
         "recipe_id": str(recipe_id),
-        "nombre": cost_data["nombre"],
-        "costo_directo": round(costo_directo, 4),
-        "costo_indirecto": round(costo_indirecto, 4),
-        "costo_total": round(costo_total, 4),
-        "precio_venta": round(selling_price, 2),
-        "ganancia": round(ganancia, 4),
-        "margen_porcentaje": round(margen, 2),
-        "punto_equilibrio_unidades": punto_equilibrio,
+        "name": cost_data["name"],
+        "direct_cost": round(direct_cost, 4),
+        "indirect_cost": round(indirect_cost, 4),
+        "total_cost": round(total_cost, 4),
+        "selling_price": round(selling_price, 2),
+        "profit": round(profit, 4),
+        "margin_percentage": round(margin, 2),
+        "breakeven_units": breakeven_units,
     }

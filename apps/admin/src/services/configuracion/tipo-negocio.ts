@@ -2,7 +2,7 @@ import api from '../../shared/api/client'
 import { ADMIN_CONFIG } from '@shared/endpoints'
 
 export type TipoNegocio = {
-  id: number
+  id: string
   name: string
   description?: string | null
   active?: boolean

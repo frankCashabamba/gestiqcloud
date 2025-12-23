@@ -10,6 +10,8 @@ const NAV_LINKS = [
   { to: 'libro-mayor', label: 'Libro Mayor' },
   { to: 'pyl', label: 'Pérdidas y Ganancias' },
   { to: 'plan-contable', label: 'Plan Contable' },
+  { to: 'pos-config', label: 'Config POS' },
+  { to: 'pos-payment-methods', label: 'Medios de Pago' },
   { to: 'conciliacion', label: 'Conciliación bancaria' },
 ]
 

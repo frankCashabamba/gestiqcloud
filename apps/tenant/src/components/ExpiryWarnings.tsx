@@ -114,7 +114,7 @@ export function ExpiryWarnings({
       <div className="warnings-header" onClick={() => setCollapsed(!collapsed)}>
         <div className="header-left">
           <span className="icon" aria-hidden="true">
-            {sector.is_panaderia ? '🥐' : '📦'}
+            📦
           </span>
           <h3 className="title">
             Productos Próximos a Caducar
@@ -167,9 +167,9 @@ export function ExpiryWarnings({
                 </div>
 
                 <div className="item-right">
-                  <div className="qty-badge" aria-label={`Cantidad: ${product.qty_on_hand}`}>
-                    {product.qty_on_hand} {sector.is_panaderia ? 'uds' : 'unidades'}
-                  </div>
+                   <div className="qty-badge" aria-label={`Cantidad: ${product.qty_on_hand}`}>
+                     {product.qty_on_hand} unidades
+                   </div>
                   <div className="expiry-date">
                     {new Date(product.expires_at).toLocaleDateString('es-ES', {
                       day: '2-digit',

@@ -49,9 +49,9 @@ def get_company_settings(
 
     if not settings:
         return {
-            "company_name": f"Company {tenant_id}",
-            "primary_color": "#4f46e5",
-            "secondary_color": "#6c757d",
+            "company_name": None,
+            "primary_color": None,
+            "secondary_color": None,
             "company_logo": None,
         }
 

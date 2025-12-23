@@ -30,6 +30,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.url.path in ("/health", "/healthz", "/"):
             return await call_next(request)
 
+        # Skip admin config/catalog endpoints in dev to avoid throttling the Admin UI bootstrap
+        try:
+            path = request.url.path or ""
+            if path.startswith("/api/v1/admin/config"):
+                return await call_next(request)
+        except Exception:
+            pass
+
         # Exempt large-file chunked upload endpoints from generic rate limiting
         # to allow many small requests during a single file upload.
         try:

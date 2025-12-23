@@ -7,6 +7,8 @@
  * - POST /api/v1/imports/files/classify-with-ai (clasificación con IA)
  */
 
+import { apiFetch } from '../../../lib/http'
+
 export interface ClassifyResponse {
   /** Parser sugerido basado en análisis del archivo */
   suggested_parser: string
@@ -24,78 +26,61 @@ export interface ClassifyResponse {
   available_parsers?: string[]
 }
 
-class ClassifyApi {
-  private baseUrl: string
+/**
+ * Clasificar archivo con métodos básicos (heurística local)
+ */
+export async function classifyFileBasic(file: File, authToken?: string): Promise<ClassifyResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
 
-  constructor(baseUrl: string = '/api/v1') {
-    this.baseUrl = baseUrl
-  }
+  return apiFetch<ClassifyResponse>('/api/v1/imports/files/classify', {
+    method: 'POST',
+    body: formData,
+    authToken,
+  })
+}
 
-  /**
-   * Clasificar archivo con métodos básicos (heurística local)
-   * @param file Archivo a clasificar
-   * @returns Resultado de clasificación
-   */
-  async classifyFileBasic(file: File): Promise<ClassifyResponse> {
-    const formData = new FormData()
-    formData.append('file', file)
+/**
+ * Clasificar archivo con IA (local, OpenAI, o Azure)
+ */
+export async function classifyFileWithAI(file: File, authToken?: string): Promise<ClassifyResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
 
-    const response = await fetch(
-      `${this.baseUrl}/imports/files/classify`,
-      {
-        method: 'POST',
-        body: formData,
-      }
-    )
+  return apiFetch<ClassifyResponse>('/api/v1/imports/files/classify-with-ai', {
+    method: 'POST',
+    body: formData,
+    authToken,
+  })
+}
 
-    if (!response.ok) {
-      throw new Error(`Classification failed: ${response.statusText}`)
-    }
-
-    return response.json()
-  }
-
-  /**
-   * Clasificar archivo con IA (local, OpenAI, o Azure)
-   * Automáticamente selecciona el proveedor según configuración del backend
-   * @param file Archivo a clasificar
-   * @returns Resultado de clasificación mejorado con IA
-   */
-  async classifyFileWithAI(file: File): Promise<ClassifyResponse> {
-    const formData = new FormData()
-    formData.append('file', file)
-
-    const response = await fetch(
-      `${this.baseUrl}/imports/files/classify-with-ai`,
-      {
-        method: 'POST',
-        body: formData,
-      }
-    )
-
-    if (!response.ok) {
-      throw new Error(`AI classification failed: ${response.statusText}`)
-    }
-
-    return response.json()
-  }
-
-  /**
-   * Intentar clasificar con IA, fallback a clasificación básica si falla
-   * @param file Archivo a clasificar
-   * @returns Resultado de clasificación (con IA si es posible)
-   */
-  async classifyFileWithFallback(file: File): Promise<ClassifyResponse> {
-    try {
-      return await this.classifyFileWithAI(file)
-    } catch (error) {
-      console.warn('AI classification failed, falling back to basic:', error)
-      return this.classifyFileBasic(file)
-    }
+/**
+ * Intentar clasificar con IA, fallback a clasificación básica si falla
+ */
+export async function classifyFileWithFallback(file: File, authToken?: string): Promise<ClassifyResponse> {
+  try {
+    return await classifyFileWithAI(file, authToken)
+  } catch (error) {
+    console.warn('AI classification failed, falling back to basic:', error)
+    return classifyFileBasic(file, authToken)
   }
 }
 
-// Instancia singleton
+// Mantener clase para compatibilidad con código existente
+class ClassifyApi {
+  async classifyFileBasic(file: File, authToken?: string): Promise<ClassifyResponse> {
+    return classifyFileBasic(file, authToken)
+  }
+
+  async classifyFileWithAI(file: File, authToken?: string): Promise<ClassifyResponse> {
+    return classifyFileWithAI(file, authToken)
+  }
+
+  async classifyFileWithFallback(file: File, authToken?: string): Promise<ClassifyResponse> {
+    return classifyFileWithFallback(file, authToken)
+  }
+}
+
 export const classifyApi = new ClassifyApi()
 
 export default classifyApi

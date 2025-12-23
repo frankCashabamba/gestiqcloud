@@ -7,6 +7,7 @@ export interface SectorTemplate {
   branding: {
     color_primario: string
     plantilla_inicio: string
+    icon?: string
   }
   modules_count: number
   categories: string[]
@@ -59,11 +60,9 @@ export const SectorPlantillaSelector: React.FC<SectorPlantillaSelectorProps> = (
     }
   }
 
-  const getIcon = (name: string) => {
-    if (name.toLowerCase().includes('panadería')) return '🥐'
-    if (name.toLowerCase().includes('taller')) return '🔧'
-    if (name.toLowerCase().includes('retail') || name.toLowerCase().includes('bazar')) return '🏪'
-    return '🏢'
+  const getIcon = (template: SectorTemplate) => {
+    // FASE 7: Obtener icon de BD, no hardcodeado
+    return template.branding?.icon || '🏢'
   }
 
   if (loading) {
@@ -116,7 +115,7 @@ export const SectorPlantillaSelector: React.FC<SectorPlantillaSelectorProps> = (
                   color: '#fff'
                 }}
               >
-                <span style={{ fontSize: '2rem' }}>{getIcon(template.name)}</span>
+                <span style={{ fontSize: '2rem' }}>{getIcon(template)}</span>
               </div>
 
               <div className="template-content">

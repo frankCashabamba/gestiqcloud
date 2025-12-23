@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react'
 import { openShift, closeShift, getCurrentShift, getShiftSummary, getLastDailyCount } from '../services'
 import type { POSShift, POSRegister, ShiftSummary } from '../../../types/pos'
+import { useCurrency } from '../../../hooks/useCurrency'
 
 interface ShiftManagerProps {
   register: POSRegister
@@ -11,6 +12,7 @@ interface ShiftManagerProps {
 }
 
 export default function ShiftManager({ register, onShiftChange }: ShiftManagerProps) {
+  const { symbol: currencySymbol, formatCurrency } = useCurrency()
   const [currentShift, setCurrentShift] = useState<POSShift | null>(null)
   const [loading, setLoading] = useState(false)
   const [openingFloat, setOpeningFloat] = useState('100.00')
@@ -20,10 +22,19 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
   const [showCloseModal, setShowCloseModal] = useState(false)
   const [summary, setSummary] = useState<ShiftSummary | null>(null)
   const [loadingSummary, setLoadingSummary] = useState(false)
+  const [canEditClose, setCanEditClose] = useState(false)
 
   useEffect(() => {
     loadCurrentShift()
     loadSuggestedOpeningFloat()
+
+    try {
+      const rawProfile = JSON.parse(localStorage.getItem('userProfile') || 'null')
+      const isAdmin = rawProfile?.es_admin_empresa || rawProfile?.is_company_admin
+      setCanEditClose(!!isAdmin)
+    } catch {
+      setCanEditClose(false)
+    }
   }, [register.id])
 
   const loadCurrentShift = async () => {
@@ -76,6 +87,10 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
       try {
         const shiftSummary = await getShiftSummary(currentShift.id)
         setSummary(shiftSummary)
+        const cashTotal = shiftSummary.payments?.cash || shiftSummary.payments?.efectivo || 0
+        if (cashTotal > 0) {
+          setClosingCash(cashTotal.toFixed(2))
+        }
       } catch (error: any) {
         console.error('Error loading summary:', error)
         alert('Error al cargar el resumen del turno')
@@ -117,12 +132,12 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
       // Mostrar resumen del cierre
       const discrepancy = result.difference
       const msg = `Turno cerrado exitosamente!\n\n` +
-        `Ventas Totales: €${result.total_sales?.toFixed(2) || '0.00'}\n` +
-        `Ventas en Efectivo: €${result.cash_sales?.toFixed(2) || '0.00'}\n` +
-        `Efectivo Esperado: €${result.expected_cash?.toFixed(2) || '0.00'}\n` +
-        `Efectivo Contado: €${result.counted_cash?.toFixed(2) || '0.00'}\n` +
-        `Diferencia: €${discrepancy?.toFixed(2) || '0.00'}` +
-        (result.loss_amount > 0 ? `\nPérdidas: €${result.loss_amount?.toFixed(2)}` : '') +
+        `Ventas Totales: ${formatCurrency(result.total_sales || 0)}\n` +
+        `Ventas en Efectivo: ${formatCurrency(result.cash_sales || 0)}\n` +
+        `Efectivo Esperado: ${formatCurrency(result.expected_cash || 0)}\n` +
+        `Efectivo Contado: ${formatCurrency(result.counted_cash || 0)}\n` +
+        `Diferencia: ${formatCurrency(discrepancy || 0)}` +
+        (result.loss_amount > 0 ? `\nPérdidas: ${formatCurrency(result.loss_amount || 0)}` : '') +
         (result.loss_note ? `\nNota: ${result.loss_note}` : '')
 
       alert(msg)
@@ -147,7 +162,7 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
         <h2 className="text-xl font-bold mb-4">Abrir Turno - {register.name}</h2>
         <div className="mb-4">
           <label className="block text-sm font-medium mb-2">
-            Monto de Apertura (€)
+            Monto de Apertura ({currencySymbol})
           <span className="text-xs text-gray-500 ml-2">(sugerido del cierre anterior)</span>
           </label>
           <input
@@ -177,7 +192,7 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
           <h3 className="font-semibold text-green-800">Turno Abierto</h3>
           <p className="text-sm text-green-700">
             Apertura: {new Date(currentShift.opened_at).toLocaleString()} |
-            Fondo: €{(Number(currentShift.opening_float) || 0).toFixed(2)}
+            Fondo: {currencySymbol}{(Number(currentShift.opening_float) || 0).toFixed(2)}
           </p>
         </div>
         <button
@@ -191,7 +206,20 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
       {showCloseModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
           <div className="bg-white rounded-lg p-6 max-w-4xl w-full m-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4">Cerrar Turno</h3>
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Cerrar Turno</p>
+                <h3 className="text-2xl font-bold text-gray-900">Resumen y cierre de caja</h3>
+                <p className="text-sm text-gray-600">Revisa ventas, stock restante y registra el efectivo contado.</p>
+              </div>
+              <button
+                onClick={() => setShowCloseModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-lg font-bold px-2"
+                aria-label="Cerrar modal"
+              >
+                ×
+              </button>
+            </div>
 
             {loadingSummary ? (
               <div className="py-8 text-center text-gray-500">Cargando resumen...</div>
@@ -205,18 +233,21 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
                 )}
 
                 {/* Resumen de ventas */}
-                <div className="mb-4 p-4 bg-blue-50 rounded">
-                  <h4 className="font-semibold mb-2">Resumen de Ventas</h4>
-                  <p>Total de ventas: €{summary.sales_total.toFixed(2)}</p>
-                  <p>Productos vendidos: {summary.receipts_count}</p>
+                <div className="mb-4 p-4 bg-blue-50 rounded border border-blue-100">
+                  <h4 className="font-semibold mb-1 text-blue-900">Resumen de ventas</h4>
+                  <p className="text-sm text-blue-900">Total de ventas: {formatCurrency(summary.sales_total)}</p>
+                  <p className="text-sm text-blue-900">Productos vendidos: {summary.receipts_count}</p>
                 </div>
 
                 {/* Productos vendidos */}
                 <div className="mb-4">
-                  <h4 className="font-semibold mb-2">Productos Vendidos</h4>
-                  <div className="max-h-60 overflow-y-auto border rounded">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-semibold text-gray-900">Productos vendidos</h4>
+                    <span className="text-xs text-gray-500">Stock restante por almacén</span>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto border rounded shadow-sm">
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-100 sticky top-0">
+                      <thead className="bg-gray-100 sticky top-0 text-gray-700">
                         <tr>
                           <th className="p-2 text-left">Código</th>
                           <th className="p-2 text-left">Producto</th>
@@ -233,7 +264,7 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
                               <td className="p-2">{item.code || '-'}</td>
                               <td className="p-2">{item.name}</td>
                               <td className="p-2 text-right">{item.qty_sold.toFixed(2)}</td>
-                              <td className="p-2 text-right">€{item.subtotal.toFixed(2)}</td>
+                              <td className="p-2 text-right">{formatCurrency(item.subtotal)}</td>
                               <td className="p-2 text-right">
                                 {item.stock.length > 0 ? (
                                   <div className="space-y-1">
@@ -259,7 +290,17 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
             {/* Formulario de cierre */}
             <div className="space-y-4 border-t pt-4 mt-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Total en Efectivo (€) *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium">Total en efectivo ({currencySymbol})</label>
+                  {summary?.payments && (
+                    <div className="text-xs text-gray-500 space-x-2 text-right">
+                      <span>Efectivo registrado: {formatCurrency(summary.payments?.cash || summary.payments?.efectivo || 0)}</span>
+                      {summary.payments?.card ? <span>Tarjeta: {formatCurrency(summary.payments.card)}</span> : null}
+                      {summary.payments?.link ? <span>Link: {formatCurrency(summary.payments.link)}</span> : null}
+                      {summary.payments?.store_credit ? <span>Vale: {formatCurrency(summary.payments.store_credit)}</span> : null}
+                    </div>
+                  )}
+                </div>
                 <input
                   type="number"
                   step="0.01"
@@ -268,11 +309,12 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
                   className="w-full px-3 py-2 border rounded"
                   placeholder="0.00"
                   autoFocus
+                  disabled={!canEditClose}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Pérdidas/Mermas (€)</label>
+                <label className="block text-sm font-medium mb-2">Pérdidas/Mermas ({currencySymbol})</label>
                 <input
                   type="number"
                   step="0.01"
@@ -280,6 +322,7 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
                   onChange={(e) => setLossAmount(e.target.value)}
                   className="w-full px-3 py-2 border rounded"
                   placeholder="0.00"
+                  disabled={!canEditClose}
                 />
               </div>
 
@@ -291,6 +334,7 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
                   className="w-full px-3 py-2 border rounded"
                   placeholder="Descripción de pérdidas o productos deteriorados..."
                   rows={3}
+                  disabled={!canEditClose}
                 />
               </div>
             </div>

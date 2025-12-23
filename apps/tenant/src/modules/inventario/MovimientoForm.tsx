@@ -1,13 +1,18 @@
-﻿// apps/tenant/src/modules/inventario/MovimientoForm.tsx
+// apps/tenant/src/modules/inventario/MovimientoForm.tsx
+// FASE 4 PASO 4: Placeholders dinámicos desde BD
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createStockMove, listWarehouses, type Warehouse } from './services'
 import { listProductos, type Producto } from '../productos/services'
 import { useToast, getErrorMessage } from '../../shared/toast'
+import { useTenantSector } from '../../contexts/TenantConfigContext'
+import { useSectorPlaceholders, getFieldPlaceholder } from '../../hooks/useSectorPlaceholders'
 
 export default function MovimientoForm() {
   const nav = useNavigate()
   const { success, error } = useToast()
+  const sector = useTenantSector()
+  const { placeholders } = useSectorPlaceholders(sector?.plantilla, 'inventory')
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
@@ -145,7 +150,7 @@ export default function MovimientoForm() {
               value={form.lote}
               onChange={(e) => setForm({ ...form, lote: e.target.value })}
               className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500"
-              placeholder="LOT-2025-001"
+              placeholder={getFieldPlaceholder(placeholders, 'lote', 'LOT-2025-001')}
             />
           </div>
 

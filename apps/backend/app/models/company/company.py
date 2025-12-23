@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.ext.mutable import MutableDict
@@ -62,9 +63,7 @@ class BusinessCategory(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True
-    )
+
     code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -102,14 +101,28 @@ class RolBase(Base):
 
 
 class CompanyCategory(Base):
-    """Company Category model"""
+    """
+    DEPRECATED: Use BusinessCategory instead.
+
+    This model is kept for backward compatibility only.
+
+    BusinessCategory provides:
+    - UUID primary key
+    - code field (unique identifier)
+    - is_active status
+    - timestamps (created_at, updated_at)
+    - Dedicated endpoint: GET /api/v1/business-categories/
+
+    Deprecation Timeline:
+    - Until Q1 2026: Backward compatible, warnings
+    - Q1 2026: Will be removed
+
+    Migration: Use BusinessCategory instead
+    """
 
     __tablename__ = "company_categories"
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True
-    )
     code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -228,16 +241,77 @@ class BusinessHours(Base):
 
 
 class SectorTemplate(Base):
+    """Sector Template model - MODERN schema (English)"""
+
     __tablename__ = "sector_templates"
+    __table_args__ = {"extend_existing": True}
+
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True
-    )
     code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     template_config: Mapped[dict] = mapped_column(JSON, default=dict, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        default=_get_now, server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        default=_get_now, server_default=func.now(), onupdate=_get_now, nullable=False
+    )
+    # Backward compatibility aliases
+    @hybrid_property
+    def sector_name(self) -> str:
+        return self.name
+
+    @sector_name.setter
+    def sector_name(self, value: str) -> None:
+        self.name = value
+
+    @hybrid_property
+    def active(self) -> bool:
+        return self.is_active
+
+    @active.setter
+    def active(self, value: bool) -> None:
+        self.is_active = value
+
+    # Legacy fields removed from modern schema; keep getters returning None to avoid AttributeError
+    @property
+    def business_type_id(self):
+        return None
+
+    @property
+    def business_category_id(self):
+        return None
+
+    @property
+    def config_version(self) -> int | None:
+        # Column may not exist in legacy DBs; expose safe default
+        return None
+
+
+class SectorValidationRule(Base):
+    """Sector Validation Rules - MODERN schema (English)
+
+    Stores validation rules for each sector, allowing dynamic validation
+    without hardcoding business logic.
+    """
+
+    __tablename__ = "sector_validation_rules"
+    __table_args__ = {"extend_existing": True}
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    sector_template_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("sector_templates.id"), nullable=False
+    )
+    context: Mapped[str] = mapped_column(String(50), nullable=False)
+    field: Mapped[str] = mapped_column(String(100), nullable=False)
+    rule_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    condition: Mapped[dict] = mapped_column(JSON, nullable=False)
+    message: Mapped[str] = mapped_column(String(500), nullable=False)
+    level: Mapped[str] = mapped_column(String(20), default="error", nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    order: Mapped[int | None] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
         default=_get_now, server_default=func.now(), nullable=False
     )

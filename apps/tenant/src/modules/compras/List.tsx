@@ -96,40 +96,40 @@ export default function ComprasList() {
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-3">
-        <h2 className="font-semibold text-lg">Compras</h2>
+        <h2 className="font-semibold text-lg">Purchases</h2>
         <div className="flex gap-2">
           <button
             className="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
             onClick={() => exportCSV(view)}
           >
-            Exportar CSV
+            Export CSV
           </button>
           <button
             className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-            onClick={() => nav('nueva')}
+            onClick={() => nav('new')}
           >
-            Nueva Compra
+            New Purchase
           </button>
         </div>
       </div>
 
       <div className="mb-3 flex flex-wrap items-end gap-3">
         <div>
-          <label className="text-sm mr-2">Estado</label>
+          <label className="text-sm mr-2">Status</label>
           <select
             value={estado}
             onChange={(e) => setEstado(e.target.value)}
             className="border px-2 py-1 rounded text-sm"
           >
-            <option value="">Todos</option>
-            <option value="borrador">Borrador</option>
-            <option value="enviada">Enviada</option>
-            <option value="recibida">Recibida</option>
-            <option value="anulada">Anulada</option>
+            <option value="">All</option>
+            <option value="draft">Draft</option>
+            <option value="sent">Sent</option>
+            <option value="received">Received</option>
+            <option value="cancelled">Cancelled</option>
           </select>
         </div>
         <div>
-          <label className="text-sm mr-2">Desde</label>
+          <label className="text-sm mr-2">From</label>
           <input
             type="date"
             value={desde}
@@ -138,7 +138,7 @@ export default function ComprasList() {
           />
         </div>
         <div>
-          <label className="text-sm mr-2">Hasta</label>
+          <label className="text-sm mr-2">To</label>
           <input
             type="date"
             value={hasta}
@@ -147,9 +147,9 @@ export default function ComprasList() {
           />
         </div>
         <div>
-          <label className="text-sm mr-2">Buscar</label>
+          <label className="text-sm mr-2">Search</label>
           <input
-            placeholder="ID, número, proveedor..."
+            placeholder="ID, number, supplier..."
             value={q}
             onChange={(e) => setQ(e.target.value)}
             className="border px-2 py-1 rounded text-sm"
@@ -157,11 +157,11 @@ export default function ComprasList() {
         </div>
       </div>
 
-      {loading && <div className="text-sm text-gray-500">Cargando…</div>}
+      {loading && <div className="text-sm text-gray-500">Loading…</div>}
       {errMsg && <div className="bg-red-100 text-red-700 px-3 py-2 rounded mb-3">{errMsg}</div>}
 
       <div className="flex items-center gap-3 mb-2 text-sm">
-        <label>Por página</label>
+        <label>Per page</label>
         <select
           value={per}
           onChange={(e) => setPer(Number(e.target.value))}
@@ -179,13 +179,13 @@ export default function ComprasList() {
             <tr className="text-left border-b">
               <th className="py-2 px-2">
                 <button className="underline" onClick={() => toggleSort('fecha')}>
-                  Fecha {sortKey === 'fecha' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                  Date {sortKey === 'fecha' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
-              <th className="py-2 px-2">Número</th>
+              <th className="py-2 px-2">Number</th>
               <th className="py-2 px-2">
                 <button className="underline" onClick={() => toggleSort('proveedor_nombre')}>
-                  Proveedor {sortKey === 'proveedor_nombre' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                  Supplier {sortKey === 'proveedor_nombre' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
               <th className="py-2 px-2">
@@ -195,10 +195,10 @@ export default function ComprasList() {
               </th>
               <th className="py-2 px-2">
                 <button className="underline" onClick={() => toggleSort('estado')}>
-                  Estado {sortKey === 'estado' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                  Status {sortKey === 'estado' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
-              <th className="py-2 px-2">Acciones</th>
+              <th className="py-2 px-2">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -213,28 +213,28 @@ export default function ComprasList() {
                 </td>
                 <td className="py-2 px-2">
                   <Link to={`${v.id}`} className="text-blue-600 hover:underline mr-3">
-                    Ver
+                    View
                   </Link>
-                  {v.estado === 'borrador' && (
-                    <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline mr-3">
-                      Editar
+                  {v.estado === 'draft' && (
+                    <Link to={`${v.id}/edit`} className="text-blue-600 hover:underline mr-3">
+                      Edit
                     </Link>
                   )}
-                  {v.estado === 'borrador' && (
+                  {v.estado === 'draft' && (
                     <button
                       className="text-red-700 hover:underline"
                       onClick={async () => {
-                        if (!confirm('¿Eliminar compra?')) return
+                        if (!confirm('Delete purchase?')) return
                         try {
                           await removeCompra(v.id)
                           setItems((p) => p.filter(x => x.id !== v.id))
-                          success('Compra eliminada')
+                          success('Purchase deleted')
                         } catch (e: any) {
                           toastError(getErrorMessage(e))
                         }
                       }}
                     >
-                      Eliminar
+                      Delete
                     </button>
                   )}
                 </td>
@@ -243,7 +243,7 @@ export default function ComprasList() {
             {!loading && view.length === 0 && (
               <tr>
                 <td className="py-3 px-3 text-center text-gray-500" colSpan={6}>
-                  Sin registros
+                  No records
                 </td>
               </tr>
             )}

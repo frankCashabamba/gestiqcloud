@@ -10,6 +10,7 @@ from uuid import UUID
 from app.config.database import get_db
 from app.middleware.tenant import ensure_tenant, get_current_user
 from app.services.payments import get_provider
+from app.models.tenant import Tenant
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -136,6 +137,7 @@ def create_payment_link(
     db: Session = Depends(get_db),
     tenant_id: str = Depends(ensure_tenant),
     current_user: dict = Depends(get_current_user),
+    request: Request | None = None,
 ):
     """Crear enlace de pago"""
 
@@ -151,8 +153,11 @@ def create_payment_link(
     # 3. Crear provider
     provider = get_provider(data.provider, config)
 
-    # 4. URLs de callback
-    base_url = "https://tu-dominio.com"  # TODO: desde config
+    tenant = db.get(Tenant, tenant_id) if tenant_id else None
+    payment_currency = tenant.base_currency if tenant and tenant.base_currency else "USD"
+
+    # 4. URLs de callback (derivadas de host actual para evitar hardcode)
+    base_url = str(request.base_url).rstrip("/") if request else ""
     success_url = data.success_url or f"{base_url}/payments/success?invoice_id={invoice['id']}"
     cancel_url = data.cancel_url or f"{base_url}/payments/cancel?invoice_id={invoice['id']}"
 
@@ -160,7 +165,7 @@ def create_payment_link(
     try:
         result = provider.create_payment_link(
             amount=Decimal(str(invoice["total"])),
-            currency="USD",  # TODO: desde invoice
+            currency=payment_currency,
             invoice_id=str(invoice["id"]),
             success_url=success_url,
             cancel_url=cancel_url,

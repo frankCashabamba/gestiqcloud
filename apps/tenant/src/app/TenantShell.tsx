@@ -3,7 +3,7 @@ import { Link, Outlet, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import SessionKeepAlive from '@shared/ui'
 import { env } from '../env'
-import { apiFetch } from '../lib/http'
+import { fetchTenantTheme } from '../services/theme'
 
 const SESSION_WARN_AFTER_MS = 9 * 60_000
 const SESSION_RESPONSE_WINDOW_MS = 60_000
@@ -20,8 +20,7 @@ export default function TenantShell() {
     let mounted = true
     ;(async () => {
       try {
-        const q = empresa ? `?empresa=${encodeURIComponent(empresa)}` : ''
-        const t = await apiFetch<any>(`/api/v1/tenant/settings/theme${q}`)
+        const t = await fetchTenantTheme(empresa)
         if (mounted && t?.brand) setBrand({ name: t.brand.name, logoUrl: t.brand.logoUrl })
       } catch {}
     })()

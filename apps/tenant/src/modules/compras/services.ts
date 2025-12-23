@@ -19,7 +19,7 @@ export type Compra = {
   subtotal: number
   impuesto: number
   total: number
-  estado: 'borrador' | 'enviada' | 'recibida' | 'anulada'
+  estado: 'draft' | 'sent' | 'received' | 'cancelled'
   lineas?: CompraLinea[]
   notas?: string
   created_at?: string

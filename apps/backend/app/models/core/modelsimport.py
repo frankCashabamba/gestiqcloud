@@ -53,13 +53,19 @@ class ImportBatch(Base):
     ai_provider = mapped_column(String, nullable=True)  # 'local'|'openai'|'azure'
     status = mapped_column(
         String, default="PENDING"
-    )  # PENDING|PARSING|READY|VALIDATED|PARTIAL|ERROR|PROMOTED
+    )  # PENDING|PARSING|EMPTY|READY|VALIDATED|PARTIAL|ERROR|PROMOTED
     # Use String for created_by to keep SQLite-friendly tests; store user UUID string if available
     created_by = mapped_column(String, nullable=False)
     created_at = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
     )
+
+    # Confirmation flow fields (when confidence < threshold)
+    requires_confirmation = mapped_column(Boolean, default=False)
+    confirmed_at = mapped_column(DateTime(timezone=True), nullable=True)
+    confirmed_parser = mapped_column(String, nullable=True)
+    user_override = mapped_column(Boolean, default=False)
 
     items = relationship("ImportItem", back_populates="batch", cascade="all, delete-orphan")
 

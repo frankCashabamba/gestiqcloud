@@ -105,27 +105,27 @@ class TestProductionHelpers:
 class TestProductionIntegration:
     """Tests de integración con sector config"""
 
-    def test_production_is_panaderia_compatible(self):
+    def test_production_is_panaderia_compatible(self, db):
         """Producción debe estar configurado para panadería"""
         # Panadería debe tener recetas/producción
-        productos = get_sector_defaults("productos", "panaderia")
+        productos = get_sector_defaults("productos", "panaderia", db=db)
         field_names = [f["field"] for f in productos]
 
         assert "receta_id" in field_names
         assert "caducidad_dias" in field_names  # Para productos de producción
 
-    def test_production_is_restaurante_compatible(self):
+    def test_production_is_restaurante_compatible(self, db):
         """Producción debe estar configurado para restaurante"""
-        productos = get_sector_defaults("productos", "restaurante")
+        productos = get_sector_defaults("productos", "restaurante", db=db)
         field_names = [f["field"] for f in productos]
 
         assert "receta_id" in field_names
         assert "ingredientes" in field_names
         assert "tiempo_preparacion" in field_names
 
-    def test_production_not_in_retail(self):
+    def test_production_not_in_retail(self, db):
         """Retail NO debe tener campos de producción"""
-        productos = get_sector_defaults("productos", "retail")
+        productos = get_sector_defaults("productos", "retail", db=db)
         field_names = [f["field"] for f in productos]
 
         assert "receta_id" not in field_names

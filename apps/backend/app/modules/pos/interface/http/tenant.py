@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
@@ -18,6 +18,9 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_guc_from_request, ensure_rls
 from app.modules.settings.infrastructure.repositories import SettingsRepo
+from app.models.accounting.chart_of_accounts import JournalEntry as AsientoContable, JournalEntryLine as AsientoLinea
+from app.modules.accounting.interface.http.tenant import _generate_numero_asiento
+from app.models.accounting.pos_settings import TenantAccountingSettings, PaymentMethod
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +252,16 @@ class CloseShiftIn(BaseModel):
     loss_note: str | None = None
 
 
+class CloseShiftWithIdIn(CloseShiftIn):
+    shift_id: str
+
+    @field_validator("shift_id")
+    @classmethod
+    def validate_shift_id(cls, v):
+        _validate_uuid(v, "Shift ID")
+        return v
+
+
 class CalculateTotalsLineIn(BaseModel):
     """Línea para cálculo de totales (sin persistir)"""
 
@@ -431,6 +444,39 @@ def open_shift(payload: OpenShiftIn, request: Request, db: Session = Depends(get
         raise HTTPException(status_code=500, detail=f"Error al abrir turno: {str(e)}")
 
 
+@router.get("/shifts/current/{register_id}", response_model=dict)
+def get_current_shift(register_id: str, request: Request, db: Session = Depends(get_db)):
+    """Obtiene el turno abierto (si existe) para un registro dado"""
+    ensure_guc_from_request(request, db, persist=True)
+    rid = _validate_uuid(register_id, "Register ID")
+
+    shift = db.execute(
+        text(
+            "SELECT id, register_id, opened_by, opened_at, closed_at, opening_float, "
+            "closing_total, status "
+            "FROM pos_shifts "
+            "WHERE register_id = :rid AND status = 'open' "
+            "ORDER BY opened_at DESC "
+            "LIMIT 1"
+        ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
+        {"rid": rid},
+    ).first()
+
+    if not shift:
+        raise HTTPException(status_code=404, detail="No hay turno abierto para este registro")
+
+    return {
+        "id": str(shift[0]),
+        "register_id": str(shift[1]),
+        "opened_by": str(shift[2]),
+        "opened_at": shift[3].isoformat() if shift[3] else None,
+        "closed_at": shift[4].isoformat() if shift[4] else None,
+        "opening_float": float(shift[5] or 0),
+        "closing_total": float(shift[6] or 0) if shift[6] is not None else None,
+        "status": shift[7],
+    }
+
+
 @router.get("/shifts/{shift_id}/summary", response_model=dict)
 def get_shift_summary(
     shift_id: str,
@@ -454,14 +500,14 @@ def get_shift_summary(
         # Productos vendidos
         items_sold = db.execute(
             text(
-                "SELECT rl.product_id, p.name, p.code, "
+                "SELECT rl.product_id, p.name, p.sku AS code, "
                 "SUM(rl.qty) as qty_sold, "
                 "SUM(rl.qty * rl.unit_price * (1 - rl.discount_pct/100)) as subtotal "
                 "FROM pos_receipt_lines rl "
                 "JOIN pos_receipts r ON r.id = rl.receipt_id "
                 "LEFT JOIN products p ON p.id = rl.product_id "
                 "WHERE r.shift_id = :sid AND r.status = 'paid' "
-                "GROUP BY rl.product_id, p.name, p.code "
+                "GROUP BY rl.product_id, p.name, p.sku "
                 "ORDER BY p.name"
             ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
             {"sid": shift_uuid},
@@ -519,11 +565,25 @@ def get_shift_summary(
             {"sid": shift_uuid},
         ).scalar()
 
+        # Desglose de pagos por método
+        payments_breakdown_rows = db.execute(
+            text(
+                "SELECT pp.method, COALESCE(SUM(pp.amount), 0) as total "
+                "FROM pos_payments pp "
+                "JOIN pos_receipts pr ON pr.id = pp.receipt_id "
+                "WHERE pr.shift_id = :sid AND pr.status = 'paid' "
+                "GROUP BY pp.method"
+            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
+            {"sid": shift_uuid},
+        ).fetchall()
+        payments_breakdown = {row[0]: float(row[1] or 0) for row in payments_breakdown_rows}
+
         return {
             "pending_receipts": pending_receipts or 0,
             "items_sold": items,
             "sales_total": float(sales_total or 0),
             "receipts_count": len(items_sold),
+            "payments": payments_breakdown,
         }
 
     except Exception as e:
@@ -619,6 +679,133 @@ def close_shift(
 
         expected_cash = opening_float + cash_sales
 
+        # Totales de impuestos para calcular base imponible
+        tax_total = db.execute(
+            text(
+                "SELECT COALESCE(SUM(tax_total), 0) FROM pos_receipts "
+                "WHERE shift_id = :sid AND status = 'paid'"
+            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
+            {"sid": shift_uuid},
+        ).scalar() or 0
+        net_total = total_sales - float(tax_total)
+
+        # Configuración contable del tenant
+        settings = db.query(TenantAccountingSettings).filter_by(tenant_id=tenant_id).first()
+        if not settings:
+            raise HTTPException(status_code=400, detail="Config contable POS no configurada para este tenant")
+
+        # Medios de pago contables
+        pm_rows = db.query(PaymentMethod).filter_by(tenant_id=tenant_id, is_active=True).all()
+        pm_map = {p.name.strip().lower(): p.account_id for p in pm_rows}
+
+        # Construir líneas contables
+        lines: list[AsientoLinea] = []
+        debit_total = 0.0
+        credit_total = 0.0
+
+        # Cobros (DEBE) por método de pago
+        for method, amount in sales_by_method:
+            amt = float(amount or 0)
+            if amt <= 0:
+                continue
+            mkey = (method or "").strip().lower()
+            account_id = pm_map.get(mkey)
+            if not account_id:
+                # Fallback básico
+                if mkey == "cash" or mkey == "efectivo":
+                    account_id = settings.cash_account_id
+                elif mkey in ("card", "tarjeta", "debit", "credit"):
+                    account_id = settings.bank_account_id
+            if not account_id:
+                raise HTTPException(status_code=400, detail=f"No hay cuenta contable para el medio de pago: {method}")
+            lines.append(
+                AsientoLinea(
+                    account_id=account_id,
+                    debit=Decimal(str(round(amt, 2))))  # credit=0 por defecto
+            )
+            debit_total += amt
+
+        # Ventas (HABER) - base imponible
+        if net_total > 0:
+            lines.append(
+                AsientoLinea(
+                    account_id=settings.sales_bakery_account_id,
+                    debit=Decimal("0"),
+                    credit=Decimal(str(round(net_total, 2))),
+                )
+            )
+            credit_total += net_total
+
+        # IVA repercutido (HABER)
+        if tax_total and float(tax_total) > 0:
+            lines.append(
+                AsientoLinea(
+                    account_id=settings.vat_output_account_id,
+                    debit=Decimal("0"),
+                    credit=Decimal(str(round(float(tax_total), 2))),
+                )
+            )
+            credit_total += float(tax_total)
+
+        # Pérdidas/mermas
+        if payload.loss_amount and payload.loss_amount > 0:
+            if not settings.loss_account_id:
+                raise HTTPException(status_code=400, detail="Config contable: falta cuenta de pérdidas/mermas")
+            lines.append(
+                AsientoLinea(
+                    account_id=settings.loss_account_id,
+                    debit=Decimal(str(round(payload.loss_amount, 2))),
+                    credit=Decimal("0"),
+                )
+            )
+            lines.append(
+                AsientoLinea(
+                    account_id=settings.cash_account_id,
+                    debit=Decimal("0"),
+                    credit=Decimal(str(round(payload.loss_amount, 2))),
+                )
+            )
+            debit_total += float(payload.loss_amount)
+            credit_total += float(payload.loss_amount)
+
+        # Validar balance
+        if round(debit_total - credit_total, 2) != 0:
+            raise HTTPException(status_code=400, detail="Asiento no balanceado al cerrar turno")
+
+        # Evitar duplicar asiento por turno
+        existing_entry = db.execute(
+            text(
+                "SELECT id FROM journal_entries WHERE ref_doc_type = 'POS_SHIFT' AND ref_doc_id = :sid AND tenant_id = :tid"
+            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True)), bindparam("tid", type_=PGUUID(as_uuid=True))),
+            {"sid": shift_uuid, "tid": tenant_id},
+        ).first()
+        if existing_entry:
+            raise HTTPException(status_code=400, detail="Ya existe un asiento contable para este turno")
+
+        # Crear asiento contable
+        number = _generate_numero_asiento(db, tenant_id, datetime.utcnow().year)
+        entry = AsientoContable(
+            tenant_id=tenant_id,
+            number=number,
+            date=datetime.utcnow().date(),
+            type="OPERATIONS",
+            description=f"Cierre turno POS {shift_id}",
+            ref_doc_type="POS_SHIFT",
+            ref_doc_id=shift_uuid,
+            debit_total=Decimal(str(round(debit_total, 2))),
+            credit_total=Decimal(str(round(credit_total, 2))),
+            is_balanced=True,
+            status="POSTED",
+        )
+        db.add(entry)
+        db.flush()
+
+        # Asociar líneas al asiento
+        for idx, l in enumerate(lines):
+            l.entry_id = entry.id
+            l.line_number = idx + 1
+            db.add(l)
+
         # Cerrar turno
         db.execute(
             text(
@@ -685,6 +872,199 @@ def close_shift(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al cerrar turno: {str(e)}")
 
+
+@router.post("/shifts/{shift_id}/accounting", response_model=dict)
+def generate_accounting_for_closed_shift(
+    shift_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Genera asiento contable para un turno ya cerrado (no modifica el turno)."""
+    ensure_guc_from_request(request, db, persist=True)
+    shift_uuid = _validate_uuid(shift_id, "Shift ID")
+
+    try:
+        shift = db.execute(
+            text("SELECT status, register_id FROM pos_shifts WHERE id = :sid").bindparams(
+                bindparam("sid", type_=PGUUID(as_uuid=True))
+            ),
+            {"sid": shift_uuid},
+        ).first()
+        if not shift:
+            raise HTTPException(status_code=404, detail="Turno no encontrado")
+        if shift[0] != "closed":
+            raise HTTPException(status_code=400, detail="El turno debe estar cerrado")
+
+        shift_data = db.execute(
+            text(
+                "SELECT ps.opening_float, pr.tenant_id FROM pos_shifts ps "
+                "JOIN pos_registers pr ON pr.id = ps.register_id "
+                "WHERE ps.id = :sid"
+            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
+            {"sid": shift_uuid},
+        ).first()
+        if not shift_data:
+            raise HTTPException(status_code=404, detail="Datos del turno no encontrados")
+        opening_float = float(shift_data[0] or 0)
+        tenant_id = shift_data[1]
+
+        sales_by_method = db.execute(
+            text(
+                "SELECT pp.method, COALESCE(SUM(pp.amount), 0) as total "
+                "FROM pos_payments pp "
+                "JOIN pos_receipts pr ON pr.id = pp.receipt_id "
+                "WHERE pr.shift_id = :sid AND pr.status = 'paid' "
+                "GROUP BY pp.method"
+            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
+            {"sid": shift_uuid},
+        ).fetchall()
+
+        total_sales = 0.0
+        for method, amount in sales_by_method:
+            total_sales += float(amount or 0)
+
+        tax_total = db.execute(
+            text(
+                "SELECT COALESCE(SUM(tax_total), 0) FROM pos_receipts "
+                "WHERE shift_id = :sid AND status = 'paid'"
+            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
+            {"sid": shift_uuid},
+        ).scalar() or 0.0
+        net_total = total_sales - float(tax_total)
+
+        settings = db.query(TenantAccountingSettings).filter_by(tenant_id=tenant_id).first()
+        if not settings:
+            raise HTTPException(status_code=400, detail="Config contable POS no configurada para este tenant")
+
+        pm_rows = db.query(PaymentMethod).filter_by(tenant_id=tenant_id, is_active=True).all()
+        pm_map = {p.name.strip().lower(): p.account_id for p in pm_rows}
+
+        lines: list[AsientoLinea] = []
+        debit_total = 0.0
+        credit_total = 0.0
+
+        for method, amount in sales_by_method:
+            amt = float(amount or 0)
+            if amt <= 0:
+                continue
+            mkey = (method or "").strip().lower()
+            account_id = pm_map.get(mkey)
+            if not account_id:
+                if mkey in ("cash", "efectivo"):
+                    account_id = settings.cash_account_id
+                elif mkey in ("card", "tarjeta", "debit", "credit"):
+                    account_id = settings.bank_account_id
+            if not account_id:
+                raise HTTPException(status_code=400, detail=f"No hay cuenta contable para el medio de pago: {method}")
+            lines.append(
+                AsientoLinea(
+                    account_id=account_id,
+                    debit=Decimal(str(round(amt, 2))),
+                    credit=Decimal("0"),
+                )
+            )
+            debit_total += amt
+
+        if net_total > 0:
+            lines.append(
+                AsientoLinea(
+                    account_id=settings.sales_bakery_account_id,
+                    debit=Decimal("0"),
+                    credit=Decimal(str(round(net_total, 2))),
+                )
+            )
+            credit_total += net_total
+
+        if tax_total and float(tax_total) > 0:
+            lines.append(
+                AsientoLinea(
+                    account_id=settings.vat_output_account_id,
+                    debit=Decimal("0"),
+                    credit=Decimal(str(round(float(tax_total), 2))),
+                )
+            )
+            credit_total += float(tax_total)
+
+        loss_amount = db.execute(
+            text("SELECT loss_amount FROM pos_daily_counts WHERE shift_id = :sid").bindparams(
+                bindparam("sid", type_=PGUUID(as_uuid=True))
+            ),
+            {"sid": shift_uuid},
+        ).scalar()
+        if loss_amount and loss_amount > 0:
+            if not settings.loss_account_id:
+                raise HTTPException(status_code=400, detail="Config contable: falta cuenta de pérdidas/mermas")
+            lines.append(
+                AsientoLinea(
+                    account_id=settings.loss_account_id,
+                    debit=Decimal(str(round(loss_amount, 2))),
+                    credit=Decimal("0"),
+                )
+            )
+            lines.append(
+                AsientoLinea(
+                    account_id=settings.cash_account_id,
+                    debit=Decimal("0"),
+                    credit=Decimal(str(round(loss_amount, 2))),
+                )
+            )
+            debit_total += float(loss_amount)
+            credit_total += float(loss_amount)
+
+        existing_entry = db.execute(
+            text(
+                "SELECT id FROM journal_entries WHERE ref_doc_type = 'POS_SHIFT' AND ref_doc_id = :sid AND tenant_id = :tid"
+            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True)), bindparam("tid", type_=PGUUID(as_uuid=True))),
+            {"sid": shift_uuid, "tid": tenant_id},
+        ).first()
+        if existing_entry:
+            raise HTTPException(status_code=400, detail="Ya existe un asiento contable para este turno")
+
+        if round(debit_total - credit_total, 2) != 0:
+            raise HTTPException(status_code=400, detail="Asiento no balanceado")
+
+        number = _generate_numero_asiento(db, tenant_id, datetime.utcnow().year)
+        entry = AsientoContable(
+            tenant_id=tenant_id,
+            number=number,
+            date=datetime.utcnow().date(),
+            type="OPERATIONS",
+            description=f"Contabilización turno POS {shift_id}",
+            ref_doc_type="POS_SHIFT",
+            ref_doc_id=shift_uuid,
+            debit_total=Decimal(str(round(debit_total, 2))),
+            credit_total=Decimal(str(round(credit_total, 2))),
+            is_balanced=True,
+            status="POSTED",
+        )
+        db.add(entry)
+        db.flush()
+        for idx, l in enumerate(lines):
+            l.entry_id = entry.id
+            l.line_number = idx + 1
+            db.add(l)
+        db.commit()
+        return {
+            "status": "accounted",
+            "entry_id": str(entry.id),
+            "total_sales": total_sales,
+            "debit": debit_total,
+            "credit": credit_total,
+        }
+
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        logger.error(f"Error generating accounting for shift: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al contabilizar turno: {str(e)}")
+
+
+@router.post("/shifts/close", response_model=dict)
+def close_shift_with_body(payload: CloseShiftWithIdIn, request: Request, db: Session = Depends(get_db)):
+    """Alias de cierre de turno recibiendo shift_id en el body (compatibilidad front)"""
+    return close_shift(payload.shift_id, payload, request, db)
 
 @router.get("/shifts", response_model=list[dict])
 def list_shifts(
@@ -963,20 +1343,21 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
 
             # Resolver tasa efectiva considerando configuración
             tax_rate = line.tax_rate
-
             # Deshabilitado globalmente → siempre 0
             if not tax_enabled:
                 tax_rate = 0.0
             else:
-                # Si hay default, respétalo
-                if default_tax is not None:
-                    if default_tax <= 0:
-                        tax_rate = 0.0
-                    else:
-                        tax_rate = default_tax
-                # Normalizar si viniera en porcentaje entero
-                if tax_rate is not None and tax_rate > 1:
+                # Solo aplica default si cliente no envió tasa
+                if tax_rate is None and default_tax is not None:
+                    tax_rate = max(default_tax, 0.0)
+
+                # Normalizar valores enviados
+                if tax_rate is None:
+                    tax_rate = 0.0
+                elif tax_rate > 1:
                     tax_rate = tax_rate / 100.0
+                elif tax_rate < 0:
+                    tax_rate = 0.0
 
             db.execute(
                 text(
@@ -1048,14 +1429,19 @@ def checkout(
         for payment in payload.payments:
             db.execute(
                 text(
-                    "INSERT INTO pos_payments(receipt_id, method, amount, ref) "
-                    "VALUES (:rid, :m, :a, :ref)"
-                ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
+                    "INSERT INTO pos_payments(id, receipt_id, method, amount, ref, paid_at) "
+                    "VALUES (:id, :rid, :m, :a, :ref, :paid_at)"
+                ).bindparams(
+                    bindparam("id", type_=PGUUID(as_uuid=True)),
+                    bindparam("rid", type_=PGUUID(as_uuid=True)),
+                ),
                 {
+                    "id": uuid4(),
                     "rid": receipt_uuid,
                     "m": payment.method,
                     "a": payment.amount,
                     "ref": payment.ref,
+                    "paid_at": datetime.utcnow(),
                 },
             )
 
@@ -1135,9 +1521,9 @@ def checkout(
             db.execute(
                 text(
                     "INSERT INTO stock_moves("
-                    "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id"
+                    "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id, tentative, posted"
                     ") VALUES ("
-                    ":tid, :pid, :wid, :q, 'sale', 'pos_receipt', :rid"
+                    ":tid, :pid, :wid, :q, 'sale', 'pos_receipt', :rid, FALSE, TRUE"
                     ")"
                 ).bindparams(
                     bindparam("tid", type_=PGUUID(as_uuid=True)),
@@ -1290,6 +1676,131 @@ def list_receipts(
         ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al listar recibos: {str(e)}")
+
+
+@router.get("/receipts/{receipt_id}", response_model=dict)
+def get_receipt(receipt_id: str, request: Request, db: Session = Depends(get_db)):
+    """Obtiene un recibo con sus lÃ­neas y pagos"""
+    ensure_guc_from_request(request, db, persist=True)
+    rid = _validate_uuid(receipt_id, "Receipt ID")
+
+    try:
+        rec = db.execute(
+            text(
+                "SELECT id, tenant_id, register_id, shift_id, number, status, gross_total, "
+                "tax_total, currency, customer_id, invoice_id, created_at, paid_at "
+                "FROM pos_receipts WHERE id = :id"
+            ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+            {"id": rid},
+        ).first()
+
+        if not rec:
+            raise HTTPException(status_code=404, detail="Recibo no encontrado")
+
+        lines = db.execute(
+            text(
+                "SELECT rl.id, rl.product_id, p.name, p.sku, rl.qty, rl.uom, rl.unit_price, "
+                "rl.tax_rate, rl.discount_pct, rl.line_total "
+                "FROM pos_receipt_lines rl "
+                "LEFT JOIN products p ON p.id = rl.product_id "
+                "WHERE rl.receipt_id = :rid "
+                "ORDER BY rl.id"
+            ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
+            {"rid": rid},
+        ).fetchall()
+
+        payments = db.execute(
+            text(
+                "SELECT id, method, amount, ref, paid_at "
+                "FROM pos_payments WHERE receipt_id = :rid ORDER BY paid_at"
+            ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
+            {"rid": rid},
+        ).fetchall()
+
+        return {
+            "id": str(rec[0]),
+            "tenant_id": str(rec[1]) if rec[1] else None,
+            "register_id": str(rec[2]) if rec[2] else None,
+            "shift_id": str(rec[3]) if rec[3] else None,
+            "number": rec[4],
+            "status": rec[5],
+            "gross_total": float(rec[6] or 0),
+            "tax_total": float(rec[7] or 0),
+            "currency": rec[8],
+            "customer_id": str(rec[9]) if rec[9] else None,
+            "invoice_id": str(rec[10]) if rec[10] else None,
+            "created_at": rec[11].isoformat() if rec[11] else None,
+            "paid_at": rec[12].isoformat() if rec[12] else None,
+            "lines": [
+                {
+                    "id": str(l[0]) if l[0] else None,
+                    "product_id": str(l[1]) if l[1] else None,
+                    "product_name": l[2],
+                    "product_code": l[3],
+                    "qty": float(l[4] or 0),
+                    "uom": l[5],
+                    "unit_price": float(l[6] or 0),
+                    "tax_rate": float(l[7] or 0),
+                    "discount_pct": float(l[8] or 0),
+                    "line_total": float(l[9] or 0),
+                }
+                for l in lines
+            ],
+            "payments": [
+                {
+                    "id": str(p[0]) if p[0] else None,
+                    "method": p[1],
+                    "amount": float(p[2] or 0),
+                    "ref": p[3],
+                    "paid_at": p[4].isoformat() if p[4] else None,
+                }
+                for p in payments
+            ],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener recibo: {str(e)}")
+
+
+@router.delete("/receipts/{receipt_id}", status_code=204)
+def delete_receipt(receipt_id: str, request: Request, db: Session = Depends(get_db)):
+    """Elimina un recibo en borrador o sin pagar."""
+    ensure_guc_from_request(request, db, persist=True)
+    rid = _validate_uuid(receipt_id, "Receipt ID")
+
+    try:
+        row = db.execute(
+            text("SELECT status FROM pos_receipts WHERE id = :id").bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+            {"id": rid},
+        ).first()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Recibo no encontrado")
+
+        status = row[0]
+        if status not in ("draft", "unpaid"):
+            raise HTTPException(status_code=400, detail="Solo se pueden borrar recibos en borrador o sin pagar")
+
+        db.execute(
+            text("DELETE FROM pos_payments WHERE receipt_id = :id").bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+            {"id": rid},
+        )
+        db.execute(
+            text("DELETE FROM pos_receipt_lines WHERE receipt_id = :id").bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+            {"id": rid},
+        )
+        db.execute(
+            text("DELETE FROM pos_receipts WHERE id = :id").bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+            {"id": rid},
+        )
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al eliminar recibo: {str(e)}")
 
 
 @router.get("/receipts/{receipt_id}/print")
@@ -1636,14 +2147,19 @@ def take_payment(
         for payment in payload.payments:
             db.execute(
                 text(
-                    "INSERT INTO pos_payments(receipt_id, method, amount, ref) "
-                    "VALUES (:rid, :m, :a, :ref)"
-                ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
+                    "INSERT INTO pos_payments(id, receipt_id, method, amount, ref, paid_at) "
+                    "VALUES (:id, :rid, :m, :a, :ref, :paid_at)"
+                ).bindparams(
+                    bindparam("id", type_=PGUUID(as_uuid=True)),
+                    bindparam("rid", type_=PGUUID(as_uuid=True)),
+                ),
                 {
+                    "id": uuid4(),
                     "rid": receipt_uuid,
                     "m": payment.method,
                     "a": payment.amount,
                     "ref": payment.ref,
+                    "paid_at": datetime.utcnow(),
                 },
             )
 
@@ -1756,8 +2272,8 @@ def post_receipt(
             db.execute(
                 text(
                     "INSERT INTO stock_moves("
-                    "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id, posted"
-                    ") VALUES (:tid, :pid, :wid, :q, 'issue', 'pos_receipt', :rid, TRUE)"
+                    "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id, tentative, posted"
+                    ") VALUES (:tid, :pid, :wid, :q, 'issue', 'pos_receipt', :rid, FALSE, TRUE)"
                 ).bindparams(
                     bindparam("tid", type_=PGUUID(as_uuid=True)),
                     bindparam("pid", type_=PGUUID(as_uuid=True)),

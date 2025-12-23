@@ -2,19 +2,19 @@ import { useEffect, useState } from "react";
 import api from "../utils/axios";
 
 export interface Modulo {
-  id: number;
-  nombre: string;
-  icono?: string;
-  descripcion?: string;
+  id: string;
+  name: string;
+  icon?: string;
+  description?: string;
+  category?: string | null;
 }
 
 type BackendModulo = {
-  id: number;
+  id: string;
   name?: string;
-  nombre?: string | null;
   description?: string | null;
-  descripcion?: string | null;
-  icono?: string | null;
+  icon?: string | null;
+  category?: string | null;
 };
 
 export type UseModulosResult = {
@@ -25,10 +25,11 @@ export type UseModulosResult = {
 
 function normalizeModulo(raw: BackendModulo): Modulo {
   return {
-    id: raw.id,
-    nombre: (raw.nombre || raw.name || "").trim(),
-    icono: raw.icono || undefined,
-    descripcion: raw.descripcion || raw.description || undefined,
+    id: String(raw.id),
+    name: (raw.name || "").trim(),
+    icon: raw.icon || undefined,
+    description: raw.description || undefined,
+    category: raw.category ?? null,
   };
 }
 
