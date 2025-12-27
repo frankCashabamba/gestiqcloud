@@ -50,7 +50,7 @@ export interface POSReceipt {
   register_id: string
   shift_id: string
   number?: string
-  status: 'draft' | 'paid' | 'voided' | 'invoiced'
+  status: 'draft' | 'paid' | 'voided' | 'invoiced' | 'unpaid'
   customer_id?: string
   invoice_id?: string
   gross_total: number

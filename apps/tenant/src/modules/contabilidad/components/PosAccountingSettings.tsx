@@ -7,6 +7,8 @@ import {
 } from '../services'
 import type { PlanCuenta } from '../services'
 import type { DailyCount } from '../services'
+import { useSectorFullConfig } from '../../../contexts/TenantConfigContext'
+import { useTenantSector } from '../../../contexts/TenantConfigContext'
 
 export default function PosAccountingSettings() {
   const [accounts, setAccounts] = useState<PlanCuenta[]>([])
@@ -24,6 +26,17 @@ export default function PosAccountingSettings() {
   const [dailyCounts, setDailyCounts] = useState<DailyCount[]>([])
   const [reaccounting, setReaccounting] = useState(false)
   const [manualShiftId, setManualShiftId] = useState('')
+  const sector = useTenantSector()
+  const sectorConfig = useSectorFullConfig()
+  const sectorCode = sector?.plantilla?.toLowerCase() ?? ''
+  const sectorDisplayName =
+    sectorConfig?.branding?.displayName || sector?.plantilla || 'sector'
+  const showBakerySalesAccount =
+    Boolean(sectorConfig?.features?.bakery_sales_account) ||
+    Boolean(sector?.features?.bakery_sales_account) ||
+    sectorCode.includes('panaderia') ||
+    sectorCode.includes('bakery')
+  const showLossAccount = sectorConfig?.features?.loss_account ?? true
 
   const options = useMemo(() => {
     return accounts.map((c) => ({
@@ -63,8 +76,13 @@ export default function PosAccountingSettings() {
     setSuccess(null)
     try {
       const payload: PosAccountingSettings = {
-        ...form,
+        cash_account_id: form.cash_account_id,
+        bank_account_id: form.bank_account_id,
+        vat_output_account_id: form.vat_output_account_id,
         loss_account_id: form.loss_account_id || null,
+        sales_bakery_account_id: showBakerySalesAccount
+          ? form.sales_bakery_account_id || null
+          : null,
       }
       await savePosAccountingSettings(payload)
       setSuccess('Configuración guardada')
@@ -130,9 +148,10 @@ export default function PosAccountingSettings() {
       <div className="grid md:grid-cols-2 gap-4">
         {renderSelect('Cuenta de Caja POS', 'cash_account_id')}
         {renderSelect('Cuenta de Bancos / Tarjetas', 'bank_account_id')}
-        {renderSelect('Cuenta de Ventas (panadería)', 'sales_bakery_account_id')}
+        {showBakerySalesAccount &&
+          renderSelect(`Cuenta de Ventas (${sectorDisplayName})`, 'sales_bakery_account_id')}
         {renderSelect('Cuenta de IVA repercutido', 'vat_output_account_id')}
-        {renderSelect('Cuenta de Pérdidas / Mermas (opcional)', 'loss_account_id')}
+        {showLossAccount && renderSelect('Cuenta de Pérdidas / Mermas (opcional)', 'loss_account_id')}
       </div>
 
       <div className="flex justify-end">

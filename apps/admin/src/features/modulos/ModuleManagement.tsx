@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { listModulos, removeModulo, toggleModulo, registrarModulosFS, type Modulo } from '../../services/modulos'
+import { listModulos, removeModulo, toggleModulo, registrarModulosFS, type Module } from '../../services/modulos'
 import { useToast, getErrorMessage } from '../../shared/toast'
 
 export default function ModuleManagement() {
-  const [modulos, setModulos] = useState<Modulo[]>([])
+  const [modulos, setModulos] = useState<Module[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -71,11 +71,11 @@ export default function ModuleManagement() {
               <td className="py-2 px-3">{m.icon || '-'}</td>
               <td className="py-2 px-3">
                 <Link to={`editar/${m.id}`} className="text-blue-600 hover:underline mr-3">Editar</Link>
-                {m.activo ? (
+                {m.active ? (
                   <button className="text-yellow-700 mr-3" onClick={async () => {
                     try {
                       const res = await toggleModulo(m.id, false)
-                      setModulos((prev) => prev.map(x => x.id === m.id ? { ...x, activo: res.activo } : x))
+                      setModulos((prev) => prev.map(x => x.id === m.id ? { ...x, active: res.active } : x))
                       success('Módulo desactivado')
                     } catch(e:any) { toastError(getErrorMessage(e)) }
                   }}>Desactivar</button>
@@ -83,7 +83,7 @@ export default function ModuleManagement() {
                   <button className="text-green-700 mr-3" onClick={async () => {
                     try {
                       const res = await toggleModulo(m.id, true)
-                      setModulos((prev) => prev.map(x => x.id === m.id ? { ...x, activo: res.activo } : x))
+                      setModulos((prev) => prev.map(x => x.id === m.id ? { ...x, active: res.active } : x))
                       success('Módulo activado')
                     } catch(e:any) { toastError(getErrorMessage(e)) }
                   }}>Activar</button>

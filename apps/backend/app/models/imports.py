@@ -29,6 +29,9 @@ class ImportColumnMapping(Base):
 
     # JSON: {"columna_excel": "campo_destino", ...}
     mapping: Mapped[dict] = mapped_column(JSON, nullable=False)
+    # Optional transforms/defaults for computed fields (e.g., stock = packs * units_per_pack)
+    transforms: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    defaults: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 

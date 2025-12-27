@@ -157,8 +157,9 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
               const analysis = await analyzeFile(item.file, token || undefined)
               if (analysis?.suggested_doc_type) {
                 docType = normalizeDocType(analysis.suggested_doc_type)
-              } else if (analysis?.headers) {
-                docType = detectarTipoDocumento(analysis.headers)
+              } else if (analysis?.headers_sample || analysis?.headers) {
+                const headersSample = analysis.headers_sample || analysis.headers || []
+                docType = detectarTipoDocumento(headersSample)
               }
               if (analysis?.mapping_suggestion) {
                 mappingSuggestion = analysis.mapping_suggestion

@@ -200,6 +200,7 @@ app = FastAPI(
     swagger_ui_oauth2_redirect_url="/docs/oauth2-redirect",
     lifespan=lifespan,
 )
+
 init_fastapi(app)
 
 app.mount("/docs/assets", StaticFiles(directory=str(DOCS_ASSETS_DIR)), name="docs-assets")
@@ -259,7 +260,34 @@ async def force_utf8_response(request, call_next):
     return response
 
 
-# CORS
+# Sessions
+app.add_mmiddleware = app.add_middleware  # optional alias
+app.add_middleware(
+    SessionMiddlewareServerSide,
+    cookie_name=settings.SESSION_COOKIE_NAME,
+    secret_key=(
+        settings.SECRET_KEY.get_secret_value()
+        if hasattr(settings.SECRET_KEY, "get_secret_value")
+        else str(settings.SECRET_KEY)
+    ),
+    https_only=(settings.ENV == "production"),
+    cookie_domain=settings.COOKIE_DOMAIN,
+)
+
+# Request logging and rate limiting
+app.add_middleware(RequestLogMiddleware)
+
+# Global rate limit (todos los endpoints)
+try:
+    if str(os.getenv("RATE_LIMIT_ENABLED", "1")).lower() in ("1", "true"):
+        app.add_middleware(
+            RateLimitMiddleware,
+            limit_per_minute=int(os.getenv("RATE_LIMIT_PER_MIN", "120") or 120),
+        )
+except Exception:
+    pass
+
+# CORS (mantenerlo al final para que se aplique incluso cuando otros middlewares cortan la respuesta)
 allow_origins = (
     settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else [settings.CORS_ORIGINS]
 )
@@ -292,33 +320,6 @@ app.add_middleware(
     allow_headers=settings.CORS_ALLOW_HEADERS,
     max_age=86400,
 )
-
-# Sessions
-app.add_mmiddleware = app.add_middleware  # optional alias
-app.add_middleware(
-    SessionMiddlewareServerSide,
-    cookie_name=settings.SESSION_COOKIE_NAME,
-    secret_key=(
-        settings.SECRET_KEY.get_secret_value()
-        if hasattr(settings.SECRET_KEY, "get_secret_value")
-        else str(settings.SECRET_KEY)
-    ),
-    https_only=(settings.ENV == "production"),
-    cookie_domain=settings.COOKIE_DOMAIN,
-)
-
-# Request logging and rate limiting
-app.add_middleware(RequestLogMiddleware)
-
-# Global rate limit (todos los endpoints)
-try:
-    if str(os.getenv("RATE_LIMIT_ENABLED", "1")).lower() in ("1", "true"):
-        app.add_middleware(
-            RateLimitMiddleware,
-            limit_per_minute=int(os.getenv("RATE_LIMIT_PER_MIN", "120") or 120),
-        )
-except Exception:
-    pass
 
 # Endpoint-specific rate limiting (críticos: login, password reset, etc.)
 try:

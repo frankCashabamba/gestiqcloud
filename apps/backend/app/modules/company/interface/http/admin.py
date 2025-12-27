@@ -16,12 +16,13 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.models.company.company_user import CompanyUser
 from app.models.company.company_settings import CompanySettings
-from app.models.company.company import Country, Currency, Language, RefLocale, RefTimezone
+from app.models.company.company import Country, Currency, Language, RefLocale, RefTimezone, SectorPlantilla
 from app.models.core.modulo import CompanyModule, Module
 from app.models.tenant import Tenant
 from app.modules.company.application.use_cases import ListCompaniesAdmin, create_company_admin_user
 from app.modules.company.infrastructure.repositories import SqlCompanyRepo
 from app.modules.company.interface.http.schemas import CompanyInSchema, CompanyOutSchema
+from app.schemas.sector_plantilla import SectorConfigJSON
 from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
 from app.shared.utils import slugify
 
@@ -46,6 +47,30 @@ def _module_names(db: Session, tenant_id: uuid.UUID) -> list[str]:
         if module_name:
             names.append(module_name)
     return names
+
+
+def _pick_default_language(db: Session) -> str:
+    locale = db.query(RefLocale).filter(RefLocale.active.is_(True)).first()
+    if locale and locale.code:
+        return locale.code
+    language = db.query(Language).filter(Language.active.is_(True)).first()
+    if language and language.code:
+        return language.code
+    raise HTTPException(status_code=400, detail="default_language_required")
+
+
+def _pick_default_timezone(db: Session) -> str:
+    timezone = db.query(RefTimezone).filter(RefTimezone.active.is_(True)).first()
+    if timezone and timezone.name:
+        return timezone.name
+    raise HTTPException(status_code=400, detail="timezone_required")
+
+
+def _pick_default_currency(db: Session) -> str:
+    currency = db.query(Currency).filter(Currency.active.is_(True)).first()
+    if currency and currency.code:
+        return currency.code
+    raise HTTPException(status_code=400, detail="currency_required")
 
 
 @router.get("", response_model=list[CompanyOutSchema])
@@ -332,6 +357,7 @@ class CompanyPayload(BaseModel):
     country_code: str | None = None
     logo: str | None = None
     primary_color: str | None = None
+    secondary_color: str | None = None
     active: bool | None = True
     deactivation_reason: str | None = None
     website: str | None = None
@@ -460,6 +486,34 @@ async def create_company_full_json(
     timezone = payload.company.timezone
     currency = payload.company.currency or payload.company.base_currency
     country_code = payload.company.country_code
+    primary_color = payload.company.primary_color
+    secondary_color = payload.company.secondary_color
+
+    if payload.sector_template_id:
+        sector = db.get(SectorPlantilla, payload.sector_template_id)
+        if not sector:
+            raise HTTPException(status_code=400, detail="sector_template_not_found")
+        try:
+            config = SectorConfigJSON(**(sector.template_config or {}))
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="sector_template_invalid") from exc
+        primary_color = config.branding.color_primario
+        secondary_color = config.branding.color_secundario
+
+    if not primary_color:
+        raise HTTPException(status_code=400, detail="primary_color_required")
+    if not secondary_color:
+        raise HTTPException(status_code=400, detail="secondary_color_required")
+
+    if not default_language:
+        raise HTTPException(status_code=400, detail="default_language_required")
+
+    if not timezone:
+        raise HTTPException(status_code=400, detail="timezone_required")
+
+    if not currency:
+        raise HTTPException(status_code=400, detail="currency_required")
+
 
     if default_language:
         locale_exists = (
@@ -497,6 +551,7 @@ async def create_company_full_json(
         # Company (Tenant)
         repo = SqlCompanyRepo(db)
         company_data = payload.company.model_dump()
+        company_data["primary_color"] = primary_color
         if not company_data.get("slug"):
             company_data["slug"] = slugify(company_data.get("name") or "")
         created_company = repo.create(company_data)
@@ -562,27 +617,37 @@ async def create_company_full_json(
                     )
                 )
 
-        if tenant_uuid and (default_language or timezone or currency):
+        if tenant_uuid:
+            default_language_value = default_language
+            timezone_value = timezone
+            currency_value = currency
             company_settings = (
                 db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_uuid).first()
             )
             if not company_settings:
-                company_settings = CompanySettings(tenant_id=tenant_uuid)
+                company_settings = CompanySettings(
+                    tenant_id=tenant_uuid,
+                    default_language=default_language_value,
+                    timezone=timezone_value,
+                    currency=currency_value,
+                    primary_color=primary_color,
+                    secondary_color=secondary_color,
+                )
                 db.add(company_settings)
                 db.flush()
-            if default_language is not None:
-                company_settings.default_language = default_language
-            if timezone is not None:
-                company_settings.timezone = timezone
-            if currency is not None:
-                company_settings.currency = currency
+            else:
+                company_settings.default_language = default_language_value
+                company_settings.timezone = timezone_value
+                company_settings.currency = currency_value
+                company_settings.primary_color = primary_color
+                company_settings.secondary_color = secondary_color
 
         # AUTO-SETUP (con plantilla de sector opcional)
         if tid:
             try:
                 from app.services.tenant_onboarding import auto_setup_tenant
 
-                country = company_data.get("country_code") or company_data.get("country") or "ES"
+                country = company_data.get("country_code") or company_data.get("country")
                 setup_result = auto_setup_tenant(
                     db, tid, country, sector_template_id=payload.sector_template_id
                 )

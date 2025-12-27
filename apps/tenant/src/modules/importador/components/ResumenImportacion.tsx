@@ -3,9 +3,9 @@ import { ClassificationCard } from './ClassificationCard'
 
 interface ResumenImportacionProps {
   total: number
-  onBack: () => void
-  onImport: () => void
-  // Sprint 2: Classification metadata
+  mappedCount: number
+  fieldCount: number
+  docType: string
   classificationResult?: {
     suggested_parser: string
     confidence: number
@@ -17,16 +17,18 @@ interface ResumenImportacionProps {
 
 export default function ResumenImportacion({
   total,
-  onBack,
-  onImport,
+  mappedCount,
+  fieldCount,
+  docType,
   classificationResult,
-  selectedParser
+  selectedParser,
 }: ResumenImportacionProps) {
+  const mappingStatus = `${mappedCount} / ${fieldCount}`
+
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Import Summary</h3>
+      <h3 className="text-lg font-semibold">Import summary</h3>
 
-      {/* Sprint 2: classification card */}
       {classificationResult && (
         <ClassificationCard
           suggestedParser={classificationResult.suggested_parser}
@@ -37,15 +39,19 @@ export default function ResumenImportacion({
         />
       )}
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="text-sm text-gray-700">
-          <strong>Rows to import:</strong> {total.toLocaleString()}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="text-xs text-gray-500 uppercase font-semibold">Rows to import</div>
+          <div className="text-lg font-semibold text-gray-800">{total.toLocaleString()}</div>
         </div>
-      </div>
-
-      <div className="mt-4 flex gap-2">
-        <button className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded" onClick={onBack}>← Back</button>
-        <button className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded font-semibold" onClick={onImport}>✓ Import</button>
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <div className="text-xs text-gray-500 uppercase font-semibold">Fields mapped</div>
+          <div className="text-lg font-semibold text-gray-800">{mappingStatus}</div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <div className="text-xs text-gray-500 uppercase font-semibold">Document type</div>
+          <div className="text-lg font-semibold text-gray-800">{docType}</div>
+        </div>
       </div>
     </div>
   )

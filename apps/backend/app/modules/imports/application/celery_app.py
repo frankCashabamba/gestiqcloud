@@ -8,12 +8,13 @@ from celery import Celery
 from kombu import Queue
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+REDIS_RESULT_URL = os.getenv("REDIS_RESULT_URL", "redis://localhost:6379/1")
 RUNNER_MODE = os.getenv("IMPORTS_RUNNER_MODE", "celery")
 
 celery_app = Celery(
     "gestiq_imports",
     broker=REDIS_URL,
-    backend=REDIS_URL,
+    backend=REDIS_RESULT_URL,
     include=[
         "app.modules.imports.application.tasks.task_preprocess",
         "app.modules.imports.application.tasks.task_ocr",
@@ -31,6 +32,8 @@ celery_app.conf.update(
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
+    result_expires=int(os.getenv("CELERY_RESULT_EXPIRES", "3600")),
+    task_ignore_result=os.getenv("CELERY_IGNORE_RESULT", "false").lower() == "true",
     timezone="UTC",
     enable_utc=True,
     task_acks_late=True,

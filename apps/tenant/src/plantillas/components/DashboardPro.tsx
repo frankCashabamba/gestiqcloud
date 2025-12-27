@@ -1,21 +1,10 @@
 /**
- * Dashboard Pro - Componente base reutilizable para todos los sectores
- * Acepta configuración específica de cada sector
+ * Dashboard Pro - reusable base component for sector dashboards
  */
 import React, { useState, useEffect, ReactNode } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useMisModulos } from '../../hooks/useMisModulos'
-import { fetchTenantTheme } from '../../services/theme'
-
-interface ThemeData {
-  colors?: {
-    primary?: string
-    bg?: string
-    surface?: string
-    text?: string
-    muted?: string
-  }
-}
+import { fetchTenantTheme, type ThemeResponse } from '../../services/theme'
 
 interface DashboardProProps {
   sectorName: string
@@ -25,30 +14,28 @@ interface DashboardProProps {
   darkModeDefault?: boolean
 }
 
-// Helper: Iconos por módulo
 const getModuleIcon = (slug: string): string => {
   const icons: Record<string, string> = {
-    'ventas': '📊',
-    'clientes': '👥',
-    'products': '📦',
-    'inventario': '📋',
-    'facturacion': '🧾',
-    'facturación': '🧾',
-    'compras': '🛒',
-    'proveedores': '🏭',
-    'gastos': '💸',
-    'finanzas': '💰',
-    'contabilidad': '📚',
-    'pos': '🏪',
-    'tpv': '🏪',
-    'imports': '📥',
-    'rrhh': '👔',
-    'configuracion': '⚙️',
-    'configuración': '⚙️',
-    'settings': '⚙️',
-    'usuarios': '👤'
+    ventas: '$',
+    clientes: '@',
+    products: '#',
+    inventario: 'I',
+    facturacion: 'F',
+    facturacion_es: 'F',
+    compras: 'C',
+    proveedores: 'P',
+    gastos: 'G',
+    finanzas: 'M',
+    contabilidad: 'A',
+    pos: 'P',
+    tpv: 'P',
+    imports: 'I',
+    rrhh: 'H',
+    configuracion: 'S',
+    settings: 'S',
+    usuarios: 'U',
   }
-  return icons[slug.toLowerCase()] || '📌'
+  return icons[slug.toLowerCase()] || '•'
 }
 
 const DashboardPro: React.FC<DashboardProProps> = ({
@@ -56,21 +43,19 @@ const DashboardPro: React.FC<DashboardProProps> = ({
   sectorIcon,
   children,
   customLinks = [],
-  darkModeDefault = true
+  darkModeDefault = true,
 }) => {
   const { empresa } = useParams()
-  const [theme, setTheme] = useState<ThemeData | null>(null)
+  const [theme, setTheme] = useState<ThemeResponse | null>(null)
   const [darkMode, setDarkMode] = useState(darkModeDefault)
   const { modules, loading: modulosLoading } = useMisModulos()
 
-  // Cargar tema del tenant
   useEffect(() => {
     const loadTheme = async () => {
       try {
         const themeData = await fetchTenantTheme(empresa)
         if (themeData?.colors) {
           setTheme(themeData)
-          // Aplicar color primario a todo el tema
           const primaryColor = themeData.colors.primary || '#5B8CFF'
           document.documentElement.style.setProperty('--primary', primaryColor)
           document.documentElement.style.setProperty('--topbar-bg', primaryColor)
@@ -90,38 +75,43 @@ const DashboardPro: React.FC<DashboardProProps> = ({
   }
 
   return (
-    <div className={`panaderia-app ${darkMode ? 'dark' : 'light'}`}>
-      {/* Topbar */}
+    <div className={`dashboard-pro-app ${darkMode ? 'dark' : 'light'}`}>
       <header className="topbar">
         <div className="brand">
           <div className="brand__logo" />
-          <span>{sectorIcon} {sectorName}</span>
+          <span>
+            {sectorIcon} {sectorName}
+          </span>
         </div>
         <div className="search">
-          <input placeholder="Buscar (/) tickets, clientes, SKUs…" />
+          <input placeholder="Search (/) tickets, customers, SKUs" />
           <span>/</span>
         </div>
         <select>
-          <option>Tienda Principal</option>
-          <option>Sucursal 1</option>
-          <option>Sucursal 2</option>
+          <option>Main store</option>
+          <option>Branch 1</option>
+          <option>Branch 2</option>
         </select>
         <input type="date" defaultValue={new Date().toISOString().split('T')[0]} />
         <button className="btn" onClick={toggleTheme}>
-          {darkMode ? '☀️ Claro' : '🌙 Oscuro'}
+          {darkMode ? 'Light mode' : 'Dark mode'}
         </button>
-        <a className="btn btn--primary" href="#cierre">Cierre del día</a>
+        <a className="btn btn--primary" href="#close-day">
+          Close day
+        </a>
       </header>
 
-      {/* Sidebar */}
       <aside className="sidebar">
         <nav>
           <ul>
-            <li><Link to={`/${empresa}`} className="active">🏠 Dashboard</Link></li>
+            <li>
+              <Link to={`/${empresa}`} className="active">
+                Dashboard
+              </Link>
+            </li>
 
-            {/* Módulos contratados */}
             {modulosLoading ? (
-              <li className="sidebar-loading">Cargando módulos...</li>
+              <li className="sidebar-loading">Loading modules...</li>
             ) : (
               modules
                 .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
@@ -139,10 +129,9 @@ const DashboardPro: React.FC<DashboardProProps> = ({
                 })
             )}
 
-            {/* Enlaces personalizados del sector */}
             {customLinks.length > 0 && (
               <>
-                <li className="sidebar-divider">Gestión específica</li>
+                <li className="sidebar-divider">Sector tools</li>
                 {customLinks.map((link, i) => (
                   <li key={i}>
                     <a href={link.href}>
@@ -154,13 +143,10 @@ const DashboardPro: React.FC<DashboardProProps> = ({
             )}
           </ul>
         </nav>
-        <small>Atajos: / buscar • Cmd+K comandos</small>
+        <small>Shortcuts: / search, Cmd+K commands</small>
       </aside>
 
-      {/* Main Content */}
-      <main className="main-content">
-        {children}
-      </main>
+      <main className="main-content">{children}</main>
     </div>
   )
 }

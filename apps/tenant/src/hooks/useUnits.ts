@@ -68,7 +68,7 @@ export function useUnits(): UseUnitsState {
   useEffect(() => {
     const loadUnits = async () => {
       try {
-        const sectorCode = config?.sector_config?.code || config?.plantilla_inicio
+        const sectorCode = config?.sector?.plantilla || config?.tenant?.plantilla_inicio
 
         if (!sectorCode) {
           // Sin sector configurado, usar defaults
@@ -122,7 +122,7 @@ export function useUnits(): UseUnitsState {
     }
 
     loadUnits()
-  }, [config?.sector_config?.code, config?.plantilla_inicio])
+  }, [config?.sector?.plantilla, config?.tenant?.plantilla_inicio])
 
   return state
 }

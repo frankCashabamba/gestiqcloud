@@ -1,6 +1,6 @@
 import { apiFetch } from '../lib/http'
 
-type ThemeResponse = { brand?: { name?: string; logoUrl?: string | null } } & Record<string, any>
+export type ThemeResponse = { brand?: { name?: string; logoUrl?: string | null } } & Record<string, any>
 
 type CacheEntry = { ts: number; data: ThemeResponse; inflight?: Promise<ThemeResponse> }
 

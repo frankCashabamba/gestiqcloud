@@ -1,6 +1,5 @@
-import React, { Suspense, useEffect, useMemo, useState } from 'react'
+import React, { Suspense, useEffect, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
-import { apiFetch } from '../lib/http'
 import { applyTheme } from '@shared/ui'
 import { useAuth } from '../auth/AuthContext'
 import { fetchTenantTheme } from '../services/theme'
@@ -24,17 +23,24 @@ export default function EmpresaLoader() {
         if (!empresa) return
         const t = await fetchTenantTheme(empresa)
         if (t) {
-          try { applyTheme(t as any) } catch {}
+          try {
+            applyTheme(t as any)
+          } catch {}
           const s = t.sector || 'default'
-          try { document.documentElement.dataset.sector = s } catch {}
+          try {
+            document.documentElement.dataset.sector = s
+          } catch {}
           if (!cancelled) setSector(s)
         }
-      } catch {}
-      finally {
+      } catch {
+        // ignore
+      } finally {
         if (!cancelled) setReady(true)
       }
     })()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [empresa])
 
   useEffect(() => {
@@ -48,19 +54,18 @@ export default function EmpresaLoader() {
         if (importer) {
           lazy = React.lazy(importer as any)
         } else {
-          // Fallback profesional: carga plantilla default.tsx
           lazy = React.lazy(() => import('../plantillas/default'))
         }
         if (mounted) setComponent(lazy)
       } catch {
-        // último recurso: también cargar default.tsx
         if (mounted) setComponent(React.lazy(() => import('../plantillas/default')))
       }
     })()
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [sector, empresa])
 
-  // Si el valor de la URL es literalmente ':empresa' (o está URL-encoded), redirige a un slug real o a raíz
   try {
     const dec = empresa ? decodeURIComponent(empresa) : ''
     if (dec && dec.startsWith(':')) {
@@ -70,10 +75,10 @@ export default function EmpresaLoader() {
   } catch {}
 
   if (!empresa) return <Navigate to="/error" replace />
-  if (!ready || !Component) return <div className="p-10 text-center">Cargando plantilla…</div>
+  if (!ready || !Component) return <div className="p-10 text-center">Loading template...</div>
 
   return (
-    <Suspense fallback={<div className="p-10 text-center">Cargando plantilla…</div>}>
+    <Suspense fallback={<div className="p-10 text-center">Loading template...</div>}>
       <Component slug={sector ?? 'default'} />
     </Suspense>
   )

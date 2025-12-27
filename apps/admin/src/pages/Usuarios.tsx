@@ -183,7 +183,7 @@ export default function Usuarios() {
             <p className="text-sm text-slate-600">Define una contraseña temporal para este usuario. Podrá cambiarla después.</p>
             {setPwdUser && (
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
-                <div className="font-medium text-slate-800">{setPwdUser.nombre || setPwdUser.email}</div>
+                <div className="font-medium text-slate-800">{setPwdUser.name || setPwdUser.email}</div>
                 <div className="text-slate-600">{setPwdUser.email || '-'}</div>
               </div>
             )}

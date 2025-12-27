@@ -50,12 +50,12 @@ export default function GastoDetail() {
         <div>
           <h2 className="text-2xl font-semibold">Gasto #{gasto.id}</h2>
           <p className="text-sm text-gray-600 mt-1">
-            Creado: {new Date(gasto.created_at || gasto.fecha).toLocaleString()}
+            Creado: {new Date(gasto.created_at || gasto.date).toLocaleString()}
           </p>
         </div>
 
         <div className="flex gap-2">
-          {gasto.estado === 'pendiente' && (
+          {gasto.status === 'pending' && (
             <button
               onClick={handleMarcarPagado}
               disabled={processing}
@@ -64,7 +64,7 @@ export default function GastoDetail() {
               {processing ? 'Procesando...' : 'Marcar como Pagado'}
             </button>
           )}
-          {gasto.estado === 'pendiente' && (
+          {gasto.status === 'pending' && (
             <button
               onClick={() => nav('editar')}
               className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
@@ -80,45 +80,45 @@ export default function GastoDetail() {
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <strong>Estado:</strong>{' '}
-            <StatusBadge estado={gasto.estado} />
+            <StatusBadge estado={gasto.status} />
           </div>
           <div>
-            <strong>Fecha:</strong> {gasto.fecha}
+            <strong>Fecha:</strong> {gasto.date}
           </div>
           <div>
             <strong>Categoría:</strong>{' '}
             <span className="bg-gray-100 px-2 py-1 rounded text-xs">
-              {gasto.categoria}
+              {gasto.category}
             </span>
           </div>
-          {gasto.subcategoria && (
+          {gasto.subcategory && (
             <div>
-              <strong>Subcategoría:</strong> {gasto.subcategoria}
+              <strong>Subcategoría:</strong> {gasto.subcategory}
             </div>
           )}
           <div>
-            <strong>Concepto:</strong> {gasto.concepto}
+            <strong>Concepto:</strong> {gasto.concept}
           </div>
           <div>
             <strong>Forma de Pago:</strong>{' '}
-            <span className="capitalize">{gasto.forma_pago}</span>
+            <span className="capitalize">{gasto.payment_method}</span>
           </div>
-          {gasto.proveedor_nombre && (
+          {gasto.supplier_name && (
             <div>
-              <strong>Proveedor:</strong> {gasto.proveedor_nombre}
+              <strong>Proveedor:</strong> {gasto.supplier_name}
             </div>
           )}
-          {gasto.factura_numero && (
+          {gasto.invoice_number && (
             <div>
-              <strong>Factura:</strong> {gasto.factura_numero}
+              <strong>Factura:</strong> {gasto.invoice_number}
             </div>
           )}
         </div>
 
-        {gasto.notas && (
+      {gasto.notes && (
           <div className="mt-3 pt-3 border-t">
             <strong className="text-sm">Notas:</strong>
-            <p className="text-sm text-gray-700 mt-1">{gasto.notas}</p>
+            <p className="text-sm text-gray-700 mt-1">{gasto.notes}</p>
           </div>
         )}
       </div>
@@ -127,7 +127,7 @@ export default function GastoDetail() {
         <div className="flex justify-between items-center">
           <span className="text-lg font-medium">Monto Total:</span>
           <span className="text-2xl font-bold text-blue-900">
-            ${gasto.monto.toFixed(2)}
+            ${gasto.amount.toFixed(2)}
           </span>
         </div>
       </div>

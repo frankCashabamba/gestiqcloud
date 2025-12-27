@@ -1,7 +1,9 @@
-/** DailyCountsView - Vista de reportes diarios de caja */
-import React, { useState, useEffect } from 'react'
+/** DailyCountsView - Vista simple de cierres de caja */
+import React, { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { listDailyCounts, listRegisters } from '../services'
+import { listDailyCounts, listRegisters, getCurrentShift, getShiftSummary } from '../services'
+import { useCurrency } from '../../../hooks/useCurrency'
+import type { ShiftSummary, POSShift } from '../../../types/pos'
 
 interface DailyCount {
   id: string
@@ -31,8 +33,11 @@ export default function DailyCountsView() {
   const registerId = searchParams.get('register_id') || undefined
   const [counts, setCounts] = useState<DailyCount[]>([])
   const [registers, setRegisters] = useState<Register[]>([])
+  const [openShift, setOpenShift] = useState<POSShift | null>(null)
+  const [openSummary, setOpenSummary] = useState<ShiftSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { symbol: currencySymbol } = useCurrency()
 
   useEffect(() => {
     loadData()
@@ -41,15 +46,26 @@ export default function DailyCountsView() {
   const loadData = async () => {
     try {
       setLoading(true)
-      // Cargar cajas disponibles
       const regs = await listRegisters()
       setRegisters(regs.filter((r: any) => r.active))
-
-      // Cargar reportes diarios
       const params: any = { limit: 50 }
       if (registerId) params.register_id = registerId
       const data = await listDailyCounts(params)
       setCounts(data)
+      const targetRegisterId = registerId || regs.find((r: any) => r.active)?.id
+      if (targetRegisterId) {
+        const current = await getCurrentShift(targetRegisterId)
+        setOpenShift(current)
+        if (current) {
+          const summary = await getShiftSummary(current.id)
+          setOpenSummary(summary)
+        } else {
+          setOpenSummary(null)
+        }
+      } else {
+        setOpenShift(null)
+        setOpenSummary(null)
+      }
     } catch (err: any) {
       setError(err.message || 'Error al cargar datos')
     } finally {
@@ -68,19 +84,39 @@ export default function DailyCountsView() {
   }
 
   if (loading) {
-    return <div className="p-4 text-center">Cargando reportes diarios...</div>
+    return <div className="p-4 text-center">Cargando resumen...</div>
   }
 
   if (error) {
     return <div className="p-4 text-center text-red-600">Error: {error}</div>
   }
 
+  const latest = counts.length > 0 ? counts[0] : null
+  const liveSalesTotal = openSummary?.sales_total ?? null
+  const liveTickets = openSummary?.receipts_count ?? null
+  const liveAvgTicket =
+    liveSalesTotal !== null && liveTickets && liveTickets > 0 ? liveSalesTotal / liveTickets : null
+  const cashTotal = openSummary?.payments?.cash ?? openSummary?.payments?.efectivo ?? 0
+  const cardTotal = openSummary?.payments?.card ?? 0
+  const linkTotal = openSummary?.payments?.link ?? 0
+  const storeCreditTotal = openSummary?.payments?.store_credit ?? 0
+  const otherTotal = openSummary
+    ? Math.max(0, (liveSalesTotal || 0) - cashTotal - cardTotal - linkTotal - storeCreditTotal)
+    : 0
+  const registerName = openShift
+    ? registers.find((r) => r.id === openShift.register_id)?.name
+    : null
+  const formatMoney = (value: number) => `${currencySymbol}${value.toFixed(2)}`
+
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">Reportes Diarios de Caja</h2>
-        <div className="flex items-center gap-4">
-          <label className="text-sm font-medium">Filtrar por caja:</label>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-2xl font-bold">Ventas del dia</h2>
+          <p className="text-sm text-gray-500">Resumen simple para caja</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium">Caja:</label>
           <select
             value={registerId || ''}
             onChange={(e) => handleRegisterChange(e.target.value)}
@@ -96,57 +132,103 @@ export default function DailyCountsView() {
         </div>
       </div>
 
-      {counts.length === 0 ? (
-        <p className="text-gray-500">No hay reportes diarios disponibles.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse border border-gray-300">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="border border-gray-300 p-2 text-left">Fecha</th>
-                <th className="border border-gray-300 p-2 text-right">Fondo Inicial</th>
-                <th className="border border-gray-300 p-2 text-right">Ventas Efectivo</th>
-                <th className="border border-gray-300 p-2 text-right">Ventas Totales</th>
-                <th className="border border-gray-300 p-2 text-right">Esperado</th>
-                <th className="border border-gray-300 p-2 text-right">Contado</th>
-                <th className="border border-gray-300 p-2 text-right">Diferencia</th>
-                <th className="border border-gray-300 p-2 text-left">Notas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {counts.map((count) => (
-                <tr key={count.id} className="hover:bg-gray-50">
-                  <td className="border border-gray-300 p-2">
-                    {new Date(count.count_date).toLocaleDateString()}
-                  </td>
-                  <td className="border border-gray-300 p-2 text-right">
-                    €{count.opening_float.toFixed(2)}
-                  </td>
-                  <td className="border border-gray-300 p-2 text-right">
-                    €{count.cash_sales.toFixed(2)}
-                  </td>
-                  <td className="border border-gray-300 p-2 text-right">
-                    €{count.total_sales.toFixed(2)}
-                  </td>
-                  <td className="border border-gray-300 p-2 text-right">
-                    €{count.expected_cash.toFixed(2)}
-                  </td>
-                  <td className="border border-gray-300 p-2 text-right">
-                    €{count.counted_cash.toFixed(2)}
-                  </td>
-                  <td className={`border border-gray-300 p-2 text-right ${
-                    count.discrepancy !== 0 ? 'text-red-600 font-semibold' : ''
-                  }`}>
-                    €{count.discrepancy.toFixed(2)}
-                  </td>
-                  <td className="border border-gray-300 p-2">
-                    {count.loss_note || (count.loss_amount > 0 ? `Pérdida: €${count.loss_amount.toFixed(2)}` : '-')}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {!latest && !openSummary ? (
+        <div className="bg-white border rounded-lg p-6 text-gray-600">
+          No hay cierres de caja aun. Cierra un turno para ver el resumen del dia.
         </div>
+      ) : (
+        <>
+          <div className="bg-white border rounded-lg p-6 mb-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+              <div className="text-lg font-semibold">
+                {openShift ? 'Turno abierto' : 'Hoy'}
+              </div>
+              <div className="text-sm text-gray-500">
+                {openShift
+                  ? `Caja ${registerName || openShift.register_id.slice(0, 6)}`
+                  : latest
+                  ? new Date(latest.count_date).toLocaleDateString()
+                  : ''}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mt-4">
+              <div className="border rounded-lg p-4">
+                <div className="text-xs text-gray-500">Total vendido</div>
+                <div className="text-2xl font-semibold">
+                  {formatMoney(liveSalesTotal ?? latest?.total_sales ?? 0)}
+                </div>
+              </div>
+              <div className="border rounded-lg p-4">
+                <div className="text-xs text-gray-500">Efectivo</div>
+                <div className="text-xl font-semibold">
+                  {formatMoney(openSummary ? cashTotal : latest?.cash_sales ?? 0)}
+                </div>
+              </div>
+              <div className="border rounded-lg p-4">
+                <div className="text-xs text-gray-500">Tarjeta</div>
+                <div className="text-xl font-semibold">
+                  {formatMoney(openSummary ? cardTotal : latest?.card_sales ?? 0)}
+                </div>
+              </div>
+              <div className="border rounded-lg p-4">
+                <div className="text-xs text-gray-500">Otros</div>
+                <div className="text-xl font-semibold">
+                  {formatMoney(openSummary ? otherTotal : latest?.other_sales ?? 0)}
+                </div>
+              </div>
+              <div className="border rounded-lg p-4">
+                <div className="text-xs text-gray-500">Tickets</div>
+                <div className="text-xl font-semibold">
+                  {liveTickets ?? 0}
+                </div>
+              </div>
+              <div className="border rounded-lg p-4">
+                <div className="text-xs text-gray-500">Ticket promedio</div>
+                <div className="text-xl font-semibold">
+                  {formatMoney(liveAvgTicket ?? 0)}
+                </div>
+              </div>
+            </div>
+            {!openSummary && latest ? (
+              <div className="mt-4 text-sm text-gray-500">
+                Datos basados en el ultimo cierre de caja.
+              </div>
+            ) : null}
+          </div>
+
+          <div className="bg-white border rounded-lg">
+            <div className="px-6 py-4 border-b">
+              <h3 className="text-lg font-semibold">Ultimos cierres</h3>
+              <p className="text-sm text-gray-500">Ultimos 10 dias</p>
+            </div>
+            <div className="divide-y">
+              {counts.slice(0, 10).map((count) => (
+                <div key={count.id} className="px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                  <div>
+                    <div className="font-medium">{new Date(count.count_date).toLocaleDateString()}</div>
+                    <div className="text-xs text-gray-500">Fondo inicial: {formatMoney(count.opening_float)}</div>
+                  </div>
+                  <div className="flex items-center gap-6 text-sm">
+                    <div>
+                      <div className="text-gray-500">Total</div>
+                      <div className="font-semibold">{formatMoney(count.total_sales)}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">Contado</div>
+                      <div className="font-semibold">{formatMoney(count.counted_cash)}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">Diferencia</div>
+                      <div className={`font-semibold ${count.discrepancy !== 0 ? 'text-red-600' : ''}`}>
+                        {formatMoney(count.discrepancy)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
       )}
     </div>
   )

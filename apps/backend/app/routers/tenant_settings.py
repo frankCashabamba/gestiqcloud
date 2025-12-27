@@ -21,8 +21,10 @@ from app.core.access_guard import with_access_claims
 from app.db.rls import set_tenant_guc
 from app.middleware.tenant import ensure_tenant
 from app.models.company.company_settings import CompanySettings
+from app.models.company.company import SectorTemplate
 from app.models.tenant import Tenant
 from app.services.sector_templates import apply_sector_template
+from app.schemas.sector_plantilla import SectorConfigJSON
 
 router = APIRouter(prefix="/api/v1/company", tags=["Company Settings"])
 router_compat = APIRouter(
@@ -63,6 +65,7 @@ class TenantSettingsResponse(BaseModel):
     pos_config: dict | None = None
     invoice_config: dict | None = None
     settings: dict
+
 
 
 @router.get("/settings", summary="Obtener configuración de la empresa")
@@ -149,7 +152,37 @@ def update_tenant_settings(
     # Obtener o crear CompanySettings
     company_settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
     if not company_settings:
-        company_settings = CompanySettings(tenant_id=tenant_id)
+        if not payload.locale:
+            raise HTTPException(status_code=400, detail="default_language_required")
+        if not payload.timezone:
+            raise HTTPException(status_code=400, detail="timezone_required")
+        if not payload.currency:
+            raise HTTPException(status_code=400, detail="currency_required")
+        primary_color = getattr(tenant, "primary_color", None)
+        secondary_color = None
+        template_name = getattr(tenant, "sector_template_name", None)
+        if template_name:
+            template = (
+                db.query(SectorTemplate)
+                .filter((SectorTemplate.code == template_name) | (SectorTemplate.name == template_name))
+                .first()
+            )
+            if template:
+                config = SectorConfigJSON(**(template.template_config or {}))
+                primary_color = config.branding.color_primario
+                secondary_color = config.branding.color_secundario
+        if not primary_color:
+            raise HTTPException(status_code=400, detail="primary_color_required")
+        if not secondary_color:
+            raise HTTPException(status_code=400, detail="secondary_color_required")
+        company_settings = CompanySettings(
+            tenant_id=tenant_id,
+            default_language=payload.locale,
+            timezone=payload.timezone,
+            currency=payload.currency,
+            primary_color=primary_color,
+            secondary_color=secondary_color,
+        )
         db.add(company_settings)
         db.flush()
 

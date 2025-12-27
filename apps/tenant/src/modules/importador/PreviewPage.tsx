@@ -11,6 +11,7 @@ import {
     validateBatch,
     getBatchStatus,
     patchItem,
+    ingestBatch,
     resetBatch,
     deleteBatch,
     cancelBatch,
@@ -45,6 +46,7 @@ interface ProductoPreview {
     unidad: string
     iva: number
     raw: Record<string, any>
+    normalized?: Record<string, any>
 }
 
 interface Category {
@@ -819,7 +821,7 @@ export default function PreviewPage() {
                                         {visibleProductos.map((p, i) => {
                                             const precio = typeof p.price === 'number' ? p.price : parseFloat(p.precio as string) || 0
                                             return (
-                                                <>
+                                                <React.Fragment key={p.id}>
                                                     <tr key={p.id} className="hover:bg-slate-50">
                                                         <td className="px-3 py-2">
                                                             <input
@@ -914,7 +916,7 @@ export default function PreviewPage() {
                                                             </td>
                                                         </tr>
                                                     )}
-                                                </>
+                                                </React.Fragment>
                                             )
                                         })}
                                     </tbody>
@@ -963,7 +965,7 @@ export default function PreviewPage() {
                                         {visibleProductos.map((p, i) => {
                                             const merged = { ...(p.raw?.datos || {}), ...(p.raw || {}), ...(p.normalized || {}) }
                                             return (
-                                                <>
+                                                <React.Fragment key={p.id}>
                                                     <tr key={p.id} className="hover:bg-slate-50">
                                                         <td className="px-3 py-2 text-slate-500">{i + 1}</td>
                                                         <td className="px-3 py-2">{merged.fecha || merged.transaction_date || '-'}</td>
@@ -1002,7 +1004,7 @@ export default function PreviewPage() {
                                                             </td>
                                                         </tr>
                                                     )}
-                                                </>
+                                                </React.Fragment>
                                             )
                                         })}
                                     </tbody>

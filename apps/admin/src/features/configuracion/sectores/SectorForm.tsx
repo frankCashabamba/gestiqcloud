@@ -27,9 +27,22 @@ const TEMPLATE_OPTIONS = [
   'todoa100',
 ]
 
+const featureOptions = [
+  { key: 'recipes', label: 'Habilitar gestión de recetas' },
+  { key: 'bakery_sales_account', label: 'Ingresos bakería' },
+  { key: 'inventory_expiry_tracking', label: 'Seguimiento de caducidad' },
+  { key: 'inventory_lot_tracking', label: 'Seguimiento de lotes' },
+  { key: 'inventory_serial_tracking', label: 'Seguimiento de series' },
+  { key: 'loss_account', label: 'Mostrar cuenta pérdidas/mermas' },
+]
+
 const ensureTemplateConfig = (cfg?: Partial<SectorTemplateConfig> | null): SectorTemplateConfig => ({
   ...DEFAULT_TEMPLATE_CONFIG,
   ...(cfg || {}),
+  features: {
+    ...DEFAULT_TEMPLATE_CONFIG.features,
+    ...(cfg?.features || {}),
+  },
   branding: {
     ...DEFAULT_TEMPLATE_CONFIG.branding,
     ...(cfg?.branding || {}),
@@ -112,12 +125,21 @@ export default function SectorForm() {
     getSector(id)
       .then((m) => {
         const cfg = ensureTemplateConfig(m.template_config)
+        const dashboardTemplate =
+          m.template_config?.branding?.dashboard_template ||
+          m.template_config?.branding?.plantilla_inicio ||
+          cfg.branding.dashboard_template
+
         setForm({
           name: m.name || '',
           code: m.code || '',
           description: m.description || '',
           template_config: {
             ...cfg,
+            branding: {
+              ...cfg.branding,
+              dashboard_template: dashboardTemplate,
+            },
             defaults: {
               ...cfg.defaults,
               business_type_id: cfg.defaults?.business_type_id || '',
@@ -140,6 +162,19 @@ export default function SectorForm() {
       template_config: ensureTemplateConfig({
         ...prev.template_config,
         branding: { ...prev.template_config?.branding, ...patch },
+      }),
+    }))
+  }
+
+  const toggleFeature = (featureKey: string, enabled: boolean) => {
+    setForm((prev) => ({
+      ...prev,
+      template_config: ensureTemplateConfig({
+        ...prev.template_config,
+        features: {
+          ...(prev.template_config.features || {}),
+          [featureKey]: enabled,
+        },
       }),
     }))
   }
@@ -292,6 +327,15 @@ export default function SectorForm() {
               />
             </label>
             <label className="block text-sm">
+              Color secundario
+              <input
+                type="color"
+                value={branding.color_secundario || '#111827'}
+                onChange={(e) => updateBranding({ color_secundario: e.target.value })}
+                className="mt-2 h-10 w-20 border border-slate-300 rounded"
+              />
+            </label>
+            <label className="block text-sm">
               Dashboard template
               <select
                 value={branding.dashboard_template}
@@ -306,6 +350,26 @@ export default function SectorForm() {
               </select>
             </label>
           </div>
+        </div>
+
+        <div className="border rounded px-3 py-3 bg-white">
+          <h4 className="font-semibold mb-2">Feature Flags</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {featureOptions.map((option) => (
+              <label key={option.key} className="flex items-center gap-2 text-sm text-gray-900">
+                <input
+                  type="checkbox"
+                  checked={Boolean(form.template_config.features?.[option.key])}
+                  onChange={(e) => toggleFeature(option.key, e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-slate-500 mt-2">
+            Estos flags controlan qué componentes o campos mostraremos en los tenants que usen esta plantilla.
+          </p>
         </div>
 
         <div>

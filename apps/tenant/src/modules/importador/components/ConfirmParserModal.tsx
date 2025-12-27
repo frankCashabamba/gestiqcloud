@@ -27,9 +27,9 @@ const getConfidenceColor = (confidence: number): string => {
 }
 
 const getConfidenceLabel = (confidence: number): string => {
-  if (confidence >= 0.7) return 'Alta'
-  if (confidence >= 0.5) return 'Media'
-  return 'Baja'
+  if (confidence >= 0.7) return 'High'
+  if (confidence >= 0.5) return 'Medium'
+  return 'Low'
 }
 
 export const ConfirmParserModal: React.FC<ConfirmParserModalProps> = ({
@@ -69,7 +69,7 @@ export const ConfirmParserModal: React.FC<ConfirmParserModalProps> = ({
       await onConfirm(effectiveParser, null)
       onClose()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al confirmar')
+      setError(e instanceof Error ? e.message : 'Error confirming parser')
     } finally {
       setConfirming(false)
     }
@@ -84,20 +84,20 @@ export const ConfirmParserModal: React.FC<ConfirmParserModalProps> = ({
     <div className="confirm-parser-modal-overlay">
       <div className="confirm-parser-modal">
         <div className="confirm-parser-modal__header">
-          <h2>Confirmar Parser</h2>
+          <h2>Confirm parser</h2>
           <button className="close-btn" onClick={onClose} disabled={confirming}>
-            ×
+            x
           </button>
         </div>
 
         <div className="confirm-parser-modal__content">
           <div className="warning-banner">
-            <span className="warning-icon">⚠️</span>
+            <span className="warning-icon">!</span>
             <div>
-              <strong>Confianza insuficiente</strong>
+              <strong>Low confidence</strong>
               <p>
-                El sistema no pudo determinar con certeza el tipo de archivo.
-                Por favor, confirma o selecciona el parser correcto.
+                The system could not determine the file type with enough confidence.
+                Please confirm or select the correct parser.
               </p>
             </div>
           </div>
@@ -106,32 +106,25 @@ export const ConfirmParserModal: React.FC<ConfirmParserModalProps> = ({
             <div className="suggestion-card">
               <div className="suggestion-header">
                 <div className="suggestion-info">
-                  <span className="label">Parser Sugerido:</span>
+                  <span className="label">Suggested parser:</span>
                   <span className="parser-name">{classificationResult.suggested_parser}</span>
                 </div>
-                <div
-                  className="confidence-badge"
-                  style={{ backgroundColor: confidenceColor }}
-                >
+                <div className="confidence-badge" style={{ backgroundColor: confidenceColor }}>
                   <span className="percent">{confidencePercent}%</span>
                   <span className="level">{getConfidenceLabel(classificationResult.confidence)}</span>
                 </div>
               </div>
 
-              {classificationResult.reason && (
-                <p className="reason">{classificationResult.reason}</p>
-              )}
+              {classificationResult.reason && <p className="reason">{classificationResult.reason}</p>}
 
               {classificationResult.enhanced_by_ai && (
-                <span className="ai-badge">
-                  🤖 Analizado con {classificationResult.ai_provider || 'IA'}
-                </span>
+                <span className="ai-badge">Analyzed with {classificationResult.ai_provider || 'AI'}</span>
               )}
             </div>
           )}
 
           <div className="parser-selection">
-            <label className="selection-label">Seleccionar Parser:</label>
+            <label className="selection-label">Select parser:</label>
 
             <div className="parser-list">
               {sortedParsers.map((parser) => {
@@ -148,16 +141,14 @@ export const ConfirmParserModal: React.FC<ConfirmParserModalProps> = ({
                     <div className="parser-option__info">
                       <span className="parser-id">{parser.id}</span>
                       <span className="parser-type">{parser.doc_type}</span>
-                      {parser.description && (
-                        <span className="parser-desc">{parser.description}</span>
-                      )}
+                      {parser.description && <span className="parser-desc">{parser.description}</span>}
                     </div>
                     <div className="parser-option__meta">
                       {parser.probability > 0 && (
                         <span className="probability">{Math.round(parser.probability * 100)}%</span>
                       )}
-                      {isSuggested && <span className="suggested-tag">Sugerido</span>}
-                      {isSelected && <span className="selected-check">✓</span>}
+                      {isSuggested && <span className="suggested-tag">Suggested</span>}
+                      {isSelected && <span className="selected-check">OK</span>}
                     </div>
                   </button>
                 )
@@ -167,34 +158,24 @@ export const ConfirmParserModal: React.FC<ConfirmParserModalProps> = ({
 
           {isOverride && (
             <div className="override-notice">
-              <span className="notice-icon">ℹ️</span>
-              <span>
-                Has seleccionado un parser diferente al sugerido. Esto quedará registrado.
-              </span>
+              <span className="notice-icon">!</span>
+              <span>You selected a different parser than the suggestion. This will be recorded.</span>
             </div>
           )}
 
           {error && (
             <div className="error-message">
-              <span>❌</span> {error}
+              <span>!</span> {error}
             </div>
           )}
         </div>
 
         <div className="confirm-parser-modal__footer">
-          <button
-            className="btn-cancel"
-            onClick={onClose}
-            disabled={confirming}
-          >
-            Cancelar
+          <button className="btn-cancel" onClick={onClose} disabled={confirming}>
+            Cancel
           </button>
-          <button
-            className="btn-confirm"
-            onClick={handleConfirm}
-            disabled={confirming || !effectiveParser || loading}
-          >
-            {confirming ? 'Confirmando...' : isOverride ? 'Confirmar (Override)' : 'Confirmar'}
+          <button className="btn-confirm" onClick={handleConfirm} disabled={confirming || !effectiveParser || loading}>
+            {confirming ? 'Confirming...' : isOverride ? 'Confirm (Override)' : 'Confirm'}
           </button>
         </div>
       </div>
@@ -240,7 +221,7 @@ export const ConfirmParserModal: React.FC<ConfirmParserModalProps> = ({
         .close-btn {
           background: none;
           border: none;
-          font-size: 24px;
+          font-size: 18px;
           color: #6b7280;
           cursor: pointer;
           padding: 0;
@@ -447,7 +428,7 @@ export const ConfirmParserModal: React.FC<ConfirmParserModalProps> = ({
 
         .selected-check {
           color: #3b82f6;
-          font-size: 18px;
+          font-size: 12px;
           font-weight: bold;
         }
 

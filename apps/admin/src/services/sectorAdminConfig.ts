@@ -107,6 +107,11 @@ export const sectorAdminConfigService = {
       } else if (!isValidHexColor(config.branding.color_primario)) {
         errors.push(`Invalid hex color: ${config.branding.color_primario}`)
       }
+      if (!config.branding.color_secundario) {
+        errors.push("Branding color_secundario is required")
+      } else if (!isValidHexColor(config.branding.color_secundario)) {
+        errors.push(`Invalid hex color: ${config.branding.color_secundario}`)
+      }
     }
 
     // Validar defaults

@@ -67,6 +67,7 @@ from app.models.pos import (
     StoreCreditEvent,
 )
 from app.models.accounting.pos_settings import TenantAccountingSettings, PaymentMethod
+from app.models.printing.printer_label_configuration import PrinterLabelConfiguration
 
 # Nuevos módulos profesionales
 from app.models.production import ProductionOrder, ProductionOrderLine
@@ -123,6 +124,7 @@ __all__ = [
     "BusinessType",
     "BusinessCategory",
     "UserProfile",
+    "PrinterLabelConfiguration",
     # Auth & Security
     "SuperUser",
     "RefreshFamily",

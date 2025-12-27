@@ -106,8 +106,9 @@ export function useSectorConfig(sector: string | null | undefined): UseSectorCon
     setState({ config: null, loading: true, error: null })
 
     try {
+      const encodedSector = encodeURIComponent(sector)
       const response = await tenantApi.get<SectorConfigResponse>(
-        `/api/v1/sectors/${sector}/config`
+        `/api/v1/sectors/${encodedSector}/config`
       )
 
       const branding = response.data.branding
@@ -217,8 +218,9 @@ export function useSectorConfigs(sectors: string[]) {
           }
 
           try {
+            const encodedSector = encodeURIComponent(sector)
             const response = await tenantApi.get<SectorConfigResponse>(
-              `/api/v1/sectors/${sector}/config`
+              `/api/v1/sectors/${encodedSector}/config`
             )
             newConfigs.set(sector, response.data.branding)
             configCache.set(sector, response.data.branding)

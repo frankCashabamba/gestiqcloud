@@ -39,6 +39,7 @@ class ImportBatch(Base):
     source_type = mapped_column(String, nullable=False)  # 'invoices'|'bank'|'receipts'|'documento'
     origin = mapped_column(String, nullable=False)  # 'excel'|'ocr'|'api'
     file_key = mapped_column(String)  # S3/MinIO path
+    original_filename = mapped_column(String, nullable=True)
     mapping_id = mapped_column(UUID, nullable=True)
     parser_id = mapped_column(
         String, nullable=True

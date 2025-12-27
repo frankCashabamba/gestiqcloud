@@ -22,7 +22,14 @@
  * )}
  * ```
  */
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from 'react'
 import { apiFetch } from '../lib/http'
 import { useSectorFullConfig as useSectorFullConfigHook, SectorFullConfig, FeaturesConfig as SectorFeaturesConfig } from '../hooks/useSectorFullConfig'
 
@@ -128,7 +135,7 @@ export function TenantConfigProvider({ children }: { children: ReactNode }) {
     config?.sector?.plantilla || null
   )
 
-  const loadConfig = async () => {
+  const loadConfig = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -141,11 +148,22 @@ export function TenantConfigProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     loadConfig()
-  }, [])
+  }, [loadConfig])
+
+  useEffect(() => {
+    const handler = (event: StorageEvent) => {
+      if (event.key === 'guc-sector-config-refresh') {
+        loadConfig()
+      }
+    }
+
+    window.addEventListener('storage', handler)
+    return () => window.removeEventListener('storage', handler)
+  }, [loadConfig])
 
   const isModuleEnabled = (moduleKey: string): boolean => {
     if (!config) return false

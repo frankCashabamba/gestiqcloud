@@ -78,6 +78,7 @@ export function SectorConfigAdmin() {
     } finally {
       setLoading(false)
     }
+    window.localStorage.setItem("guc-sector-config-refresh", Date.now().toString())
   }
 
   const handleReset = () => {
@@ -89,6 +90,26 @@ export function SectorConfigAdmin() {
   const handleConfigChange = (newConfig: SectorConfig["config"]) => {
     setEditedConfig(newConfig)
     setHasChanges(true)
+  }
+
+  const featureOptions = [
+    { key: "recipes", label: "Habilitar gestión de recetas" },
+    { key: "bakery_sales_account", label: "Mostrar cuenta ventas panadería" },
+    { key: "inventory_expiry_tracking", label: "Activar seguimiento de caducidad" },
+    { key: "inventory_lot_tracking", label: "Activar seguimiento de lotes" },
+    { key: "inventory_serial_tracking", label: "Activar seguimiento de series" },
+    { key: "loss_account", label: "Mostrar cuenta pérdidas/mermas" },
+  ]
+
+  const toggleFeature = (featureKey: string, enabled: boolean) => {
+    if (!editedConfig) return
+    handleConfigChange({
+      ...editedConfig,
+      features: {
+        ...(editedConfig.features || {}),
+        [featureKey]: enabled,
+      },
+    })
   }
 
   const showMessage = (type: "success" | "error", text: string) => {
@@ -173,6 +194,29 @@ export function SectorConfigAdmin() {
               {config.modified_by && (
                 <p className="text-xs text-gray-500 mt-2">Modified by: {config.modified_by}</p>
               )}
+            </div>
+
+            {/* Feature toggles */}
+            <div className="p-6 border-b border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3">Feature Flags</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {featureOptions.map((option) => (
+                  <label key={option.key} className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editedConfig?.features?.[option.key])}
+                      onChange={(e) => toggleFeature(option.key, e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    {option.label}
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Estos flags controlan comportamientos dinámicos del tenant (recetas, campos específicos de panadería,
+                seguimientos de inventario). Puedes agregar más claves directamente en el JSON si necesitas algo más
+                profundo.
+              </p>
             </div>
 
             {/* JSON Editor */}

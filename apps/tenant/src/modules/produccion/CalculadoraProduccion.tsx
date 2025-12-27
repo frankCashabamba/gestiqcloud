@@ -17,7 +17,7 @@ interface CalculadoraProduccionProps {
 }
 
 export default function CalculadoraProduccion({ open, recipe, onClose }: CalculadoraProduccionProps) {
-  const [qtyToProduce, setQtyToProduce] = useState<number>(recipe.rendimiento);
+  const [qtyToProduce, setQtyToProduce] = useState<number>(recipe.yield_qty);
   const [workers, setWorkers] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ProductionCalculation | null>(null);
@@ -59,7 +59,7 @@ export default function CalculadoraProduccion({ open, recipe, onClose }: Calcula
               value={qtyToProduce}
               onChange={(e) => setQtyToProduce(Number(e.target.value))}
               inputProps={{ min: 1 }}
-              helperText={`Rendimiento base: ${recipe.rendimiento} uds`}
+              helperText={`Rendimiento base: ${recipe.yield_qty} uds`}
             />
           </Grid>
 

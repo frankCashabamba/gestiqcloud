@@ -66,7 +66,7 @@ export default function RecetasList() {
     if (term) {
       list = list.filter(r =>
         (r.name || '').toLowerCase().includes(term) ||
-        (r.producto_nombre || '').toLowerCase().includes(term)
+        (r.product_name || '').toLowerCase().includes(term)
       )
     }
     if (category !== 'all') {
@@ -233,7 +233,7 @@ export default function RecetasList() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {pageItems.map((r) => {
-              const costoUnidad = r.costo_por_unidad || 0
+              const costoUnidad = r.unit_cost || 0
               const precio = precioSugerido(costoUnidad)
               const prod = products.find(p => p.id === r.product_id)
               const precioDisplay = applyTax(precio, prod)
@@ -246,11 +246,11 @@ export default function RecetasList() {
                         <img src={prod.image_url} alt={prod.name} className="w-10 h-10 rounded object-cover bg-gray-100" />
                       ) : (
                         <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center text-gray-500 text-sm">
-                          {(r.producto_nombre || 'P').charAt(0).toUpperCase()}
+                          {(r.product_name || 'P').charAt(0).toUpperCase()}
                         </div>
                       )}
                       <div>
-                        <div className="text-sm text-gray-500">{r.producto_nombre || 'Product'}</div>
+                        <div className="text-sm text-gray-500">{r.product_name || 'Product'}</div>
                         <div className="font-semibold text-gray-900">{r.name}</div>
                       </div>
                     </div>
@@ -261,11 +261,11 @@ export default function RecetasList() {
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div className="p-2 rounded bg-gray-50">
                       <div className="text-gray-500">Costo total</div>
-                      <div className="font-semibold">{fmt(r.costo_total || costoUnidad * (r.rendimiento || 1))}</div>
+                      <div className="font-semibold">{fmt(r.total_cost || costoUnidad * (r.yield_qty || 1))}</div>
                     </div>
                     <div className="p-2 rounded bg-gray-50">
                       <div className="text-gray-500">Rendimiento</div>
-                      <div className="font-semibold">{r.rendimiento} und</div>
+                      <div className="font-semibold">{r.yield_qty} und</div>
                     </div>
                     <div className="p-2 rounded bg-gray-50">
                       <div className="text-gray-500">Costo / unidad</div>

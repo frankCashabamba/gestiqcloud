@@ -35,17 +35,17 @@ export default function GastoForm() {
   const { placeholders } = useSectorPlaceholders(sector?.plantilla, 'expenses')
 
   const [form, setForm] = useState<FormT>({
-    fecha: new Date().toISOString().slice(0, 10),
-    categoria: '',
-    subcategoria: '',
-    concepto: '',
-    monto: 0,
-    forma_pago: 'efectivo',
-    proveedor_id: '',
-    proveedor_nombre: '',
-    estado: 'pendiente',
-    factura_numero: '',
-    notas: ''
+    date: new Date().toISOString().slice(0, 10),
+    category: '',
+    subcategory: '',
+    concept: '',
+    amount: 0,
+    payment_method: 'cash',
+    supplier_id: '',
+    supplier_name: '',
+    status: 'pending',
+    invoice_number: '',
+    notes: ''
   })
 
   const [loading, setLoading] = useState(false)
@@ -56,17 +56,17 @@ export default function GastoForm() {
       getGasto(id)
         .then((x) => {
           setForm({
-            fecha: x.fecha,
-            categoria: x.categoria,
-            subcategoria: x.subcategoria || '',
-            concepto: x.concepto,
-            monto: x.monto,
-            forma_pago: x.forma_pago,
-            proveedor_id: x.proveedor_id || '',
-            proveedor_nombre: x.proveedor_nombre || '',
-            estado: x.estado,
-            factura_numero: x.factura_numero || '',
-            notas: x.notas || ''
+            date: x.date,
+            category: x.category,
+            subcategory: x.subcategory || '',
+            concept: x.concept || '',
+            amount: x.amount,
+            payment_method: x.payment_method || 'cash',
+            supplier_id: x.supplier_id || '',
+            supplier_name: x.supplier_name || '',
+            status: x.status || 'pending',
+            invoice_number: x.invoice_number || '',
+            notes: x.notes || ''
           })
         })
         .catch((e) => error(getErrorMessage(e)))
@@ -78,10 +78,10 @@ export default function GastoForm() {
     e.preventDefault()
 
     try {
-      if (!form.fecha) throw new Error('Fecha es requerida')
-      if (!form.categoria) throw new Error('Categoría es requerida')
-      if (!form.concepto) throw new Error('Concepto es requerido')
-      if (form.monto <= 0) throw new Error('Monto debe ser mayor a 0')
+      if (!form.date) throw new Error('Fecha es requerida')
+      if (!form.category) throw new Error('Categoría es requerida')
+      if (!form.concept) throw new Error('Concepto es requerido')
+      if (form.amount <= 0) throw new Error('Monto debe ser mayor a 0')
 
       setLoading(true)
 
@@ -100,7 +100,7 @@ export default function GastoForm() {
     }
   }
 
-  const subcategorias = form.categoria ? (SUBCATEGORIAS[form.categoria] || []) : []
+  const subcategorias = form.category ? (SUBCATEGORIAS[form.category] || []) : []
 
   return (
     <div className="p-4">
@@ -114,8 +114,8 @@ export default function GastoForm() {
             <label className="block mb-1 font-medium">Fecha *</label>
             <input
               type="date"
-              value={form.fecha}
-              onChange={(e) => setForm({ ...form, fecha: e.target.value })}
+              value={form.date}
+              onChange={(e) => setForm({ ...form, date: e.target.value })}
               className="border px-2 py-1 w-full rounded"
               required
               disabled={loading}
@@ -128,8 +128,8 @@ export default function GastoForm() {
               type="number"
               step="0.01"
               min="0.01"
-              value={form.monto}
-              onChange={(e) => setForm({ ...form, monto: Number(e.target.value) })}
+              value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })}
               className="border px-2 py-1 w-full rounded"
               required
               disabled={loading}
@@ -141,8 +141,8 @@ export default function GastoForm() {
           <div>
             <label className="block mb-1 font-medium">Categoría *</label>
             <select
-              value={form.categoria}
-              onChange={(e) => setForm({ ...form, categoria: e.target.value, subcategoria: '' })}
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value, subcategory: '' })}
               className="border px-2 py-1 w-full rounded"
               required
               disabled={loading}
@@ -158,8 +158,8 @@ export default function GastoForm() {
             <div>
               <label className="block mb-1 font-medium">Subcategoría</label>
               <select
-                value={form.subcategoria || ''}
-                onChange={(e) => setForm({ ...form, subcategoria: e.target.value })}
+                value={form.subcategory || ''}
+                onChange={(e) => setForm({ ...form, subcategory: e.target.value })}
                 className="border px-2 py-1 w-full rounded"
                 disabled={loading}
               >
@@ -177,8 +177,8 @@ export default function GastoForm() {
           <input
             type="text"
             placeholder="Descripción del gasto"
-            value={form.concepto}
-            onChange={(e) => setForm({ ...form, concepto: e.target.value })}
+            value={form.concept}
+            onChange={(e) => setForm({ ...form, concept: e.target.value })}
             className="border px-2 py-1 w-full rounded"
             required
             disabled={loading}
@@ -189,31 +189,31 @@ export default function GastoForm() {
           <div>
             <label className="block mb-1 font-medium">Forma de Pago *</label>
             <select
-              value={form.forma_pago}
-              onChange={(e) => setForm({ ...form, forma_pago: e.target.value as any })}
+              value={form.payment_method}
+              onChange={(e) => setForm({ ...form, payment_method: e.target.value as any })}
               className="border px-2 py-1 w-full rounded"
               required
               disabled={loading}
             >
-              <option value="efectivo">Efectivo</option>
-              <option value="transferencia">Transferencia</option>
-              <option value="tarjeta">Tarjeta</option>
-              <option value="cheque">Cheque</option>
+              <option value="cash">Efectivo</option>
+              <option value="transfer">Transferencia</option>
+              <option value="card">Tarjeta</option>
+              <option value="check">Cheque</option>
             </select>
           </div>
 
           <div>
             <label className="block mb-1 font-medium">Estado *</label>
             <select
-              value={form.estado}
-              onChange={(e) => setForm({ ...form, estado: e.target.value as any })}
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value as any })}
               className="border px-2 py-1 w-full rounded"
               required
               disabled={loading}
             >
-              <option value="pendiente">Pendiente</option>
-              <option value="pagado">Pagado</option>
-              <option value="anulado">Anulado</option>
+              <option value="pending">Pendiente</option>
+              <option value="paid">Pagado</option>
+              <option value="voided">Anulado</option>
             </select>
           </div>
         </div>
@@ -224,8 +224,8 @@ export default function GastoForm() {
             <input
               type="text"
               placeholder="ID del proveedor"
-              value={form.proveedor_id || ''}
-              onChange={(e) => setForm({ ...form, proveedor_id: e.target.value })}
+              value={form.supplier_id || ''}
+              onChange={(e) => setForm({ ...form, supplier_id: e.target.value })}
               className="border px-2 py-1 w-full rounded"
               disabled={loading}
             />
@@ -236,8 +236,8 @@ export default function GastoForm() {
             <input
               type="text"
               placeholder="Nombre del proveedor"
-              value={form.proveedor_nombre || ''}
-              onChange={(e) => setForm({ ...form, proveedor_nombre: e.target.value })}
+              value={form.supplier_name || ''}
+              onChange={(e) => setForm({ ...form, supplier_name: e.target.value })}
               className="border px-2 py-1 w-full rounded"
               disabled={loading}
             />
@@ -248,9 +248,9 @@ export default function GastoForm() {
           <label className="block mb-1 font-medium">Número de Factura</label>
            <input
              type="text"
-             placeholder={getFieldPlaceholder(placeholders, 'numero_factura', 'Ej: FACT-2025-001')}
-             value={form.factura_numero || ''}
-             onChange={(e) => setForm({ ...form, factura_numero: e.target.value })}
+             placeholder={getFieldPlaceholder(placeholders, 'invoice_number', 'Ej: FACT-2025-001')}
+             value={form.invoice_number || ''}
+             onChange={(e) => setForm({ ...form, invoice_number: e.target.value })}
              className="border px-2 py-1 w-full rounded"
              disabled={loading}
            />
@@ -259,8 +259,8 @@ export default function GastoForm() {
         <div>
           <label className="block mb-1 font-medium">Notas</label>
           <textarea
-            value={form.notas || ''}
-            onChange={(e) => setForm({ ...form, notas: e.target.value })}
+            value={form.notes || ''}
+            onChange={(e) => setForm({ ...form, notes: e.target.value })}
             className="border px-2 py-1 w-full rounded"
             rows={3}
             placeholder="Notas adicionales..."

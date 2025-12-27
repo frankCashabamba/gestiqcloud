@@ -80,6 +80,7 @@ export default function TenantConfiguracion() {
     const [empresaData, setEmpresaData] = useState<any>(null);
     const [selectedSector, setSelectedSector] = useState<string | null>(null);
     const [selectedPlantilla, setSelectedPlantilla] = useState<string>('');
+    const [selectedPlantillaCode, setSelectedPlantillaCode] = useState<string>('');
 
     // Certificate upload states
     // CatÃ¡logos dinÃ¡micos
@@ -121,16 +122,19 @@ export default function TenantConfiguracion() {
                 if (matchingSector) {
                     setSelectedSector(matchingSector.id);
                     setSelectedPlantilla(matchingSector.name);
+                    setSelectedPlantillaCode(matchingSector.code || '');
                 } else {
                     setSelectedSector(null);
                     setSelectedPlantilla('');
+                    setSelectedPlantillaCode('');
                 }
             } else {
                 setSelectedSector(null);
                 setSelectedPlantilla('');
+                setSelectedPlantillaCode('');
             }
         } catch (err: any) {
-            setError(err.message || 'Error cargando configuraciÃ³n');
+            setError(err.message || 'Error cargando configuración');
         } finally {
             setLoading(false);
         }
@@ -165,18 +169,19 @@ export default function TenantConfiguracion() {
         try {
             setSaving(true);
 
-            // Guardar configuraciÃ³n avanzada + sector/plantilla en un solo call
-            await updateTenantSettings(id, {
-                sector_id: selectedSector,
-                sector_plantilla_nombre: selectedPlantilla || null,
-            });
+            // Guardar configuración avanzada + sector/plantilla en un solo call
+        await updateTenantSettings(id, {
+            sector_id: selectedSector,
+            sector_template_name: selectedPlantillaCode || null,
+            sector_plantilla_nombre: selectedPlantilla || null,
+        });
 
-            // Recargar configuraciÃ³n para confirmar el guardado
+            // Recargar configuración para confirmar el guardado
             await loadSettings();
 
-            setSuccess('ConfiguraciÃ³n guardada correctamente');
+            setSuccess('Configuración guardada correctamente');
         } catch (err: any) {
-            setError(err.message || 'Error guardando configuraciÃ³n');
+            setError(err.message || 'Error guardando configuración');
         } finally {
             setSaving(false);
         }
@@ -195,9 +200,9 @@ export default function TenantConfiguracion() {
             a.click();
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
-            setSuccess('ConfiguraciÃ³n exportada');
+            setSuccess('Configuración exportada');
         } catch (err: any) {
-            setError(err.message || 'Error exportando configuraciÃ³n');
+            setError(err.message || 'Error exportando configuración');
         }
     };
 
@@ -207,10 +212,10 @@ export default function TenantConfiguracion() {
         try {
             await restoreDefaults(id);
             await loadSettings();
-            setSuccess('ConfiguraciÃ³n restaurada a valores por defecto');
+            setSuccess('Configuración restaurada a valores por defecto');
             setShowRestoreDialog(false);
         } catch (err: any) {
-            setError(err.message || 'Error restaurando configuraciÃ³n');
+            setError(err.message || 'Error restaurando configuración');
         }
     };
 
@@ -252,7 +257,7 @@ export default function TenantConfiguracion() {
                 >
                     Detalle
                 </Link>
-                <Typography color="text.primary">ConfiguraciÃ³n Avanzada</Typography>
+                <Typography color="text.primary">Configuración Avanzada</Typography>
             </Breadcrumbs>
 
             {/* Header */}
@@ -261,7 +266,7 @@ export default function TenantConfiguracion() {
                     <IconButton onClick={() => navigate(`/admin/empresas/${id}`)}>
                         <BackIcon />
                     </IconButton>
-                    <Typography variant="h4">âš™ï¸ ConfiguraciÃ³n Avanzada</Typography>
+                    <Typography variant="h4">Configuración Avanzada</Typography>
                 </Box>
 
                 <Box display="flex" gap={1}>
@@ -347,6 +352,7 @@ export default function TenantConfiguracion() {
                                         setSelectedSector(sectorId);
                                         const sector = sectores.find(s => s.id === sectorId);
                                         setSelectedPlantilla(sector?.name || '');
+                                        setSelectedPlantillaCode(sector?.code || '');
                                     }}
                                     label="Plantilla de Sector"
                                 >
@@ -379,7 +385,7 @@ export default function TenantConfiguracion() {
                 
                 
 
-                {/* Tab 3: FacturaciÃ³n */}
+                {/* Tab 3: Facturación */}
                 
 
                 
@@ -423,11 +429,11 @@ export default function TenantConfiguracion() {
                 open={showRestoreDialog}
                 onClose={() => setShowRestoreDialog(false)}
             >
-                <DialogTitle>Â¿Restaurar ConfiguraciÃ³n por Defecto?</DialogTitle>
+                <DialogTitle>Â¿Restaurar Configuración por Defecto?</DialogTitle>
                 <DialogContent>
                     <Typography>
-                        Esta acciÃ³n reemplazarÃ¡ toda la configuraciÃ³n actual con los valores por defecto.
-                        Esta operaciÃ³n no se puede deshacer.
+                        Esta acción reemplazarÃ¡ toda la configuración actual con los valores por defecto.
+                        Esta operación no se puede deshacer.
                     </Typography>
                 </DialogContent>
                 <DialogActions>

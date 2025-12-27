@@ -1,6 +1,6 @@
 /**
  * AnalysisResult.tsx
- * Componente para mostrar el resultado del análisis de archivo
+ * Component to display file analysis results
  */
 
 import React from 'react'
@@ -22,9 +22,9 @@ const getConfidenceBadgeColor = (confidence: number): string => {
 }
 
 const getConfidenceLabel = (confidence: number): string => {
-  if (confidence >= 0.8) return 'Alta'
-  if (confidence >= 0.6) return 'Media'
-  return 'Baja'
+  if (confidence >= 0.8) return 'High'
+  if (confidence >= 0.6) return 'Medium'
+  return 'Low'
 }
 
 export const AnalysisResult: React.FC<AnalysisResultProps> = ({
@@ -39,7 +39,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
     return (
       <div className="analysis-result analysis-result--loading">
         <div className="spinner" />
-        <p>Analizando archivo...</p>
+        <p>Analyzing file...</p>
       </div>
     )
   }
@@ -47,9 +47,9 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
   if (error) {
     return (
       <div className="analysis-result analysis-result--error">
-        <div className="icon">⚠️</div>
+        <div className="icon">!</div>
         <div className="content">
-          <p className="title">Error al analizar</p>
+          <p className="title">Analysis error</p>
           <p className="message">{error.message}</p>
         </div>
       </div>
@@ -68,15 +68,12 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
     <div className="analysis-result">
       <div className="analysis-result__header">
         <div className="analysis-result__suggested">
-          <h3>Análisis Completo</h3>
-          <p className="doc-type">Tipo: {result.suggested_doc_type}</p>
+          <h3>Full analysis</h3>
+          <p className="doc-type">Type: {result.suggested_doc_type}</p>
         </div>
 
         <div className="analysis-result__confidence">
-          <div
-            className="confidence-badge"
-            style={{ backgroundColor: confidenceColor }}
-          >
+          <div className="confidence-badge" style={{ backgroundColor: confidenceColor }}>
             <span className="confidence-percent">{confidencePercent}%</span>
             <span className="confidence-label">{getConfidenceLabel(result.confidence)}</span>
           </div>
@@ -85,26 +82,24 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
 
       {result.requires_confirmation && (
         <div className="analysis-result__warning">
-          <span className="warning-icon">⚠️</span>
-          <span>Confianza baja - Se requiere confirmación del parser</span>
+          <span className="warning-icon">!</span>
+          <span>Low confidence - parser confirmation required</span>
         </div>
       )}
 
       <div className="analysis-result__explanation">
-        <p className="label">Explicación:</p>
+        <p className="label">Explanation:</p>
         <p className="value">{result.explanation}</p>
       </div>
 
       <div className="analysis-result__parser-select">
-        <label className="label">Parser seleccionado:</label>
+        <label className="label">Selected parser:</label>
         <select
           value={effectiveParser}
           onChange={(e) => onParserChange(e.target.value === result.suggested_parser ? null : e.target.value)}
           className="parser-dropdown"
         >
-          <option value={result.suggested_parser}>
-            {result.suggested_parser} (sugerido)
-          </option>
+          <option value={result.suggested_parser}>{result.suggested_parser} (suggested)</option>
           {result.available_parsers
             .filter((p) => p !== result.suggested_parser)
             .map((parser) => (
@@ -114,13 +109,13 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
             ))}
         </select>
         {selectedParser && selectedParser !== result.suggested_parser && (
-          <span className="override-badge">⚠️ OVERRIDE</span>
+          <span className="override-badge">OVERRIDE</span>
         )}
       </div>
 
       {result.headers_sample.length > 0 && (
         <div className="analysis-result__headers">
-          <p className="label">Headers detectados:</p>
+          <p className="label">Detected headers:</p>
           <div className="headers-tags">
             {result.headers_sample.map((header, idx) => (
               <span key={idx} className="header-tag">
@@ -133,12 +128,12 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
 
       {result.mapping_suggestion && Object.keys(result.mapping_suggestion).length > 0 && (
         <div className="analysis-result__mapping">
-          <p className="label">Mapping sugerido:</p>
+          <p className="label">Suggested mapping:</p>
           <div className="mapping-list">
             {Object.entries(result.mapping_suggestion).map(([source, target]) => (
               <div key={source} className="mapping-item">
                 <span className="source">{source}</span>
-                <span className="arrow">→</span>
+                <span className="arrow">-&gt;</span>
                 <span className="target">{target}</span>
               </div>
             ))}
@@ -148,7 +143,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
 
       {result.probabilities && Object.keys(result.probabilities).length > 0 && (
         <div className="analysis-result__probabilities">
-          <p className="label">Probabilidades:</p>
+          <p className="label">Probabilities:</p>
           <div className="probabilities-list">
             {Object.entries(result.probabilities)
               .sort(([, a], [, b]) => b - a)
@@ -168,24 +163,20 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
 
       {result.ai_enhanced && (
         <div className="analysis-result__ai-enhanced">
-          <span className="ai-badge">🤖 Potenciado con {result.ai_provider || 'IA'}</span>
+          <span className="ai-badge">Enhanced with {result.ai_provider || 'AI'}</span>
         </div>
       )}
 
       {result.decision_log.length > 0 && (
         <details className="analysis-result__decision-log">
-          <summary className="label">Decision Log ({result.decision_log.length} pasos)</summary>
+          <summary className="label">Decision log ({result.decision_log.length} steps)</summary>
           <div className="log-entries">
             {result.decision_log.map((entry, idx) => (
               <div key={idx} className="log-entry">
                 <div className="log-header">
                   <span className="step">{entry.step}</span>
-                  {entry.duration_ms !== undefined && (
-                    <span className="duration">{entry.duration_ms}ms</span>
-                  )}
-                  {entry.confidence !== undefined && (
-                    <span className="conf">{Math.round(entry.confidence * 100)}%</span>
-                  )}
+                  {entry.duration_ms !== undefined && <span className="duration">{entry.duration_ms}ms</span>}
+                  {entry.confidence !== undefined && <span className="conf">{Math.round(entry.confidence * 100)}%</span>}
                 </div>
                 <div className="log-time">{entry.timestamp}</div>
               </div>
@@ -196,7 +187,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
 
       <div className="analysis-result__actions">
         <button className="confirm-btn" onClick={onConfirm}>
-          Confirmar y continuar
+          Confirm and continue
         </button>
       </div>
 
@@ -226,7 +217,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
         }
 
         .analysis-result--error .icon {
-          font-size: 24px;
+          font-size: 20px;
           flex-shrink: 0;
         }
 

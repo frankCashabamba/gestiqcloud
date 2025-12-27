@@ -291,7 +291,7 @@ class Settings(BaseSettings):
 
     # Password reset/link base
     PASSWORD_RESET_URL_BASE: str | None = None
-
+    print(PASSWORD_RESET_URL_BASE)
     # Uploads / Static user files
     UPLOADS_DIR: str = "uploads"
     UPLOADS_MOUNT_ENABLED: bool = True

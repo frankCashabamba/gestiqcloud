@@ -42,7 +42,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # to allow many small requests during a single file upload.
         try:
             path = request.url.path or ""
-            if path.startswith("/api/v1/imports/uploads/chunk"):
+            if path.startswith(
+                ("/api/v1/imports/uploads/chunk", "/api/v1/tenant/imports/uploads/chunk")
+            ):
                 return await call_next(request)
         except Exception:
             pass

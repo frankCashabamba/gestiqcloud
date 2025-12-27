@@ -22,6 +22,7 @@ const INITIAL_STATE: FormularioEmpresa = {
   sitio_web: '',
   logo: null,
   color_primario: '',
+  color_secundario: '',
   plantilla_inicio: '',
   config_json: '',
   default_language: '',
@@ -220,6 +221,7 @@ export const CrearEmpresa: React.FC = () => {
     setFormData((prev) => ({
       ...prev,
       color_primario: template.branding.color_primario || prev.color_primario,
+      color_secundario: template.branding.color_secundario || prev.color_secundario,
       plantilla_inicio: template.branding.plantilla_inicio || prev.plantilla_inicio,
     }))
   }
@@ -354,8 +356,18 @@ export const CrearEmpresa: React.FC = () => {
                 <input name="sitio_web" value={formData.sitio_web} onChange={onChange} placeholder="https://" className="border border-slate-300 rounded-lg px-4 py-2 text-sm" />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-slate-600">Color primario</label>
-                <input name="color_primario" type="color" value={formData.color_primario} onChange={onChange} className="h-10 w-20 border border-slate-300 rounded" />
+                <label className="text-xs font-semibold text-slate-600">Color primario (plantilla)</label>
+                <div className="flex items-center gap-2">
+                  <span className="h-8 w-8 rounded border border-slate-300" style={{ backgroundColor: formData.color_primario || '#ffffff' }} />
+                  <span className="text-xs font-mono text-slate-600">{formData.color_primario || '-'}</span>
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-slate-600">Color secundario (plantilla)</label>
+                <div className="flex items-center gap-2">
+                  <span className="h-8 w-8 rounded border border-slate-300" style={{ backgroundColor: formData.color_secundario || '#ffffff' }} />
+                  <span className="text-xs font-mono text-slate-600">{formData.color_secundario || '-'}</span>
+                </div>
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-slate-600">Logo</label>

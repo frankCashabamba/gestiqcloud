@@ -41,7 +41,7 @@ export type AsientoLinea = {
 export type PosAccountingSettings = {
     cash_account_id: string
     bank_account_id: string
-    sales_bakery_account_id: string
+    sales_bakery_account_id?: string | null
     vat_output_account_id: string
     loss_account_id?: string | null
 }

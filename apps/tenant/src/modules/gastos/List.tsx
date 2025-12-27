@@ -17,7 +17,7 @@ export default function GastosList() {
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
   const [q, setQ] = useState('')
-  const [sortKey, setSortKey] = useState<'fecha' | 'monto'>('fecha')
+  const [sortKey, setSortKey] = useState<'date' | 'amount'>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [per, setPer] = useState(10)
 
@@ -58,10 +58,10 @@ export default function GastosList() {
     const dir = sortDir === 'asc' ? 1 : -1
     return [...filtered].sort((a, b) => {
       let av, bv
-      if (sortKey === 'fecha') {
+      if (sortKey === 'date') {
         av = a.date || ''
         bv = b.date || ''
-      } else if (sortKey === 'monto') {
+      } else if (sortKey === 'amount') {
         av = a.amount || 0
         bv = b.amount || 0
         return ((av as number) - (bv as number)) * dir
@@ -189,14 +189,14 @@ export default function GastosList() {
           <thead>
             <tr className="text-left border-b">
               <th className="py-2 px-2">
-                <button className="underline" onClick={() => toggleSort('fecha')}>
-                  Fecha {sortKey === 'fecha' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                <button className="underline" onClick={() => toggleSort('date')}>
+                  Fecha {sortKey === 'date' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
               <th className="py-2 px-2">Concepto</th>
               <th className="py-2 px-2">
-                <button className="underline" onClick={() => toggleSort('monto')}>
-                  Importe {sortKey === 'monto' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                <button className="underline" onClick={() => toggleSort('amount')}>
+                  Importe {sortKey === 'amount' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
               <th className="py-2 px-2">Acciones</th>

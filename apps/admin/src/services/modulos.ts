@@ -3,6 +3,8 @@ import { ADMIN_MODULOS, ADMIN_MODULOS_EMPRESA } from '@shared/endpoints'
 
 import { Module, CompanyModule } from '../modulos/types'
 
+export type { Module, CompanyModule }
+
 const normalizeModule = (raw: any): Module => ({
   id: String(raw?.id),
   name: raw?.name,
@@ -30,12 +32,12 @@ const toApiPayload = (payload: Partial<Module>) => ({
   context_filters: payload.context_filters,
 })
 
-export async function listModulos(): Promise<Modulo[]> {
+export async function listModulos(): Promise<Module[]> {
   const { data } = await api.get<Module[]>(ADMIN_MODULOS.base)
   return (data || []).map(normalizeModule)
 }
 
-export async function getModulo(id: number | string): Promise<Modulo> {
+export async function getModulo(id: number | string): Promise<Module> {
   const { data } = await api.get<Module>(ADMIN_MODULOS.byId(id))
   return normalizeModule(data)
 }
@@ -72,13 +74,13 @@ export async function registrarModulosFS(): Promise<RegistrarRespuesta> {
 }
 
 // ---- Empresa <-> Módulos ----
-export async function listModulosPublicos(): Promise<Modulo[]> {
+export async function listModulosPublicos(): Promise<Module[]> {
   const { data } = await api.get<Module[]>(ADMIN_MODULOS.publicos)
   return (data || []).map(normalizeModule)
 }
 
 export async function listEmpresaModulos(empresaId: number | string): Promise<CompanyModule[]> {
-  const { data } = await api.get<CompanyModule[]>(ADMIN_MODULOS_EMPRESA.base(empresaId))
+  const { data } = await api.get<any[]>(ADMIN_MODULOS_EMPRESA.base(empresaId))
   return (
     data?.map((item) => ({
       id: String(item.id),

@@ -82,3 +82,4 @@ ruff==0.14.4
 scikit-learn>=1.3.0
 joblib>=1.3.0
 pytesseract
+pyserial>=3.0

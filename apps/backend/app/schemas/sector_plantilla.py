@@ -34,6 +34,7 @@ class BrandingConfig(BaseModel):
 
     # Branding visual
     color_primario: str = "#4f46e5"
+    color_secundario: str = "#111827"
     logo: str | None = None
     plantilla_inicio: str = "default"  # panaderia, taller, retail, etc.
     dashboard_template: str = "default"  # Plantilla HTML a usar
@@ -142,6 +143,7 @@ class SectorConfigJSON(BaseModel):
                 },
                 "branding": {
                     "color_primario": "#8B4513",
+                    "color_secundario": "#111827",
                     "plantilla_inicio": "panaderia",
                     "dashboard_template": "panaderia_dashboard.html",
                     "icon": "🥐",

@@ -33,8 +33,9 @@ export async function getSectorUnits(sectorCode: string): Promise<Unit[]> {
       return getDefaultUnits()
     }
 
+    const encodedCode = encodeURIComponent(sectorCode)
     const response = await tenantApi.get<SectorUnitsResponse>(
-      `/api/v1/sectors/${sectorCode}/units`
+      `/api/v1/sectors/${encodedCode}/units`
     )
 
     if (!response.data.ok || !response.data.units) {

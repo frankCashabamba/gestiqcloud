@@ -274,25 +274,48 @@ export default function POSView() {
         setCart(cart.map((item, i) => (i === index ? { ...item, discount_pct: pct } : item)))
     }
 
-    const setLineNote = (index: number) => {
+const setLineNote = (index: number) => {
         const value = prompt('Notas de línea', cart[index].notes || '')
         if (value === null) return
         setCart(cart.map((item, i) => (i === index ? { ...item, notes: value } : item)))
     }
 
+    const normalizeCode = (value?: string | null) => (value || '').toString().trim().toLowerCase()
+
+    const findProductByCode = (code: string) => {
+        const normalized = normalizeCode(code)
+        if (!normalized) return null
+        return (
+            products.find(
+                (p) =>
+                    normalizeCode(p.sku) === normalized ||
+                    normalizeCode(p.product_metadata?.codigo_barras as string) === normalized ||
+                    normalizeCode(p.product_metadata?.codigo as string) === normalized ||
+                    normalizeCode(p.product_metadata?.barcode as string) === normalized ||
+                    normalizeCode(p.product_metadata?.ean as string) === normalized ||
+                    normalizeCode(p.product_metadata?.upc as string) === normalized
+            ) || null
+        )
+    }
+
     const handleBarcodeEnter = (e: React.KeyboardEvent) => {
         if (e.key !== 'Enter') return
-        const code = barcodeInput.trim().toLowerCase()
-        const product = products.find(
-            (p) =>
-                (p.sku || '').toLowerCase() === code ||
-                (p.product_metadata?.codigo_barras || '').toLowerCase() === code
-        )
+        const product = findProductByCode(barcodeInput)
         if (product) {
             addToCart(product)
             setBarcodeInput('')
         } else {
-            alert('Producto no encontrado: ' + code)
+            const code = normalizeCode(barcodeInput)
+            if (code) alert('Producto no encontrado: ' + code)
+        }
+    }
+
+    const handleSearchEnter = (e: React.KeyboardEvent) => {
+        if (e.key !== 'Enter') return
+        const product = findProductByCode(searchQuery)
+        if (product) {
+            addToCart(product)
+            setSearchQuery('')
         }
     }
 
@@ -588,7 +611,7 @@ export default function POSView() {
                 Descuento
                 </button>
                 <button className="btn sm" onClick={() => {
-                      const url = selectedRegister ? `/pos/daily-counts?register_id=${selectedRegister.id}` : '/pos/daily-counts'
+                      const url = selectedRegister ? `daily-counts?register_id=${selectedRegister.id}` : 'daily-counts'
                     navigate(url)
                     }}>
                         📊 Reportes Diarios
@@ -659,7 +682,13 @@ export default function POSView() {
                         aria-label="Buscar productos"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        onKeyDown={(e) => e.key === 'F2' && e.currentTarget.focus()}
+                        onKeyDown={(e) => {
+                            if (e.key === 'F2') {
+                                e.currentTarget.focus()
+                                return
+                            }
+                            handleSearchEnter(e)
+                        }}
                     />
                     <input
                         id="barcode"

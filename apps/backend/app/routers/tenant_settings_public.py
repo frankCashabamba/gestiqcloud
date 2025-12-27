@@ -65,10 +65,8 @@ def get_tenant_config(
     template_inventory: dict[str, Any] = {}
 
     # Sector configuration from database (FASE 7: Eliminado hardcoding)
-    plantilla = (
+    plantilla = _normalize_slug(
         (tenant.sector_template_name if tenant and tenant.sector_template_name else "default")
-        .strip()
-        .lower()
     )
 
     sector_template = None

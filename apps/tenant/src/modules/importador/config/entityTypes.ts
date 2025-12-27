@@ -358,8 +358,9 @@ export async function getDynamicEntityConfig(
     if (opts?.sectorCode) {
       try {
         // Cargar desde sector template_config
+        const encodedSector = encodeURIComponent(opts.sectorCode)
         const sectorRes = await apiFetch<{ sector?: { fields?: Record<string, any> } }>(
-          `/api/v1/sectors/${opts.sectorCode}/full-config`
+          `/api/v1/sectors/${encodedSector}/full-config`
         )
         sectorDynamicAliases = sectorRes?.sector?.fields?.[type]?.aliases
       } catch (sectorErr) {

@@ -96,6 +96,39 @@ export default function ProductoForm() {
     return Array.from(map.values()).sort((a, b) => (a.ord || 999) - (b.ord || 999))
   }, [fields, currencySymbol])
 
+  const BARCODE_META_FIELDS = ['codigo_barras', 'barcode', 'ean', 'upc'] as const
+
+  const prepareProductPayload = (metadataOverride?: Record<string, unknown>) => {
+    const payload: Record<string, unknown> = { ...(form as Record<string, unknown>) }
+    const metadata =
+      metadataOverride !== undefined && metadataOverride !== null
+        ? { ...metadataOverride }
+        : { ...(((payload.product_metadata || {}) as Record<string, unknown>) ?? {}) }
+
+    BARCODE_META_FIELDS.forEach((field) => {
+      if (Object.prototype.hasOwnProperty.call(payload, field)) {
+        const value = payload[field]
+        if (value !== undefined && value !== null) {
+          const normalized = typeof value === 'string' ? value.trim() : value
+          if (normalized !== '') {
+            metadata[field] = normalized
+          } else {
+            delete metadata[field as keyof typeof metadata]
+          }
+        }
+        delete payload[field]
+      }
+    })
+
+    if (Object.keys(metadata).length > 0) {
+      payload.product_metadata = metadata
+    } else {
+      delete payload.product_metadata
+    }
+
+    return payload
+  }
+
   const onSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault()
     try {
@@ -114,16 +147,19 @@ export default function ProductoForm() {
         throw new Error('El precio no puede ser negativo')
       }
 
+      const metadata = { ...(((form.product_metadata ?? {}) as Record<string, unknown>) ?? {}) }
+
       // Auto-cálculo de margen si existe precio_compra (guardar en metadata)
       if (form.precio_compra && form.price) {
         const margen = ((form.price - form.precio_compra) / form.precio_compra) * 100
-        const metadata = form.product_metadata || {}
         metadata.margen = parseFloat(margen.toFixed(2))
         setForm((prev) => ({ ...prev, product_metadata: metadata }))
       }
 
-      if (id) await updateProducto(id, form)
-      else await createProducto(form)
+      const payload = prepareProductPayload(metadata) as Partial<Producto>
+
+      if (id) await updateProducto(id, payload)
+      else await createProducto(payload)
 
       success('Producto guardado')
       nav('..')

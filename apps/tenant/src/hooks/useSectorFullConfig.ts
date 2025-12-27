@@ -167,8 +167,9 @@ export function useSectorFullConfig(
     setState({ config: null, loading: true, error: null })
 
     try {
+      const encodedCode = encodeURIComponent(sectorCode.toLowerCase())
       const response = await tenantApi.get<SectorFullConfigResponse>(
-        `/api/v1/sectors/${sectorCode.toLowerCase()}/full-config`
+        `/api/v1/sectors/${encodedCode}/full-config`
       )
 
       const config = response.data.sector

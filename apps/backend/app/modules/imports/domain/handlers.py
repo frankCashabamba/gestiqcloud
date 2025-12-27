@@ -7,6 +7,9 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.models.core.product_category import ProductCategory
+from app.models.core.products import Product
+from app.modules.imports.application.sku_utils import sanitize_sku
 
 class PromoteResult:
     def __init__(self, domain_id: str | None, skipped: bool = False):
@@ -517,10 +520,6 @@ class ProductHandler:
         if promoted_id:
             return PromoteResult(domain_id=promoted_id, skipped=True)
 
-        # Import here to avoid circular dependency
-        from app.models.core.product_category import ProductCategory
-        from app.models.core.products import Product
-
         # Extract and validate required fields
         name = str(
             normalized.get("name") or normalized.get("producto") or normalized.get("nombre") or ""
@@ -588,6 +587,7 @@ class ProductHandler:
                 next_num = 1
 
             sku = f"{prefix}-{next_num:04d}"
+        sku = sanitize_sku(sku)
 
         # Upsert-like: look up existing by tenant + (sku or name)
         existing = (

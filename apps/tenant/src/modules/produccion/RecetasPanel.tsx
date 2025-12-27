@@ -146,18 +146,18 @@ export default function RecetasPanel() {
                     </Typography>
 
                     <Typography variant="body2" color="text.secondary" gutterBottom>
-                      Producto: {recipe.producto_nombre || 'N/A'}
+                      Producto: {recipe.product_name || 'N/A'}
                     </Typography>
 
                     <Box mt={2}>
                       <Chip
-                        label={`${recipe.rendimiento} uds`}
+                        label={`${recipe.yield_qty} uds`}
                         size="small"
                         color="primary"
                         sx={{ mr: 1 }}
                       />
                       <Chip
-                        label={`$${recipe.costo_por_unidad.toFixed(4)}/ud`}
+                        label={`$${recipe.unit_cost.toFixed(4)}/ud`}
                         size="small"
                         color="secondary"
                       />
@@ -165,11 +165,11 @@ export default function RecetasPanel() {
 
                     <Box mt={2}>
                       <Typography variant="body2">
-                        Costo Total: <strong>${recipe.costo_total.toFixed(2)}</strong>
+                        Costo Total: <strong>${recipe.total_cost.toFixed(2)}</strong>
                       </Typography>
-                      {recipe.tiempo_preparacion && (
+                      {recipe.prep_time_minutes && (
                         <Typography variant="body2">
-                          Tiempo: {recipe.tiempo_preparacion} min
+                          Tiempo: {recipe.prep_time_minutes} min
                         </Typography>
                       )}
                     </Box>

@@ -105,7 +105,7 @@ def _recalcular_saldos_cuenta(db: Session, cuenta_id: UUID):
 class AccountingSettingsPayload(BaseModel):
     cash_account_id: UUID
     bank_account_id: UUID
-    sales_bakery_account_id: UUID
+    sales_bakery_account_id: UUID | None = None
     vat_output_account_id: UUID
     loss_account_id: UUID | None = None
 
@@ -380,7 +380,7 @@ async def get_pos_accounting_settings(
     return {
         "cash_account_id": str(cfg.cash_account_id),
         "bank_account_id": str(cfg.bank_account_id),
-        "sales_bakery_account_id": str(cfg.sales_bakery_account_id),
+        "sales_bakery_account_id": str(cfg.sales_bakery_account_id) if cfg.sales_bakery_account_id else None,
         "vat_output_account_id": str(cfg.vat_output_account_id),
         "loss_account_id": str(cfg.loss_account_id) if cfg.loss_account_id else None,
     }

@@ -37,9 +37,9 @@ async function fetchWithCache(key: string, fn: () => Promise<any>): Promise<Modu
   return inflight
 }
 
-// Endpoint oficial: GET /api/v1/tenant/modulos (lista asignada al usuario actual)
+// Endpoint oficial: GET /api/v1/modulos (lista asignada al usuario actual)
 export const listMisModulos = (authToken?: string) =>
-  fetchWithCache('auth-modulos', () => apiFetch<Modulo[]>("/api/v1/tenant/modulos", { authToken }))
+  fetchWithCache('auth-modulos', () => apiFetch<Modulo[]>("/api/v1/modulos", { authToken }))
 
 export const listModulosSeleccionablesPorEmpresa = (empresaSlug: string) => {
   const key = `empresa-${empresaSlug}`

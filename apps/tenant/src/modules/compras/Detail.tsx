@@ -57,7 +57,7 @@ export default function CompraDetail() {
         </div>
 
         <div className="flex gap-2">
-          {compra.estado === 'enviada' && (
+          {compra.estado === 'sent' && (
             <button
               onClick={handleRecibir}
               disabled={processing}
@@ -66,7 +66,7 @@ export default function CompraDetail() {
               {processing ? 'Procesando...' : 'Recepcionar'}
             </button>
           )}
-          {compra.estado === 'borrador' && (
+          {compra.estado === 'draft' && (
             <button
               onClick={() => nav('edit')}
               className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"

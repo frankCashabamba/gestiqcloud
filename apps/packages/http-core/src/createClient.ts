@@ -32,6 +32,11 @@ export function createClient(cfg: ClientConfig): AxiosInstance {
     sessionStorage.removeItem(cfg.tokenKey)
     localStorage.removeItem(cfg.tokenKey)
   }
+  const notifyAuthExpired = () => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('auth-expired', { detail: { tokenKey: cfg.tokenKey } }))
+    }
+  }
 
   const isExempt = (url?: string) => !!url && authExempt.some((s) => url.endsWith(s))
 
@@ -99,6 +104,7 @@ export function createClient(cfg: ClientConfig): AxiosInstance {
           return api(cfgRes)
         } catch (e) {
           clearToken()
+          notifyAuthExpired()
           waiters = []
           throw e
         } finally {

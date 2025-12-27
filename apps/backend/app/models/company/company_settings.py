@@ -27,13 +27,13 @@ class CompanySettings(Base):
     )
 
     # Defaults come from DB settings; avoid hardcoded fallbacks here
-    default_language: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    timezone: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    currency: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    default_language: Mapped[str] = mapped_column(String(10), nullable=False)
+    timezone: Mapped[str] = mapped_column(String(50), nullable=False)
+    currency: Mapped[str] = mapped_column(String(10), nullable=False)
 
     company_logo: Mapped[str | None] = mapped_column(String(100))
-    secondary_color: Mapped[str | None] = mapped_column(String(7), nullable=True)
-    primary_color: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    secondary_color: Mapped[str] = mapped_column(String(7), nullable=False)
+    primary_color: Mapped[str] = mapped_column(String(7), nullable=False)
 
     allow_custom_roles: Mapped[bool] = mapped_column(Boolean, default=True)
     user_limit: Mapped[int] = mapped_column(Integer, default=10)

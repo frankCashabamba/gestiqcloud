@@ -84,3 +84,5 @@ export function useBusinessCategories() {
     getByCode: getBusinessCategoryByCode,
   }
 }
+
+export const getByCode = getBusinessCategoryByCode

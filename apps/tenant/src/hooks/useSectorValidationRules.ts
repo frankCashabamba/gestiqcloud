@@ -125,8 +125,9 @@ export function useSectorValidationRules(
 
     try {
       const params = context ? `?context=${context}` : ''
+      const encodedCode = encodeURIComponent(sectorCode.toLowerCase())
       const response = await tenantApi.get<SectorValidationRulesResponse>(
-        `/api/v1/sectors/${sectorCode.toLowerCase()}/validations${params}`
+        `/api/v1/sectors/${encodedCode}/validations${params}`
       )
 
       const rules = response.data.validations || []

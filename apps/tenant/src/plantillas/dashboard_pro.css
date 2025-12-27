@@ -1,5 +1,5 @@
 /* ============================================
-   PANADERÍA PRO DASHBOARD - Dark/Light Theme
+   DASHBOARD PRO THEME
    ============================================ */
 
 :root {
@@ -41,7 +41,7 @@
    BASE STYLES
    ============================================ */
 
-.panaderia-app {
+.dashboard-pro-app {
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
@@ -57,7 +57,7 @@
 
 /* Responsive: Mobile */
 @media (max-width: 768px) {
-  .panaderia-app {
+  .dashboard-pro-app {
     grid-template-columns: 1fr;
     grid-template-rows: 56px 1fr;
     grid-template-areas:
@@ -355,7 +355,7 @@
 }
 
 @media (max-width: 768px) {
-  .panaderia-app {
+  .dashboard-pro-app {
     grid-template-columns: 1fr;
     grid-template-areas:
       "topbar"

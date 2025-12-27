@@ -12,8 +12,12 @@ export interface TenantSettings {
   inventory?: {
     reorder_point_default?: number
     allow_negative?: boolean
+    allow_negative_stock?: boolean
+    track_lots?: boolean
+    track_expiry?: boolean
   }
   pos_config?: {
+    allow_negative?: boolean
     tax?: {
       price_includes_tax?: boolean
       default_rate?: number

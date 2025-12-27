@@ -10,12 +10,14 @@ export type ModuleConfig = {
 
 export type BrandingConfig = {
   color_primario: string
+  color_secundario: string
   logo?: string | null
   plantilla_inicio: string
   dashboard_template: string
 }
 
 export type SectorTemplateConfig = {
+  features: Record<string, boolean>
   modules: Record<string, ModuleConfig>
   branding: BrandingConfig
   defaults: Record<string, any>
@@ -36,9 +38,11 @@ export type Sector = {
 export type SectorPayload = Omit<Sector, 'id'>
 
 export const DEFAULT_TEMPLATE_CONFIG: SectorTemplateConfig = {
+  features: {},
   modules: {},
   branding: {
     color_primario: '#4f46e5',
+    color_secundario: '#111827',
     logo: null,
     plantilla_inicio: 'default',
     dashboard_template: 'default',

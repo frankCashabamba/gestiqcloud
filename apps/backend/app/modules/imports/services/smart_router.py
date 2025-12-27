@@ -11,6 +11,8 @@ from typing import Any
 
 import openpyxl
 
+from app.services.excel_analyzer import detect_header_row, extract_headers
+
 from app.config.settings import settings
 from app.modules.imports.ai.mapping_suggester import mapping_suggester
 from app.modules.imports.parsers import registry
@@ -433,13 +435,8 @@ class SmartRouter:
         try:
             wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
             ws = wb.active
-            headers = []
-
-            for row in ws.iter_rows(min_row=1, max_row=5, values_only=True):
-                if any(cell for cell in row if cell):
-                    headers = [str(cell).strip() for cell in row if cell]
-                    break
-
+            header_row = detect_header_row(ws)
+            headers = extract_headers(ws, header_row)
             wb.close()
             return headers
         except Exception:

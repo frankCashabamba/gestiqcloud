@@ -1,5 +1,5 @@
 // src/modules/importador/components/ClassificationSuggestion.tsx
-// Componente para mostrar sugerencia de clasificación de archivo
+// UI for file classification suggestions
 
 import React from 'react'
 import { ClassifyResponse } from '../services/classifyApi'
@@ -14,23 +14,23 @@ interface ClassificationSuggestionProps {
 const getConfidenceBadgeColor = (confidence: 'high' | 'medium' | 'low' | null) => {
   switch (confidence) {
     case 'high':
-      return '#10b981' // green-500
+      return '#10b981'
     case 'medium':
-      return '#f59e0b' // amber-500
+      return '#f59e0b'
     case 'low':
     default:
-      return '#ef4444' // red-500
+      return '#ef4444'
   }
 }
 
 const getConfidenceLabel = (confidence: 'high' | 'medium' | 'low' | null) => {
   switch (confidence) {
     case 'high':
-      return 'Alta'
+      return 'High'
     case 'medium':
-      return 'Media'
+      return 'Medium'
     case 'low':
-      return 'Baja'
+      return 'Low'
     default:
       return 'N/A'
   }
@@ -46,7 +46,7 @@ export const ClassificationSuggestion: React.FC<ClassificationSuggestionProps> =
     return (
       <div className="classification-suggestion classification-suggestion--loading">
         <div className="spinner" />
-        <p>Clasificando archivo...</p>
+        <p>Classifying file...</p>
       </div>
     )
   }
@@ -54,9 +54,9 @@ export const ClassificationSuggestion: React.FC<ClassificationSuggestionProps> =
   if (error) {
     return (
       <div className="classification-suggestion classification-suggestion--error">
-        <div className="icon">⚠️</div>
+        <div className="icon">!</div>
         <div className="content">
-          <p className="title">Error al clasificar</p>
+          <p className="title">Classification error</p>
           <p className="message">{error.message}</p>
         </div>
       </div>
@@ -74,15 +74,12 @@ export const ClassificationSuggestion: React.FC<ClassificationSuggestionProps> =
     <div className="classification-suggestion">
       <div className="classification-suggestion__header">
         <div className="classification-suggestion__suggested-parser">
-          <h3>Parser Sugerido</h3>
+          <h3>Suggested parser</h3>
           <p className="parser-name">{result.suggested_parser}</p>
         </div>
 
         <div className="classification-suggestion__confidence">
-          <div
-            className="confidence-badge"
-            style={{ backgroundColor: confidenceColor }}
-          >
+          <div className="confidence-badge" style={{ backgroundColor: confidenceColor }}>
             <span className="confidence-percent">{confidencePercent}%</span>
             <span className="confidence-label">{getConfidenceLabel(confidence)}</span>
           </div>
@@ -91,20 +88,20 @@ export const ClassificationSuggestion: React.FC<ClassificationSuggestionProps> =
 
       {result.reason && (
         <div className="classification-suggestion__reason">
-          <p className="label">Razón:</p>
+          <p className="label">Reason:</p>
           <p className="value">{result.reason}</p>
         </div>
       )}
 
       {result.enhanced_by_ai && (
         <div className="classification-suggestion__ai-enhanced">
-          <span className="ai-badge">🤖 Potenciado con {result.ai_provider || 'IA'}</span>
+          <span className="ai-badge">Enhanced with {result.ai_provider || 'AI'}</span>
         </div>
       )}
 
       {result.probabilities && Object.keys(result.probabilities).length > 0 && (
         <div className="classification-suggestion__probabilities">
-          <p className="label">Probabilidades por Parser:</p>
+          <p className="label">Parser probabilities:</p>
           <div className="probabilities-list">
             {Object.entries(result.probabilities)
               .sort(([, a], [, b]) => b - a)
@@ -113,10 +110,7 @@ export const ClassificationSuggestion: React.FC<ClassificationSuggestionProps> =
                 <div key={parser} className="probability-item">
                   <span className="parser">{parser}</span>
                   <div className="bar-container">
-                    <div
-                      className="bar"
-                      style={{ width: `${prob * 100}%` }}
-                    />
+                    <div className="bar" style={{ width: `${prob * 100}%` }} />
                   </div>
                   <span className="percent">{Math.round(prob * 100)}%</span>
                 </div>
@@ -127,7 +121,7 @@ export const ClassificationSuggestion: React.FC<ClassificationSuggestionProps> =
 
       {result.available_parsers && result.available_parsers.length > 0 && (
         <div className="classification-suggestion__available">
-          <p className="label">Parsers disponibles:</p>
+          <p className="label">Available parsers:</p>
           <div className="parsers-tags">
             {result.available_parsers.map((parser) => (
               <span key={parser} className="parser-tag">
@@ -164,7 +158,7 @@ export const ClassificationSuggestion: React.FC<ClassificationSuggestionProps> =
         }
 
         .classification-suggestion--error .icon {
-          font-size: 24px;
+          font-size: 20px;
           flex-shrink: 0;
         }
 

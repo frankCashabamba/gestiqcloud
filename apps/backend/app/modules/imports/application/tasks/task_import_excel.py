@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 
 import openpyxl
+import unicodedata
 from celery import states
 
 try:
@@ -21,12 +22,13 @@ from app.config.database import session_scope
 from app.db.rls import set_tenant_guc
 from app.models.core.modelsimport import ImportBatch, ImportItem
 from app.modules.imports.application.tasks.task_import_file import _to_number
+from app.modules.imports.application.sku_utils import sanitize_sku
 from app.modules.imports.application.transform_dsl import apply_mapping_pipeline
 from app.services.excel_analyzer import detect_header_row, extract_headers
 
 
 def _dedupe_hash(obj: dict[str, Any]) -> str:
-    s = json.dumps(obj, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    s = json.dumps(obj, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
     return hashlib.sha256(s).hexdigest()
 
 
@@ -70,6 +72,44 @@ def _to_serializable(val):
             return None
 
 
+def _json_safe(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    return _to_serializable(obj)
+
+
+def _norm_key(s: str) -> str:
+    try:
+        s = unicodedata.normalize("NFKD", s)
+        s = "".join(ch for ch in s if not unicodedata.combining(ch))
+        s = s.strip().lower()
+        out = []
+        prev_underscore = False
+        for ch in s:
+            if ch.isalnum():
+                out.append(ch)
+                prev_underscore = False
+            else:
+                if not prev_underscore:
+                    out.append("_")
+                    prev_underscore = True
+        return "".join(out).strip("_")
+    except Exception:
+        return str(s).strip().lower()
+
+
+def _first_from_maps(row: dict[str, Any], row_norm: dict[str, Any], keys: list[str]) -> Any:
+    for k in keys:
+        if k in row and row[k] not in (None, ""):
+            return row[k]
+        nk = _norm_key(k)
+        if nk in row_norm and row_norm[nk] not in (None, ""):
+            return row_norm[nk]
+    return None
+
+
 @celery_app.task(name="imports.import_products_excel", bind=True)
 def import_products_excel(
     self, *, tenant_id: str, batch_id: str, file_key: str, source_type: str = "products"
@@ -96,8 +136,7 @@ def import_products_excel(
 
         batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id).first()
         if not batch:
-            self.update_state(state=states.FAILURE, meta={"error": "batch_not_found"})
-            return {"ok": False, "error": "batch_not_found"}
+            raise RuntimeError("batch_not_found")
 
         # Mark parsing
         batch.status = "PARSING"
@@ -111,8 +150,7 @@ def import_products_excel(
             batch.status = "ERROR"
             db.add(batch)
             db.commit()
-            self.update_state(state=states.FAILURE, meta={"error": f"open_failed: {e}"})
-            return {"ok": False, "error": str(e)}
+            raise RuntimeError(f"open_failed: {e}") from e
 
         try:
             header_row = detect_header_row(ws)
@@ -153,6 +191,7 @@ def import_products_excel(
                 # Skip fully empty lines
                 if not any(v is not None and str(v).strip() != "" for v in row.values()):
                     continue
+                row_norm = {_norm_key(k): v for k, v in row.items() if isinstance(k, str)}
                 # Apply mapping/transforms/defaults if available
                 mapped: dict[str, Any] | None = None
                 if map_cfg or tf_cfg or df_cfg:
@@ -165,18 +204,31 @@ def import_products_excel(
                     )
                 # Normalization using mapped (preferred) or raw heuristics
                 if mapped is None:
-                    nombre = row.get("nombre") or row.get("producto") or row.get("name") or ""
-                    precio = row.get("precio") or row.get("price") or 0
-                    cantidad = row.get("cantidad") or row.get("qty") or row.get("stock") or 0
-                    categoria = row.get("categoria") or row.get("category") or "SIN_CATEGORIA"
-                    try:
-                        precio_f = float(precio) if precio not in (None, "") else 0.0
-                    except Exception:
-                        precio_f = 0.0
-                    try:
-                        cantidad_f = float(cantidad) if cantidad not in (None, "") else 0.0
-                    except Exception:
-                        cantidad_f = 0.0
+                    nombre = _first_from_maps(row, row_norm, ["nombre", "producto", "name"]) or ""
+                    precio = _first_from_maps(
+                        row,
+                        row_norm,
+                        ["precio", "price", "venta", "precio_unitario_venta", "precio_unitario"],
+                    )
+                    cantidad = _first_from_maps(
+                        row, row_norm, ["cantidad", "qty", "stock", "unidades", "existencias"]
+                    )
+                    bultos = _first_from_maps(row, row_norm, ["bultos", "packs", "paquetes"])
+                    unidades_por_bulto = _first_from_maps(
+                        row,
+                        row_norm,
+                        ["cantidad_por_bulto", "unidades_por_bulto", "cantidad_x_bulto", "cant_por_bulto"],
+                    )
+                    categoria = _first_from_maps(row, row_norm, ["categoria", "category"]) or "SIN_CATEGORIA"
+                    precio_f = _to_number(precio) or 0.0
+                    cantidad_f = _to_number(cantidad) or 0.0
+                    if (cantidad_f == 0) and bultos and unidades_por_bulto:
+                        cantidad_f = (_to_number(bultos) or 0.0) * (_to_number(unidades_por_bulto) or 0.0)
+                    has_name = bool(str(nombre).strip())
+                    has_price = precio not in (None, "")
+                    has_stock = cantidad not in (None, "") or (
+                        bultos not in (None, "") and unidades_por_bulto not in (None, "")
+                    )
                     normalized = {
                         "nombre": str(nombre).strip(),
                         "name": str(nombre).strip(),
@@ -189,6 +241,10 @@ def import_products_excel(
                         "categoria": str(categoria).strip(),
                         "category": str(categoria).strip(),
                     }
+                    sku = _first_from_maps(row, row_norm, ["codigo", "sku", "code", "cod"])
+                    sku = sanitize_sku(sku)
+                    if sku:
+                        normalized["sku"] = sku
                 else:
                     # Build normalized from mapped with synonyms
                     nombre = (
@@ -202,6 +258,13 @@ def import_products_excel(
                         or 0.0
                     )
                     categoria = mapped.get("category") or mapped.get("categoria") or "SIN_CATEGORIA"
+                    has_name = bool(str(nombre).strip())
+                    has_price = mapped.get("price") not in (None, "") or mapped.get("precio") not in (None, "")
+                    has_stock = (
+                        mapped.get("stock") not in (None, "")
+                        or mapped.get("cantidad") not in (None, "")
+                        or mapped.get("quantity") not in (None, "")
+                    )
                     normalized = {
                         "nombre": str(nombre).strip(),
                         "name": str(nombre).strip(),
@@ -218,17 +281,23 @@ def import_products_excel(
                     for k, v in (mapped or {}).items():
                         if k not in normalized:
                             normalized[k] = v
+                    sku = sanitize_sku(normalized.get("sku"))
+                    if sku:
+                        normalized["sku"] = sku
+                status = "OK" if (has_name and has_price and has_stock) else "PENDING"
+                raw_safe = _json_safe(row)
+                normalized_safe = _json_safe(normalized)
                 idx += 1
                 idem = _idempotency_key(str(tenant_id), file_key, idx)
-                dedupe = _dedupe_hash({"normalized": normalized})
+                dedupe = _dedupe_hash({"normalized": normalized_safe})
                 item = ImportItem(
                     batch_id=batch_id,
                     idx=idx,
-                    raw=row,
-                    normalized=normalized,
+                    raw=raw_safe,
+                    normalized=normalized_safe,
                     idempotency_key=idem,
                     dedupe_hash=dedupe,
-                    status="PENDING",
+                    status=status,
                 )
                 buffer.append(item)
 
@@ -258,11 +327,11 @@ def import_products_excel(
             db.commit()
             return {"ok": True, "processed": processed, "created": created}
         except Exception as e:
+            db.rollback()
             batch.status = "ERROR"
             db.add(batch)
             db.commit()
-            self.update_state(state=states.FAILURE, meta={"error": str(e)})
-            return {"ok": False, "error": str(e)}
+            raise RuntimeError(str(e)) from e
         finally:
             try:
                 wb.close()

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from datetime import datetime
 from typing import Any
 
@@ -22,6 +23,8 @@ from app.models.core.products import Product
 from app.models.recipes import Recipe, RecipeIngredient
 from app.models.core.modelsimport import ImportBatch, ImportItem
 from app.modules.imports.domain.canonical_schema import validate_canonical
+from app.modules.imports.application.transform_dsl import eval_expr, _to_number as dsl_to_number
+from app.modules.imports.application.sku_utils import sanitize_sku
 from app.modules.imports.parsers import registry as parsers_registry
 
 
@@ -73,6 +76,24 @@ def _to_number(val) -> float | None:
     """Convert value to number."""
     if val is None or val == "":
         return None
+    if isinstance(val, (int, float)):
+        return float(val)
+    s = str(val).strip()
+    if not s:
+        return None
+    # Normalize common numeric formats like "1.234,56" and "1,234.56"
+    s_norm = re.sub(r"[^0-9,.-]", "", s)
+    if "," in s_norm and "." in s_norm:
+        if s_norm.rfind(",") > s_norm.rfind("."):
+            s_norm = s_norm.replace(".", "").replace(",", ".")
+        else:
+            s_norm = s_norm.replace(",", "")
+    else:
+        s_norm = s_norm.replace(",", ".")
+    try:
+        return float(s_norm)
+    except (ValueError, TypeError):
+        return None
 
 
 def _normalize_doc_type(doc_type: str | None) -> str:
@@ -89,10 +110,50 @@ def _normalize_doc_type(doc_type: str | None) -> str:
     if doc in ("product", "products", "productos"):
         return "products"
     return doc
-    try:
-        return float(val)
-    except (ValueError, TypeError):
+
+
+def _apply_column_mapping(
+    raw: dict[str, Any],
+    *,
+    mapping: dict[str, str] | None,
+    transforms: dict[str, Any] | None = None,
+    defaults: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    if not mapping:
         return None
+    base: dict[str, Any] = {}
+    for src, dst in mapping.items():
+        if not dst or str(dst).lower() == "ignore":
+            continue
+        if src in raw:
+            base[dst] = raw.get(src)
+    if transforms:
+        ctx = dict(base)
+        for field, spec in transforms.items():
+            try:
+                if isinstance(spec, str):
+                    val = eval_expr(spec, ctx)
+                elif isinstance(spec, dict) and "expr" in spec:
+                    val = eval_expr(str(spec.get("expr")), ctx)
+                    if spec.get("type") == "number":
+                        val = dsl_to_number(val)
+                    if spec.get("round") is not None and val is not None:
+                        try:
+                            val = round(float(val), int(spec.get("round")))
+                        except Exception:
+                            pass
+                else:
+                    continue
+                if val is not None:
+                    base[field] = val
+                ctx[field] = base.get(field)
+            except Exception:
+                continue
+    if defaults:
+        for k, v in defaults.items():
+            if k not in base or base[k] in (None, ""):
+                base[k] = v
+    return base or None
 
 
 def _extract_items_from_parsed_result(
@@ -191,10 +252,41 @@ def _build_canonical_from_item(
             "confidence": raw.get("confidence", 0.6),
         }
 
-    else:  # products, generic, or other
+    elif doc_type in ("products", "product"):
+        name = (
+            normalized.get("name")
+            or normalized.get("nombre")
+            or raw.get("name")
+            or raw.get("nombre")
+            or ""
+        )
+        price = _to_number(normalized.get("price") or raw.get("price") or raw.get("precio")) or 0.0
+        stock = _to_number(normalized.get("stock") or raw.get("stock") or raw.get("cantidad"))
+        category = normalized.get("category") or raw.get("category") or raw.get("categoria")
+        sku = normalized.get("sku") or raw.get("sku") or raw.get("codigo")
+        unit = normalized.get("unit") or raw.get("unit") or raw.get("unidad")
+        return {
+            "doc_type": "product",
+            "product": {
+                "name": str(name).strip(),
+                "sku": str(sku).strip() if sku not in (None, "") else None,
+                "category": str(category).strip() if category not in (None, "") else None,
+                "price": float(price),
+                "stock": float(stock) if stock is not None else None,
+                "unit": str(unit).strip() if unit not in (None, "") else None,
+            },
+            "metadata": {
+                "parser": parser_id,
+                "doc_type_detected": doc_type,
+                "raw_data": raw,
+            },
+            "source": "parser",
+            "confidence": raw.get("confidence", 0.5),
+        }
+    else:  # generic or other
         detected = raw.get("doc_type") or raw.get("detected_type") or doc_type
         return {
-            "doc_type": detected if detected in ("products", "other") else "other",
+            "doc_type": detected if detected in ("other",) else "other",
             "metadata": {
                 "parser": parser_id,
                 "doc_type_detected": detected,
@@ -366,8 +458,7 @@ def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id
     # Get parser from registry
     parser_info = parsers_registry.get_parser(parser_id)
     if not parser_info:
-        self.update_state(state=states.FAILURE, meta={"error": f"parser_not_found: {parser_id}"})
-        return {"ok": False, "error": f"parser_not_found: {parser_id}"}
+        raise RuntimeError(f"parser_not_found: {parser_id}")
 
     parser_func = parser_info["handler"]
     doc_type = parser_info["doc_type"]
@@ -386,8 +477,7 @@ def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id
 
         batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id).first()
         if not batch:
-            self.update_state(state=states.FAILURE, meta={"error": "batch_not_found"})
-            return {"ok": False, "error": "batch_not_found"}
+            raise RuntimeError("batch_not_found")
 
         # Persistir parser_id elegido en batch
         batch.parser_id = parser_id
@@ -415,6 +505,26 @@ def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id
                 db.commit()
                 return {"ok": True, **persisted, "doc_type": doc_type, "parser_id": parser_id}
 
+            # Optional column mapping (ImportColumnMapping)
+            mapping_cfg = None
+            mapping_transforms = None
+            mapping_defaults = None
+            try:
+                if getattr(batch, "mapping_id", None):
+                    from app.models.imports import ImportColumnMapping  # type: ignore
+
+                    cm = (
+                        db.query(ImportColumnMapping)
+                        .filter(ImportColumnMapping.id == batch.mapping_id)
+                        .first()
+                    )
+                    if cm:
+                        mapping_cfg = cm.mapping or cm.mappings or {}
+                        mapping_transforms = getattr(cm, "transforms", None) or {}
+                        mapping_defaults = getattr(cm, "defaults", None) or {}
+            except Exception:
+                mapping_cfg = mapping_transforms = mapping_defaults = None
+
             # Create ImportItems from parsed data
             idx_base = db.query(ImportItem).filter(ImportItem.batch_id == batch_id).count() or 0
             idx = idx_base
@@ -431,14 +541,29 @@ def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id
                 idx += 1
 
                 # Normalize data for ImportItem
-                raw = item_data
-                normalized = _to_serializable(raw)
+                raw = item_data if isinstance(item_data, dict) else {"value": item_data}
+                mapped = None
+                if mapping_cfg:
+                    mapped = _apply_column_mapping(
+                        raw,
+                        mapping=mapping_cfg,
+                        transforms=mapping_transforms,
+                        defaults=mapping_defaults,
+                    )
+                normalized = _to_serializable(mapped or raw)
+
+                if doc_type == "products":
+                    sku_val = normalized.get("sku") or normalized.get("codigo") or normalized.get("code")
+                    sku_val = sanitize_sku(sku_val)
+                    if sku_val:
+                        normalized["sku"] = sku_val
 
                 # Add metadata
                 normalized["_metadata"] = {
                     "parser": parser_id,
                     "doc_type": doc_type,
                     "_imported_at": raw.get("_imported_at", datetime.utcnow().isoformat()),
+                    "mapping_applied": bool(mapped),
                 }
 
                 # Construir documento canónico basado en doc_type
@@ -516,5 +641,4 @@ def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id
             batch.status = "ERROR"
             db.add(batch)
             db.commit()
-            self.update_state(state=states.FAILURE, meta={"error": str(e)})
-            return {"ok": False, "error": str(e)}
+            raise RuntimeError(str(e)) from e

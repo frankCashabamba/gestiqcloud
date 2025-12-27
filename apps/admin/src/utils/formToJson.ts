@@ -21,7 +21,6 @@ export function buildEmpresaPayload(f: FormularioEmpresa) {
     country: f.pais?.trim(),
     country_code: f.country_code?.trim(),
     website: f.sitio_web?.trim(),
-    primary_color: f.color_primario || undefined,
     config_json,
     default_language: f.default_language?.trim(),
     timezone: f.timezone?.trim(),

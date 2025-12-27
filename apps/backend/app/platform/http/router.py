@@ -348,6 +348,10 @@ def build_api_router() -> APIRouter:
         r, ("app.modules.imports.interface.http.tenant", "router"), prefix="/tenant"
     )
 
+    include_router_safe(
+        r, ("app.modules.printing.interface.http.tenant", "router"), prefix="/tenant"
+    )
+
     # Document conversions
     include_router_safe(
         r, ("app.modules.sales.interface.http.conversions", "router"), prefix="/tenant"

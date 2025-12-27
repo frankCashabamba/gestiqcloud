@@ -16,6 +16,7 @@ from app.schemas.sector_plantilla import SectorConfigJSON
 logger = logging.getLogger(__name__)
 
 
+
 def apply_sector_template(
     db: Session,
     tenant_id: str,
@@ -84,11 +85,10 @@ def apply_sector_template(
                 result["changes"].append(f"Plantilla inicio: {config.branding.plantilla_inicio}")
             # Guardar nombre humano de la plantilla aplicada para interfaces administrativas
             try:
-                # Persistir el slug de la plantilla de sector en el campo moderno del modelo
-                # Normaliza a minúsculas y sin espacios finales
-                tenant.sector_template_name = (
-                    (getattr(sector, "sector_name", None) or "default").strip().lower()
-                )
+                tenant_template_code = getattr(sector, "code", None)
+                if not tenant_template_code:
+                    tenant_template_code = (getattr(sector, "name", None) or "default")
+                tenant.sector_template_name = str(tenant_template_code).strip().lower()
             except Exception:
                 tenant.sector_template_name = None
 
@@ -104,10 +104,43 @@ def apply_sector_template(
                 company_settings = (
                     db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
                 )
+                default_language = config.defaults.locale
+                timezone = config.defaults.timezone
+                currency = config.defaults.currency
+                if not default_language:
+                    raise ValueError("default_language_required")
+                if not timezone:
+                    raise ValueError("timezone_required")
+                if not currency:
+                    raise ValueError("currency_required")
+                primary_color = config.branding.color_primario
+                secondary_color = config.branding.color_secundario
+                if not primary_color:
+                    raise ValueError("primary_color_required")
+                if not secondary_color:
+                    raise ValueError("secondary_color_required")
                 if not company_settings:
-                    company_settings = CompanySettings(tenant_id=tenant_id)
+                    company_settings = CompanySettings(
+                        tenant_id=tenant_id,
+                        default_language=default_language,
+                        timezone=timezone,
+                        currency=currency,
+                        primary_color=primary_color,
+                        secondary_color=secondary_color,
+                    )
                     db.add(company_settings)
                     db.flush()
+                else:
+                    if not company_settings.default_language:
+                        company_settings.default_language = default_language
+                    if not company_settings.timezone:
+                        company_settings.timezone = timezone
+                    if not company_settings.currency:
+                        company_settings.currency = currency
+                    if not company_settings.primary_color:
+                        company_settings.primary_color = primary_color
+                    if not company_settings.secondary_color:
+                        company_settings.secondary_color = secondary_color
 
                 current_settings = company_settings.settings or {}
                 if not isinstance(current_settings, dict):
@@ -148,17 +181,32 @@ def apply_sector_template(
                 "template_config": sector.template_config,
             }
 
+            default_language = config.defaults.locale
+            timezone = config.defaults.timezone
+            currency = config.defaults.currency
+            if not default_language:
+                raise ValueError("default_language_required")
+            if not timezone:
+                raise ValueError("timezone_required")
+            if not currency:
+                raise ValueError("currency_required")
+            primary_color = config.branding.color_primario
+            secondary_color = config.branding.color_secundario
+            if not primary_color:
+                raise ValueError("primary_color_required")
+            if not secondary_color:
+                raise ValueError("secondary_color_required")
             if not company_settings:
                 # Crear nuevo
                 company_settings = CompanySettings(
                     tenant_id=tenant_id,
-                    default_language=config.defaults.locale,
-                    timezone=config.defaults.timezone,
-                    currency=config.defaults.currency,
+                    default_language=default_language,
+                    timezone=timezone,
+                    currency=currency,
                     settings=settings_config,
                     pos_config=config.pos.model_dump(),
-                    secondary_color=None,
-                    primary_color=config.branding.color_primario,
+                    secondary_color=secondary_color,
+                    primary_color=primary_color,
                     allow_custom_roles=True,
                     user_limit=10,
                     operation_type="sales",
@@ -169,9 +217,11 @@ def apply_sector_template(
                 logger.info("✅ CompanySettings creado")
             else:
                 # Actualizar existente
-                company_settings.default_language = config.defaults.locale
-                company_settings.timezone = config.defaults.timezone
-                company_settings.currency = config.defaults.currency
+                company_settings.default_language = default_language
+                company_settings.timezone = timezone
+                company_settings.currency = currency
+                company_settings.primary_color = primary_color
+                company_settings.secondary_color = secondary_color
                 current_settings = company_settings.settings or {}
                 if not isinstance(current_settings, dict):
                     current_settings = {}
@@ -274,6 +324,7 @@ def get_available_templates(db: Session) -> list:
                         "tipo_negocio_id": template.business_category_id,
                         "branding": {
                             "color_primario": config.branding.color_primario,
+                            "color_secundario": config.branding.color_secundario,
                             "plantilla_inicio": config.branding.plantilla_inicio,
                         },
                         "modules_count": modules_enabled,

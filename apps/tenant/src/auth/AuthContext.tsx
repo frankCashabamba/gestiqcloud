@@ -81,6 +81,17 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     return () => window.removeEventListener('tenant-auth-expired', handler as EventListener)
   }, [])
 
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent).detail as { tokenKey?: string } | undefined
+      if (!detail || detail.tokenKey === 'access_token_tenant') {
+        clear()
+      }
+    }
+    window.addEventListener('auth-expired', handler as EventListener)
+    return () => window.removeEventListener('auth-expired', handler as EventListener)
+  }, [])
+
   // Single-flight refresh to avoid concurrent rotations
   let inflightRefresh: Promise<string | null> | null = null
   async function refreshOnce(): Promise<string | null> {

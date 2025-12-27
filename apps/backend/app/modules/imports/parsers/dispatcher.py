@@ -7,6 +7,8 @@ from typing import Any
 
 import openpyxl
 
+from app.services.excel_analyzer import detect_header_row, extract_headers
+
 from . import DocType, registry
 from .generic_excel import parse_excel_generic
 
@@ -89,11 +91,12 @@ def _detect_excel_parser(file_path: str) -> tuple[str, str]:
     wb = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
     try:
         ws = wb.active
-        rows = list(ws.iter_rows(values_only=True, max_row=10))
-        headers = rows[0] if rows else ()
+        header_row = detect_header_row(ws)
+        headers = extract_headers(ws, header_row)
         headers_str = " ".join([str(h or "").lower() for h in headers])
-        # If headers are empty, look in first 10 rows for any text
-        if not headers_str.strip() and rows:
+        # Fallback: if headers look empty, scan a few rows for any text.
+        if not headers_str.strip():
+            rows = list(ws.iter_rows(values_only=True, max_row=10))
             headers_str = " ".join(
                 str(cell or "").lower()
                 for row in rows

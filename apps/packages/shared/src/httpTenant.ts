@@ -66,6 +66,7 @@ function notifyAuthExpired() {
   persistToken(null)
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('tenant-auth-expired'))
+    window.dispatchEvent(new CustomEvent('auth-expired', { detail: { tokenKey: 'access_token_tenant' } }))
   }
 }
 

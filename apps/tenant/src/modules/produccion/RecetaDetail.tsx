@@ -100,7 +100,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
       <DialogTitle>
         <Typography variant="h5">{recipe.name}</Typography>
         <Typography variant="body2" color="text.secondary">
-          {recipe.producto_nombre}
+          {recipe.product_name}
         </Typography>
       </DialogTitle>
 
@@ -112,7 +112,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
               <Typography variant="caption" color="text.secondary">
                 Rendimiento
               </Typography>
-              <Typography variant="h6">{recipe.rendimiento} uds</Typography>
+              <Typography variant="h6">{recipe.yield_qty} uds</Typography>
             </Grid>
 
             <Grid item xs={6} sm={3}>
@@ -139,9 +139,9 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
         </Box>
 
         {/* Tiempo de preparación */}
-        {recipe.tiempo_preparacion && (
+        {recipe.prep_time_minutes && (
           <Box mb={2}>
-            <Chip label={`⏱️ ${recipe.tiempo_preparacion} minutos`} color="primary" />
+            <Chip label={`⏱️ ${recipe.prep_time_minutes} minutos`} color="primary" />
           </Box>
         )}
 
@@ -192,14 +192,14 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder }:
         </TableContainer>
 
         {/* Instrucciones */}
-        {recipe.instrucciones && (
+        {recipe.instructions && (
           <>
             <Divider sx={{ my: 2 }} />
             <Typography variant="h6" gutterBottom>
               Instrucciones
             </Typography>
             <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-              {recipe.instrucciones}
+              {recipe.instructions}
             </Typography>
           </>
         )}

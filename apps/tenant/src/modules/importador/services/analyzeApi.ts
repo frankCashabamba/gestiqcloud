@@ -21,6 +21,7 @@ export interface AnalyzeResponse {
   suggested_doc_type: string
   confidence: number
   headers_sample: string[]
+  headers?: string[]
   mapping_suggestion: Record<string, string> | null
   explanation: string
   decision_log: DecisionLogEntry[]

@@ -6,6 +6,7 @@ export interface SectorTemplate {
   name: string
   branding: {
     color_primario: string
+    color_secundario?: string
     plantilla_inicio: string
     icon?: string
   }
@@ -134,11 +135,21 @@ export const SectorPlantillaSelector: React.FC<SectorPlantillaSelectorProps> = (
                   )}
                 </div>
 
-                <div
-                  className="template-color-badge"
-                  style={{ backgroundColor: template.branding.color_primario }}
-                >
-                  {template.branding.color_primario}
+                <div className="template-color-badges">
+                  <div
+                    className="template-color-badge"
+                    style={{ backgroundColor: template.branding.color_primario }}
+                  >
+                    {template.branding.color_primario}
+                  </div>
+                  {template.branding.color_secundario && (
+                    <div
+                      className="template-color-badge"
+                      style={{ backgroundColor: template.branding.color_secundario }}
+                    >
+                      {template.branding.color_secundario}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -262,6 +273,13 @@ export const SectorPlantillaSelector: React.FC<SectorPlantillaSelectorProps> = (
           font-weight: 600;
           color: #6b7280;
           margin-left: 4px;
+        }
+
+        .template-color-badges {
+          display: flex;
+          justify-content: center;
+          gap: 8px;
+          flex-wrap: wrap;
         }
 
         .template-color-badge {

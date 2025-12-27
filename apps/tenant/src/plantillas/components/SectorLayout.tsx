@@ -1,4 +1,3 @@
-
 import React, { Children } from 'react'
 import { NavLink, useParams } from 'react-router-dom'
 
@@ -24,14 +23,14 @@ export default function SectorLayout({ title, subtitle, topNav = [], sideNav = [
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-6 focus:top-6 focus:z-50 focus:rounded-md focus:bg-blue-600 focus:px-4 focus:py-2 focus:text-sm focus:text-white"
       >
-        Saltar al contenido
+        Skip to content
       </a>
 
       <div className="gc-container pt-10">
         <header className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-3">
             <span className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700">
-              Espacio de trabajo
+              Workspace
             </span>
             <div>
               <h1 className="text-3xl font-semibold text-slate-900">{title}</h1>
@@ -40,7 +39,7 @@ export default function SectorLayout({ title, subtitle, topNav = [], sideNav = [
           </div>
 
           {topNav.length > 0 && (
-            <nav aria-label="Quick Actions" className="flex flex-wrap gap-2">
+            <nav aria-label="Quick actions" className="flex flex-wrap gap-2">
               {topNav.map((item) => (
                 <NavLink
                   key={item.to}
@@ -50,7 +49,7 @@ export default function SectorLayout({ title, subtitle, topNav = [], sideNav = [
                       isActive
                         ? 'bg-blue-600 text-white shadow-sm'
                         : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
-                  }`
+                    }`
                   }
                 >
                   {item.label}
@@ -64,7 +63,7 @@ export default function SectorLayout({ title, subtitle, topNav = [], sideNav = [
           <aside className="lg:sticky lg:top-10">
             <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
               {sideNav.length > 0 ? (
-                <nav aria-label="Navegación de módulos" className="space-y-1">
+                <nav aria-label="Module navigation" className="space-y-1">
                   {sideNav.map((item) => (
                     <NavLink
                       key={item.to}
@@ -78,19 +77,19 @@ export default function SectorLayout({ title, subtitle, topNav = [], sideNav = [
                       }
                     >
                       <span>{item.label}</span>
-                      <span aria-hidden="true" className="text-xs text-slate-400">›</span>
+                      <span aria-hidden="true" className="text-xs text-slate-400">&gt;</span>
                     </NavLink>
                   ))}
                 </nav>
               ) : (
-                <p className="text-xs text-slate-400">Todavía no tienes módulos asignados en este espacio.</p>
+                <p className="text-xs text-slate-400">No modules assigned to this workspace yet.</p>
               )}
             </div>
           </aside>
 
           <main id="main" className="space-y-8">
             {kpiItems.length > 0 && (
-              <section aria-label="Indicadores clave" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <section aria-label="Key metrics" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {kpiItems}
               </section>
             )}

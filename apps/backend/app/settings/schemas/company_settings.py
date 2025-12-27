@@ -20,6 +20,11 @@ class CompanySettingsCreate(CompanySettingsBase):
     """Class CompanySettingsCreate - auto-generated docstring."""
 
     tenant_id: int
+    primary_color: str
+    secondary_color: str
+    default_language: str
+    timezone: str
+    currency: str
 
 
 class CompanySettingsUpdate(CompanySettingsBase):
@@ -33,5 +38,7 @@ class CompanySettingsOut(CompanySettingsBase):
 
     id: int
     tenant_id: int
+    primary_color: str
+    secondary_color: str
 
     model_config = ConfigDict(from_attributes=True)

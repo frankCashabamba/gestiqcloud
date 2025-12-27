@@ -5,6 +5,7 @@ import {
   ImportBatch,
   ImportItem,
   ImportMapping,
+  ImportAttachment,
   CreateBatchPayload,
   OcrJobStatus,
   InitChunkUploadResp,
@@ -12,6 +13,19 @@ import {
   ConfirmBatchResponse,
   ConfirmationStatus,
 } from '@api-types/imports'
+
+export type {
+  ParserRegistry,
+  ImportBatch,
+  ImportItem,
+  ImportMapping,
+  ImportAttachment,
+  OcrJobStatus,
+  InitChunkUploadResp,
+  ConfirmBatchRequest,
+  ConfirmBatchResponse,
+  ConfirmationStatus,
+}
 
 export type IngestBatchPayload = {
   rows: unknown[]

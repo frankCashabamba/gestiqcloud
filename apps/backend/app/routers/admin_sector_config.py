@@ -152,6 +152,13 @@ def validate_sector_config(config: SectorConfigJSON) -> None:
         if not is_valid_hex_color(config.branding.color_primario):
             raise ValueError(f"Color inválido: {config.branding.color_primario}")
     
+    if config.branding and not config.branding.color_secundario:
+        raise ValueError("Color secundario requerido")
+
+    if config.branding and config.branding.color_secundario:
+        if not is_valid_hex_color(config.branding.color_secundario):
+            raise ValueError(f"Color inválido: {config.branding.color_secundario}")
+
     # Validar que icon no esté vacío
     if config.branding and not config.branding.icon:
         raise ValueError("El icon de branding no puede estar vacío")

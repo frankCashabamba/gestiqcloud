@@ -26,26 +26,43 @@ export type Compra = {
   updated_at?: string
 }
 
+const normalizeEstado = (estado?: string | null): Compra['estado'] => {
+  const raw = String(estado || '').toLowerCase()
+  if (raw === 'borrador') return 'draft'
+  if (raw === 'enviada') return 'sent'
+  if (raw === 'recibida') return 'received'
+  if (raw === 'cancelada') return 'cancelled'
+  if (raw === 'draft' || raw === 'sent' || raw === 'received' || raw === 'cancelled') {
+    return raw as Compra['estado']
+  }
+  return 'draft'
+}
+
+const normalizeCompra = (compra: Compra): Compra => ({
+  ...compra,
+  estado: normalizeEstado((compra as any).estado),
+})
+
 export async function listCompras(): Promise<Compra[]> {
   const { data } = await tenantApi.get<Compra[] | { items?: Compra[] }>(TENANT_COMPRAS.base)
-  if (Array.isArray(data)) return data
+  if (Array.isArray(data)) return data.map(normalizeCompra)
   const items = (data as any)?.items
-  return Array.isArray(items) ? items : []
+  return Array.isArray(items) ? items.map(normalizeCompra) : []
 }
 
 export async function getCompra(id: number | string): Promise<Compra> {
   const { data } = await tenantApi.get<Compra>(TENANT_COMPRAS.byId(id))
-  return data
+  return normalizeCompra(data)
 }
 
 export async function createCompra(payload: Omit<Compra, 'id'>): Promise<Compra> {
   const { data } = await tenantApi.post<Compra>(TENANT_COMPRAS.base, payload)
-  return data
+  return normalizeCompra(data)
 }
 
 export async function updateCompra(id: number | string, payload: Partial<Omit<Compra, 'id'>>): Promise<Compra> {
   const { data } = await tenantApi.put<Compra>(TENANT_COMPRAS.byId(id), payload)
-  return data
+  return normalizeCompra(data)
 }
 
 export async function removeCompra(id: number | string): Promise<void> {
@@ -54,5 +71,5 @@ export async function removeCompra(id: number | string): Promise<void> {
 
 export async function recibirCompra(id: number | string): Promise<Compra> {
   const { data } = await tenantApi.post<Compra>(`${TENANT_COMPRAS.byId(id)}/recibir`)
-  return data
+  return normalizeCompra(data)
 }

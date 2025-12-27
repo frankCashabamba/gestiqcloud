@@ -1,5 +1,5 @@
 // apps/tenant/src/modules/productos/List.tsx
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   listProductos,
@@ -14,6 +14,41 @@ import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import CategoriasModal from './CategoriasModal'
 import { useCurrency } from '../../hooks/useCurrency'
+import {
+  useSectorFeaturesFromConfig,
+  useTenantSector,
+} from '../../contexts/TenantConfigContext'
+import {
+  usePrintBarcodeLabels,
+  type ProductLabel,
+  type PrinterInfo,
+  type PrintModalExtras,
+  type PrintConfig,
+  type SavedPrinterConfig,
+} from '../importador/components/PrintBarcodeLabels'
+import { apiFetch } from '../../lib/http'
+
+type RawPrinterLabelConfig = {
+  id: string
+  name: string
+  printer_port: string
+  width_mm?: number
+  height_mm?: number
+  gap_mm?: number
+  copies?: number
+  show_price?: boolean
+  show_category?: boolean
+  header_text?: string
+  footer_text?: string
+  offset_xmm?: number
+  offset_ymm?: number
+  barcode_width?: number
+  price_alignment?: PrintConfig['priceAlignment']
+  created_at: string
+  updated_at: string
+}
+
+const clampValue = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 
 export default function ProductosList() {
   const [items, setItems] = useState<Producto[]>([])
@@ -23,12 +58,302 @@ export default function ProductosList() {
   const { empresa } = useParams()
   const { success, error: toastError } = useToast()
   const { symbol: currencySymbol } = useCurrency()
+  const sector = useTenantSector()
+  const sectorFeatures = useSectorFeaturesFromConfig()
   const [q, setQ] = useState('')
   const [filterActivo, setFilterActivo] = useState<'all' | 'activo' | 'inactivo'>('all')
   const [filterCategoria, setFilterCategoria] = useState<string>('all')
   const [showCategoriesModal, setShowCategoriesModal] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [categorias, setCategorias] = useState<Array<{ id: string; name: string }>>([])
+  const printProductsRef = useRef<Producto[]>([])
+  const { open: openPrintLabels, PrintModal, updateModalExtras } = usePrintBarcodeLabels()
+  const [printers, setPrinters] = useState<PrinterInfo[]>([])
+  const [selectedPrinter, setSelectedPrinter] = useState<PrinterInfo | null>(null)
+  const selectedPrinterRef = useRef<PrinterInfo | null>(null)
+  const [printerSaving, setPrinterSaving] = useState(false)
+  const [defaultPrintConfig, setDefaultPrintConfig] = useState<PrintConfig>({
+    widthMm: 50,
+    heightMm: 40,
+    gapMm: 3,
+    showPrice: true,
+    showCategory: false,
+    copies: 1,
+    headerText: '',
+    footerText: '',
+    offsetXmm: 0,
+    offsetYmm: 0,
+    barcodeWidth: 2,
+    priceAlignment: 'center',
+  })
+  const [savedConfigs, setSavedConfigs] = useState<SavedPrinterConfig[]>([])
+  const [selectedSavedConfigId, setSelectedSavedConfigId] = useState<string | null>(null)
+  const [configsLoading, setConfigsLoading] = useState(false)
+  const selectedSavedConfigIdRef = useRef<string | null>(null)
+  const fetchPrinters = useCallback(async (): Promise<PrinterInfo[]> => {
+    try {
+      const data = await apiFetch<PrinterInfo[]>('v1/tenant/printing/printers')
+      setPrinters(data)
+      return data
+    } catch (err) {
+      console.error('Error cargando impresoras:', err)
+      return []
+    }
+  }, [])
+
+  const normalizeSavedConfig = useCallback(
+    (config: RawPrinterLabelConfig): SavedPrinterConfig => ({
+      id: config.id,
+      name: config.name,
+      printerPort: config.printer_port,
+      widthMm: config.width_mm ?? defaultPrintConfig.widthMm,
+      heightMm: config.height_mm ?? defaultPrintConfig.heightMm,
+      gapMm: config.gap_mm ?? defaultPrintConfig.gapMm,
+      copies: config.copies ?? defaultPrintConfig.copies,
+      showPrice: config.show_price ?? defaultPrintConfig.showPrice,
+      showCategory: config.show_category ?? defaultPrintConfig.showCategory,
+      headerText: config.header_text ?? defaultPrintConfig.headerText,
+      footerText: config.footer_text ?? defaultPrintConfig.footerText,
+      offsetXmm: config.offset_xmm ?? defaultPrintConfig.offsetXmm,
+      offsetYmm: config.offset_ymm ?? defaultPrintConfig.offsetYmm,
+      barcodeWidth: config.barcode_width ?? defaultPrintConfig.barcodeWidth,
+      priceAlignment: config.price_alignment ?? defaultPrintConfig.priceAlignment,
+      createdAt: config.created_at,
+    }),
+    [defaultPrintConfig],
+  )
+
+  const fetchSavedConfigsForPrinter = useCallback(
+    async (port: string | null, resetSelection = true) => {
+      if (!port) {
+        setSavedConfigs([])
+        if (resetSelection) {
+          setSelectedSavedConfigId(null)
+        }
+        return
+      }
+
+      if (resetSelection) {
+        setSelectedSavedConfigId(null)
+      }
+      setConfigsLoading(true)
+
+      try {
+        const rawConfigs = await apiFetch<RawPrinterLabelConfig[]>(
+          `/v1/tenant/printing/configurations?port=${encodeURIComponent(port)}`
+        )
+        const normalizedConfigs = rawConfigs.map((config) => normalizeSavedConfig(config))
+        setSavedConfigs(normalizedConfigs)
+      } catch (err) {
+        console.error('Error cargando configuraciones guardadas:', err)
+      } finally {
+        setConfigsLoading(false)
+      }
+    },
+    [normalizeSavedConfig],
+  )
+
+  const handlePrinterSelect = useCallback(
+    (port: string) => {
+      if (!port) {
+        setSelectedPrinter(null)
+        void fetchSavedConfigsForPrinter(null)
+        return
+      }
+      const match = printers.find((printer) => printer.port === port)
+      const selected = match ? match : { port, name: port }
+      setSelectedPrinter(selected)
+      void fetchSavedConfigsForPrinter(port)
+    },
+    [printers, fetchSavedConfigsForPrinter],
+  )
+
+  const handleSavedConfigSelect = useCallback((configId: string | null) => {
+    setSelectedSavedConfigId(configId)
+  }, [])
+
+  const buildModalExtras = useCallback(
+    (
+      selected: PrinterInfo | null,
+      overrides?: {
+        savedConfigs?: SavedPrinterConfig[]
+        selectedConfigId?: string | null
+      },
+    ): PrintModalExtras => {
+      const currentSavedConfigs = overrides?.savedConfigs ?? savedConfigs
+      const currentSelectedConfigId = overrides?.selectedConfigId ?? selectedSavedConfigId
+      return {
+        printers,
+        selectedPrinter: selected,
+        savedConfigs: currentSavedConfigs,
+        selectedConfigId: currentSelectedConfigId,
+        onSelectPrinter: handlePrinterSelect,
+        onSelectSavedConfig: handleSavedConfigSelect,
+        printerSaving,
+        configsLoading,
+      }
+    },
+    [
+      printers,
+      savedConfigs,
+      selectedSavedConfigId,
+      handlePrinterSelect,
+      handleSavedConfigSelect,
+      printerSaving,
+      configsLoading,
+    ],
+  )
+
+  const loadPrinterSettings = useCallback(
+    async (available: PrinterInfo[]) => {
+      try {
+        const settings = await apiFetch<{
+          port?: string
+          name?: string
+          label_config?: {
+            width_mm?: number
+            height_mm?: number
+            gap_mm?: number
+            show_price?: boolean
+            show_category?: boolean
+            copies?: number
+            header_text?: string
+            footer_text?: string
+            offset_xmm?: number
+            offset_ymm?: number
+            barcode_width?: number
+            price_alignment?: PrintConfig['priceAlignment']
+          }
+        } | null>('/v1/tenant/printing/settings')
+        if (settings?.label_config) {
+            setDefaultPrintConfig((prev) => ({
+              ...prev,
+              widthMm: settings.label_config?.width_mm ?? prev.widthMm,
+              heightMm: settings.label_config?.height_mm ?? prev.heightMm,
+              gapMm: settings.label_config?.gap_mm ?? prev.gapMm,
+              showPrice: settings.label_config?.show_price ?? prev.showPrice,
+              showCategory: settings.label_config?.show_category ?? prev.showCategory,
+              copies: settings.label_config?.copies ?? prev.copies,
+              headerText: settings.label_config?.header_text ?? prev.headerText,
+              footerText: settings.label_config?.footer_text ?? prev.footerText,
+              offsetXmm: settings.label_config?.offset_xmm ?? prev.offsetXmm,
+              offsetYmm: settings.label_config?.offset_ymm ?? prev.offsetYmm,
+              barcodeWidth: settings.label_config?.barcode_width ?? prev.barcodeWidth,
+              priceAlignment: settings.label_config?.price_alignment ?? prev.priceAlignment,
+            }))
+        }
+        if (!settings?.port) {
+          setSelectedPrinter(null)
+          await fetchSavedConfigsForPrinter(null)
+          return
+        }
+        const match = available.find((printer) => printer.port === settings.port)
+        if (match) {
+          setSelectedPrinter(match)
+        } else {
+          setSelectedPrinter({ port: settings.port, name: settings.name || settings.port })
+        }
+        await fetchSavedConfigsForPrinter(settings.port)
+      } catch (err) {
+        console.error('Error cargando configuraciön de impresora:', err)
+      }
+    },
+    [fetchSavedConfigsForPrinter],
+  )
+
+  const extrasSignature = useMemo(
+    () =>
+      [
+        selectedPrinter?.port ?? '',
+        selectedSavedConfigId ?? '',
+        savedConfigs.map((config) => config.id).join(','),
+        printerSaving ? 'saving' : 'idle',
+        configsLoading ? 'loading' : 'ready',
+      ].join('|'),
+    [selectedPrinter?.port, selectedSavedConfigId, savedConfigs, printerSaving, configsLoading],
+  )
+
+  const extrasRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    const signature = extrasSignature
+    if (extrasRef.current === signature) {
+      return
+    }
+    extrasRef.current = signature
+    updateModalExtras?.(buildModalExtras(selectedPrinter))
+  }, [buildModalExtras, extrasSignature, selectedPrinter, updateModalExtras])
+
+  const promptToSaveLabelConfig = useCallback(
+    async (printConfig: PrintConfig) => {
+      const printer = selectedPrinterRef.current || selectedPrinter
+      if (!printer?.port) {
+        return
+      }
+      const shouldSave = window.confirm(
+        '¿Deseas guardar esta configuración para la impresora seleccionada?'
+      )
+      if (!shouldSave) {
+        return
+      }
+      const suggestedName = `Etiqueta ${printConfig.widthMm}×${printConfig.heightMm} mm`
+      const name = window.prompt('Nombre de la configuración', suggestedName)
+      if (!name?.trim()) {
+        toastError('Debes indicar un nombre válido para guardar la configuración.')
+        return
+      }
+      try {
+        const saved = await apiFetch<RawPrinterLabelConfig>('/v1/tenant/printing/configurations', {
+          method: 'POST',
+          body: JSON.stringify({
+            printer_port: printer.port,
+            name: name.trim(),
+            label_config: {
+              width_mm: printConfig.widthMm,
+              height_mm: printConfig.heightMm,
+              gap_mm: printConfig.gapMm,
+              copies: Math.max(1, printConfig.copies),
+              show_price: printConfig.showPrice,
+              show_category: printConfig.showCategory,
+              header_text: printConfig.headerText || undefined,
+              footer_text: printConfig.footerText || undefined,
+              offset_xmm: clampValue(printConfig.offsetXmm, -30, 30),
+              offset_ymm: clampValue(printConfig.offsetYmm, -30, 30),
+              barcode_width: clampValue(printConfig.barcodeWidth, 1, 5),
+              price_alignment: printConfig.priceAlignment,
+            },
+          }),
+        })
+        await fetchSavedConfigsForPrinter(printer.port, false)
+        setSelectedSavedConfigId(saved.id)
+        success('Configuración guardada.')
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Error guardando la configuración'
+        toastError(message)
+      }
+    },
+    [fetchSavedConfigsForPrinter, selectedPrinter, success, toastError],
+  )
+
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      const available = await fetchPrinters()
+      if (!mounted) return
+      await loadPrinterSettings(available)
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [fetchPrinters, loadPrinterSettings])
+
+  useEffect(() => {
+    selectedPrinterRef.current = selectedPrinter
+  }, [selectedPrinter])
+
+  useEffect(() => {
+    selectedSavedConfigIdRef.current = selectedSavedConfigId
+  }, [selectedSavedConfigId])
 
   // Cargar categorías para el filtro
   useEffect(() => {
@@ -95,6 +420,113 @@ export default function ProductosList() {
   const { page, setPage, totalPages, view, perPage, setPerPage } = usePagination(sorted, per)
   useEffect(() => setPerPage(per), [per, setPerPage])
 
+  const buildLabelFromProduct = (product: Producto): ProductLabel => {
+    const metadata = product.product_metadata || {}
+    const metadataBarcode =
+      metadata.codigo_barras ||
+      metadata.codigo ||
+      metadata['Codigo_barras'] ||
+      metadata['Código_barras']
+
+    const codigo = (metadataBarcode || product.sku || product.id).toString()
+
+    return {
+      id: product.id,
+      sku: product.sku || product.id,
+      name: product.name,
+      codigo_barras: codigo,
+      precio_venta: product.price,
+      categoria: product.categoria || undefined,
+    }
+  }
+
+  const formatPriceLabel = (value?: number) =>
+    value !== undefined && value !== null ? `${value.toFixed(2)} ${currencySymbol}` : undefined
+
+  const handleSendToPrinter = async (_labels: ProductLabel[], printConfig: PrintConfig) => {
+    const productsToPrint = printProductsRef.current
+    if (productsToPrint.length === 0) {
+      const error = new Error('Selecciona al menos un producto para imprimir.')
+      toastError(error.message)
+      throw error
+    }
+
+    const printerToUse = selectedPrinterRef.current || selectedPrinter
+    if (!printerToUse?.port) {
+      const error = new Error('Selecciona una impresora antes de imprimir.')
+      toastError(error.message)
+      throw error
+    }
+
+    const normalizedConfig = {
+      ...printConfig,
+      copies: Math.max(1, printConfig.copies),
+      offsetXmm: clampValue(printConfig.offsetXmm, -30, 30),
+      offsetYmm: clampValue(printConfig.offsetYmm, -30, 30),
+      barcodeWidth: clampValue(printConfig.barcodeWidth, 1, 5),
+    }
+
+    try {
+      for (const product of productsToPrint) {
+        const payload = {
+          name: product.name,
+          barcode: buildLabelFromProduct(product).codigo_barras,
+          price: normalizedConfig.showPrice ? formatPriceLabel(product.price) : undefined,
+          copies: normalizedConfig.copies,
+          port: printerToUse.port,
+          width_mm: normalizedConfig.widthMm,
+          height_mm: normalizedConfig.heightMm,
+          gap_mm: normalizedConfig.gapMm,
+          header_text: normalizedConfig.headerText || undefined,
+          footer_text: normalizedConfig.footerText || undefined,
+          offset_xmm: normalizedConfig.offsetXmm,
+          offset_ymm: normalizedConfig.offsetYmm,
+          barcode_width: normalizedConfig.barcodeWidth,
+          price_alignment: normalizedConfig.priceAlignment,
+        }
+
+      await apiFetch('v1/tenant/printing/labels', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+    }
+
+    success(
+      `Impresión enviada a ${printerToUse.name || printerToUse.port}.`
+    )
+    if (!selectedSavedConfigIdRef.current) {
+      await promptToSaveLabelConfig(normalizedConfig)
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error enviando a la impresora'
+    toastError(message)
+    throw err
+    }
+  }
+
+  const handlePrintLabels = () => {
+    const sourceProducts =
+      selectedIds.length > 0 ? items.filter((p) => selectedIds.includes(p.id)) : view
+
+    if (sourceProducts.length === 0) {
+      toastError('Selecciona al menos un producto para imprimir etiquetas.')
+      return
+    }
+
+    printProductsRef.current = sourceProducts
+    const extras = buildModalExtras(selectedPrinter)
+    openPrintLabels(
+      sourceProducts.map((product) => buildLabelFromProduct(product)),
+      {
+        defaultConfig: defaultPrintConfig,
+        onPrint: handleSendToPrinter,
+        modalExtras: extras,
+        currencySymbol,
+      },
+    )
+    updateModalExtras?.(extras)
+  }
+
   const exportCSV = () => {
     const headers = ['Code', 'Nombre', 'Precio', 'IVA', 'Status']
     const rows = sorted.map((p) => [p.sku || '', p.name, p.price?.toFixed(2) || '0', `${p.iva_tasa || 0}%`, p.active ? 'Activo' : 'Inactivo'])
@@ -128,6 +560,13 @@ export default function ProductosList() {
             title="Exportar a CSV"
           >
             📥 Exportar
+          </button>
+          <button
+            className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+            onClick={handlePrintLabels}
+            title="Imprimir etiquetas (c?digo y precio)"
+          >
+            Imprimir etiquetas
           </button>
                     {items.length > 0 && (<button
                       className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors font-medium"
@@ -404,13 +843,24 @@ export default function ProductosList() {
                       <Link to={`${p.id}/editar`} className="text-blue-600 hover:text-blue-900 mr-4">
                         Editar
                       </Link>
-                      <button
-                        className="text-amber-600 hover:text-amber-800 mr-4"
-                        title="Crear receta desde este producto"
-                        onClick={() => nav(`/${empresa || ''}/produccion/recetas/nueva?productId=${encodeURIComponent(p.id)}`)}
-                      >
-                        Crear receta
-                      </button>
+                      {(sectorFeatures?.recipes ||
+                        sector.features?.recipes ||
+                        sector.plantilla?.toLowerCase().includes('panaderia') ||
+                        sector.plantilla?.toLowerCase().includes('bakery')) && (
+                        <button
+                          className="text-amber-600 hover:text-amber-800 mr-4"
+                          title="Crear receta desde este producto"
+                          onClick={() =>
+                            nav(
+                              `/${empresa || ''}/produccion/recetas/nueva?productId=${encodeURIComponent(
+                                p.id
+                              )}`
+                            )
+                          }
+                        >
+                          Crear receta
+                        </button>
+                      )}
                       <button
                         className="text-red-600 hover:text-red-900"
                         onClick={async () => {
@@ -472,6 +922,7 @@ export default function ProductosList() {
           }}
         />
       )}
+      {PrintModal}
     </div>
   )
 }

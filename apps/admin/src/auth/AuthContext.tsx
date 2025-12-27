@@ -42,6 +42,17 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         else sessionStorage.removeItem('access_token_admin')
     }, [token])
 
+    useEffect(() => {
+        const handler = (event: Event) => {
+            const detail = (event as CustomEvent).detail as { tokenKey?: string } | undefined
+            if (!detail || detail.tokenKey === 'access_token_admin') {
+                clear()
+            }
+        }
+        window.addEventListener('auth-expired', handler as EventListener)
+        return () => window.removeEventListener('auth-expired', handler as EventListener)
+    }, [])
+
     async function loadMeProfile(token: string): Promise<MeAdmin> {
         try {
             const r = await api.get<MeAdmin>('/v1/me/admin')

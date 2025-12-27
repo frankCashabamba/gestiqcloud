@@ -49,7 +49,7 @@ from app.modules.imports.schemas import (
     PromoteItems,
     UpdateClassificationRequest,
 )
-from app.services.excel_analyzer import analyze_excel_stream
+from app.services.excel_analyzer import analyze_excel_stream, detect_header_row, extract_headers
 from app.modules.imports.parsers.dispatcher import select_parser_for_file
 
 
@@ -105,6 +105,21 @@ def _file_path_from_key(file_key: str) -> str:
     if file_key.startswith("imports/"):
         return os.path.join("uploads", file_key.replace("/", os.sep))
     return file_key
+
+
+def _load_original_filename_from_file_key(file_key: str) -> str | None:
+    """Best-effort load original filename from a sidecar meta file."""
+    try:
+        file_path = _file_path_from_key(file_key)
+        meta_path = f"{file_path}.meta.json"
+        if os.path.exists(meta_path):
+            with open(meta_path, encoding="utf-8") as f:
+                meta = json.load(f)
+                filename = str(meta.get("filename") or "").strip()
+                return filename or None
+    except Exception:
+        return None
+    return None
 
 
 # ------------------------------
@@ -253,9 +268,8 @@ def complete_chunk_upload(upload_id: str, dto: CompleteChunkUploadDTO, request: 
     # Create unique filename with original extension if available
     meta_path = os.path.join(base_tmp, "meta.json")
     original_ext = ".bin"
+    meta = None
     try:
-        import json
-
         if os.path.exists(meta_path):
             with open(meta_path, encoding="utf-8") as f:
                 meta = json.load(f)
@@ -279,6 +293,20 @@ def complete_chunk_upload(upload_id: str, dto: CompleteChunkUploadDTO, request: 
                     total += os.path.getsize(p)
         if dto.expected_size and int(dto.expected_size) != total:
             raise HTTPException(status_code=400, detail="size_mismatch")
+        # Persist original filename metadata next to final file (best-effort).
+        try:
+            if meta:
+                with open(f"{dest_path}.meta.json", "w", encoding="utf-8") as mf:
+                    json.dump(
+                        {
+                            "filename": meta.get("filename"),
+                            "content_type": meta.get("content_type"),
+                            "size": meta.get("size"),
+                        },
+                        mf,
+                    )
+        except Exception:
+            pass
     except HTTPException:
         # Re-raise validation errors
         raise
@@ -327,9 +355,13 @@ def create_batch_from_upload(
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
 
+    original_filename = dto.original_filename or _load_original_filename_from_file_key(
+        dto.file_key
+    )
+
     # Auto-pick mapping by file_pattern if not provided
     auto_mapping_id = None
-    if not dto.mapping_id and (dto.original_filename or ""):
+    if not dto.mapping_id and (original_filename or ""):
         try:
             from app.models.imports import ImportColumnMapping
 
@@ -347,7 +379,7 @@ def create_batch_from_upload(
             for m in patterns:
                 try:
                     if m.file_pattern and _re.search(
-                        str(m.file_pattern), str(dto.original_filename), _re.I
+                        str(m.file_pattern), str(original_filename), _re.I
                     ):
                         auto_mapping_id = str(m.id)
                         break
@@ -356,6 +388,63 @@ def create_batch_from_upload(
         except Exception:
             pass
 
+    # If no mapping matches, try to auto-suggest one from headers and persist it.
+    if not dto.mapping_id and not auto_mapping_id:
+        try:
+            from io import BytesIO
+
+            from app.modules.imports.application.transform_suggest import suggest_mapping
+
+            file_path = _file_path_from_key(dto.file_key)
+            with open(file_path, "rb") as fh:
+                analysis = analyze_excel_stream(BytesIO(fh.read()))
+            headers = analysis.get("headers") or []
+            if headers:
+                mapping, transforms, defaults, _confidence = suggest_mapping(headers)
+                if mapping:
+                    safe_name = f"auto:{original_filename or dto.file_key}"
+                    if len(safe_name) > 120:
+                        safe_name = safe_name[:120]
+                    pattern = None
+                    if original_filename:
+                        pattern = re.escape(original_filename) + "$"
+                    existing = (
+                        db.query(ImportColumnMapping)
+                        .filter(
+                            ImportColumnMapping.tenant_id == tenant_id,
+                            ImportColumnMapping.name == safe_name,
+                        )
+                        .first()
+                    )
+                    if existing:
+                        existing.mapping = mapping
+                        existing.transforms = transforms
+                        existing.defaults = defaults
+                        if pattern:
+                            existing.file_pattern = pattern
+                        db.add(existing)
+                        db.commit()
+                        auto_mapping_id = str(existing.id)
+                    else:
+                        new_map = ImportColumnMapping(
+                            id=_uuid4(),
+                            tenant_id=tenant_id,
+                            name=safe_name,
+                            description=f"Auto mapping for {original_filename or dto.file_key}",
+                            file_pattern=pattern,
+                            mapping=mapping,
+                            transforms=transforms,
+                            defaults=defaults,
+                            is_active=True,
+                            created_by=user_id,
+                        )
+                        db.add(new_map)
+                        db.commit()
+                        db.refresh(new_map)
+                        auto_mapping_id = str(new_map.id)
+        except Exception:
+            db.rollback()
+
     batch = ImportBatch(
         id=_uuid4(),
         tenant_id=tenant_id,
@@ -363,6 +452,7 @@ def create_batch_from_upload(
         origin="excel",
         file_key=dto.file_key,
         parser_id=dto.parser_id,
+        original_filename=original_filename,
         mapping_id=(
             UUID(dto.mapping_id or auto_mapping_id) if (dto.mapping_id or auto_mapping_id) else None
         ),
@@ -379,7 +469,7 @@ def create_batch_from_upload(
         parser_id, detected_doc_type = select_parser_for_file(
             file_path,
             hinted_doc_type=dto.source_type,
-            original_filename=dto.original_filename,
+            original_filename=original_filename,
         )
         batch.parser_id = parser_id
         batch.source_type = detected_doc_type or batch.source_type
@@ -414,7 +504,10 @@ def list_batches_private(
 def start_excel_import(batch_id: UUID, request: Request, db: Session = Depends(get_db)):
     """Encola importación genérica de archivo usando dispatcher de parsers."""
     from app.models.core.modelsimport import ImportBatch
+    from app.modules.imports.application.job_runner import RUNNER_MODE
     from app.modules.imports.application.celery_app import celery_app
+    from app.modules.imports.application.tasks.task_import_file import import_file as import_file_task
+    from app.modules.imports.application.tasks.task_import_excel import import_products_excel
 
     claims = _get_claims(request)
     tenant_id = claims.get("tenant_id")
@@ -429,7 +522,38 @@ def start_excel_import(batch_id: UUID, request: Request, db: Session = Depends(g
     if not batch or not batch.file_key:
         raise HTTPException(status_code=404, detail="batch_not_found_or_no_file")
 
+    # Ensure mapping is auto-picked on reprocess if missing.
+    if not getattr(batch, "mapping_id", None):
+        try:
+            original_filename = getattr(batch, "original_filename", None) or _load_original_filename_from_file_key(
+                batch.file_key
+            )
+            if original_filename:
+                patterns = (
+                    db.query(ImportColumnMapping)
+                    .filter(
+                        ImportColumnMapping.tenant_id == tenant_id,
+                        ImportColumnMapping.is_active,
+                        ImportColumnMapping.file_pattern.isnot(None),
+                    )
+                    .all()
+                )
+                for m in patterns:
+                    try:
+                        if m.file_pattern and re.search(
+                            str(m.file_pattern), str(original_filename), re.I
+                        ):
+                            batch.mapping_id = m.id
+                            db.add(batch)
+                            db.commit()
+                            break
+                    except Exception:
+                        continue
+        except Exception:
+            db.rollback()
+
     file_path = _file_path_from_key(batch.file_key)
+    ext = Path(file_path).suffix.lower()
     parser_id, detected_doc_type = select_parser_for_file(
         file_path,
         hinted_doc_type=batch.source_type,
@@ -452,7 +576,33 @@ def start_excel_import(batch_id: UUID, request: Request, db: Session = Depends(g
         "file_key": batch.file_key,
         "parser_id": parser_id,
     }
-    result = celery_app.send_task("imports.import_file", kwargs=args)
+    use_products_task = parser_id == "products_excel" and ext in (".xlsx", ".xls", ".xlsm", ".xlsb")
+    if RUNNER_MODE != "celery":
+        if use_products_task:
+            result = import_products_excel.run(
+                tenant_id=str(tenant_id),
+                batch_id=str(batch.id),
+                file_key=batch.file_key,
+                source_type="products",
+            )
+        else:
+            result = import_file_task.run(**args)
+        return {
+            "task_id": None,
+            "status": "completed",
+            "parser_id": parser_id,
+            "doc_type": detected_doc_type,
+            "result": result,
+        }
+    if use_products_task:
+        result = celery_app.send_task("imports.import_products_excel", kwargs={
+            "tenant_id": str(tenant_id),
+            "batch_id": str(batch.id),
+            "file_key": batch.file_key,
+            "source_type": "products",
+        })
+    else:
+        result = celery_app.send_task("imports.import_file", kwargs=args)
     return {
         "task_id": result.id,
         "status": "enqueued",
@@ -661,31 +811,55 @@ async def parse_excel(
         or file.filename.lower().endswith((".xlsx", ".xls"))
     ):
         raise HTTPException(status_code=415, detail=f"Unsupported file type: {file.content_type}")
-
     try:
         from io import BytesIO
 
-        import pandas as pd  # type: ignore
-
         data = await file.read()
         if not data:
-            raise HTTPException(status_code=400, detail="Archivo vacÃ­o")
+            raise HTTPException(status_code=400, detail="Archivo vac????o")
 
-        with BytesIO(data) as bio:
-            try:
-                df = pd.read_excel(bio, engine=None)
-            except Exception:
+        # Prefer openpyxl for xlsx to honor header row detection and merged cells.
+        try:
+            import openpyxl  # type: ignore
+
+            bio = BytesIO(data)
+            wb = openpyxl.load_workbook(bio, read_only=True, data_only=True)
+            ws = wb.active
+            header_row = detect_header_row(ws)
+            headers = extract_headers(ws, header_row)
+            rows = []
+            for row_idx in range(header_row + 1, ws.max_row + 1):
+                row_dict = {}
+                has_value = False
+                for col_idx, header in enumerate(headers):
+                    val = ws.cell(row_idx, col_idx + 1).value
+                    if val is None:
+                        row_dict[header] = ""
+                        continue
+                    row_dict[header] = str(val)
+                    if str(val).strip() != "":
+                        has_value = True
+                if has_value:
+                    rows.append(row_dict)
+            wb.close()
+            return {"headers": headers, "rows": rows}
+        except Exception:
+            # Fallback to pandas for other formats or if openpyxl fails.
+            import pandas as pd  # type: ignore
+
+            with BytesIO(data) as bio:
                 try:
-                    df = pd.read_excel(bio, engine="openpyxl")
+                    df = pd.read_excel(bio, engine=None)
                 except Exception:
-                    raise
+                    df = pd.read_excel(bio, engine="openpyxl")
 
-        df = df.fillna("")
-        headers = [str(h) for h in list(df.columns)]
-        rows = [
-            {str(col): str(val) for col, val in row.items()} for row in df.to_dict(orient="records")
-        ]
-        return {"headers": headers, "rows": rows}
+            df = df.fillna("")
+            headers = [str(h) for h in list(df.columns)]
+            rows = [
+                {str(col): str(val) for col, val in row.items()}
+                for row in df.to_dict(orient="records")
+            ]
+            return {"headers": headers, "rows": rows}
     except ImportError as e:
         raise HTTPException(
             status_code=501,
@@ -1459,6 +1633,8 @@ def list_all_products_endpoint(
     )
     for batch in batches:
         batch_items = repo.list_items(db, tenant_id, batch.id, status=status, q=q)
+        if not status:
+            batch_items = [it for it in batch_items if it.status != "PROMOTED"]
         all_items.extend(batch_items)
 
     # Format items as products
@@ -1564,6 +1740,8 @@ def list_batch_items_products_endpoint(
 
     repo = ImportsRepository()
     items = repo.list_items(db, tenant_id, batch_id, status=status, q=None)
+    if not status:
+        items = [it for it in items if it.status != "PROMOTED"]
 
     # Format items as products
     products = []
@@ -1684,6 +1862,8 @@ def analyze_file_endpoint(
             "name": m.name,
             "description": m.description,
             "mapping": m.mapping or {},
+            "transforms": m.transforms or {},
+            "defaults": m.defaults or {},
             "file_pattern": m.file_pattern,
             "use_count": int(m.use_count or 0),
             "last_used_at": m.last_used_at.isoformat() if m.last_used_at else None,
@@ -1716,6 +1896,8 @@ def list_column_mappings_endpoint(request: Request, db: Session = Depends(get_db
             "name": m.name,
             "description": m.description,
             "mapping": m.mapping or {},
+            "transforms": m.transforms or {},
+            "defaults": m.defaults or {},
             "file_pattern": m.file_pattern,
             "use_count": int(m.use_count or 0),
             "last_used_at": m.last_used_at.isoformat() if m.last_used_at else None,
@@ -1730,6 +1912,8 @@ class CreateColumnMappingDTO(BaseModel):
     mapping: dict
     description: str | None = None
     file_pattern: str | None = None
+    transforms: dict | None = None
+    defaults: dict | None = None
 
 
 @router.post("/column-mappings")
@@ -1754,6 +1938,8 @@ def create_column_mapping_endpoint(
         description=(dto.description or None),
         file_pattern=(dto.file_pattern or None),
         mapping=dict(dto.mapping or {}),
+        transforms=(dto.transforms or None),
+        defaults=(dto.defaults or None),
         created_by=user_id,
     )
     db.add(m)
@@ -1764,6 +1950,8 @@ def create_column_mapping_endpoint(
         "name": m.name,
         "description": m.description,
         "mapping": m.mapping or {},
+        "transforms": m.transforms or {},
+        "defaults": m.defaults or {},
         "file_pattern": m.file_pattern,
         "use_count": int(m.use_count or 0),
         "last_used_at": m.last_used_at.isoformat() if m.last_used_at else None,
@@ -2055,6 +2243,39 @@ def promote_items_endpoint(
                     db.add(item)
                     # Detectar fallos de integridad en el acto (no esperar al commit global)
                     db.flush()
+                    try:
+                        audit_user = claims.get("user_id") or claims.get("tenant_user_id") or claims.get(
+                            "user_uuid"
+                        )
+                        if not audit_user:
+                            audit_user = str(tenant_id)
+                        audit_payload = {
+                            "action": "promote",
+                            "product_id": str(result.domain_id),
+                            "item_id": str(item.id),
+                            "batch_id": str(item.batch_id),
+                            "sku": src.get("sku") or src.get("codigo"),
+                            "name": src.get("name"),
+                        }
+                        db.execute(
+                            text(
+                                "INSERT INTO import_audits "
+                                "(document_id, batch_id, item_id, tenant_id, user_id, changes) "
+                                "VALUES (:document_id, :batch_id, :item_id, :tenant_id, :user_id, "
+                                "CAST(:changes AS jsonb))"
+                            ),
+                            {
+                                "document_id": 0,
+                                "batch_id": str(item.batch_id),
+                                "item_id": str(item.id),
+                                "tenant_id": str(tenant_id),
+                                "user_id": str(audit_user),
+                                "changes": json.dumps(audit_payload, ensure_ascii=False),
+                            },
+                        )
+                    except Exception:
+                        # Audit is best-effort; never block promotion
+                        pass
                     promoted_count += 1
                 else:
                     errors.append(
@@ -2307,6 +2528,8 @@ def create_column_mapping(
     mapping: dict[str, str],
     description: str = None,
     file_pattern: str = None,
+    transforms: dict | None = None,
+    defaults: dict | None = None,
     request: Request = None,
     db: Session = Depends(get_db),
 ):
@@ -2346,6 +2569,8 @@ def create_column_mapping(
         description=description,
         file_pattern=file_pattern,
         mapping=mapping,
+        transforms=transforms,
+        defaults=defaults,
         created_by=user_id,
     )
     db.add(obj)
@@ -2357,6 +2582,8 @@ def create_column_mapping(
         "name": obj.name,
         "description": obj.description,
         "mapping": obj.mapping,
+        "transforms": obj.transforms,
+        "defaults": obj.defaults,
         "created_at": obj.created_at.isoformat(),
     }
 
@@ -2387,6 +2614,8 @@ def list_column_mappings(request: Request, db: Session = Depends(get_db)):
             "name": m.name,
             "description": m.description,
             "mapping": m.mapping,
+            "transforms": m.transforms or {},
+            "defaults": m.defaults or {},
             "file_pattern": m.file_pattern,
             "use_count": m.use_count,
             "last_used_at": m.last_used_at.isoformat() if m.last_used_at else None,

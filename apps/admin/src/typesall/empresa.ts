@@ -1,6 +1,7 @@
 export interface Empresa {
   id: number;
   nombre: string;
+  name?: string;
   modulos?: string[];
 }
 
@@ -20,6 +21,7 @@ export interface FormularioEmpresa {
   sitio_web: string;
   logo: File | null;
   color_primario: string;
+  color_secundario: string;
   plantilla_inicio: string;
   config_json: string;
   default_language?: string;

@@ -58,6 +58,16 @@ export function createClient(opts: CreateClientOpts): AxiosInstance {
     return config
   })
 
+  const clearToken = () => {
+    sessionStorage.removeItem(tokenKey)
+    localStorage.removeItem(tokenKey)
+  }
+  const notifyAuthExpired = () => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('auth-expired', { detail: { tokenKey } }))
+    }
+  }
+
   // Response: 401 -> intenta refresh una vez
   let inflight: Promise<string | null> | null = null
   api.interceptors.response.use(undefined, async (error: any) => {
@@ -69,7 +79,15 @@ export function createClient(opts: CreateClientOpts): AxiosInstance {
     } catch {}
     const status = error?.response?.status
     const original: any = error?.config || {}
-    if (status === 401 && !original.__retried) {
+    const url = original.url || ''
+    const isRefreshCall = url.endsWith(refreshPath)
+    const hadToken = !!sessionStorage.getItem(tokenKey) || !!localStorage.getItem(tokenKey)
+    if (status === 401 && isRefreshCall) {
+      clearToken()
+      notifyAuthExpired()
+      throw error
+    }
+    if (status === 401 && !original.__retried && hadToken) {
       try {
         original.__retried = true
         inflight = inflight || (async () => {
@@ -91,7 +109,12 @@ export function createClient(opts: CreateClientOpts): AxiosInstance {
         }
       } catch {
         inflight = null
+        clearToken()
+        notifyAuthExpired()
       }
+    } else if (status === 401) {
+      clearToken()
+      notifyAuthExpired()
     }
     throw error
   })

@@ -102,9 +102,10 @@ export function useSectorPlaceholders(
     // Cargar desde API
     setState(prev => ({ ...prev, loading: true }))
 
+    const encodedCode = encodeURIComponent(sectorCode)
     const url = module
-      ? `/api/v1/sectors/${sectorCode}/placeholders?module=${module}`
-      : `/api/v1/sectors/${sectorCode}/placeholders`
+      ? `/api/v1/sectors/${encodedCode}/placeholders?module=${module}`
+      : `/api/v1/sectors/${encodedCode}/placeholders`
 
     tenantApi
       .get(url)
@@ -236,11 +237,21 @@ export function clearPlaceholderCache() {
  * const placeholder = getFieldPlaceholder(config.fields.inventory.placeholders, 'lote')
  */
 export function getFieldPlaceholder(
-  placeholders: PlaceholderData | undefined,
+  placeholders: PlaceholderData | PlaceholdersByModule | undefined,
   fieldName: string,
   defaultValue: string = ''
 ): string {
-  return placeholders?.[fieldName] || defaultValue
+  if (!placeholders) return defaultValue
+  if (fieldName in (placeholders as PlaceholderData)) {
+    return (placeholders as PlaceholderData)[fieldName] || defaultValue
+  }
+  for (const moduleKey in placeholders as PlaceholdersByModule) {
+    const modulePlaceholders = (placeholders as PlaceholdersByModule)[moduleKey]
+    if (modulePlaceholders && modulePlaceholders[fieldName]) {
+      return modulePlaceholders[fieldName]
+    }
+  }
+  return defaultValue
 }
 
 /**

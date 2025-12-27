@@ -1,9 +1,9 @@
-﻿import React from 'react'
+import React from 'react'
 import { useParams } from 'react-router-dom'
 import { usePanaderiaKPIs } from '../hooks/useDashboardKPIs'
 import { useMisModulos } from '../hooks/useMisModulos'
 import DashboardPro from './components/DashboardPro'
-import './panaderia_pro.css'
+import './dashboard_pro.css'
 
 interface KPIData {
   ventas_mostrador?: {
@@ -43,8 +43,7 @@ const PanaderiaDashboard: React.FC = () => {
   const { empresa } = useParams<{ empresa?: string }>()
   const { modules } = useMisModulos()
 
-  // Solo cargar KPIs si hay módulos de ventas/producción activos
-  const shouldLoadKPIs = modules.some(m =>
+  const shouldLoadKPIs = modules.some((m) =>
     ['ventas', 'pos', 'produccion', 'inventario'].includes((m.slug || '').toLowerCase())
   )
   const { data: kpisData, loading: kpisLoading } = usePanaderiaKPIs({ enabled: shouldLoadKPIs })
@@ -57,96 +56,97 @@ const PanaderiaDashboard: React.FC = () => {
   const ingredientes = kpis.ingredientes_caducar || {}
   const topProductos = kpis.top_productos || []
 
-  // Helper: verificar si un módulo está activo
   const isModuleEnabled = (moduleName: string) => {
-    return modules.some(m =>
-      (m.slug || '').toLowerCase() === moduleName.toLowerCase() ||
-      (m.name || '').toLowerCase().includes(moduleName.toLowerCase())
+    return modules.some(
+      (m) =>
+        (m.slug || '').toLowerCase() === moduleName.toLowerCase() ||
+        (m.name || '').toLowerCase().includes(moduleName.toLowerCase())
     )
   }
 
-  // Enlaces personalizados solo para módulos activos
   const prefix = empresa ? `/${empresa}` : ''
   const customLinks = [
-    isModuleEnabled('produccion') && { label: 'Recetas', href: `${prefix}/produccion/recetas`, icon: '🍞' },
-    isModuleEnabled('inventario') && { label: 'Inventory', href: `${prefix}/inventario`, icon: '📦' },
-    isModuleEnabled('compras') && { label: 'Compras', href: `${prefix}/compras`, icon: '🛍️' }
+    isModuleEnabled('produccion') && { label: 'Recipes', href: `${prefix}/produccion/recetas`, icon: 'R' },
+    isModuleEnabled('inventario') && { label: 'Inventory', href: `${prefix}/inventario`, icon: 'I' },
+    isModuleEnabled('compras') && { label: 'Purchasing', href: `${prefix}/compras`, icon: 'P' },
   ].filter(Boolean) as Array<{ label: string; href: string; icon: string }>
 
   return (
-    <DashboardPro
-      sectorName="PanERP"
-      sectorIcon="🥖"
-      customLinks={customLinks}
-    >
-      <h1>🥖 Hoy en tu panadería</h1>
+    <DashboardPro sectorName="Bakery ERP" sectorIcon="B" customLinks={customLinks}>
+      <h1>Bakery overview</h1>
 
-        {/* Mensaje de bienvenida si solo tiene clientes */}
-        {modules.length === 1 && isModuleEnabled('clientes') && (
-          <section className="card full-width" style={{background: 'linear-gradient(135deg, var(--primary), var(--focus))', color: '#fff', padding: '40px', textAlign: 'center'}}>
-            <h2 style={{margin: 0, fontSize: '24px'}}>👋 ¡Bienvenido a tu ERP!</h2>
-            <p style={{marginTop: '12px', opacity: 0.9}}>Comienza agregando tus clientes. Los demás módulos se activarán progresivamente.</p>
-            <a href={`${prefix}/clientes`} className="btn" style={{marginTop: '20px', display: 'inline-block', background: '#fff', color: 'var(--primary)', fontWeight: 600}}>
-              👥 Ir a Clientes
-            </a>
-          </section>
-        )}
+      {modules.length === 1 && isModuleEnabled('clientes') && (
+        <section
+          className="card full-width"
+          style={{ background: 'linear-gradient(135deg, var(--primary), var(--focus))', color: '#fff', padding: '40px', textAlign: 'center' }}
+        >
+          <h2 style={{ margin: 0, fontSize: '24px' }}>Welcome to your ERP</h2>
+          <p style={{ marginTop: '12px', opacity: 0.9 }}>
+            Start by adding your customers. Other modules will unlock as you progress.
+          </p>
+          <a href={`${prefix}/clientes`} className="btn" style={{ marginTop: '20px', display: 'inline-block', background: '#fff', color: 'var(--primary)', fontWeight: 600 }}>
+            Go to Customers
+          </a>
+        </section>
+      )}
 
-        <div className="dashboard-grid">
-          {/* Estado del día */}
-          <section className="card full-width">
-            <div className="card__header">
-              <h3>Estado del día</h3>
-              <div className="pills">
-              <span className="pill pill--ok">Sistema operativo</span>
+      <div className="dashboard-grid">
+        <section className="card full-width">
+          <div className="card__header">
+            <h3>Today status</h3>
+            <div className="pills">
+              <span className="pill pill--ok">Operational</span>
               {isModuleEnabled('ventas') && ventas.hoy && ventas.hoy > 0 && (
-                <span className="pill">Ventas hoy: {ventas.moneda || '$'}{ventas.hoy.toFixed(2)}</span>
+                <span className="pill">
+                  Sales today: {ventas.moneda || '$'}
+                  {ventas.hoy.toFixed(2)}
+                </span>
               )}
-              </div>
             </div>
-            <div className="card__actions">
-              {isModuleEnabled('pos') && <a className="link" href={`${prefix}/pos`} target="_blank" rel="noopener noreferrer">Ir al POS ↗</a>}
-              {isModuleEnabled('produccion') && <a className="link" href={`${prefix}/produccion/recetas`}>Ver Recetas</a>}
-              {isModuleEnabled('ventas') && <a className="link" href={`${prefix}/ventas`}>Ver Ventas</a>}
-              {isModuleEnabled('clientes') && <a className="link" href={`${prefix}/clientes`}>Ver Clientes</a>}
-            </div>
-          </section>
+          </div>
+          <div className="card__actions">
+            {isModuleEnabled('pos') && (
+              <a className="link" href={`${prefix}/pos`} target="_blank" rel="noopener noreferrer">
+                Open POS
+              </a>
+            )}
+            {isModuleEnabled('produccion') && <a className="link" href={`${prefix}/produccion/recetas`}>Recipes</a>}
+            {isModuleEnabled('ventas') && <a className="link" href={`${prefix}/ventas`}>Sales</a>}
+            {isModuleEnabled('clientes') && <a className="link" href={`${prefix}/clientes`}>Customers</a>}
+          </div>
+        </section>
 
-          {/* Ventas del día - solo si módulo ventas activo */}
-          {isModuleEnabled('ventas') && (
+        {isModuleEnabled('ventas') && (
           <section className="card col-6">
-            <h3>💰 Ventas del día</h3>
+            <h3>Sales today</h3>
             <div className="kpi-grid">
               <div className="kpi">
-                <span className="kpi__label">Hoy</span>
-                <span className="kpi__value">
-                  {kpisLoading ? '...' : `€${ventas.hoy?.toFixed(2) || '0.00'}`}
-                </span>
+                <span className="kpi__label">Today</span>
+                <span className="kpi__value">{kpisLoading ? '...' : `$${ventas.hoy?.toFixed(2) || '0.00'}`}</span>
               </div>
               <div className="kpi">
-                <span className="kpi__label">Ayer</span>
-                <span className="kpi__value">€{ventas.ayer?.toFixed(2) || '0.00'}</span>
+                <span className="kpi__label">Yesterday</span>
+                <span className="kpi__value">${ventas.ayer?.toFixed(2) || '0.00'}</span>
               </div>
               <div className="kpi">
-                <span className="kpi__label">Variación</span>
                 <span className={`kpi__value ${(ventas.variacion || 0) >= 0 ? 'positive' : 'negative'}`}>
-                  {(ventas.variacion || 0) >= 0 ? '+' : ''}{ventas.variacion?.toFixed(1) || '0'}%
+                  {(ventas.variacion || 0) >= 0 ? '+' : ''}
+                  {ventas.variacion?.toFixed(1) || '0'}%
                 </span>
               </div>
             </div>
             <div className="card__footer">
-              <a className="link" href="#detalle-ventas">Ver detalle →</a>
+              <a className="link" href="#sales-detail">View details</a>
             </div>
           </section>
-          )}
+        )}
 
-          {/* Stock crítico - solo si inventario activo */}
-          {isModuleEnabled('inventario') && (
+        {isModuleEnabled('inventario') && (
           <section className="card col-3">
-            <h3>⚠️ Stock crítico</h3>
+            <h3>Critical stock</h3>
             <div className="stat-large">
               <span className="stat-large__value">{stock.items || 0}</span>
-              <span className="stat-large__label">productos</span>
+              <span className="stat-large__label">products</span>
             </div>
             {stock.nombres && stock.nombres.length > 0 && (
               <ul className="list-compact">
@@ -156,59 +156,55 @@ const PanaderiaDashboard: React.FC = () => {
               </ul>
             )}
             <div className="card__footer">
-              <a className="link" href="#stock">Revisar inventario →</a>
+              <a className="link" href="#stock">Review inventory</a>
             </div>
           </section>
-          )}
+        )}
 
-          {/* Mermas - solo si inventario activo */}
-          {isModuleEnabled('inventario') && (
+        {isModuleEnabled('inventario') && (
           <section className="card col-3">
-            <h3>📉 Mermas del día</h3>
+            <h3>Waste today</h3>
             <div className="stat-large">
               <span className="stat-large__value">{mermas.hoy || 0}</span>
               <span className="stat-large__label">kg</span>
             </div>
             <div className="kpi">
-              <span className="kpi__label">Valor estimado</span>
-              <span className="kpi__value">€{mermas.valor_estimado?.toFixed(2) || '0.00'}</span>
+              <span className="kpi__label">Estimated value</span>
+              <span className="kpi__value">${mermas.valor_estimado?.toFixed(2) || '0.00'}</span>
             </div>
             <div className="card__footer">
-              <a className="link" href="#mermas">Ver detalles →</a>
+              <a className="link" href="#waste">View details</a>
             </div>
           </section>
-          )}
+        )}
 
-          {/* Producción - solo si produccion activo */}
-          {isModuleEnabled('produccion') && (
+        {isModuleEnabled('produccion') && (
           <section className="card col-4">
-            <h3>🔥 Producción de hornadas</h3>
+            <h3>Production batches</h3>
             <div className="progress-stat">
               <div className="progress-stat__header">
-                <span>{produccion.hornadas_completadas || 0} / {produccion.hornadas_programadas || 0}</span>
+                <span>
+                  {produccion.hornadas_completadas || 0} / {produccion.hornadas_programadas || 0}
+                </span>
                 <span>{produccion.progreso?.toFixed(0) || 0}%</span>
               </div>
               <div className="progress-bar">
-                <div
-                  className="progress-bar__fill"
-                  style={{ width: `${produccion.progreso || 0}%` }}
-                />
+                <div className="progress-bar__fill" style={{ width: `${produccion.progreso || 0}%` }} />
               </div>
             </div>
             <div className="pills">
-              <span className="pill pill--ok">En horario</span>
-              <span className="pill">2 pendientes</span>
+              <span className="pill pill--ok">On track</span>
+              <span className="pill">2 pending</span>
             </div>
           </section>
-          )}
+        )}
 
-          {/* Ingredientes a caducar - solo si inventario activo */}
-          {isModuleEnabled('inventario') && (
+        {isModuleEnabled('inventario') && (
           <section className="card col-4">
-            <h3>📅 Ingredientes a caducar</h3>
+            <h3>Ingredients expiring</h3>
             <div className="stat-large">
               <span className="stat-large__value">{ingredientes.proximos_7_dias || 0}</span>
-              <span className="stat-large__label">próximos 7 días</span>
+              <span className="stat-large__label">next 7 days</span>
             </div>
             {ingredientes.items && ingredientes.items.length > 0 && (
               <ul className="list-compact">
@@ -218,12 +214,11 @@ const PanaderiaDashboard: React.FC = () => {
               </ul>
             )}
           </section>
-          )}
+        )}
 
-          {/* Top productos - solo si ventas activo */}
-          {isModuleEnabled('ventas') && (
+        {isModuleEnabled('ventas') && (
           <section className="card col-4">
-            <h3>🏆 Top productos</h3>
+            <h3>Top products</h3>
             <div className="table-compact">
               {topProductos.length > 0 ? (
                 <table>
@@ -231,75 +226,72 @@ const PanaderiaDashboard: React.FC = () => {
                     {topProductos.map((prod: any, i: number) => (
                       <tr key={i}>
                         <td>{prod.name}</td>
-                        <td className="text-right">{prod.unidades} un.</td>
-                        <td className="text-right">€{prod.ingresos?.toFixed(2)}</td>
+                        <td className="text-right">{prod.unidades} units</td>
+                        <td className="text-right">${prod.ingresos?.toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               ) : (
-                <p className="empty-state">No hay datos</p>
+                <p className="empty-state">No data</p>
               )}
             </div>
           </section>
-          )}
+        )}
 
-          {/* Ventas por hora - solo si ventas activo */}
-          {isModuleEnabled('ventas') && (
+        {isModuleEnabled('ventas') && (
           <section className="card col-8">
-            <h3>📊 Ventas por hora</h3>
+            <h3>Sales by hour</h3>
             <div className="chart-container">
               <div className="chart-placeholder">
-                <canvas id="ventasChart" height="200"></canvas>
-                <p className="chart-empty">Gráfico en desarrollo</p>
+                <canvas id="salesChart" height="200"></canvas>
+                <p className="chart-empty">Chart in progress</p>
               </div>
             </div>
             <div className="pills">
-              <span className="pill">Real</span>
-              <span className="pill">Previsión</span>
-              <span className="pill">Objetivo</span>
+              <span className="pill">Actual</span>
+              <span className="pill">Forecast</span>
+              <span className="pill">Target</span>
             </div>
           </section>
-          )}
+        )}
 
-          {/* Acciones rápidas - dinámicas según módulos */}
-          <section className="card col-4">
-            <h3>⚡ Acciones rápidas</h3>
-            <div className="action-grid">
-              {isModuleEnabled('pos') && (
-                <a href={`${prefix}/pos`} target="_blank" rel="noopener noreferrer" className="action-btn action-btn--primary">
-                  <span className="action-btn__icon">🏪</span>
-                  <span>Abrir TPV</span>
+        <section className="card col-4">
+          <h3>Quick actions</h3>
+          <div className="action-grid">
+            {isModuleEnabled('pos') && (
+              <a href={`${prefix}/pos`} target="_blank" rel="noopener noreferrer" className="action-btn action-btn--primary">
+                <span className="action-btn__icon">P</span>
+                <span>Open POS</span>
+              </a>
+            )}
+            {isModuleEnabled('inventario') && (
+              <>
+                <a href="#waste" className="action-btn">
+                  <span className="action-btn__icon">W</span>
+                  <span>Record waste</span>
                 </a>
-              )}
-              {isModuleEnabled('inventario') && (
-                <>
-                  <a href="#registro-merma" className="action-btn">
-                    <span className="action-btn__icon">📝</span>
-                    <span>Registrar merma</span>
-                  </a>
-                  <a href="#ajuste-stock" className="action-btn">
-                    <span className="action-btn__icon">📦</span>
-                    <span>Ajuste stock</span>
-                  </a>
-                </>
-              )}
-              {isModuleEnabled('produccion') && (
-                <a href="#nueva-hornada" className="action-btn">
-                  <span className="action-btn__icon">🔥</span>
-                  <span>Nueva hornada</span>
+                <a href="#stock-adjust" className="action-btn">
+                  <span className="action-btn__icon">S</span>
+                  <span>Stock adjustment</span>
                 </a>
-              )}
-              {isModuleEnabled('clientes') && (
-                <a href={`${prefix}/clientes`} className="action-btn">
-                  <span className="action-btn__icon">👥</span>
-                  <span>Nuevo cliente</span>
-                </a>
-              )}
-            </div>
-          </section>
-
-        </div>
+              </>
+            )}
+            {isModuleEnabled('produccion') && (
+              <a href="#new-batch" className="action-btn">
+                <span className="action-btn__icon">B</span>
+                <span>New batch</span>
+              </a>
+            )}
+            {isModuleEnabled('clientes') && (
+              <a href={`${prefix}/clientes`} className="action-btn">
+                <span className="action-btn__icon">@</span>
+                <span>New customer</span>
+              </a>
+            )}
+          </div>
+        </section>
+      </div>
     </DashboardPro>
   )
 }
