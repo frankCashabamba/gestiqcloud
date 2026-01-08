@@ -96,6 +96,19 @@ def parse_csv_products(file_path: str) -> dict[str, Any]:
                         "imported_at": datetime.utcnow().isoformat(),
                     },
                 }
+                cost_val = _to_float(
+                    normalized_row.get("cost_price")
+                    or normalized_row.get("cost")
+                    or normalized_row.get("costo")
+                    or normalized_row.get("costo_promedio")
+                    or normalized_row.get("costo promedio")
+                    or normalized_row.get("unit_cost")
+                    or normalized_row.get("precio costo")
+                )
+                if cost_val is not None:
+                    product["cost_price"] = cost_val
+                    product["cost"] = cost_val
+                    product["unit_cost"] = cost_val
 
                 # Extract SKU if available
                 sku = (

@@ -44,7 +44,7 @@ def extraer_factura(texto: str, country: str = "EC") -> list[dict[str, Any]]:
             try:
                 subtotal = float(subtotal_raw.strip().replace(",", "."))
             except Exception:
-                subtotal = total / 1.12  # Asume IVA 12% EC como fallback
+                subtotal = total
 
         descripcion = buscar_descripcion(texto)
         concepto = buscar_concepto(texto)

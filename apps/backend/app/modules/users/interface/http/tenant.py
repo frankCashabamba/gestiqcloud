@@ -122,6 +122,7 @@ def list_company_modules(
     return services.list_company_modules(db, tenant_id)
 
 
+
 @router.get("/roles", response_model=list[CompanyRoleOption])
 def list_company_roles(
     request: Request,
@@ -130,6 +131,17 @@ def list_company_roles(
 ):
     tenant_id = _tenant_id(request)
     return services.list_company_roles(db, tenant_id)
+
+
+@router.get("/{usuario_id}", response_model=CompanyUserOut)
+def get_user(
+    request: Request,
+    usuario_id: UUID,
+    db: Session = Depends(get_db),
+    current_user=Depends(permissions.require_perm_update_tenant_user),
+):
+    tenant_id = _tenant_id(request)
+    return services.get_company_user(db, tenant_id, usuario_id)
 
 
 @public_router.get("/check-username/{username}")

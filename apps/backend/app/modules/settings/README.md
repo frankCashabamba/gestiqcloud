@@ -5,11 +5,11 @@ Config multi-tenant de módulos/campos. No cubre catálogos globales (ver `admin
 ## Alcance rápido
 - Cubre: settings generales/branding/fiscal/POS/horarios/limites por tenant (`tenant/settings/*`), catalogo de modulos, field-config por sector/tenant (admin), theming tokens y form modes.
 - No cubre: gestión de módulos obligatorios (se valida en `SettingsManager` pero no expone admin público), migraciones de datos legacy.
-- Fuente de datos: `/api/v1/company/settings` y `/api/v1/tenants/{tenant_id}/settings` leen/escriben `company_settings` (alias `TenantSettings` para compat).
+- Fuente de datos: `/api/v1/company/settings` (empresa actual) lee/escribe `company_settings`.
 
-## Endpoints relevantes (`app/modules/settings/interface/http/tenant.py`)
-- Base tenant: `/api/v1/tenant/settings/*`
-  - `GET/PUT /general`, `/branding`, `/fiscal`, `/pos`, `/horarios`, `/limites`
+## Endpoints relevantes
+- Base company: `/api/v1/company/settings/*`
+  - `GET/PUT /general`, `/branding`, `/fiscal`, `/horarios`, `/limites`
   - `GET /fields?module=clientes&empresa=<slug>` → devuelve visibilidad/orden de campos (resuelve defaults por sector); `PUT` no expuesto en tenant (solo admin).
   - `GET /theme?empresa=<slug>` → tokens de UI (colores, logo, sector).
 - Admin field-config (sin prefijo tenant): `/api/v1/admin/field-config/*`
@@ -19,10 +19,10 @@ Config multi-tenant de módulos/campos. No cubre catálogos globales (ver `admin
 
 ### Ejemplos
 ```
-GET /api/v1/tenant/settings/general
+GET /api/v1/company/settings/general
 → 200 { "locale": "<db>", "timezone": "<db>", "currency": "<db>", ... }
 
-PUT /api/v1/tenant/settings/pos
+PUT /api/v1/company/settings/pos
 { "tax": { "enabled": true, "default_rate": 0.12 }, "receipt_width_mm": 58 }
 → 200 { "ok": true }
 

@@ -42,6 +42,7 @@ from app.schemas.accounting import (
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
+import logging
 
 router = APIRouter(
     prefix="/accounting",
@@ -52,6 +53,8 @@ router = APIRouter(
         Depends(ensure_rls),
     ],
 )
+
+logger = logging.getLogger(__name__)
 from pydantic import BaseModel
 
 
@@ -377,6 +380,15 @@ async def get_pos_accounting_settings(
     cfg = db.query(TenantAccountingSettings).filter_by(tenant_id=tid).first()
     if not cfg:
         raise HTTPException(status_code=404, detail="Config contable POS no configurada")
+    logger.info(
+        "POS accounting settings loaded for tenant_id=%s cash_account_id=%s bank_account_id=%s sales_account_id=%s vat_output_account_id=%s loss_account_id=%s",
+        tid,
+        cfg.cash_account_id,
+        cfg.bank_account_id,
+        cfg.sales_bakery_account_id,
+        cfg.vat_output_account_id,
+        cfg.loss_account_id,
+    )
     return {
         "cash_account_id": str(cfg.cash_account_id),
         "bank_account_id": str(cfg.bank_account_id),
@@ -406,6 +418,15 @@ async def upsert_pos_accounting_settings(
 
     db.commit()
     db.refresh(cfg)
+    logger.info(
+        "POS accounting settings saved for tenant_id=%s cash_account_id=%s bank_account_id=%s sales_account_id=%s vat_output_account_id=%s loss_account_id=%s",
+        tid,
+        cfg.cash_account_id,
+        cfg.bank_account_id,
+        cfg.sales_bakery_account_id,
+        cfg.vat_output_account_id,
+        cfg.loss_account_id,
+    )
     return {
         "cash_account_id": str(cfg.cash_account_id),
         "bank_account_id": str(cfg.bank_account_id),

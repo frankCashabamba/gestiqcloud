@@ -1,9 +1,7 @@
-from sqlalchemy import select
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session
 
-from app.db.rls import tenant_id_sql_expr
-from app.models.core.settings import TenantSettings
+from app.models.company.company_settings import CompanySettings
 
 
 class SettingsRepo:
@@ -12,7 +10,7 @@ class SettingsRepo:
 
     def get(self, key: str) -> dict:
         try:
-            row = self.db.query(TenantSettings).first()
+            row = self.db.query(CompanySettings).first()
             if not row:
                 return {}
             # Map well-known keys. For 'pos', prefer dedicated column; others under settings JSON.
@@ -24,22 +22,16 @@ class SettingsRepo:
             base = row.settings or {}
             return base.get(key, {}) if isinstance(base, dict) else {}
         except ProgrammingError:
-            # Table tenant_settings may not exist in some deployments. Gracefully degrade.
+            # Table company_settings may not exist in some deployments. Gracefully degrade.
             self.db.rollback()
             return {}
 
     def put(self, key: str, data: dict) -> None:
         try:
-            row = self.db.query(TenantSettings).first()
+            row = self.db.query(CompanySettings).first()
             if not row:
-                # Create settings row for current tenant using GUC app.tenant_id
-                tenant_id = self.db.scalar(select(tenant_id_sql_expr()))
-                if not tenant_id:
-                    # No tenant in context; cannot create
-                    return
-                row = TenantSettings(tenant_id=tenant_id)
-                self.db.add(row)
-                self.db.flush()
+                # Company settings must exist before updating
+                return
 
             if key == "pos":
                 row.pos_config = data

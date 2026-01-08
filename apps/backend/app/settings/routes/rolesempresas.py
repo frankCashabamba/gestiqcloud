@@ -41,7 +41,7 @@ def crear_rol(
         name=data.name,
         description=data.description,
         permissions=dict.fromkeys(data.permissions, True),
-        rol_base_id=data.copy_from_id,
+        base_role_id=data.copy_from_id,
         created_by_company=True,
     )
 

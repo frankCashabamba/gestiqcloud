@@ -1,4 +1,4 @@
-/* Service Worker Core - Shared between Admin & Tenant */
+/* Service Worker Core - Shared between Admin & Company */
 import { precacheAndRoute } from 'workbox-precaching'
 import { clientsClaim } from 'workbox-core'
 import { createStore, set, del, entries } from 'idb-keyval'

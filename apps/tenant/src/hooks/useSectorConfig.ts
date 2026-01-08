@@ -1,7 +1,7 @@
 /**
  * useSectorConfig
  *
- * @deprecated Use useSectorFullConfig() instead.
+ * @deprecated Use useCompanySectorFullConfig() instead.
  * This hook is kept for backward compatibility but will be removed in the next major version.
  *
  * FASE 5: Deprecación de helpers hardcodeados
@@ -24,7 +24,7 @@
  * const { config } = useSectorConfig('panaderia')
  *
  * // ✅ NUEVO (USE THIS)
- * const { sectorConfig } = useSectorFullConfig('panaderia')
+ * const { sectorConfig } = useCompanySectorFullConfig('panaderia')
  * ```
  */
 

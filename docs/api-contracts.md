@@ -15,7 +15,7 @@ Contratos mínimos por módulo. Mantener sincronizados con `apps/packages/api-ty
   - `POST /set-password` `{ token, password }` → `{ ok:true }` o `400 invalid_or_expired_token|weak_password`, `404 user_not_found`.
 - **Compat**: añadir nuevos claims como opcionales; cambios en paths/cookies son breaking. Ver `apps/backend/app/api/v1/{tenant,admin}/auth.py`.
 
-## Tenant Settings (base `/api/v1/tenant/settings`)
+## Company Settings (base `/api/v1/company/settings`)
 - `GET/PUT /general` `{ locale, timezone, currency, ... }`
 - `GET/PUT /branding` `{ logo_url?, color_primario?, ... }`
 - `GET/PUT /fiscal` `{ tax:{ enabled, default_rate }, ... }` (PUT requiere `is_company_admin`).

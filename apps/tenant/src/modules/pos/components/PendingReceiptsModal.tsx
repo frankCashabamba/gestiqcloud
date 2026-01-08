@@ -139,6 +139,11 @@ export default function PendingReceiptsModal({ isOpen, shiftId, onClose, onPaid,
                     <div className="text-sm text-gray-600">
                       Total: {currencySymbol}{amount.toFixed(2)} · Líneas: {r.lines?.length || 0}
                     </div>
+                    {r.cashier_name && (
+                      <div className="text-xs text-gray-500">
+                        Cajero: {r.cashier_name}
+                      </div>
+                    )}
                     {r.created_at && (
                       <div className="text-xs text-gray-500">
                         Creado: {new Date(r.created_at).toLocaleString()}

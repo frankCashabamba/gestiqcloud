@@ -41,6 +41,11 @@ def listar_modulos_asignados(request: Request, db: Session = Depends(get_db)):
         tenant_uuid = UUID(str(tenant_id))
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="invalid_tenant_id")
+    is_admin = bool(claims.get("is_company_admin"))
     use = ListarModulosAsignadosTenant(SqlModuloRepo(db))
-    items = use.execute(tenant_user_id=tenant_user_id, tenant_id=tenant_uuid)
+    items = use.execute(
+        tenant_user_id=tenant_user_id,
+        tenant_id=tenant_uuid,
+        is_admin=is_admin,
+    )
     return [ModuloOutSchema.model_construct(**i) for i in items]

@@ -8,7 +8,7 @@
  * - Usa useSectorPlaceholders para cargar dinámicamente
  */
 import React from 'react'
-import { useTenantFeatures, useTenantSector } from '../contexts/TenantConfigContext'
+import { useCompanyFeatures, useCompanySector } from '../contexts/CompanyConfigContext'
 import { useSectorPlaceholders, getFieldPlaceholder } from '../hooks/useSectorPlaceholders'
 
 interface ConditionalProductFieldsProps {
@@ -22,8 +22,8 @@ export function ConditionalProductFields({
   onChange,
   onCheckboxChange
 }: ConditionalProductFieldsProps) {
-  const features = useTenantFeatures()
-  const sector = useTenantSector()
+  const features = useCompanyFeatures()
+  const sector = useCompanySector()
   const { placeholders } = useSectorPlaceholders(sector?.plantilla, 'products')
 
   return (

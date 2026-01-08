@@ -52,6 +52,6 @@ export async function removeVenta(id: number | string): Promise<void> {
 }
 
 export async function convertToInvoice(id: number | string): Promise<{ invoice_id: string }> {
-    const { data } = await tenantApi.post<{ invoice_id: string }>(`${TENANT_VENTAS.byId(id)}/to_invoice`)
+    const { data } = await tenantApi.post<{ invoice_id: string }>(`${TENANT_VENTAS.byId(id)}/invoice`)
     return data
 }

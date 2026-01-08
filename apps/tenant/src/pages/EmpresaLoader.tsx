@@ -2,7 +2,7 @@ import React, { Suspense, useEffect, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import { applyTheme } from '@shared/ui'
 import { useAuth } from '../auth/AuthContext'
-import { fetchTenantTheme } from '../services/theme'
+import { fetchCompanyTheme } from '../services/theme'
 
 type LazyComp = React.LazyExoticComponent<React.ComponentType<any>>
 type ThemeResp = { sector?: string } & Record<string, any>
@@ -21,7 +21,7 @@ export default function EmpresaLoader() {
     ;(async () => {
       try {
         if (!empresa) return
-        const t = await fetchTenantTheme(empresa)
+        const t = await fetchCompanyTheme(empresa)
         if (t) {
           try {
             applyTheme(t as any)

@@ -30,6 +30,8 @@ class PrinterLabelConfiguration(Base):
     width_mm: Mapped[float | None] = mapped_column(Float)
     height_mm: Mapped[float | None] = mapped_column(Float)
     gap_mm: Mapped[float | None] = mapped_column(Float)
+    columns: Mapped[int | None] = mapped_column(Integer)
+    column_gap_mm: Mapped[float | None] = mapped_column(Float)
     copies: Mapped[int | None] = mapped_column(Integer)
     show_price: Mapped[bool | None] = mapped_column(Boolean)
     show_category: Mapped[bool | None] = mapped_column(Boolean)

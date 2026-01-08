@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { fetchTenantTheme } from '../services/theme'
+import { fetchCompanyTheme } from '../services/theme'
 
 type ThemeResponse = { sector?: string }
 
@@ -13,7 +13,7 @@ export default function SectorRedirect() {
     ;(async () => {
       try {
         // Intenta obtener sector desde el tema (puede incluir sector)
-        const t = await fetchTenantTheme()
+        const t = await fetchCompanyTheme()
         const s = (t && t.sector) ? t.sector : 'default'
         if (!cancelled) setSlug(s)
         try { document.documentElement.dataset.sector = s } catch {}

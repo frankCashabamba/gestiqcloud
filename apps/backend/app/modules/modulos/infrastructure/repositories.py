@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from app.models.core.modulo import AssignedModule, Module
+from app.models.core.modulo import AssignedModule, CompanyModule, Module
 from app.modules.shared.infrastructure.sqlalchemy_repo import SqlAlchemyRepo
 
 
@@ -17,11 +17,21 @@ class SqlModuloRepo(SqlAlchemyRepo):
             .filter(
                 AssignedModule.user_id == tenant_user_id,
                 AssignedModule.tenant_id == tenant_id,
-                AssignedModule.auto_view_module,  # noqa: E712
             )
             .all()
         )
         return [self._to_dto(ma.module) for ma in rows if ma.module]
+
+    def list_contracted(self, *, tenant_id) -> Sequence[dict]:
+        rows = (
+            self.db.query(CompanyModule)
+            .filter(
+                CompanyModule.tenant_id == tenant_id,
+                CompanyModule.active,  # noqa: E712
+            )
+            .all()
+        )
+        return [self._to_dto(cm.module) for cm in rows if cm.module]
 
     def _to_dto(self, m: Module) -> dict:
         return {

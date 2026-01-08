@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import ROUND_HALF_UP, Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -11,6 +13,7 @@ from app.db.rls import ensure_rls
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.sales.delivery import Delivery
 from app.models.sales.order import SalesOrder, SalesOrderItem
+from app.services.inventory_costing import InventoryCostingService
 
 router = APIRouter(
     prefix="/sales_orders",
@@ -30,6 +33,12 @@ def _tenant_id_str(request: Request) -> str | None:
         return str(tid) if tid is not None else None
     except Exception:
         return None
+
+
+def _dec(value: float | Decimal | None, q: str = "0.000001") -> Decimal:
+    if value is None:
+        value = 0
+    return Decimal(str(value)).quantize(Decimal(q), rounding=ROUND_HALF_UP)
 
 
 class OrderItemIn(BaseModel):
@@ -213,7 +222,35 @@ def do_delivery(
 
     items = db.query(SalesOrderItem).filter(SalesOrderItem.order_id == so.id).all()
     # Consume stock: for each item, create issue move and update stock_items
+    costing = InventoryCostingService(db)
     for it in items:
+        qty_dec = _dec(it.qty)
+        row = (
+            db.query(StockItem)
+            .filter(
+                StockItem.warehouse_id == payload.warehouse_id,
+                StockItem.product_id == it.product_id,
+            )
+            .with_for_update()
+            .first()
+        )
+        if not row:
+            row = StockItem(
+                warehouse_id=payload.warehouse_id, product_id=it.product_id, qty=0
+            )
+            db.add(row)
+            db.flush()
+
+        state = costing.apply_outbound(
+            tid or "",
+            str(payload.warehouse_id),
+            str(it.product_id),
+            qty=qty_dec,
+            allow_negative=False,
+            initial_qty=_dec(row.qty),
+            initial_avg_cost=_dec(0),
+        )
+
         mv = StockMove(
             tenant_id=tid,
             product_id=it.product_id,
@@ -223,21 +260,11 @@ def do_delivery(
             tentative=False,
             ref_type="delivery",
             ref_id=str(delivery_id),
+            unit_cost=float(state.avg_cost),
+            total_cost=float(state.avg_cost * qty_dec),
         )
         db.add(mv)
-        # update stock item
-        row = (
-            db.query(StockItem)
-            .filter(
-                StockItem.warehouse_id == payload.warehouse_id,
-                StockItem.product_id == it.product_id,
-            )
-            .first()
-        )
-        if not row:
-            row = StockItem(warehouse_id=payload.warehouse_id, product_id=it.product_id, qty=0)
-            db.add(row)
-            db.flush()
+
         row.qty = (row.qty or 0) - it.qty
         db.add(row)
 

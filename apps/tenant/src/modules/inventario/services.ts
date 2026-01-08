@@ -113,10 +113,15 @@ export async function createStockMove(data: {
   lote?: string
   expires_at?: string
 }): Promise<any> {
-  return apiFetch(`${INVENTORY_BASE}/moves`, {
+  return apiFetch(`${INVENTORY_BASE}/stock/adjust`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify({
+      warehouse_id: data.warehouse_id,
+      product_id: data.product_id,
+      delta: Number(data.qty),
+      reason: data.notes || data.kind,
+    }),
   })
 }
 

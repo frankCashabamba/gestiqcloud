@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useSectorPlaceholder } from '../../../hooks/useSectorPlaceholders'
-import { useTenant } from '../../../contexts/TenantContext'
+import { useCompany } from '../../../contexts/CompanyContext'
 
 interface ColumnMappingModalProps {
   isOpen: boolean
@@ -56,7 +56,7 @@ export default function ColumnMappingModal({
   const [shouldSave, setShouldSave] = useState(false)
   const [selectedSavedMapping, setSelectedSavedMapping] = useState<string>('')
   const [autoConfirming, setAutoConfirming] = useState(false)
-  const { sector } = useTenant()
+  const { sector } = useCompany()
 
   const { placeholder: saveNamePlaceholder } = useSectorPlaceholder(
     sector?.plantilla || null,

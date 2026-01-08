@@ -4,12 +4,12 @@
  * Badge visual que muestra el sector/plantilla activa del tenant
  * Incluye icono dinámico y color según tipo de negocio
  *
- * FASE 5: Usa useSectorFullConfig() que carga desde BD
+ * FASE 5: Usa useCompanySectorFullConfig() que carga desde BD
  * en lugar de datos hardcodeados (migrado desde useSectorConfig)
  */
 import React from 'react'
-import { useTenantSector, useTenantConfig } from '../contexts/TenantConfigContext'
-import { useSectorFullConfig, getSectorIcon, getSectorColor, getSectorDisplayName } from '../hooks/useSectorFullConfig'
+import { useCompanySector, useCompanyConfig } from '../contexts/CompanyConfigContext'
+import { useCompanySectorFullConfig, getSectorIcon, getSectorColor, getSectorDisplayName } from '../hooks/useCompanySectorFullConfig'
 
 interface SectorBadgeProps {
   /** Tamaño del badge */
@@ -25,11 +25,11 @@ export function SectorBadge({
   showLabel = true,
   className = ''
 }: SectorBadgeProps) {
-  const sector = useTenantSector()
-  const { config } = useTenantConfig()
+  const sector = useCompanySector()
+  const { config } = useCompanyConfig()
 
   // FASE 5: Cargar configuración completa del sector desde BD
-  const { config: sectorConfig, loading, error } = useSectorFullConfig(sector?.plantilla)
+  const { config: sectorConfig, loading, error } = useCompanySectorFullConfig(sector?.plantilla)
 
   if (!sector || !sector.plantilla) {
     return null
@@ -46,7 +46,7 @@ export function SectorBadge({
   // Usar displayName de la BD si disponible, sino fallback a normalización manual
   const displayName = sectorConfig?.branding
     ? getSectorDisplayName(sectorConfig)
-    : (config?.tenant?.plantilla_inicio || sector.plantilla)
+    : (config?.company?.plantilla_inicio || sector.plantilla)
         .replace(/_/g, ' ')
         .split(' ')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))

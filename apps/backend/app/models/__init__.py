@@ -40,6 +40,9 @@ from app.models.core.facturacion import (
     TransactionStatus,
     TransactionType,
 )
+from app.models.core.audit_event import AuditEvent
+from app.models.core.country_catalogs import CountryIdType, CountryTaxCode
+from app.models.core.document import Document
 from app.models.core.import_audit import ImportAudit
 from app.models.core.invoiceLine import BakeryLine, InvoiceLine, LineaFactura, WorkshopLine
 from app.models.core.modulo import AssignedModule, CompanyModule, Module
@@ -101,9 +104,12 @@ __all__ = [
     "Recipe",
     "RecipeIngredient",
     "ProductCategory",
+    "CountryIdType",
+    "CountryTaxCode",
+    "Document",
+    "AuditEvent",
     "ImportAudit",
     "Client",
-    "TenantSettings",
     # Company
     "CompanyRole",
     "CompanySettings",

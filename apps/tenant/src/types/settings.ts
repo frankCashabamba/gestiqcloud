@@ -1,4 +1,4 @@
-﻿export interface TenantSettings {
+﻿export interface CompanySettings {
   id: string
   tenant_id: string
   general: GeneralSettings
@@ -68,7 +68,7 @@ export interface ModuleInfo {
   dependencies?: string[]
 }
 
-export interface TenantSettingsUpdate {
+export interface CompanySettingsUpdate {
   general?: Partial<GeneralSettings>
   fiscal?: Partial<FiscalSettings>
   modules?: Partial<ModuleSettings>

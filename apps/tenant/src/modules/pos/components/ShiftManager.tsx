@@ -1,7 +1,7 @@
 /**
  * ShiftManager - Gestión de turnos de caja
  */
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useImperativeHandle } from 'react'
 import { openShift, closeShift, getCurrentShift, getShiftSummary, getLastDailyCount } from '../services'
 import type { POSShift, POSRegister, ShiftSummary } from '../../../types/pos'
 import { useCurrency } from '../../../hooks/useCurrency'
@@ -9,9 +9,15 @@ import { useCurrency } from '../../../hooks/useCurrency'
 interface ShiftManagerProps {
   register: POSRegister
   onShiftChange: (shift: POSShift | null) => void
+  compact?: boolean
 }
 
-export default function ShiftManager({ register, onShiftChange }: ShiftManagerProps) {
+export interface ShiftManagerHandle {
+  openCloseModal: () => void
+}
+
+const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
+  ({ register, onShiftChange, compact = false }, ref) => {
   const { symbol: currencySymbol, formatCurrency } = useCurrency()
   const [currentShift, setCurrentShift] = useState<POSShift | null>(null)
   const [loading, setLoading] = useState(false)
@@ -100,6 +106,13 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
     }
   }
 
+  useImperativeHandle(ref, () => ({
+    openCloseModal: () => {
+      if (!currentShift) return
+      void handleShowCloseModal()
+    }
+  }), [currentShift])
+
   const handleCloseShift = async () => {
     if (!currentShift) return
 
@@ -187,21 +200,23 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
 
   return (
     <>
-      <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4 flex justify-between items-center">
-        <div>
-          <h3 className="font-semibold text-green-800">Turno Abierto</h3>
-          <p className="text-sm text-green-700">
-            Apertura: {new Date(currentShift.opened_at).toLocaleString()} |
-            Fondo: {currencySymbol}{(Number(currentShift.opening_float) || 0).toFixed(2)}
-          </p>
+      {!compact && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4 flex justify-between items-center">
+          <div>
+            <h3 className="font-semibold text-green-800">Turno Abierto</h3>
+            <p className="text-sm text-green-700">
+              Apertura: {new Date(currentShift.opened_at).toLocaleString()} |
+              Fondo: {currencySymbol}{(Number(currentShift.opening_float) || 0).toFixed(2)}
+            </p>
+          </div>
+          <button
+            onClick={handleShowCloseModal}
+            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+          >
+            Cerrar Turno
+          </button>
         </div>
-        <button
-          onClick={handleShowCloseModal}
-          className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-        >
-          Cerrar Turno
-        </button>
-      </div>
+      )}
 
       {showCloseModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
@@ -363,4 +378,7 @@ export default function ShiftManager({ register, onShiftChange }: ShiftManagerPr
       )}
     </>
   )
-}
+  }
+)
+
+export default ShiftManager

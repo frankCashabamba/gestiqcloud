@@ -84,7 +84,7 @@ export default function AdminPanel() {
 
   const metrics = React.useMemo(() => ([
     {
-      title: 'Tenants activos',
+      title: 'Empresas activas',
       value: stats?.tenants_activos ?? '—',
       subtitle: stats ? `${stats.tenants_total} totales` : '—',
       icon: '🏢',
@@ -113,7 +113,7 @@ export default function AdminPanel() {
     },
   ]), [stats])
 
-  const latestTenants = stats?.ultimos_tenants ?? []
+  const latestCompanies = stats?.ultimos_tenants ?? []
   const latestCount = stats?.tenants_por_dia && stats.tenants_por_dia.length
     ? stats.tenants_por_dia[stats.tenants_por_dia.length - 1].count
     : null
@@ -205,16 +205,16 @@ export default function AdminPanel() {
                 <p className="insight-helper">Validación rápida del on-boarding</p>
               </div>
             </div>
-            {latestTenants.length ? (
+            {latestCompanies.length ? (
               <table className="tenants-table">
                 <thead>
                   <tr>
-                    <th>Tenant</th>
+                    <th>Empresa</th>
                     <th>Fecha</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {latestTenants.map((tenant) => (
+                  {latestCompanies.map((tenant) => (
                     <tr key={tenant.id}>
                       <td>{tenant.name}</td>
                       <td>{formatDate(tenant.created_at)}</td>

@@ -32,7 +32,7 @@ export async function deleteVenta(id: string) {
 }
 
 export async function convertToInvoice(id: string, data: any) {
-  const response = await api.post(`${TENANT_VENTAS.byId(id)}/convert-to-invoice`, data)
+  const response = await api.post(`${TENANT_VENTAS.byId(id)}/invoice`, data)
   return response.data
 }
 

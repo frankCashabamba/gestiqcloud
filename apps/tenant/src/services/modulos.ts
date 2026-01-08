@@ -1,6 +1,6 @@
 ﻿import { apiFetch } from "../lib/http";
 
-export type Modulo = { id: number; name: string; url?: string; slug?: string; icono?: string; categoria?: string; active: boolean };
+export type Modulo = { id: string; name: string; url?: string; slug?: string; icono?: string; categoria?: string; active: boolean };
 
 // Cache sencillo para evitar múltiples llamadas concurrentes (previene 429)
 type CacheEntry = { ts: number; data: Modulo[]; inflight?: Promise<Modulo[]> }

@@ -9,6 +9,7 @@ import { manifest as gastos } from './gastos/manifest'
 import { manifest as usuarios } from './usuarios/manifest'
 import { productosManifest } from './productos/manifest'
 import { crmManifest } from './crm/manifest'
+import { manifest as reportes } from './reportes/manifest'
 
 export const MODULES = [
   productosManifest,   // 0 - Productos
@@ -21,6 +22,7 @@ export const MODULES = [
   gastos,              // 7 - Gastos Diarios
   usuarios,            // 8 - Usuarios
   crmManifest,         // 9 - CRM
+  reportes,            // 10 - Reportes
 ]
 
 export type ModuleManifest = typeof pos

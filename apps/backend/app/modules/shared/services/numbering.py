@@ -70,8 +70,11 @@ def generar_numero_documento(
                 return formatear_numero(tipo, serie, year, num)
 
     except Exception:
-        # Si falla (función no existe, permisos, etc.), usar fallback
-        pass
+        # Si falla (funci?n no existe, permisos, etc.), limpiar transacci?n y usar fallback
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
     # Fallback: generar número no atómico (solo para dev/test)
     # En producción DEBE existir la función assign_next_number

@@ -30,8 +30,7 @@ class Product(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     cost_price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
-    tax_rate: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True, default=21.00)
-    category: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    tax_rate: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True, default=None)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     stock: Mapped[float] = mapped_column(Float, default=0)
     unit: Mapped[str] = mapped_column(Text, default="unit")
@@ -45,13 +44,22 @@ class Product(Base):
     )
 
     tenant: Mapped["Tenant"] = relationship()
-    category = relationship("ProductCategory", foreign_keys=[category_id], lazy="select")
+    category_rel = relationship("ProductCategory", foreign_keys=[category_id], lazy="select")
     recipe: Mapped[Optional["Recipe"]] = relationship(  # noqa: F821
         back_populates="product", uselist=False
     )
     used_in_ingredients: Mapped[list["RecipeIngredient"]] = relationship(  # noqa: F821
         back_populates="product"
     )
+
+    @property
+    def category(self) -> str | None:
+        rel = self.category_rel
+        return rel.name if rel else None
+
+    @property
+    def categoria(self) -> str | None:
+        return self.category
 
 
 # Recipe and RecipeIngredient models moved to app.models.recipes

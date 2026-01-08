@@ -254,6 +254,17 @@ def build_api_router() -> APIRouter:
         ("app.modules.sales.interface.http.tenant", "deliveries_router"),
         prefix="/tenant",
     )
+    # Documents (draft/issue)
+    include_router_safe(
+        r,
+        ("app.modules.documents.interface.http.tenant", "router"),
+        prefix="/tenant",
+    )
+    include_router_safe(
+        r,
+        ("app.modules.documents.interface.http.tenant", "documents_router"),
+        prefix="/tenant",
+    )
 
     # Purchases
     include_router_safe(
@@ -363,11 +374,11 @@ def build_api_router() -> APIRouter:
     # CRM
     include_router_safe(r, ("app.modules.crm.presentation.tenant", "router"), prefix="/tenant")
 
-    # Settings (tenant)
+    # Settings (company)
     include_router_safe(
         r,
         ("app.modules.settings.interface.http.tenant", "router"),
-        prefix="/tenant/settings",
+        prefix="/company/settings",
     )
     # Settings admin: field-config + ui-plantillas
     include_router_safe(r, ("app.modules.settings.interface.http.tenant", "admin_router"))
@@ -397,7 +408,8 @@ def build_api_router() -> APIRouter:
     include_router_safe(r, ("app.routers.business_categories", "router"))
 
     # Tenant Settings (Configuración consolidada por tenant)
-    include_router_safe(r, ("app.routers.tenant_settings", "router"))
+    include_router_safe(r, ("app.routers.company_settings", "router"))
+    include_router_safe(r, ("app.routers.company_settings", "router_admin"))
 
     # Sectors (Plantillas de negocio) - Units, Config, etc.
     include_router_safe(r, ("app.routers.sectors", "router"))

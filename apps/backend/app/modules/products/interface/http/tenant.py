@@ -29,8 +29,10 @@ def _empresa_id_from_request(request: Request) -> str | None:
     import os
 
     try:
+        tid = getattr(request.state, "tenant_id", None)
         claims = getattr(request.state, "access_claims", None) or {}
-        tid = claims.get("tenant_id") if isinstance(claims, dict) else None
+        if tid is None and isinstance(claims, dict):
+            tid = claims.get("tenant_id")
         if tid is None:
             # DEV MODE fallback
             dev_mode = os.getenv("ENVIRONMENT", "production") != "production"
@@ -40,26 +42,56 @@ def _empresa_id_from_request(request: Request) -> str | None:
                 from app.config.database import SessionLocal
 
                 with SessionLocal() as db_temp:
-                    result = db_temp.execute(text("SELECT id FROM tenants LIMIT 1")).fetchone()
-                    if result:
-                        return str(result[0])
+                    rows = db_temp.execute(
+                        text("SELECT id FROM tenants ORDER BY created_at LIMIT 2")
+                    ).fetchall()
+                    if len(rows) == 1:
+                        return str(rows[0][0])
             return None
         return str(tid)
     except Exception:
         return None
 
 
-class ProductIn(BaseModel):
+class ProductCreate(BaseModel):
     name: str = Field(min_length=1)
     price: float = Field(ge=0)
     stock: float = Field(ge=0)
     unit: str = Field(min_length=1, default="unit")
     category: str | None = None
     categoria: str | None = None
+    category_id: str | None = None
     sku: str | None = None
+    description: str | None = None
+    descripcion: str | None = None
+    tax_rate: float | None = Field(default=None, ge=0)
+    iva_tasa: float | None = Field(default=None, ge=0)
+    cost_price: float | None = Field(default=None, ge=0)
+    precio_compra: float | None = Field(default=None, ge=0)
     activo: bool | None = True
     active: bool | None = None
     product_metadata: dict | None = None
+
+
+class ProductUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1)
+    price: float | None = Field(default=None, ge=0)
+    stock: float | None = Field(default=None, ge=0)
+    unit: str | None = Field(default=None, min_length=1)
+    category: str | None = None
+    categoria: str | None = None
+    category_id: str | None = None
+    sku: str | None = None
+    description: str | None = None
+    descripcion: str | None = None
+    tax_rate: float | None = Field(default=None, ge=0)
+    iva_tasa: float | None = Field(default=None, ge=0)
+    cost_price: float | None = Field(default=None, ge=0)
+    precio_compra: float | None = Field(default=None, ge=0)
+    activo: bool | None = None
+    active: bool | None = None
+    product_metadata: dict | None = None
+
 
 
 class ProductOut(BaseModel):
@@ -69,14 +101,21 @@ class ProductOut(BaseModel):
     stock: float
     unit: str
     sku: str | None = None
-    categoria: str | None = None
-    descripcion: str | None = None
-    iva_tasa: float | None = None
-    activo: bool = True
-    precio_compra: float | None = None
+    category: str | None = None
+    categoria: str | None = Field(default=None, validation_alias="category")
+    category_id: UUID | None = None
+    description: str | None = None
+    descripcion: str | None = Field(default=None, validation_alias="description")
+    tax_rate: float | None = None
+    iva_tasa: float | None = Field(default=None, validation_alias="tax_rate")
+    cost_price: float | None = None
+    precio_compra: float | None = Field(default=None, validation_alias="cost_price")
+    active: bool = True
+    activo: bool | None = Field(default=None, validation_alias="active")
     product_metadata: dict | None = None
 
     model_config = {"from_attributes": True}
+
 
 
 # ============================================================================
@@ -101,7 +140,6 @@ class CategoryOut(BaseModel):
 
 def get_categories_for_request(request: Request, db: Session) -> list[CategoryOut]:
     tenant_id = _empresa_id_from_request(request)
-    print(f"[DEBUG] list_categories - tenant_id: {tenant_id}, type: {type(tenant_id)}")
     if tenant_id is None:
         return []
 
@@ -111,11 +149,6 @@ def get_categories_for_request(request: Request, db: Session) -> list[CategoryOu
         .order_by(ProductCategory.name.asc())
         .all()
     )
-
-    print(f"[DEBUG] Categorías encontradas: {len(categories)}")
-    for c in categories:
-        print(f"  - {c.id}: {c.name} (tenant: {c.tenant_id})")
-
     return [
         CategoryOut(
             id=str(c.id),
@@ -125,6 +158,34 @@ def get_categories_for_request(request: Request, db: Session) -> list[CategoryOu
         )
         for c in categories
     ]
+
+
+def _normalize_category_name(value: str | None) -> str | None:
+    if value is None:
+        return None
+    name = value.strip()
+    return name or None
+
+
+def _resolve_category_id(
+    db: Session, tenant_id: str, category_name: str | None
+) -> UUID | None:
+    if not category_name:
+        return None
+    category = (
+        db.query(ProductCategory)
+        .filter(
+            ProductCategory.tenant_id == tenant_id,
+            ProductCategory.name == category_name,
+        )
+        .first()
+    )
+    if category:
+        return category.id
+    category = ProductCategory(tenant_id=tenant_id, name=category_name)
+    db.add(category)
+    db.flush()
+    return category.id
 
 
 @router.get("/product-categories", response_model=list[CategoryOut], dependencies=protected)
@@ -140,7 +201,6 @@ def list_categories(request: Request, db: Session = Depends(get_db)):
 )
 def create_category(payload: CategoryIn, request: Request, db: Session = Depends(get_db)):
     tenant_id = _empresa_id_from_request(request)
-    print(f"[DEBUG] create_category - tenant_id: {tenant_id}, type: {type(tenant_id)}")
     if tenant_id is None:
         raise HTTPException(status_code=400, detail="missing_tenant")
 
@@ -153,7 +213,6 @@ def create_category(payload: CategoryIn, request: Request, db: Session = Depends
     db.add(obj)
     db.commit()
     db.refresh(obj)
-    print(f"[DEBUG] Categoría creada: {obj.id} con tenant_id={obj.tenant_id}")
     return CategoryOut(
         id=str(obj.id),
         name=obj.name,
@@ -165,15 +224,19 @@ def create_category(payload: CategoryIn, request: Request, db: Session = Depends
 @router.delete("/product-categories/{category_id}", status_code=204, dependencies=protected)
 def delete_category(category_id: str, request: Request, db: Session = Depends(get_db)):
     tenant_id = _empresa_id_from_request(request)
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="missing_tenant")
 
     try:
-        obj = db.query(ProductCategory).filter(ProductCategory.id == category_id).first()
+        obj = (
+            db.query(ProductCategory)
+            .filter(ProductCategory.id == category_id, ProductCategory.tenant_id == tenant_id)
+            .first()
+        )
     except Exception:
         return
 
     if not obj:
-        return
-    if tenant_id is not None and str(obj.tenant_id) != str(tenant_id):
         return
 
     db.delete(obj)
@@ -215,9 +278,13 @@ def list_products(
         like = f"%{q}%"
         query = query.where(Product.name.ilike(like))
 
-    # Filtro por categoría
+    # Filtro por categoría (nombre)
     if categoria:
-        query = query.where(Product.categoria == categoria)
+        categoria_name = _normalize_category_name(categoria)
+        if categoria_name:
+            query = query.join(
+                ProductCategory, Product.category_id == ProductCategory.id
+            ).where(ProductCategory.name == categoria_name)
 
     query = query.order_by(Product.name.asc()).limit(limit).offset(offset)
     rows = db.execute(query).scalars().all()
@@ -225,8 +292,17 @@ def list_products(
 
 
 @router.get("/{product_id}", response_model=ProductOut)
-def get_product(product_id: str, db: Session = Depends(get_db), _tid: str = Depends(ensure_tenant)):
-    obj = db.query(Product).filter(Product.id == product_id).first()
+def get_product(
+    product_id: str, request: Request, db: Session = Depends(get_db), _tid: str = Depends(ensure_tenant)
+):
+    tenant_id = _empresa_id_from_request(request)
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="missing_tenant")
+    obj = (
+        db.query(Product)
+        .filter(Product.id == product_id, Product.tenant_id == tenant_id)
+        .first()
+    )
     if not obj:
         raise HTTPException(status_code=404, detail="product_not_found")
     return obj
@@ -268,18 +344,23 @@ def _generate_next_sku(db: Session, tenant_id: str, categoria: str | None) -> st
 
 
 @router.post("", response_model=ProductOut, status_code=201, dependencies=protected)
-def create_product(payload: ProductIn, request: Request, db: Session = Depends(get_db)):
+def create_product(payload: ProductCreate, request: Request, db: Session = Depends(get_db)):
     tenant_id = _empresa_id_from_request(request)
     if tenant_id is None:
         raise HTTPException(status_code=400, detail="missing_tenant")
+    category_value = payload.category if payload.category is not None else payload.categoria
+    category_name = _normalize_category_name(category_value)
+    category_id = payload.category_id or _resolve_category_id(db, tenant_id, category_name)
 
-    # Auto-generar SKU si viene vacío
+    # Auto-generar SKU si viene vac?o
     sku = payload.sku
     if not sku or sku.strip() == "":
-        sku = _generate_next_sku(db, tenant_id, payload.category)
+        sku = _generate_next_sku(db, tenant_id, category_name)
 
-    category_value = payload.category if payload.category is not None else payload.categoria
     active_value = payload.active if payload.active is not None else payload.activo
+    description_value = payload.description if payload.description is not None else payload.descripcion
+    tax_rate_value = payload.tax_rate if payload.tax_rate is not None else payload.iva_tasa
+    cost_price_value = payload.cost_price if payload.cost_price is not None else payload.precio_compra
 
     obj = Product(
         name=payload.name,
@@ -287,7 +368,10 @@ def create_product(payload: ProductIn, request: Request, db: Session = Depends(g
         stock=payload.stock,
         unit=payload.unit,
         sku=sku,
-        category=category_value,
+        category_id=category_id,
+        description=description_value,
+        tax_rate=tax_rate_value,
+        cost_price=cost_price_value,
         active=True if active_value is None else active_value,
         product_metadata=payload.product_metadata,
         tenant_id=tenant_id,
@@ -300,37 +384,46 @@ def create_product(payload: ProductIn, request: Request, db: Session = Depends(g
 
 @router.put("/{product_id}", response_model=ProductOut, dependencies=protected)
 def update_product(
-    product_id: str, payload: ProductIn, request: Request, db: Session = Depends(get_db)
+    product_id: str, payload: ProductUpdate, request: Request, db: Session = Depends(get_db)
 ):
     """Actualizar producto (soporta UUID)"""
     tenant_id = _empresa_id_from_request(request)
-    print(f"[DEBUG] update_product - product_id: {product_id}, tenant_id: {tenant_id}")
 
     # Intentar UUID primero
     try:
         obj = db.query(Product).filter(Product.id == product_id).first()
     except Exception as e:
-        print(f"[DEBUG] Error al buscar producto: {e}")
         obj = None
 
     if not obj:
-        print(f"[DEBUG] Producto no encontrado: {product_id}")
         raise HTTPException(status_code=404, detail="product_not_found")
     if tenant_id is not None and str(getattr(obj, "tenant_id", None)) != str(tenant_id):
-        print(
-            f"[DEBUG] Tenant mismatch: obj.tenant_id={obj.tenant_id}, request.tenant_id={tenant_id}"
-        )
         raise HTTPException(status_code=404, detail="product_not_found")
-
-    obj.name = payload.name
-    obj.price = payload.price
-    obj.stock = payload.stock
-    obj.unit = payload.unit
+    if payload.name is not None:
+        obj.name = payload.name
+    if payload.price is not None:
+        obj.price = payload.price
+    if payload.stock is not None:
+        obj.stock = payload.stock
+    if payload.unit is not None:
+        obj.unit = payload.unit
     category_value = payload.category if payload.category is not None else payload.categoria
-    if category_value is not None:
-        obj.category = category_value
+    if payload.category_id is not None:
+        obj.category_id = payload.category_id or None
+    elif category_value is not None:
+        category_name = _normalize_category_name(category_value)
+        obj.category_id = _resolve_category_id(db, tenant_id, category_name) if category_name else None
     if payload.sku is not None:
         obj.sku = payload.sku
+    description_value = payload.description if payload.description is not None else payload.descripcion
+    if description_value is not None:
+        obj.description = description_value
+    tax_rate_value = payload.tax_rate if payload.tax_rate is not None else payload.iva_tasa
+    if tax_rate_value is not None:
+        obj.tax_rate = tax_rate_value
+    cost_price_value = payload.cost_price if payload.cost_price is not None else payload.precio_compra
+    if cost_price_value is not None:
+        obj.cost_price = cost_price_value
     active_value = payload.active if payload.active is not None else payload.activo
     if active_value is not None:
         obj.active = active_value
@@ -349,14 +442,17 @@ def update_product(
 
 
 @router.delete("/{product_id}", status_code=204, dependencies=protected)
-def delete_product(product_id: int, request: Request, db: Session = Depends(get_db)):
+def delete_product(product_id: str, request: Request, db: Session = Depends(get_db)):
     tenant_id = _empresa_id_from_request(request)
-    obj = db.get(Product, product_id)
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="missing_tenant")
+    obj = (
+        db.query(Product)
+        .filter(Product.id == product_id, Product.tenant_id == tenant_id)
+        .first()
+    )
     if not obj:
         return  # idempotent
-    if tenant_id is not None and getattr(obj, "tenant_id", None) != tenant_id:
-        # idempotent for other tenants
-        return
     db.delete(obj)
     db.commit()
     return
@@ -619,7 +715,6 @@ def bulk_assign_category(payload: BulkCategoryIn, request: Request, db: Session 
     q = select(Product).where(Product.tenant_id == tenant_id).where(Product.id.in_(payload.ids))
     rows = db.execute(q).scalars().all()
     for obj in rows:
-        obj.categoria = payload.category_name
         obj.category_id = category.id
         db.add(obj)
 

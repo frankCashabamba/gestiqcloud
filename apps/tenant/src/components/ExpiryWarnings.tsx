@@ -5,7 +5,7 @@
  * Solo visible si features.inventory_expiry_tracking === true
  */
 import React, { useEffect, useState } from 'react'
-import { useTenantFeatures, useTenantSector } from '../contexts/TenantConfigContext'
+import { useCompanyFeatures, useCompanySector } from '../contexts/CompanyConfigContext'
 import { apiFetch } from '../lib/http'
 
 interface ExpiringProduct {
@@ -32,8 +32,8 @@ export function ExpiryWarnings({
   maxItems = 5,
   onProductClick
 }: ExpiryWarningsProps) {
-  const features = useTenantFeatures()
-  const sector = useTenantSector()
+  const features = useCompanyFeatures()
+  const sector = useCompanySector()
 
   const [products, setProducts] = useState<ExpiringProduct[]>([])
   const [loading, setLoading] = useState(true)

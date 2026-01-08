@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/http'
 
-type TenantInfo = {
+type CompanyInfo = {
   base_currency?: string
   country_code?: string
 }
@@ -32,12 +32,12 @@ export function useCurrency() {
 
     ;(async () => {
       try {
-        const tenant = await apiFetch<TenantInfo>('/api/v1/me/tenant')
+        const tenant = await apiFetch<CompanyInfo>('/api/v1/me/tenant')
         const rawCurr = (tenant?.base_currency || 'USD').toUpperCase()
         const normalized = CURRENCY_LOCALE[rawCurr] ? rawCurr : 'USD'
         const sym = CURRENCY_SYMBOLS[normalized] || '$'
 
-        console.log('[useCurrency] Tenant currency:', rawCurr, 'Normalized:', normalized, 'Symbol:', sym)
+        console.log('[useCurrency] Company currency:', rawCurr, 'Normalized:', normalized, 'Symbol:', sym)
 
         setCurrency(normalized)
         setSymbol(sym)

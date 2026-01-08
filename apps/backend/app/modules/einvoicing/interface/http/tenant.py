@@ -31,25 +31,30 @@ class SendIn(BaseModel):
     period: str | None = None  # for ES
 
 
-@router.post("/send/{invoice_id}", response_model=dict)
-def send(invoice_id: int, payload: SendIn, request: Request, db: Session = Depends(get_db)):
-    # Resolve tenant UUID to propagate to async task
+def _resolve_tenant_uuid(request: Request, db: Session) -> str:
     claims = getattr(request.state, "access_claims", {}) or {}
     raw_tid = (
         str(claims.get("tenant_id"))
         if isinstance(claims, dict) and claims.get("tenant_id") is not None
         else None
     )
-    tenant_uuid = None
-    if raw_tid:
-        if raw_tid.isdigit():
-            row = db.execute(
-                text("SELECT id::text FROM public.tenants WHERE tenant_id =:eid"),
-                {"eid": int(raw_tid)},
-            ).first()
-            tenant_uuid = row[0] if row and row[0] else None
-        else:
-            tenant_uuid = raw_tid
+    if not raw_tid:
+        raise HTTPException(status_code=403, detail="missing_tenant")
+    if raw_tid.isdigit():
+        row = db.execute(
+            text("SELECT id::text FROM public.tenants WHERE tenant_id =:eid"),
+            {"eid": int(raw_tid)},
+        ).first()
+        if not row or not row[0]:
+            raise HTTPException(status_code=403, detail="invalid_tenant")
+        return str(row[0])
+    return raw_tid
+
+
+@router.post("/send/{invoice_id}", response_model=dict)
+def send(invoice_id: int, payload: SendIn, request: Request, db: Session = Depends(get_db)):
+    # Resolve tenant UUID to propagate to async task
+    tenant_uuid = _resolve_tenant_uuid(request, db)
     if payload.country == "EC":
         # enqueue SRI task
         if not celery_app:
@@ -79,12 +84,14 @@ def send(invoice_id: int, payload: SendIn, request: Request, db: Session = Depen
 
 @router.get("/status/{kind}/{ref}", response_model=dict)
 def status(kind: str, ref: str, request: Request, db: Session = Depends(get_db)):
+    tenant_uuid = _resolve_tenant_uuid(request, db)
     if kind == "sri":
         row = db.execute(
             text(
-                "SELECT id::text, status::text, error_message FROM sri_submissions WHERE id::text=:id"
+                "SELECT id::text, status::text, error_message FROM sri_submissions "
+                "WHERE id::text=:id AND tenant_id=:tid"
             ),
-            {"id": ref},
+            {"id": ref, "tid": tenant_uuid},
         ).first()
         if not row:
             raise HTTPException(status_code=404, detail="not_found")
@@ -92,9 +99,10 @@ def status(kind: str, ref: str, request: Request, db: Session = Depends(get_db))
     if kind == "sii":
         row = db.execute(
             text(
-                "SELECT id::text, status::text, error_message FROM sii_batches WHERE id::text=:id"
+                "SELECT id::text, status::text, error_message FROM sii_batches "
+                "WHERE id::text=:id AND tenant_id=:tid"
             ),
-            {"id": ref},
+            {"id": ref, "tid": tenant_uuid},
         ).first()
         if not row:
             raise HTTPException(status_code=404, detail="not_found")
@@ -109,16 +117,20 @@ class ExplainIn(BaseModel):
 
 @router.post("/explain_error", response_model=dict)
 def explain_error(payload: ExplainIn, request: Request, db: Session = Depends(get_db)):
+    tenant_uuid = _resolve_tenant_uuid(request, db)
     # Basic explanation based on last error message
     if payload.kind == "sri":
         row = db.execute(
-            text("SELECT error_code, error_message FROM sri_submissions WHERE id::text=:id"),
-            {"id": payload.id},
+            text(
+                "SELECT error_code, error_message FROM sri_submissions "
+                "WHERE id::text=:id AND tenant_id=:tid"
+            ),
+            {"id": payload.id, "tid": tenant_uuid},
         ).first()
     elif payload.kind == "sii":
         row = db.execute(
-            text("SELECT error_message FROM sii_batches WHERE id::text=:id"),
-            {"id": payload.id},
+            text("SELECT error_message FROM sii_batches WHERE id::text=:id AND tenant_id=:tid"),
+            {"id": payload.id, "tid": tenant_uuid},
         ).first()
     else:
         raise HTTPException(status_code=400, detail="unsupported_kind")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Literal
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID, uuid4
@@ -15,12 +16,14 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
-from app.core.authz import require_scope
+from app.core.authz import require_permission, require_scope
+from app.core.audit_events import audit_event
 from app.db.rls import ensure_guc_from_request, ensure_rls
 from app.modules.settings.infrastructure.repositories import SettingsRepo
 from app.models.accounting.chart_of_accounts import JournalEntry as AsientoContable, JournalEntryLine as AsientoLinea
 from app.modules.accounting.interface.http.tenant import _generate_numero_asiento
 from app.models.accounting.pos_settings import TenantAccountingSettings, PaymentMethod
+from app.services.inventory_costing import InventoryCostingService
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +33,7 @@ router = APIRouter(
     dependencies=[
         Depends(with_access_claims),
         Depends(require_scope("tenant")),
+        Depends(require_permission("pos.view")),
         Depends(ensure_rls),
     ],
 )
@@ -44,7 +48,7 @@ def _get_tenant_id(request: Request) -> UUID:
     """Obtiene tenant_id como UUID (evita casts en SQL)."""
     claims = getattr(request.state, "access_claims", {}) or {}
     if not isinstance(claims, dict):
-        raise HTTPException(status_code=401, detail="Claims invÃ¡lidos")
+        raise HTTPException(status_code=401, detail="Claims inv?lidos")
 
     tenant_id = claims.get("tenant_id")
     if not tenant_id:
@@ -53,7 +57,7 @@ def _get_tenant_id(request: Request) -> UUID:
     try:
         return UUID(str(tenant_id))
     except Exception:
-        raise HTTPException(status_code=401, detail="Tenant ID invÃ¡lido")
+        raise HTTPException(status_code=401, detail="Tenant ID inv?lido")
 
 
 def _get_user_id(request: Request) -> UUID:
@@ -72,6 +76,14 @@ def _get_user_id(request: Request) -> UUID:
         raise HTTPException(status_code=401, detail="User ID invÃ¡lido")
 
 
+def _is_company_admin(claims: dict) -> bool:
+    return bool(
+        claims.get("is_company_admin")
+        or claims.get("is_admin_company")
+        or claims.get("es_admin_empresa")
+    )
+
+
 def _validate_uuid(value: str, field_name: str = "ID") -> UUID:
     """Valida y convierte un string a UUID"""
     try:
@@ -82,9 +94,31 @@ def _validate_uuid(value: str, field_name: str = "ID") -> UUID:
         )
 
 
+def _ensure_pos_accounting_settings(settings: TenantAccountingSettings) -> None:
+    missing: list[str] = []
+    if not getattr(settings, "cash_account_id", None):
+        missing.append("cash_account_id")
+    if not getattr(settings, "bank_account_id", None):
+        missing.append("bank_account_id")
+    if not getattr(settings, "sales_bakery_account_id", None):
+        missing.append("sales_bakery_account_id")
+    if not getattr(settings, "vat_output_account_id", None):
+        missing.append("vat_output_account_id")
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail="Config contable POS incompleta: faltan " + ", ".join(missing),
+        )
+
+
 def _to_decimal(value: float) -> Decimal:
     """Convierte float a Decimal con 2 decimales"""
     return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _to_decimal_q(value: float | Decimal, q: str) -> Decimal:
+    """Convierte a Decimal con precision configurable."""
+    return Decimal(str(value)).quantize(Decimal(q), rounding=ROUND_HALF_UP)
 
 
 # ============================================================================
@@ -148,14 +182,64 @@ class PaymentIn(BaseModel):
 class ReceiptCreateIn(BaseModel):
     shift_id: str
     register_id: str
+    cashier_id: str | None = None
     lines: list[ReceiptLineIn] = Field(default_factory=list)
     payments: list[PaymentIn] = Field(default_factory=list)
     notes: str | None = Field(default=None, max_length=500)
 
-    @field_validator("shift_id", "register_id")
+    @field_validator("shift_id", "register_id", "cashier_id")
     @classmethod
     def validate_ids(cls, v):
-        _validate_uuid(v, "ID")
+        if v is not None:
+            _validate_uuid(v, "ID")
+        return v
+
+
+class NumberingCounterOut(BaseModel):
+    doc_type: str
+    year: int
+    series: str
+    current_no: int
+    updated_at: datetime | None
+
+
+class NumberingCounterUpdateIn(BaseModel):
+    doc_type: str = Field(min_length=1, max_length=30)
+    year: int = Field(ge=2000)
+    series: str = Field(default="A", max_length=50)
+    current_no: int = Field(ge=0)
+
+    @field_validator("series")
+    @classmethod
+    def normalize_series(cls, v: str) -> str:
+        return (v or "").strip() or "A"
+
+
+class DocSeriesOut(BaseModel):
+    id: str
+    register_id: str | None
+    doc_type: str
+    name: str
+    current_no: int
+    reset_policy: str
+    active: bool
+    created_at: datetime | None
+
+
+class DocSeriesUpsertIn(BaseModel):
+    id: str | None = None
+    register_id: str | None = None
+    doc_type: str = Field(min_length=1, max_length=10)
+    name: str = Field(min_length=1, max_length=50)
+    current_no: int = Field(ge=0)
+    reset_policy: Literal['yearly', 'never'] = 'yearly'
+    active: bool = True
+
+    @field_validator('register_id')
+    @classmethod
+    def validate_register_id(cls, v):
+        if v is not None:
+            _validate_uuid(v, 'Register ID')
         return v
 
 
@@ -315,23 +399,34 @@ class PostReceiptIn(BaseModel):
         return v
 
 
+class RefundReceiptIn(BaseModel):
+    reason: str = Field(min_length=1, max_length=500)
+
+
 # ============================================================================
 # ENDPOINTS - REGISTERS
 # ============================================================================
 
 
-@router.get("/registers", response_model=list[dict])
+@router.get(
+    "/registers",
+    response_model=list[dict],
+    dependencies=[Depends(require_permission("pos.register.read"))],
+)
 def list_registers(request: Request, db: Session = Depends(get_db)):
     """Lista todos los registros POS del tenant actual"""
     ensure_guc_from_request(request, db, persist=True)
+    tenant_id = _get_tenant_id(request)
 
     try:
         rows = db.execute(
             text(
                 "SELECT id, name, store_id, active, created_at "
                 "FROM pos_registers "
+                "WHERE tenant_id = :tid "
                 "ORDER BY created_at DESC"
-            )
+            ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+            {"tid": tenant_id},
         ).fetchall()
 
         return [
@@ -348,7 +443,12 @@ def list_registers(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error al listar registros: {str(e)}")
 
 
-@router.post("/registers", response_model=dict, status_code=201)
+@router.post(
+    "/registers",
+    response_model=dict,
+    status_code=201,
+    dependencies=[Depends(require_permission("pos.register.manage"))],
+)
 def create_register(payload: RegisterIn, request: Request, db: Session = Depends(get_db)):
     """Crea un nuevo registro POS (baseline moderno)."""
     ensure_guc_from_request(request, db, persist=True)
@@ -379,22 +479,33 @@ def create_register(payload: RegisterIn, request: Request, db: Session = Depends
 # ============================================================================
 
 
-@router.post("/shifts", response_model=dict)
-@router.post("/open_shift", response_model=dict, deprecated=True)
+@router.post(
+    "/shifts",
+    response_model=dict,
+    dependencies=[Depends(require_permission("pos.shift.open"))],
+)
+@router.post(
+    "/open_shift",
+    response_model=dict,
+    deprecated=True,
+    dependencies=[Depends(require_permission("pos.shift.open"))],
+)
 def open_shift(payload: OpenShiftIn, request: Request, db: Session = Depends(get_db)):
     """Abre un nuevo turno en un registro POS"""
     ensure_guc_from_request(request, db, persist=True)
 
     user_id = _get_user_id(request)
+    tenant_id = _get_tenant_id(request)
     register_uuid = _validate_uuid(payload.register_id, "Register ID")
 
     try:
         # Verificar que el registro existe y estÃ¡ activo
         register = db.execute(
-            text("SELECT active FROM pos_registers WHERE id = :rid").bindparams(
-                bindparam("rid", type_=PGUUID(as_uuid=True))
+            text("SELECT active FROM pos_registers WHERE id = :rid AND tenant_id = :tid").bindparams(
+                bindparam("rid", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
             ),
-            {"rid": register_uuid},
+            {"rid": register_uuid, "tid": tenant_id},
         ).first()
 
         if not register:
@@ -444,7 +555,11 @@ def open_shift(payload: OpenShiftIn, request: Request, db: Session = Depends(get
         raise HTTPException(status_code=500, detail=f"Error al abrir turno: {str(e)}")
 
 
-@router.get("/shifts/current/{register_id}", response_model=dict)
+@router.get(
+    "/shifts/current/{register_id}",
+    response_model=dict,
+    dependencies=[Depends(require_permission("pos.shift.read"))],
+)
 def get_current_shift(register_id: str, request: Request, db: Session = Depends(get_db)):
     """Obtiene el turno abierto (si existe) para un registro dado"""
     ensure_guc_from_request(request, db, persist=True)
@@ -477,24 +592,37 @@ def get_current_shift(register_id: str, request: Request, db: Session = Depends(
     }
 
 
-@router.get("/shifts/{shift_id}/summary", response_model=dict)
+@router.get(
+    "/shifts/{shift_id}/summary",
+    response_model=dict,
+    dependencies=[Depends(require_permission("pos.reports.view"))],
+)
 def get_shift_summary(
     shift_id: str,
     request: Request,
+    cashier_id: str | None = None,
     db: Session = Depends(get_db),
 ):
     """Obtiene resumen del turno: ventas, productos vendidos y stock restante"""
     ensure_guc_from_request(request, db, persist=True)
     shift_uuid = _validate_uuid(shift_id, "Shift ID")
 
+    cashier_uuid = _validate_uuid(cashier_id, "Cashier ID") if cashier_id else None
+
+    base_filter = "shift_id = :sid"
+    params = {"sid": shift_uuid}
+    if cashier_uuid:
+        base_filter += " AND cashier_id = :cid"
+        params["cid"] = cashier_uuid
+
     try:
         # Verificar recibos pendientes (draft o unpaid)
         pending_receipts = db.execute(
             text(
                 "SELECT COUNT(*) FROM pos_receipts "
-                "WHERE shift_id = :sid AND status IN ('draft', 'unpaid')"
+                f"WHERE {base_filter} AND status IN ('draft', 'unpaid')"
             ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
-            {"sid": shift_uuid},
+            params,
         ).scalar()
 
         # Productos vendidos
@@ -506,11 +634,11 @@ def get_shift_summary(
                 "FROM pos_receipt_lines rl "
                 "JOIN pos_receipts r ON r.id = rl.receipt_id "
                 "LEFT JOIN products p ON p.id = rl.product_id "
-                "WHERE r.shift_id = :sid AND r.status = 'paid' "
+                f"WHERE r.{base_filter} AND r.status = 'paid' "
                 "GROUP BY rl.product_id, p.name, p.sku "
                 "ORDER BY p.name"
             ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
-            {"sid": shift_uuid},
+            params,
         ).fetchall()
 
         # Obtener IDs de productos vendidos
@@ -560,9 +688,9 @@ def get_shift_summary(
         sales_total = db.execute(
             text(
                 "SELECT COALESCE(SUM(gross_total), 0) "
-                "FROM pos_receipts WHERE shift_id = :sid AND status = 'paid'"
+                f"FROM pos_receipts WHERE {base_filter} AND status = 'paid'"
             ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
-            {"sid": shift_uuid},
+            params,
         ).scalar()
 
         # Desglose de pagos por método
@@ -571,10 +699,10 @@ def get_shift_summary(
                 "SELECT pp.method, COALESCE(SUM(pp.amount), 0) as total "
                 "FROM pos_payments pp "
                 "JOIN pos_receipts pr ON pr.id = pp.receipt_id "
-                "WHERE pr.shift_id = :sid AND pr.status = 'paid' "
+                f"WHERE pr.{base_filter} AND pr.status = 'paid' "
                 "GROUP BY pp.method"
             ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
-            {"sid": shift_uuid},
+            params,
         ).fetchall()
         payments_breakdown = {row[0]: float(row[1] or 0) for row in payments_breakdown_rows}
 
@@ -591,7 +719,11 @@ def get_shift_summary(
         raise HTTPException(status_code=500, detail=f"Error al obtener resumen: {str(e)}")
 
 
-@router.post("/shifts/{shift_id}/close", response_model=dict)
+@router.post(
+    "/shifts/{shift_id}/close",
+    response_model=dict,
+    dependencies=[Depends(require_permission("pos.shift.close"))],
+)
 def close_shift(
     shift_id: str,
     payload: CloseShiftIn,
@@ -603,6 +735,7 @@ def close_shift(
     shift_uuid = _validate_uuid(shift_id, "Shift ID")
 
     try:
+        # Verificar que el turno existe
         # Verificar que el turno existe y estÃ¡ abierto
         shift = db.execute(
             text("SELECT status FROM pos_shifts WHERE id = :sid FOR UPDATE").bindparams(
@@ -650,6 +783,15 @@ def close_shift(
         opened_at = shift_data[1]
         opening_float = float(shift_data[2] or 0)
         tenant_id = shift_data[3]
+        token_tenant_id = _get_tenant_id(request)
+        if str(tenant_id) != str(token_tenant_id):
+            logger.warning(
+                "Tenant mismatch closing shift: shift_tenant_id=%s token_tenant_id=%s shift_id=%s",
+                tenant_id,
+                token_tenant_id,
+                shift_uuid,
+            )
+            raise HTTPException(status_code=403, detail="tenant_mismatch")
 
         # Calcular totales de ventas por método de pago
         sales_by_method = db.execute(
@@ -692,7 +834,14 @@ def close_shift(
         # Configuración contable del tenant
         settings = db.query(TenantAccountingSettings).filter_by(tenant_id=tenant_id).first()
         if not settings:
+            logger.warning(
+                "POS accounting settings missing for tenant_id=%s shift_id=%s",
+                tenant_id,
+                shift_uuid,
+            )
             raise HTTPException(status_code=400, detail="Config contable POS no configurada para este tenant")
+
+        _ensure_pos_accounting_settings(settings)
 
         # Medios de pago contables
         pm_rows = db.query(PaymentMethod).filter_by(tenant_id=tenant_id, is_active=True).all()
@@ -873,7 +1022,11 @@ def close_shift(
         raise HTTPException(status_code=500, detail=f"Error al cerrar turno: {str(e)}")
 
 
-@router.post("/shifts/{shift_id}/accounting", response_model=dict)
+@router.post(
+    "/shifts/{shift_id}/accounting",
+    response_model=dict,
+    dependencies=[Depends(require_permission("pos.reports.view"))],
+)
 def generate_accounting_for_closed_shift(
     shift_id: str,
     request: Request,
@@ -934,7 +1087,13 @@ def generate_accounting_for_closed_shift(
 
         settings = db.query(TenantAccountingSettings).filter_by(tenant_id=tenant_id).first()
         if not settings:
+            logger.warning(
+                "POS accounting settings missing for tenant_id=%s",
+                tenant_id,
+            )
             raise HTTPException(status_code=400, detail="Config contable POS no configurada para este tenant")
+
+        _ensure_pos_accounting_settings(settings)
 
         pm_rows = db.query(PaymentMethod).filter_by(tenant_id=tenant_id, is_active=True).all()
         pm_map = {p.name.strip().lower(): p.account_id for p in pm_rows}
@@ -1061,12 +1220,20 @@ def generate_accounting_for_closed_shift(
         raise HTTPException(status_code=500, detail=f"Error al contabilizar turno: {str(e)}")
 
 
-@router.post("/shifts/close", response_model=dict)
+@router.post(
+    "/shifts/close",
+    response_model=dict,
+    dependencies=[Depends(require_permission("pos.shift.close"))],
+)
 def close_shift_with_body(payload: CloseShiftWithIdIn, request: Request, db: Session = Depends(get_db)):
     """Alias de cierre de turno recibiendo shift_id en el body (compatibilidad front)"""
     return close_shift(payload.shift_id, payload, request, db)
 
-@router.get("/shifts", response_model=list[dict])
+@router.get(
+    "/shifts",
+    response_model=list[dict],
+    dependencies=[Depends(require_permission("pos.shift.read"))],
+)
 def list_shifts(
     request: Request,
     status: str | None = None,
@@ -1118,7 +1285,11 @@ def list_shifts(
         raise HTTPException(status_code=500, detail=f"Error al listar turnos: {str(e)}")
 
 
-@router.get("/shifts/{shift_id}/summary", response_model=dict)
+@router.get(
+    "/shifts/{shift_id}/summary",
+    response_model=dict,
+    dependencies=[Depends(require_permission("pos.reports.view"))],
+)
 def shift_summary(shift_id: str, request: Request, db: Session = Depends(get_db)):
     """Resumen de un turno POS"""
     ensure_guc_from_request(request, db, persist=True)
@@ -1181,7 +1352,11 @@ def shift_summary(shift_id: str, request: Request, db: Session = Depends(get_db)
 # ============================================================================
 
 
-@router.post("/receipts/calculate_totals", response_model=CalculateTotalsOut)
+@router.post(
+    "/receipts/calculate_totals",
+    response_model=CalculateTotalsOut,
+    dependencies=[Depends(require_permission("pos.receipt.create"))],
+)
 def calculate_receipt_totals(payload: CalculateTotalsIn):
     """
     Calcula los totales de un recibo sin persistirlo.
@@ -1254,16 +1429,44 @@ def calculate_receipt_totals(payload: CalculateTotalsIn):
     )
 
 
-@router.post("/receipts", response_model=dict, status_code=201)
+@router.post(
+    "/receipts",
+    response_model=dict,
+    status_code=201,
+    dependencies=[Depends(require_permission("pos.receipt.create"))],
+)
 def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Depends(get_db)):
     """Crea un nuevo recibo POS"""
     ensure_guc_from_request(request, db, persist=True)
 
+    claims = getattr(request.state, "access_claims", {}) or {}
     tenant_id = _get_tenant_id(request)
+    current_user_id = _get_user_id(request)
     shift_uuid = _validate_uuid(payload.shift_id, "Shift ID")
     register_uuid = _validate_uuid(payload.register_id, "Register ID")
 
     try:
+        cashier_id = current_user_id
+        if payload.cashier_id:
+            requested_cashier_id = _validate_uuid(payload.cashier_id, "Cashier ID")
+            if requested_cashier_id != current_user_id and not _is_company_admin(claims):
+                raise HTTPException(status_code=403, detail="cashier_override_forbidden")
+
+            exists = db.execute(
+                text(
+                    "SELECT 1 FROM company_users "
+                    "WHERE id = :cid AND tenant_id = :tid AND is_active = TRUE"
+                ).bindparams(
+                    bindparam("cid", type_=PGUUID(as_uuid=True)),
+                    bindparam("tid", type_=PGUUID(as_uuid=True)),
+                ),
+                {"cid": requested_cashier_id, "tid": tenant_id},
+            ).first()
+            if not exists:
+                raise HTTPException(status_code=400, detail="cashier_not_found")
+
+            cashier_id = requested_cashier_id
+
         # Verificar que el turno existe y estÃ¡ abierto
         shift = db.execute(
             text("SELECT status FROM pos_shifts WHERE id = :sid AND register_id = :rid").bindparams(
@@ -1306,21 +1509,23 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
         row = db.execute(
             text(
                 "INSERT INTO pos_receipts("
-                "tenant_id, register_id, shift_id, number, status, "
+                "tenant_id, register_id, shift_id, cashier_id, number, status, "
                 "gross_total, tax_total, currency"
                 ") VALUES ("
-                ":tid, :rid, :sid, :number, 'draft', "
+                ":tid, :rid, :sid, :cashier_id, :number, 'draft', "
                 "0, 0, 'EUR'"
                 ") RETURNING id"
             ).bindparams(
                 bindparam("tid", type_=PGUUID(as_uuid=True)),
                 bindparam("rid", type_=PGUUID(as_uuid=True)),
                 bindparam("sid", type_=PGUUID(as_uuid=True)),
+                bindparam("cashier_id", type_=PGUUID(as_uuid=True)),
             ),
             {
                 "tid": tenant_id,
                 "rid": register_uuid,
                 "sid": shift_uuid,
+                "cashier_id": cashier_id,
                 "number": ticket_number,
             },
         ).first()
@@ -1396,7 +1601,11 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
         raise HTTPException(status_code=500, detail=f"Error al crear recibo: {str(e)}")
 
 
-@router.post("/receipts/{receipt_id}/checkout", response_model=dict)
+@router.post(
+    "/receipts/{receipt_id}/checkout",
+    response_model=dict,
+    dependencies=[Depends(require_permission("pos.receipt.pay"))],
+)
 def checkout(
     receipt_id: str,
     payload: CheckoutIn,
@@ -1505,40 +1714,24 @@ def checkout(
 
             warehouse_uuid = warehouses[0][0]
 
-        # 5. Procesar stock por cada lÃ­nea
+        # 5. Procesar stock por cada lÃ­nea + snapshot de margen
         lines = db.execute(
             text(
-                "SELECT product_id, qty FROM pos_receipt_lines WHERE receipt_id = :rid"
+                "SELECT id, product_id, qty, unit_price, discount_pct "
+                "FROM pos_receipt_lines WHERE receipt_id = :rid"
             ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
             {"rid": receipt_uuid},
         ).fetchall()
 
-        for line in lines:
-            product_id = line[0]
-            qty_sold = float(line[1])
+        costing = InventoryCostingService(db)
+        tenant_id = _get_tenant_id(request)
 
-            # Registrar movimiento de stock
-            db.execute(
-                text(
-                    "INSERT INTO stock_moves("
-                    "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id, tentative, posted"
-                    ") VALUES ("
-                    ":tid, :pid, :wid, :q, 'sale', 'pos_receipt', :rid, FALSE, TRUE"
-                    ")"
-                ).bindparams(
-                    bindparam("tid", type_=PGUUID(as_uuid=True)),
-                    bindparam("pid", type_=PGUUID(as_uuid=True)),
-                    bindparam("wid", type_=PGUUID(as_uuid=True)),
-                    bindparam("rid", type_=PGUUID(as_uuid=True)),
-                ),
-                {
-                    "tid": _get_tenant_id(request),
-                    "pid": product_id,
-                    "wid": warehouse_uuid,
-                    "q": qty_sold,
-                    "rid": receipt_uuid,
-                },
-            )
+        for line in lines:
+            line_id = line[0]
+            product_id = line[1]
+            qty_sold = float(line[2])
+            unit_price = float(line[3])
+            discount_pct = float(line[4] or 0)
 
             # Actualizar stock_items con lock
             stock_item = db.execute(
@@ -1561,7 +1754,7 @@ def checkout(
                         ")"
                     ),
                     {
-                        "tid": str(_get_tenant_id(request)),
+                        "tid": str(tenant_id),
                         "wid": str(warehouse_uuid),
                         "pid": str(product_id),
                     },
@@ -1570,12 +1763,84 @@ def checkout(
             else:
                 current_qty = float(stock_item[1] or 0)
 
-            new_qty = current_qty - qty_sold
+            cost_price = db.execute(
+                text("SELECT cost_price FROM products WHERE id = :pid"),
+                {"pid": product_id},
+            ).scalar()
+            fallback_cost = _to_decimal_q(float(cost_price or 0), "0.000001")
 
-            # Advertir si stock queda negativo (pero no bloquear)
+            state = costing.apply_outbound(
+                str(tenant_id),
+                str(warehouse_uuid),
+                str(product_id),
+                qty=_to_decimal_q(qty_sold, "0.000001"),
+                allow_negative=False,
+                initial_qty=_to_decimal_q(current_qty, "0.000001"),
+                initial_avg_cost=fallback_cost,
+            )
+
+            cogs_unit = state.avg_cost
+            cogs_total = _to_decimal_q(qty_sold, "0.000001") * cogs_unit
+            net_total = _to_decimal_q(qty_sold, "0.000001") * _to_decimal_q(
+                unit_price, "0.0001"
+            )
+            net_total = net_total * (
+                Decimal("1") - (_to_decimal_q(discount_pct, "0.01") / 100)
+            )
+            net_total = _to_decimal_q(net_total, "0.01")
+            cogs_total_money = _to_decimal_q(cogs_total, "0.01")
+            gross_profit = _to_decimal_q(net_total - cogs_total_money, "0.01")
+            if net_total > 0:
+                gross_margin_pct = _to_decimal_q(gross_profit / net_total, "0.0001")
+            else:
+                gross_margin_pct = _to_decimal_q(0, "0.0001")
+
+            db.execute(
+                text(
+                    "UPDATE pos_receipt_lines "
+                    "SET net_total = :net, cogs_unit = :cu, cogs_total = :ct, "
+                    "gross_profit = :gp, gross_margin_pct = :gmp "
+                    "WHERE id = :id"
+                ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+                {
+                    "id": line_id,
+                    "net": float(net_total),
+                    "cu": float(cogs_unit),
+                    "ct": float(cogs_total_money),
+                    "gp": float(gross_profit),
+                    "gmp": float(gross_margin_pct),
+                },
+            )
+
+            # Registrar movimiento de stock con costo
+            db.execute(
+                text(
+                    "INSERT INTO stock_moves("
+                    "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id, "
+                    "tentative, posted, unit_cost, total_cost"
+                    ") VALUES ("
+                    ":tid, :pid, :wid, :q, 'sale', 'pos_receipt', :rid, FALSE, TRUE, :uc, :tc"
+                    ")"
+                ).bindparams(
+                    bindparam("tid", type_=PGUUID(as_uuid=True)),
+                    bindparam("pid", type_=PGUUID(as_uuid=True)),
+                    bindparam("wid", type_=PGUUID(as_uuid=True)),
+                    bindparam("rid", type_=PGUUID(as_uuid=True)),
+                ),
+                {
+                    "tid": tenant_id,
+                    "pid": product_id,
+                    "wid": warehouse_uuid,
+                    "q": qty_sold,
+                    "rid": receipt_uuid,
+                    "uc": float(cogs_unit),
+                    "tc": float(cogs_total_money),
+                },
+            )
+
+            new_qty = current_qty - qty_sold
             if new_qty < 0:
-                # PodrÃ­as loggear esto o enviar una notificaciÃ³n
-                pass
+                raise HTTPException(status_code=400, detail="insufficient_stock")
 
             db.execute(
                 text(
@@ -1589,13 +1854,41 @@ def checkout(
         db.execute(
             text(
                 "UPDATE pos_receipts "
-                "SET status = 'paid', gross_total = :gt, tax_total = :tt, paid_at = NOW() "
+                "SET status = 'paid', gross_total = :gt, tax_total = :tt, "
+                "warehouse_id = :wid, paid_at = NOW() "
                 "WHERE id = :id"
             ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
-            {"id": receipt_uuid, "gt": total, "tt": tax},
+            {"id": receipt_uuid, "gt": total, "tt": tax, "wid": warehouse_uuid},
         )
 
         db.commit()
+
+        try:
+            claims = getattr(request.state, "access_claims", None)
+            user_id = claims.get("user_id") if isinstance(claims, dict) else None
+            audit_event(
+                db,
+                action="issue",
+                entity_type="pos_receipt",
+                entity_id=str(receipt_uuid),
+                actor_type="user" if user_id else "system",
+                source="api",
+                tenant_id=str(tenant_id),
+                user_id=str(user_id) if user_id else None,
+                changes={
+                    "status": "paid",
+                    "totals": {
+                        "subtotal": float(subtotal),
+                        "tax": float(tax),
+                        "total": float(total),
+                        "paid": float(paid),
+                        "change": float(paid - total),
+                    },
+                },
+                req=request,
+            )
+        except Exception:
+            pass
 
         return {
             "ok": True,
@@ -1618,13 +1911,220 @@ def checkout(
         raise HTTPException(status_code=500, detail=f"Error en checkout: {str(e)}")
 
 
-@router.get("/receipts", response_model=list[dict])
+@router.post(
+    "/receipts/{receipt_id}/refund",
+    response_model=dict,
+    dependencies=[Depends(require_permission("pos.receipt.refund"))],
+)
+def refund_receipt(
+    receipt_id: str,
+    payload: RefundReceiptIn,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Reversa total del recibo: crea lÃ­neas negativas y repone stock."""
+    ensure_guc_from_request(request, db, persist=True)
+    receipt_uuid = _validate_uuid(receipt_id, "Receipt ID")
+    tenant_id = _get_tenant_id(request)
+
+    try:
+        receipt = db.execute(
+            text("SELECT status, warehouse_id FROM pos_receipts WHERE id = :id FOR UPDATE").bindparams(
+                bindparam("id", type_=PGUUID(as_uuid=True))
+            ),
+            {"id": receipt_uuid},
+        ).first()
+
+        if not receipt:
+            raise HTTPException(status_code=404, detail="Recibo no encontrado")
+        if receipt[0] != "paid":
+            raise HTTPException(status_code=400, detail="Recibo no estÃ¡ pagado")
+
+        warehouse_uuid = receipt[1]
+        if not warehouse_uuid:
+            raise HTTPException(status_code=400, detail="Recibo sin warehouse_id")
+
+        has_refunds = db.execute(
+            text(
+                "SELECT 1 FROM pos_receipt_lines WHERE receipt_id = :rid AND qty < 0 LIMIT 1"
+            ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
+            {"rid": receipt_uuid},
+        ).first()
+        if has_refunds:
+            raise HTTPException(status_code=400, detail="Recibo ya reembolsado")
+
+        lines = db.execute(
+            text(
+                "SELECT product_id, qty, unit_price, tax_rate, discount_pct, line_total, "
+                "net_total, cogs_unit, cogs_total, uom "
+                "FROM pos_receipt_lines WHERE receipt_id = :rid"
+            ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
+            {"rid": receipt_uuid},
+        ).fetchall()
+
+        if not lines:
+            raise HTTPException(status_code=400, detail="Recibo sin lÃ­neas")
+
+        costing = InventoryCostingService(db)
+
+        for line in lines:
+            product_id = line[0]
+            qty = float(line[1])
+            unit_price = float(line[2])
+            tax_rate = float(line[3] or 0)
+            discount_pct = float(line[4] or 0)
+            line_total = float(line[5] or 0)
+            net_total = float(line[6] or 0)
+            cogs_unit = float(line[7] or 0)
+            cogs_total = float(line[8] or 0)
+            uom = line[9] or "unit"
+
+            qty_return = abs(qty)
+            qty_dec = _to_decimal_q(qty_return, "0.000001")
+            cogs_unit_dec = _to_decimal_q(cogs_unit, "0.000001")
+
+            stock_item = db.execute(
+                text(
+                    "SELECT id, qty FROM stock_items "
+                    "WHERE warehouse_id = :wid AND product_id = :pid "
+                    "FOR UPDATE"
+                ),
+                {"wid": str(warehouse_uuid), "pid": str(product_id)},
+            ).first()
+            current_qty = float(stock_item[1] or 0) if stock_item else 0.0
+            if stock_item is None:
+                db.execute(
+                    text(
+                        "INSERT INTO stock_items(id, tenant_id, warehouse_id, product_id, qty) "
+                        "VALUES (gen_random_uuid(), :tid, :wid, :pid, 0)"
+                    ),
+                    {
+                        "tid": str(tenant_id),
+                        "wid": str(warehouse_uuid),
+                        "pid": str(product_id),
+                    },
+                )
+
+            costing.apply_inbound(
+                str(tenant_id),
+                str(warehouse_uuid),
+                str(product_id),
+                qty=qty_dec,
+                unit_cost=cogs_unit_dec,
+                initial_qty=_to_decimal_q(current_qty, "0.000001"),
+                initial_avg_cost=cogs_unit_dec,
+            )
+
+            db.execute(
+                text(
+                    "UPDATE stock_items SET qty = :q "
+                    "WHERE warehouse_id = :wid AND product_id = :pid"
+                ),
+                {"q": current_qty + qty_return, "wid": str(warehouse_uuid), "pid": str(product_id)},
+            )
+
+            refund_net = -abs(net_total or line_total)
+            refund_cogs_total = -abs(cogs_total)
+            refund_profit = _to_decimal_q(refund_net - refund_cogs_total, "0.01")
+            if refund_net != 0:
+                refund_margin = _to_decimal_q(refund_profit / Decimal(str(refund_net)), "0.0001")
+            else:
+                refund_margin = _to_decimal_q(0, "0.0001")
+
+            db.execute(
+                text(
+                    "INSERT INTO pos_receipt_lines("
+                    "receipt_id, product_id, qty, unit_price, tax_rate, discount_pct, line_total, "
+                    "uom, net_total, cogs_unit, cogs_total, gross_profit, gross_margin_pct"
+                    ") VALUES ("
+                    ":rid, :pid, :qty, :up, :tr, :dp, :lt, :uom, :net, :cu, :ct, :gp, :gmp"
+                    ")"
+                ).bindparams(
+                    bindparam("rid", type_=PGUUID(as_uuid=True)),
+                    bindparam("pid", type_=PGUUID(as_uuid=True)),
+                ),
+                {
+                    "rid": receipt_uuid,
+                    "pid": product_id,
+                    "qty": -abs(qty),
+                    "up": unit_price,
+                    "tr": tax_rate,
+                    "dp": discount_pct,
+                    "lt": -abs(line_total),
+                    "uom": uom,
+                    "net": refund_net,
+                    "cu": float(cogs_unit_dec),
+                    "ct": refund_cogs_total,
+                    "gp": float(refund_profit),
+                    "gmp": float(refund_margin),
+                },
+            )
+
+            db.execute(
+                text(
+                    "INSERT INTO stock_moves("
+                    "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id, tentative, "
+                    "posted, unit_cost, total_cost"
+                    ") VALUES ("
+                    ":tid, :pid, :wid, :q, 'return', 'pos_receipt_refund', :rid, FALSE, TRUE, :uc, :tc"
+                    ")"
+                ).bindparams(
+                    bindparam("tid", type_=PGUUID(as_uuid=True)),
+                    bindparam("pid", type_=PGUUID(as_uuid=True)),
+                    bindparam("wid", type_=PGUUID(as_uuid=True)),
+                    bindparam("rid", type_=PGUUID(as_uuid=True)),
+                ),
+                {
+                    "tid": tenant_id,
+                    "pid": product_id,
+                    "wid": warehouse_uuid,
+                    "q": qty_return,
+                    "rid": receipt_uuid,
+                    "uc": float(cogs_unit_dec),
+                    "tc": float(cogs_unit_dec * qty_dec),
+                },
+            )
+
+        db.commit()
+        try:
+            claims = getattr(request.state, "access_claims", None)
+            user_id = claims.get("user_id") if isinstance(claims, dict) else None
+            audit_event(
+                db,
+                action="refund",
+                entity_type="pos_receipt",
+                entity_id=str(receipt_uuid),
+                actor_type="user" if user_id else "system",
+                source="api",
+                tenant_id=str(tenant_id),
+                user_id=str(user_id) if user_id else None,
+                changes={"status": "refunded", "reason": payload.reason},
+                req=request,
+            )
+        except Exception:
+            pass
+        return {"ok": True, "receipt_id": str(receipt_uuid), "status": "refunded"}
+
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al reembolsar: {str(e)}")
+
+
+@router.get(
+    "/receipts",
+    response_model=list[dict],
+    dependencies=[Depends(require_permission("pos.receipt.read"))],
+)
 def list_receipts(
     request: Request,
     status: str | None = None,
     since: str | None = None,
     until: str | None = None,
     shift_id: str | None = None,
+    cashier_id: str | None = None,
     limit: int = Query(default=500, le=1000),
     db: Session = Depends(get_db),
 ):
@@ -1632,9 +2132,12 @@ def list_receipts(
     ensure_guc_from_request(request, db, persist=True)
 
     sql_parts = [
-        "SELECT id, shift_id, register_id, number, status, gross_total, tax_total, "
-        "created_at, paid_at "
-        "FROM pos_receipts WHERE 1=1"
+        "SELECT r.id, r.shift_id, r.register_id, r.cashier_id, r.number, r.status, "
+        "r.gross_total, r.tax_total, r.created_at, r.paid_at, "
+        "u.first_name, u.last_name, u.username, u.email "
+        "FROM pos_receipts r "
+        "LEFT JOIN company_users u ON u.id = r.cashier_id "
+        "WHERE 1=1"
     ]
     params = {}
 
@@ -1646,6 +2149,11 @@ def list_receipts(
         shift_uuid = _validate_uuid(shift_id, "Shift ID")
         sql_parts.append("AND shift_id = :sid")
         params["sid"] = shift_uuid
+
+    if cashier_id:
+        cashier_uuid = _validate_uuid(cashier_id, "Cashier ID")
+        sql_parts.append("AND cashier_id = :cid")
+        params["cid"] = cashier_uuid
 
     if since:
         sql_parts.append("AND created_at >= :since")
@@ -1665,12 +2173,18 @@ def list_receipts(
                 "id": str(r[0]),
                 "shift_id": str(r[1]),
                 "register_id": str(r[2]),
-                "number": r[3],
-                "status": r[4],
-                "gross_total": float(r[5]) if r[5] else 0,
-                "tax_total": float(r[6]) if r[6] else 0,
-                "created_at": r[7].isoformat() if r[7] else None,
-                "paid_at": r[8].isoformat() if r[8] else None,
+                "cashier_id": str(r[3]) if r[3] else None,
+                "number": r[4],
+                "status": r[5],
+                "gross_total": float(r[6]) if r[6] else 0,
+                "tax_total": float(r[7]) if r[7] else 0,
+                "created_at": r[8].isoformat() if r[8] else None,
+                "paid_at": r[9].isoformat() if r[9] else None,
+                "cashier_name": (
+                    f"{r[10]} {r[11]}".strip()
+                    if r[10] or r[11]
+                    else (r[12] or r[13])
+                ),
             }
             for r in rows
         ]
@@ -1678,7 +2192,11 @@ def list_receipts(
         raise HTTPException(status_code=500, detail=f"Error al listar recibos: {str(e)}")
 
 
-@router.get("/receipts/{receipt_id}", response_model=dict)
+@router.get(
+    "/receipts/{receipt_id}",
+    response_model=dict,
+    dependencies=[Depends(require_permission("pos.receipt.read"))],
+)
 def get_receipt(receipt_id: str, request: Request, db: Session = Depends(get_db)):
     """Obtiene un recibo con sus lÃ­neas y pagos"""
     ensure_guc_from_request(request, db, persist=True)
@@ -1687,9 +2205,12 @@ def get_receipt(receipt_id: str, request: Request, db: Session = Depends(get_db)
     try:
         rec = db.execute(
             text(
-                "SELECT id, tenant_id, register_id, shift_id, number, status, gross_total, "
-                "tax_total, currency, customer_id, invoice_id, created_at, paid_at "
-                "FROM pos_receipts WHERE id = :id"
+                "SELECT r.id, r.tenant_id, r.register_id, r.shift_id, r.number, r.status, r.gross_total, "
+                "r.tax_total, r.currency, r.customer_id, r.invoice_id, r.created_at, r.paid_at, r.cashier_id, "
+                "u.first_name, u.last_name, u.username, u.email "
+                "FROM pos_receipts r "
+                "LEFT JOIN company_users u ON u.id = r.cashier_id "
+                "WHERE r.id = :id"
             ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
             {"id": rid},
         ).first()
@@ -1731,6 +2252,12 @@ def get_receipt(receipt_id: str, request: Request, db: Session = Depends(get_db)
             "invoice_id": str(rec[10]) if rec[10] else None,
             "created_at": rec[11].isoformat() if rec[11] else None,
             "paid_at": rec[12].isoformat() if rec[12] else None,
+            "cashier_id": str(rec[13]) if rec[13] else None,
+            "cashier_name": (
+                f"{rec[14]} {rec[15]}".strip()
+                if rec[14] or rec[15]
+                else (rec[16] or rec[17])
+            ),
             "lines": [
                 {
                     "id": str(l[0]) if l[0] else None,
@@ -1763,7 +2290,11 @@ def get_receipt(receipt_id: str, request: Request, db: Session = Depends(get_db)
         raise HTTPException(status_code=500, detail=f"Error al obtener recibo: {str(e)}")
 
 
-@router.delete("/receipts/{receipt_id}", status_code=204)
+@router.delete(
+    "/receipts/{receipt_id}",
+    status_code=204,
+    dependencies=[Depends(require_permission("pos.receipt.manage"))],
+)
 def delete_receipt(receipt_id: str, request: Request, db: Session = Depends(get_db)):
     """Elimina un recibo en borrador o sin pagar."""
     ensure_guc_from_request(request, db, persist=True)
@@ -1795,6 +2326,24 @@ def delete_receipt(receipt_id: str, request: Request, db: Session = Depends(get_
             {"id": rid},
         )
         db.commit()
+        try:
+            tenant_id = _get_tenant_id(request)
+            claims = getattr(request.state, "access_claims", None)
+            user_id = claims.get("user_id") if isinstance(claims, dict) else None
+            audit_event(
+                db,
+                action="delete",
+                entity_type="pos_receipt",
+                entity_id=str(rid),
+                actor_type="user" if user_id else "system",
+                source="api",
+                tenant_id=str(tenant_id),
+                user_id=str(user_id) if user_id else None,
+                changes={"status": status},
+                req=request,
+            )
+        except Exception:
+            pass
     except HTTPException:
         db.rollback()
         raise
@@ -1803,7 +2352,10 @@ def delete_receipt(receipt_id: str, request: Request, db: Session = Depends(get_
         raise HTTPException(status_code=500, detail=f"Error al eliminar recibo: {str(e)}")
 
 
-@router.get("/receipts/{receipt_id}/print")
+@router.get(
+    "/receipts/{receipt_id}/print",
+    dependencies=[Depends(require_permission("pos.receipt.print"))],
+)
 def print_receipt(
     receipt_id: str,
     request: Request,
@@ -1942,7 +2494,7 @@ def print_receipt(
 </head>
 <body>
     <div class="center bold" style="font-size: 11pt;">TICKET DE VENTA</div>
-    <div class="center">NÂº {receipt[1] or "N/A"}</div>
+    <div class="center">Nº {receipt[1] or "N/A"}</div>
     <div class="center" style="font-size: 8pt;">
         {receipt[4].strftime("%d/%m/%Y %H:%M") if receipt[4] else ""}
     </div>
@@ -2393,11 +2945,200 @@ def post_receipt(
 
 
 # ============================================================================
+# ENDPOINTS - ANALYTICS (MARGINS)
+# ============================================================================
+
+
+@router.get(
+    "/analytics/margins/products",
+    response_model=list[dict],
+    dependencies=[Depends(require_permission("pos.analytics.view"))],
+)
+def margins_by_product(
+    request: Request,
+    db: Session = Depends(get_db),
+    from_date: str = Query(..., alias="from"),
+    to_date: str = Query(..., alias="to"),
+    warehouse_id: str | None = None,
+    limit: int = Query(default=100, le=500),
+):
+    ensure_guc_from_request(request, db, persist=True)
+    tenant_id = _get_tenant_id(request)
+
+    rows = db.execute(
+        text(
+            "SELECT "
+            "l.product_id, "
+            "SUM(l.net_total) AS sales_net, "
+            "SUM(l.cogs_total) AS cogs, "
+            "SUM(l.gross_profit) AS gross_profit, "
+            "CASE WHEN SUM(l.net_total) > 0 "
+            "THEN SUM(l.gross_profit)/SUM(l.net_total) "
+            "ELSE 0 END AS margin_pct "
+            "FROM pos_receipt_lines l "
+            "JOIN pos_receipts r ON r.id = l.receipt_id "
+            "WHERE r.tenant_id = :tid "
+            "AND r.status IN ('paid','invoiced') "
+            "AND r.created_at >= :from_date "
+            "AND r.created_at < :to_date "
+            "AND (:warehouse_id IS NULL OR r.warehouse_id = :warehouse_id) "
+            "GROUP BY l.product_id "
+            "ORDER BY gross_profit DESC "
+            "LIMIT :limit"
+        ),
+        {
+            "tid": tenant_id,
+            "from_date": from_date,
+            "to_date": to_date,
+            "warehouse_id": warehouse_id,
+            "limit": limit,
+        },
+    ).fetchall()
+
+    return [
+        {
+            "product_id": str(r[0]),
+            "sales_net": float(r[1] or 0),
+            "cogs": float(r[2] or 0),
+            "gross_profit": float(r[3] or 0),
+            "margin_pct": float(r[4] or 0),
+        }
+        for r in rows
+    ]
+
+
+@router.get(
+    "/analytics/margins/customers",
+    response_model=list[dict],
+    dependencies=[Depends(require_permission("pos.analytics.view"))],
+)
+def margins_by_customer(
+    request: Request,
+    db: Session = Depends(get_db),
+    from_date: str = Query(..., alias="from"),
+    to_date: str = Query(..., alias="to"),
+    warehouse_id: str | None = None,
+    limit: int = Query(default=100, le=500),
+):
+    ensure_guc_from_request(request, db, persist=True)
+    tenant_id = _get_tenant_id(request)
+
+    rows = db.execute(
+        text(
+            "SELECT "
+            "r.customer_id, "
+            "SUM(l.net_total) AS sales_net, "
+            "SUM(l.cogs_total) AS cogs, "
+            "SUM(l.gross_profit) AS gross_profit, "
+            "CASE WHEN SUM(l.net_total) > 0 "
+            "THEN SUM(l.gross_profit)/SUM(l.net_total) "
+            "ELSE 0 END AS margin_pct "
+            "FROM pos_receipt_lines l "
+            "JOIN pos_receipts r ON r.id = l.receipt_id "
+            "WHERE r.tenant_id = :tid "
+            "AND r.status IN ('paid','invoiced') "
+            "AND r.created_at >= :from_date "
+            "AND r.created_at < :to_date "
+            "AND (:warehouse_id IS NULL OR r.warehouse_id = :warehouse_id) "
+            "GROUP BY r.customer_id "
+            "ORDER BY gross_profit DESC "
+            "LIMIT :limit"
+        ),
+        {
+            "tid": tenant_id,
+            "from_date": from_date,
+            "to_date": to_date,
+            "warehouse_id": warehouse_id,
+            "limit": limit,
+        },
+    ).fetchall()
+
+    return [
+        {
+            "customer_id": str(r[0]) if r[0] else None,
+            "sales_net": float(r[1] or 0),
+            "cogs": float(r[2] or 0),
+            "gross_profit": float(r[3] or 0),
+            "margin_pct": float(r[4] or 0),
+        }
+        for r in rows
+    ]
+
+
+@router.get(
+    "/analytics/margins/product/{product_id}/lines",
+    response_model=list[dict],
+    dependencies=[Depends(require_permission("pos.analytics.view"))],
+)
+def margins_product_lines(
+    product_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    from_date: str | None = Query(default=None, alias="from"),
+    to_date: str | None = Query(default=None, alias="to"),
+    warehouse_id: str | None = None,
+    limit: int = Query(default=200, le=1000),
+):
+    ensure_guc_from_request(request, db, persist=True)
+    tenant_id = _get_tenant_id(request)
+    pid = _validate_uuid(product_id, "Product ID")
+
+    sql = (
+        "SELECT l.id, l.receipt_id, l.qty, l.unit_price, l.net_total, "
+        "l.cogs_unit, l.cogs_total, l.gross_profit, l.gross_margin_pct, "
+        "r.created_at "
+        "FROM pos_receipt_lines l "
+        "JOIN pos_receipts r ON r.id = l.receipt_id "
+        "WHERE r.tenant_id = :tid "
+        "AND r.status IN ('paid','invoiced') "
+        "AND l.product_id = :pid "
+        "AND (:warehouse_id IS NULL OR r.warehouse_id = :warehouse_id) "
+    )
+    if from_date:
+        sql += "AND r.created_at >= :from_date "
+    if to_date:
+        sql += "AND r.created_at < :to_date "
+    sql += "ORDER BY r.created_at DESC LIMIT :limit"
+
+    rows = db.execute(
+        text(sql),
+        {
+            "tid": tenant_id,
+            "pid": pid,
+            "from_date": from_date,
+            "to_date": to_date,
+            "warehouse_id": warehouse_id,
+            "limit": limit,
+        },
+    ).fetchall()
+
+    return [
+        {
+            "line_id": str(r[0]),
+            "receipt_id": str(r[1]),
+            "qty": float(r[2] or 0),
+            "unit_price": float(r[3] or 0),
+            "net_total": float(r[4] or 0),
+            "cogs_unit": float(r[5] or 0),
+            "cogs_total": float(r[6] or 0),
+            "gross_profit": float(r[7] or 0),
+            "gross_margin_pct": float(r[8] or 0),
+            "created_at": r[9].isoformat() if r[9] else None,
+        }
+        for r in rows
+    ]
+
+
+# ============================================================================
 # ENDPOINTS DE SALUD Y UTILIDADES
 # ============================================================================
 
 
-@router.get("/daily_counts", response_model=list[dict])
+@router.get(
+    "/daily_counts",
+    response_model=list[dict],
+    dependencies=[Depends(require_permission("pos.reports.view"))],
+)
 def list_daily_counts(
     request: Request,
     register_id: str | None = None,
@@ -2460,6 +3201,288 @@ def list_daily_counts(
         ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al listar reportes diarios: {str(e)}")
+
+
+@router.get(
+    "/numbering/counters",
+    response_model=list[NumberingCounterOut],
+    dependencies=[Depends(require_permission("pos.receipt.manage"))],
+)
+def list_numbering_counters(
+    request: Request,
+    doc_type: str | None = None,
+    year: int | None = Query(default=None, ge=2000),
+    series: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """Lista contadores de numeración por tenant."""
+    tenant_id = _get_tenant_id(request)
+    sql_parts = [
+        "SELECT doc_type, year, series, current_no, updated_at",
+        "FROM doc_number_counters",
+        "WHERE tenant_id = :tenant_id",
+    ]
+    params: dict[str, object] = {"tenant_id": tenant_id}
+
+    if doc_type:
+        sql_parts.append("AND doc_type = :doc_type")
+        params["doc_type"] = doc_type.strip()
+    if year is not None:
+        sql_parts.append("AND year = :year")
+        params["year"] = year
+    if series:
+        sql_parts.append("AND series = :series")
+        params["series"] = series.strip() or "A"
+
+    sql_parts.append("ORDER BY year DESC, doc_type, series")
+    sql = " ".join(sql_parts)
+
+    rows = db.execute(text(sql), params).mappings().all()
+    return [
+        NumberingCounterOut(
+            doc_type=row["doc_type"],
+            year=row["year"],
+            series=row["series"],
+            current_no=row["current_no"],
+            updated_at=row["updated_at"],
+        )
+        for row in rows
+    ]
+
+
+@router.put(
+    "/numbering/counters",
+    response_model=NumberingCounterOut,
+    dependencies=[Depends(require_permission("pos.receipt.manage"))],
+)
+def upsert_numbering_counter(
+    payload: NumberingCounterUpdateIn,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Crea o actualiza el contador de numeración para un tenant."""
+    tenant_id = _get_tenant_id(request)
+    doc_type = payload.doc_type.strip()
+    series = (payload.series or "").strip() or "A"
+
+    if not doc_type:
+        raise HTTPException(status_code=400, detail="doc_type requerido")
+
+    row = db.execute(
+        text(
+            """
+            INSERT INTO doc_number_counters (
+                tenant_id, doc_type, year, series, current_no, created_at, updated_at
+            )
+            VALUES (:tenant_id, :doc_type, :year, :series, :current_no, now(), now())
+            ON CONFLICT (tenant_id, doc_type, year, series)
+            DO UPDATE SET
+                current_no = EXCLUDED.current_no,
+                updated_at = now()
+            RETURNING doc_type, year, series, current_no, updated_at
+            """
+        ),
+        {
+            "tenant_id": tenant_id,
+            "doc_type": doc_type,
+            "year": payload.year,
+            "series": series,
+            "current_no": payload.current_no,
+        },
+    ).mappings().first()
+
+    if not row:
+        raise HTTPException(status_code=500, detail="No se pudo actualizar el contador")
+
+    db.commit()
+    return NumberingCounterOut(
+        doc_type=row["doc_type"],
+        year=row["year"],
+        series=row["series"],
+        current_no=row["current_no"],
+        updated_at=row["updated_at"],
+    )
+
+
+@router.get(
+    "/numbering/series",
+    response_model=list[DocSeriesOut],
+    dependencies=[Depends(require_permission("pos.receipt.manage"))],
+)
+def list_doc_series(
+    request: Request,
+    register_id: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """Lista series de numeracion (doc_series) para el tenant."""
+    tenant_id = _get_tenant_id(request)
+    params: dict[str, object] = {"tenant_id": tenant_id}
+    sql_parts = [
+        "SELECT id, register_id, doc_type, name, current_no, reset_policy, active, created_at",
+        "FROM doc_series",
+        "WHERE tenant_id = :tenant_id",
+    ]
+    if register_id:
+        rid = _validate_uuid(register_id, "Register ID")
+        sql_parts.append("AND register_id = :register_id")
+        params["register_id"] = rid
+    sql_parts.append("ORDER BY doc_type, name")
+
+    rows = db.execute(text(" ".join(sql_parts)), params).mappings().all()
+    return [
+        DocSeriesOut(
+            id=str(r["id"]),
+            register_id=str(r["register_id"]) if r["register_id"] else None,
+            doc_type=r["doc_type"],
+            name=r["name"],
+            current_no=r["current_no"],
+            reset_policy=r["reset_policy"],
+            active=bool(r["active"]),
+            created_at=r["created_at"],
+        )
+        for r in rows
+    ]
+
+
+@router.put(
+    "/numbering/series",
+    response_model=DocSeriesOut,
+    dependencies=[Depends(require_permission("pos.receipt.manage"))],
+)
+def upsert_doc_series(
+    payload: DocSeriesUpsertIn,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Crea o actualiza una serie de numeracion."""
+    tenant_id = _get_tenant_id(request)
+    reg_id = payload.register_id
+    params = {
+        "tenant_id": tenant_id,
+        "register_id": reg_id,
+        "doc_type": payload.doc_type.strip(),
+        "name": payload.name.strip(),
+    }
+
+    if payload.id:
+        row = db.execute(
+            text(
+                """
+                UPDATE doc_series
+                SET current_no = :current_no,
+                    reset_policy = :reset_policy,
+                    active = :active
+                WHERE id = CAST(:id AS uuid)
+                  AND tenant_id = :tenant_id
+                RETURNING id, register_id, doc_type, name, current_no, reset_policy, active, created_at
+                """
+            ),
+            {
+                "id": payload.id,
+                "tenant_id": tenant_id,
+                "current_no": payload.current_no,
+                "reset_policy": payload.reset_policy,
+                "active": payload.active,
+            },
+        ).mappings().first()
+    else:
+        existing = db.execute(
+            text(
+                """
+                SELECT id FROM doc_series
+                WHERE tenant_id = :tenant_id
+                  AND doc_type = :doc_type
+                  AND name = :name
+                  AND (register_id IS NOT DISTINCT FROM CAST(:register_id AS uuid))
+                LIMIT 1
+                """
+            ),
+            params,
+        ).scalar()
+
+        if existing:
+            row = db.execute(
+                text(
+                    """
+                    UPDATE doc_series
+                    SET current_no = :current_no,
+                        reset_policy = :reset_policy,
+                        active = :active
+                    WHERE id = CAST(:id AS uuid)
+                    RETURNING id, register_id, doc_type, name, current_no, reset_policy, active, created_at
+                    """
+                ),
+                {
+                    "id": existing,
+                    "current_no": payload.current_no,
+                    "reset_policy": payload.reset_policy,
+                    "active": payload.active,
+                },
+            ).mappings().first()
+        else:
+            row = db.execute(
+                text(
+                    """
+                    INSERT INTO doc_series (
+                        id, tenant_id, register_id, doc_type, name, current_no, reset_policy, active, created_at
+                    )
+                    VALUES (
+                        gen_random_uuid(), :tenant_id, CAST(:register_id AS uuid),
+                        :doc_type, :name, :current_no, :reset_policy, :active, now()
+                    )
+                    RETURNING id, register_id, doc_type, name, current_no, reset_policy, active, created_at
+                    """
+                ),
+                {
+                    "tenant_id": tenant_id,
+                    "register_id": reg_id,
+                    "doc_type": payload.doc_type.strip(),
+                    "name": payload.name.strip(),
+                    "current_no": payload.current_no,
+                    "reset_policy": payload.reset_policy,
+                    "active": payload.active,
+                },
+            ).mappings().first()
+
+    if not row:
+        raise HTTPException(status_code=500, detail="No se pudo actualizar la serie")
+
+    db.commit()
+    return DocSeriesOut(
+        id=str(row["id"]),
+        register_id=str(row["register_id"]) if row["register_id"] else None,
+        doc_type=row["doc_type"],
+        name=row["name"],
+        current_no=row["current_no"],
+        reset_policy=row["reset_policy"],
+        active=bool(row["active"]),
+        created_at=row["created_at"],
+    )
+
+
+@router.post(
+    "/numbering/series/reset_yearly",
+    dependencies=[Depends(require_permission("pos.receipt.manage"))],
+)
+def reset_yearly_series(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Resetea a 0 las series con reset_policy=yearly."""
+    tenant_id = _get_tenant_id(request)
+    result = db.execute(
+        text(
+            """
+            UPDATE doc_series
+            SET current_no = 0
+            WHERE tenant_id = :tenant_id
+              AND reset_policy = 'yearly'
+            """
+        ),
+        {"tenant_id": tenant_id},
+    )
+    db.commit()
+    return {"updated": result.rowcount}
 
 
 @router.get("/health", include_in_schema=False)

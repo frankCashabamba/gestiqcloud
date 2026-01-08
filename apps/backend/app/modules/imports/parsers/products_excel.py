@@ -1,9 +1,32 @@
 """Excel parser for products with automatic category detection."""
 
 from datetime import datetime
+import re
 from typing import Any
 
 import openpyxl
+
+
+def _to_number(val: Any) -> float | None:
+    if val is None or val == "":
+        return None
+    if isinstance(val, (int, float)):
+        return float(val)
+    s = str(val).strip()
+    if not s:
+        return None
+    s_norm = re.sub(r"[^0-9,.-]", "", s)
+    if "," in s_norm and "." in s_norm:
+        if s_norm.rfind(",") > s_norm.rfind("."):
+            s_norm = s_norm.replace(".", "").replace(",", ".")
+        else:
+            s_norm = s_norm.replace(",", "")
+    else:
+        s_norm = s_norm.replace(",", ".")
+    try:
+        return float(s_norm)
+    except (ValueError, TypeError):
+        return None
 
 
 def parse_products_excel(file_path: str, sheet_name: str = None) -> dict[str, Any]:
@@ -75,6 +98,23 @@ def parse_products_excel(file_path: str, sheet_name: str = None) -> dict[str, An
             if "precio" not in col_map:
                 col_map["precio"] = idx
 
+        # Costo
+        elif any(
+            kw in col_lower
+            for kw in [
+                "costo",
+                "cost",
+                "coste",
+                "costo promedio",
+                "costo unitario",
+                "precio costo",
+                "cost_price",
+                "unit_cost",
+            ]
+        ):
+            if "costo" not in col_map:
+                col_map["costo"] = idx
+
         # SKU/Código
         elif any(
             kw in col_lower for kw in ["sku", "codigo", "código", "code", "referencia", "ref"]
@@ -101,10 +141,12 @@ def parse_products_excel(file_path: str, sheet_name: str = None) -> dict[str, An
         nombre_idx = col_map.get("nombre", 0)
         cantidad_idx = col_map.get("cantidad", 1)
         precio_idx = col_map.get("precio", 2)
+        costo_idx = col_map.get("costo")
 
         nombre = row[nombre_idx] if len(row) > nombre_idx else None
         cantidad = row[cantidad_idx] if len(row) > cantidad_idx else None
         precio = row[precio_idx] if len(row) > precio_idx else None
+        costo = row[costo_idx] if costo_idx is not None and len(row) > costo_idx else None
 
         if not nombre:
             continue
@@ -123,15 +165,15 @@ def parse_products_excel(file_path: str, sheet_name: str = None) -> dict[str, An
             continue
 
         # Parse product
-        try:
-            precio_val = float(precio) if precio is not None else 0.0
-        except (ValueError, TypeError):
+        precio_val = _to_number(precio)
+        if precio_val is None:
             precio_val = 0.0
 
-        try:
-            cantidad_val = float(cantidad) if cantidad is not None else 0.0
-        except (ValueError, TypeError):
+        cantidad_val = _to_number(cantidad)
+        if cantidad_val is None:
             cantidad_val = 0.0
+
+        costo_val = _to_number(costo)
 
         # Extract SKU if available
         sku = None
@@ -156,6 +198,15 @@ def parse_products_excel(file_path: str, sheet_name: str = None) -> dict[str, An
             "_row": row_idx,
             "_imported_at": datetime.utcnow().isoformat(),
         }
+        if costo_val is not None:
+            product.update(
+                {
+                    "cost_price": costo_val,
+                    "cost": costo_val,
+                    "costo": costo_val,
+                    "unit_cost": costo_val,
+                }
+            )
 
         if sku:
             product["sku"] = sku
@@ -189,9 +240,31 @@ def normalize_product_row(
         Normalized dict with standardized field names
     """
     # Ensure all aliases are present
-    nombre = raw_row.get("nombre") or raw_row.get("name") or raw_row.get("producto") or ""
-    precio = raw_row.get("precio") or raw_row.get("price") or 0
-    cantidad = raw_row.get("cantidad") or raw_row.get("quantity") or raw_row.get("stock") or 0
+    nombre = (
+        raw_row.get("nombre")
+        or raw_row.get("name")
+        or raw_row.get("producto")
+        or raw_row.get("articulo")
+        or ""
+    )
+    precio = _to_number(raw_row.get("precio") or raw_row.get("price"))
+    if precio is None:
+        precio = 0.0
+    cantidad = _to_number(
+        raw_row.get("cantidad") or raw_row.get("quantity") or raw_row.get("stock")
+    )
+    if cantidad is None:
+        cantidad = 0.0
+    costo = _to_number(
+        raw_row.get("cost_price")
+        or raw_row.get("cost")
+        or raw_row.get("costo")
+        or raw_row.get("costo_promedio")
+        or raw_row.get("costo promedio")
+        or raw_row.get("costo_unitario")
+        or raw_row.get("costo unitario")
+        or raw_row.get("unit_cost")
+    )
     categoria = (
         raw_row.get("categoria") or raw_row.get("category") or category_context or "SIN_CATEGORIA"
     )
@@ -200,18 +273,33 @@ def normalize_product_row(
         "name": str(nombre).strip(),
         "producto": str(nombre).strip(),
         "nombre": str(nombre).strip(),
-        "price": float(precio) if precio else 0.0,
-        "precio": float(precio) if precio else 0.0,
-        "quantity": float(cantidad) if cantidad else 0.0,
-        "cantidad": float(cantidad) if cantidad else 0.0,
-        "stock": float(cantidad) if cantidad else 0.0,
+        "price": float(precio) if precio is not None else 0.0,
+        "precio": float(precio) if precio is not None else 0.0,
+        "quantity": float(cantidad) if cantidad is not None else 0.0,
+        "cantidad": float(cantidad) if cantidad is not None else 0.0,
+        "stock": float(cantidad) if cantidad is not None else 0.0,
         "category": str(categoria).strip(),
         "categoria": str(categoria).strip(),
     }
+    if costo is not None:
+        normalized.update(
+            {
+                "cost_price": float(costo),
+                "cost": float(costo),
+                "costo": float(costo),
+                "unit_cost": float(costo),
+            }
+        )
 
     # Preserve SKU if exists
-    if "sku" in raw_row:
-        normalized["sku"] = raw_row["sku"]
+    sku_val = (
+        raw_row.get("sku")
+        or raw_row.get("codigo")
+        or raw_row.get("c?digo")
+        or raw_row.get("code")
+    )
+    if sku_val not in (None, ""):
+        normalized["sku"] = sku_val
 
     # Preserve metadata
     if "_row" in raw_row:

@@ -15,9 +15,21 @@ from app.middleware.tenant import ensure_tenant
 from app.models.company.company_settings import CompanySettings
 from app.models.printing.printer_label_configuration import PrinterLabelConfiguration
 
-from ...tspl import LabelConfig, ProductLabel, build_tspl_payload, send_to_printer
+from ...tspl import (
+    LabelConfig,
+    ProductLabel,
+    build_tspl_payload,
+    build_tspl_payload_for_labels,
+    send_to_printer,
+)
 
-def build_label_config(width_mm: float | None, height_mm: float | None, gap_mm: float | None) -> LabelConfig:
+def build_label_config(
+    width_mm: float | None,
+    height_mm: float | None,
+    gap_mm: float | None,
+    columns: int | None = None,
+    column_gap_mm: float | None = None,
+) -> LabelConfig:
     config = LabelConfig()
     if width_mm is not None:
         config.width_mm = width_mm
@@ -25,6 +37,10 @@ def build_label_config(width_mm: float | None, height_mm: float | None, gap_mm: 
         config.height_mm = height_mm
     if gap_mm is not None:
         config.label_gap_mm = gap_mm
+    if columns is not None:
+        config.columns = columns
+    if column_gap_mm is not None:
+        config.column_gap_mm = column_gap_mm
     return config
 
 router = APIRouter()
@@ -39,6 +55,8 @@ class PrintLabelRequest(BaseModel):
     width_mm: confloat(gt=0, ge=10, le=150) = Field(50)
     height_mm: confloat(gt=0, ge=15, le=120) = Field(40)
     gap_mm: confloat(gt=0, ge=0.5, le=10) = Field(3)
+    columns: int = Field(1, ge=1, le=6)
+    column_gap_mm: confloat(ge=0, le=20) = Field(2)
     header_text: constr(strip_whitespace=True, min_length=1, max_length=60) | None = None
     footer_text: constr(strip_whitespace=True, min_length=1, max_length=60) | None = None
     offset_xmm: confloat(ge=-30, le=30) | None = None
@@ -60,6 +78,8 @@ class LabelConfigPayload(BaseModel):
     width_mm: confloat(gt=0, ge=10, le=150) | None = None
     height_mm: confloat(gt=0, ge=15, le=120) | None = None
     gap_mm: confloat(gt=0, ge=0.5, le=10) | None = None
+    columns: int | None = Field(None, ge=1, le=6)
+    column_gap_mm: confloat(ge=0, le=20) | None = None
     show_price: bool | None = None
     show_category: bool | None = None
     copies: int | None = Field(None, ge=1, le=20)
@@ -84,6 +104,8 @@ class PrinterLabelConfigResponse(BaseModel):
     width_mm: float | None = None
     height_mm: float | None = None
     gap_mm: float | None = None
+    columns: int | None = None
+    column_gap_mm: float | None = None
     copies: int | None = None
     show_price: bool | None = None
     show_category: bool | None = None
@@ -97,13 +119,37 @@ class PrinterLabelConfigResponse(BaseModel):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class SavePrinterLabelConfigRequest(BaseModel):
     printer_port: constr(strip_whitespace=True, min_length=1)
     name: constr(strip_whitespace=True, min_length=1, max_length=60)
     label_config: LabelConfigPayload
+
+
+class BatchLabelItem(BaseModel):
+    name: constr(strip_whitespace=True, min_length=1, max_length=60)
+    barcode: constr(strip_whitespace=True, min_length=1, max_length=60)
+    price: constr(strip_whitespace=True, min_length=1, max_length=32) | None = None
+    copies: int = Field(1, ge=1, le=20)
+
+
+class PrintLabelsRequest(BaseModel):
+    labels: list[BatchLabelItem]
+    width_mm: confloat(gt=0, ge=10, le=150) = Field(50)
+    height_mm: confloat(gt=0, ge=15, le=120) = Field(40)
+    gap_mm: confloat(gt=0, ge=0.5, le=10) = Field(3)
+    columns: int = Field(1, ge=1, le=6)
+    column_gap_mm: confloat(ge=0, le=20) = Field(2)
+    header_text: constr(strip_whitespace=True, min_length=1, max_length=60) | None = None
+    footer_text: constr(strip_whitespace=True, min_length=1, max_length=60) | None = None
+    offset_xmm: confloat(ge=-30, le=30) | None = None
+    offset_ymm: confloat(ge=-30, le=30) | None = None
+    barcode_width: confloat(gt=0, ge=1, le=5) | None = None
+    price_alignment: Literal["left", "center", "right"] | None = None
+    port: str | None = None
+    baudrate: int = Field(9600, ge=1200, le=115200)
 
 
 def _resolve_port(tenant_id: str, db: Session, explicit: str | None = None) -> str | None:
@@ -222,6 +268,8 @@ def create_printer_label_configuration(
         width_mm=cfg.width_mm,
         height_mm=cfg.height_mm,
         gap_mm=cfg.gap_mm,
+        columns=cfg.columns,
+        column_gap_mm=cfg.column_gap_mm,
         copies=cfg.copies,
         show_price=cfg.show_price,
         show_category=cfg.show_category,
@@ -276,7 +324,13 @@ async def print_label(
         barcode_width=payload.barcode_width,
         price_alignment=payload.price_alignment,
     )
-    config = build_label_config(payload.width_mm, payload.height_mm, payload.gap_mm)
+    config = build_label_config(
+        payload.width_mm,
+        payload.height_mm,
+        payload.gap_mm,
+        payload.columns,
+        payload.column_gap_mm,
+    )
     tspl = build_tspl_payload(label, config)
 
     try:
@@ -287,5 +341,60 @@ async def print_label(
 
     return {
         "printed": payload.copies,
+        "port": port,
+    }
+
+
+@router.post("/printing/labels/batch", summary="Send TSPL labels batch to attached printer")
+async def print_labels_batch(
+    payload: PrintLabelsRequest,
+    tenant_id: str = Depends(ensure_tenant),
+    db: Session = Depends(get_db),
+) -> dict[str, int | str]:
+    port = _resolve_port(tenant_id, db, payload.port)
+    if not port:
+        raise HTTPException(
+            status_code=400,
+            detail="No printer port configured; specify `port` or set PRINTING_PORT.",
+        )
+
+    expanded_labels: list[ProductLabel] = []
+    for item in payload.labels:
+        for _ in range(item.copies):
+            expanded_labels.append(
+                ProductLabel(
+                    name=item.name,
+                    barcode=item.barcode,
+                    price=item.price,
+                    copies=1,
+                    header_text=payload.header_text,
+                    footer_text=payload.footer_text,
+                    offset_xmm=payload.offset_xmm,
+                    offset_ymm=payload.offset_ymm,
+                    barcode_width=payload.barcode_width,
+                    price_alignment=payload.price_alignment,
+                )
+            )
+
+    if not expanded_labels:
+        raise HTTPException(status_code=400, detail="No labels to print.")
+
+    config = build_label_config(
+        payload.width_mm,
+        payload.height_mm,
+        payload.gap_mm,
+        payload.columns,
+        payload.column_gap_mm,
+    )
+    tspl = build_tspl_payload_for_labels(expanded_labels, config)
+
+    try:
+        send_to_printer(port, tspl, baudrate=payload.baudrate)
+    except Exception as exc:  # pragma: no cover - depends on hardware
+        logger.exception("Failed sending TSPL labels to %s", port)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    return {
+        "printed": len(expanded_labels),
         "port": port,
     }

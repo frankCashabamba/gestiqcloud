@@ -20,6 +20,8 @@ export type PrintConfig = {
   widthMm: number
   heightMm: number
   gapMm: number
+  columns: number
+  columnGapMm: number
   showPrice: boolean
   showCategory: boolean
   copies: number
@@ -62,6 +64,8 @@ const DEFAULT_CONFIG: PrintConfig = {
   widthMm: 50,
   heightMm: 40,
   gapMm: 3,
+  columns: 1,
+  columnGapMm: 2,
   showPrice: true,
   showCategory: false,
   copies: 1,
@@ -117,6 +121,13 @@ export default function PrintBarcodeLabels({
   const gridOffsetStyle = {
     marginLeft: `${mmToPx(localConfig.offsetXmm)}px`,
     marginTop: `${mmToPx(localConfig.offsetYmm)}px`,
+  }
+
+  const gridStyle = {
+    ...gridOffsetStyle,
+    gridTemplateColumns: `repeat(${Math.max(1, localConfig.columns)}, ${labelDimensions.width})`,
+    columnGap: `${mmToPx(Math.max(0, localConfig.columnGapMm))}px`,
+    rowGap: `${mmToPx(Math.max(0, localConfig.gapMm))}px`,
   }
 
   const generateBarcodes = () => {
@@ -331,6 +342,35 @@ export default function PrintBarcodeLabels({
               />
             </label>
           </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="text-xs text-gray-500">
+              Etiquetas por fila
+              <input
+                type="number"
+                min={1}
+                max={6}
+                step={1}
+                value={localConfig.columns}
+                onChange={(event) =>
+                  updateConfigAndResetSelection({ columns: Math.max(1, Number(event.target.value)) })
+                }
+                className="mt-1 w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </label>
+            <label className="text-xs text-gray-500">
+              Separacion horizontal (mm)
+              <input
+                type="number"
+                min={0}
+                step={0.5}
+                value={localConfig.columnGapMm}
+                onChange={(event) =>
+                  updateConfigAndResetSelection({ columnGapMm: Number(event.target.value) })
+                }
+                className="mt-1 w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </label>
+          </div>
           <label className="text-xs text-gray-500 block">
             Copias por producto
             <input
@@ -454,8 +494,8 @@ export default function PrintBarcodeLabels({
 
       <div ref={printRef} className="p-6 print:p-0">
         <div
-          className="grid grid-cols-3 gap-2 print:gap-1"
-          style={gridOffsetStyle}
+          className="grid print:gap-1"
+          style={gridStyle}
         >
           {labels.map((product, index) => (
           <div

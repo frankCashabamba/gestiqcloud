@@ -12,5 +12,7 @@ class ListarModulosAdmin(BaseUseCase[SqlModuloRepo]):
 
 
 class ListarModulosAsignadosTenant(BaseUseCase[SqlModuloRepo]):
-    def execute(self, *, tenant_user_id, tenant_id) -> Sequence[dict]:
+    def execute(self, *, tenant_user_id, tenant_id, is_admin: bool = False) -> Sequence[dict]:
+        if is_admin:
+            return self.repo.list_contracted(tenant_id=tenant_id)
         return self.repo.list_asignados(tenant_user_id=tenant_user_id, tenant_id=tenant_id)

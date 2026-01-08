@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.db.rls import ensure_rls
+from app.db.rls import ensure_rls, tenant_id_from_request
 
 router = APIRouter(
     prefix="/reconciliation",
@@ -28,17 +28,21 @@ class LinkIn(BaseModel):
 
 
 @router.post("/link", response_model=dict)
-def link_payment(payload: LinkIn, db: Session = Depends(get_db)):
+def link_payment(payload: LinkIn, request: Request, db: Session = Depends(get_db)):
+    tenant_id = tenant_id_from_request(request)
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="missing_tenant")
     # Ensure bank tx exists
     tx = db.execute(
-        text("SELECT id, importe FROM bank_transactions WHERE id=:id"),
-        {"id": payload.bank_transaction_id},
+        text("SELECT id, importe FROM bank_transactions WHERE id=:id AND tenant_id=:tid"),
+        {"id": payload.bank_transaction_id, "tid": tenant_id},
     ).first()
     if not tx:
         raise HTTPException(status_code=404, detail="bank_tx_not_found")
     # Ensure invoice exists and total
     inv = db.execute(
-        text("SELECT id, total FROM facturas WHERE id=:id"), {"id": payload.invoice_id}
+        text("SELECT id, total FROM facturas WHERE id=:id AND tenant_id=:tid"),
+        {"id": payload.invoice_id, "tid": tenant_id},
     ).first()
     if not inv:
         raise HTTPException(status_code=404, detail="invoice_not_found")
@@ -58,14 +62,17 @@ def link_payment(payload: LinkIn, db: Session = Depends(get_db)):
 
     # Update invoice status based on sum payments
     s = db.execute(
-        text("SELECT COALESCE(sum(importe_aplicado),0) FROM payments WHERE factura_id=:inv"),
-        {"inv": payload.invoice_id},
+        text(
+            "SELECT COALESCE(sum(importe_aplicado),0) "
+            "FROM payments WHERE factura_id=:inv AND tenant_id=:tid"
+        ),
+        {"inv": payload.invoice_id, "tid": tenant_id},
     ).scalar()
     tot = float(inv[1] or 0)
     new_status = "pagada" if s + 1e-6 >= tot else "parcial"
     db.execute(
-        text("UPDATE facturas SET estado=:st WHERE id=:id"),
-        {"st": new_status, "id": payload.invoice_id},
+        text("UPDATE facturas SET estado=:st WHERE id=:id AND tenant_id=:tid"),
+        {"st": new_status, "id": payload.invoice_id, "tid": tenant_id},
     )
     db.commit()
     return {
@@ -86,11 +93,15 @@ class SuggestOut(BaseModel):
 
 @router.get("/suggestions", response_model=list[SuggestOut])
 def suggestions(
+    request: Request,
     db: Session = Depends(get_db),
     since: str | None = Query(default=None),
     until: str | None = Query(default=None),
     tolerance: float = Query(default=0.01),
 ):
+    tenant_id = tenant_id_from_request(request)
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="missing_tenant")
     # Simple matching by amount with small tolerance and date proximity (+/- 7 days)
     sql = """
         WITH cand AS (
@@ -99,7 +110,8 @@ def suggestions(
                  abs(EXTRACT(EPOCH FROM (bt.fecha::timestamp - f.fecha_emision::timestamp)))/86400.0 AS days
             FROM bank_transactions bt
             JOIN facturas f ON f.tenant_id = bt.tenant_id
-           WHERE abs(bt.importe - f.total) <= :tol
+           WHERE bt.tenant_id = :tid
+             AND abs(bt.importe - f.total) <= :tol
              AND ( :since::date IS NULL OR bt.fecha >= :since::date )
              AND ( :until::date IS NULL OR bt.fecha <= :until::date )
         )
@@ -109,7 +121,10 @@ def suggestions(
          ORDER BY score DESC
          LIMIT 50
         """
-    rows = db.execute(text(sql), {"tol": tolerance, "since": since, "until": until}).fetchall()
+    rows = db.execute(
+        text(sql),
+        {"tid": tenant_id, "tol": tolerance, "since": since, "until": until},
+    ).fetchall()
     return [
         SuggestOut(
             bank_transaction_id=int(r[0]),

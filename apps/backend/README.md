@@ -40,7 +40,7 @@ python ../..//ops/scripts/check_endpoints.py  # smoke de endpoints FE/BE
 
 ## Endpoints clave
 - Auth: `/api/v1/tenant/auth/login`, `/api/v1/admin/auth/login`.
-- Settings y campos dinámicos: `/api/v1/tenant/settings/fields`, `/api/v1/admin/field-config/*`.
+- Settings y campos dinámicos: `/api/v1/company/settings/fields`, `/api/v1/admin/field-config/*`.
 - Imports: `/api/v1/imports/*` (preview, upload, publish, ai).
 - Salud: `/health`, `/ready`.
 
@@ -55,7 +55,7 @@ curl -i -X POST http://localhost:8000/api/v1/tenant/auth/login \
   --data '{"identificador":"USER","password":"secret"}' -c cookies.txt
 
 # Campos configurables (clientes) para un tenant
-curl -s "http://localhost:8000/api/v1/tenant/settings/fields?module=clientes&empresa=kusi-panaderia" \
+curl -s "http://localhost:8000/api/v1/company/settings/fields?module=clientes&empresa=kusi-panaderia" \
   -b cookies.txt
 
 # Login admin y lectura de empresas

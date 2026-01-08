@@ -80,7 +80,7 @@ class DefaultsConfig(BaseModel):
     """Valores por defecto del sector"""
 
     categories: list[str] = Field(default_factory=list)
-    tax_rate: float = 0.15
+    tax_rate: float | None = None
     currency: str = "EUR"
     locale: str = "es"
     timezone: str = "Europe/Madrid"
@@ -169,7 +169,7 @@ class SectorConfigJSON(BaseModel):
                 },
                 "defaults": {
                     "categories": ["Pan", "Pasteles", "Bollería", "Bebidas"],
-                    "tax_rate": 0.15,
+                    "tax_rate": None,
                     "currency": "EUR",
                 },
                 "pos": {
@@ -254,7 +254,7 @@ class SectorConfigUpdateRequest(BaseModel):
         "example": {
             "config": {
                 "branding": {"icon": "🥐", "displayName": "Panadería", "color_primario": "#8B4513"},
-                "defaults": {"tax_rate": 0.15, "currency": "EUR"},
+                "defaults": {"tax_rate": None, "currency": "EUR"},
                 "modules": {"pos": {"enabled": True}},
                 "pos": {"receipt_width_mm": 58},
                 "inventory": {"enable_expiry_tracking": True}

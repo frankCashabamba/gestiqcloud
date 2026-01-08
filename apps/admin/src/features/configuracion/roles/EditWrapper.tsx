@@ -3,13 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import RoleForm from './RoleForm'
 import type { RoleData, Role } from './types/roles'
+import type { GlobalPermission } from '../../../services/configuracion/permisos'
 
 interface EditWrapperProps {
   roles: Role[]
   onSubmit: (data: RoleData) => void
+  availablePermissions: GlobalPermission[]
 }
 
-const EditWrapper: React.FC<EditWrapperProps> = ({ roles, onSubmit }) => {
+const EditWrapper: React.FC<EditWrapperProps> = ({ roles, onSubmit, availablePermissions }) => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
@@ -44,6 +46,7 @@ const EditWrapper: React.FC<EditWrapperProps> = ({ roles, onSubmit }) => {
       mode="edit"
       initialData={roleAsRoleData}
       onSubmit={handleEditSubmit}
+      availablePermissions={availablePermissions}
     />
   )
 }

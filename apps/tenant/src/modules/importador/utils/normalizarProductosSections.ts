@@ -36,7 +36,8 @@ export function normalizarProductos(rows: Row[]): Record<string, unknown>[] {
   const colCodigo = findCol(headers, ['sku', 'codigo', 'cod', 'referencia', 'ref', 'barcode', 'ean', 'upc', 'codigo barras', 'cod barras'])
   const colNombre = findCol(headers, ['producto', 'prodcuto', 'nombre', 'descripcion', 'articulo', 'item', 'detalle'])
   const colPrecio = findCol(headers, ['precio unitario venta', 'precio', 'pvp', 'precio venta', 'importe', 'valor'])
-  const colStock  = findCol(headers, ['cantidad', 'stock', 'existencias', 'qty', 'unidades', 'inventario'])
+  const colStock  = findCol(headers, ['cantidad', 'stock', 'existencia', 'existencias', 'qty', 'unidades', 'inventario'])
+  const colCosto = findCol(headers, ['costo promedio', 'costo', 'cost', 'coste', 'precio costo', 'costo unitario', 'cost price', 'unit cost'])
   const colCategoria = findCol(headers, ['categoria', 'familia', 'rubro', 'grupo', 'subcategoria'])
 
   let currentCategory = ''
@@ -55,10 +56,13 @@ export function normalizarProductos(rows: Row[]): Record<string, unknown>[] {
   }
 
   for (const r of rows) {
-    const precioVal = toNumber(colPrecio ? r[colPrecio] : undefined)
+    let precioVal = toNumber(colPrecio ? r[colPrecio] : undefined)
     const stockVal  = toNumber(colStock ? r[colStock] : undefined)
     const nombreVal = (colNombre ? r[colNombre] : r['nombre']) || ''
     const codigoVal = (colCodigo ? r[colCodigo] : r['codigo']) || ''
+    let costoVal = toNumber(colCosto ? r[colCosto] : r['costo'])
+    if (precioVal < 0) precioVal = Math.abs(precioVal)
+    if (costoVal < 0) costoVal = Math.abs(costoVal)
 
     const nonEmptyCount = Object.values(r).filter((v) => String(v ?? '').trim() !== '').length
     const hasCategoryCol = !!colCategoria
@@ -87,6 +91,9 @@ export function normalizarProductos(rows: Row[]): Record<string, unknown>[] {
       nombre: nombreVal,
       precio: precioVal,
       stock: stockVal,
+      costo: costoVal || undefined,
+      cost: costoVal || undefined,
+      cost_price: costoVal || undefined,
       categoria: categoria || '',
       pvp: precioVal || undefined,
       cantidad: stockVal || undefined,

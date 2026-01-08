@@ -162,7 +162,7 @@ También acepta:
 
 El sistema **mapea automáticamente** según la configuración de aliases.
 
-## 🔒 Multi-Tenant Automático
+## 🔒 Multi-Empresa Automático
 
 El backend (`/v1/imports/*`) ya implementa RLS:
 - ✅ Filtra por `tenant_id` automáticamente

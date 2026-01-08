@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { createCompra, getCompra, updateCompra, type Compra, type CompraLinea } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import CompraLineasEditor from './components/CompraLineasEditor'
+import { getCompanySettings, getDefaultTaxRate } from '../../services/companySettings'
 
 type FormT = Omit<Compra, 'id' | 'created_at' | 'updated_at'>
 
@@ -25,6 +26,25 @@ export default function CompraForm() {
   })
 
   const [loading, setLoading] = useState(false)
+  const [taxRate, setTaxRate] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    const loadTaxRate = async () => {
+      try {
+        const settings = await getCompanySettings()
+        const rate = getDefaultTaxRate(settings, 0)
+        if (!cancelled) setTaxRate(Number.isFinite(rate) ? rate : 0)
+      } catch {
+        if (!cancelled) setTaxRate(0)
+      }
+    }
+    loadTaxRate()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
 
   useEffect(() => {
     if (id) {
@@ -53,7 +73,7 @@ export default function CompraForm() {
   useEffect(() => {
     // Recalcular totales cuando cambian las líneas
     const subtotal = (form.lineas || []).reduce((sum, l) => sum + l.subtotal, 0)
-    const impuesto = subtotal * 0.15 // 15% IVA - ajustar según país
+    const impuesto = subtotal * taxRate
     const total = subtotal + impuesto
 
     setForm(prev => ({
@@ -62,7 +82,7 @@ export default function CompraForm() {
       impuesto,
       total
     }))
-  }, [form.lineas])
+  }, [form.lineas, taxRate])
 
   const onSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault()
@@ -175,7 +195,7 @@ export default function CompraForm() {
             <span className="font-medium">${form.subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span>Tax (15%):</span>
+            <span>IVA ({(taxRate * 100).toFixed(2)}%):</span>
             <span className="font-medium">${form.impuesto.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-lg font-bold border-t pt-2">

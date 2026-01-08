@@ -28,7 +28,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { useTenantConfig } from '../contexts/TenantConfigContext'
+import { useCompanyConfig } from '../contexts/CompanyConfigContext'
 import {
   getSectorUnits,
   getDefaultUnits,
@@ -55,10 +55,10 @@ const CACHE_TTL = 5 * 60 * 1000 // 5 minutos
 /**
  * Hook para cargar unidades del sector actual
  *
- * Automáticamente detecta el sector del tenant config
+ * Automáticamente detecta el sector del company config
  */
 export function useUnits(): UseUnitsState {
-  const { config } = useTenantConfig()
+  const { config } = useCompanyConfig()
   const [state, setState] = useState<UseUnitsState>({
     units: getDefaultUnits(),
     loading: true,
@@ -68,7 +68,7 @@ export function useUnits(): UseUnitsState {
   useEffect(() => {
     const loadUnits = async () => {
       try {
-        const sectorCode = config?.sector?.plantilla || config?.tenant?.plantilla_inicio
+        const sectorCode = config?.sector?.plantilla || config?.company?.plantilla_inicio
 
         if (!sectorCode) {
           // Sin sector configurado, usar defaults
@@ -122,7 +122,7 @@ export function useUnits(): UseUnitsState {
     }
 
     loadUnits()
-  }, [config?.sector?.plantilla, config?.tenant?.plantilla_inicio])
+  }, [config?.sector?.plantilla, config?.company?.plantilla_inicio])
 
   return state
 }

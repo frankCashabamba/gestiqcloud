@@ -17,6 +17,7 @@ class PayPhoneProvider:
     """provider de pagos PayPhone (Ecuador)"""
 
     def __init__(self, config: dict[str, Any]):
+        self.config = config
         self.token = config.get("token")
         self.store_id = config.get("store_id")
         self.webhook_secret = config.get("webhook_secret")
@@ -43,10 +44,18 @@ class PayPhoneProvider:
         """Crear enlace de pago PayPhone"""
 
         try:
+            tax_rate_raw = self.config.get("tax_rate") if hasattr(self, "config") else None
+            tax_rate = Decimal(str(tax_rate_raw or 0))
+            if tax_rate > 1:
+                tax_rate = tax_rate / Decimal("100")
+            if tax_rate < 0:
+                tax_rate = Decimal("0")
+            base_amount = amount / (Decimal("1") + tax_rate) if tax_rate > 0 else amount
+            tax_amount = amount - base_amount
             payload = {
                 "amount": float(amount),
-                "amountWithoutTax": float(amount * Decimal("0.88")),  # Aprox sin IVA
-                "tax": float(amount * Decimal("0.12")),  # 12% IVA Ecuador
+                "amountWithoutTax": float(base_amount),
+                "tax": float(tax_amount),
                 "service": "0",  # Sin costo de servicio
                 "tip": "0",
                 "reference": invoice_id,

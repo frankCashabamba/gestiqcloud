@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket {{ document.sequential or document.id }}</title>
+    <style>
+        @page {
+            width: 80mm;
+            margin: 0;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            width: 72mm;
+            font-family: "Courier New", Courier, monospace;
+            font-size: 10pt;
+            line-height: 1.4;
+            margin: 5mm auto;
+            color: #000;
+        }
+        .center { text-align: center; }
+        .bold { font-weight: bold; }
+        .divider { border-top: 1px dashed #000; margin: 3mm 0; }
+        .row {
+            display: flex;
+            justify-content: space-between;
+            gap: 4mm;
+        }
+        .items-header {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 2mm;
+            font-weight: bold;
+            border-bottom: 1px solid #000;
+            margin-bottom: 2mm;
+            padding-bottom: 1mm;
+        }
+        .item {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 2mm;
+            margin-bottom: 2mm;
+        }
+        .right { text-align: right; }
+        .footer { font-size: 8pt; margin-top: 5mm; }
+        @media print {
+            body { margin: 0; }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    {% if seller.logo %}
+    <div class="center" style="margin-bottom: 2mm;">
+        <img src="{{ seller.logo }}" alt="Logo" style="max-width: 40mm; max-height: 20mm;">
+    </div>
+    {% endif %}
+    <div class="center bold">{{ seller.tradeName }}</div>
+    <div class="center">RUC/NIF: {{ seller.taxId }}</div>
+    {% if seller.address %}
+    <div class="center">{{ seller.address }}</div>
+    {% endif %}
+
+    <div class="divider"></div>
+
+    <div class="row">
+        <span>Documento</span>
+        <span>{{ document.sequential or document.id }}</span>
+    </div>
+    <div class="row">
+        <span>Fecha</span>
+        <span>{{ document.issuedAt or "" }}</span>
+    </div>
+    <div class="row">
+        <span>Cliente</span>
+        <span>{{ buyer.name or "CONSUMIDOR FINAL" }}</span>
+    </div>
+    {% if buyer.idType and buyer.idType != "NONE" and buyer.idNumber %}
+    <div class="row">
+        <span>{{ buyer.idType }}</span>
+        <span>{{ buyer.idNumber }}</span>
+    </div>
+    {% endif %}
+
+    <div class="divider"></div>
+
+    <div class="items-header">
+        <div>ITEM</div>
+        <div class="right">CANT</div>
+        <div class="right">TOTAL</div>
+    </div>
+    {% for line in lines %}
+    <div class="item">
+        <div>{{ line.name }}</div>
+        <div class="right">{{ "%.2f"|format(line.qty) }}</div>
+        <div class="right">{{ "%.2f"|format(line.lineTotal) }}</div>
+    </div>
+    {% endfor %}
+
+    <div class="divider"></div>
+
+    <div class="row">
+        <span>Subtotal</span>
+        <span>{{ "%.2f"|format(totals.subtotal) }}</span>
+    </div>
+    <div class="row">
+        <span>IVA</span>
+        <span>{{ "%.2f"|format(totals.taxTotal) }}</span>
+    </div>
+    <div class="row bold">
+        <span>Total</span>
+        <span>{{ "%.2f"|format(totals.grandTotal) }} {{ document.currency }}</span>
+    </div>
+
+    <div class="footer center">
+        {% if seller.footerMessage %}
+        <div>{{ seller.footerMessage }}</div>
+        {% else %}
+        <div>Gracias por su compra</div>
+        <div>Documento no valido como factura</div>
+        {% endif %}
+        {% if seller.email %}
+        <div>Email: {{ seller.email }}</div>
+        {% endif %}
+        {% if seller.website %}
+        <div>Web: {{ seller.website }}</div>
+        {% endif %}
+    </div>
+
+</body>
+</html>

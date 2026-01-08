@@ -198,7 +198,7 @@ export default function IncidenciasPanel() {
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full"></div>
-          <span className="ml-3 text-gray-600">Cargando…</span>
+          <span className="ml-3 text-gray-600">Cargando</span>
         </div>
       ) : (
         <>
@@ -223,7 +223,7 @@ export default function IncidenciasPanel() {
                           TÃ­tulo
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Tenant
+                          Empresa
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Tipo

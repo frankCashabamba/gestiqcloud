@@ -11,7 +11,7 @@ import {
 } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
-import { getDefaultReorderPoint, getTenantSettings } from '../../services/tenantSettings'
+import { getDefaultReorderPoint, getCompanySettings } from '../../services/companySettings'
 
 export default function StockList() {
   const [items, setItems] = useState<StockItem[]>([])
@@ -33,7 +33,7 @@ export default function StockList() {
     (async () => {
       try {
         setLoading(true)
-        const settings = await getTenantSettings()
+        const settings = await getCompanySettings()
         setDefaultReorderPoint(getDefaultReorderPoint(settings))
         const [stockData, warehousesData] = await Promise.all([
           listStockItems(),

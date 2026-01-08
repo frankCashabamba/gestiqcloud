@@ -5,6 +5,8 @@ import { parseExcelFile } from '../services/parseExcelFile'
 import { uploadExcelViaChunks, createBatch, ingestBatch, type ImportMapping } from '../services/importsApi'
 import { detectarTipoDocumento, type ImportDocType } from '../utils/detectarTipoDocumento'
 import { normalizeOCRRows } from '../utils/normalizeOCRFields'
+import { normalizarProductos } from '../utils/normalizarProductosSections'
+import { normalizarDocumento } from '../utils/normalizarDocumento'
 import { analyzeFile } from '../services/analyzeApi'
 
 const env =
@@ -100,14 +102,13 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
   const applyMappingSuggestion = useCallback((rows: Row[], mapping?: Record<string, string> | null) => {
     if (!mapping || Object.keys(mapping).length === 0) return rows
     return rows.map((row) => {
-      const mapped: Row = {}
+      const mapped: Row = { ...row }
       Object.entries(mapping).forEach(([src, dest]) => {
         if (dest && dest !== 'ignore' && src in row) {
           mapped[dest] = row[src]
         }
       })
-      // Si no se mapeó nada, devolver original para no perder datos
-      return Object.keys(mapped).length ? mapped : row
+      return mapped
     })
   }, [])
 
@@ -276,8 +277,21 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
     updateQueue(item.id, { status: 'saving' })
 
     try {
-      // Normalizar campos OCR al schema canónico antes de enviar al backend
-      const normalizedRows = normalizeOCRRows(rows, docType)
+      const nameLower = (item.name || '').toLowerCase()
+      const isExcelOrCsv =
+        nameLower.endsWith('.xlsx') || nameLower.endsWith('.xls') || nameLower.endsWith('.csv')
+
+      let normalizedRows: Row[]
+      if (isExcelOrCsv) {
+        if (docType === 'products') {
+          normalizedRows = normalizarProductos(rows) as Row[]
+        } else {
+          normalizedRows = normalizarDocumento(rows, {}) as Row[]
+        }
+      } else {
+        // Normalizar campos OCR al schema canónico antes de enviar al backend
+        normalizedRows = normalizeOCRRows(rows, docType)
+      }
 
       // Pasar token de autenticación
       const batch = await createBatch({
@@ -287,10 +301,11 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
 
       const batchId = batch.id
 
+      const origen = isExcelOrCsv ? (nameLower.endsWith('.csv') ? 'csv' : 'excel') : 'ocr'
       const payload = {
         rows: normalizedRows.map((row) => ({
           tipo: docType,
-          origen: 'ocr' as const,
+          origen: origen as 'ocr' | 'excel' | 'csv',
           datos: row,
           estado: 'pendiente',
           hash: null,

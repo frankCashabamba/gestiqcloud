@@ -3,12 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { createCuenta, getCuenta, updateCuenta, listCuentas, type PlanCuenta } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { useSectorPlaceholder } from '../../hooks/useSectorPlaceholders'
-import { useTenant } from '../../contexts/TenantContext'
+import { useCompany } from '../../contexts/CompanyContext'
 
 export default function PlanCuentasForm() {
     const { id } = useParams()
     const nav = useNavigate()
-    const { sector } = useTenant()
+    const { sector } = useCompany()
     const [form, setForm] = useState<Partial<PlanCuenta>>({
         codigo: '',
         nombre: '',

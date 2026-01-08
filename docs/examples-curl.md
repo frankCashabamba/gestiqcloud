@@ -36,7 +36,7 @@ curl -s "$API/api/v1/admin/empresas" -b admin.cookies
 
 ## Settings/campos dinámicos
 ```bash
-curl -s "$API/api/v1/tenant/settings/fields?module=clientes&empresa=$TENANT_SLUG" -b tenant.cookies
+curl -s "$API/api/v1/company/settings/fields?module=clientes&empresa=$TENANT_SLUG" -b tenant.cookies
 ```
 
 ## Imports

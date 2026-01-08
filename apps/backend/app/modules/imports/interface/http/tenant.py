@@ -1604,6 +1604,7 @@ def list_all_products_endpoint(
     limit: int = Query(default=5000, le=10000),
     offset: int = Query(default=0, ge=0),
     tenant_id: str | None = Query(None, description="Tenant ID (UUID) - opcional si usa RLS"),
+    debug: int | None = Query(default=None),
 ):
     """List ALL import items formatted as products across all batches."""
     from app.modules.imports.infrastructure.repositories import ImportsRepository
@@ -1640,7 +1641,38 @@ def list_all_products_endpoint(
     # Format items as products
     products = []
     for item in all_items[offset : offset + limit]:
-        data = {**(item.raw or {}), **(item.normalized or {})}
+        data = {}
+        raw = item.raw or {}
+        if isinstance(raw, dict) and isinstance(raw.get("datos"), dict):
+            data.update(raw.get("datos") or {})
+        if isinstance(raw, dict):
+            data.update(raw)
+        if isinstance(item.normalized, dict):
+            data.update(item.normalized)
+        nmap = _build_norm_map(data)
+
+        codigo = _first(nmap, _ALIASES.get("codigo", []))
+        nombre = _first(nmap, _ALIASES.get("nombre", []))
+        precio = _first(nmap, _ALIASES.get("precio", []))
+        precio_bulto = _first(nmap, _ALIASES.get("precio_por_bulto", []))
+        costo = _first(nmap, _ALIASES.get("costo", []))
+        categoria = _first(nmap, _ALIASES.get("categoria", []))
+        stock_v = _first(nmap, _ALIASES.get("stock", []))
+        bultos_v = _first(nmap, _ALIASES.get("bultos", []))
+        unidades_por_bulto_v = _first(nmap, _ALIASES.get("cantidad_por_bulto", []))
+        unidad = _first(nmap, _ALIASES.get("unidad", [])) or "unit"
+        iva_v = _first(nmap, _ALIASES.get("iva", []))
+
+        upb = _parse_num(unidades_por_bulto_v) or 0
+        p_bulto = _parse_num(precio_bulto)
+        p_unit = _parse_num(precio)
+        if (p_unit is None or p_unit == 0) and p_bulto and upb and upb > 0:
+            p_unit = round(p_bulto / upb, 6)
+
+        stock_final = _parse_num(stock_v)
+        if (stock_final is None or stock_final == 0) and upb and (_parse_num(bultos_v) or 0) > 0:
+            stock_final = int((_parse_num(bultos_v) or 0) * upb)
+
         products.append(
             {
                 "id": str(item.id),
@@ -1648,42 +1680,46 @@ def list_all_products_endpoint(
                 "status": item.status,
                 "errors": item.errors or [],
                 "batch_id": str(item.batch_id),
-                # Mapeo para columnas en espaÃ±ol (Excel tÃ­pico)
-                "codigo": data.get("codigo")
-                or data.get("sku")
-                or data.get("code")
-                or data.get("CODIGO"),
-                "nombre": (
-                    data.get("nombre")
-                    or data.get("name")
-                    or data.get("producto")
-                    or data.get("PRODUCTO")
-                    or data.get("NOMBRE")
-                ),
-                "precio": (
-                    data.get("precio")
-                    or data.get("price")
-                    or data.get("pvp")
-                    or data.get("PRECIO UNITARIO VENTA")
-                    or data.get("PRECIO")
-                ),
-                "costo": data.get("costo") or data.get("cost") or data.get("COSTO"),
-                "categoria": data.get("categoria") or data.get("category") or data.get("CATEGORIA"),
-                "stock": (
-                    data.get("stock")
-                    or data.get("cantidad")
-                    or data.get("CANTIDAD")
-                    or data.get("SOBRANTE DIARIO")
-                    or 0
-                ),
-                "unidad": data.get("unidad") or data.get("uom") or data.get("UNIDAD") or "unit",
-                "iva": data.get("iva") or data.get("tax") or data.get("IVA") or 0,
+                "codigo": codigo,
+                "nombre": nombre,
+                "precio": p_unit,
+                "costo": _parse_num(costo),
+                "categoria": categoria,
+                "stock": int(stock_final or 0),
+                "unidad": unidad,
+                "iva": _parse_num(iva_v) or 0,
                 "raw": item.raw,
                 "normalized": item.normalized,
             }
         )
 
+    if debug:
+        try:
+            sample = products[:3]
+            batch_ids = {p.get("batch_id") for p in sample if p.get("batch_id")}
+            batch_info = {}
+            if batch_ids:
+                rows = (
+                    db.query(ImportBatch)
+                    .filter(ImportBatch.id.in_(list(batch_ids)))
+                    .all()
+                )
+                for b in rows:
+                    batch_info[str(b.id)] = {
+                        "origin": getattr(b, "origin", None),
+                        "file_key": getattr(b, "file_key", None),
+                        "parser_id": getattr(b, "parser_id", None),
+                        "source_type": getattr(b, "source_type", None),
+                    }
+            print(
+                "DEBUG imports.items.products sample:",
+                {"items": sample, "batches": batch_info},
+            )
+        except Exception:
+            pass
+
     return {
+
         "items": products,
         "total": len(all_items),
         "limit": limit,

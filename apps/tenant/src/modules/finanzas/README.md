@@ -38,7 +38,7 @@ Gestión de caja, bancos y movimientos financieros.
 
 ## Patrón Implementado
 Siguiendo el patrón del módulo `clientes`:
-- Configuración dinámica desde `/api/v1/tenant/settings/fields?module=caja`
+- Configuración dinámica desde `/api/v1/company/settings/fields?module=caja`
 - Toast notifications para success/error
 - Loading states
 - Validación de campos required

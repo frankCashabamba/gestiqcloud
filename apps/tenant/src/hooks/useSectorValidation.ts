@@ -10,7 +10,7 @@
  * 2. Si hay error o no hay reglas, usa validaciones hardcodeadas
  * 3. Combina ambas para máxima cobertura
  */
-import { useTenantFeatures, useTenantSector } from '../contexts/TenantConfigContext'
+import { useCompanyFeatures, useCompanySector } from '../contexts/CompanyConfigContext'
 import {
   useSectorValidationRules,
   executeFormValidation,
@@ -45,8 +45,8 @@ export interface ValidationResult {
  * ```
  */
 export function useSectorValidation() {
-  const features = useTenantFeatures()
-  const sector = useTenantSector()
+  const features = useCompanyFeatures()
+  const sector = useCompanySector()
 
   // Cargar reglas dinámicas desde BD (Fase 4)
   const { rules: dynamicRules, loading: dynamicRulesLoading } = useSectorValidationRules(

@@ -16,6 +16,8 @@ class LabelConfig:
     width_mm: float = 50
     height_mm: float = 40
     label_gap_mm: float = 3
+    columns: int = 1
+    column_gap_mm: float = 2
     density: int = 8
     speed: int = 4
 
@@ -50,18 +52,8 @@ DOTS_PER_MM = 8
 def _mm_to_dots(value: float | None) -> int:
     return int(round((value or 0) * DOTS_PER_MM))
 
-
-def build_tspl_payload(field: ProductLabel, config: LabelConfig) -> str:
-    tspl: list[str] = [
-        f"SIZE {config.width_mm} mm, {config.height_mm} mm",
-        f"GAP {config.label_gap_mm} mm, 0 mm",
-        f"DENSITY {config.density}",
-        f"SPEED {config.speed}",
-        "SET TEAR ON",
-        "CLS",
-    ]
-
-    x_offset = _mm_to_dots(field.offset_xmm)
+def _append_label(tspl: list[str], field: ProductLabel, config: LabelConfig, base_x_dots: int) -> None:
+    x_offset = base_x_dots + _mm_to_dots(field.offset_xmm)
     y_offset = _mm_to_dots(field.offset_ymm)
 
     if field.header_text:
@@ -73,17 +65,45 @@ def build_tspl_payload(field: ProductLabel, config: LabelConfig) -> str:
         label_width_dots = int(round(config.width_mm * DOTS_PER_MM))
         base_price_x = 10 + x_offset
         if field.price_alignment == "center":
-            price_x = max(base_price_x, label_width_dots // 2 - 20)
+            price_x = max(base_price_x, x_offset + label_width_dots // 2 - 20)
         elif field.price_alignment == "right":
-            price_x = max(base_price_x, label_width_dots - 60)
+            price_x = max(base_price_x, x_offset + label_width_dots - 60)
         else:
             price_x = base_price_x
         _append_text(tspl, price_x, 260 + y_offset, "3", 2, 2, field.price)
     if field.footer_text:
         _append_text(tspl, 10 + x_offset, 300 + y_offset, "3", 1, 1, field.footer_text)
 
-    tspl.append(f"PRINT {field.copies}")
+
+def build_tspl_payload_for_labels(labels: list[ProductLabel], config: LabelConfig) -> str:
+    columns = max(1, config.columns)
+    column_gap_mm = max(0, config.column_gap_mm)
+    total_width_mm = (config.width_mm * columns) + (column_gap_mm * (columns - 1))
+
+    tspl: list[str] = [
+        f"SIZE {total_width_mm} mm, {config.height_mm} mm",
+        f"GAP {config.label_gap_mm} mm, 0 mm",
+        f"DENSITY {config.density}",
+        f"SPEED {config.speed}",
+        "SET TEAR ON",
+    ]
+
+    for start in range(0, len(labels), columns):
+        tspl.append("CLS")
+        for col in range(columns):
+            idx = start + col
+            if idx >= len(labels):
+                break
+            base_x_mm = col * (config.width_mm + column_gap_mm)
+            _append_label(tspl, labels[idx], config, _mm_to_dots(base_x_mm))
+        tspl.append("PRINT 1")
+
     return "\r\n".join(tspl) + "\r\n"
+
+
+def build_tspl_payload(field: ProductLabel, config: LabelConfig) -> str:
+    copies = max(1, field.copies)
+    return build_tspl_payload_for_labels([field] * copies, config)
 
 
 def send_to_printer(port: str, payload: str, baudrate: int = 9600) -> None:

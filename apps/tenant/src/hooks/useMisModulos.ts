@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { listMisModulos, listModulosSeleccionablesPorEmpresa, type Modulo } from '../services/modulos'
 import { useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
@@ -28,16 +28,15 @@ export function useMisModulos() {
       try {
         let mods: Modulo[] = []
         if (empresa) {
-          // Preferimos siempre el endpoint autenticado (más consistente)
           if (token) {
-            try { mods = await listMisModulos(token) } catch {}
-          }
-          // Si no hay token, probamos el público por empresa
-          if ((mods?.length ?? 0) === 0) {
-            try { mods = await listModulosSeleccionablesPorEmpresa(empresa) } catch {}
+            // Autenticado: solo modulos asignados al usuario
+            mods = await listMisModulos(token)
+          } else {
+            // Sin token, usamos el listado publico por empresa
+            mods = await listModulosSeleccionablesPorEmpresa(empresa)
           }
         } else if (token) {
-          // Autenticado por usuario (módulos asignados al usuario)
+          // Autenticado por usuario (modulos asignados al usuario)
           mods = await listMisModulos(token)
         } else {
           mods = []
@@ -65,3 +64,5 @@ export function useMisModulos() {
 
   return { modules, allowedSlugs, loading, error }
 }
+
+

@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import unicodedata
 from datetime import datetime
 from typing import Any
 
@@ -94,6 +95,39 @@ def _to_number(val) -> float | None:
         return float(s_norm)
     except (ValueError, TypeError):
         return None
+
+
+def _norm_key(s: str) -> str:
+    try:
+        s = unicodedata.normalize("NFKD", s)
+        s = "".join(ch for ch in s if not unicodedata.combining(ch))
+        s = s.strip().lower()
+        out = []
+        prev_underscore = False
+        for ch in s:
+            if ch.isalnum():
+                out.append(ch)
+                prev_underscore = False
+            else:
+                if not prev_underscore:
+                    out.append("_")
+                    prev_underscore = True
+        return "".join(out).strip("_")
+    except Exception:
+        return str(s).strip().lower()
+
+
+def _first_from_raw(raw: dict[str, Any], keys: list[str]) -> Any:
+    if not isinstance(raw, dict):
+        return None
+    norm_map = {_norm_key(k): v for k, v in raw.items() if isinstance(k, str)}
+    for key in keys:
+        if key in raw and raw[key] not in (None, ""):
+            return raw[key]
+        nk = _norm_key(key)
+        if nk in norm_map and norm_map[nk] not in (None, ""):
+            return norm_map[nk]
+    return None
 
 
 def _normalize_doc_type(doc_type: str | None) -> str:
@@ -256,25 +290,71 @@ def _build_canonical_from_item(
         name = (
             normalized.get("name")
             or normalized.get("nombre")
-            or raw.get("name")
-            or raw.get("nombre")
+            or _first_from_raw(raw, ["name", "nombre", "producto", "articulo"])
             or ""
         )
-        price = _to_number(normalized.get("price") or raw.get("price") or raw.get("precio")) or 0.0
-        stock = _to_number(normalized.get("stock") or raw.get("stock") or raw.get("cantidad"))
-        category = normalized.get("category") or raw.get("category") or raw.get("categoria")
-        sku = normalized.get("sku") or raw.get("sku") or raw.get("codigo")
-        unit = normalized.get("unit") or raw.get("unit") or raw.get("unidad")
+        price = _to_number(
+            normalized.get("price")
+            or normalized.get("precio")
+            or _first_from_raw(
+                raw,
+                ["price", "precio", "venta", "valor", "importe", "precio_unitario", "precio_unitario_venta"],
+            )
+        ) or 0.0
+        cost = _to_number(
+            normalized.get("cost_price")
+            or normalized.get("cost")
+            or normalized.get("costo")
+            or normalized.get("unit_cost")
+            or _first_from_raw(
+                raw,
+                [
+                    "cost_price",
+                    "cost",
+                    "costo",
+                    "unit_cost",
+                    "costo_promedio",
+                    "costo promedio",
+                    "costo_unitario",
+                    "costo unitario",
+                ],
+            )
+        )
+        stock = _to_number(
+            normalized.get("stock")
+            or normalized.get("cantidad")
+            or _first_from_raw(raw, ["stock", "cantidad", "existencia", "existencias", "unidades"])
+        )
+        category = (
+            normalized.get("category")
+            or normalized.get("categoria")
+            or _first_from_raw(raw, ["category", "categoria"])
+        )
+        sku = (
+            normalized.get("sku")
+            or normalized.get("codigo")
+            or _first_from_raw(raw, ["sku", "codigo", "code", "cod"])
+        )
+        unit = (
+            normalized.get("unit")
+            or normalized.get("unidad")
+            or _first_from_raw(raw, ["unit", "unidad", "uom"])
+        )
+        product_data = {
+            "name": str(name).strip(),
+            "sku": str(sku).strip() if sku not in (None, "") else None,
+            "category": str(category).strip() if category not in (None, "") else None,
+            "price": float(price),
+            "stock": float(stock) if stock is not None else None,
+            "unit": str(unit).strip() if unit not in (None, "") else None,
+        }
+        if cost is not None:
+            product_data["cost_price"] = float(cost)
+            product_data["cost"] = float(cost)
+            product_data["unit_cost"] = float(cost)
         return {
             "doc_type": "product",
-            "product": {
-                "name": str(name).strip(),
-                "sku": str(sku).strip() if sku not in (None, "") else None,
-                "category": str(category).strip() if category not in (None, "") else None,
-                "price": float(price),
-                "stock": float(stock) if stock is not None else None,
-                "unit": str(unit).strip() if unit not in (None, "") else None,
-            },
+            "product": product_data,
             "metadata": {
                 "parser": parser_id,
                 "doc_type_detected": doc_type,

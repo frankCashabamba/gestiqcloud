@@ -24,7 +24,7 @@ describe('Ventas Services', () => {
 
       const result = await fetchVentas()
 
-      expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/ventas'))
+      expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/sales_orders'))
       expect(result).toEqual(mockVentas)
       expect(Array.isArray(result)).toBe(true)
     })
@@ -46,7 +46,7 @@ describe('Ventas Services', () => {
       const result = await createVenta(nuevaVenta)
 
       expect(apiFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/ventas'),
+        expect.stringContaining('/sales_orders'),
         expect.objectContaining({
           method: 'POST',
           body: nuevaVenta
@@ -63,7 +63,7 @@ describe('Ventas Services', () => {
       await deleteVenta(1)
 
       expect(apiFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/ventas/1'),
+        expect.stringContaining('/sales_orders/1'),
         expect.objectContaining({ method: 'DELETE' })
       )
     })

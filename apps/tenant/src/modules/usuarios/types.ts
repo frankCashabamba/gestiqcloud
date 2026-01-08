@@ -1,43 +1,43 @@
 export type Usuario = {
-  id: number
-  tenant_id: number
-  nombre_encargado?: string | null
-  apellido_encargado?: string | null
+  id: string
+  tenant_id: string
+  first_name?: string | null
+  last_name?: string | null
   email: string
   username?: string | null
-  es_admin_empresa: boolean
+  is_company_admin: boolean
   active: boolean
-  modulos: number[]
-  roles: number[]
-  ultimo_login_at?: string | null
+  modules: string[]
+  roles: string[]
+  last_login_at?: string | null
 }
 
 export type UsuarioCreatePayload = {
-  nombre_encargado?: string | null
-  apellido_encargado?: string | null
+  first_name?: string | null
+  last_name?: string | null
   email: string
   username?: string | null
   password: string
-  es_admin_empresa: boolean
-  activo?: boolean
-  modulos: number[]
-  roles: number[]
+  is_company_admin: boolean
+  active?: boolean
+  modules: string[]
+  roles: string[]
 }
 
 export type UsuarioUpdatePayload = {
-  nombre_encargado?: string | null
-  apellido_encargado?: string | null
+  first_name?: string | null
+  last_name?: string | null
   email?: string
   username?: string | null
   password?: string | null
-  es_admin_empresa?: boolean
-  activo?: boolean
-  modulos?: number[]
-  roles?: number[]
+  is_company_admin?: boolean
+  active?: boolean
+  modules?: string[]
+  roles?: string[]
 }
 
 export type ModuloOption = {
-  id: number
+  id: string
   name?: string | null
   nombre?: string | null
   categoria?: string | null
@@ -45,18 +45,18 @@ export type ModuloOption = {
 }
 
 export type RolOption = {
-  id: number
+  id: string
   name: string
-  descripcion?: string | null
+  description?: string | null
 }
 
 // Gestión completa de roles
 export type Rol = {
-  id: number
+  id: string
   name: string
-  descripcion?: string
-  permisos: Record<string, boolean>
-  tenant_id: number
-  rol_base_id?: number
-  creado_por_empresa: boolean
+  description?: string
+  permissions: Record<string, boolean>
+  tenant_id: string
+  base_role_id?: string
+  created_by_company: boolean
 }

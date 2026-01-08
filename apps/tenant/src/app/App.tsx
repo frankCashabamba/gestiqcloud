@@ -3,7 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import ParamRedirect from './ParamRedirect'
 import ProtectedRoute from './ProtectedRoute'
 import { OfflineBanner, BuildBadge, UpdatePrompt, OfflineReadyToast } from '@shared/ui'
-import TenantShell from './TenantShell'
+import CompanyShell from './CompanyShell'
 
 // Lazy load de páginas para reducir bundle inicial
 const Login = lazy(() => import('../pages/Login'))
@@ -36,7 +36,7 @@ export default function App() {
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route element={<ProtectedRoute />}>
-            <Route element={<TenantShell />}>
+            <Route element={<CompanyShell />}>
               <Route path='/' element={<SectorStart />} />
               {/* Empresa vanity URL: /:empresa -> load plantilla by sector fetched for empresa */}
               <Route path='/:empresa' element={<EmpresaLoader />} />
@@ -45,7 +45,7 @@ export default function App() {
               <Route path='/:empresa/dashboard' element={<Dashboard />} />
               <Route path='/dashboard' element={<Dashboard />} />
               <Route path='/onboarding' element={<Onboarding />} />
-              {/* Tenant-scoped module routes only */}
+              {/* Company-scoped module routes only */}
               <Route path='/:empresa/:mod/*' element={<ModuleLoader />} />
               {/* Legacy redirects only when slug changed (avoid loops) */}
 

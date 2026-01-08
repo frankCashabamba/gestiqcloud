@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket 000000999</title>
+    <style>
+        @page {
+            width: 80mm;
+            margin: 0;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            width: 72mm;
+            font-family: "Courier New", Courier, monospace;
+            font-size: 10pt;
+            line-height: 1.4;
+            margin: 5mm auto;
+            color: #000;
+        }
+        .center { text-align: center; }
+        .bold { font-weight: bold; }
+        .divider { border-top: 1px dashed #000; margin: 3mm 0; }
+        .row {
+            display: flex;
+            justify-content: space-between;
+            gap: 4mm;
+        }
+        .items-header {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 2mm;
+            font-weight: bold;
+            border-bottom: 1px solid #000;
+            margin-bottom: 2mm;
+            padding-bottom: 1mm;
+        }
+        .item {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 2mm;
+            margin-bottom: 2mm;
+        }
+        .right { text-align: right; }
+        .footer { font-size: 8pt; margin-top: 5mm; }
+        @media print {
+            body { margin: 0; }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    
+    <div class="center bold">Mi Tienda</div>
+    <div class="center">RUC/NIF: 0999999999001</div>
+    
+    <div class="center">Calle 123</div>
+    
+
+    <div class="divider"></div>
+
+    <div class="row">
+        <span>Documento</span>
+        <span>000000999</span>
+    </div>
+    <div class="row">
+        <span>Fecha</span>
+        <span>2026-01-01 00:00:00+00:00</span>
+    </div>
+    <div class="row">
+        <span>Cliente</span>
+        <span>CONSUMIDOR FINAL</span>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="items-header">
+        <div>ITEM</div>
+        <div class="right">CANT</div>
+        <div class="right">TOTAL</div>
+    </div>
+    
+    <div class="item">
+        <div>Producto</div>
+        <div class="right">1.00</div>
+        <div class="right">10.00</div>
+    </div>
+    
+
+    <div class="divider"></div>
+
+    <div class="row">
+        <span>Subtotal</span>
+        <span>10.00</span>
+    </div>
+    <div class="row">
+        <span>IVA</span>
+        <span>0.00</span>
+    </div>
+    <div class="row bold">
+        <span>Total</span>
+        <span>10.00 USD</span>
+    </div>
+
+    <div class="footer center">
+        
+        <div>Gracias por su compra</div>
+        <div>Documento no valido como factura</div>
+        
+        
+        <div>Email: ventas@mitienda.ec</div>
+        
+        
+        <div>Web: mitienda.ec</div>
+        
+    </div>
+
+    <div class="no-print center" style="margin-top: 6mm;">
+        <button onclick="window.print()">Imprimir</button>
+        <button onclick="window.close()">Cerrar</button>
+    </div>
+</body>
+</html>

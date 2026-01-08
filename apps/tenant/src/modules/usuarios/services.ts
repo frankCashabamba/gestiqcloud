@@ -12,11 +12,27 @@ import type {
 // Payloads para roles
 export type RolCreatePayload = {
   name: string
-  descripcion?: string
-  permisos: Record<string, boolean>
+  description?: string
+  permissions: Record<string, boolean>
 }
 
 export type RolUpdatePayload = Partial<RolCreatePayload>
+
+export type GlobalPermission = {
+  id: number
+  key: string
+  module?: string | null
+  description?: string | null
+}
+
+type PermissionsCache = {
+  data: GlobalPermission[]
+  ts: number
+}
+
+let permissionsCache: PermissionsCache | null = null
+let permissionsPromise: Promise<GlobalPermission[]> | null = null
+const PERMISSIONS_TTL_MS = 5 * 60 * 1000
 
 export async function listUsuarios(): Promise<Usuario[]> {
   const { data } = await tenantApi.get<Usuario[]>(TENANT_USUARIOS.base)
@@ -84,4 +100,25 @@ export async function updateRol(id: number | string, payload: RolUpdatePayload):
 
 export async function deleteRol(id: number | string): Promise<void> {
   await tenantApi.delete(TENANT_ROLES.byId(id))
+}
+
+export async function listGlobalPermissions(force = false): Promise<GlobalPermission[]> {
+  const now = Date.now()
+  if (!force && permissionsCache && now - permissionsCache.ts < PERMISSIONS_TTL_MS) {
+    return permissionsCache.data
+  }
+  if (!force && permissionsPromise) {
+    return permissionsPromise
+  }
+  permissionsPromise = (async () => {
+    const { data } = await tenantApi.get<GlobalPermission[]>('/api/v1/roles-base/global-permissions')
+    const safe = Array.isArray(data) ? data : []
+    permissionsCache = { data: safe, ts: Date.now() }
+    return safe
+  })()
+  try {
+    return await permissionsPromise
+  } finally {
+    permissionsPromise = null
+  }
 }

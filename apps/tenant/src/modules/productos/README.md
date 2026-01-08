@@ -67,7 +67,7 @@ apps/tenant/src/modules/productos/
 
 ## 🎯 Configuración de Campos por Sector
 
-### GET /api/v1/tenant/settings/fields?module=productos&empresa={slug}
+### GET /api/v1/company/settings/fields?module=productos&empresa={slug}
 
 El backend retorna diferentes configuraciones según el sector del tenant.
 
@@ -251,7 +251,7 @@ curl -X POST http://localhost:8000/api/v1/tenant/productos \
   }'
 
 # 4. Obtener configuración de campos
-curl "http://localhost:8000/api/v1/tenant/settings/fields?module=productos&empresa=kusi-panaderia"
+curl "http://localhost:8000/api/v1/company/settings/fields?module=productos&empresa=kusi-panaderia"
 
 # 5. Actualizar producto
 curl -X PUT http://localhost:8000/api/v1/tenant/productos/{id} \
@@ -388,7 +388,7 @@ if (producto.receta_id) {
 | PUT | `/:id` | Actualiza un producto |
 | DELETE | `/:id` | Elimina un producto |
 
-### Base URL: `/api/v1/tenant/settings`
+### Base URL: `/api/v1/company/settings`
 
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|

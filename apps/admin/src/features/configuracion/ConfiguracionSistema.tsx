@@ -18,6 +18,8 @@ import TipoNegocioList from './tipo-negocio/TipoNegocioList'
 import TipoNegocioForm from './tipo-negocio/TipoNegocioForm'
 import HorarioList from './horarios/HorarioList'
 import HorarioForm from './horarios/HorarioForm'
+import PermisosList from './permisos/PermisosList'
+import PermisoForm from './permisos/PermisoForm'
 import { AdminCard } from '../../components/AdminCard'
 import '../../pages/admin-panel.css'
 import RolesRouter from './roles/RolesRouter'
@@ -116,6 +118,13 @@ function Index() {
             iconSize="sm"
           />
           <AdminCard
+            href="permisos"
+            iconSrc="/icons/configuracion.jpeg"
+            title="Permisos globales"
+            description="Gestiona el catálogo global de permisos por módulo."
+            iconSize="sm"
+          />
+          <AdminCard
             href="/admin/modulos"
             iconSrc="/icons/configuracion.jpeg"
             title="Módulos"
@@ -157,6 +166,9 @@ export default function ConfiguracionSistema() {
       <Route path="tipo-negocio/nuevo" element={<TipoNegocioForm />} />
       <Route path="tipo-negocio/:id/editar" element={<TipoNegocioForm />} />
       <Route path="roles/*" element={<RolesRouter />} />
+      <Route path="permisos" element={<PermisosList />} />
+      <Route path="permisos/nuevo" element={<PermisoForm />} />
+      <Route path="permisos/:id/editar" element={<PermisoForm />} />
       <Route path="horarios" element={<HorarioList />} />
       <Route path="horarios/nuevo" element={<HorarioForm />} />
       <Route path="horarios/:id/editar" element={<HorarioForm />} />

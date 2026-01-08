@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 import ImportadorLayout from './components/ImportadorLayout'
 import {
-    listBatchesByTenant,
+    listBatchesByCompany,
     listCategories,
     listProductItems,
     startExcelImport,
@@ -129,7 +129,7 @@ export default function PreviewPage() {
         }
         try {
             setLoading(true)
-            const data = await listBatchesByTenant(profile.tenant_id, token || undefined)
+            const data = await listBatchesByCompany(profile.tenant_id, token || undefined)
             const items = Array.isArray(data) ? data : (data as any).items || []
             setBatches(items)
 

@@ -14,14 +14,14 @@ import type { UsuarioCreatePayload, UsuarioUpdatePayload, ModuloOption, RolOptio
 import { useAuth } from '../../auth/AuthContext'
 
 const emptyForm: UsuarioCreatePayload = {
-  nombre_encargado: '',
-  apellido_encargado: '',
+  first_name: '',
+  last_name: '',
   email: '',
   username: '',
   password: '',
-  es_admin_empresa: false,
-  activo: true,
-  modulos: [],
+  is_company_admin: false,
+  active: true,
+  modules: [],
   roles: [],
 }
 
@@ -85,14 +85,14 @@ export default function UsuarioForm() {
         const usuario = await getUsuario(id)
         if (cancelled) return
         setForm({
-          nombre_encargado: usuario.nombre_encargado ?? '',
-          apellido_encargado: usuario.apellido_encargado ?? '',
+          first_name: usuario.first_name ?? '',
+          last_name: usuario.last_name ?? '',
           email: usuario.email,
           username: usuario.username ?? '',
           password: '',
-          es_admin_empresa: usuario.es_admin_empresa,
-          activo: usuario.active,
-          modulos: usuario.modulos ?? [],
+          is_company_admin: usuario.is_company_admin,
+          active: usuario.active,
+          modules: usuario.modules ?? [],
           roles: usuario.roles ?? [],
         })
         setEditMode(true)
@@ -111,9 +111,9 @@ export default function UsuarioForm() {
     }
   }, [id])
 
-  const canEditModulos = useMemo(() => !form.es_admin_empresa, [form.es_admin_empresa])
+  const canEditModulos = useMemo(() => !form.is_company_admin, [form.is_company_admin])
 
-  const handleCheckboxChange = (key: 'modulos' | 'roles', value: number) => {
+  const handleCheckboxChange = (key: 'modules' | 'roles', value: string) => {
     setForm((prev) => {
       const list = new Set(prev[key])
       if (list.has(value)) list.delete(value)
@@ -128,7 +128,7 @@ export default function UsuarioForm() {
       if (!form.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
         throw new Error('Email inválido')
       }
-      if (!form.nombre_encargado?.trim()) {
+      if (!form.first_name?.trim()) {
         throw new Error('Name is required')
       }
       if (!editMode && !form.password) {
@@ -137,14 +137,14 @@ export default function UsuarioForm() {
 
       if (editMode && id) {
         const payload: UsuarioUpdatePayload = {
-          nombre_encargado: form.nombre_encargado,
-          apellido_encargado: form.apellido_encargado,
+          first_name: form.first_name,
+          last_name: form.last_name,
           email: form.email,
           username: form.username || undefined,
           password: form.password || undefined,
-          es_admin_empresa: form.es_admin_empresa,
-          activo: form.activo,
-          modulos: canEditModulos ? form.modulos : undefined,
+          is_company_admin: form.is_company_admin,
+          active: form.active,
+          modules: canEditModulos ? form.modules : undefined,
           roles: canEditModulos ? form.roles : undefined,
         }
         await updateUsuario(id, payload)
@@ -152,7 +152,7 @@ export default function UsuarioForm() {
       } else {
         const payload: UsuarioCreatePayload = {
           ...form,
-          modulos: canEditModulos ? form.modulos : [],
+          modules: canEditModulos ? form.modules : [],
           roles: canEditModulos ? form.roles : [],
         }
         await createUsuario(payload)
@@ -191,8 +191,8 @@ export default function UsuarioForm() {
             <span className="font-medium text-slate-600">Nombre</span>
             <input
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              value={form.nombre_encargado ?? ''}
-              onChange={(e) => setForm({ ...form, nombre_encargado: e.target.value })}
+              value={form.first_name ?? ''}
+              onChange={(e) => setForm({ ...form, first_name: e.target.value })}
               required
             />
           </label>
@@ -200,8 +200,8 @@ export default function UsuarioForm() {
             <span className="font-medium text-slate-600">Apellido</span>
             <input
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              value={form.apellido_encargado ?? ''}
-              onChange={(e) => setForm({ ...form, apellido_encargado: e.target.value })}
+              value={form.last_name ?? ''}
+              onChange={(e) => setForm({ ...form, last_name: e.target.value })}
             />
           </label>
         </div>
@@ -243,8 +243,8 @@ export default function UsuarioForm() {
         <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
           <input
             type="checkbox"
-            checked={form.es_admin_empresa}
-            onChange={(e) => setForm({ ...form, es_admin_empresa: e.target.checked })}
+            checked={form.is_company_admin}
+            onChange={(e) => setForm({ ...form, is_company_admin: e.target.checked })}
           />
           Administrador de la empresa (acceso total)
         </label>
@@ -258,8 +258,8 @@ export default function UsuarioForm() {
                 <label key={mod.id} className="flex items-center gap-2 text-sm text-slate-600">
                   <input
                     type="checkbox"
-                    checked={form.modulos.includes(mod.id)}
-                    onChange={() => handleCheckboxChange('modulos', mod.id)}
+                    checked={form.modules.includes(mod.id)}
+                    onChange={() => handleCheckboxChange('modules', mod.id)}
                   />
                   <span>{mod.name || `Módulo #${mod.id}`}</span>
                 </label>
@@ -292,8 +292,8 @@ export default function UsuarioForm() {
         <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
           <input
             type="checkbox"
-            checked={form.activo}
-            onChange={(e) => setForm({ ...form, activo: e.target.checked })}
+            checked={form.active}
+            onChange={(e) => setForm({ ...form, active: e.target.checked })}
           />
           Usuario activo
         </label>

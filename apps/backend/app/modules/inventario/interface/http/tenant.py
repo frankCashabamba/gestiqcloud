@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -14,6 +15,7 @@ from app.core.authz import require_scope
 from app.models.core.products import Product
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.inventory.warehouse import Warehouse
+from app.services.inventory_costing import InventoryCostingService
 
 router = APIRouter(
     prefix="/inventory",
@@ -29,6 +31,19 @@ def _tenant_id_str(request: Request) -> str | None:
         return str(tid) if tid is not None else None
     except Exception:
         return None
+
+
+def _require_tenant_id(request: Request) -> str:
+    tid = _tenant_id_str(request)
+    if tid is None:
+        raise HTTPException(status_code=403, detail="missing_tenant")
+    return tid
+
+
+def _dec(value: float | Decimal | None, q: str = "0.000001") -> Decimal:
+    if value is None:
+        value = 0
+    return Decimal(str(value)).quantize(Decimal(q), rounding=ROUND_HALF_UP)
 
 
 class WarehouseIn(BaseModel):
@@ -49,7 +64,7 @@ class WarehouseOut(WarehouseIn):
 
 @router.get("/warehouses", response_model=list[WarehouseOut])
 def list_warehouses(request: Request, db: Session = Depends(get_db)):
-    tid = _tenant_id_str(request)
+    tid = _require_tenant_id(request)
     q = select(Warehouse)
     if tid is not None:
         q = q.where(Warehouse.tenant_id == tid)
@@ -59,7 +74,7 @@ def list_warehouses(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/warehouses", response_model=WarehouseOut, status_code=201)
 def create_warehouse(payload: WarehouseIn, request: Request, db: Session = Depends(get_db)):
-    tid = _tenant_id_str(request)
+    tid = _require_tenant_id(request)
     obj = Warehouse(
         code=payload.code,
         name=payload.name,
@@ -81,7 +96,7 @@ def create_warehouse(payload: WarehouseIn, request: Request, db: Session = Depen
 
 @router.get("/warehouses/{wid}", response_model=WarehouseOut)
 def get_warehouse(wid: UUID, request: Request, db: Session = Depends(get_db)):
-    tid = _tenant_id_str(request)
+    tid = _require_tenant_id(request)
     obj = db.get(Warehouse, wid)
     if not obj:
         raise HTTPException(status_code=404, detail="warehouse_not_found")
@@ -94,7 +109,7 @@ def get_warehouse(wid: UUID, request: Request, db: Session = Depends(get_db)):
 def update_warehouse(
     wid: UUID, payload: WarehouseIn, request: Request, db: Session = Depends(get_db)
 ):
-    tid = _tenant_id_str(request)
+    tid = _require_tenant_id(request)
     obj = db.get(Warehouse, wid)
     if not obj:
         raise HTTPException(status_code=404, detail="warehouse_not_found")
@@ -112,7 +127,7 @@ def update_warehouse(
 
 @router.delete("/warehouses/{wid}", status_code=204)
 def delete_warehouse(wid: UUID, request: Request, db: Session = Depends(get_db)):
-    tid = _tenant_id_str(request)
+    tid = _require_tenant_id(request)
     obj = db.get(Warehouse, wid)
     if not obj:
         return
@@ -132,6 +147,7 @@ class StockAdjustIn(BaseModel):
     warehouse_id: str
     product_id: str
     delta: float = Field(description="positive receipt, negative issue")
+    unit_cost: float | None = Field(default=None, description="optional unit cost for receipts")
     reason: str | None = None
 
 
@@ -154,7 +170,7 @@ def get_stock(
     warehouse_id: str | None = Query(default=None),
     product_id: str | None = Query(default=None),
 ):
-    tid = _tenant_id_str(request)
+    tid = _require_tenant_id(request)
     # Join to enrich with product and warehouse info
     q = (
         select(
@@ -192,7 +208,16 @@ def get_stock(
                     "codigo": r[4],
                     "nombre": r[5],
                     "precio": float(r[6] or 0),
-                    **({} if r[7] is None else {"metadata": r[7]}),
+                    **(
+                        {}
+                        if r[7] is None
+                        else {
+                            "product_metadata": r[7],
+                            "metadata": r[7],
+                            "stock_minimo": (r[7] or {}).get("stock_minimo"),
+                            "reorder_point": (r[7] or {}).get("reorder_point"),
+                        }
+                    ),
                 },
                 warehouse={
                     "code": r[8],
@@ -206,10 +231,11 @@ def get_stock(
 @router.post("/stock/adjust", response_model=StockItemOut)
 def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends(get_db)):
     # Find or create stock item
-    tid = _tenant_id_str(request)
+    tid = _require_tenant_id(request)
     row = (
         db.query(StockItem)
         .filter(
+            StockItem.tenant_id == tid,
             StockItem.warehouse_id == payload.warehouse_id,
             StockItem.product_id == payload.product_id,
         )
@@ -225,17 +251,48 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
         db.add(row)
         db.flush()
 
+    qty_abs = abs(payload.delta)
+    qty_dec = _dec(qty_abs)
+    product = db.query(Product).filter(Product.id == payload.product_id, Product.tenant_id == tid).first()
+    fallback_cost = _dec(getattr(product, "cost_price", 0) if product else 0)
+
+    costing = InventoryCostingService(db)
+    if payload.delta >= 0:
+        unit_cost = _dec(payload.unit_cost) if payload.unit_cost is not None else fallback_cost
+        state = costing.apply_inbound(
+            tid or "",
+            payload.warehouse_id,
+            payload.product_id,
+            qty=qty_dec,
+            unit_cost=unit_cost,
+            initial_qty=_dec(row.qty),
+            initial_avg_cost=fallback_cost,
+        )
+    else:
+        state = costing.apply_outbound(
+            tid or "",
+            payload.warehouse_id,
+            payload.product_id,
+            qty=qty_dec,
+            allow_negative=True,
+            initial_qty=_dec(row.qty),
+            initial_avg_cost=fallback_cost,
+        )
+
     # Create move
     kind = "receipt" if payload.delta >= 0 else "issue"
+    unit_cost_for_move = state.avg_cost if payload.delta < 0 else unit_cost
     move = StockMove(
         tenant_id=tid,
         product_id=payload.product_id,
         warehouse_id=payload.warehouse_id,
-        qty=abs(payload.delta),
+        qty=qty_abs,
         kind=kind,
         tentative=False,
         ref_type="adjust",
         ref_id=payload.reason or None,
+        unit_cost=float(unit_cost_for_move),
+        total_cost=float(unit_cost_for_move * qty_dec),
     )
     db.add(move)
 
@@ -251,10 +308,10 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
 
         total_qty = (
             db.query(func.coalesce(func.sum(StockItem.qty), 0.0))
-            .filter(StockItem.product_id == payload.product_id)
+            .filter(StockItem.product_id == payload.product_id, StockItem.tenant_id == tid)
             .scalar()
         ) or 0.0
-        prod = db.query(Product).filter(Product.id == payload.product_id).first()
+        prod = db.query(Product).filter(Product.id == payload.product_id, Product.tenant_id == tid).first()
         if prod:
             prod.stock = float(total_qty)
             db.add(prod)
@@ -276,12 +333,13 @@ class TransferIn(BaseModel):
 
 @router.post("/stock/transfer", response_model=dict)
 def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(get_db)):
-    tid = _tenant_id_str(request)
+    tid = _require_tenant_id(request)
     # Create issue from source and receipt to destination, post atomically
     # Source
     src_item = (
         db.query(StockItem)
         .filter(
+            StockItem.tenant_id == tid,
             StockItem.warehouse_id == payload.from_warehouse_id,
             StockItem.product_id == payload.product_id,
         )
@@ -303,6 +361,7 @@ def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(
     dst_item = (
         db.query(StockItem)
         .filter(
+            StockItem.tenant_id == tid,
             StockItem.warehouse_id == payload.to_warehouse_id,
             StockItem.product_id == payload.product_id,
         )
@@ -318,6 +377,30 @@ def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(
         db.add(dst_item)
         db.flush()
 
+    qty_dec = _dec(payload.qty)
+    product = db.query(Product).filter(Product.id == payload.product_id, Product.tenant_id == tid).first()
+    fallback_cost = _dec(getattr(product, "cost_price", 0) if product else 0)
+
+    costing = InventoryCostingService(db)
+    state_src = costing.apply_outbound(
+        tid or "",
+        payload.from_warehouse_id,
+        payload.product_id,
+        qty=qty_dec,
+        allow_negative=False,
+        initial_qty=_dec(src_item.qty),
+        initial_avg_cost=fallback_cost,
+    )
+    costing.apply_inbound(
+        tid or "",
+        payload.to_warehouse_id,
+        payload.product_id,
+        qty=qty_dec,
+        unit_cost=state_src.avg_cost,
+        initial_qty=_dec(dst_item.qty),
+        initial_avg_cost=state_src.avg_cost,
+    )
+
     # Moves
     mv_issue = StockMove(
         tenant_id=tid,
@@ -328,6 +411,8 @@ def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(
         tentative=False,
         posted=True,
         ref_type="transfer",
+        unit_cost=float(state_src.avg_cost),
+        total_cost=float(state_src.avg_cost * qty_dec),
     )
     mv_receipt = StockMove(
         tenant_id=tid,
@@ -338,6 +423,8 @@ def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(
         tentative=False,
         posted=True,
         ref_type="transfer",
+        unit_cost=float(state_src.avg_cost),
+        total_cost=float(state_src.avg_cost * qty_dec),
     )
     db.add(mv_issue)
     db.add(mv_receipt)
@@ -356,10 +443,10 @@ def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(
 
         total_qty = (
             db.query(func.coalesce(func.sum(StockItem.qty), 0.0))
-            .filter(StockItem.product_id == payload.product_id)
+            .filter(StockItem.product_id == payload.product_id, StockItem.tenant_id == tid)
             .scalar()
         ) or 0.0
-        prod = db.query(Product).filter(Product.id == payload.product_id).first()
+        prod = db.query(Product).filter(Product.id == payload.product_id, Product.tenant_id == tid).first()
         if prod:
             prod.stock = float(total_qty)
             db.add(prod)
@@ -371,17 +458,18 @@ def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(
 
 
 class CycleCountIn(BaseModel):
-    warehouse_id: int
-    product_id: int
+    warehouse_id: str
+    product_id: str
     counted_qty: float = Field(ge=0)
 
 
 @router.post("/stock/cycle_count", response_model=StockItemOut)
 def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(get_db)):
-    tid = _tenant_id_str(request)
+    tid = _require_tenant_id(request)
     item = (
         db.query(StockItem)
         .filter(
+            StockItem.tenant_id == tid,
             StockItem.warehouse_id == payload.warehouse_id,
             StockItem.product_id == payload.product_id,
         )
@@ -399,7 +487,34 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
     current = float(item.qty or 0)
     delta = float(payload.counted_qty) - current
     if delta != 0:
+        qty_dec = _dec(abs(delta))
+        product = db.query(Product).filter(Product.id == payload.product_id, Product.tenant_id == tid).first()
+        fallback_cost = _dec(getattr(product, "cost_price", 0) if product else 0)
+        costing = InventoryCostingService(db)
+
+        if delta > 0:
+            state = costing.apply_inbound(
+                tid or "",
+                str(payload.warehouse_id),
+                str(payload.product_id),
+                qty=qty_dec,
+                unit_cost=fallback_cost,
+                initial_qty=_dec(item.qty),
+                initial_avg_cost=fallback_cost,
+            )
+        else:
+            state = costing.apply_outbound(
+                tid or "",
+                str(payload.warehouse_id),
+                str(payload.product_id),
+                qty=qty_dec,
+                allow_negative=True,
+                initial_qty=_dec(item.qty),
+                initial_avg_cost=fallback_cost,
+            )
+
         # create adjust move posted
+        unit_cost_for_move = fallback_cost if delta > 0 else state.avg_cost
         move = StockMove(
             tenant_id=tid,
             product_id=payload.product_id,
@@ -410,6 +525,8 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
             posted=True,
             ref_type="cycle_count",
             ref_id=str(payload.counted_qty),
+            unit_cost=float(unit_cost_for_move),
+            total_cost=float(unit_cost_for_move * qty_dec),
         )
         db.add(move)
         item.qty = current + delta
@@ -417,6 +534,41 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
     db.commit()
     db.refresh(item)
     return item
+
+
+
+class ReorderPointIn(BaseModel):
+    stock_minimo: float = Field(ge=0)
+
+
+@router.post("/products/{product_id}/reorder-point", response_model=dict)
+def set_reorder_point(
+    product_id: str, payload: ReorderPointIn, request: Request, db: Session = Depends(get_db)
+):
+    tid = _require_tenant_id(request)
+    product = (
+        db.query(Product)
+        .filter(Product.id == product_id, Product.tenant_id == tid)
+        .first()
+    )
+    if not product:
+        raise HTTPException(status_code=404, detail="product_not_found")
+
+    meta = product.product_metadata or {}
+    if not isinstance(meta, dict):
+        meta = {}
+    value = float(payload.stock_minimo)
+    meta["stock_minimo"] = value
+    meta["reorder_point"] = value
+    product.product_metadata = meta
+    db.add(product)
+    db.commit()
+
+    return {
+        "status": "ok",
+        "product_id": str(product.id),
+        "stock_minimo": float(payload.stock_minimo),
+    }
 
 
 # ============================================================================
@@ -485,7 +637,7 @@ class AlertHistoryOut(BaseModel):
 @router.get("/alerts/configs", response_model=list[AlertConfigOut])
 def list_alert_configs(request: Request, db: Session = Depends(get_db)):
     """Lista configuraciones de alertas de inventario"""
-    tid = _tenant_id_str(request)
+    tid = _require_tenant_id(request)
     try:
         from app.models.inventory.alerts import AlertConfig  # Import here to avoid circular imports
     except ImportError:
@@ -529,7 +681,7 @@ def list_alert_configs(request: Request, db: Session = Depends(get_db)):
 @router.post("/alerts/configs", response_model=AlertConfigOut, status_code=201)
 def create_alert_config(payload: AlertConfigIn, request: Request, db: Session = Depends(get_db)):
     """Crea una nueva configuración de alertas"""
-    tid = _tenant_id_str(request)
+    tid = _require_tenant_id(request)
     try:
         from app.models.inventory.alerts import AlertConfig
     except ImportError:
@@ -595,7 +747,7 @@ def update_alert_config(
     config_id: str, payload: AlertConfigIn, request: Request, db: Session = Depends(get_db)
 ):
     """Actualiza una configuración de alertas"""
-    tid = _tenant_id_str(request)
+    tid = _require_tenant_id(request)
     try:
         from app.models.inventory.alerts import AlertConfig
     except ImportError:
@@ -647,7 +799,7 @@ def update_alert_config(
 @router.delete("/alerts/configs/{config_id}", status_code=204)
 def delete_alert_config(config_id: str, request: Request, db: Session = Depends(get_db)):
     """Elimina una configuración de alertas"""
-    tid = _tenant_id_str(request)
+    tid = _require_tenant_id(request)
     try:
         from app.models.inventory.alerts import AlertConfig
     except ImportError:
@@ -667,7 +819,7 @@ def delete_alert_config(config_id: str, request: Request, db: Session = Depends(
 @router.post("/alerts/test/{config_id}")
 def test_alert_config(config_id: str, request: Request, db: Session = Depends(get_db)):
     """Envía una alerta de prueba para la configuración especificada"""
-    tid = _tenant_id_str(request)
+    tid = _require_tenant_id(request)
     try:
         from app.models.inventory.alerts import AlertConfig
         from app.services.notifications import NotificationService
@@ -724,7 +876,7 @@ def test_alert_config(config_id: str, request: Request, db: Session = Depends(ge
 @router.post("/alerts/check")
 def check_alerts(request: Request, db: Session = Depends(get_db)):
     """Ejecuta verificación manual de alertas (para testing)"""
-    tid = _tenant_id_str(request)
+    tid = _require_tenant_id(request)
     try:
         from app.services.inventory_alerts import InventoryAlertService
     except ImportError:
@@ -748,7 +900,7 @@ def list_alert_history(
     days_back: int = Query(default=7, le=90),
 ):
     """Lista el historial de alertas enviadas"""
-    tid = _tenant_id_str(request)
+    tid = _require_tenant_id(request)
     since_date = datetime.utcnow() - timedelta(days=days_back)
 
     try:

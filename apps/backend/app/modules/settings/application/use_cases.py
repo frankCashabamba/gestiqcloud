@@ -4,10 +4,9 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.core.settings import TenantSettings
+from app.models.company.company_settings import CompanySettings
 from app.models.tenant import Tenant
 
 from .modules_catalog import get_available_modules, get_module_by_id, validate_module_dependencies
@@ -31,20 +30,27 @@ class SettingsManager:
             Dict with all configuration (creates defaults if not exists)
         """
         settings = (
-            self.db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
+            self.db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
         )
 
         if not settings:
-            # Auto-create settings with defaults
-            settings = self._create_default_settings(tenant_id)
+            return {
+                "id": None,
+                "tenant_id": str(tenant_id),
+                "locale": None,
+                "timezone": None,
+                "currency": None,
+                "modules": {},
+                "updated_at": None,
+            }
 
         return {
             "id": str(settings.id),
             "tenant_id": str(settings.tenant_id),
-            "locale": settings.locale,
+            "locale": settings.default_language,
             "timezone": settings.timezone,
             "currency": settings.currency,
-            "modules": settings.settings,
+            "modules": settings.settings or {},
             "updated_at": settings.updated_at.isoformat(),
         }
 
@@ -94,18 +100,19 @@ class SettingsManager:
             raise ValueError(f"Module '{module}' does not exist")
 
         settings = (
-            self.db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
+            self.db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
         )
 
         if not settings:
-            settings = self._create_default_settings(tenant_id)
+            raise ValueError("company_settings_missing")
 
         # Merge configuration
-        current_config = settings.settings.get(module, {})
+        base_settings = settings.settings or {}
+        current_config = base_settings.get(module, {}) if isinstance(base_settings, dict) else {}
         updated_config = {**current_config, **config}
 
         # Update in JSONB
-        settings_dict = dict(settings.settings)
+        settings_dict = dict(base_settings) if isinstance(base_settings, dict) else {}
         settings_dict[module] = updated_config
         settings.settings = settings_dict
         settings.updated_at = datetime.utcnow()
@@ -263,7 +270,9 @@ class SettingsManager:
         """
         # Check if already exists
         existing = (
-            self.db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
+            self.db.query(CompanySettings)
+            .filter(CompanySettings.tenant_id == tenant_id)
+            .first()
         )
 
         if existing:
@@ -273,19 +282,13 @@ class SettingsManager:
                 "message": "Settings already exist for this tenant",
             }
 
-        settings = self._create_default_settings(tenant_id, country)
-
         return {
-            "created": True,
-            "tenant_id": str(settings.tenant_id),
-            "locale": settings.locale,
-            "timezone": settings.timezone,
-            "currency": settings.currency,
-            "modules_count": len(settings.settings),
-            "created_at": settings.updated_at.isoformat(),
+            "created": False,
+            "tenant_id": str(tenant_id),
+            "message": "Defaults are disabled; create company settings explicitly.",
         }
 
-    def _create_default_settings(self, tenant_id: uuid.UUID, country: str = None) -> TenantSettings:
+    def _create_default_settings(self, tenant_id: uuid.UUID, country: str = None) -> CompanySettings:
         """
         Create default settings (internal use).
 
@@ -294,31 +297,6 @@ class SettingsManager:
             country: Country (auto-detected if not provided)
 
         Returns:
-            TenantSettings instance
+            CompanySettings instance
         """
-        # Detect tenant country if not provided
-        if not country:
-            tenant = self.db.query(Tenant).filter(Tenant.id == tenant_id).first()
-            if tenant:
-                country = tenant.country_code or tenant.country
-
-        settings_kwargs: dict[str, Any] = {"tenant_id": tenant_id}
-        if tenant and getattr(tenant, "base_currency", None):
-            settings_kwargs["currency"] = tenant.base_currency
-        settings_kwargs["settings"] = {}
-
-        # Create settings
-        settings = TenantSettings(**settings_kwargs)
-
-        self.db.add(settings)
-        try:
-            self.db.commit()
-            self.db.refresh(settings)
-        except IntegrityError:
-            self.db.rollback()
-            # If it fails due to duplicate, get the existing one
-            settings = (
-                self.db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
-            )
-
-        return settings
+        raise ValueError("defaults_disabled")

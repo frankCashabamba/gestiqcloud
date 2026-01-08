@@ -60,6 +60,18 @@ def list_company_users(
     return result
 
 
+def get_company_user(db: Session, tenant_id: int, usuario_id: int) -> CompanyUserOut:
+    usuario = repo.get_user_by_id(db, usuario_id, tenant_id)
+    if not usuario:
+        raise HTTPException(status_code=404, detail="user_not_found")
+    agg = _aggregate(
+        usuario,
+        repo.get_user_module_ids(db, usuario.id, tenant_id),
+        repo.get_user_role_ids(db, usuario.id, tenant_id),
+    )
+    return _to_schema(agg)
+
+
 def create_company_user(
     db: Session,
     tenant_id: int,

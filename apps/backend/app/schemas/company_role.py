@@ -1,5 +1,7 @@
 """Schemas for company roles management."""
 
+from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -26,9 +28,9 @@ class CompanyRoleUpdate(BaseModel):
 class CompanyRoleOut(CompanyRoleBase):
     """Company role response schema."""
 
-    id: int
-    tenant_id: int
-    rol_base_id: int | None = None
+    id: UUID
+    tenant_id: UUID
+    base_role_id: UUID | None = None
     created_by_company: bool
 
     model_config = ConfigDict(from_attributes=True)

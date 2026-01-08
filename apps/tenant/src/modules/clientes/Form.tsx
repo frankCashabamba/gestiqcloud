@@ -34,7 +34,7 @@ export default function ClienteForm() {
       try {
         setLoadingCfg(true)
         const q = new URLSearchParams({ module: 'clientes', ...(empresa ? { empresa } : {}) }).toString()
-        const data = await apiFetch<{ items?: FieldCfg[] }>(`/api/v1/tenant/settings/fields?${q}`)
+        const data = await apiFetch<{ items?: FieldCfg[] }>(`/api/v1/company/settings/fields?${q}`)
         if (!cancelled) setFields((data?.items || []).filter(it => it.visible !== false))
       } catch {
         if (!cancelled) setFields(null)

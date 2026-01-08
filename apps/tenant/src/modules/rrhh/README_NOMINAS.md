@@ -34,7 +34,7 @@ Gestión de nóminas y recibos de salario para empleados.
 
 ## Patrón Implementado
 Siguiendo el patrón del módulo `clientes`:
-- Configuración dinámica desde `/api/v1/tenant/settings/fields?module=nominas`
+- Configuración dinámica desde `/api/v1/company/settings/fields?module=nominas`
 - Toast notifications para success/error
 - Loading states
 - Validación de campos required

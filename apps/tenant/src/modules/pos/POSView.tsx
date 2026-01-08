@@ -2,15 +2,17 @@
  * POSView - Terminal Punto de Venta Profesional
  * Diseño basado en tpv_pro.html con integración completa backend
  */
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import ShiftManager from './components/ShiftManager'
+import ShiftManager, { type ShiftManagerHandle } from './components/ShiftManager'
 import PaymentModal from './components/PaymentModal'
 import ConvertToInvoiceModal from './components/ConvertToInvoiceModal'
 import useOfflineSync from './hooks/useOfflineSync'
 import { useCurrency } from '../../hooks/useCurrency'
 import { useAuth } from '../../auth/AuthContext'
-import { listWarehouses, type Warehouse } from '../inventario/services'
+import { listWarehouses, adjustStock, type Warehouse } from '../inventario/services'
+import { listUsuarios } from '../usuarios/services'
+import type { Usuario } from '../usuarios/types'
 import {
     listRegisters,
     createRegister,
@@ -18,12 +20,16 @@ import {
     printReceipt,
     addToOutbox,
     calculateReceiptTotals,
+    issueDocument,
+    renderDocument,
     type ReceiptTotals,
+    type SaleDraft,
 } from './services'
-import { listProductos, type Producto } from '../productos/services'
-import { getTenantSettings, getDefaultReorderPoint, getDefaultTaxRate } from '../../services/tenantSettings'
+import { createProducto, listProductos, searchProductos, type Producto } from '../productos/services'
+import { getCompanySettings, getDefaultReorderPoint, getDefaultTaxRate } from '../../services/companySettings'
 import './pos-styles.css'
 import PendingReceiptsModal from './components/PendingReceiptsModal'
+import type { POSPayment } from '../../types/pos'
 
 type CartItem = {
     product_id: string
@@ -44,6 +50,21 @@ type HeldTicket = {
     ticketNotes?: string
 }
 
+type PosDraftState = {
+    cart: CartItem[]
+    globalDiscountPct: number
+    ticketNotes: string
+    buyerMode: 'CONSUMER_FINAL' | 'IDENTIFIED'
+    buyerIdType: string
+    buyerIdNumber: string
+    buyerName: string
+    buyerEmail: string
+}
+
+const POS_DRAFT_KEY = 'posDraftState'
+
+const DEFAULT_ID_TYPES = ['CEDULA', 'RUC', 'PASSPORT']
+
 export default function POSView() {
     const navigate = useNavigate()
     const { symbol: currencySymbol } = useCurrency()
@@ -57,6 +78,7 @@ export default function POSView() {
     const [defaultTaxPct, setDefaultTaxPct] = useState<number>(0) // fallback neutral hasta cargar settings
     const [searchQuery, setSearchQuery] = useState('')
     const [barcodeInput, setBarcodeInput] = useState('')
+    const [searchExpanded, setSearchExpanded] = useState(false)
     const [selectedCategory, setSelectedCategory] = useState<string>('*')
     const [inventoryConfig, setInventoryConfig] = useState<{ reorderPoint: number; allowNegative: boolean }>({
         reorderPoint: 0,
@@ -67,10 +89,41 @@ export default function POSView() {
     const [ticketNotes, setTicketNotes] = useState('')
     const [currentReceiptId, setCurrentReceiptId] = useState<string | null>(null)
     const [showPaymentModal, setShowPaymentModal] = useState(false)
+    const [showBuyerModal, setShowBuyerModal] = useState(false)
     const [showInvoiceModal, setShowInvoiceModal] = useState(false)
+    const [showCreateProductModal, setShowCreateProductModal] = useState(false)
     const [loading, setLoading] = useState(false)
+    const [creatingProduct, setCreatingProduct] = useState(false)
     const [heldTickets, setHeldTickets] = useState<HeldTicket[]>([])
     const [showPendingModal, setShowPendingModal] = useState(false)
+    const [showPrintPreview, setShowPrintPreview] = useState(false)
+    const [printHtml, setPrintHtml] = useState('')
+    const printFrameRef = useRef<HTMLIFrameElement>(null)
+    const [cashiers, setCashiers] = useState<Usuario[]>([])
+    const [selectedCashierId, setSelectedCashierId] = useState<string | null>(null)
+    const [newRegisterName, setNewRegisterName] = useState('Caja Principal')
+    const [newRegisterCode, setNewRegisterCode] = useState('CAJA-1')
+    const [companySettings, setCompanySettings] = useState<any | null>(null)
+    const [documentConfig, setDocumentConfig] = useState<any | null>(null)
+    const [buyerMode, setBuyerMode] = useState<'CONSUMER_FINAL' | 'IDENTIFIED'>('CONSUMER_FINAL')
+    const [buyerIdType, setBuyerIdType] = useState('')
+    const [buyerIdNumber, setBuyerIdNumber] = useState('')
+    const [buyerName, setBuyerName] = useState('')
+    const [buyerEmail, setBuyerEmail] = useState('')
+    const [createProductForm, setCreateProductForm] = useState({
+        sku: '',
+        name: '',
+        price: 0,
+        stock: 1,
+        iva_tasa: 0,
+        categoria: '',
+    })
+    const pendingSaleRef = useRef<SaleDraft | null>(null)
+    const buyerAlertRef = useRef(false)
+    const buyerContinueRef = useRef(false)
+    const shiftManagerRef = useRef<ShiftManagerHandle | null>(null)
+    const barcodeBufferRef = useRef('')
+    const barcodeTimerRef = useRef<number | null>(null)
 
     const userLabel = useMemo(() => {
         if (!profile) return ''
@@ -78,6 +131,21 @@ export default function POSView() {
         const name = anyProf.username || anyProf.name || anyProf.full_name || anyProf.email
         return name || (profile.user_id ? `#${String(profile.user_id).slice(0, 8)}` : '')
     }, [profile])
+
+    const roleList = useMemo(() => {
+        const roles = (profile as any)?.roles
+        return Array.isArray(roles) ? roles : []
+    }, [profile])
+    const hasRoles = roleList.length > 0
+    const isAdminRole = esAdminEmpresa || roleList.includes('admin') || roleList.includes('owner')
+    const canViewReports = hasRoles ? (isAdminRole || roleList.includes('manager')) : true
+    const canManagePending = hasRoles ? (isAdminRole || roleList.includes('manager')) : true
+    const canDiscount = hasRoles ? (isAdminRole || roleList.includes('supervisor')) : true
+
+    const formatCashierLabel = (u: Usuario) => {
+        const name = `${u.first_name || ''} ${u.last_name || ''}`.trim()
+        return name || u.username || u.email || (u.id ? `#${String(u.id).slice(0, 8)}` : '')
+    }
 
     const { isOnline, pendingCount, syncNow } = useOfflineSync()
     // Almacenes (para admins)
@@ -100,6 +168,25 @@ export default function POSView() {
             })()
     }, [])
 
+    useEffect(() => {
+        if (!selectedCashierId && profile?.user_id) {
+            setSelectedCashierId(String(profile.user_id))
+        }
+    }, [profile, selectedCashierId])
+
+    useEffect(() => {
+        if (!esAdminEmpresa) return
+        ;(async () => {
+            try {
+                const users = await listUsuarios()
+                const actives = users.filter((u) => u.active)
+                setCashiers(actives)
+            } catch {
+                // silencioso
+            }
+        })()
+    }, [esAdminEmpresa])
+
     // Persistir tickets en espera en localStorage para sobrevivir recargas
     useEffect(() => {
         try {
@@ -113,9 +200,58 @@ export default function POSView() {
 
     useEffect(() => {
         try {
+            const raw = localStorage.getItem(POS_DRAFT_KEY)
+            if (!raw) return
+            const draft = JSON.parse(raw) as Partial<PosDraftState>
+            if (draft.cart && Array.isArray(draft.cart)) setCart(draft.cart)
+            if (typeof draft.globalDiscountPct === 'number') setGlobalDiscountPct(draft.globalDiscountPct)
+            if (typeof draft.ticketNotes === 'string') setTicketNotes(draft.ticketNotes)
+            if (draft.buyerMode === 'CONSUMER_FINAL' || draft.buyerMode === 'IDENTIFIED') {
+                setBuyerMode(draft.buyerMode)
+            }
+            if (typeof draft.buyerIdType === 'string') setBuyerIdType(draft.buyerIdType)
+            if (typeof draft.buyerIdNumber === 'string') setBuyerIdNumber(draft.buyerIdNumber)
+            if (typeof draft.buyerName === 'string') setBuyerName(draft.buyerName)
+            if (typeof draft.buyerEmail === 'string') setBuyerEmail(draft.buyerEmail)
+        } catch {
+            // ignore corrupted draft
+        }
+    }, [])
+
+    useEffect(() => {
+        try {
             localStorage.setItem('posHeldTickets', JSON.stringify(heldTickets))
         } catch { }
     }, [heldTickets])
+
+    useEffect(() => {
+        try {
+            const draft: PosDraftState = {
+                cart,
+                globalDiscountPct,
+                ticketNotes,
+                buyerMode,
+                buyerIdType,
+                buyerIdNumber,
+                buyerName,
+                buyerEmail,
+            }
+            if (draft.cart.length === 0 && !draft.ticketNotes) {
+                localStorage.removeItem(POS_DRAFT_KEY)
+                return
+            }
+            localStorage.setItem(POS_DRAFT_KEY, JSON.stringify(draft))
+        } catch { }
+    }, [
+        cart,
+        globalDiscountPct,
+        ticketNotes,
+        buyerMode,
+        buyerIdType,
+        buyerIdNumber,
+        buyerName,
+        buyerEmail,
+    ])
 
     const loadRegisters = async () => {
         try {
@@ -127,11 +263,21 @@ export default function POSView() {
         }
     }
 
+    const extractDocumentConfig = (settings: any) => {
+        if (!settings || typeof settings !== 'object') return {}
+        const docs = (settings.settings && (settings.settings as any).documents) || {}
+        if (docs && typeof docs === 'object') return docs
+        const invoiceCfg = (settings as any).invoice_config
+        return invoiceCfg && typeof invoiceCfg === 'object' ? invoiceCfg : {}
+    }
+
     const loadSettings = async () => {
         try {
-            const settings = await getTenantSettings()
+            const settings = await getCompanySettings()
             // Para POS, si no hay configuración explícita, preferimos 0 (no forzar 15% por defecto)
             const defaultTaxRate = getDefaultTaxRate(settings, 0)
+            setCompanySettings(settings)
+            setDocumentConfig(extractDocumentConfig(settings))
             setInventoryConfig({
                 reorderPoint: getDefaultReorderPoint(settings),
                 allowNegative: !!(
@@ -157,6 +303,26 @@ export default function POSView() {
         } catch (error) {
             console.error('Error loading products:', error)
         }
+    }
+
+    const resolveWarehouseForStock = async () => {
+        if (headerWarehouseId) return headerWarehouseId
+        if (warehouses.length > 0) return String(warehouses[0].id)
+        try {
+            const fetched = await listWarehouses()
+            if (Array.isArray(fetched) && fetched.length > 0) {
+                const actives = fetched.filter((w) => w.is_active)
+                const candidates = actives.length ? actives : fetched
+                setWarehouses(candidates)
+                if (!headerWarehouseId && candidates.length === 1) {
+                    setHeaderWarehouseId(String(candidates[0].id))
+                }
+                return String(candidates[0].id)
+            }
+        } catch (err) {
+            console.error('No se pudo resolver almacen por defecto', err)
+        }
+        return null
     }
 
     const categories = useMemo(() => {
@@ -203,7 +369,11 @@ export default function POSView() {
         return result
     }, [products, selectedCategory, searchQuery, viewMode, inventoryConfig.reorderPoint])
 
-    const violatesStockPolicy = (product: Producto, desiredQty: number) => {
+    const violatesStockPolicy = (
+        product: Producto,
+        desiredQty: number,
+        opts?: { ignoreReorder?: boolean }
+    ) => {
         const stock = Number(product.stock ?? 0)
         const remaining = stock - desiredQty
 
@@ -212,20 +382,22 @@ export default function POSView() {
             return true
         }
 
-        const reorderPoint = Number(
-            product.product_metadata?.reorder_point ?? inventoryConfig.reorderPoint ?? 0
-        )
-        if (reorderPoint > 0 && remaining < reorderPoint) {
-            alert(`Stock bajará del punto de reorden (${reorderPoint}). No se puede vender.`)
-            return true
+        if (!opts?.ignoreReorder) {
+            const reorderPoint = Number(
+                product.product_metadata?.reorder_point ?? inventoryConfig.reorderPoint ?? 0
+            )
+            if (reorderPoint > 0 && remaining < reorderPoint) {
+                alert(`Stock bajar? del punto de reorden (${reorderPoint}). No se puede vender.`)
+                return true
+            }
         }
         return false
     }
 
-    const addToCart = (product: Producto) => {
+    const addToCart = (product: Producto, opts?: { ignoreReorder?: boolean }) => {
         const existing = cart.find((item) => item.product_id === product.id)
         const nextQty = existing ? existing.qty + 1 : 1
-        if (violatesStockPolicy(product, nextQty)) return
+        if (violatesStockPolicy(product, nextQty, opts)) return
 
         if (existing) {
             setCart(
@@ -239,7 +411,7 @@ export default function POSView() {
                 sku: product.sku || '',
                 name: product.name,
                 price: product.price || 0,
-                // Preservar 0% si el producto lo tiene; solo usar fallback de configuración cuando viene null/undefined
+                // Preservar 0% si el producto lo tiene; solo usar fallback de configuraci?n cuando viene null/undefined
                 iva_tasa: (product as any).iva_tasa ?? defaultTaxPct,
                 qty: 1,
                 discount_pct: 0,
@@ -280,7 +452,10 @@ const setLineNote = (index: number) => {
         setCart(cart.map((item, i) => (i === index ? { ...item, notes: value } : item)))
     }
 
-    const normalizeCode = (value?: string | null) => (value || '').toString().trim().toLowerCase()
+    const normalizeCode = (value?: string | null) => {
+        const normalized = (value || '').toString().trim().toLowerCase()
+        return normalized.replace(/(\d)[`'’](\d)/g, '$1-$2')
+    }
 
     const findProductByCode = (code: string) => {
         const normalized = normalizeCode(code)
@@ -306,7 +481,20 @@ const setLineNote = (index: number) => {
             setBarcodeInput('')
         } else {
             const code = normalizeCode(barcodeInput)
-            if (code) alert('Producto no encontrado: ' + code)
+            if (code) {
+                const shouldCreate = confirm(`Producto no encontrado: ${code}\n¿Deseas crearlo?`)
+                if (shouldCreate) {
+                    setCreateProductForm({
+                        sku: code,
+                        name: '',
+                        price: 0,
+                        stock: 1,
+                        iva_tasa: defaultTaxPct,
+                        categoria: selectedCategory !== '*' ? selectedCategory : '',
+                    })
+                    setShowCreateProductModal(true)
+                }
+            }
         }
     }
 
@@ -328,6 +516,160 @@ const setLineNote = (index: number) => {
         tax: 0,
         total: 0,
     })
+
+    const buyerPolicy = useMemo(() => {
+        const raw = (documentConfig?.buyer_policy || documentConfig?.buyerPolicy || {}) as any
+        return {
+            consumerFinalEnabled:
+                raw.consumerFinalEnabled ?? raw.consumer_final_enabled ?? true,
+            consumerFinalMaxTotal: Number(
+                raw.consumerFinalMaxTotal ?? raw.consumer_final_max_total ?? 0
+            ),
+            requireBuyerAboveAmount:
+                raw.requireBuyerAboveAmount ?? raw.require_buyer_above_amount ?? false,
+        }
+    }, [documentConfig])
+
+    const canUseConsumerFinal = useMemo(() => {
+        if (buyerPolicy.consumerFinalEnabled === false) return false
+        if (buyerPolicy.requireBuyerAboveAmount && buyerPolicy.consumerFinalMaxTotal > 0) {
+            return totals.total <= buyerPolicy.consumerFinalMaxTotal
+        }
+        return true
+    }, [buyerPolicy, totals.total])
+
+    const idTypeOptions = useMemo(() => {
+        const raw = documentConfig?.id_types || documentConfig?.idTypes || []
+        if (!Array.isArray(raw)) return []
+        return raw.map((value: any) => String(value)).filter((value: string) => value.trim())
+    }, [documentConfig])
+
+    const allowedIdTypes = useMemo(() => {
+        const sanitized = idTypeOptions
+            .map((value) => value.trim())
+            .filter((value) => value && value.toUpperCase() !== 'NONE')
+        return sanitized.length > 0 ? sanitized : DEFAULT_ID_TYPES
+    }, [idTypeOptions])
+
+    const normalizeIdType = (value: string, options: string[]) => {
+        const normalize = (input: string) =>
+            input
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toUpperCase()
+        const target = normalize(value || '')
+        if (!target) return ''
+        const directMatch = options.find((opt) => normalize(opt) === target)
+        if (directMatch) return directMatch
+        return ''
+    }
+
+    useEffect(() => {
+        if (!buyerIdType) {
+            setBuyerIdType(allowedIdTypes[0] || '')
+            return
+        }
+        const normalized = normalizeIdType(buyerIdType, allowedIdTypes)
+        if (normalized && normalized !== buyerIdType) {
+            setBuyerIdType(normalized)
+        }
+    }, [buyerIdType, allowedIdTypes])
+
+    useEffect(() => {
+        const resetBuffer = () => {
+            barcodeBufferRef.current = ''
+            if (barcodeTimerRef.current) {
+                window.clearTimeout(barcodeTimerRef.current)
+                barcodeTimerRef.current = null
+            }
+        }
+
+        const handler = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement | null
+            const tag = target?.tagName?.toLowerCase()
+            const isEditable =
+                tag === 'input' ||
+                tag === 'textarea' ||
+                (target as HTMLElement | null)?.isContentEditable
+            if (isEditable) return
+            if (e.ctrlKey || e.altKey || e.metaKey) return
+
+            if (e.key === 'Enter') {
+                const code = barcodeBufferRef.current.trim()
+                if (code) {
+                    const product = findProductByCode(code)
+                    if (product) {
+                        addToCart(product)
+                    } else {
+                        const shouldCreate = confirm(`Producto no encontrado: ${code}\n¿Deseas crearlo?`)
+                        if (shouldCreate) {
+                            setCreateProductForm({
+                                sku: code,
+                                name: '',
+                                price: 0,
+                                stock: 1,
+                                iva_tasa: defaultTaxPct,
+                                categoria: selectedCategory !== '*' ? selectedCategory : '',
+                            })
+                            setShowCreateProductModal(true)
+                        }
+                    }
+                }
+                resetBuffer()
+                return
+            }
+
+            if (e.key.length !== 1) return
+            barcodeBufferRef.current += e.key
+            if (barcodeTimerRef.current) {
+                window.clearTimeout(barcodeTimerRef.current)
+            }
+            barcodeTimerRef.current = window.setTimeout(() => {
+                barcodeBufferRef.current = ''
+                barcodeTimerRef.current = null
+            }, 300)
+        }
+
+        window.addEventListener('keydown', handler)
+        return () => {
+            window.removeEventListener('keydown', handler)
+            if (barcodeTimerRef.current) {
+                window.clearTimeout(barcodeTimerRef.current)
+                barcodeTimerRef.current = null
+            }
+        }
+    }, [findProductByCode, addToCart])
+
+    useEffect(() => {
+        if (buyerPolicy.consumerFinalEnabled === false && buyerMode === 'CONSUMER_FINAL') {
+            setBuyerMode('IDENTIFIED')
+        }
+    }, [buyerMode, buyerPolicy.consumerFinalEnabled])
+
+    useEffect(() => {
+        if (!showBuyerModal) {
+            buyerAlertRef.current = false
+            return
+        }
+        if (buyerMode !== 'CONSUMER_FINAL') {
+            buyerAlertRef.current = false
+            return
+        }
+        if (!canUseConsumerFinal && !buyerAlertRef.current) {
+            buyerAlertRef.current = true
+            alert('El total supera el limite para consumidor final. Se requieren datos.')
+            setBuyerMode('IDENTIFIED')
+        }
+        if (canUseConsumerFinal) buyerAlertRef.current = false
+    }, [buyerMode, canUseConsumerFinal, showBuyerModal])
+
+    useEffect(() => {
+        if (showBuyerModal) {
+            buyerContinueRef.current = false
+        }
+    }, [showBuyerModal])
 
     // Calcular totales cuando cambia el carrito o descuento global
     useEffect(() => {
@@ -389,21 +731,87 @@ const setLineNote = (index: number) => {
         calculateTotals()
     }, [cart, globalDiscountPct])
 
-    const handleCheckout = async () => {
-        if (cart.length === 0) {
-            alert('No hay líneas en el carrito')
-            return
-        }
-        if (!currentShift) {
-            alert('Abre un turno primero')
-            return
-        }
+    const round2 = (value: number) => Math.round(value * 100) / 100
 
+    const mapPaymentMethod = (
+        method: POSPayment['method']
+    ): SaleDraft['payments'][number]['method'] => {
+        switch (method) {
+            case 'cash':
+                return 'CASH'
+            case 'card':
+                return 'CARD'
+            case 'link':
+                return 'TRANSFER'
+            default:
+                return 'OTHER'
+        }
+    }
+
+    const buildSaleDraft = (payments: POSPayment[] = []): SaleDraft => {
+        const tenantId = profile?.tenant_id ? String(profile.tenant_id) : ''
+        const country =
+            documentConfig?.country ||
+            (companySettings?.settings as any)?.pais ||
+            (companySettings as any)?.settings?.country ||
+            'EC'
+        const currency = companySettings?.currency || 'USD'
+        const posId = selectedRegister?.id ? String(selectedRegister.id) : 'pos'
+
+        const buyer =
+            buyerMode === 'CONSUMER_FINAL'
+                ? {
+                      mode: 'CONSUMER_FINAL' as const,
+                      idType: 'NONE',
+                      idNumber: '',
+                      name: buyerName.trim() || 'CONSUMIDOR FINAL',
+                      email: buyerEmail.trim() || undefined,
+                  }
+                : {
+                      mode: 'IDENTIFIED' as const,
+                      idType: normalizeIdType(buyerIdType, allowedIdTypes),
+                      idNumber: buyerIdNumber.trim(),
+                      name: buyerName.trim(),
+                      email: buyerEmail.trim() || undefined,
+                  }
+
+        return {
+            tenantId,
+            country,
+            posId,
+            currency,
+            buyer,
+            items: cart.map((item) => {
+                const lineSubtotal = item.price * item.qty
+                const discount = round2(lineSubtotal * (item.discount_pct / 100))
+                return {
+                    sku: item.sku || '',
+                    name: item.name,
+                    qty: item.qty,
+                    unitPrice: item.price,
+                    discount,
+                    taxCategory: item.categoria || 'DEFAULT',
+                }
+            }),
+            payments: payments.map((payment) => ({
+                method: mapPaymentMethod(payment.method),
+                amount: payment.amount,
+            })),
+            meta: {
+                notes: ticketNotes,
+                cashier: selectedCashierId || profile?.user_id || undefined,
+            },
+        }
+    }
+
+    const startCheckout = async () => {
         try {
             setLoading(true)
+            pendingSaleRef.current = buildSaleDraft([])
             const receiptData = {
                 register_id: selectedRegister.id,
                 shift_id: currentShift.id,
+                cashier_id: esAdminEmpresa ? selectedCashierId || undefined : undefined,
                 lines: cart.map((item) => {
                     const line_total = item.price * item.qty * (1 - item.discount_pct / 100)
                     return {
@@ -430,7 +838,45 @@ const setLineNote = (index: number) => {
         }
     }
 
-    const handlePaymentSuccess = async () => {
+    const handleBuyerContinue = async (nextMode?: 'CONSUMER_FINAL' | 'IDENTIFIED') => {
+        const mode = nextMode ?? buyerMode
+        if (nextMode) {
+            setBuyerMode(nextMode)
+        }
+        if (mode == 'CONSUMER_FINAL' && !canUseConsumerFinal) {
+            alert('El total requiere datos del comprador.')
+            return
+        }
+        if (mode == 'IDENTIFIED') {
+            const normalized = normalizeIdType(buyerIdType, allowedIdTypes)
+            if (!normalized) {
+                alert('Selecciona el tipo de identificacion del comprador.')
+                return
+            }
+            if (!buyerIdNumber.trim() || !buyerName.trim()) {
+                alert('Completa nombre e identificacion del comprador.')
+                return
+            }
+        }
+        setShowBuyerModal(false)
+        await startCheckout()
+    }
+
+
+    const handleCheckout = () => {
+        if (cart.length === 0) {
+            alert('No hay l?neas en el carrito')
+            return
+        }
+        if (!currentShift) {
+            alert('Abre un turno primero')
+            return
+        }
+        setShowBuyerModal(true)
+    }
+
+
+    const handlePaymentSuccess = async (payments: POSPayment[]) => {
         try {
             setLoading(true)
             // Use existing receipt; do not recreate
@@ -439,19 +885,52 @@ const setLineNote = (index: number) => {
                 return
             }
 
-            // Imprimir automáticamente
-            const html = await printReceipt(currentReceiptId, '58mm')
-            const printWindow = window.open('', '_blank')
-            if (printWindow) {
-                printWindow.document.write(html)
-                printWindow.document.close()
+            let docPrinted = false
+            const baseDraft = pendingSaleRef.current || buildSaleDraft([])
+            const saleDraft = {
+                ...baseDraft,
+                payments: payments.map((payment) => ({
+                    method: mapPaymentMethod(payment.method),
+                    amount: payment.amount,
+                })),
+            }
+
+            if (isOnline) {
+                try {
+                    const issued = await issueDocument(saleDraft)
+                    const docId = issued?.document?.id
+                    if (docId) {
+                        const html = await renderDocument(docId)
+                        setPrintHtml(html)
+                        setShowPrintPreview(true)
+                        docPrinted = true
+                    }
+                } catch (err) {
+                    console.error('Error emitiendo documento:', err)
+                    if (buyerMode === 'IDENTIFIED') {
+                        alert('No se pudo emitir documento con datos. Se imprimira ticket simple.')
+                    }
+                }
+            }
+
+            if (!docPrinted) {
+                const html = await printReceipt(currentReceiptId, '58mm')
+                setPrintHtml(html)
+                setShowPrintPreview(true)
             }
 
             // Reset
             setCart([])
             setGlobalDiscountPct(0)
             setTicketNotes('')
+            setBuyerMode('CONSUMER_FINAL')
+            setBuyerIdType('')
+            setBuyerIdNumber('')
+            setBuyerName('')
+            setBuyerEmail('')
+            localStorage.removeItem(POS_DRAFT_KEY)
             setShowPaymentModal(false)
+            pendingSaleRef.current = null
 
             alert('Venta completada ✓')
         } catch (error: any) {
@@ -538,14 +1017,17 @@ const setLineNote = (index: number) => {
                     } catch { }
                 }
                 const wh = ws && ws.length > 0 ? ws[0] : null
-                const payload: any = { code: 'CAJA-1', name: 'Caja Principal' }
+                const payload: any = {
+                    code: (newRegisterCode || '').trim() || undefined,
+                    name: (newRegisterName || '').trim(),
+                }
                 // Si hay más de un almacén y el usuario eligió uno, respétalo
                 const chosenId = headerWarehouseId || (ws && ws.length === 1 ? wh?.id : null)
                 if (chosenId) payload.default_warehouse_id = chosenId
                 const reg = await createRegister(payload)
                 await loadRegisters()
                 setSelectedRegister(reg)
-                alert('Caja creada: CAJA-1')
+                alert(`Caja creada: ${payload.name}`)
             } catch (e) {
                 console.error('No se pudo crear la caja', e)
                 alert('No se pudo crear la caja. Revisa permisos o intenta desde Admin.')
@@ -561,6 +1043,35 @@ const setLineNote = (index: number) => {
                     <p className="text-sm text-gray-600 mb-4">
                         Crea una caja por defecto para comenzar a vender. Usaremos tu único almacén activo si está disponible.
                     </p>
+                    {!esAdminEmpresa && (
+                        <p className="text-sm text-amber-700 mb-4">
+                            Solo un administrador puede crear cajas. Solicita acceso o crea la caja desde Admin.
+                        </p>
+                    )}
+                    <div className="mb-4 grid gap-3">
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Nombre de la caja</label>
+                            <input
+                                value={newRegisterName}
+                                onChange={(e) => setNewRegisterName(e.target.value)}
+                                className="border rounded px-3 py-2 w-full"
+                                placeholder="Caja Principal"
+                                disabled={!esAdminEmpresa}
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">CODIGO (opcional)</label>
+                            <input
+                                value={newRegisterCode}
+                                onChange={(e) => setNewRegisterCode(e.target.value)}
+                                className="border rounded px-3 py-2 w-full"
+                                placeholder="CAJA-1"
+                                disabled={!esAdminEmpresa}
+                            />
+                        </div>
+                    </div>
+
                     {warehouses.length > 1 && (
                         <div className="mb-4">
                             <label className="block text-sm font-medium mb-1">Selecciona almacén por defecto</label>
@@ -580,10 +1091,10 @@ const setLineNote = (index: number) => {
                     )}
                     <button
                         onClick={crearCajaRapida}
-                        disabled={loading || (warehouses.length > 1 && !headerWarehouseId)}
+                        disabled={!esAdminEmpresa || loading || !newRegisterName.trim() || (warehouses.length > 1 && !headerWarehouseId)}
                         className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-60"
                     >
-                        {loading ? 'Creando…' : 'Crear CAJA-1'}
+                        {loading ? 'Creando…' : 'Crear caja'}
                     </button>
                 </div>
             </div>
@@ -591,7 +1102,7 @@ const setLineNote = (index: number) => {
     }
 
     return (
-        <div className="tpv">
+        <div className={cart.length > 0 ? 'tpv' : 'tpv tpv--no-cart'}>
             {/* Top Bar */}
             <header className="top">
                 <div className="brand">
@@ -603,28 +1114,48 @@ const setLineNote = (index: number) => {
                         </span>
                     )}
                 </div>
-                <div className="actions">
+                {currentShift && (
+                    <div className="shift-pill" title="Turno abierto">
+                        <span className="shift-title">Turno abierto</span>
+                        <span className="shift-meta">
+                            Fondo {currencySymbol}{(Number(currentShift.opening_float) || 0).toFixed(2)}
+                        </span>
+                        <button
+                            className="btn sm danger"
+                            onClick={() => shiftManagerRef.current?.openCloseModal()}
+                        >
+                            Cerrar turno
+                        </button>
+                    </div>
+                )}
+                <div className="actions top-actions">
                 <button className="btn sm" onClick={() => setTicketNotes(prompt('Notas del ticket', ticketNotes) || ticketNotes)}>
                 Notas
                 </button>
+                {canDiscount && (
                 <button className="btn sm" onClick={() => setGlobalDiscountPct(parseFloat(prompt('Descuento global (%)', String(globalDiscountPct)) || String(globalDiscountPct)))}>
                 Descuento
                 </button>
+                )}
+                {canViewReports && (
                 <button className="btn sm" onClick={() => {
                       const url = selectedRegister ? `daily-counts?register_id=${selectedRegister.id}` : 'daily-counts'
                     navigate(url)
                     }}>
-                        📊 Reportes Diarios
+                        Reportes diarios
                     </button>
+                )}
                 <button className="btn sm" onClick={handleHoldTicket}>
                 Ticket en espera
                 </button>
                     <button className="btn sm" onClick={handleResumeTicket}>
                         Reimprimir
                     </button>
+                {canManagePending && (
                 <button className="btn sm" onClick={handlePayPending}>
                     Cobrar pendientes
                 </button>
+                )}
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span className={`badge ${isOnline ? 'ok' : 'off'}`}>
@@ -634,6 +1165,22 @@ const setLineNote = (index: number) => {
                         <button className="badge" onClick={syncNow} title="Sincronizar">
                             ⟳ {pendingCount} pendientes
                         </button>
+                    )}
+                    {esAdminEmpresa && cashiers.length > 0 && (
+                        <select
+                            value={selectedCashierId || ''}
+                            onChange={(e) => setSelectedCashierId(e.target.value || null)}
+                            className="badge"
+                            style={{ cursor: 'pointer' }}
+                            title="Cajero activo"
+                        >
+                            {!selectedCashierId && <option value="">Cajero…</option>}
+                            {cashiers.map((u) => (
+                                <option key={u.id} value={u.id}>
+                                    {formatCashierLabel(u)}
+                                </option>
+                            ))}
+                        </select>
                     )}
                     <select
                         value={selectedRegister?.id || ''}
@@ -672,16 +1219,30 @@ const setLineNote = (index: number) => {
             {/* Left Column - Catalog */}
             <section className="left">
                 {/* Shift Manager */}
-                <ShiftManager register={selectedRegister} onShiftChange={setCurrentShift} />
+                <ShiftManager ref={shiftManagerRef} register={selectedRegister} onShiftChange={setCurrentShift} compact />
 
                 {/* Search */}
-                <div className="search" role="search">
+                <div
+                    className={`search ${searchExpanded ? 'search--expanded' : 'search--collapsed'}`}
+                    role="search"
+                >
+                    <button
+                        className="btn sm ghost search-toggle"
+                        onClick={() => setSearchExpanded((prev) => !prev)}
+                        type="button"
+                    >
+                        Buscar
+                    </button>
                     <input
                         id="search"
-                        placeholder="Buscar productos o escanear código (F2)"
+                        placeholder="Buscar productos o escanear c??digo (F2)"
                         aria-label="Buscar productos"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
+                        onFocus={() => setSearchExpanded(true)}
+                        onBlur={() => {
+                            if (!searchQuery.trim()) setSearchExpanded(false)
+                        }}
                         onKeyDown={(e) => {
                             if (e.key === 'F2') {
                                 e.currentTarget.focus()
@@ -692,8 +1253,8 @@ const setLineNote = (index: number) => {
                     />
                     <input
                         id="barcode"
-                        placeholder="Código de barras"
-                        aria-label="Código de barras"
+                        placeholder="Codigo de barras"
+                        aria-label="Codigo de barras"
                         style={{ width: 180, borderLeft: '1px solid var(--border)', paddingLeft: 10 }}
                         value={barcodeInput}
                         onChange={(e) => setBarcodeInput(e.target.value)}
@@ -705,26 +1266,24 @@ const setLineNote = (index: number) => {
                 </div>
 
                 {/* View Mode Toggle */}
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', padding: '0 4px' }}>
+                <div className="view-toggle">
                     <button
                         className={`btn sm ${viewMode === 'categories' ? 'primary' : ''}`}
                         onClick={() => setViewMode('categories')}
-                        style={{ flex: 1 }}
                     >
-                        📂 Por Categorías
+                        Por categorias
                     </button>
                     <button
                         className={`btn sm ${viewMode === 'all' ? 'primary' : ''}`}
                         onClick={() => setViewMode('all')}
-                        style={{ flex: 1 }}
                     >
-                        📋 Todos
+                        Todos
                     </button>
                 </div>
 
-                {/* Categories - solo visible en modo categorías */}
+                {/* Categories - solo visible en modo categorias */}
                 {viewMode === 'categories' && (
-                    <div className="cats" role="tablist" aria-label="Categorías">
+                    <div className="cats" role="tablist" aria-label="Categorias">
                         {categories.map((cat) => (
                             <button
                                 key={cat}
@@ -770,7 +1329,7 @@ const setLineNote = (index: number) => {
 
             {/* Right Column - Cart & Payment */}
             <aside className="right">
-                <div className="cart" role="list" aria-label="Carrito">
+            <div className="cart" role="list" aria-label="Carrito">
                     {cart.map((item, idx) => {
                         const lineTotal = item.price * item.qty * (1 - item.discount_pct / 100)
                         return (
@@ -824,15 +1383,11 @@ const setLineNote = (index: number) => {
                             </div>
                         )
                     })}
-                    {cart.length === 0 && (
-                        <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
-                            Carrito vacío
-                        </div>
-                    )}
-                </div>
+                                    </div>
 
-                <div className="pay">
-                    <div className="totals">
+                {cart.length > 0 && (
+                    <div className="pay">
+                        <div className="totals">
                         <div>Subtotal</div>
                         <div className="sum">{totals.subtotal.toFixed(2)}{currencySymbol}</div>
                         <div>Descuento</div>
@@ -842,26 +1397,28 @@ const setLineNote = (index: number) => {
                         <div className="big">Total</div>
                         <div className="sum big">{totals.total.toFixed(2)}{currencySymbol}</div>
                     </div>
-
-                    <div className="paymodes" role="group" aria-label="Métodos de pago">
-                        <button className="btn" onClick={handleCheckout}>
-                            Efectivo
-                        </button>
-                        <button className="btn" onClick={handleCheckout}>
-                            Tarjeta
-                        </button>
-                        <button className="btn" onClick={handleCheckout}>
-                            Mixto
-                        </button>
-                        <button className="btn ghost" onClick={() => alert('Función en desarrollo')}>
-                            Abrir cajón
-                        </button>
-                    </div>
                 </div>
+                )}
             </aside>
 
             {/* Bottom Bar */}
-            <footer className="bottom">
+            {cart.length > 0 && (
+            <footer
+                className="bottom"
+                style={{
+                    position: 'fixed',
+                    left: 16,
+                    right: 16,
+                    bottom: 16,
+                    zIndex: 50,
+                    borderRadius: 12,
+                    boxShadow: '0 12px 28px rgba(0,0,0,0.18)',
+                    padding: '10px 12px',
+                    background: 'var(--panel, #111827)',
+                    width: 'min(520px, calc(100% - 32px))',
+                    marginRight: 'auto'
+                }}
+            >
                 <div className="actions">
                     <button
                         className="btn"
@@ -885,8 +1442,106 @@ const setLineNote = (index: number) => {
                     </button>
                 </div>
             </footer>
+            )}
 
             {/* Modals */}
+
+            {showBuyerModal && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0, 0, 0, 0.45)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 9999,
+                    }}
+                >
+                    <div
+                        style={{
+                            width: 'min(560px, 92vw)',
+                            background: '#fff',
+                            borderRadius: 12,
+                            padding: 16,
+                            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 12,
+                        }}
+                    >
+                        <div style={{ fontWeight: 700 }}>Tipo de documento</div>
+                        {buyerPolicy.requireBuyerAboveAmount && buyerPolicy.consumerFinalMaxTotal > 0 && (
+                            <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                                Desde {currencySymbol}{buyerPolicy.consumerFinalMaxTotal.toFixed(2)} se requiere factura con datos.
+                            </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                                className={`btn sm ${buyerMode === 'CONSUMER_FINAL' ? 'primary' : ''}`}
+                                onClick={() => handleBuyerContinue('CONSUMER_FINAL')}
+                                disabled={buyerPolicy.consumerFinalEnabled === false}
+                            >
+                                Consumidor final
+                            </button>
+                            <button
+                                className={`btn sm ${buyerMode === 'IDENTIFIED' ? 'primary' : ''}`}
+                                onClick={() => setBuyerMode('IDENTIFIED')}
+                            >
+                                Factura / Con datos
+                            </button>
+                        </div>
+                        {buyerMode === 'CONSUMER_FINAL' && !canUseConsumerFinal && (
+                            <div style={{ color: '#b91c1c', fontSize: 12 }}>
+                                Total supera el limite permitido para consumidor final.
+                            </div>
+                        )}
+                        {buyerMode === 'IDENTIFIED' && (
+                            <div style={{ display: 'grid', gap: 8 }}>
+                                <select
+                                    value={buyerIdType}
+                                    onChange={(e) => setBuyerIdType(e.target.value)}
+                                    className="badge"
+                                    style={{ cursor: 'pointer', padding: '6px 8px' }}
+                                >
+                                    {allowedIdTypes.map((opt) => (
+                                        <option key={opt} value={opt}>
+                                            {opt}
+                                        </option>
+                                    ))}
+                                </select>
+                                <input
+                                    type="text"
+                                    placeholder="Identificacion"
+                                    value={buyerIdNumber}
+                                    onChange={(e) => setBuyerIdNumber(e.target.value)}
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="Nombre"
+                                    value={buyerName}
+                                    onChange={(e) => setBuyerName(e.target.value)}
+                                />
+                                <input
+                                    type="email"
+                                    placeholder="Email (opcional)"
+                                    value={buyerEmail}
+                                    onChange={(e) => setBuyerEmail(e.target.value)}
+                                />
+                            </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                            <button className="btn ghost" onClick={() => setShowBuyerModal(false)}>
+                                Cancelar
+                            </button>
+                            <button className="btn primary" onClick={() => handleBuyerContinue()}>
+                                Continuar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showPaymentModal && currentReceiptId && (
                 <PaymentModal
                     receiptId={currentReceiptId}
@@ -909,6 +1564,309 @@ const setLineNote = (index: number) => {
                 />
             )}
 
+            {showCreateProductModal && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0, 0, 0, 0.45)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 9999,
+                    }}
+                >
+                    <div
+                        style={{
+                            width: 'min(520px, 92vw)',
+                            background: '#fff',
+                            borderRadius: 12,
+                            padding: 16,
+                            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 12,
+                        }}
+                    >
+                        <div style={{ fontWeight: 700 }}>Crear producto rapido</div>
+                        <div style={{ display: 'grid', gap: 10 }}>
+                            <label style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>
+                                Codigo (SKU)
+                            </label>
+                            <input
+                                type="text"
+                                style={{
+                                    border: '1px solid #cbd5f5',
+                                    padding: '8px 10px',
+                                    borderRadius: 8,
+                                    outline: 'none',
+                                }}
+                                value={createProductForm.sku}
+                                onChange={(e) =>
+                                    setCreateProductForm((prev) => ({ ...prev, sku: e.target.value }))
+                                }
+                            />
+                            <label style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>
+                                Nombre <span style={{ color: '#ef4444' }}>*</span>
+                            </label>
+                            <input
+                                type="text"
+                                style={{
+                                    border: '2px solid #2563eb',
+                                    padding: '8px 10px',
+                                    borderRadius: 8,
+                                    outline: 'none',
+                                    boxShadow: '0 0 0 2px rgba(37, 99, 235, 0.12)',
+                                }}
+                                value={createProductForm.name}
+                                onChange={(e) =>
+                                    setCreateProductForm((prev) => ({ ...prev, name: e.target.value }))
+                                }
+                            />
+                            {!createProductForm.name.trim() && (
+                                <div style={{ fontSize: 11, color: '#b91c1c' }}>
+                                    Ingresa un nombre para continuar.
+                                </div>
+                            )}
+                            <label style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>
+                                Precio <span style={{ color: '#ef4444' }}>*</span>
+                            </label>
+                            <input
+                                type="number"
+                                style={{
+                                    border: '2px solid #2563eb',
+                                    padding: '8px 10px',
+                                    borderRadius: 8,
+                                    outline: 'none',
+                                    boxShadow: '0 0 0 2px rgba(37, 99, 235, 0.08)',
+                                }}
+                                value={createProductForm.price}
+                                onChange={(e) =>
+                                    setCreateProductForm((prev) => ({
+                                        ...prev,
+                                        price: Number(e.target.value) || 0,
+                                    }))
+                                }
+                                min={0}
+                                step="0.01"
+                            />
+                            {Number(createProductForm.price) <= 0 && (
+                                <div style={{ fontSize: 11, color: '#b91c1c' }}>
+                                    El precio debe ser mayor a 0.
+                                </div>
+                            )}
+                            <label style={{ fontSize: 12, fontWeight: 600, color: '#1f2937' }}>
+                                Stock
+                            </label>
+                            <input
+                                type="number"
+                                style={{ border: '1px solid #d1d5db', padding: '8px 10px', borderRadius: 8 }}
+                                value={createProductForm.stock}
+                                onChange={(e) =>
+                                    setCreateProductForm((prev) => ({
+                                        ...prev,
+                                        stock: Number(e.target.value) || 0,
+                                    }))
+                                }
+                                min={0}
+                                step="0.01"
+                            />
+                            <label style={{ fontSize: 12, fontWeight: 600, color: '#1f2937' }}>
+                                IVA (%)
+                            </label>
+                            <input
+                                type="number"
+                                style={{ border: '1px solid #d1d5db', padding: '8px 10px', borderRadius: 8 }}
+                                value={createProductForm.iva_tasa}
+                                onChange={(e) =>
+                                    setCreateProductForm((prev) => ({
+                                        ...prev,
+                                        iva_tasa: Number(e.target.value) || 0,
+                                    }))
+                                }
+                                min={0}
+                                step="0.01"
+                            />
+                            <label style={{ fontSize: 12, fontWeight: 600, color: '#1f2937' }}>
+                                Categoria (opcional)
+                            </label>
+                            <input
+                                type="text"
+                                style={{ border: '1px solid #d1d5db', padding: '8px 10px', borderRadius: 8 }}
+                                value={createProductForm.categoria}
+                                onChange={(e) =>
+                                    setCreateProductForm((prev) => ({
+                                        ...prev,
+                                        categoria: e.target.value,
+                                    }))
+                                }
+                            />
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                            <button
+                                className="btn ghost"
+                                onClick={() => setShowCreateProductModal(false)}
+                                disabled={creatingProduct}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                className="btn primary"
+                                disabled={
+                                    creatingProduct ||
+                                    !createProductForm.name.trim() ||
+                                    Number(createProductForm.price) <= 0
+                                }
+                                onClick={async () => {
+                                    if (!createProductForm.name.trim()) return
+                                    try {
+                                        setCreatingProduct(true)
+                                        const skuValue = createProductForm.sku.trim()
+                                        if (skuValue) {
+                                            const existing = findProductByCode(skuValue)
+                                            if (existing) {
+                                                addToCart(existing)
+                                                setBarcodeInput('')
+                                                setShowCreateProductModal(false)
+                                                alert('Producto existente agregado al carrito.')
+                                                return
+                                            }
+                                            const remoteMatches = await searchProductos(skuValue)
+                                            const remoteProduct = Array.isArray(remoteMatches)
+                                                ? remoteMatches.find((p) => {
+                                                      return (
+                                                          normalizeCode(p.sku) === normalizeCode(skuValue) ||
+                                                          normalizeCode(p.product_metadata?.codigo_barras as string) ===
+                                                              normalizeCode(skuValue)
+                                                      )
+                                                  })
+                                                : null
+                                            if (remoteProduct) {
+                                                setProducts((prev) => [remoteProduct, ...prev])
+                                                addToCart(remoteProduct)
+                                                setBarcodeInput('')
+                                                setShowCreateProductModal(false)
+                                                alert('Producto existente agregado al carrito.')
+                                                return
+                                            }
+                                        }
+                                        const created = await createProducto({
+                                            sku: skuValue || undefined,
+                                            name: createProductForm.name.trim(),
+                                            price: Number(createProductForm.price) || 0,
+                                            stock: Number(createProductForm.stock) || 0,
+                                            iva_tasa: Number(createProductForm.iva_tasa) || 0,
+                                            category:
+                                                createProductForm.categoria.trim() ||
+                                                (selectedCategory !== '*' ? selectedCategory : undefined),
+                                            unit: 'unit',
+                                            active: true,
+                                        })
+                                        const stockQty = Number(createProductForm.stock) || 0
+                                        if (stockQty > 0) {
+                                            const warehouseId = await resolveWarehouseForStock()
+                                            if (warehouseId) {
+                                                try {
+                                                    await adjustStock({
+                                                        warehouse_id: warehouseId,
+                                                        product_id: created.id,
+                                                        delta: stockQty,
+                                                        reason: 'POS quick add',
+                                                    })
+                                                } catch (err) {
+                                                    console.error('No se pudo ajustar stock', err)
+                                                }
+                                            }
+                                        }
+                                        const enrichedProduct: Producto = {
+                                            ...created,
+                                            stock: stockQty > 0 ? stockQty : Number(created.stock ?? 0),
+                                        }
+                                        setProducts((prev) => [enrichedProduct, ...prev])
+                                        addToCart(enrichedProduct, { ignoreReorder: true })
+                                        setBarcodeInput('')
+                                        setShowCreateProductModal(false)
+                                    } catch (err) {
+                                        alert('No se pudo crear el producto')
+                                    } finally {
+                                        setCreatingProduct(false)
+                                    }
+                                }}
+                            >
+                                Guardar y agregar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+
+            {showPrintPreview && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0, 0, 0, 0.45)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 9999,
+                    }}
+                >
+                    <div
+                        style={{
+                            width: 'min(900px, 95vw)',
+                            background: '#fff',
+                            borderRadius: 12,
+                            padding: 16,
+                            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 12,
+                        }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ fontWeight: 700 }}>Vista previa del ticket</div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <button
+                                    className="btn"
+                                    onClick={() => {
+                                        const win = printFrameRef.current?.contentWindow
+                                        if (win) {
+                                            const handleAfterPrint = () => {
+                                                win.removeEventListener('afterprint', handleAfterPrint)
+                                                setShowPrintPreview(false)
+                                                setPrintHtml('')
+                                                alert('Impresion finalizada')
+                                            }
+                                            win.addEventListener('afterprint', handleAfterPrint)
+                                            win.focus()
+                                            win.print()
+                                        }
+                                    }}
+                                >
+                                    Imprimir
+                                </button>
+                                <button
+                                    className="btn ghost"
+                                    onClick={() => {
+                                        setShowPrintPreview(false)
+                                        setPrintHtml('')
+                                    }}
+                                >
+                                    Cerrar
+                                </button>
+                            </div>
+                        </div>
+                        <iframe
+                            ref={printFrameRef}
+                            title="ticket"
+                            srcDoc={printHtml}
+                            style={{ width: '100%', height: '70vh', border: '1px solid #e5e7eb', borderRadius: 8 }}
+                        />
+                    </div>
+                </div>
+            )}
             <PendingReceiptsModal
                 isOpen={showPendingModal}
                 shiftId={currentShift?.id || undefined}

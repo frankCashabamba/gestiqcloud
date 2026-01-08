@@ -60,8 +60,8 @@ export async function openShift(payload: ShiftOpenRequest): Promise<POSShift> {
     return data
 }
 
-export async function getShiftSummary(shiftId: string): Promise<ShiftSummary> {
-    const { data } = await tenantApi.get<ShiftSummary>(`${BASE_URL}/shifts/${shiftId}/summary`, { headers: authHeaders() })
+export async function getShiftSummary(shiftId: string, params?: { cashier_id?: string }): Promise<ShiftSummary> {
+    const { data } = await tenantApi.get<ShiftSummary>(`${BASE_URL}/shifts/${shiftId}/summary`, { params, headers: authHeaders() })
     return data
 }
 
@@ -126,7 +126,7 @@ export async function deleteReceipt(id: string): Promise<void> {
     await tenantApi.delete(`${BASE_URL}/receipts/${id}`, { headers: authHeaders() })
 }
 
-export async function listReceipts(params?: { shift_id?: string; status?: string }): Promise<POSReceipt[]> {
+export async function listReceipts(params?: { shift_id?: string; status?: string; cashier_id?: string }): Promise<POSReceipt[]> {
     const { data } = await tenantApi.get<POSReceipt[] | { items?: POSReceipt[] }>(`${BASE_URL}/receipts`, { params, headers: authHeaders() })
     if (Array.isArray(data)) return data
     const items = (data as any)?.items
@@ -178,6 +178,68 @@ export async function refundReceipt(receiptId: string, payload: RefundRequest): 
 export async function printReceipt(receiptId: string, width: '58mm' | '80mm' = '58mm'): Promise<string> {
     const { data } = await tenantApi.get<string>(`${BASE_URL}/receipts/${receiptId}/print`, {
         params: { width },
+        headers: authHeaders(),
+    })
+    return data
+}
+
+// ============================================================================
+// Documents (new emission pipeline)
+// ============================================================================
+
+export type SaleDraft = {
+    tenantId: string
+    country: string
+    posId: string
+    currency: string
+    buyer: {
+        mode: 'CONSUMER_FINAL' | 'IDENTIFIED'
+        idType: string
+        idNumber: string
+        name: string
+        email?: string
+    }
+    items: Array<{
+        sku: string
+        name: string
+        qty: number
+        unitPrice: number
+        discount: number
+        taxCategory: string
+    }>
+    payments: Array<{
+        method: 'CASH' | 'CARD' | 'TRANSFER' | 'OTHER'
+        amount: number
+    }>
+    meta?: Record<string, any>
+}
+
+export type DocumentModel = {
+    document: { id: string }
+}
+
+const DOCUMENTS_SALES_URL = '/api/v1/tenant/sales'
+const DOCUMENTS_URL = '/api/v1/tenant/documents'
+
+export async function createDocumentDraft(payload: SaleDraft): Promise<DocumentModel> {
+    const { data } = await tenantApi.post<DocumentModel>(`${DOCUMENTS_SALES_URL}/draft`, payload, { headers: authHeaders() })
+    return data
+}
+
+export async function issueDocument(payload: SaleDraft): Promise<DocumentModel> {
+    const { data } = await tenantApi.post<DocumentModel>(`${DOCUMENTS_SALES_URL}/issue`, payload, { headers: authHeaders() })
+    return data
+}
+
+export async function renderDocument(documentId: string): Promise<string> {
+    const { data } = await tenantApi.get<string>(`${DOCUMENTS_URL}/${documentId}/render`, {
+        headers: authHeaders(),
+    })
+    return data
+}
+
+export async function printDocument(documentId: string): Promise<string> {
+    const { data } = await tenantApi.get<string>(`${DOCUMENTS_URL}/${documentId}/print`, {
         headers: authHeaders(),
     })
     return data
@@ -251,7 +313,12 @@ export async function syncOfflineReceipts(): Promise<void> {
 
     for (const item of outbox) {
         try {
-            await tenantApi.post(`${BASE_URL}/receipts`, item.payload)
+            const payload = item.payload
+            if (payload?.type === 'document_issue') {
+                await issueDocument(payload.data)
+            } else {
+                await tenantApi.post(`${BASE_URL}/receipts`, payload)
+            }
             // Remove from outbox on success
             const updated = outbox.filter((i: any) => i.id !== item.id)
             localStorage.setItem('pos_outbox', JSON.stringify(updated))

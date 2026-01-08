@@ -15,8 +15,8 @@ import { useAuth } from './auth/AuthContext'
 import { EnvProvider } from '@ui/env'
 import { ConflictResolver } from '@shared/ui'
 import { env } from './env'
-import { TenantProvider } from './contexts/TenantContext'
-import { fetchTenantTheme } from './services/theme'
+import { CompanyProvider } from './contexts/CompanyContext'
+import { fetchCompanyTheme } from './services/theme'
 
 function IdleBridge() {
   const { logout } = useAuth()
@@ -42,7 +42,7 @@ setupPWA((ev) => {
 // Load tenant theme tokens (non-blocking)
 ;(async () => {
   try {
-    const t = await fetchTenantTheme()
+    const t = await fetchCompanyTheme()
     if (t) applyTheme(t)
   } catch {}
 })()
@@ -52,7 +52,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <EnvProvider value={env}>
       <BrowserRouter>
         <AuthProvider>
-          <TenantProvider>
+          <CompanyProvider>
             <I18nProvider defaultLang="es">
             <ToastProvider>
               <App />
@@ -61,7 +61,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               <OutboxIndicator />
             </ToastProvider>
             </I18nProvider>
-          </TenantProvider>
+          </CompanyProvider>
         </AuthProvider>
       </BrowserRouter>
     </EnvProvider>

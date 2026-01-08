@@ -1,6 +1,7 @@
 """Module: roles.py
 
 Auto-generated module docstring."""
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import IntegrityError
@@ -10,7 +11,9 @@ from app.config.database import get_db
 from app.models import GlobalActionPermission
 from app.models import RolBase as RolModel
 from app.schemas.configuracion import (
+    GlobalActionPermissionCreate,
     GlobalActionPermissionSchema,
+    GlobalActionPermissionUpdate,
     RolBase,
     RolBaseCreate,
     RolBaseUpdate,
@@ -18,11 +21,20 @@ from app.schemas.configuracion import (
 
 from .protected import get_current_user
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(
     prefix="/roles-base",
     tags=["roles"],
     dependencies=[Depends(get_current_user)],
 )
+
+
+def _require_admin(current_user):
+    if getattr(current_user, "is_superadmin", False):
+        return
+    if getattr(current_user, "user_type", None) != "admin":
+        raise HTTPException(status_code=403, detail="admin_only")
 
 
 @router.get("/", response_model=list[RolBase])
@@ -105,3 +117,98 @@ def delete_role(id: int, db: Session = Depends(get_db)):
 def list_permissions(db: Session = Depends(get_db)):
     """Function list_permissions - auto-generated docstring."""
     return db.query(GlobalActionPermission).all()
+
+
+@router.get("/global-permissions/{perm_id}", response_model=GlobalActionPermissionSchema)
+def get_permission(perm_id: int, db: Session = Depends(get_db)):
+    perm = db.get(GlobalActionPermission, perm_id)
+    if not perm:
+        raise HTTPException(status_code=404, detail="permission_not_found")
+    return perm
+
+
+@router.post("/global-permissions", response_model=GlobalActionPermissionSchema)
+def create_permission(
+    payload: GlobalActionPermissionCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    _require_admin(current_user)
+    if not payload.key or not payload.key.strip():
+        raise HTTPException(status_code=400, detail="key_required")
+    if not payload.module or not payload.module.strip():
+        raise HTTPException(status_code=400, detail="module_required")
+    key = payload.key.strip()
+    module = payload.module.strip()
+    if not key.startswith(f"{module}."):
+        raise HTTPException(status_code=400, detail="key_module_mismatch")
+    perm = GlobalActionPermission(
+        key=key,
+        module=module,
+        description=payload.description,
+    )
+    db.add(perm)
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        logger.exception("Error creating global permission")
+        raise HTTPException(status_code=400, detail=f"permission_exists: {e.orig}")
+    db.refresh(perm)
+    return perm
+
+
+@router.put("/global-permissions/{perm_id}", response_model=GlobalActionPermissionSchema)
+def update_permission(
+    perm_id: int,
+    payload: GlobalActionPermissionUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    _require_admin(current_user)
+    perm = db.get(GlobalActionPermission, perm_id)
+    if not perm:
+        raise HTTPException(status_code=404, detail="permission_not_found")
+
+    data = payload.model_dump(exclude_unset=True)
+    if "key" in data:
+        key = (data.get("key") or "").strip()
+        if not key:
+            raise HTTPException(status_code=400, detail="key_required")
+        data["key"] = key
+    if "module" in data:
+        module = (data.get("module") or "").strip()
+        if not module:
+            raise HTTPException(status_code=400, detail="module_required")
+        data["module"] = module
+    key_to_check = data.get("key", perm.key)
+    module_to_check = data.get("module", perm.module)
+    if module_to_check and key_to_check and not key_to_check.startswith(f"{module_to_check}."):
+        raise HTTPException(status_code=400, detail="key_module_mismatch")
+
+    for k, v in data.items():
+        setattr(perm, k, v)
+
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        logger.exception("Error creating global permission")
+        raise HTTPException(status_code=400, detail=f"permission_exists: {e.orig}")
+    db.refresh(perm)
+    return perm
+
+
+@router.delete("/global-permissions/{perm_id}", response_model=dict)
+def delete_permission(
+    perm_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    _require_admin(current_user)
+    perm = db.get(GlobalActionPermission, perm_id)
+    if not perm:
+        raise HTTPException(status_code=404, detail="permission_not_found")
+    db.delete(perm)
+    db.commit()
+    return {"detail": "Deleted"}

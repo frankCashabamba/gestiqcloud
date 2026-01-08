@@ -28,7 +28,7 @@ Gestión de órdenes de producción y recetas para fabricación de productos.
 
 ## Patrón Implementado
 Siguiendo el patrón del módulo `clientes`:
-- Configuración dinámica desde `/api/v1/tenant/settings/fields?module=produccion`
+- Configuración dinámica desde `/api/v1/company/settings/fields?module=produccion`
 - Toast notifications para success/error
 - Loading states
 - Validación de campos required

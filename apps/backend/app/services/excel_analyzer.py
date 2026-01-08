@@ -162,6 +162,7 @@ def suggest_column_mapping(headers: list[str]) -> dict[str, str]:
         ],
         "codigo": [
             "codigo",
+            "c?digo",
             "código",
             "code",
             "sku",

@@ -1,45 +1,95 @@
 import React from 'react'
-import { Routes, Route, Navigate, Link } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import GeneralSettings from './General'
 import BrandingSettings from './Branding'
 import FiscalSettings from './Fiscal'
 import HorariosSettings from './Horarios'
-import LimitesSettings from './Limites'
 import ModulosPanel from './ModulosPanel'
 import NotificacionesSettings from './Notificaciones'
 import AvanzadoSettings from './Avanzado'
+import OperativoSettings from './Operativo'
+import SettingsLayout from './SettingsLayout'
+import SettingsHome from './SettingsHome'
+import { useSettingsAccess, type SettingsSection } from './useSettingsAccess'
 
-function Index() {
-  return (
-    <div className="p-4">
-      <h2 className="font-semibold text-lg mb-2">Settings</h2>
-      <ul className="list-disc pl-6">
-        <li><Link to="general">General</Link></li>
-        <li><Link to="modulos">Módulos</Link></li>
-        <li><Link to="branding">Branding</Link></li>
-        <li><Link to="fiscal">Fiscal</Link></li>
-        <li><Link to="horarios">Horarios</Link></li>
-        <li><Link to="limites">Límites</Link></li>
-        <li><Link to="notificaciones">Notificaciones</Link></li>
-        <li><Link to="avanzado">Avanzado</Link></li>
-      </ul>
-    </div>
-  )
+function Guard({ section, children }: { section: SettingsSection; children: React.ReactElement }) {
+  const { canAccessSection, limitsLoading } = useSettingsAccess()
+  if (limitsLoading) return <div className="p-4">Cargando permisos...</div>
+  if (!canAccessSection(section)) return <Navigate to="." replace />
+  return children
 }
 
 export default function SettingsRoutes() {
   return (
     <Routes>
-      <Route index element={<Index />} />
-      <Route path="general" element={<GeneralSettings />} />
-      <Route path="modulos" element={<ModulosPanel />} />
-      <Route path="branding" element={<BrandingSettings />} />
-      <Route path="fiscal" element={<FiscalSettings />} />
-      <Route path="horarios" element={<HorariosSettings />} />
-      <Route path="limites" element={<LimitesSettings />} />
-      <Route path="notificaciones" element={<NotificacionesSettings />} />
-      <Route path="avanzado" element={<AvanzadoSettings />} />
-      <Route path="*" element={<Navigate to="." replace />} />
+      <Route element={<SettingsLayout />}>
+        <Route index element={<SettingsHome />} />
+        <Route
+          path="general"
+          element={
+            <Guard section="general">
+              <GeneralSettings />
+            </Guard>
+          }
+        />
+        <Route
+          path="branding"
+          element={
+            <Guard section="branding">
+              <BrandingSettings />
+            </Guard>
+          }
+        />
+        <Route
+          path="fiscal"
+          element={
+            <Guard section="fiscal">
+              <FiscalSettings />
+            </Guard>
+          }
+        />
+        <Route
+          path="operativo"
+          element={
+            <Guard section="operativo">
+              <OperativoSettings />
+            </Guard>
+          }
+        />
+        <Route
+          path="horarios"
+          element={
+            <Guard section="horarios">
+              <HorariosSettings />
+            </Guard>
+          }
+        />
+        <Route
+          path="notificaciones"
+          element={
+            <Guard section="notificaciones">
+              <NotificacionesSettings />
+            </Guard>
+          }
+        />
+        <Route
+          path="modulos"
+          element={
+            <Guard section="modulos">
+              <ModulosPanel />
+            </Guard>
+          }
+        />
+        <Route
+          path="avanzado"
+          element={
+            <Guard section="avanzado">
+              <AvanzadoSettings variant="admin" />
+            </Guard>
+          }
+        />
+        <Route path="*" element={<Navigate to="." replace />} />
+      </Route>
     </Routes>
   )
 }

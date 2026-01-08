@@ -79,8 +79,8 @@ def extraer_recibo(texto: str, country: str = "EC") -> list[dict[str, Any]]:
     concepto_final = concepto_raw if es_concepto_valido(concepto_raw) else "Documento sin concepto"
 
     # Construir schema canónico
-    subtotal = importe / 1.12  # Asume IVA 12% incluido
-    tax = importe - subtotal
+    subtotal = importe
+    tax = 0.0
 
     canonical: CanonicalDocument = {
         "doc_type": "expense_receipt",
@@ -94,13 +94,7 @@ def extraer_recibo(texto: str, country: str = "EC") -> list[dict[str, Any]]:
             "subtotal": round(subtotal, 2),
             "tax": round(tax, 2),
             "total": importe,
-            "tax_breakdown": [
-                {
-                    "rate": 12.0 if country == "EC" else 21.0,
-                    "amount": round(tax, 2),
-                    "code": f"IVA{12 if country == 'EC' else 21}-{country}",
-                }
-            ],
+            "tax_breakdown": [],
         },
         "lines": [
             {

@@ -9,6 +9,7 @@ Permite convertir entre diferentes tipos de documentos comerciales:
 Mantiene trazabilidad y relaciones entre documentos.
 """
 
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -50,6 +51,7 @@ class DocumentConverter:
                 invoice_data={"payment_terms": "30 days"}
             )
         """
+        from app.models.company.company_settings import CompanySettings
         from app.models.core.facturacion import Invoice
         from app.models.core.invoiceLine import LineaFactura
         from app.models.sales.order import SalesOrder, SalesOrderItem
@@ -93,9 +95,42 @@ class DocumentConverter:
         if not items:
             raise ValueError(f"La orden {sales_order_id} no tiene items")
 
-        # Calcular totales
-        subtotal = sum(item.qty * item.unit_price for item in items)
-        iva = subtotal * 0.21  # TODO: Obtener tasa de impuesto correcta
+        # Obtener IVA default desde CompanySettings (settings.iva_tasa_defecto)
+        iva_default = Decimal("0")
+        settings_row = (
+            self.db.query(CompanySettings)
+            .filter(CompanySettings.tenant_id == str(tenant_id))
+            .first()
+        )
+        settings_json = (
+            settings_row.settings
+            if settings_row and isinstance(settings_row.settings, dict)
+            else {}
+        )
+        iva_default_raw = (
+            settings_json.get("iva_tasa_defecto") if isinstance(settings_json, dict) else None
+        )
+        if isinstance(iva_default_raw, (int, float, Decimal)):
+            iva_default = Decimal(str(iva_default_raw))
+
+        def _normalize_rate(raw: object) -> Decimal:
+            rate = Decimal(str(raw or 0))
+            if rate > 1:
+                rate = rate / Decimal("100")
+            if rate < 0:
+                rate = Decimal("0")
+            return rate
+
+        # Calcular totales por linea (usa tax_rate si existe, si no usa IVA default)
+        subtotal = Decimal("0")
+        iva = Decimal("0")
+        for item in items:
+            line_subtotal = Decimal(str(item.qty)) * Decimal(str(item.unit_price))
+            line_rate_raw = item.tax_rate if item.tax_rate is not None else iva_default
+            line_rate = _normalize_rate(line_rate_raw)
+            line_iva = line_subtotal * line_rate
+            subtotal += line_subtotal
+            iva += line_iva
         total = subtotal + iva
 
         # Generar número de factura
@@ -109,9 +144,9 @@ class DocumentConverter:
             supplier="",
             fecha_emision=str(self.db.execute(text("SELECT CURRENT_DATE")).scalar()),
             monto=int(total),
-            subtotal=subtotal,
-            iva=iva,
-            total=total,
+            subtotal=float(subtotal),
+            iva=float(iva),
+            total=float(total),
             estado="draft",
         )
 
@@ -121,13 +156,17 @@ class DocumentConverter:
         # Crear líneas de factura
         for item in items:
             # TODO: Obtener descripción del producto
+            line_subtotal = Decimal(str(item.qty)) * Decimal(str(item.unit_price))
+            line_rate_raw = item.tax_rate if item.tax_rate is not None else iva_default
+            line_rate = _normalize_rate(line_rate_raw)
+            line_iva = line_subtotal * line_rate
             linea = LineaFactura(
                 factura_id=invoice.id,
                 sector="general",
                 descripcion=f"Producto {item.product_id}",
                 cantidad=item.qty,
                 precio_unitario=item.unit_price,
-                iva=item.unit_price * item.qty * 0.21,
+                iva=float(line_iva),
             )
             self.db.add(linea)
 

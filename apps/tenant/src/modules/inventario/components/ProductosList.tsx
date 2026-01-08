@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react'
 import { fetchProductos, updateProducto } from '../services/inventario'
 import { ensureArray } from '../../../shared/utils/array'
-import { getTenantSettings, getCurrencySymbol } from '../../../services/tenantSettings'
+import { getCompanySettings, getCurrencySymbol } from '../../../services/companySettings'
 import type { Producto } from '../types/producto'
 
 export default function ProductosList() {
@@ -16,7 +16,7 @@ export default function ProductosList() {
 
   useEffect(() => {
     loadProducts()
-    getTenantSettings().then((config) => setCurrencySymbol(getCurrencySymbol(config)))
+    getCompanySettings().then((config) => setCurrencySymbol(getCurrencySymbol(config)))
   }, [])
 
   const loadProducts = async () => {

@@ -204,14 +204,37 @@ def import_products_excel(
                     )
                 # Normalization using mapped (preferred) or raw heuristics
                 if mapped is None:
-                    nombre = _first_from_maps(row, row_norm, ["nombre", "producto", "name"]) or ""
+                    nombre = _first_from_maps(row, row_norm, ["nombre", "producto", "articulo", "name"]) or ""
                     precio = _first_from_maps(
                         row,
                         row_norm,
-                        ["precio", "price", "venta", "precio_unitario_venta", "precio_unitario"],
+                        [
+                            "precio",
+                            "price",
+                            "venta",
+                            "valor",
+                            "importe",
+                            "precio_unitario_venta",
+                            "precio_unitario",
+                        ],
+                    )
+                    costo = _first_from_maps(
+                        row,
+                        row_norm,
+                        [
+                            "costo",
+                            "cost",
+                            "coste",
+                            "costo_promedio",
+                            "costo_promedio",
+                            "costo_unitario",
+                            "precio_costo",
+                            "cost_price",
+                            "unit_cost",
+                        ],
                     )
                     cantidad = _first_from_maps(
-                        row, row_norm, ["cantidad", "qty", "stock", "unidades", "existencias"]
+                        row, row_norm, ["cantidad", "qty", "stock", "existencia", "existencias", "unidades"]
                     )
                     bultos = _first_from_maps(row, row_norm, ["bultos", "packs", "paquetes"])
                     unidades_por_bulto = _first_from_maps(
@@ -222,6 +245,7 @@ def import_products_excel(
                     categoria = _first_from_maps(row, row_norm, ["categoria", "category"]) or "SIN_CATEGORIA"
                     precio_f = _to_number(precio) or 0.0
                     cantidad_f = _to_number(cantidad) or 0.0
+                    costo_f = _to_number(costo)
                     if (cantidad_f == 0) and bultos and unidades_por_bulto:
                         cantidad_f = (_to_number(bultos) or 0.0) * (_to_number(unidades_por_bulto) or 0.0)
                     has_name = bool(str(nombre).strip())
@@ -241,6 +265,10 @@ def import_products_excel(
                         "categoria": str(categoria).strip(),
                         "category": str(categoria).strip(),
                     }
+                    if costo_f is not None:
+                        normalized["cost_price"] = costo_f
+                        normalized["cost"] = costo_f
+                        normalized["unit_cost"] = costo_f
                     sku = _first_from_maps(row, row_norm, ["codigo", "sku", "code", "cod"])
                     sku = sanitize_sku(sku)
                     if sku:
@@ -250,21 +278,75 @@ def import_products_excel(
                     nombre = (
                         mapped.get("name") or mapped.get("nombre") or mapped.get("producto") or ""
                     )
-                    precio_f = _to_number(mapped.get("price") or mapped.get("precio")) or 0.0
-                    cantidad_f = (
-                        _to_number(
-                            mapped.get("stock") or mapped.get("cantidad") or mapped.get("quantity")
+                    if not str(nombre).strip():
+                        nombre = (
+                            _first_from_maps(row, row_norm, ["nombre", "producto", "articulo", "name"])
+                            or ""
                         )
-                        or 0.0
+                    precio_src = mapped.get("price") or mapped.get("precio")
+                    precio_f = _to_number(precio_src)
+                    if precio_f is None:
+                        precio_src = _first_from_maps(
+                            row,
+                            row_norm,
+                            [
+                                "precio",
+                                "price",
+                                "venta",
+                                "valor",
+                                "importe",
+                                "precio_unitario_venta",
+                                "precio_unitario",
+                            ],
+                        )
+                        precio_f = _to_number(precio_src)
+                    if precio_f is None:
+                        precio_f = 0.0
+                    costo_src = (
+                        mapped.get("cost_price")
+                        or mapped.get("cost")
+                        or mapped.get("costo")
+                        or mapped.get("unit_cost")
                     )
-                    categoria = mapped.get("category") or mapped.get("categoria") or "SIN_CATEGORIA"
+                    costo_f = _to_number(costo_src)
+                    if costo_f is None:
+                        costo_src = _first_from_maps(
+                            row,
+                            row_norm,
+                            [
+                                "costo",
+                                "cost",
+                                "coste",
+                                "costo_promedio",
+                                "costo_unitario",
+                                "precio_costo",
+                                "cost_price",
+                                "unit_cost",
+                            ],
+                        )
+                        costo_f = _to_number(costo_src)
+                    cantidad_src = (
+                        mapped.get("stock") or mapped.get("cantidad") or mapped.get("quantity")
+                    )
+                    cantidad_f = _to_number(cantidad_src)
+                    if cantidad_f is None:
+                        cantidad_src = _first_from_maps(
+                            row,
+                            row_norm,
+                            ["cantidad", "qty", "stock", "existencia", "existencias", "unidades"],
+                        )
+                        cantidad_f = _to_number(cantidad_src)
+                    if cantidad_f is None:
+                        cantidad_f = 0.0
+                    categoria = (
+                        mapped.get("category")
+                        or mapped.get("categoria")
+                        or _first_from_maps(row, row_norm, ["categoria", "category"])
+                        or "SIN_CATEGORIA"
+                    )
                     has_name = bool(str(nombre).strip())
-                    has_price = mapped.get("price") not in (None, "") or mapped.get("precio") not in (None, "")
-                    has_stock = (
-                        mapped.get("stock") not in (None, "")
-                        or mapped.get("cantidad") not in (None, "")
-                        or mapped.get("quantity") not in (None, "")
-                    )
+                    has_price = precio_src not in (None, "")
+                    has_stock = cantidad_src not in (None, "")
                     normalized = {
                         "nombre": str(nombre).strip(),
                         "name": str(nombre).strip(),
@@ -277,10 +359,21 @@ def import_products_excel(
                         "categoria": str(categoria).strip(),
                         "category": str(categoria).strip(),
                     }
+                    if costo_f is not None:
+                        normalized["cost_price"] = float(costo_f)
+                        normalized["cost"] = float(costo_f)
+                        normalized["unit_cost"] = float(costo_f)
                     # Preserve mapped extras (sku, image_url, packs, etc.)
                     for k, v in (mapped or {}).items():
+                        if k in ("unit", "unidad"):
+                            if isinstance(v, (int, float)) or (
+                                isinstance(v, str) and v.strip().isdigit()
+                            ):
+                                continue
                         if k not in normalized:
                             normalized[k] = v
+                    if not normalized.get("sku"):
+                        normalized["sku"] = _first_from_maps(row, row_norm, ["codigo", "sku", "code", "cod"])
                     sku = sanitize_sku(normalized.get("sku"))
                     if sku:
                         normalized["sku"] = sku

@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { listCategorias, createCategoria, deleteCategoria, type Categoria } from './productsApi'
 import { useSectorPlaceholder } from '../../hooks/useSectorPlaceholders'
-import { useTenant } from '../../contexts/TenantContext'
+import { useCompany } from '../../contexts/CompanyContext'
 
 type CategoriasModalProps = {
   onClose: () => void
@@ -16,7 +16,7 @@ export default function CategoriasModal({ onClose, onCategoryCreated }: Categori
   const [newCategoryName, setNewCategoryName] = useState('')
   const [newCategoryDesc, setNewCategoryDesc] = useState('')
   const { success, error } = useToast()
-  const { sector } = useTenant()
+  const { sector } = useCompany()
 
   const { placeholder: nombrePlaceholder } = useSectorPlaceholder(
     sector?.plantilla || null,

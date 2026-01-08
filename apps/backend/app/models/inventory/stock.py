@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import uuid4
 
 from sqlalchemy import Numeric, String
@@ -58,3 +59,23 @@ class StockMove(Base):
     posted: Mapped[bool] = mapped_column(default=False)
     ref_type: Mapped[str | None]
     ref_id: Mapped[str | None]
+    unit_cost: Mapped[float | None] = mapped_column(Numeric(12, 6), nullable=True)
+    total_cost: Mapped[float | None] = mapped_column(Numeric(14, 6), nullable=True)
+    occurred_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+
+class InventoryCostState(Base):
+    __tablename__ = "inventory_cost_state"
+
+    id: Mapped[str] = mapped_column(
+        _uuid_col(),
+        primary_key=True,
+        default=lambda: uuid4(),
+        server_default=sa_text("gen_random_uuid()"),
+    )
+    tenant_id: Mapped[str] = mapped_column(_uuid_col(), nullable=False, index=True)
+    warehouse_id: Mapped[str] = mapped_column(_uuid_col(), nullable=False, index=True)
+    product_id: Mapped[str] = mapped_column(_uuid_col(), nullable=False, index=True)
+    on_hand_qty: Mapped[float] = mapped_column(Numeric, default=0)
+    avg_cost: Mapped[float] = mapped_column(Numeric(12, 6), default=0)
+    updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)

@@ -151,6 +151,7 @@ class GlobalActionPermission(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     key: Mapped[str] = mapped_column(String(100), unique=True)
+    module: Mapped[str | None] = mapped_column(String(50), nullable=True)
     description: Mapped[str] = mapped_column(String(100))
 
 

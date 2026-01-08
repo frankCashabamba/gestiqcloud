@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import type { RoleData } from './types/roles';
-import { defaultPermissionKeys, permisosToArray, toPermisosObject } from '@shared/utils/permissions';
+import { permisosToArray } from '@shared/utils/permissions';
+import type { GlobalPermission } from '../../../services/configuracion/permisos';
 import { apiPost, apiPut } from '../../../lib/api';
 // Layout no es necesario: ya hay LayoutAdmin en App
 
@@ -11,19 +12,39 @@ interface RoleFormProps {
   mode: 'create' | 'edit';
   initialData?: RoleData;
   onSubmit: (data: RoleData) => void;
+  availablePermissions: GlobalPermission[];
 }
 
-const RoleForm: React.FC<RoleFormProps> = ({ mode, initialData, onSubmit }) => {
+const RoleForm: React.FC<RoleFormProps> = ({ mode, initialData, onSubmit, availablePermissions }) => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const buildPerms = (perms?: string[]) => {
+    const keys = new Set<string>();
+    availablePermissions.forEach((p) => keys.add(p.key));
+    (perms || []).forEach((p) => keys.add(p));
+    return Array.from(keys).reduce((acc, key) => {
+      acc[key] = (perms || []).includes(key);
+      return acc;
+    }, {} as Record<string, boolean>);
+  };
 
   const [form, setForm] = useState({
     nombre: initialData?.nombre || '',
     descripcion: initialData?.descripcion || '',
-    permisos: toPermisosObject(initialData?.permisos),
+    permisos: buildPerms(initialData?.permisos),
   });
 
   const [errors, setErrors] = useState<{ nombre?: string; descripcion?: string }>({});
+
+  React.useEffect(() => {
+    setForm((prev) => ({
+      ...prev,
+      permisos: {
+        ...buildPerms(Object.keys(prev.permisos || {}).filter((k) => prev.permisos[k])),
+      },
+    }));
+  }, [availablePermissions]);
 
   const handleInputChange = (field: 'nombre' | 'descripcion', value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -118,7 +139,17 @@ const RoleForm: React.FC<RoleFormProps> = ({ mode, initialData, onSubmit }) => {
       <fieldset className="mb-6">
         <legend className="text-lg font-semibold mb-2">Permisos disponibles</legend>
         <div className="grid grid-cols-2 gap-2">
-          {defaultPermissionKeys.map(key => (
+          {Array.from(
+            new Set([
+              ...availablePermissions.map((p) => p.key),
+              ...Object.keys(form.permisos || {}),
+            ])
+          )
+            .sort()
+            .map((key) => {
+              const meta = availablePermissions.find((p) => p.key === key);
+              const label = meta?.description ? `${meta.description} (${key})` : key;
+              return (
             <div key={key} className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -126,9 +157,10 @@ const RoleForm: React.FC<RoleFormProps> = ({ mode, initialData, onSubmit }) => {
                 checked={!!form.permisos[key]}
                 onChange={() => handlePermissionToggle(key)}
               />
-              <label htmlFor={`permiso-${key}`}>{key}</label>
+              <label htmlFor={`permiso-${key}`}>{label}</label>
             </div>
-          ))}
+              );
+            })}
         </div>
       </fieldset>
 

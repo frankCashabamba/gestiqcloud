@@ -3,105 +3,19 @@ from __future__ import annotations
 import re
 import unicodedata
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.core.access_guard import with_access_claims
 from app.models.company.settings import ConfiguracionEmpresa
 from app.models.core.ui_field_config import TenantFieldConfig
 from app.models.core.ui_template import UiTemplate
 from app.models.tenant import Tenant as Empresa
 from app.services.field_config import resolve_fields
 
-from ...infrastructure.repositories import SettingsRepo
 
 router = APIRouter()
 admin_router = APIRouter(prefix="/admin/field-config", tags=["admin-field-config"])
-
-
-@router.get("/general")
-def get_general(db: Session = Depends(get_db)):
-    return SettingsRepo(db).get("general")
-
-
-@router.put("/general")
-def put_general(payload: dict, db: Session = Depends(get_db)):
-    SettingsRepo(db).put("general", payload)
-    return {"ok": True}
-
-
-@router.get("/branding")
-def get_branding(db: Session = Depends(get_db)):
-    return SettingsRepo(db).get("branding")
-
-
-@router.put("/branding")
-def put_branding(payload: dict, db: Session = Depends(get_db)):
-    SettingsRepo(db).put("branding", payload)
-    return {"ok": True}
-
-
-@router.get("/fiscal")
-def get_fiscal(db: Session = Depends(get_db)):
-    return SettingsRepo(db).get("fiscal")
-
-
-def _require_tenant_admin(claims: dict):
-    # is_company_admin must be True to modify sensitive settings
-    try:
-        if not isinstance(claims, dict) or not claims.get("is_company_admin", False):
-            raise HTTPException(status_code=403, detail="admin_required")
-    except Exception:
-        raise HTTPException(status_code=403, detail="admin_required")
-
-
-@router.put("/fiscal")
-def put_fiscal(
-    payload: dict,
-    db: Session = Depends(get_db),
-    claims: dict = Depends(with_access_claims),
-):
-    _require_tenant_admin(claims)
-    SettingsRepo(db).put("fiscal", payload)
-    return {"ok": True}
-
-
-@router.put("/pos")
-def put_pos_settings(
-    payload: dict,
-    db: Session = Depends(get_db),
-    claims: dict = Depends(with_access_claims),
-):
-    """Actualizar ajustes POS (incluye tax.enabled/default_rate).
-
-    Requires is_company_admin=true in claims.
-    """
-    _require_tenant_admin(claims)
-    SettingsRepo(db).put("pos", payload)
-    return {"ok": True}
-
-
-@router.get("/horarios")
-def get_horarios(db: Session = Depends(get_db)):
-    return SettingsRepo(db).get("horarios")
-
-
-@router.put("/horarios")
-def put_horarios(payload: dict, db: Session = Depends(get_db)):
-    SettingsRepo(db).put("horarios", payload)
-    return {"ok": True}
-
-
-@router.get("/limites")
-def get_limites(db: Session = Depends(get_db)):
-    return SettingsRepo(db).get("limites")
-
-
-@router.put("/limites")
-def put_limites(payload: dict, db: Session = Depends(get_db)):
-    SettingsRepo(db).put("limites", payload)
-    return {"ok": True}
 
 
 def _normalize_sector_slug(name: str | None) -> str | None:

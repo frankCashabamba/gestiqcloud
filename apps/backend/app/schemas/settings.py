@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 # ============================================================================
 
 
-class TenantSettingsResponse(BaseModel):
+class CompanySettingsResponse(BaseModel):
     """Schema de respuesta de configuración del tenant"""
 
     tenant_id: UUID
@@ -33,8 +33,8 @@ class TenantSettingsResponse(BaseModel):
         None, description="Régimen fiscal (ES: general, EC: RISE, etc)"
     )
     iva_incluido_precios: bool = Field(default=True, description="Si los precios incluyen IVA")
-    tasa_iva_defecto: float = Field(
-        default=0.21, ge=0, le=1, description="Tasa de IVA por defecto (0-1)"
+    tasa_iva_defecto: float | None = Field(
+        default=None, ge=0, le=1, description="Tasa de IVA por defecto (0-1)"
     )
 
     # Configuración de facturación electrónica
@@ -155,6 +155,6 @@ class TenantActivationResponse(BaseModel):
     modulos_activados: list[str]
     modulos_fallidos: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
-    configuracion: TenantSettingsResponse
+    configuracion: CompanySettingsResponse
 
     model_config = ConfigDict(from_attributes=True)

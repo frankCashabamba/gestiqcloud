@@ -51,7 +51,7 @@ class SalesOrderItem(Base):
     product_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     qty: Mapped[float] = mapped_column("quantity", Numeric(14, 3), nullable=False)
     unit_price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
-    tax_rate: Mapped[float] = mapped_column(Numeric(6, 4), nullable=False, default=0.21)
+    tax_rate: Mapped[float | None] = mapped_column(Numeric(6, 4), nullable=True, default=None)
     discount_percent: Mapped[float] = mapped_column(Numeric(5, 2), default=0)
     line_total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     created_at: Mapped[datetime] = mapped_column(

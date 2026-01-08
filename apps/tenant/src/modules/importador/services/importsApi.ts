@@ -168,7 +168,7 @@ export async function listBatches(status?: string, tenantId?: string) {
   return apiFetch<ImportBatch[]>(`${IMPORTS.batches.base}${qs}`)
 }
 
-export async function listBatchesByTenant(tenantId: string, authToken?: string) {
+export async function listBatchesByCompany(tenantId: string, authToken?: string) {
   const qs = new URLSearchParams({ tenant_id: tenantId }).toString()
   return apiFetch<{ items: ImportBatch[] } | ImportBatch[]>(`${IMPORTS.batches.base}?${qs}`, { authToken })
 }

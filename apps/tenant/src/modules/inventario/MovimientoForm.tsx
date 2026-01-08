@@ -5,13 +5,13 @@ import { useNavigate } from 'react-router-dom'
 import { createStockMove, listWarehouses, type Warehouse } from './services'
 import { listProductos, type Producto } from '../productos/services'
 import { useToast, getErrorMessage } from '../../shared/toast'
-import { useTenantSector } from '../../contexts/TenantConfigContext'
+import { useCompanySector } from '../../contexts/CompanyConfigContext'
 import { useSectorPlaceholders, getFieldPlaceholder } from '../../hooks/useSectorPlaceholders'
 
 export default function MovimientoForm() {
   const nav = useNavigate()
   const { success, error } = useToast()
-  const sector = useTenantSector()
+  const sector = useCompanySector()
   const { placeholders } = useSectorPlaceholders(sector?.plantilla, 'inventory')
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])

@@ -11,7 +11,7 @@
  * - onChange: Callback cuando selecciona una unidad
  * - disabled: Deshabilitar selector
  * - label: Label del select
- * - sectorCode: Código del sector (opcional, usa tenant config si no se pasa)
+ * - sectorCode: Código del sector (opcional, usa company config si no se pasa)
  */
 
 import React from 'react'

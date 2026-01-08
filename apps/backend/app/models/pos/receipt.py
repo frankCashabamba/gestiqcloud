@@ -31,6 +31,12 @@ class POSReceipt(Base):
     shift_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("pos_shifts.id"), nullable=False, index=True
     )
+    cashier_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("company_users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     number: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[str] = mapped_column(
         String(20),
@@ -48,6 +54,11 @@ class POSReceipt(Base):
         ForeignKey("invoices.id", ondelete="SET NULL"),
         nullable=True,
     )
+    warehouse_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("warehouses.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     gross_total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     tax_total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="EUR")
@@ -58,8 +69,10 @@ class POSReceipt(Base):
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
     register = relationship("POSRegister")
     shift: Mapped["POSShift"] = relationship("POSShift", back_populates="receipts")  # noqa: F821
+    cashier = relationship("CompanyUser", foreign_keys=[cashier_id])
     customer = relationship("Client", foreign_keys=[customer_id])
     invoice = relationship("Invoice", foreign_keys=[invoice_id])
+    warehouse = relationship("Warehouse", foreign_keys=[warehouse_id])
     lines: Mapped[list["POSReceiptLine"]] = relationship(
         "POSReceiptLine", back_populates="receipt", cascade="all, delete-orphan"
     )
@@ -95,6 +108,13 @@ class POSReceiptLine(Base):
     tax_rate: Mapped[float] = mapped_column(Numeric(6, 4), nullable=False)
     discount_pct: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0)
     line_total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    net_total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    cogs_unit: Mapped[float] = mapped_column(Numeric(12, 6), nullable=False, default=0)
+    cogs_total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    gross_profit: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    gross_margin_pct: Mapped[float] = mapped_column(
+        Numeric(7, 4), nullable=False, default=0
+    )
 
     # Relationships
     receipt: Mapped["POSReceipt"] = relationship("POSReceipt", back_populates="lines")

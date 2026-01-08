@@ -122,6 +122,48 @@ def generate_sri_xml(invoice_data: dict[str, Any]) -> str:
     """
     from lxml import etree
 
+    def _normalize_rate(raw: Any) -> Decimal:
+        try:
+            rate = Decimal(str(raw)) if raw is not None else Decimal("0")
+        except Exception:
+            return Decimal("0")
+        if rate > 1:
+            rate = rate / Decimal("100")
+        if rate < 0:
+            rate = Decimal("0")
+        return rate
+
+    def _resolve_invoice_rate() -> Decimal:
+        raw = invoice_data.get("tax_rate") or invoice_data.get("iva_rate")
+        if raw is not None:
+            return _normalize_rate(raw)
+        subtotal = invoice_data.get("subtotal") or 0
+        impuesto = invoice_data.get("impuesto") or invoice_data.get("iva") or 0
+        try:
+            subtotal_dec = Decimal(str(subtotal))
+            impuesto_dec = Decimal(str(impuesto))
+        except Exception:
+            return Decimal("0")
+        if subtotal_dec <= 0:
+            return Decimal("0")
+        return _normalize_rate(impuesto_dec / subtotal_dec)
+
+    def _resolve_line_rate(line: dict[str, Any], default_rate: Decimal) -> Decimal:
+        raw = line.get("tax_rate") or line.get("iva_tasa") or line.get("iva_rate")
+        return _normalize_rate(raw) if raw is not None else default_rate
+
+    def _sri_codigo_porcentaje(rate: Decimal) -> str:
+        rate_pct = (rate * Decimal("100")).quantize(Decimal("0.01"))
+        mapping = {
+            Decimal("0.00"): "0",
+            Decimal("12.00"): "2",
+            Decimal("14.00"): "3",
+            Decimal("15.00"): "4",
+        }
+        return mapping.get(rate_pct, "0")
+
+    invoice_rate = _resolve_invoice_rate()
+
     # Estructura básica invoice SRI v1.1.0
     root = etree.Element("invoice", id="comprobante", version="1.1.0")
 
@@ -156,7 +198,7 @@ def generate_sri_xml(invoice_data: dict[str, Any]) -> str:
     total_impuestos = etree.SubElement(info_fact, "totalConImpuestos")
     total_imp = etree.SubElement(total_impuestos, "totalImpuesto")
     etree.SubElement(total_imp, "codigo").text = "2"  # IVA
-    etree.SubElement(total_imp, "codigoPorcentaje").text = "2"  # 12%
+    etree.SubElement(total_imp, "codigoPorcentaje").text = _sri_codigo_porcentaje(invoice_rate)
     etree.SubElement(total_imp, "baseImponible").text = f"{invoice_data['subtotal']:.2f}"
     etree.SubElement(total_imp, "valor").text = f"{invoice_data['impuesto']:.2f}"
 
@@ -178,11 +220,17 @@ def generate_sri_xml(invoice_data: dict[str, Any]) -> str:
         # Impuestos del detalle
         impuestos = etree.SubElement(detalle, "impuestos")
         impuesto = etree.SubElement(impuestos, "impuesto")
+        line_rate = _resolve_line_rate(line, invoice_rate)
+        line_rate_pct = (line_rate * Decimal("100")).quantize(Decimal("0.01"))
         etree.SubElement(impuesto, "codigo").text = "2"  # IVA
-        etree.SubElement(impuesto, "codigoPorcentaje").text = "2"  # 12%
-        etree.SubElement(impuesto, "tarifa").text = "12"
+        etree.SubElement(impuesto, "codigoPorcentaje").text = _sri_codigo_porcentaje(line_rate)
+        etree.SubElement(impuesto, "tarifa").text = f"{line_rate_pct:.2f}"
         etree.SubElement(impuesto, "baseImponible").text = f"{line['total']:.2f}"
-        etree.SubElement(impuesto, "valor").text = f"{line['total'] * Decimal('0.12'):.2f}"
+        try:
+            base_total = Decimal(str(line["total"]))
+        except Exception:
+            base_total = Decimal("0")
+        etree.SubElement(impuesto, "valor").text = f"{base_total * line_rate:.2f}"
 
     # Info adicional
     info_adicional = etree.SubElement(root, "infoAdicional")

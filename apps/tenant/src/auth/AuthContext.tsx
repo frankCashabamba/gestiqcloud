@@ -4,12 +4,12 @@ import { initElectric, setupOnlineSync } from '../lib/electric'
 
 type LoginBody = { identificador: string; password: string }
 type LoginResponse = { access_token: string; token_type: 'bearer'; scope?: string }
-type MeTenant = { user_id: string; username?: string; tenant_id: string; empresa_slug?: string; es_admin_empresa?: boolean; roles?: string[] }
+type MeCompany = { user_id: string; username?: string; tenant_id: string; empresa_slug?: string; es_admin_empresa?: boolean; roles?: string[] }
 
 type AuthContextType = {
   token: string | null
   loading: boolean
-  profile: MeTenant | null
+  profile: MeCompany | null
   brand: string
   login: (body: LoginBody) => Promise<void>
   logout: () => Promise<void>
@@ -21,7 +21,7 @@ const AuthContext = createContext<AuthContextType | null>(null)
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [token, setToken] = useState<string | null>(() => sessionStorage.getItem('access_token_tenant'))
   const [loading, setLoading] = useState(true)
-  const [profile, setProfile] = useState<MeTenant | null>(null)
+  const [profile, setProfile] = useState<MeCompany | null>(null)
   const isUnauthorized = (e: any) => e?.status === 401 || e?.response?.status === 401
 
   useEffect(() => {
@@ -46,7 +46,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           if (t) {
             setToken(t)
             sessionStorage.setItem('access_token_tenant', t)
-            const me = await apiFetch<MeTenant>('/api/v1/me/tenant', { headers: { Authorization: `Bearer ${t}` }, retryOn401: false })
+            const me = await apiFetch<MeCompany>('/api/v1/me/tenant', { headers: { Authorization: `Bearer ${t}` }, retryOn401: false })
             setProfile(me)
 
              // Initialize ElectricSQL for offline sync
@@ -113,7 +113,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }
 
   async function loadMe(tok: string) {
-    const me = await apiFetch<MeTenant>('/api/v1/me/tenant', { headers: { Authorization: `Bearer ${tok}` }, retryOn401: false })
+    const me = await apiFetch<MeCompany>('/api/v1/me/tenant', { headers: { Authorization: `Bearer ${tok}` }, retryOn401: false })
     setProfile(me)
   }
 
@@ -121,6 +121,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     setToken(null)
     setProfile(null)
     sessionStorage.removeItem('access_token_tenant')
+    try { localStorage.removeItem('authToken') } catch {}
   }
 
   const login = async (body: LoginBody) => {

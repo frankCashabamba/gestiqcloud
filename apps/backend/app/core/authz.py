@@ -51,3 +51,24 @@ def require_roles(roles: Iterable[str], tenant_required: bool = False):
         return claims
 
     return dep
+
+
+def require_permission(permission: str):
+    def dep(request: Request):
+        claims = _extract_claims(request)
+        if claims.get("is_company_admin") or claims.get("is_admin_company") or claims.get("es_admin_empresa"):
+            return claims
+        perms = claims.get("permissions") or claims.get("permisos") or {}
+        if isinstance(perms, dict) and perms.get(permission):
+            return claims
+        available = sorted([k for k, v in perms.items() if v]) if isinstance(perms, dict) else []
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "forbidden",
+                "missing_permission": permission,
+                "available_permissions": available,
+            },
+        )
+
+    return dep

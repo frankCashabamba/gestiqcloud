@@ -4,7 +4,7 @@ import { createVacacion, listEmpleados } from '../../services/api/rrhh'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import type { VacacionCreate, Empleado } from '../../types/rrhh'
 import { useSectorPlaceholder } from '../../hooks/useSectorPlaceholders'
-import { useTenant } from '../../contexts/TenantContext'
+import { useCompany } from '../../contexts/CompanyContext'
 
 const INITIAL_FORM: VacacionCreate = {
   empleado_id: '',
@@ -19,7 +19,7 @@ export default function VacacionForm() {
   const nav = useNavigate()
   const location = useLocation()
   const { success, error } = useToast()
-  const { sector } = useTenant()
+  const { sector } = useCompany()
 
   const [empleados, setEmpleados] = useState<Empleado[]>([])
   const [form, setForm] = useState<VacacionCreate>(INITIAL_FORM)

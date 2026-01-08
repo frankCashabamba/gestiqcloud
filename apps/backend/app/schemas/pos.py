@@ -122,6 +122,7 @@ class POSReceiptResponse(POSReceiptBase):
     tenant_id: UUID
     register_id: UUID
     shift_id: UUID
+    cashier_id: UUID | None = None
     number: str
     status: str
     invoice_id: UUID | None = None

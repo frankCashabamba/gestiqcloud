@@ -16,7 +16,7 @@ import { useAuth } from '../../auth/AuthContext'
 import RolModal from './RolModal'
 
 function formatNombre(usuario: Usuario): string {
-  const parts = [usuario.nombre_encargado, usuario.apellido_encargado].filter(Boolean)
+  const parts = [usuario.first_name, usuario.last_name].filter(Boolean)
   if (parts.length) return parts.join(' ')
   return usuario.email
 }
@@ -28,20 +28,21 @@ export default function UsuariosList() {
   const [q, setQ] = useState('')
   const [modulos, setModulos] = useState<ModuloOption[]>([])
   const [roles, setRoles] = useState<RolOption[]>([])
-  const [setPwdUserId, setSetPwdUserId] = useState<number | string | null>(null)
+  const [setPwdUserId, setSetPwdUserId] = useState<string | null>(null)
   const [newPwd, setNewPwd] = useState('')
   const [showRolesModal, setShowRolesModal] = useState(false)
   const [rolesCompletos, setRolesCompletos] = useState<Rol[]>([])
   const [selectedRol, setSelectedRol] = useState<Rol | null>(null)
   const nav = useNavigate()
   const { success, error: toastError } = useToast()
-  const { profile } = useAuth()
+  const { profile, loading: authLoading, token } = useAuth()
   const isAdminEmpresa =
     Boolean((profile as any)?.es_admin_empresa) ||
     Boolean((profile as any)?.is_company_admin) ||
     Boolean(profile?.roles?.includes('admin'))
 
   useEffect(() => {
+    if (authLoading || !token) return
     let cancelled = false
     ;(async () => {
       try {
@@ -65,7 +66,7 @@ export default function UsuariosList() {
       }
     })()
     return () => { cancelled = true }
-  }, [])
+  }, [authLoading, token])
 
   const modulosMap = useMemo(() => new Map(modulos.map((m) => [m.id, m])), [modulos])
   const rolesMap = useMemo(() => new Map(roles.map((r) => [r.id, r])), [roles])
@@ -86,7 +87,7 @@ export default function UsuariosList() {
 
   const { page, setPage, totalPages, view } = usePagination(filtered, 10)
 
-  const handleRemove = async (id: number | string) => {
+  const handleRemove = async (id: string) => {
     if (!confirm('¿Desactivar este usuario?')) return
     try {
       await removeUsuario(id)
@@ -98,6 +99,10 @@ export default function UsuariosList() {
   }
 
   const loadRoles = async () => {
+    if (authLoading || !token) {
+      toastError('Sesión no autenticada. Inicia sesión nuevamente.')
+      return
+    }
     try {
       const data = await listRoles()
       setRolesCompletos(data)
@@ -106,7 +111,7 @@ export default function UsuariosList() {
     }
   }
 
-  const handleDeleteRol = async (id: number) => {
+  const handleDeleteRol = async (id: string) => {
     if (!confirm('¿Eliminar este rol?')) return
     try {
       await deleteRol(id)
@@ -169,12 +174,12 @@ export default function UsuariosList() {
           <tbody>
             {view.map((u) => {
               const rolesLabels = (Array.isArray(u.roles) ? u.roles : []).map((id) => rolesMap.get(id)?.name || `#${id}`)
-              const modLabels = (Array.isArray(u.modulos) ? u.modulos : []).map((id) => modulosMap.get(id)?.name || `#${id}`)
+              const modLabels = (Array.isArray(u.modules) ? u.modules : []).map((id) => modulosMap.get(id)?.name || `#${id}`)
               return (
                 <tr key={u.id} className="border-t border-slate-100">
                   <td className="px-4 py-3">
                     <div className="font-medium text-slate-900">{formatNombre(u)}</div>
-                    {u.es_admin_empresa && (
+                    {u.is_company_admin && (
                       <span className="mt-1 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">Admin</span>
                     )}
                   </td>
@@ -183,7 +188,7 @@ export default function UsuariosList() {
                     {u.username && <div className="text-xs text-slate-400">{u.username}</div>}
                   </td>
                   <td className="px-4 py-3 text-slate-600">{rolesLabels.length ? rolesLabels.join(', ') : '—'}</td>
-                  <td className="px-4 py-3 text-slate-600">{u.es_admin_empresa ? 'Todos los módulos' : modLabels.join(', ') || '—'}</td>
+                  <td className="px-4 py-3 text-slate-600">{u.is_company_admin ? 'Todos los módulos' : modLabels.join(', ') || '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${u.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                       {u.active ? 'Activo' : 'Inactivo'}
@@ -293,11 +298,11 @@ export default function UsuariosList() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h3 className="font-medium text-slate-900">{rol.name}</h3>
-                      {rol.descripcion && (
-                      <p className="text-sm text-slate-600 mt-1">{rol.descripcion}</p>
+                      {rol.description && (
+                      <p className="text-sm text-slate-600 mt-1">{rol.description}</p>
                       )}
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {Object.entries(rol.permisos || {})
+                        {Object.entries(rol.permissions || {})
                           .filter(([_, enabled]) => enabled)
                           .map(([key]) => (
                             <span

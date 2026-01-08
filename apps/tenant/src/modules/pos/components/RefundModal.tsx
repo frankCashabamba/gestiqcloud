@@ -6,7 +6,7 @@ import React, { useState } from 'react'
 import { refundReceipt } from '../services'
 import type { POSReceipt, RefundRequest } from '../../../types/pos'
 import { useSectorPlaceholder } from '../../../hooks/useSectorPlaceholders'
-import { useTenant } from '../../../contexts/TenantContext'
+import { useCompany } from '../../../contexts/CompanyContext'
 
 interface RefundModalProps {
   receipt: POSReceipt | null
@@ -26,7 +26,7 @@ export default function RefundModal({
   const [linesToRefund, setLinesToRefund] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [restock, setRestock] = useState(true)
-  const { sector } = useTenant()
+  const { sector } = useCompany()
 
   const { placeholder: reasonPlaceholder } = useSectorPlaceholder(
     sector?.plantilla || null,

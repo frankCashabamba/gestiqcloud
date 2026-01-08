@@ -40,11 +40,13 @@ def build_tenant_claims(db: Session, user: CompanyUser) -> dict[str, Any]:
         # Usuario regular: cargar permisos desde roles
         try:
             relacion_rol = (
-                db.query(CompanyUserRole).filter_by(usuario_id=user.id, activo=True).first()
+                db.query(CompanyUserRole)
+                .filter(CompanyUserRole.user_id == user.id, CompanyUserRole.is_active.is_(True))
+                .first()
             )
 
             if relacion_rol:
-                rol = db.query(CompanyRole).filter_by(id=relacion_rol.rol_id).first()
+                rol = db.query(CompanyRole).filter(CompanyRole.id == relacion_rol.role_id).first()
                 if rol and isinstance(rol.permissions, dict):
                     permisos = dict(rol.permissions)  # copy defensivo
         except Exception:

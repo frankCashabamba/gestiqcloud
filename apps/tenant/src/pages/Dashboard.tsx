@@ -14,7 +14,7 @@ export default function Dashboard() {
   useEffect(() => { getMiEmpresa().then(arr => setEmpresaInfo(arr[0] || null)).catch(()=>{}) }, [])
   return (
     <div>
-      {/* Header general con Inicio/Cerrar sesión está en TenantShell */}
+      {/* Header general con Inicio/Cerrar sesión está en CompanyShell */}
       <div style={{ maxWidth: 960, margin: '0 auto 1rem', color: 'var(--color-muted)', fontSize: 14, display: 'flex', gap: 16 }}>
         <span>Empresa: <strong>{empresaInfo?.name || empresa || '—'}</strong></span>
         <span>Usuario: <strong>{profile?.username || profile?.user_id || '—'}</strong></span>

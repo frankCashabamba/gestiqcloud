@@ -88,7 +88,7 @@ export default function IncidentDetailModal({
                 <div className="text-sm font-medium text-gray-900">{incident.tipo}</div>
               </div>
               <div>
-                <div className="text-xs text-gray-500 mb-1">Tenant</div>
+                <div className="text-xs text-gray-500 mb-1">Empresa</div>
                 <div className="text-sm font-mono text-gray-900">
                   {incident.tenant_id || 'Sistema'}
                 </div>

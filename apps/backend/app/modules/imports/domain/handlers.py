@@ -4,12 +4,15 @@ import logging
 from typing import Any
 from uuid import UUID
 
+from decimal import ROUND_HALF_UP, Decimal
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.core.product_category import ProductCategory
 from app.models.core.products import Product
 from app.modules.imports.application.sku_utils import sanitize_sku
+from app.services.inventory_costing import InventoryCostingService
 
 class PromoteResult:
     def __init__(self, domain_id: str | None, skipped: bool = False):
@@ -504,6 +507,30 @@ class ExpenseHandler:
 
 class ProductHandler:
     @staticmethod
+    def _to_dec(value: float | Decimal | None, q: str = "0.000001") -> Decimal:
+        if value is None:
+            value = 0
+        return Decimal(str(value)).quantize(Decimal(q), rounding=ROUND_HALF_UP)
+
+    @staticmethod
+    def _resolve_unit_cost(normalized: dict[str, Any]) -> Decimal:
+        candidates = (
+            normalized.get("cost_price"),
+            normalized.get("cost"),
+            normalized.get("unit_cost"),
+            normalized.get("purchase_price"),
+            normalized.get("purchase_cost"),
+        )
+        for value in candidates:
+            if value is None:
+                continue
+            try:
+                return ProductHandler._to_dec(float(value), "0.000001")
+            except (TypeError, ValueError):
+                continue
+        return ProductHandler._to_dec(0, "0.000001")
+
+    @staticmethod
     def promote(
         db: Session,
         tenant_id: UUID,
@@ -541,6 +568,8 @@ class ProductHandler:
             stock = float(stock)
         except (ValueError, TypeError):
             stock = 0.0
+
+        unit_cost = ProductHandler._resolve_unit_cost(normalized)
 
         # Category resolution
         category_id = None
@@ -602,6 +631,8 @@ class ProductHandler:
         if existing:
             existing.price = price
             existing.stock = stock
+            if unit_cost > 0:
+                existing.cost_price = float(unit_cost)
             existing.unit = (
                 normalized.get("unit") or normalized.get("unidad") or existing.unit or "unidad"
             )
@@ -665,33 +696,46 @@ class ProductHandler:
                             db.add(wh)
                             db.flush()
                         # Crear stock_item
-                        si = StockItem(
-                            tenant_id=tenant_id,
-                            warehouse_id=str(wh.id),
-                            product_id=str(existing.id),
-                            qty=float(stock),
+                    si = StockItem(
+                        tenant_id=tenant_id,
+                        warehouse_id=str(wh.id),
+                        product_id=str(existing.id),
+                        qty=float(stock),
+                    )
+                    db.add(si)
+                    db.flush()
+                    costing = InventoryCostingService(db)
+                    qty_dec = ProductHandler._to_dec(stock)
+                    costing.apply_inbound(
+                        str(tenant_id),
+                        str(wh.id),
+                        str(existing.id),
+                        qty=qty_dec,
+                        unit_cost=unit_cost,
+                        initial_qty=ProductHandler._to_dec(0),
+                        initial_avg_cost=unit_cost,
+                    )
+                    # Intentar movimiento con columnas existentes (fallback SQL crudo)
+                    try:
+                        db.execute(
+                            text(
+                                "INSERT INTO stock_moves (tenant_id, product_id, warehouse_id, qty, kind, tentative, posted, unit_cost, total_cost) "
+                                "VALUES (:tid, :pid, :wid, :qty, :kind, :tentative, :posted, :uc, :tc)"
+                            ),
+                            {
+                                "tid": str(tenant_id),
+                                "pid": str(existing.id),
+                                "wid": str(wh.id),
+                                "qty": float(stock),
+                                "kind": "receipt",
+                                "tentative": False,
+                                "posted": False,
+                                "uc": float(unit_cost),
+                                "tc": float(unit_cost * qty_dec),
+                            },
                         )
-                        db.add(si)
-                        db.flush()
-                        # Intentar movimiento con columnas existentes (fallback SQL crudo)
-                        try:
-                            db.execute(
-                                text(
-                                    "INSERT INTO stock_moves (tenant_id, product_id, warehouse_id, qty, kind, tentative, posted) "
-                                    "VALUES (:tid, :pid, :wid, :qty, :kind, :tentative, :posted)"
-                                ),
-                                {
-                                    "tid": str(tenant_id),
-                                    "pid": str(existing.id),
-                                    "wid": str(wh.id),
-                                    "qty": float(stock),
-                                    "kind": "receipt",
-                                    "tentative": False,
-                                    "posted": False,
-                                },
-                            )
-                        except Exception as move_err:
-                            logging.warning("Stock move insert skipped: %s", move_err)
+                    except Exception as move_err:
+                        logging.warning("Stock move insert skipped: %s", move_err)
             except Exception as stock_err:
                 nested.rollback()
                 logging.warning(
@@ -715,6 +759,7 @@ class ProductHandler:
             sku=sku,
             name=name,
             price=price,
+            cost_price=float(unit_cost) if unit_cost > 0 else None,
             stock=stock,
             unit=(normalized.get("unit") or normalized.get("unidad") or "unidad"),
             category_id=category_id,
@@ -782,11 +827,22 @@ class ProductHandler:
                     )
                     db.add(si)
                     db.flush()
+                    costing = InventoryCostingService(db)
+                    qty_dec = ProductHandler._to_dec(stock)
+                    costing.apply_inbound(
+                        str(tenant_id),
+                        str(wh.id),
+                        str(product.id),
+                        qty=qty_dec,
+                        unit_cost=unit_cost,
+                        initial_qty=ProductHandler._to_dec(0),
+                        initial_avg_cost=unit_cost,
+                    )
                     try:
                         db.execute(
                             text(
-                                "INSERT INTO stock_moves (tenant_id, product_id, warehouse_id, qty, kind, tentative, posted) "
-                                "VALUES (:tid, :pid, :wid, :qty, :kind, :tentative, :posted)"
+                                "INSERT INTO stock_moves (tenant_id, product_id, warehouse_id, qty, kind, tentative, posted, unit_cost, total_cost) "
+                                "VALUES (:tid, :pid, :wid, :qty, :kind, :tentative, :posted, :uc, :tc)"
                             ),
                             {
                                 "tid": str(tenant_id),
@@ -796,6 +852,8 @@ class ProductHandler:
                                 "kind": "receipt",
                                 "tentative": False,
                                 "posted": False,
+                                "uc": float(unit_cost),
+                                "tc": float(unit_cost * qty_dec),
                             },
                         )
                     except Exception as move_err:

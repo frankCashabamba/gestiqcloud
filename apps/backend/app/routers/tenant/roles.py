@@ -1,26 +1,36 @@
 """Router para gestión de roles de empresa (tenant)."""
+from uuid import UUID
 
 from app.config.database import get_db
-from app.core.deps import require_tenant as require_current_user
+from app.core.access_guard import with_access_claims
+from app.core.authz import require_scope
 from app.db.rls import ensure_rls
 from app.models.company.company_role import CompanyRole as CompanyRole
 from app.models.company.tenant import Empresa
-from app.schemas.rol_empresa import RolEmpresaCreate, RolEmpresaOut, RolEmpresaUpdate
+from app.schemas.company_role import CompanyRoleCreate, CompanyRoleOut, CompanyRoleUpdate
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-router = APIRouter(prefix="/tenant/roles", tags=["tenant-roles"])
+router = APIRouter(
+    prefix="/tenant/roles",
+    tags=["tenant-roles"],
+    dependencies=[
+        Depends(with_access_claims),
+        Depends(ensure_rls),
+    ],
+)
 
 
-@router.get("", response_model=list[RolEmpresaOut])
-async def list_roles(db: Session = Depends(get_db), current_user=Depends(require_current_user)):
+@router.get("", response_model=list[CompanyRoleOut])
+async def list_roles(
+    db: Session = Depends(get_db),
+    claims: dict = Depends(require_scope("tenant")),
+):
     """Listar todos los roles del tenant actual."""
-    ensure_rls(db, current_user.get("tenant_id"))
-
     # Obtener tenant_id del tenant
     empresa = db.execute(
-        select(Empresa).where(Empresa.id == current_user.get("tenant_id"))
+        select(Empresa).where(Empresa.id == claims.get("tenant_id"))
     ).scalar_one_or_none()
 
     if not empresa:
@@ -39,15 +49,13 @@ async def list_roles(db: Session = Depends(get_db), current_user=Depends(require
     return roles
 
 
-@router.get("/{rol_id}", response_model=RolEmpresaOut)
+@router.get("/{rol_id}", response_model=CompanyRoleOut)
 async def get_rol(
-    rol_id: int,
+    rol_id: UUID,
     db: Session = Depends(get_db),
-    current_user=Depends(require_current_user),
+    _claims: dict = Depends(require_scope("tenant")),
 ):
     """Obtener un rol por ID."""
-    ensure_rls(db, current_user.get("tenant_id"))
-
     rol = db.get(CompanyRole, rol_id)
     if not rol:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rol no encontrado")
@@ -55,24 +63,22 @@ async def get_rol(
     return rol
 
 
-@router.post("", response_model=RolEmpresaOut, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=CompanyRoleOut, status_code=status.HTTP_201_CREATED)
 async def create_rol(
-    payload: RolEmpresaCreate,
+    payload: CompanyRoleCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(require_current_user),
+    claims: dict = Depends(require_scope("tenant")),
 ):
     """Crear un nuevo rol para el tenant actual."""
-    ensure_rls(db, current_user.get("tenant_id"))
-
     # Verify admin
-    if not current_user.get("is_company_admin"):
+    if not claims.get("is_company_admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo los administradores pueden crear roles",
+            detail="only los administradores pueden crear roles",
         )
 
     # Obtener tenant_id
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = claims.get("tenant_id")
     if not tenant_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -97,7 +103,7 @@ async def create_rol(
         tenant_id=tenant_id,
         name=payload.name,
         description=payload.description,
-        permissions=payload.permisos or {},
+        permissions=payload.permissions or {},
         created_by_company=True,
     )
 
@@ -108,18 +114,16 @@ async def create_rol(
     return nuevo_rol
 
 
-@router.patch("/{rol_id}", response_model=RolEmpresaOut)
+@router.patch("/{rol_id}", response_model=CompanyRoleOut)
 async def update_rol(
-    rol_id: int,
-    payload: RolEmpresaUpdate,
+    rol_id: UUID,
+    payload: CompanyRoleUpdate,
     db: Session = Depends(get_db),
-    current_user=Depends(require_current_user),
+    claims: dict = Depends(require_scope("tenant")),
 ):
     """Actualizar un rol existente."""
-    ensure_rls(db, current_user.get("tenant_id"))
-
     # Verify admin
-    if not current_user.get("is_company_admin"):
+    if not claims.get("is_company_admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los administradores pueden modificar roles",
@@ -159,15 +163,13 @@ async def update_rol(
 
 @router.delete("/{rol_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_rol(
-    rol_id: int,
+    rol_id: UUID,
     db: Session = Depends(get_db),
-    current_user=Depends(require_current_user),
+    claims: dict = Depends(require_scope("tenant")),
 ):
     """Eliminar un rol."""
-    ensure_rls(db, current_user.get("tenant_id"))
-
     # Verificar que es admin
-    if not current_user.get("is_company_admin"):
+    if not claims.get("is_company_admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los administradores pueden eliminar roles",
@@ -178,10 +180,10 @@ async def delete_rol(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rol no encontrado")
 
     # Verificar que el rol no esté en uso
-    from app.models.usuarios.usuario_rol_empresa import CompanyUserRole
+    from app.models.company.company_user_role import CompanyUserRole
 
     usuarios_con_rol = db.execute(
-        select(CompanyUserRole).where(CompanyUserRole.rol_id == rol_id).limit(1)
+        select(CompanyUserRole).where(CompanyUserRole.role_id == rol_id).limit(1)
     ).scalar_one_or_none()
 
     if usuarios_con_rol:

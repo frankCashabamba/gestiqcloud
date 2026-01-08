@@ -148,11 +148,11 @@ def auto_setup_tenant(
 
 def ensure_tenant_ready(db: Session, tenant_id: str) -> bool:
     """
-    Verifica si un tenant tiene la configuración mínima.
+    Verifica si un tenant tiene la configuracion minima.
     Si no, ejecuta auto_setup_tenant.
 
     Returns:
-        True si el tenant está listo o se configuró exitosamente
+        True si el tenant esta listo o se configuro exitosamente
     """
     try:
         # Verificar si existe al menos 1 registro POS
@@ -166,14 +166,55 @@ def ensure_tenant_ready(db: Session, tenant_id: str) -> bool:
         result = db.execute(check_sql, {"tenant_id": tenant_id}).scalar()
 
         if result == 0:
-            logger.info(f"⚙️ Tenant {tenant_id} sin configuración, ejecutando auto-setup...")
-
-            # Obtener país del tenant
+            logger.info(f"Tenant {tenant_id} sin configuracion, ejecutando auto-setup...")
+            # Obtener pais del tenant
             country_sql = text("SELECT country FROM tenants WHERE id = :id")
             country = db.execute(country_sql, {"id": tenant_id}).scalar() or "EC"
 
             auto_setup_tenant(db, tenant_id, country)
             return True
+
+        # Asegurar series de numeracion por si faltan (backoffice + POS)
+        try:
+            from app.services.numbering import create_default_series
+
+            backoffice_count = db.execute(
+                text(
+                    """
+                    SELECT COUNT(*) FROM doc_series
+                    WHERE tenant_id = :tenant_id AND register_id IS NULL
+                """
+                ),
+                {"tenant_id": tenant_id},
+            ).scalar()
+
+            if backoffice_count == 0:
+                create_default_series(db, tenant_id, register_id=None)
+
+            registers = db.execute(
+                text("SELECT id FROM pos_registers WHERE tenant_id = :tenant_id"),
+                {"tenant_id": tenant_id},
+            ).fetchall()
+
+            for row in registers:
+                reg_id = row[0]
+                reg_count = db.execute(
+                    text(
+                        """
+                        SELECT COUNT(*) FROM doc_series
+                        WHERE tenant_id = :tenant_id AND register_id = :register_id
+                    """
+                    ),
+                    {"tenant_id": tenant_id, "register_id": reg_id},
+                ).scalar()
+                if reg_count == 0:
+                    create_default_series(db, tenant_id, register_id=reg_id)
+        except Exception as e:
+            logger.error(f"Error asegurando series por tenant {tenant_id}: {e}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
 
         return True
 

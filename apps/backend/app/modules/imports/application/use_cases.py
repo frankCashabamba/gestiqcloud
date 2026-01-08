@@ -316,8 +316,10 @@ def _normalize_product_row(raw: dict[str, Any]) -> dict[str, Any]:
         lower.get("name")
         or lower.get("producto")
         or lower.get("nombre")
+        or lower.get("articulo")
         or raw.get("PRODUCTO")
         or raw.get("NOMBRE")
+        or raw.get("ARTICULO")
         or ""
     )
     # Price (map to canonical "price")
@@ -335,13 +337,36 @@ def _normalize_product_row(raw: dict[str, Any]) -> dict[str, Any]:
     except Exception:
         out["price"] = out_price
 
+    cost_val = (
+        lower.get("costo")
+        or lower.get("cost")
+        or lower.get("coste")
+        or lower.get("costo promedio")
+        or lower.get("costo unitario")
+        or lower.get("cost_price")
+        or lower.get("unit_cost")
+        or raw.get("COSTO")
+        or raw.get("COSTO PROMEDIO")
+    )
+    parsed_cost = _parse_amount_value(cost_val)
+    if parsed_cost is not None:
+        out["cost_price"] = parsed_cost
+        out["cost"] = parsed_cost
+        out["unit_cost"] = parsed_cost
+
     # Quantity / stock (prefer sobrante diario or cantidad)
     stock_val = (
         lower.get("sobrante diario")
         or lower.get("cantidad")
         or lower.get("quantity")
         or lower.get("stock")
+        or lower.get("existencia")
+        or lower.get("existencias")
+        or lower.get("unidades")
         or raw.get("CANTIDAD")
+        or raw.get("EXISTENCIA")
+        or raw.get("EXISTENCIAS")
+        or raw.get("UNIDADES")
     )
     try:
         out["stock"] = float(str(stock_val).replace(",", ".")) if stock_val not in (None, "") else None
@@ -351,7 +376,14 @@ def _normalize_product_row(raw: dict[str, Any]) -> dict[str, Any]:
     # Category
     out["categoria"] = lower.get("categoria") or lower.get("category") or raw.get("CATEGORIA") or ""
     # SKU/code (only set if present and non-empty)
-    sku_val = lower.get("sku") or lower.get("codigo") or lower.get("code") or raw.get("CODIGO")
+    sku_val = (
+        lower.get("sku")
+        or lower.get("codigo")
+        or lower.get("c?digo")
+        or lower.get("code")
+        or raw.get("CODIGO")
+        or raw.get("C?DIGO")
+    )
     if sku_val not in (None, "", "-"):
         out["sku"] = sku_val
     # Unit

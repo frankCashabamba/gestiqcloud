@@ -3,6 +3,9 @@ import React, { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { listDailyCounts, listRegisters, getCurrentShift, getShiftSummary } from '../services'
 import { useCurrency } from '../../../hooks/useCurrency'
+import { useAuth } from '../../../auth/AuthContext'
+import { listUsuarios } from '../../usuarios/services'
+import type { Usuario } from '../../usuarios/types'
 import type { ShiftSummary, POSShift } from '../../../types/pos'
 
 interface DailyCount {
@@ -31,17 +34,34 @@ interface Register {
 export default function DailyCountsView() {
   const [searchParams, setSearchParams] = useSearchParams()
   const registerId = searchParams.get('register_id') || undefined
+  const cashierId = searchParams.get('cashier_id') || undefined
   const [counts, setCounts] = useState<DailyCount[]>([])
   const [registers, setRegisters] = useState<Register[]>([])
   const [openShift, setOpenShift] = useState<POSShift | null>(null)
   const [openSummary, setOpenSummary] = useState<ShiftSummary | null>(null)
+  const [cashiers, setCashiers] = useState<Usuario[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { symbol: currencySymbol } = useCurrency()
+  const { profile } = useAuth()
+  const esAdminEmpresa = !!(profile?.es_admin_empresa || (profile as any)?.is_company_admin)
 
   useEffect(() => {
     loadData()
-  }, [registerId])
+  }, [registerId, cashierId])
+
+  useEffect(() => {
+    if (!esAdminEmpresa) return
+    ;(async () => {
+      try {
+        const users = await listUsuarios()
+        const actives = users.filter((u) => u.active)
+        setCashiers(actives)
+      } catch {
+        // silencioso
+      }
+    })()
+  }, [esAdminEmpresa])
 
   const loadData = async () => {
     try {
@@ -57,7 +77,7 @@ export default function DailyCountsView() {
         const current = await getCurrentShift(targetRegisterId)
         setOpenShift(current)
         if (current) {
-          const summary = await getShiftSummary(current.id)
+          const summary = await getShiftSummary(current.id, cashierId ? { cashier_id: cashierId } : undefined)
           setOpenSummary(summary)
         } else {
           setOpenSummary(null)
@@ -81,6 +101,21 @@ export default function DailyCountsView() {
       newParams.delete('register_id')
     }
     setSearchParams(newParams)
+  }
+
+  const handleCashierChange = (newCashierId: string) => {
+    const newParams = new URLSearchParams(searchParams)
+    if (newCashierId) {
+      newParams.set('cashier_id', newCashierId)
+    } else {
+      newParams.delete('cashier_id')
+    }
+    setSearchParams(newParams)
+  }
+
+  const formatCashierLabel = (u: Usuario) => {
+    const name = `${u.first_name || ''} ${u.last_name || ''}`.trim()
+    return name || u.username || u.email || (u.id ? `#${String(u.id).slice(0, 8)}` : '')
   }
 
   if (loading) {
@@ -129,6 +164,23 @@ export default function DailyCountsView() {
               </option>
             ))}
           </select>
+          {esAdminEmpresa && cashiers.length > 0 && (
+            <>
+              <label className="text-sm font-medium">Cajero:</label>
+              <select
+                value={cashierId || ''}
+                onChange={(e) => handleCashierChange(e.target.value)}
+                className="border rounded px-3 py-2"
+              >
+                <option value="">Todos</option>
+                {cashiers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {formatCashierLabel(u)}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
       </div>
 

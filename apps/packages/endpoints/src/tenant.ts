@@ -25,8 +25,8 @@ export const TENANT_PROVEEDORES = {
 }
 
 export const TENANT_VENTAS = {
-  base: '/api/v1/tenant/ventas',
-  byId: (id: number | string) => `/api/v1/tenant/ventas/${id}`,
+  base: '/api/v1/tenant/sales_orders',
+  byId: (id: number | string) => `/api/v1/tenant/sales_orders/${id}`,
 }
 
 export const TENANT_COMPRAS = {

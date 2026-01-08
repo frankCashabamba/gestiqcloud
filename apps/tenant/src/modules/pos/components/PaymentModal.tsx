@@ -11,7 +11,7 @@ import { useCurrency } from '../../../hooks/useCurrency'
 interface PaymentModalProps {
     receiptId: string
     totalAmount: number
-    onSuccess: () => void
+    onSuccess: (payments: POSPayment[]) => void
     onCancel: () => void
     warehouseId?: string // Selección previa desde header (admin)
 }
@@ -149,7 +149,7 @@ export default function PaymentModal({ receiptId, totalAmount, onSuccess, onCanc
             const wh = warehouseId || selectedWarehouse || undefined
             await payReceipt(receiptId, payments, wh ? { warehouse_id: wh } : undefined)
             alert('Pago procesado exitosamente')
-            onSuccess()
+            onSuccess(payments)
         } catch (error: any) {
             alert(error.response?.data?.detail || 'Error al procesar pago')
         } finally {

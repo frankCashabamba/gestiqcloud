@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { apiFetch } from '../lib/http'
 import { useAuth } from '../auth/AuthContext'
-import { fetchTenantTheme } from '../services/theme'
+import { fetchCompanyTheme } from '../services/theme'
 
 type MeResp = { empresa_slug?: string }
 type ThemeResponse = { sector?: string }
@@ -26,7 +26,7 @@ export default function SectorStart() {
           } catch {}
         }
         // Fallback to sector (not ideal for vanity, but better than blocking)
-        const t = await fetchTenantTheme()
+        const t = await fetchCompanyTheme()
         const s = (t && t.sector) ? t.sector : 'default'
         if (!cancelled) setTarget(s)
         try { document.documentElement.dataset.sector = s } catch {}

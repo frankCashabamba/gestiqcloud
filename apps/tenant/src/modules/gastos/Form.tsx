@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { createGasto, getGasto, updateGasto, type Gasto } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
-import { useTenantSector } from '../../contexts/TenantConfigContext'
+import { useCompanySector } from '../../contexts/CompanyConfigContext'
 import { useSectorPlaceholders, getFieldPlaceholder } from '../../hooks/useSectorPlaceholders'
 
 type FormT = Omit<Gasto, 'id' | 'created_at' | 'updated_at'>
@@ -31,7 +31,7 @@ export default function GastoForm() {
   const { id } = useParams()
   const nav = useNavigate()
   const { success, error } = useToast()
-  const sector = useTenantSector()
+  const sector = useCompanySector()
   const { placeholders } = useSectorPlaceholders(sector?.plantilla, 'expenses')
 
   const [form, setForm] = useState<FormT>({

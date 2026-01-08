@@ -16,8 +16,8 @@ import CategoriasModal from './CategoriasModal'
 import { useCurrency } from '../../hooks/useCurrency'
 import {
   useSectorFeaturesFromConfig,
-  useTenantSector,
-} from '../../contexts/TenantConfigContext'
+  useCompanySector,
+} from '../../contexts/CompanyConfigContext'
 import {
   usePrintBarcodeLabels,
   type ProductLabel,
@@ -35,6 +35,8 @@ type RawPrinterLabelConfig = {
   width_mm?: number
   height_mm?: number
   gap_mm?: number
+  columns?: number
+  column_gap_mm?: number
   copies?: number
   show_price?: boolean
   show_category?: boolean
@@ -58,7 +60,7 @@ export default function ProductosList() {
   const { empresa } = useParams()
   const { success, error: toastError } = useToast()
   const { symbol: currencySymbol } = useCurrency()
-  const sector = useTenantSector()
+  const sector = useCompanySector()
   const sectorFeatures = useSectorFeaturesFromConfig()
   const [q, setQ] = useState('')
   const [filterActivo, setFilterActivo] = useState<'all' | 'activo' | 'inactivo'>('all')
@@ -66,7 +68,6 @@ export default function ProductosList() {
   const [showCategoriesModal, setShowCategoriesModal] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [categorias, setCategorias] = useState<Array<{ id: string; name: string }>>([])
-  const printProductsRef = useRef<Producto[]>([])
   const { open: openPrintLabels, PrintModal, updateModalExtras } = usePrintBarcodeLabels()
   const [printers, setPrinters] = useState<PrinterInfo[]>([])
   const [selectedPrinter, setSelectedPrinter] = useState<PrinterInfo | null>(null)
@@ -76,6 +77,8 @@ export default function ProductosList() {
     widthMm: 50,
     heightMm: 40,
     gapMm: 3,
+    columns: 1,
+    columnGapMm: 2,
     showPrice: true,
     showCategory: false,
     copies: 1,
@@ -109,6 +112,8 @@ export default function ProductosList() {
       widthMm: config.width_mm ?? defaultPrintConfig.widthMm,
       heightMm: config.height_mm ?? defaultPrintConfig.heightMm,
       gapMm: config.gap_mm ?? defaultPrintConfig.gapMm,
+      columns: config.columns ?? defaultPrintConfig.columns,
+      columnGapMm: config.column_gap_mm ?? defaultPrintConfig.columnGapMm,
       copies: config.copies ?? defaultPrintConfig.copies,
       showPrice: config.show_price ?? defaultPrintConfig.showPrice,
       showCategory: config.show_category ?? defaultPrintConfig.showCategory,
@@ -214,6 +219,8 @@ export default function ProductosList() {
             width_mm?: number
             height_mm?: number
             gap_mm?: number
+            columns?: number
+            column_gap_mm?: number
             show_price?: boolean
             show_category?: boolean
             copies?: number
@@ -231,6 +238,8 @@ export default function ProductosList() {
               widthMm: settings.label_config?.width_mm ?? prev.widthMm,
               heightMm: settings.label_config?.height_mm ?? prev.heightMm,
               gapMm: settings.label_config?.gap_mm ?? prev.gapMm,
+              columns: settings.label_config?.columns ?? prev.columns,
+              columnGapMm: settings.label_config?.column_gap_mm ?? prev.columnGapMm,
               showPrice: settings.label_config?.show_price ?? prev.showPrice,
               showCategory: settings.label_config?.show_category ?? prev.showCategory,
               copies: settings.label_config?.copies ?? prev.copies,
@@ -312,6 +321,8 @@ export default function ProductosList() {
               width_mm: printConfig.widthMm,
               height_mm: printConfig.heightMm,
               gap_mm: printConfig.gapMm,
+              columns: printConfig.columns,
+              column_gap_mm: printConfig.columnGapMm,
               copies: Math.max(1, printConfig.copies),
               show_price: printConfig.showPrice,
               show_category: printConfig.showCategory,
@@ -443,9 +454,8 @@ export default function ProductosList() {
   const formatPriceLabel = (value?: number) =>
     value !== undefined && value !== null ? `${value.toFixed(2)} ${currencySymbol}` : undefined
 
-  const handleSendToPrinter = async (_labels: ProductLabel[], printConfig: PrintConfig) => {
-    const productsToPrint = printProductsRef.current
-    if (productsToPrint.length === 0) {
+  const handleSendToPrinter = async (labels: ProductLabel[], printConfig: PrintConfig) => {
+    if (labels.length === 0) {
       const error = new Error('Selecciona al menos un producto para imprimir.')
       toastError(error.message)
       throw error
@@ -461,46 +471,50 @@ export default function ProductosList() {
     const normalizedConfig = {
       ...printConfig,
       copies: Math.max(1, printConfig.copies),
+      columns: Math.max(1, Math.min(6, Math.round(printConfig.columns))),
+      columnGapMm: clampValue(printConfig.columnGapMm, 0, 20),
       offsetXmm: clampValue(printConfig.offsetXmm, -30, 30),
       offsetYmm: clampValue(printConfig.offsetYmm, -30, 30),
       barcodeWidth: clampValue(printConfig.barcodeWidth, 1, 5),
     }
 
     try {
-      for (const product of productsToPrint) {
-        const payload = {
-          name: product.name,
-          barcode: buildLabelFromProduct(product).codigo_barras,
-          price: normalizedConfig.showPrice ? formatPriceLabel(product.price) : undefined,
-          copies: normalizedConfig.copies,
-          port: printerToUse.port,
-          width_mm: normalizedConfig.widthMm,
-          height_mm: normalizedConfig.heightMm,
-          gap_mm: normalizedConfig.gapMm,
-          header_text: normalizedConfig.headerText || undefined,
-          footer_text: normalizedConfig.footerText || undefined,
-          offset_xmm: normalizedConfig.offsetXmm,
-          offset_ymm: normalizedConfig.offsetYmm,
-          barcode_width: normalizedConfig.barcodeWidth,
-          price_alignment: normalizedConfig.priceAlignment,
-        }
+      const payload = {
+        labels: labels.map((label) => ({
+          name: label.name,
+          barcode: label.codigo_barras,
+          price: normalizedConfig.showPrice ? formatPriceLabel(label.precio_venta) : undefined,
+          copies: 1,
+        })),
+        port: printerToUse.port,
+        width_mm: normalizedConfig.widthMm,
+        height_mm: normalizedConfig.heightMm,
+        gap_mm: normalizedConfig.gapMm,
+        columns: normalizedConfig.columns,
+        column_gap_mm: normalizedConfig.columnGapMm,
+        header_text: normalizedConfig.headerText || undefined,
+        footer_text: normalizedConfig.footerText || undefined,
+        offset_xmm: normalizedConfig.offsetXmm,
+        offset_ymm: normalizedConfig.offsetYmm,
+        barcode_width: normalizedConfig.barcodeWidth,
+        price_alignment: normalizedConfig.priceAlignment,
+      }
 
-      await apiFetch('v1/tenant/printing/labels', {
+      await apiFetch('v1/tenant/printing/labels/batch', {
         method: 'POST',
         body: JSON.stringify(payload),
       })
-    }
 
-    success(
-      `Impresión enviada a ${printerToUse.name || printerToUse.port}.`
-    )
-    if (!selectedSavedConfigIdRef.current) {
-      await promptToSaveLabelConfig(normalizedConfig)
-    }
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error enviando a la impresora'
-    toastError(message)
-    throw err
+      success(
+        `Impresi?n enviada a ${printerToUse.name || printerToUse.port}.`
+      )
+      if (!selectedSavedConfigIdRef.current) {
+        await promptToSaveLabelConfig(normalizedConfig)
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error enviando a la impresora'
+      toastError(message)
+      throw err
     }
   }
 
@@ -513,7 +527,6 @@ export default function ProductosList() {
       return
     }
 
-    printProductsRef.current = sourceProducts
     const extras = buildModalExtras(selectedPrinter)
     openPrintLabels(
       sourceProducts.map((product) => buildLabelFromProduct(product)),

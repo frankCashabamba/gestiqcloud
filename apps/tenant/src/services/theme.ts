@@ -15,14 +15,16 @@ function cacheKey(empresa?: string | null) {
   return empresa ? `empresa:${empresa}` : 'default'
 }
 
-export async function fetchTenantTheme(empresa?: string | null): Promise<ThemeResponse> {
+export async function fetchCompanyTheme(empresa?: string | null): Promise<ThemeResponse> {
   const key = cacheKey(empresa)
   const cached = cache.get(key)
   if (isFresh(cached)) return cached!.data
   if (cached?.inflight) return cached.inflight
 
   const inflight = apiFetch<ThemeResponse>(
-    empresa ? `/api/v1/tenant/settings/theme?empresa=${encodeURIComponent(empresa)}` : '/api/v1/tenant/settings/theme'
+    empresa
+      ? `/api/v1/company/settings/theme?empresa=${encodeURIComponent(empresa)}`
+      : '/api/v1/company/settings/theme'
   )
     .then((data) => {
       cache.set(key, { ts: Date.now(), data })

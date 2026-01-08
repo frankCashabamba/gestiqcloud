@@ -49,6 +49,8 @@ export interface POSReceipt {
   tenant_id?: string
   register_id: string
   shift_id: string
+  cashier_id?: string | null
+  cashier_name?: string | null
   number?: string
   status: 'draft' | 'paid' | 'voided' | 'invoiced' | 'unpaid'
   customer_id?: string
@@ -134,6 +136,7 @@ export interface ShiftSummary {
 export interface ReceiptCreateRequest {
   register_id: string
   shift_id: string
+  cashier_id?: string
   customer_id?: string
   currency?: string
   lines: POSReceiptLine[]

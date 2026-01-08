@@ -111,10 +111,10 @@ def _seed_pan_tapado(db: Session, tenant_id: str) -> None:
             params["categoria"] = category
         if "tax_rate" in cols:
             fields.append("tax_rate")
-            params["tax_rate"] = 0.15
+            params["tax_rate"] = None
         elif "iva_tasa" in cols:
             fields.append("iva_tasa")
-            params["iva_tasa"] = 0.15
+            params["iva_tasa"] = None
         if "cost_price" in cols:
             fields.append("cost_price")
             params["cost_price"] = 0

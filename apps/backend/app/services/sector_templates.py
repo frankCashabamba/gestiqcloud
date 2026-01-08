@@ -30,7 +30,7 @@ def apply_sector_template(
     Acciones realizadas:
     1. Aplica branding (color_primario, plantilla_inicio)
     2. Guarda la plantilla aplicada en CompanySettings.settings.template_config
-    3. Crea configuracion de TenantSettings
+    3. Crea configuracion de CompanySettings
     4. Habilita/deshabilita módulos según la plantilla
     5. Crea categorías por defecto
 

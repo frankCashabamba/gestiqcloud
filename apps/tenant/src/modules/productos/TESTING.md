@@ -5,7 +5,7 @@
 ### ✅ Preparación
 - [ ] Backend corriendo en http://localhost:8000
 - [ ] Frontend tenant corriendo en http://localhost:8082
-- [ ] Tenant de prueba creado (panadería, retail o taller)
+- [ ] Empresa de prueba creada (panadería, retail o taller)
 - [ ] Usuario con rol operario o superior
 
 ---
@@ -26,7 +26,7 @@ curl http://localhost:8000/api/v1/tenant/productos \
 
 **Para PANADERÍA:**
 ```bash
-curl "http://localhost:8000/api/v1/tenant/settings/fields?module=productos&empresa=kusi-panaderia"
+curl "http://localhost:8000/api/v1/company/settings/fields?module=productos&empresa=kusi-panaderia"
 
 # Resultado esperado: JSON con campos específicos panadería
 # Debe incluir: peso_unitario, caducidad_dias, ingredientes
@@ -34,7 +34,7 @@ curl "http://localhost:8000/api/v1/tenant/settings/fields?module=productos&empre
 
 **Para RETAIL/BAZAR:**
 ```bash
-curl "http://localhost:8000/api/v1/tenant/settings/fields?module=productos&empresa=bazar-omar"
+curl "http://localhost:8000/api/v1/company/settings/fields?module=productos&empresa=bazar-omar"
 
 # Resultado esperado: JSON con campos específicos retail
 # Debe incluir: marca, talla, color, precio_compra, margen
@@ -42,7 +42,7 @@ curl "http://localhost:8000/api/v1/tenant/settings/fields?module=productos&empre
 
 **Para TALLER MECÁNICO:**
 ```bash
-curl "http://localhost:8000/api/v1/tenant/settings/fields?module=productos&empresa=taller-lopez"
+curl "http://localhost:8000/api/v1/company/settings/fields?module=productos&empresa=taller-lopez"
 
 # Resultado esperado: JSON con campos específicos taller
 # Debe incluir: tipo, tiempo_instalacion, marca_vehiculo
@@ -269,7 +269,7 @@ Activo: ✓
 
 ### TEST 13: Auto-cálculo de Margen (Solo Retail)
 
-**Prerequisito:** Tenant de sector retail
+**Prerequisito:** Empresa de sector retail
 
 1. Click "➕ Nuevo producto"
 2. Rellenar:

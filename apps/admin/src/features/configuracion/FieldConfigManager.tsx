@@ -20,7 +20,7 @@ export default function FieldConfigManager() {
     try {
       // Prefer tenant config when empresa slug is present; otherwise sector defaults
       if (empresa) {
-        const { data } = await api.get(`/v1/tenant/settings/fields`, { params: { module: moduleKey, empresa } })
+        const { data } = await api.get(`/v1/company/settings/fields`, { params: { module: moduleKey, empresa } })
         setItems(data.items || [])
       } else {
         const { data } = await api.get(`/v1/admin/field-config/sector`, { params: { module: moduleKey, sector } })

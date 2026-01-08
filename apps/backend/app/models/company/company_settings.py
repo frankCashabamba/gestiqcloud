@@ -50,7 +50,7 @@ class CompanySettings(Base):
     tax_id: Mapped[str | None] = mapped_column(String)
     tax_regime: Mapped[str | None] = mapped_column(String)
 
-    # Consolidated from TenantSettings
+    # Consolidated from legacy company_settings
     settings: Mapped[dict | None] = mapped_column(
         JSONB().with_variant(JSON(), "sqlite"), nullable=True, default=dict
     )

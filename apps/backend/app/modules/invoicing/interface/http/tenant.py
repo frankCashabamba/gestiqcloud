@@ -7,6 +7,7 @@ from uuid import UUID
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
+from app.core.audit_events import audit_event
 from app.db.rls import ensure_rls
 from app.models.core.facturacion import Invoice
 from app.modules.invoicing import schemas
@@ -62,7 +63,25 @@ def crear_factura(
     db: Session = Depends(get_db),
 ):
     tenant_id = _tenant_uuid(request)
-    return factura_crud.create_with_lineas(db, tenant_id, factura)
+    created = factura_crud.create_with_lineas(db, tenant_id, factura)
+    try:
+        claims = getattr(request.state, "access_claims", None)
+        user_id = claims.get("user_id") if isinstance(claims, dict) else None
+        audit_event(
+            db,
+            action="create",
+            entity_type="invoice",
+            entity_id=str(getattr(created, "id", None)),
+            actor_type="user" if user_id else "system",
+            source="api",
+            tenant_id=str(tenant_id),
+            user_id=str(user_id) if user_id else None,
+            changes={"status": getattr(created, "status", None)},
+            req=request,
+        )
+    except Exception:
+        pass
+    return created
 
 
 @router.put("/{factura_id}", response_model=schemas.InvoiceOut)
@@ -94,6 +113,23 @@ def actualizar_factura(
 
     db.commit()
     db.refresh(invoice)
+    try:
+        claims = getattr(request.state, "access_claims", None)
+        user_id = claims.get("user_id") if isinstance(claims, dict) else None
+        audit_event(
+            db,
+            action="update",
+            entity_type="invoice",
+            entity_id=str(invoice.id),
+            actor_type="user" if user_id else "system",
+            source="api",
+            tenant_id=str(tenant_id),
+            user_id=str(user_id) if user_id else None,
+            changes={"fields": sorted(update_data.keys())} if update_data else None,
+            req=request,
+        )
+    except Exception:
+        pass
 
     return invoice
 
@@ -119,6 +155,23 @@ def anular_factura(factura_id: UUID, request: Request, db: Session = Depends(get
 
     invoice.status = "void"
     db.commit()
+    try:
+        claims = getattr(request.state, "access_claims", None)
+        user_id = claims.get("user_id") if isinstance(claims, dict) else None
+        audit_event(
+            db,
+            action="void",
+            entity_type="invoice",
+            entity_id=str(invoice.id),
+            actor_type="user" if user_id else "system",
+            source="api",
+            tenant_id=str(tenant_id),
+            user_id=str(user_id) if user_id else None,
+            changes={"status": "void", "number": invoice.number},
+            req=request,
+        )
+    except Exception:
+        pass
 
     return {"status": "ok", "message": f"Factura {invoice.number} anulada"}
 
@@ -130,7 +183,25 @@ def emitir_factura(
     db: Session = Depends(get_db),
 ):
     tenant_id = _tenant_uuid(request)
-    return factura_crud.emitir_factura(db, tenant_id, factura_id)
+    issued = factura_crud.emitir_factura(db, tenant_id, factura_id)
+    try:
+        claims = getattr(request.state, "access_claims", None)
+        user_id = claims.get("user_id") if isinstance(claims, dict) else None
+        audit_event(
+            db,
+            action="issue",
+            entity_type="invoice",
+            entity_id=str(issued.id),
+            actor_type="user" if user_id else "system",
+            source="api",
+            tenant_id=str(tenant_id),
+            user_id=str(user_id) if user_id else None,
+            changes={"status": issued.status, "number": issued.number},
+            req=request,
+        )
+    except Exception:
+        pass
+    return issued
 
 
 @router.get("/{factura_id}", response_model=schemas.InvoiceOut)

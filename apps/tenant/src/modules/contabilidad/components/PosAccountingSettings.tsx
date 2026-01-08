@@ -7,8 +7,8 @@ import {
 } from '../services'
 import type { PlanCuenta } from '../services'
 import type { DailyCount } from '../services'
-import { useSectorFullConfig } from '../../../contexts/TenantConfigContext'
-import { useTenantSector } from '../../../contexts/TenantConfigContext'
+import { useCompanySectorFullConfig } from '../../../contexts/CompanyConfigContext'
+import { useCompanySector } from '../../../contexts/CompanyConfigContext'
 
 export default function PosAccountingSettings() {
   const [accounts, setAccounts] = useState<PlanCuenta[]>([])
@@ -26,8 +26,8 @@ export default function PosAccountingSettings() {
   const [dailyCounts, setDailyCounts] = useState<DailyCount[]>([])
   const [reaccounting, setReaccounting] = useState(false)
   const [manualShiftId, setManualShiftId] = useState('')
-  const sector = useTenantSector()
-  const sectorConfig = useSectorFullConfig()
+  const sector = useCompanySector()
+  const sectorConfig = useCompanySectorFullConfig()
   const sectorCode = sector?.plantilla?.toLowerCase() ?? ''
   const sectorDisplayName =
     sectorConfig?.branding?.displayName || sector?.plantilla || 'sector'
@@ -36,6 +36,9 @@ export default function PosAccountingSettings() {
     Boolean(sector?.features?.bakery_sales_account) ||
     sectorCode.includes('panaderia') ||
     sectorCode.includes('bakery')
+const salesAccountLabel = showBakerySalesAccount
+  ? `Cuenta de Ventas (${sectorDisplayName})`
+  : 'Cuenta de Ventas'
   const showLossAccount = sectorConfig?.features?.loss_account ?? true
 
   const options = useMemo(() => {
@@ -75,14 +78,25 @@ export default function PosAccountingSettings() {
     setError(null)
     setSuccess(null)
     try {
+      const required: Array<[keyof PosAccountingSettings, string]> = [
+        ['cash_account_id', 'Cuenta de Caja POS'],
+        ['bank_account_id', 'Cuenta de Bancos / Tarjetas'],
+        ['sales_bakery_account_id', 'Cuenta de Ventas'],
+        ['vat_output_account_id', 'Cuenta de IVA repercutido'],
+      ]
+      const missing = required
+        .filter(([key]) => !String(form[key] || '').trim())
+        .map(([, label]) => label)
+      if (missing.length > 0) {
+        setError(`Faltan configurar: ${missing.join(', ')}`)
+        return
+      }
       const payload: PosAccountingSettings = {
         cash_account_id: form.cash_account_id,
         bank_account_id: form.bank_account_id,
         vat_output_account_id: form.vat_output_account_id,
         loss_account_id: form.loss_account_id || null,
-        sales_bakery_account_id: showBakerySalesAccount
-          ? form.sales_bakery_account_id || null
-          : null,
+        sales_bakery_account_id: form.sales_bakery_account_id,
       }
       await savePosAccountingSettings(payload)
       setSuccess('Configuración guardada')
@@ -148,8 +162,7 @@ export default function PosAccountingSettings() {
       <div className="grid md:grid-cols-2 gap-4">
         {renderSelect('Cuenta de Caja POS', 'cash_account_id')}
         {renderSelect('Cuenta de Bancos / Tarjetas', 'bank_account_id')}
-        {showBakerySalesAccount &&
-          renderSelect(`Cuenta de Ventas (${sectorDisplayName})`, 'sales_bakery_account_id')}
+        {renderSelect(salesAccountLabel, 'sales_bakery_account_id')}
         {renderSelect('Cuenta de IVA repercutido', 'vat_output_account_id')}
         {showLossAccount && renderSelect('Cuenta de Pérdidas / Mermas (opcional)', 'loss_account_id')}
       </div>

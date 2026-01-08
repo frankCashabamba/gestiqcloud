@@ -304,7 +304,7 @@ function ensureExtraFields(base: EntityTypeConfig, remoteItems: RemoteFieldConfi
  *
  * @param base - Configuración base (hardcodeada)
  * @param remoteItems - Items remotos (DB field_configs)
- * @param sectorDynamicAliases - Aliases dinámicos del sector (de useSectorFullConfig)
+ * @param sectorDynamicAliases - Aliases dinámicos del sector (de useCompanySectorFullConfig)
  */
 export function mergeEntityConfig(
   base: EntityTypeConfig,

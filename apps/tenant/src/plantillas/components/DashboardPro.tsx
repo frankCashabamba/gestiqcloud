@@ -4,7 +4,7 @@
 import React, { useState, useEffect, ReactNode } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useMisModulos } from '../../hooks/useMisModulos'
-import { fetchTenantTheme, type ThemeResponse } from '../../services/theme'
+import { fetchCompanyTheme, type ThemeResponse } from '../../services/theme'
 
 interface DashboardProProps {
   sectorName: string
@@ -53,7 +53,7 @@ const DashboardPro: React.FC<DashboardProProps> = ({
   useEffect(() => {
     const loadTheme = async () => {
       try {
-        const themeData = await fetchTenantTheme(empresa)
+        const themeData = await fetchCompanyTheme(empresa)
         if (themeData?.colors) {
           setTheme(themeData)
           const primaryColor = themeData.colors.primary || '#5B8CFF'

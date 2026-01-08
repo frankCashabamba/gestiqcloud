@@ -14,7 +14,7 @@ import AsignarNuevoAdmin from '../pages/AsignarNuevoAdmin'
 import ErrorPage from '../pages/ErrorPage'
 import { EditarEmpresa } from '../pages/EditarEmpresa'
 import { EmpresaModulos } from '../pages/EmpresaModulos'
-import TenantConfiguracion from '../pages/TenantConfiguracion'
+import CompanyConfiguracion from '../pages/CompanyConfiguracion'
 import Migraciones from '../pages/Migraciones'
 import LogsViewer from '../pages/LogsViewer'
 import IncidenciasPanel from '../pages/IncidenciasPanel'
@@ -60,7 +60,7 @@ export default function App() {
           <Route path="modulos/*" element={<ModuleRoutes />} />
           <Route path="empresas/:id/editar" element={<EditarEmpresa />} />
           <Route path="empresas/modulos/:id" element={<EmpresaModulos />} />
-          <Route path="empresas/:id/configuracion" element={<TenantConfiguracion />} />
+          <Route path="empresas/:id/configuracion" element={<CompanyConfiguracion />} />
           <Route path="ops/migraciones" element={<Migraciones />} />
            <Route path="logs" element={<LogsViewer />} />
            <Route path="incidencias" element={<IncidenciasPanel />} />

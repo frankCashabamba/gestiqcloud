@@ -1,6 +1,6 @@
 import api from '../shared/api/client'
 
-export async function runTenantScript(tenantId: string, script: string, args?: Record<string, any>): Promise<{ ok: boolean }> {
+export async function runCompanyScript(tenantId: string, script: string, args?: Record<string, any>): Promise<{ ok: boolean }> {
   const { data } = await api.post(`/api/v1/admin/tenants/${encodeURIComponent(tenantId)}/scripts/run`, { script, args })
   return data
 }

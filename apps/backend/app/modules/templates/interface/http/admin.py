@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
+from app.core.audit_events import audit_event
 from app.modules.templates.services import validate_overlay
 
 router = APIRouter(
@@ -32,7 +33,7 @@ class AssignIn(BaseModel):
 
 
 @router.post("/assign", response_model=dict)
-def assign_template(payload: AssignIn, db: Session = Depends(get_db)):
+def assign_template(payload: AssignIn, request: Request, db: Session = Depends(get_db)):
     db.execute(
         text(
             """
@@ -45,6 +46,23 @@ def assign_template(payload: AssignIn, db: Session = Depends(get_db)):
         {"tid": payload.tenant_id, "key": payload.template_key, "ver": payload.version},
     )
     db.commit()
+    try:
+        claims = getattr(request.state, "access_claims", None)
+        user_id = claims.get("user_id") if isinstance(claims, dict) else None
+        audit_event(
+            db,
+            action="assign",
+            entity_type="template_package",
+            entity_id=str(payload.template_key),
+            actor_type="user" if user_id else "system",
+            source="admin_api",
+            tenant_id=str(payload.tenant_id),
+            user_id=str(user_id) if user_id else None,
+            changes={"version": payload.version},
+            req=request,
+        )
+    except Exception:
+        pass
     return {"ok": True}
 
 
@@ -56,7 +74,7 @@ class OverlayIn(BaseModel):
 
 
 @router.post("/overlays", response_model=dict)
-def create_overlay(payload: OverlayIn, db: Session = Depends(get_db)):
+def create_overlay(payload: OverlayIn, request: Request, db: Session = Depends(get_db)):
     # Load or default limits
     lim = db.execute(
         text("SELECT limits FROM template_policies WHERE tenant_id=CAST(:tid AS uuid)"),
@@ -83,14 +101,52 @@ def create_overlay(payload: OverlayIn, db: Session = Depends(get_db)):
         },
     ).first()
     db.commit()
+    try:
+        claims = getattr(request.state, "access_claims", None)
+        user_id = claims.get("user_id") if isinstance(claims, dict) else None
+        audit_event(
+            db,
+            action="create",
+            entity_type="template_overlay",
+            entity_id=str(row[0]) if row else None,
+            actor_type="user" if user_id else "system",
+            source="admin_api",
+            tenant_id=str(payload.tenant_id),
+            user_id=str(user_id) if user_id else None,
+            changes={"name": payload.name, "active": bool(payload.activate)},
+            req=request,
+        )
+    except Exception:
+        pass
     return {"id": str(row[0])}
 
 
 @router.post("/overlays/{overlay_id}/activate", response_model=dict)
-def activate_overlay(overlay_id: str, db: Session = Depends(get_db)):
+def activate_overlay(overlay_id: str, request: Request, db: Session = Depends(get_db)):
+    row = db.execute(
+        text("SELECT tenant_id FROM template_overlays WHERE id=CAST(:id AS uuid)"),
+        {"id": overlay_id},
+    ).first()
     db.execute(
         text("UPDATE template_overlays SET active=true WHERE id=CAST(:id AS uuid)"),
         {"id": overlay_id},
     )
     db.commit()
+    try:
+        claims = getattr(request.state, "access_claims", None)
+        user_id = claims.get("user_id") if isinstance(claims, dict) else None
+        audit_event(
+            db,
+            action="activate",
+            entity_type="template_overlay",
+            entity_id=str(overlay_id),
+            actor_type="user" if user_id else "system",
+            source="admin_api",
+            tenant_id=str(row[0]) if row and row[0] else None,
+            user_id=str(user_id) if user_id else None,
+            changes={"active": True},
+            req=request,
+        )
+    except Exception:
+        pass
     return {"ok": True}

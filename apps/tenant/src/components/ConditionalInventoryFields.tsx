@@ -9,7 +9,7 @@
  * - Usa useSectorPlaceholders para cargar dinámicamente
  */
 import React from 'react'
-import { useTenantFeatures, useTenantSector } from '../contexts/TenantConfigContext'
+import { useCompanyFeatures, useCompanySector } from '../contexts/CompanyConfigContext'
 import { useSectorPlaceholders, getFieldPlaceholder } from '../hooks/useSectorPlaceholders'
 
 interface ConditionalInventoryFieldsProps {
@@ -23,8 +23,8 @@ export function ConditionalInventoryFields({
   onChange,
   moveType = 'in'
 }: ConditionalInventoryFieldsProps) {
-  const features = useTenantFeatures()
-  const sector = useTenantSector()
+  const features = useCompanyFeatures()
+  const sector = useCompanySector()
   const { placeholders } = useSectorPlaceholders(sector?.plantilla, 'inventory')
 
   const isIncoming = moveType === 'in' || moveType === 'adjustment'

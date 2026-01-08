@@ -4,25 +4,51 @@ import RoleList from './RolesList';
 import RoleForm from './RoleForm';
 import ConfirmDelete from './ConfirmDelete';
 import EditWrapper from './EditWrapper';
-import { defaultPermissionKeys, toPermisosObject } from '@shared/utils/permissions';
 import type { Role, RoleData } from './types/roles';
 import { apiGet, apiPost, apiPut, apiDelete } from '../../../lib/api';
+import { listPermisos, type GlobalPermission } from '../../../services/configuracion/permisos';
 
 const RolesRouter: React.FC = () => {
   const [roles, setRoles] = useState<Role[]>([]);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [permissions, setPermissions] = useState<GlobalPermission[]>([]);
+
+  const toPermMap = (perms: string[] | undefined) => {
+    const keys = new Set<string>(perms || []);
+    permissions.forEach((p) => keys.add(p.key));
+    return Array.from(keys).reduce((acc, key) => {
+      acc[key] = (perms || []).includes(key);
+      return acc;
+    }, {} as Record<string, boolean>);
+  };
 
   useEffect(() => {
     apiGet<Role[]>('/v1/roles-base/')
       .then(data => {
         const normalized = data.map(role => ({
           ...role,
-          permisos: toPermisosObject(role.permisos),
+          permisos: toPermMap(role.permisos),
         }));
         setRoles(normalized);
       })
       .catch(err => console.error('❌ Error al cargar roles:', err));
+    listPermisos()
+      .then(setPermissions)
+      .catch(err => console.error('❌ Error al cargar permisos:', err));
   }, []);
+
+  useEffect(() => {
+    setRoles((prev) =>
+      prev.map((role) => ({
+        ...role,
+        permisos: toPermMap(
+          Object.entries(role.permisos || {})
+            .filter(([, val]) => val)
+            .map(([key]) => key)
+        ),
+      }))
+    );
+  }, [permissions]);
 
   const handleSave = async (roleData: RoleData) => {
     const payload: RoleData = {
@@ -73,10 +99,13 @@ const RolesRouter: React.FC = () => {
       <Routes>
 
         <Route index element={<RoleList roles={roles} onDelete={handleDelete} />} />
-        <Route path="nuevo" element={<RoleForm mode="create" onSubmit={handleSave} />} />
+        <Route
+          path="nuevo"
+          element={<RoleForm mode="create" onSubmit={handleSave} availablePermissions={permissions} />}
+        />
         <Route
           path=":id/editar"
-          element={<EditWrapper roles={roles} onSubmit={handleSave} />}
+          element={<EditWrapper roles={roles} onSubmit={handleSave} availablePermissions={permissions} />}
         />
       </Routes>
 

@@ -1,4 +1,4 @@
-Clientes — Módulo Tenant
+Clientes — Módulo Empresa
 
 Resumen
 - Este módulo implementa el CRUD de clientes en la PWA de tenant y se integra con el sistema centralizado de configuración de campos per‑módulo/per‑tenant.
@@ -10,7 +10,7 @@ Arquitectura del módulo
 - Servicios HTTP: apps/tenant/src/modules/clientes/services.ts
 
 Integración con configuración de campos
-- El formulario obtiene la configuración con GET /api/v1/tenant/settings/fields?module=clientes&empresa=:slug
+- El formulario obtiene la configuración con GET /api/v1/company/settings/fields?module=clientes&empresa=:slug
   - Implementación: apps/tenant/src/modules/clientes/Form.tsx:27
   - La respuesta incluye items: [{ field, visible, required, ord, label?, help? }]
   - El formulario filtra items con visible !== false y renderiza inputs en orden ascendente por ord.
@@ -39,7 +39,7 @@ Cómo añadir un campo (ej. “catalogo”)
    - Opcional: cambia el Modo a ‘tenant’ si quieres que se ignore el sector.
 
 Verificación rápida
-- Llamada directa a API: curl "http://localhost:8000/api/v1/tenant/settings/fields?module=clientes&empresa=kusi-panaderia"
+- Llamada directa a API: curl "http://localhost:8000/api/v1/company/settings/fields?module=clientes&empresa=kusi-panaderia"
   - Debe listar un item con "field":"catalogo" y "visible":true si lo has configurado.
 - UI: abre /:empresa/clientes/nuevo y comprueba que el campo aparece según el orden indicado.
 
@@ -56,7 +56,7 @@ Extender el formulario
   - Definirlo en la configuración de campos (sector o tenant) con un field único y usa help/label para guiar.
 
 Endpoints relacionados
-- GET /api/v1/tenant/settings/fields
+- GET /api/v1/company/settings/fields
   - Params: module=clientes, empresa=:slug (opcional)
 - PUT /api/v1/admin/field-config/tenant
   - Guarda la lista de items para un tenant+módulo.

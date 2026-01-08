@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.middleware.tenant import get_current_user
-from app.models.core.settings import TenantSettings
+from app.models.company.company_settings import CompanySettings
 from app.schemas.settings import ModuleInfo, ModuleListResponse, ModuleSettingsUpdate
 
 router = APIRouter(prefix="/api/v1/settings", tags=["Settings"])
@@ -34,25 +34,19 @@ def get_all_settings(
 ):
     """Get all tenant settings"""
     tenant_id = UUID(current_user["tenant_id"])
-    settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
+    settings = (
+        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+    )
+    base = settings.settings if settings and isinstance(settings.settings, dict) else {}
+    config = base.get("config", {}) if isinstance(base, dict) else {}
+    enabled_modules = base.get("enabled_modules", []) if isinstance(base, dict) else []
 
-    if not settings:
-        settings = TenantSettings(
-            tenant_id=tenant_id,
-            config={},
-            enabled_modules=[],
-        )
-        db.add(settings)
-        db.commit()
-        db.refresh(settings)
-
-    # TODO: Adaptar al schema TenantSettingsResponse completo
     return {
-        "tenant_id": str(settings.tenant_id),
-        "config": settings.config or {},
-        "enabled_modules": settings.enabled_modules or [],
-        "created_at": settings.created_at.isoformat() if settings.created_at else None,
-        "updated_at": settings.updated_at.isoformat() if settings.updated_at else None,
+        "tenant_id": str(tenant_id),
+        "config": config,
+        "enabled_modules": enabled_modules,
+        "created_at": settings.created_at.isoformat() if settings and settings.created_at else None,
+        "updated_at": settings.updated_at.isoformat() if settings and settings.updated_at else None,
     }
 
 
@@ -71,16 +65,20 @@ def get_module_settings(
             detail=f"Módulo '{module}' no encontrado",
         )
 
-    settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
+    settings = (
+        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+    )
 
     if not settings:
         return {}
 
-    module_config = settings.config.get(module, {}) if settings.config else {}
+    base = settings.settings if isinstance(settings.settings, dict) else {}
+    config = base.get("config", {}) if isinstance(base, dict) else {}
+    module_config = config.get(module, {}) if isinstance(config, dict) else {}
 
     return {
         "module": module,
-        "enabled": module in (settings.enabled_modules or []),
+        "enabled": module in (base.get("enabled_modules", []) if isinstance(base, dict) else []),
         "config": module_config,
     }
 
@@ -101,30 +99,28 @@ def update_module_settings(
             detail=f"Módulo '{module}' no encontrado",
         )
 
-    settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
-
+    settings = (
+        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+    )
     if not settings:
-        settings = TenantSettings(
-            tenant_id=tenant_id,
-            config={},
-            enabled_modules=[],
-        )
-        db.add(settings)
+        raise HTTPException(status_code=404, detail="company_settings_missing")
 
-    if settings.config is None:
-        settings.config = {}
+    base = settings.settings if isinstance(settings.settings, dict) else {}
+    config = base.get("config", {}) if isinstance(base, dict) else {}
 
     # Actualizar solo los campos presentes en settings_in
     update_data = settings_in.model_dump(exclude_unset=True)
-    settings.config[module] = update_data
+    config[module] = update_data
+    base["config"] = config
+    settings.settings = base
 
     db.commit()
     db.refresh(settings)
 
     return {
         "module": module,
-        "enabled": module in (settings.enabled_modules or []),
-        "config": settings.config[module],
+        "enabled": module in (base.get("enabled_modules", []) if isinstance(base, dict) else []),
+        "config": config[module],
         "message": "Configuración actualizada exitosamente",
     }
 
@@ -144,21 +140,19 @@ def enable_module(
             detail=f"Módulo '{module}' no encontrado",
         )
 
-    settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
-
+    settings = (
+        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+    )
     if not settings:
-        settings = TenantSettings(
-            tenant_id=tenant_id,
-            config={},
-            enabled_modules=[],
-        )
-        db.add(settings)
+        raise HTTPException(status_code=404, detail="company_settings_missing")
 
-    if settings.enabled_modules is None:
-        settings.enabled_modules = []
+    base = settings.settings if isinstance(settings.settings, dict) else {}
+    enabled_modules = list(base.get("enabled_modules", [])) if isinstance(base, dict) else []
 
-    if module not in settings.enabled_modules:
-        settings.enabled_modules.append(module)
+    if module not in enabled_modules:
+        enabled_modules.append(module)
+        base["enabled_modules"] = enabled_modules
+        settings.settings = base
         db.commit()
         db.refresh(settings)
 
@@ -184,17 +178,23 @@ def disable_module(
             detail=f"Módulo '{module}' no encontrado",
         )
 
-    settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
+    settings = (
+        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+    )
+    base = settings.settings if settings and isinstance(settings.settings, dict) else {}
+    enabled_modules = list(base.get("enabled_modules", [])) if isinstance(base, dict) else []
 
-    if not settings or not settings.enabled_modules:
+    if not settings or not enabled_modules:
         return {
             "module": module,
             "enabled": False,
             "message": "Módulo ya está desactivado",
         }
 
-    if module in settings.enabled_modules:
-        settings.enabled_modules.remove(module)
+    if module in enabled_modules:
+        enabled_modules.remove(module)
+        base["enabled_modules"] = enabled_modules
+        settings.settings = base
         db.commit()
         db.refresh(settings)
 
@@ -213,9 +213,11 @@ def list_modules(
     """Listar todos los módulos disponibles"""
     tenant_id = UUID(current_user["tenant_id"])
 
-    settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
-
-    enabled_modules = settings.enabled_modules if settings else []
+    settings = (
+        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+    )
+    base = settings.settings if settings and isinstance(settings.settings, dict) else {}
+    enabled_modules = base.get("enabled_modules", []) if isinstance(base, dict) else []
 
     modules = [
         ModuleInfo(
@@ -228,3 +230,4 @@ def list_modules(
     ]
 
     return ModuleListResponse(modules=modules)
+

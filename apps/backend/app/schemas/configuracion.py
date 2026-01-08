@@ -78,8 +78,21 @@ class GlobalActionPermissionSchema(BaseModel):
 
     id: int
     key: str
+    module: str | None = None
     description: str | None
     model_config = ConfigDict(from_attributes=True)
+
+
+class GlobalActionPermissionCreate(BaseModel):
+    key: str
+    module: str
+    description: str | None = None
+
+
+class GlobalActionPermissionUpdate(BaseModel):
+    key: str | None = None
+    module: str | None = None
+    description: str | None = None
 
 
 class AuthenticatedUser(BaseModel):

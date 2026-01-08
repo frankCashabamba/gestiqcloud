@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { listRecipes, type Recipe } from '../../services/api/recetas'
 import { listProducts, type Product } from '../../services/api/products'
-import { getTenantSettings, getCurrencySymbol, getDefaultTaxRate, type TenantSettings } from '../../services/tenantSettings'
+import { getCompanySettings, getCurrencySymbol, getDefaultTaxRate, type CompanySettings } from '../../services/companySettings'
 import tenantApi from '../../shared/api/client'
 
 export default function RecetasList() {
@@ -14,7 +14,7 @@ export default function RecetasList() {
   const [error, setError] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [products, setProducts] = useState<Product[]>([])
-  const [settings, setSettings] = useState<TenantSettings | null>(null)
+  const [settings, setSettings] = useState<CompanySettings | null>(null)
   const [category, setCategory] = useState<string>('all')
   const [page, setPage] = useState<number>(1)
   const [perPage, setPerPage] = useState<number>(9)
@@ -32,7 +32,7 @@ export default function RecetasList() {
         const [rs, ps, cfg] = await Promise.all([
           listRecipes({ limit: 500 }),
           listProducts({ limit: 500 }),
-          getTenantSettings(),
+          getCompanySettings(),
         ])
         if (!cancelled) {
           setRecipes(Array.isArray(rs) ? rs : [])
@@ -212,9 +212,9 @@ export default function RecetasList() {
             title="Guardar margen como ajuste del tenant"
             onClick={async () => {
               try {
-                const { data: current } = await tenantApi.get<any>('/api/v1/tenant/settings/fiscal')
+                const { data: current } = await tenantApi.get<any>('/api/v1/company/settings/fiscal')
                 const merged = { ...(current || {}), produccion_margin_multiplier: multiplier }
-                await tenantApi.put('/api/v1/tenant/settings/fiscal', merged)
+                await tenantApi.put('/api/v1/company/settings/fiscal', merged)
                 alert('Margen guardado en ajustes del tenant')
               } catch (e: any) {
                 console.error('Error guardando margen:', e)

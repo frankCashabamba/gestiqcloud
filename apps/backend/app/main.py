@@ -43,6 +43,7 @@ from .middleware.request_log import RequestLogMiddleware
 from .middleware.security_headers import security_headers_middleware
 from .platform.http.router import build_api_router
 from .telemetry.otel import init_fastapi
+from app.routers.tenant import roles as tenant_roles_router
 
 # ============================================================================
 # DOCS ASSETS SETUP
@@ -480,17 +481,7 @@ app.include_router(build_api_router(), prefix="/api/v1")
 
 # Tenant Settings (Configuración centralizada del Tenant)
 # Consolidado en CompanySettings - única fuente de verdad para configuración por tenant
-try:
-    from app.routers.tenant_settings import (
-        router as tenant_settings_router,
-        router_compat as tenant_settings_router_compat,
-    )
-
-    app.include_router(tenant_settings_router)  # Prefix="/api/v1/company/*"
-    app.include_router(tenant_settings_router_compat)  # Compat: /api/v1/tenants/*, /api/v1/admin/empresas/*
-    _router_logger.info("Tenant Settings routers mounted")
-except Exception as e:
-    _router_logger.error(f"Error mounting Tenant Settings router: {e}")
+_router_logger.info("Company Settings routers mounted via build_api_router()")
 
 # Sector Templates (Plantillas de Sector)
 try:
@@ -546,10 +537,10 @@ except Exception as e:
 
 # Public Tenant Settings (unified)
 try:
-    from app.routers.tenant_settings_public import router as tenant_settings_public_router
+    from app.routers.company_settings_public import router as company_settings_public_router
 
-    app.include_router(tenant_settings_public_router, prefix="/api/v1")
-    _router_logger.info("Tenant Settings (public) mounted at /api/v1/settings/tenant")
+    app.include_router(company_settings_public_router, prefix="/api/v1")
+    _router_logger.info("Company Settings (public) mounted at /api/v1/company/settings/config")
 except Exception as e:
     _router_logger.error(f"Error mounting Tenant Settings public router: {e}")
 
@@ -701,5 +692,6 @@ try:
     from app.api.v1.tenant import auth as _tenant_auth
 
     app.include_router(_tenant_auth.router, prefix="/api/v1/tenant")
+    app.include_router(tenant_roles_router.router, prefix="/api/v1")
 except Exception:
     pass

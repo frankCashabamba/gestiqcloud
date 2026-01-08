@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react'
-import { createRol, updateRol, type RolCreatePayload } from './services'
+import {
+  createRol,
+  updateRol,
+  listGlobalPermissions,
+  type GlobalPermission,
+  type RolCreatePayload,
+} from './services'
 import type { Rol } from './types'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { useSectorPlaceholder } from '../../hooks/useSectorPlaceholders'
-import { useTenant } from '../../contexts/TenantContext'
+import { useCompany } from '../../contexts/CompanyContext'
 
 type Props = {
   rol?: Rol | null
@@ -13,11 +19,13 @@ type Props = {
 
 export default function RolModal({ rol, onClose, onSuccess }: Props) {
   const [nombre, setNombre] = useState('')
-  const [descripcion, setDescripcion] = useState('')
-  const [permisos, setPermisos] = useState<Record<string, boolean>>({})
+  const [description, setDescription] = useState('')
+  const [permissions, setPermissions] = useState<Record<string, boolean>>({})
+  const [availablePermissions, setAvailablePermissions] = useState<GlobalPermission[]>([])
+  const [moduleFilter, setModuleFilter] = useState('all')
   const [loading, setLoading] = useState(false)
   const { success, error: toastError } = useToast()
-  const { sector } = useTenant()
+  const { sector } = useCompany()
   const { placeholder: nombrePlaceholder } = useSectorPlaceholder(
     sector?.plantilla || null,
     'nombre',
@@ -27,10 +35,25 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
   useEffect(() => {
     if (rol) {
       setNombre(rol.name)
-      setDescripcion(rol.descripcion || '')
-      setPermisos(rol.permisos || {})
+      setDescription(rol.description || '')
+      setPermissions(rol.permissions || {})
     }
   }, [rol])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const perms = await listGlobalPermissions()
+        if (!cancelled) setAvailablePermissions(perms)
+      } catch (e: any) {
+        if (!cancelled) {
+          toastError(getErrorMessage(e))
+        }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [toastError])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -44,8 +67,8 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
       setLoading(true)
       const payload: RolCreatePayload = {
         name: nombre.trim(),
-        descripcion: descripcion.trim() || undefined,
-        permisos
+        description: description.trim() || undefined,
+        permissions
       }
 
       if (rol) {
@@ -66,31 +89,36 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
   }
 
   const togglePermiso = (key: string) => {
-    setPermisos(prev => ({
+    setPermissions(prev => ({
       ...prev,
       [key]: !prev[key]
     }))
   }
 
   // Permisos comunes
-  const permisosDisponibles = [
-    { key: 'ver_ventas', label: 'View Sales' },
-    { key: 'crear_ventas', label: 'Crear Ventas' },
-    { key: 'editar_ventas', label: 'Editar Ventas' },
-    { key: 'eliminar_ventas', label: 'Eliminar Ventas' },
-    { key: 'ver_compras', label: 'Ver Compras' },
-    { key: 'crear_compras', label: 'Crear Compras' },
-    { key: 'editar_compras', label: 'Editar Compras' },
-    { key: 'ver_inventario', label: 'Ver Inventario' },
-    { key: 'editar_inventario', label: 'Editar Inventario' },
-    { key: 'ver_clientes', label: 'View Customers' },
-    { key: 'editar_clientes', label: 'Editar Clientes' },
-    { key: 'ver_proveedores', label: 'Ver Proveedores' },
-    { key: 'editar_proveedores', label: 'Editar Proveedores' },
-    { key: 'ver_reportes', label: 'Ver Reportes' },
-    { key: 'ver_configuracion', label: 'Ver Configuración' },
-    { key: 'editar_configuracion', label: 'Editar Configuración' },
-  ]
+  const moduleFromPermission = (p: GlobalPermission) => {
+    if (p.module) return p.module
+    const parts = (p.key || '').split('.')
+    return parts.length > 1 ? parts[0] : 'general'
+  }
+
+  const moduleCounts = availablePermissions.reduce((acc, p) => {
+    const mod = moduleFromPermission(p)
+    acc.set(mod, (acc.get(mod) || 0) + 1)
+    return acc
+  }, new Map<string, number>())
+
+  const modules = Array.from(moduleCounts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  const permisosDisponibles = availablePermissions
+    .filter((p) => moduleFilter === 'all' || moduleFromPermission(p) === moduleFilter)
+    .map((p) => ({
+      key: p.key,
+      label: p.description ? `${p.description} (${p.key})` : p.key,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label))
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
@@ -122,8 +150,8 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
               Descripción
             </label>
             <textarea
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               placeholder="Describe las responsabilidades de este rol"
               rows={3}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
@@ -134,12 +162,25 @@ export default function RolModal({ rol, onClose, onSuccess }: Props) {
             <label className="block text-sm font-medium text-slate-700 mb-3">
               Permisos
             </label>
+            <div className="flex items-center gap-3 mb-3">
+              <label className="text-sm text-slate-600">Módulo</label>
+              <select
+                value={moduleFilter}
+                onChange={(e) => setModuleFilter(e.target.value)}
+                className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+              >
+                <option value="all">Todos</option>
+                {modules.map((m) => (
+                  <option key={m.name} value={m.name}>{m.name} ({m.count})</option>
+                ))}
+              </select>
+            </div>
             <div className="grid grid-cols-2 gap-3 max-h-64 overflow-y-auto border border-slate-200 rounded-md p-3">
               {permisosDisponibles.map(({ key, label }) => (
                 <label key={key} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-2 rounded">
                   <input
                     type="checkbox"
-                    checked={permisos[key] || false}
+                    checked={permissions[key] || false}
                     onChange={() => togglePermiso(key)}
                     className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                   />

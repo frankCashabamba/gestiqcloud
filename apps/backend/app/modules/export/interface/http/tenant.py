@@ -3,14 +3,14 @@ from __future__ import annotations
 import csv
 import io
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.db.rls import ensure_rls
+from app.db.rls import ensure_rls, tenant_id_from_request
 
 router = APIRouter(
     prefix="/export",
@@ -33,9 +33,16 @@ def _csv(rows, header):
 
 
 @router.get("/products.csv", response_class=Response)
-def export_products(db: Session = Depends(get_db)):
+def export_products(request: Request, db: Session = Depends(get_db)):
+    tenant_id = tenant_id_from_request(request)
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="missing_tenant")
     rows = db.execute(
-        text("SELECT id, COALESCE(sku,'') AS sku, name, price, unit FROM products ORDER BY id")
+        text(
+            "SELECT id, COALESCE(sku,'') AS sku, name, price, unit "
+            "FROM products WHERE tenant_id=:tid ORDER BY id"
+        ),
+        {"tid": tenant_id},
     )
     items = [dict(r) for r in rows.mappings().all()]
     data = _csv(items, ["id", "sku", "name", "price", "unit"])
@@ -47,11 +54,17 @@ def export_products(db: Session = Depends(get_db)):
 
 
 @router.get("/clients.csv", response_class=Response)
-def export_clients(db: Session = Depends(get_db)):
+def export_clients(request: Request, db: Session = Depends(get_db)):
+    tenant_id = tenant_id_from_request(request)
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="missing_tenant")
     rows = db.execute(
         text(
-            "SELECT id, nombre, COALESCE(email,'') AS email, COALESCE(telefono,'') AS telefono FROM clients ORDER BY id"
-        )
+            "SELECT id, nombre, COALESCE(email,'') AS email, "
+            "COALESCE(telefono,'') AS telefono FROM clients "
+            "WHERE tenant_id=:tid ORDER BY id"
+        ),
+        {"tid": tenant_id},
     )
     items = [dict(r) for r in rows.mappings().all()]
     data = _csv(items, ["id", "nombre", "email", "telefono"])
@@ -63,11 +76,16 @@ def export_clients(db: Session = Depends(get_db)):
 
 
 @router.get("/stock.csv", response_class=Response)
-def export_stock(db: Session = Depends(get_db)):
+def export_stock(request: Request, db: Session = Depends(get_db)):
+    tenant_id = tenant_id_from_request(request)
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="missing_tenant")
     rows = db.execute(
         text(
-            "SELECT warehouse_id, product_id, qty FROM stock_items ORDER BY warehouse_id, product_id"
-        )
+            "SELECT warehouse_id, product_id, qty FROM stock_items "
+            "WHERE tenant_id=:tid ORDER BY warehouse_id, product_id"
+        ),
+        {"tid": tenant_id},
     )
     items = [dict(r) for r in rows.mappings().all()]
     data = _csv(items, ["warehouse_id", "product_id", "qty"])

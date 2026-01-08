@@ -83,7 +83,7 @@ export default function FacturasList() {
       <td>
       <EinvoiceStatus
         invoiceId={v.id.toString()}
-          country="ES"  // TODO: Detectar desde tenant config
+          country="ES"  // TODO: Detectar desde company config
             canSend={v.estado === 'posted'}
             />
           </td>

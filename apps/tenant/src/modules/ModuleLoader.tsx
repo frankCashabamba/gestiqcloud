@@ -14,6 +14,7 @@ const PANELS = import.meta.glob('./*/Panel.tsx')
 const ALIASES: Record<string, string> = {
   // Rutas legacy -> carpeta real
   imports: 'importador',
+  reports: 'reportes',
 }
 
 export default function ModuleLoader() {
