@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { createPermiso, getPermiso, updatePermiso, type GlobalPermission } from '../../../services/configuracion/permisos'
 import { useToast, getErrorMessage } from '../../../shared/toast'
 
-type FormT = Omit<GlobalPermission, 'id'>
+type FormT = { key: string; module: string; description: string }
 
 export default function PermisoForm() {
   const { id } = useParams()

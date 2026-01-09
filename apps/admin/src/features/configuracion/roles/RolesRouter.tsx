@@ -4,7 +4,7 @@ import RoleList from './RolesList';
 import RoleForm from './RoleForm';
 import ConfirmDelete from './ConfirmDelete';
 import EditWrapper from './EditWrapper';
-import type { Role, RoleData } from './types/roles';
+import type { Role, RoleData, RoleFromBackend } from './types/roles';
 import { apiGet, apiPost, apiPut, apiDelete } from '../../../lib/api';
 import { listPermisos, type GlobalPermission } from '../../../services/configuracion/permisos';
 
@@ -23,7 +23,7 @@ const RolesRouter: React.FC = () => {
   };
 
   useEffect(() => {
-    apiGet<Role[]>('/v1/roles-base/')
+    apiGet<RoleFromBackend[]>('/v1/roles-base/')
       .then(data => {
         const normalized = data.map(role => ({
           ...role,
@@ -64,7 +64,7 @@ const RolesRouter: React.FC = () => {
 
       const normalized: Role = {
         ...saved,
-        permisos: toPermisosObject(saved.permisos),
+        permisos: toPermMap(saved.permisos),
         id: saved.id!,
       };
 
