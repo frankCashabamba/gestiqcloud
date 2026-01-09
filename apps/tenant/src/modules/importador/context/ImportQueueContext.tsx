@@ -15,7 +15,7 @@ const env =
     : ((globalThis as any).__IMPORTS_ENV__ || {})
 const OCR_RECHECK_DELAY_MS = Number(env.VITE_IMPORTS_JOB_RECHECK_INTERVAL ?? 2000)
 
-type Row = Record<string, string>
+type Row = Record<string, string | number>
 type ItemStatus = 'pending' | 'processing' | 'ready' | 'saving' | 'saved' | 'duplicate' | 'error'
 
 export type QueueItem = {
@@ -286,7 +286,7 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
         if (docType === 'products') {
           normalizedRows = normalizarProductos(rows) as Row[]
         } else {
-          normalizedRows = normalizarDocumento(rows, {}) as Row[]
+          normalizedRows = normalizarDocumento(rows, {})
         }
       } else {
         // Normalizar campos OCR al schema canónico antes de enviar al backend

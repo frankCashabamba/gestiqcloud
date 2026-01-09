@@ -49,7 +49,7 @@ export default function MarginsDashboard() {
       try {
         const [ws, prods] = await Promise.all([fetchBodegas(), listProducts({ limit: 500 })])
         if (!mounted) return
-        setWarehouses(ws.map((w) => ({ id: w.id, name: w.name })))
+        setWarehouses(ws.map((w) => ({ id: String(w.id), name: w.name })))
         setProducts(prods.map((p) => ({ id: p.id, name: p.name })))
       } catch {}
     })()

@@ -1756,7 +1756,7 @@ const setLineNote = (index: number) => {
                                             price: Number(createProductForm.price) || 0,
                                             stock: Number(createProductForm.stock) || 0,
                                             iva_tasa: Number(createProductForm.iva_tasa) || 0,
-                                            category:
+                                            categoria:
                                                 createProductForm.categoria.trim() ||
                                                 (selectedCategory !== '*' ? selectedCategory : undefined),
                                             unit: 'unit',
