@@ -15,7 +15,7 @@ const env =
     : ((globalThis as any).__IMPORTS_ENV__ || {})
 const OCR_RECHECK_DELAY_MS = Number(env.VITE_IMPORTS_JOB_RECHECK_INTERVAL ?? 2000)
 
-type Row = Record<string, string | number>
+type Row = Record<string, string>
 type ItemStatus = 'pending' | 'processing' | 'ready' | 'saving' | 'saved' | 'duplicate' | 'error'
 
 export type QueueItem = {
@@ -281,7 +281,7 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
       const isExcelOrCsv =
         nameLower.endsWith('.xlsx') || nameLower.endsWith('.xls') || nameLower.endsWith('.csv')
 
-      let normalizedRows: Row[]
+      let normalizedRows: Record<string, unknown>[]
       if (isExcelOrCsv) {
         if (docType === 'products') {
           normalizedRows = normalizarProductos(rows) as Row[]

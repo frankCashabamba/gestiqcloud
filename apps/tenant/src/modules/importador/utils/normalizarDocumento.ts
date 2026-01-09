@@ -1,4 +1,4 @@
-type Row = Record<string, string | number>
+type Row = Record<string, string>
 type Mapa = Partial<Record<'fecha'|'concepto'|'monto', string>>
 
 export function normalizarDocumento(rows: Row[], mapa: Mapa) {
