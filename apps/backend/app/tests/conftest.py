@@ -14,18 +14,29 @@ def _ensure_test_env():
     os.environ.setdefault("FRONTEND_URL", "http://localhost:5173")
     os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
     os.environ.setdefault("TENANT_NAMESPACE_UUID", str(uuid.uuid4()))
-    os.environ.setdefault("IMPORTS_ENABLED", "1")
-    os.environ.setdefault("RATE_LIMIT_ENABLED", "0")
-    os.environ.setdefault("ENDPOINT_RATE_LIMIT_ENABLED", "0")
-    os.environ.setdefault("LOGIN_RATE_LIMIT_ENABLED", "0")
+    os.environ["IMPORTS_ENABLED"] = "1"
+    os.environ["IMPORTS_SKIP_NATIVE_PDF"] = "0"
+    os.environ["IMPORTS_RUNNER_MODE"] = "inline"
+    os.environ["IMPORTS_MAX_PAGES"] = "20"
+    os.environ["RATE_LIMIT_ENABLED"] = "0"
+    os.environ["ENDPOINT_RATE_LIMIT_ENABLED"] = "0"
+    os.environ["LOGIN_RATE_LIMIT_ENABLED"] = "0"
     # Disable Redis for tests (use in-memory fallback)
-    os.environ.setdefault("REDIS_URL", "")
-    os.environ.setdefault("DISABLE_REDIS", "1")
+    os.environ["REDIS_URL"] = ""
+    os.environ["DISABLE_REDIS"] = "1"
     # Set consistent JWT secrets for tests
     # Must use the same secret for both to ensure tokens signed with one can be verified with the other
     test_secret = "test-secret-key-test-secret-key-test-secret-key-1234567890"
     os.environ.setdefault("SECRET_KEY", test_secret)
     os.environ.setdefault("JWT_SECRET_KEY", test_secret)
+
+    # Ensure JWT token service picks up test secrets even if it was initialized early.
+    try:
+        from app.core.jwt_provider import reset_token_service
+
+        reset_token_service()
+    except Exception:
+        pass
 
     # Clean up old SQLite test database to prevent stale schema issues
     _recreate_sqlite_db_if_needed()
@@ -69,13 +80,15 @@ def _load_all_models():
         "app.models.tenant",
         # Imports pipeline models (UUID/JSON fields are SQLite-friendly in tests)
         "app.models.core.modelsimport",
-        "app.models.inventory.warehouse",
-        # POS models
-        "app.models.pos.receipt",
-        "app.models.pos.register",
-        "app.models.pos.doc_series",
-        # Import models
-        "app.models.imports",
+          "app.models.inventory.warehouse",
+          # POS models
+          "app.models.pos.receipt",
+          "app.models.pos.register",
+          "app.models.pos.doc_series",
+          # Import models
+          "app.models.imports",
+          # UI config needed by sector rules seeding
+          "app.models.core.ui_field_config",
     ]
     for m in modules:
         importlib.import_module(m)
@@ -198,7 +211,8 @@ def client() -> TestClient:
     # Ensure imports router is mounted in test env (fallbacks)
     try:
         has_imports = any(
-            getattr(r, "path", "").startswith("/api/v1/imports") for r in app.router.routes
+            (getattr(r, "path", "") or "").rstrip("/") == "/api/v1/imports/batches"
+            for r in app.router.routes
         )
     except Exception:
         has_imports = False
@@ -277,8 +291,9 @@ def seed_sector_config(db):
     """Seed mínimo para sectores/templates cuando la BD de pruebas no tiene datos."""
     from app.models.company.company import SectorTemplate
     from app.models.core.ui_field_config import SectorFieldDefault
+    from sqlalchemy.orm.attributes import flag_modified
 
-    existing_templates = {tpl.code for tpl in db.query(SectorTemplate).all()}
+    existing_templates = {tpl.code: tpl for tpl in db.query(SectorTemplate).all()}
     sectors = {
         "panaderia": {
             "name": "Panadería",
@@ -381,7 +396,8 @@ def seed_sector_config(db):
 
     # Crear templates si faltan
     for code, cfg in sectors.items():
-        if code not in existing_templates:
+        existing_tpl = existing_templates.get(code)
+        if not existing_tpl:
             tpl = SectorTemplate(
                 code=code,
                 name=cfg["name"],
@@ -390,6 +406,13 @@ def seed_sector_config(db):
                 is_active=True,
             )
             db.add(tpl)
+        else:
+            config = existing_tpl.template_config or {}
+            config["defaults"] = cfg["defaults"]
+            config["fields"] = cfg["fields"]
+            existing_tpl.template_config = config
+            flag_modified(existing_tpl, "template_config")
+            existing_tpl.is_active = True
 
     db.flush()
 
@@ -429,6 +452,7 @@ def superuser_factory(db):
         username: str | None = None,
         email: str | None = None,
         password: str = "admin123",
+        tenant_id: uuid.UUID | None = None,
     ):
         from app.models.auth.useradmis import SuperUser
         from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
@@ -446,16 +470,59 @@ def superuser_factory(db):
             .first()
         )
         if existing:
+            if password:
+                existing.password_hash = hasher.hash(password)
+            if tenant_id:
+                from app.models.company.company_user import CompanyUser
+
+                existing_company_user = db.get(CompanyUser, existing.id)
+                if not existing_company_user:
+                    company_user = CompanyUser(
+                        id=existing.id,
+                        tenant_id=tenant_id,
+                        first_name=(username or "Admin")[:100],
+                        last_name="User"[:100],
+                        email=email,
+                        username=username,
+                        is_active=True,
+                        is_company_admin=True,
+                        password_hash=existing.password_hash,
+                        is_verified=True,
+                    )
+                    db.add(company_user)
+            db.commit()
+            db.refresh(existing)
             return existing
+
+        password_hashed = hasher.hash(password)
         su = SuperUser(  # noqa: F841
             username=username,
             email=email,
-            password_hash=hasher.hash(password),
+            password_hash=password_hashed,
             is_superadmin=True,
             is_staff=True,
             is_active=True,
         )
         db.add(su)
+        # Create corresponding company user for tenant-based tests
+        if tenant_id:
+            from app.models.company.company_user import CompanyUser
+
+            existing_company_user = db.get(CompanyUser, su.id)
+            if not existing_company_user:
+                company_user = CompanyUser(
+                    id=su.id,
+                    tenant_id=tenant_id,
+                    first_name=(username or "Admin")[:100],
+                    last_name="User"[:100],
+                    email=email,
+                    username=username,
+                    is_active=True,
+                    is_company_admin=True,
+                    password_hash=password_hashed,
+                    is_verified=True,
+                )
+                db.add(company_user)
         db.commit()
         db.refresh(su)
         return su
@@ -710,8 +777,8 @@ def tenant_with_data(db):
         try:
             db.execute(
                 text(
-                    "INSERT INTO products (id, tenant_id, name, sku) "
-                    "VALUES (:id, :tid, :name, :sku) ON CONFLICT DO NOTHING"
+                    "INSERT INTO products (id, tenant_id, name, sku, active, stock, unit) "
+                    "VALUES (:id, :tid, :name, :sku, TRUE, 0, 'unit') ON CONFLICT DO NOTHING"
                 ),
                 {"id": product_id, "tid": tid, "name": "Test Product", "sku": "TEST-001"},
             )
@@ -746,3 +813,6 @@ def tenant_minimal(db):
         "tenant_id": tid,
         "tenant_id_str": str(tid),
     }
+
+
+

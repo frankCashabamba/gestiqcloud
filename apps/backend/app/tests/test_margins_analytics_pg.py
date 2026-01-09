@@ -34,7 +34,7 @@ def test_margins_endpoints_return_snapshot(db: Session, tenant_minimal, superuse
     db.execute(text(f"SET app.tenant_id = '{tid_str}'"))
     db.execute(text("SET session_replication_role = REPLICA"))
 
-    user = superuser_factory(username="pos_margins_tester")
+    user = superuser_factory(username="pos_margins_tester", tenant_id=tid)
 
     class _State:
         access_claims = {"tenant_id": tid_str, "user_id": str(user.id)}
@@ -44,7 +44,10 @@ def test_margins_endpoints_return_snapshot(db: Session, tenant_minimal, superuse
 
     product_id = _uuid.uuid4()
     db.execute(
-        text("INSERT INTO products (id, tenant_id, name, sku) VALUES (:id, :tid, :name, :sku)"),
+        text(
+            "INSERT INTO products (id, tenant_id, name, sku, active, stock, unit) "
+            "VALUES (:id, :tid, :name, :sku, TRUE, 0, 'unit')"
+        ),
         {"id": product_id, "tid": tid, "name": "Margins Product", "sku": "M-001"},
     )
 

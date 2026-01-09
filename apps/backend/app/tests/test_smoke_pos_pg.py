@@ -40,7 +40,7 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
     db.execute(text("SET session_replication_role = REPLICA"))
 
     # Create a valid superuser for the test
-    user = superuser_factory(username="pos_tester")
+    user = superuser_factory(username="pos_tester", tenant_id=tid)
 
     class _State:
         access_claims = {"tenant_id": tid_str, "user_id": str(user.id)}
@@ -53,7 +53,8 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
     try:
         db.execute(
             text(
-                "INSERT INTO products (id, tenant_id, name, sku) " "VALUES (:id, :tid, :name, :sku)"
+                "INSERT INTO products (id, tenant_id, name, sku, active, stock, unit) "
+                "VALUES (:id, :tid, :name, :sku, TRUE, 0, 'unit')"
             ),
             {
                 "id": product_id,

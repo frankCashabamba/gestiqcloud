@@ -29,7 +29,8 @@ def test_smoke_sales_order_confirm_creates_reserve(db: Session, tenant_minimal):
     try:
         db.execute(
             text(
-                "INSERT INTO products (id, tenant_id, name, sku) " "VALUES (:id, :tid, :name, :sku)"
+                "INSERT INTO products (id, tenant_id, name, sku, active, stock, unit) "
+                "VALUES (:id, :tid, :name, :sku, TRUE, 0, 'unit')"
             ),
             {
                 "id": product_id,

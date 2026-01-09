@@ -578,17 +578,19 @@ except Exception as e:
 
 # Imports router fallback safeguard
 _IMPORTS_PRIVATE_MARKERS = (
-    "/api/v1/imports/excel",
-    "/api/v1/imports/procesar",
-    "/api/v1/imports/documento",
-    "/api/v1/imports/uploads",
+    "/api/v1/imports/batches",
 )
 try:
-    has_imports = any(
-        getattr(r, "path", "").startswith(marker)
-        for r in app.router.routes
-        for marker in _IMPORTS_PRIVATE_MARKERS
-    )
+    def _has_imports_with_post(routes):
+        markers = {m.rstrip("/") for m in _IMPORTS_PRIVATE_MARKERS}
+        for rt in routes:
+            path = (getattr(rt, "path", "") or "").rstrip("/")
+            methods = getattr(rt, "methods", None) or set()
+            if "POST" in methods and path in markers:
+                return True
+        return False
+
+    has_imports = _has_imports_with_post(app.router.routes)
 except Exception:
     has_imports = False
 if not has_imports:

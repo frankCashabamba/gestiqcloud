@@ -31,17 +31,11 @@ class OCRConfig:
             max_pages=int(os.getenv("IMPORTS_MAX_PAGES", "20")),
             omp_thread_limit=int(os.getenv("OMP_THREAD_LIMIT", "1")),
             enable_cache=os.getenv("IMPORTS_OCR_CACHE", "1") == "1",
-            skip_native_pdf=os.getenv("IMPORTS_SKIP_NATIVE_PDF", "1") == "1",
+            skip_native_pdf=os.getenv("IMPORTS_SKIP_NATIVE_PDF", "0") == "1",
             enable_qr=os.getenv("IMPORTS_ENABLE_QR", "1") == "1",
         )
 
 
-_CONFIG: OCRConfig | None = None
-
-
 def get_ocr_config() -> OCRConfig:
-    """Get cached OCR configuration."""
-    global _CONFIG
-    if _CONFIG is None:
-        _CONFIG = OCRConfig.from_env()
-    return _CONFIG
+    """Get OCR configuration reflecting current environment."""
+    return OCRConfig.from_env()

@@ -286,7 +286,10 @@ class Settings(BaseSettings):
     EMAIL_USE_TLS: bool = True
     EMAIL_HOST_USER: str | None = None
     EMAIL_HOST_PASSWORD: str | None = None
-    DEFAULT_FROM_EMAIL: str = "no-reply@localhost"
+    DEFAULT_FROM_EMAIL: str = Field(
+        default="noreply@gestiqcloud.com",
+        description="Email address to use as sender (must be configured in production)"
+    )
     EMAIL_DEV_LOG_ONLY: bool = False
 
     # Password reset/link base

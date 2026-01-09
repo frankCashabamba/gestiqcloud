@@ -20,7 +20,10 @@ class TemplateEngine:
         template_path = self._select_template(doc)
         template = self.env.get_template(template_path)
         data = doc.model_dump()
-        return template.render(**data)
+        html = template.render(**data)
+        if not html.endswith("\n"):
+            html += "\n"
+        return html
 
     def _select_template(self, doc: DocumentModel) -> str:
         doc_type = doc.document.type.lower()

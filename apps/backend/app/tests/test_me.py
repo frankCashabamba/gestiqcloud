@@ -52,10 +52,16 @@ def test_admin_refresh_rotation(client: TestClient, db, superuser_factory):
     assert r.status_code == 200
     old_rt = r.cookies.get("refresh_token")
     assert old_rt
-
-    # usar el cookie jar del cliente (sin cookies= por petición)
-    client.cookies.set("refresh_token", old_rt)
-    r2 = client.post("/api/v1/admin/auth/refresh")
+    r2 = client.post(
+        "/api/v1/admin/auth/refresh",
+        headers={"Cookie": f"refresh_token={old_rt}"},
+    )
     assert r2.status_code == 200
     new_rt = r2.cookies.get("refresh_token")
     assert new_rt and new_rt != old_rt
+
+
+
+
+
+

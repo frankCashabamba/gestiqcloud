@@ -1658,8 +1658,8 @@ def checkout(
         totals = db.execute(
             text(
                 "SELECT "
-                "COALESCE(SUM(rl.qty * rl.unit_price * (1 - rl.discount_pct/100)), 0) AS subtotal, "
-                "COALESCE(SUM(rl.qty * rl.unit_price * (1 - rl.discount_pct/100) * rl.tax_rate), 0) AS tax "
+                "COALESCE(SUM(ABS(rl.qty) * rl.unit_price * (1 - rl.discount_pct/100)), 0) AS subtotal, "
+                "COALESCE(SUM(ABS(rl.qty) * rl.unit_price * (1 - rl.discount_pct/100) * rl.tax_rate), 0) AS tax "
                 "FROM pos_receipt_lines rl "
                 "WHERE rl.receipt_id = :rid"
             ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),

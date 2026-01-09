@@ -4,6 +4,7 @@ CRM Database Models
 
 import uuid
 from datetime import datetime
+from enum import Enum
 
 from sqlalchemy import JSON
 from sqlalchemy import Enum as SAEnum
@@ -24,6 +25,11 @@ from app.modules.crm.domain.entities import (
 JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
 
 
+def _enum_values(enum_cls: type[Enum]) -> list[str]:
+    """Return the values for a SQLAlchemy enum type."""
+    return [member.value for member in enum_cls]
+
+
 class Lead(Base):
     __tablename__ = "crm_leads"
     __table_args__ = {"extend_existing": True}
@@ -41,10 +47,15 @@ class Lead(Base):
     phone: Mapped[str | None] = mapped_column(String(50))
 
     status: Mapped[LeadStatus] = mapped_column(
-        SAEnum(LeadStatus), nullable=False, default=LeadStatus.NEW, index=True
+        SAEnum(LeadStatus, name="leadstatus", values_callable=_enum_values),
+        nullable=False,
+        default=LeadStatus.NEW,
+        index=True,
     )
     source: Mapped[LeadSource] = mapped_column(
-        SAEnum(LeadSource), nullable=False, default=LeadSource.OTHER
+        SAEnum(LeadSource, name="leadsource", values_callable=_enum_values),
+        nullable=False,
+        default=LeadSource.OTHER,
     )
 
     assigned_to: Mapped[uuid.UUID | None] = mapped_column(
@@ -95,7 +106,14 @@ class Opportunity(Base):
     probability: Mapped[int] = mapped_column(nullable=False, default=50)
 
     stage: Mapped[OpportunityStage] = mapped_column(
-        SAEnum(OpportunityStage), nullable=False, default=OpportunityStage.QUALIFICATION, index=True
+        SAEnum(
+            OpportunityStage,
+            name="opportunitystage",
+            values_callable=_enum_values,
+        ),
+        nullable=False,
+        default=OpportunityStage.QUALIFICATION,
+        index=True,
     )
 
     expected_close_date: Mapped[datetime | None] = mapped_column(nullable=True)
@@ -141,14 +159,18 @@ class Activity(Base):
         PGUUID(as_uuid=True), ForeignKey("clients.id"), nullable=True, index=True
     )
 
-    type: Mapped[ActivityType] = mapped_column(
-        SAEnum(ActivityType), nullable=False, default=ActivityType.NOTE
-    )
     subject: Mapped[str] = mapped_column(String(300), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
 
+    type: Mapped[ActivityType] = mapped_column(
+        SAEnum(ActivityType, name="activitytype", values_callable=_enum_values),
+        nullable=False,
+        default=ActivityType.NOTE,
+    )
     status: Mapped[ActivityStatus] = mapped_column(
-        SAEnum(ActivityStatus), nullable=False, default=ActivityStatus.PENDING
+        SAEnum(ActivityStatus, name="activitystatus", values_callable=_enum_values),
+        nullable=False,
+        default=ActivityStatus.PENDING,
     )
 
     due_date: Mapped[datetime | None] = mapped_column(nullable=True, index=True)

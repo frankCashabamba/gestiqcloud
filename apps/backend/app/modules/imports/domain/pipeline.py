@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
-from uuid import UUID
+from uuid import UUID, NAMESPACE_URL, uuid5
 
 try:
     from celery import chain, group
@@ -16,20 +16,29 @@ except Exception:  # pragma: no cover - optional in tests
 from sqlalchemy.orm import Session
 
 try:
-    from app.modules.imports.application.celery_app import RUNNER_MODE, celery_app
+    from app.modules.imports.application.celery_app import celery_app
 except Exception:  # pragma: no cover - allow running without Celery
     celery_app = None  # type: ignore
-    RUNNER_MODE = os.getenv("IMPORTS_RUNNER_MODE", "inline")
 from app.config.database import session_scope
 from app.models.core.modelsimport import ImportBatch, ImportItem
 from app.modules.imports.application.tasks.task_classify import classify_item
 from app.modules.imports.application.tasks.task_extract import extract_item
 from app.modules.imports.application.tasks.task_ocr import ocr_item
-from app.modules.imports.application.tasks.task_preprocess import preprocess_item
+from app.modules.imports.application.tasks.task_preprocess import (
+    get_preprocess_task,
+    preprocess_inline,
+)
 from app.modules.imports.application.tasks.task_publish import publish_item
 from app.modules.imports.application.tasks.task_validate import validate_item
 
 logger = logging.getLogger(__name__)
+
+
+def _runner_mode() -> str:
+    return os.getenv("IMPORTS_RUNNER_MODE", "inline").lower()
+
+
+RUNNER_MODE = _runner_mode()
 
 
 def enqueue_item_pipeline(
@@ -56,13 +65,21 @@ def enqueue_item_pipeline(
     tenant_str = str(tenant_id)
     batch_str = str(batch_id)
 
-    if RUNNER_MODE == "inline" or not _celery_available:
+    mode = _runner_mode()
+    use_inline = (
+        mode == "inline"
+        or not _celery_available
+        or celery_app is None
+    )
+    if use_inline:
         logger.info(f"Running item {item_str} inline (no Celery)")
         _run_inline(item_str, tenant_str, batch_str)
         return "inline"
 
+    task = get_preprocess_task()
+    task_id = str(uuid5(NAMESPACE_URL, f"imports:{tenant_str}:{batch_str}:{item_str}"))
     workflow = chain(
-        preprocess_item.s(item_str, tenant_str, batch_str),
+        task.s(item_str, tenant_str, batch_str),
         ocr_item.s(tenant_str, batch_str),
         classify_item.s(tenant_str, batch_str),
         extract_item.s(tenant_str, batch_str),
@@ -70,7 +87,7 @@ def enqueue_item_pipeline(
         publish_item.s(tenant_str, batch_str),
     )
 
-    result = workflow.apply_async()
+    result = workflow.apply_async(task_id=task_id)
     logger.info(
         f"Enqueued pipeline for item {item_str}, chain_id={result.id}",
         extra={"item_id": item_str, "tenant_id": tenant_str, "batch_id": batch_str},
@@ -116,14 +133,22 @@ def enqueue_batch_pipeline(batch_id: UUID, tenant_id: UUID) -> dict:
             logger.info(f"No items to process in batch {batch_str}")
             return {"enqueued": 0, "batch_id": batch_str}
 
-        if RUNNER_MODE == "inline" or not _celery_available:
+        mode = _runner_mode()
+        use_inline = (
+            mode == "inline"
+            or not _celery_available
+            or celery_app is None
+        )
+
+        if use_inline:
             for item in items:
                 _run_inline(str(item.id), tenant_str, batch_str)
             return {"enqueued": len(items), "batch_id": batch_str, "mode": "inline"}
 
+        task = get_preprocess_task()
         job = group(
             chain(
-                preprocess_item.s(str(item.id), tenant_str, batch_str),
+                task.s(str(item.id), tenant_str, batch_str),
                 ocr_item.s(tenant_str, batch_str),
                 classify_item.s(tenant_str, batch_str),
                 extract_item.s(tenant_str, batch_str),
@@ -153,7 +178,7 @@ def enqueue_batch_pipeline(batch_id: UUID, tenant_id: UUID) -> dict:
 def _run_inline(item_id: str, tenant_id: str, batch_id: str) -> None:
     """Ejecuta pipeline inline (sin Celery) para dev/tests."""
     try:
-        preprocess_item(item_id, tenant_id, batch_id)
+        preprocess_inline(item_id, tenant_id, batch_id)
         result = ocr_item(item_id, tenant_id, batch_id)
         item_id_next = result["item_id"]
 

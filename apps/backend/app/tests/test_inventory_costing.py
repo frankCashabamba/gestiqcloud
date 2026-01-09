@@ -31,7 +31,10 @@ def test_inventory_costing_wac(db: Session, tenant_minimal):
         {"id": wh_id, "tid": tid, "code": "WAC-WH", "name": "WAC WH"},
     )
     db.execute(
-        text("INSERT INTO products (id, tenant_id, name) VALUES (:id, :tid, :name)"),
+        text(
+            "INSERT INTO products (id, tenant_id, name, active, stock, unit) "
+            "VALUES (:id, :tid, :name, TRUE, 0, 'unit')"
+        ),
         {"id": prod_id, "tid": tid, "name": "WAC Product"},
     )
     db.commit()

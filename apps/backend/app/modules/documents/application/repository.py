@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
+import uuid
 
 from app.models.core.document import Document
 from app.modules.documents.application.store import store
@@ -46,9 +47,15 @@ def save_document(
 
 def get_document(db: Session, document_id: str) -> DocumentModel | None:
     try:
-        row = db.get(Document, document_id)
+        doc_key = document_id
+        try:
+            if isinstance(document_id, str):
+                doc_key = uuid.UUID(document_id)
+        except Exception:
+            doc_key = document_id
+        row = db.get(Document, doc_key)
         if not row:
-            return None
+            return store.get(str(document_id))
         return DocumentModel(**row.payload)
     except Exception:
-        return store.get(document_id)
+        return store.get(str(document_id))

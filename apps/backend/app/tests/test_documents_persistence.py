@@ -2,6 +2,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import text
 
 from app.modules.documents.application.orchestrator import DocumentOrchestrator
 from app.modules.documents.application.repository import get_document, save_document
@@ -55,6 +56,8 @@ def test_document_persistence_roundtrip(db):
     )
 
     tenant_id = str(uuid4())
+    db.execute(text("SET app.tenant_id = :tid"), {"tid": tenant_id})
+    db.execute(text("SET session_replication_role = REPLICA"))
     save_document(
         db,
         tenant_id=tenant_id,

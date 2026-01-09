@@ -70,7 +70,9 @@ def _map_columns(header: tuple) -> dict[str, int]:
             col_map.setdefault("transaction_date", idx)
         elif any(k in lower for k in ["value_date", "fecha_valor", "fecha valor"]):
             col_map.setdefault("value_date", idx)
-        elif any(k in lower for k in ["amount", "importe", "monto", "valor"]):
+        elif any(k in lower for k in ["amount", "importe", "monto"]):
+            col_map["amount"] = idx
+        elif "valor" in lower:
             col_map.setdefault("amount", idx)
         elif any(k in lower for k in ["direction", "tipo", "debito", "credito", "signo"]):
             col_map.setdefault("direction", idx)

@@ -253,7 +253,6 @@ class OCRService:
             "nº r-",
             "n° r-",
             "no r-",
-            "gracias por su compra",
             "ticket venta",
         ]
         ticket_pos_score = sum(1 for kw in ticket_pos_keywords if kw in text_lower)

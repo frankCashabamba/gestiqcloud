@@ -456,12 +456,20 @@ def build_api_router() -> APIRouter:
     # Final safeguard: ensure imports router is mounted in non-production envs
     try:
         env = os.getenv("ENV", "development").lower()
-        has_imports = any(
-            (path := (getattr(rt, "path", "") or "")).startswith("/imports")
-            or path.startswith("/api/v1/imports")
-            or path.startswith("/tenant/imports")
-            for rt in r.routes
-        )
+
+        def _has_import_batches(routes) -> bool:
+            markers = {
+                "/imports/batches",
+                "/api/v1/imports/batches",
+                "/tenant/imports/batches",
+            }
+            for rt in routes:
+                path = (getattr(rt, "path", "") or "").rstrip("/")
+                if path in markers:
+                    return True
+            return False
+
+        has_imports = _has_import_batches(r.routes)
         if env != "production" and not has_imports:
             # Try multiple paths to be resilient across entrypoints
             mounted = include_router_safe(

@@ -468,9 +468,12 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
         if not cert_info:
             raise ValueError(f"No certificate found for tenant {tenant_id} in Ecuador")
 
+        # Import secrets manager
+        from app.services.secrets import get_certificate_password
+        
         cert_data = {
             "p12_base64": base64.b64encode(cert_info["cert_data"]).decode(),
-            "password": "CERT_PASSWORD",  # TODO: Recuperar de credenciales seguras
+            "password": get_certificate_password(tenant_id, "ECU"),
         }
 
         # 6. Firmar
@@ -604,9 +607,12 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
         if not cert_info:
             raise ValueError(f"No certificate found for tenant {tenant_id} in Spain")
 
+        # Import secrets manager
+        from app.services.secrets import get_certificate_password
+        
         cert_data = {
             "p12_base64": base64.b64encode(cert_info["cert_data"]).decode(),
-            "password": "CERT_PASSWORD",  # TODO: Recuperar de credenciales seguras
+            "password": get_certificate_password(tenant_id, "ESP"),
         }
         _signed_xml = sign_facturae_xml(xml_content, cert_data)
 

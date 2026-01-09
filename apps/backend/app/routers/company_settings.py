@@ -6,6 +6,7 @@ URLs:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from uuid import UUID
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -76,13 +77,17 @@ def get_company_settings(tenant_id: str = Depends(ensure_tenant), db: Session = 
         Configuración completa del tenant
     """
     # Validar que el tenant existe
-    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    try:
+        tenant_key = UUID(str(tenant_id))
+    except Exception:
+        tenant_key = tenant_id
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_key).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant no encontrado")
 
     # Obtener CompanySettings si existe (sin crear defaults implícitos)
     company_settings = (
-        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_key).first()
     )
     if not company_settings:
         return CompanySettingsResponse(

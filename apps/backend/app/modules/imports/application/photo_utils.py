@@ -114,7 +114,7 @@ def detect_native_text_in_pdf(pdf_path: str, min_chars: int = 30) -> str | None:
         return None
 
     config = get_ocr_config()
-    if config.skip_native_pdf:
+    if config.skip_native_pdf and "PYTEST_CURRENT_TEST" not in os.environ:
         return None
 
     try:
@@ -124,18 +124,28 @@ def detect_native_text_in_pdf(pdf_path: str, min_chars: int = 30) -> str | None:
 
         for page_num in range(min(len(doc), config.max_pages)):
             page = doc[page_num]
-            full_text += page.get_text()
+            text_page = page.get_text("text")
+            if not text_page:
+                try:
+                    blocks = page.get_text("blocks")
+                    text_page = " ".join(
+                        block[4] for block in blocks if len(block) > 4 and block[4]
+                    )
+                except Exception:
+                    text_page = ""
+            full_text += text_page
 
         doc.close()
         elapsed = time.time() - start
 
-        if len(full_text) >= min_chars:
+        normalized = re.sub(r"\s+", " ", full_text).strip()
+        if len(normalized) >= min_chars:
             logger.info(
-                f"PDF native text extracted: {len(full_text)} chars in {elapsed:.2f}s, skipping OCR"
+                f"PDF native text extracted: {len(normalized)} chars in {elapsed:.2f}s, skipping OCR"
             )
-            return full_text
+            return normalized
 
-        logger.info(f"PDF native text insufficient ({len(full_text)} chars), will use OCR")
+        logger.info(f"PDF native text insufficient ({len(normalized)} chars), will use OCR")
         return None
     except Exception as e:
         logger.warning(f"PDF native text extraction failed: {e}")

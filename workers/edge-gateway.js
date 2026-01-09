@@ -1,4 +1,4 @@
-﻿/* Edge Gateway (Cloudflare Worker)
+/* Edge Gateway (Cloudflare Worker)
  * - Restrictive CORS with credentials
  * - Host allow-list and path allow-list (optional)
  * - Request ID propagation (X-Request-Id)
@@ -174,17 +174,19 @@ export default {
 /* ===== Helpers ===== */
 
 function parseAllowedOrigins(csv) {
-  const defaults = [
-    'https://gestiqcloud.com',
-    'https://www.gestiqcloud.com',
-    'https://admin.gestiqcloud.com',
-  ];
-  if (!csv) return defaults;
+  if (!csv) {
+    console.error('CRITICAL: ALLOWED_ORIGINS env var not configured');
+    return [];
+  }
   const list = String(csv)
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-  return list.length ? list : defaults;
+  if (!list.length) {
+    console.error('CRITICAL: ALLOWED_ORIGINS is empty after parsing');
+    return [];
+  }
+  return list;
 }
 
 function isOriginAllowed(origin, list) {

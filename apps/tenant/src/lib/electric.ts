@@ -7,8 +7,13 @@
 export type ElectricDatabase = { sync: () => Promise<{ conflicts?: any[] }> } & Record<string, any>
 
 // ElectricSQL sync URL (backend shapes endpoint)
-const ELECTRIC_URL = (import.meta as any).env?.VITE_ELECTRIC_URL || 'ws://localhost:5133'
+// Must be configured via VITE_ELECTRIC_URL env var in production
+const ELECTRIC_URL = (import.meta as any).env?.VITE_ELECTRIC_URL
 const DB_NAME = 'gestiqcloud_tenant.db'
+
+if (!ELECTRIC_URL) {
+  console.warn('VITE_ELECTRIC_URL not configured. ElectricSQL sync will be disabled.')
+}
 
 let PGliteCtor: any = null
 let electrifyFn: any = null
@@ -20,8 +25,11 @@ export async function initElectric(tenantId: string): Promise<ElectricDatabase> 
   if (electric) return electric
 
   const enabled = (import.meta as any).env?.VITE_ELECTRIC_ENABLED === '1'
-  if (!enabled) {
+  if (!enabled || !ELECTRIC_URL) {
     // No-op implementation to keep app functional
+    if (!ELECTRIC_URL) {
+      console.warn('ElectricSQL disabled: VITE_ELECTRIC_URL not configured')
+    }
     electric = { sync: async () => ({ conflicts: [] }) }
     return electric as ElectricDatabase
   }

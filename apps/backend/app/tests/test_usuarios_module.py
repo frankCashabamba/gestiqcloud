@@ -1,3 +1,5 @@
+import uuid as _uuid
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -203,11 +205,12 @@ def test_crear_usuario_estandar(client: TestClient, tenant_headers):
     assert len(modules) > 0, "No modules available"
     assert len(roles) > 0, "No roles available"
 
+    suffix = _uuid.uuid4().hex[:8]
     payload = {
         "first_name": "Juan",
         "last_name": "Perez",
-        "email": "juan@example.com",
-        "username": "juanp",
+        "email": f"juan.{suffix}@example.com",
+        "username": f"juanp_{suffix}",
         "password": "Secret123!",
         "is_company_admin": False,
         "modules": [modules[0]["id"]],
@@ -223,11 +226,12 @@ def test_crear_usuario_estandar(client: TestClient, tenant_headers):
 
 
 def test_crear_usuario_admin(client: TestClient, tenant_headers):
+    suffix = _uuid.uuid4().hex[:8]
     payload = {
         "first_name": "Ana",
         "last_name": "Admin",
-        "email": "ana.admin@example.com",
-        "username": "anaadmin",
+        "email": f"ana.admin.{suffix}@example.com",
+        "username": f"anaadmin_{suffix}",
         "password": "Secret123!",
         "is_company_admin": True,
         "modules": [],
@@ -244,11 +248,12 @@ def test_crear_usuario_admin(client: TestClient, tenant_headers):
 
 
 def test_actualizar_usuario(client: TestClient, tenant_headers):
+    suffix = _uuid.uuid4().hex[:8]
     payload = {
         "first_name": "Maria",
         "last_name": "Tester",
-        "email": "maria.tester@example.com",
-        "username": "mariat",
+        "email": f"maria.tester.{suffix}@example.com",
+        "username": f"mariat_{suffix}",
         "password": "Secret123!",
         "is_company_admin": False,
         "modules": [],

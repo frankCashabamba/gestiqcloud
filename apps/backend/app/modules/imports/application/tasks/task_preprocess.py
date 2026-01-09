@@ -125,13 +125,45 @@ def _impl(item_id: str, tenant_id: str, batch_id: str, task_id: str | None = Non
             raise
 
 
-if _celery_available and celery_app is not None:  # pragma: no cover
+PREPROCESS_TASK: Task | None = None
 
+def _inline_preprocess(item_id: str, tenant_id: str, batch_id: str, task_id: str | None = "inline") -> dict:
+    return _impl(item_id, tenant_id, batch_id, task_id=task_id)
+
+
+if _celery_available and celery_app is not None:
     @celery_app.task(base=PreprocessTask, bind=True, name="imports.preprocess")
-    def preprocess_item(self, item_id: str, tenant_id: str, batch_id: str) -> dict:
-        return _impl(item_id, tenant_id, batch_id, task_id=getattr(self.request, "id", None))
+    def _celery_preprocess(self, item_id: str, tenant_id: str, batch_id: str) -> dict:
+        return _inline_preprocess(
+            item_id,
+            tenant_id,
+            batch_id,
+            task_id=getattr(self.request, "id", None),
+        )
 
-else:
-    # Inline/synchronous fallback used in tests
-    def preprocess_item(item_id: str, tenant_id: str, batch_id: str) -> dict:  # type: ignore
-        return _impl(item_id, tenant_id, batch_id, task_id="inline")
+    PREPROCESS_TASK = _celery_preprocess
+
+
+def get_preprocess_task() -> Task:
+    """Return the Celery preprocess task."""
+    if PREPROCESS_TASK is None:
+        raise RuntimeError("Celery preprocess task is not available")
+    return PREPROCESS_TASK
+
+
+def preprocess_inline(item_id: str, tenant_id: str, batch_id: str) -> dict:
+    """Inline preprocess helper (used by tests/pipeline inline path)."""
+    return _inline_preprocess(item_id, tenant_id, batch_id)
+
+
+def preprocess_item(*args, **kwargs) -> dict:
+    """
+    Generic preprocess entrypoint (for tests).
+    Accepts optional Celery-style `self` argument (None) or plain (item_id, tenant_id, batch_id).
+    """
+    if len(args) == 4 and args[0] is None:
+        args = args[1:]
+    if len(args) != 3:
+        raise TypeError("preprocess_item expected 3 arguments (item_id, tenant_id, batch_id)")
+    item_id, tenant_id, batch_id = args
+    return preprocess_inline(item_id, tenant_id, batch_id)

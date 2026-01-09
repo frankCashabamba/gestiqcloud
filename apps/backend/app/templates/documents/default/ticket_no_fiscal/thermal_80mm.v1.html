@@ -79,13 +79,11 @@
         <span>Cliente</span>
         <span>{{ buyer.name or "CONSUMIDOR FINAL" }}</span>
     </div>
-    {% if buyer.idType and buyer.idType != "NONE" and buyer.idNumber %}
+{% if buyer.idType and buyer.idType != "NONE" and buyer.idNumber %}
     <div class="row">
         <span>{{ buyer.idType }}</span>
         <span>{{ buyer.idNumber }}</span>
-    </div>
-    {% endif %}
-
+    </div>{% endif %}
     <div class="divider"></div>
 
     <div class="items-header">
@@ -98,8 +96,8 @@
         <div>{{ line.name }}</div>
         <div class="right">{{ "%.2f"|format(line.qty) }}</div>
         <div class="right">{{ "%.2f"|format(line.lineTotal) }}</div>
-    </div>
-    {% endfor %}
+    </div>{% endfor %}
+    
 
     <div class="divider"></div>
 
@@ -131,5 +129,9 @@
         {% endif %}
     </div>
 
+    <div class="no-print center" style="margin-top: 6mm;">
+        <button onclick="window.print()">Imprimir</button>
+        <button onclick="window.close()">Cerrar</button>
+    </div>
 </body>
 </html>
