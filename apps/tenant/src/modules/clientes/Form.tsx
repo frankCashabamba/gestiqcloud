@@ -18,7 +18,7 @@ const normalizeFieldId = (field: string) => FIELD_ALIASES[field] || field
 export default function ClienteForm() {
   const { id, empresa } = useParams()
   const nav = useNavigate()
-  const [form, setForm] = useState<Partial<Omit<C, 'id'>>>({ name: '', email: '', phone: '' })
+  const [form, setForm] = useState<Partial<Omit<C, 'id'>>>({ name: '', email: '', phone: '', is_wholesale: false })
   const { success, error } = useToast()
   const [fields, setFields] = useState<FieldCfg[] | null>(null)
   const [loadingCfg, setLoadingCfg] = useState(false)
@@ -57,6 +57,7 @@ export default function ClienteForm() {
       { field: 'name', visible: true, required: true, ord: 10, label: 'Nombre' },
       { field: 'email', visible: true, required: false, ord: 20, label: 'Email' },
       { field: 'phone', visible: true, required: false, ord: 21, label: 'Phone' },
+      { field: 'is_wholesale', visible: true, required: false, ord: 40, label: 'Mayorista' },
     ]
 
     // Merge base configuration with remote overrides (if any) so required fields never disappear.
@@ -104,6 +105,22 @@ export default function ClienteForm() {
           const type = f.field.toLowerCase().includes('email') ? 'email' : 'text'
           const value = (form as any)[f.field] ?? ''
           const isRequired = !!f.required && f.visible !== false
+          if (f.field === 'is_wholesale') {
+            return (
+              <div key={f.field}>
+                <label className="block mb-1">{label}</label>
+                <label className="flex items-center gap-2 text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={!!value}
+                    onChange={(e)=> setForm({ ...form, [f.field]: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  Cliente mayorista
+                </label>
+              </div>
+            )
+          }
           return (
             <div key={f.field}>
               <label className="block mb-1">

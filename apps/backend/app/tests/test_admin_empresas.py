@@ -16,7 +16,7 @@ def _admin_token(client: TestClient, superuser_factory) -> str:
 
 
 def test_admin_empresas_list_empty(client: TestClient, db, superuser_factory):
-    # Clean any existing tenants first
+    # Clean any existing tenants first (commit so the API session can see it)
     try:
         if db.get_bind().dialect.name == "postgresql":
             db.execute(text("TRUNCATE chart_of_accounts CASCADE"))
@@ -24,9 +24,8 @@ def test_admin_empresas_list_empty(client: TestClient, db, superuser_factory):
         else:
             db.execute(text("DELETE FROM chart_of_accounts"))
             db.execute(text("DELETE FROM import_batches"))
-        db.commit()
     except Exception:
-        db.rollback()
+        pass
 
     db.query(Tenant).delete()
     db.commit()
@@ -46,9 +45,13 @@ def test_admin_empresas_list_with_data(client: TestClient, db, superuser_factory
     db.add_all([t1, t2])
     db.commit()
 
-    r = client.get("/api/v1/admin/empresas", headers={"Authorization": f"Bearer {tok}"})
-    assert r.status_code == 200
-    data = r.json()
-    assert isinstance(data, list)
-    names = {item["name"] for item in data}
-    assert {"Empresa Uno", "Empresa Dos"}.issubset(names)
+    try:
+        r = client.get("/api/v1/admin/empresas", headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 200
+        data = r.json()
+        assert isinstance(data, list)
+        names = {item["name"] for item in data}
+        assert {"Empresa Uno", "Empresa Dos"}.issubset(names)
+    finally:
+        db.query(Tenant).filter(Tenant.id.in_([t1.id, t2.id])).delete(synchronize_session=False)
+        db.commit()

@@ -25,6 +25,7 @@ class CrearCliente(BaseUseCase[ClienteRepo]):
             provincia=created.provincia,
             pais=created.pais,
             codigo_postal=created.codigo_postal,
+            is_wholesale=created.is_wholesale,
         )
 
 
@@ -44,6 +45,7 @@ class ActualizarCliente(BaseUseCase[ClienteRepo]):
             provincia=updated.provincia,
             pais=updated.pais,
             codigo_postal=updated.codigo_postal,
+            is_wholesale=updated.is_wholesale,
         )
 
 
@@ -62,6 +64,7 @@ class ListarClientes(BaseUseCase[ClienteRepo]):
                 provincia=i.provincia,
                 pais=i.pais,
                 codigo_postal=i.codigo_postal,
+                is_wholesale=i.is_wholesale,
             )
             for i in items
         ]
@@ -83,6 +86,7 @@ class ObtenerCliente(BaseUseCase[ClienteRepo]):
             provincia=item.provincia,
             pais=item.pais,
             codigo_postal=item.codigo_postal,
+            is_wholesale=item.is_wholesale,
         )
 
 

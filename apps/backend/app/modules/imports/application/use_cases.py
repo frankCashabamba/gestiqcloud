@@ -805,6 +805,8 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
 
     t0 = datetime.utcnow()
     promoted_hashes: set[str] = set()
+    collect_promoted = bool(options and options.get("collect_promoted"))
+    promoted_items: list[dict[str, Any]] = []
     for it in items:
         # Already promoted: count as skipped (idempotent)
         if it.status == ImportItemStatus.PROMOTED:
@@ -856,7 +858,7 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
                 skipped += 1
                 continue
             it.promoted_to = batch.source_type
-            it.promoted_id = None
+            it.promoted_id = res.domain_id
             it.promoted_at = datetime.utcnow()
             it.status = ImportItemStatus.PROMOTED
             db.add(it)
@@ -871,6 +873,14 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
             )
             db.add(lineage)
             created += 1
+            if collect_promoted:
+                promoted_items.append(
+                    {
+                        "item_id": str(it.id),
+                        "promoted_id": str(res.domain_id) if res.domain_id else None,
+                        "src": _merge_src(it.raw, it.normalized),
+                    }
+                )
         except Exception:
             # If session is in pending rollback state, rollback first before making changes
             if db.is_active:
@@ -905,7 +915,10 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
         )
     except Exception:
         pass
-    return {"created": created, "skipped": skipped, "failed": failed}
+    result = {"created": created, "skipped": skipped, "failed": failed}
+    if collect_promoted:
+        result["promoted_items"] = promoted_items
+    return result
 
 
 def _detectar_tipo_por_texto(txt: str) -> str:

@@ -21,6 +21,7 @@ class ClienteCreateDTO:
     state: str | None = None
     country: str | None = None
     postal_code: str | None = None
+    is_wholesale: bool = False
     tenant_id: int | None = None
 
     def model_dump(self) -> dict:
@@ -34,6 +35,7 @@ class ClienteCreateDTO:
             "state": self.state,
             "country": self.country,
             "postal_code": self.postal_code,
+            "is_wholesale": self.is_wholesale,
             "tenant_id": self.tenant_id,
         }
 
@@ -49,6 +51,7 @@ class ClienteUpdateDTO:
     state: str | None = None
     country: str | None = None
     postal_code: str | None = None
+    is_wholesale: bool | None = None
 
     def model_dump(self, exclude_unset: bool = False) -> dict:
         d = {
@@ -61,6 +64,7 @@ class ClienteUpdateDTO:
             "state": self.state,
             "country": self.country,
             "postal_code": self.postal_code,
+            "is_wholesale": self.is_wholesale,
         }
         return {k: v for k, v in d.items() if not exclude_unset or v is not None}
 
@@ -82,6 +86,7 @@ class SqlAlchemyClienteRepo(SqlAlchemyRepo, ClienteRepo):
             provincia=m.state,
             pais=getattr(m, "pais", None) or m.country,
             codigo_postal=getattr(m, "codigo_postal", None) or m.postal_code,
+            is_wholesale=bool(getattr(m, "is_wholesale", False)),
             tenant_id=m.tenant_id,
         )
 
@@ -109,6 +114,7 @@ class SqlAlchemyClienteRepo(SqlAlchemyRepo, ClienteRepo):
             state=c.provincia,
             country=c.pais,
             postal_code=c.codigo_postal,
+            is_wholesale=bool(c.is_wholesale),
             tenant_id=c.tenant_id,
         )
         m = ClienteCRUD(ClienteORM).create(self.db, dto)
@@ -128,6 +134,7 @@ class SqlAlchemyClienteRepo(SqlAlchemyRepo, ClienteRepo):
             state=c.provincia,
             country=c.pais,
             postal_code=c.codigo_postal,
+            is_wholesale=bool(c.is_wholesale),
         )
         m = ClienteCRUD(ClienteORM).update(self.db, c.id, dto)
         if not m:

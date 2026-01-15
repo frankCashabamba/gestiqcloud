@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Bienvenido a GestiqCloud - Administrador</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { margin: 0; padding: 0; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      background-color: #f8fafc;
+      color: #1e293b;
+    }
+    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.08); }
+    .header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: #ffffff; padding: 40px 30px; text-align: center; }
+    .header-logo { font-size: 28px; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.5px; }
+    .header-subtitle { font-size: 14px; opacity: 0.9; }
+    .content { padding: 40px 30px; }
+    .welcome-section { margin-bottom: 32px; }
+    .welcome-title { font-size: 24px; font-weight: 700; color: #1e293b; margin-bottom: 16px; }
+    .admin-badge { display: inline-block; background-color: #dbeafe; color: #1e40af; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; margin-bottom: 16px; }
+    .company-info { background-color: #f1f5f9; padding: 20px; border-radius: 8px; margin-bottom: 24px; border-left: 4px solid #4f46e5; }
+    .info-row { margin-bottom: 12px; display: flex; align-items: center; }
+    .info-row:last-child { margin-bottom: 0; }
+    .info-label { font-weight: 600; color: #64748b; width: 100px; }
+    .info-value { color: #334155; }
+    .section-title { font-size: 16px; font-weight: 700; color: #1e293b; margin-top: 28px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0; }
+    .feature-list { margin-bottom: 24px; }
+    .feature-item { display: flex; align-items: flex-start; margin-bottom: 12px; }
+    .feature-icon { width: 24px; height: 24px; background-color: #dbeafe; color: #1e40af; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 700; margin-right: 12px; flex-shrink: 0; }
+    .feature-text { font-size: 14px; color: #475569; }
+    .cta-section { background: linear-gradient(135deg, #f0f4ff 0%, #fef3ff 100%); padding: 28px; border-radius: 8px; text-align: center; margin: 32px 0; }
+    .cta-text { font-size: 14px; color: #475569; margin-bottom: 16px; }
+    .btn { display: inline-block; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: #ffffff; padding: 14px 32px; font-size: 15px; font-weight: 600; text-decoration: none; border-radius: 8px; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(79, 70, 229, 0.4); }
+    .next-steps { background-color: #fef3c7; padding: 16px; border-radius: 8px; border-left: 4px solid #f59e0b; margin: 24px 0; }
+    .next-steps-title { font-weight: 600; color: #92400e; margin-bottom: 8px; }
+    .next-steps-list { color: #78350f; font-size: 13px; margin-left: 16px; }
+    .next-steps-list li { margin-bottom: 6px; }
+    .footer { padding: 24px 30px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center; font-size: 12px; color: #64748b; }
+    .footer-link { color: #4f46e5; text-decoration: none; }
+    .divider { height: 1px; background-color: #e2e8f0; margin: 24px 0; }
+  </style>
+</head>
+<body>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#f8fafc">
+    <tr>
+      <td style="padding: 40px 20px;">
+        <table role="presentation" width="100%" class="container">
+          <!-- Header -->
+          <tr>
+            <td class="header">
+              <div class="header-logo">GestiqCloud</div>
+              <div class="header-subtitle">Plataforma de Gestión Empresarial</div>
+            </td>
+          </tr>
+
+          <!-- Content -->
+          <tr>
+            <td class="content">
+              <!-- Welcome Section -->
+              <div class="welcome-section">
+                <div class="admin-badge">👨‍💼 Administrador de Empresa</div>
+                <div class="welcome-title">¡Bienvenido, {{ nombre_usuario }}!</div>
+                <p style="color: #64748b; font-size: 15px; line-height: 1.6;">
+                  Has sido registrado como <strong>Administrador</strong> de <strong>{{ nombre_empresa }}</strong>. 
+                  Como administrador, tendrás acceso completo para configurar y gestionar todos los aspectos de tu empresa.
+                </p>
+              </div>
+
+              <!-- Company Info -->
+              <div class="company-info">
+                <div class="info-row">
+                  <div class="info-label">Empresa:</div>
+                  <div class="info-value">{{ nombre_empresa }}</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-label">Usuario:</div>
+                  <div class="info-value"><strong>{{ username }}</strong></div>
+                </div>
+                <div class="info-row">
+                  <div class="info-label">Correo:</div>
+                  <div class="info-value">{{ email }}</div>
+                </div>
+              </div>
+
+              <!-- Set Password CTA -->
+              <div class="cta-section">
+                <div class="cta-text">
+                  <strong>Paso 1:</strong> Establece tu contraseña segura
+                </div>
+                <a class="btn" href="{{ enlace }}">Establecer Contraseña</a>
+              </div>
+
+              <!-- Next Steps -->
+              <div class="next-steps">
+                <div class="next-steps-title">📋 Próximos pasos recomendados:</div>
+                <ul class="next-steps-list">
+                  <li><strong>Configurar perfil:</strong> Completa la información de tu empresa</li>
+                  <li><strong>Invitar usuarios:</strong> Añade miembros del equipo a tu empresa</li>
+                  <li><strong>Activar módulos:</strong> Habilita las funcionalidades que necesitas</li>
+                  <li><strong>Personalizar ajustes:</strong> Configura impuestos, monedas y localizaciones</li>
+                </ul>
+              </div>
+
+              <div class="section-title">Funcionalidades principales</div>
+
+              <!-- Features -->
+              <div class="feature-list">
+                <div class="feature-item">
+                  <div class="feature-icon">📊</div>
+                  <div class="feature-text"><strong>Dashboard analítico:</strong> Visualiza métricas clave de tu negocio en tiempo real</div>
+                </div>
+                <div class="feature-item">
+                  <div class="feature-icon">👥</div>
+                  <div class="feature-text"><strong>Gestión de usuarios:</strong> Crea roles personalizados y asigna permisos granulares</div>
+                </div>
+                <div class="feature-item">
+                  <div class="feature-icon">⚙️</div>
+                  <div class="feature-text"><strong>Módulos flexibles:</strong> Activa solo las funcionalidades que tu negocio necesita</div>
+                </div>
+                <div class="feature-item">
+                  <div class="feature-icon">📱</div>
+                  <div class="feature-text"><strong>Acceso multiplataforma:</strong> Gestiona desde web, tablet o móvil</div>
+                </div>
+                <div class="feature-item">
+                  <div class="feature-icon">🔒</div>
+                  <div class="feature-text"><strong>Seguridad empresarial:</strong> Encriptación end-to-end y backups automáticos</div>
+                </div>
+              </div>
+
+              <div class="divider"></div>
+
+              <!-- Support Section -->
+              <p style="color: #64748b; font-size: 14px; text-align: center; margin-top: 24px;">
+                ¿Necesitas ayuda para comenzar?<br>
+                Accede a nuestra <a href="https://docs.gestiqcloud.com" style="color: #4f46e5; text-decoration: none;"><strong>documentación</strong></a> 
+                o contacta con nuestro equipo en <a href="mailto:soporte@gestiqcloud.com" style="color: #4f46e5; text-decoration: none;"><strong>soporte@gestiqcloud.com</strong></a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td class="footer">
+              <p style="margin-bottom: 8px;">
+                <strong>Importante:</strong> Si no solicitaste esta cuenta, contacta con nosotros inmediatamente.
+              </p>
+              <p>
+                © {{ anio }} GestiqCloud. Todos los derechos reservados.<br>
+                <a href="https://gestiqcloud.com" class="footer-link">www.gestiqcloud.com</a> | 
+                <a href="https://gestiqcloud.com/privacidad" class="footer-link">Privacidad</a> | 
+                <a href="https://gestiqcloud.com/terminos" class="footer-link">Términos</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

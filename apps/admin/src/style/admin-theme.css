@@ -110,3 +110,59 @@ tbody tr:hover{background:#f1f5ff}
 
 /* Helper */
 .muted{color:var(--muted)}
+/* Action pills for EmpresaPanel */
+.action-pills{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.action-pill{font-size:12px;font-weight:600;text-decoration:none;padding:4px 8px;border-radius:8px;border:1px solid transparent;background:#fff;display:inline-flex;align-items:center}
+.action-pill.blue{color:#2563eb;border-color:#dbeafe;background:#eff6ff}
+.action-pill.green{color:#059669;border-color:#d1fae5;background:#ecfdf5}
+.action-pill.amber{color:#d97706;border-color:#fde68a;background:#fffbeb}
+.action-pill.violet{color:#7c3aed;border-color:#ede9fe;background:#f5f3ff}
+.action-pill.danger{color:#dc2626;border-color:#fecaca;background:#fef2f2}
+.action-pill:hover{filter:brightness(0.98)}
+/* Admin header styles */
+.admin-header{background:#ffffff;border-bottom:1px solid #e2e8f0;box-shadow:0 8px 24px rgba(15,23,42,.06)}
+.admin-header__inner{max-width:1200px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.admin-brand{display:flex;align-items:center;gap:12px}
+.admin-logo{width:40px;height:40px;border-radius:10px;background:#e2e8f0;display:grid;place-items:center;color:#1f2937;font-weight:700}
+.admin-brand__text{display:flex;flex-direction:column}
+.admin-brand__name{font-weight:800;font-size:18px;line-height:1.2}
+.admin-brand__sub{font-size:12px;color:#64748b}
+.admin-nav{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.admin-btn{padding:8px 14px;border-radius:12px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;box-shadow:0 1px 2px rgba(15,23,42,.04);border:1px solid #cbd5e1;background:#fff;color:#0f172a;cursor:pointer}
+.admin-btn.logout{background:#fef2f2;border-color:#fecaca;color:#b91c1c;box-shadow:0 1px 2px rgba(185,28,28,.08)}
+.admin-main{flex:1;width:100%;max-width:1200px;margin:0 auto;padding:24px 20px}
+.admin-back{margin-bottom:16px;background:transparent;border:0;color:#2563eb;text-decoration:underline;cursor:pointer;font-weight:600}
+.admin-footer{text-align:center;font-size:12px;color:#64748b;padding:24px 12px}
+/* Admin header refinements */
+.admin-header{background:#ffffff;border-bottom:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(15,23,42,.05)}
+.admin-header__inner{max-width:100%;margin:0;padding:10px 20px;display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:12px}
+.admin-brand-wrap{width:100%;max-width:1200px;margin:0 auto}
+.admin-nav-wrap{width:100%;max-width:1200px;margin:0 auto;display:flex;justify-content:flex-end}
+.admin-brand{display:flex;align-items:center;gap:12px}
+.admin-logo{width:36px;height:36px;border-radius:9px;background:#e2e8f0;display:grid;place-items:center;color:#1f2937;font-weight:700;font-size:13px}
+.admin-brand__text{display:flex;flex-direction:column}
+.admin-brand__name{font-weight:800;font-size:16px;line-height:1.2}
+.admin-brand__sub{font-size:11px;color:#64748b}
+.admin-nav{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.admin-btn{padding:7px 12px;border-radius:10px;font-weight:700;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;border:1px solid #e2e8f0;background:#f8fafc;color:#0f172a;cursor:pointer;transition:background .12s ease,border-color .12s ease}
+.admin-btn:hover{background:#f1f5f9}
+.admin-btn.logout{background:#fef2f2;border-color:#fecaca;color:#b91c1c}
+.admin-btn.logout:hover{background:#fee2e2}
+.admin-main{flex:1;width:100%;max-width:1200px;margin:0 auto;padding:24px 20px}
+.admin-back{margin-bottom:16px;background:transparent;border:0;text-decoration:underline;cursor:pointer;font-weight:600}
+.admin-footer{text-align:center;font-size:12px;color:#64748b;padding:24px 12px}
+
+/* Empresa panel layout */
+.empresa-page{display:flex;flex-direction:column;gap:16px}
+.empresa-header{display:flex;flex-direction:column;gap:6px}
+.empresa-title{font-size:22px;font-weight:700;color:#0f172a;margin:0}
+.empresa-subtitle{font-size:14px;color:#64748b;margin:0}
+.empresa-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.empresa-search{flex:1;min-width:220px;border:1px solid #e2e8f0;border-radius:10px;padding:9px 12px;font-size:14px;background:#fff;color:#0f172a}
+.empresa-search:focus{outline:0;box-shadow:0 0 0 3px rgba(37,99,235,.2);border-color:#2563eb}
+.empresa-primary{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 14px;border-radius:10px;border:1px solid #2563eb;background:#2563eb;color:#fff;text-decoration:none;font-weight:700;font-size:13px}
+.empresa-primary:hover{background:#1d4ed8;border-color:#1d4ed8}
+.empresa-muted{font-size:13px;color:#64748b}
+.empresa-empty{border:1px dashed #e2e8f0;border-radius:12px;padding:16px;color:#64748b;background:#fff}
+.badge-group{display:flex;flex-wrap:wrap;gap:6px}
+.badge-warning{border-color:#fde68a;background:#fffbeb;color:#b45309}

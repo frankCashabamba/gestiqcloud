@@ -362,7 +362,7 @@ def tenant_set_password(payload: SetPasswordIn, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="invalid_or_expired_token")
 
     user = db.query(CompanyUser).filter(func.lower(CompanyUser.email) == str(email).lower()).first()
-    if not user:
+    if not user or not user.tenant_id:
         raise HTTPException(status_code=404, detail="user_not_found")
 
     user.password_hash = hasher.hash(new_pwd)
@@ -374,4 +374,8 @@ def tenant_set_password(payload: SetPasswordIn, db: Session = Depends(get_db)):
         pass
     db.add(user)
     db.commit()
-    return {"ok": True}
+    return {
+        "ok": True,
+        "email": getattr(user, "email", None),
+        "username": getattr(user, "username", None),
+    }

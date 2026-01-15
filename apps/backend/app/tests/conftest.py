@@ -137,9 +137,9 @@ def _register_sqlite_uuid_handlers(engine):
         def set_sqlite_pragma(dbapi_conn, connection_record):
             if str(engine.url).startswith("sqlite"):
                 cursor = dbapi_conn.cursor()
-                # Disable foreign key constraints for SQLite tests
-                # (PostgreSQL will enforce them in production)
-                cursor.execute("PRAGMA foreign_keys=OFF")
+                # Enable foreign key constraints for tests to catch integrity issues
+                # (matches PostgreSQL behavior in production)
+                cursor.execute("PRAGMA foreign_keys=ON")
                 # Enable auto_vacuum to clean up deleted records
                 cursor.execute("PRAGMA auto_vacuum=FULL")
                 cursor.close()

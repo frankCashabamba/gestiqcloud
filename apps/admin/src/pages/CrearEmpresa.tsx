@@ -59,7 +59,8 @@ export const CrearEmpresa: React.FC = () => {
       nonEmpty(formData.country_code) &&
       nonEmpty(formData.currency) &&
       nonEmpty(formData.timezone) &&
-      nonEmpty(formData.default_language)
+      nonEmpty(formData.default_language) &&
+      formData.modulos.length > 0
     )
   }, [
     formData.nombre_empresa,
@@ -71,6 +72,7 @@ export const CrearEmpresa: React.FC = () => {
     formData.currency,
     formData.timezone,
     formData.default_language,
+    formData.modulos,
   ])
 
   // Autogenerar username visual (no editable) nombre.apellido
@@ -195,6 +197,7 @@ export const CrearEmpresa: React.FC = () => {
     if (!formData.default_language) return 'Selecciona un idioma/locale.'
     if (!formData.timezone) return 'Selecciona una zona horaria.'
     if (!formData.currency) return 'Selecciona una moneda.'
+    if (!formData.modulos || formData.modulos.length === 0) return 'Debes seleccionar al menos un módulo para la empresa.'
     const rucErr = validateRucByCountry(formData.country_code || formData.pais, formData.ruc)
     if (rucErr) return rucErr
     if (!isUrl(formData.sitio_web || '')) return 'El sitio web no es una URL válida.'
@@ -454,7 +457,7 @@ export const CrearEmpresa: React.FC = () => {
 
             {!canSubmit && (
               <div className="text-xs text-slate-600">
-                Completa: empresa, admin, correo valido, pais, idioma, zona horaria, moneda y sector base.
+                Completa: empresa, admin, correo válido, país, idioma, zona horaria, moneda, sector base y al menos 1 módulo.
               </div>
             )}
 

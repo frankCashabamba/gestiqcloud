@@ -14,6 +14,7 @@ class ClienteIn:
     provincia: str | None = None
     pais: str | None = None
     codigo_postal: str | None = None
+    is_wholesale: bool = False
 
 
 @dataclass
@@ -28,3 +29,4 @@ class ClienteOut:
     provincia: str | None
     pais: str | None
     codigo_postal: str | None
+    is_wholesale: bool

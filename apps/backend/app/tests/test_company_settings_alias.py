@@ -9,7 +9,7 @@ from app.models.tenant import Tenant
 
 
 def test_company_settings_endpoint_creates_row(client: TestClient, db):
-    # Ensure clean slate
+    # Ensure clean slate for this test
     try:
         if db.get_bind().dialect.name == "postgresql":
             db.execute(text("TRUNCATE chart_of_accounts CASCADE"))
@@ -17,9 +17,8 @@ def test_company_settings_endpoint_creates_row(client: TestClient, db):
         else:
             db.execute(text("DELETE FROM chart_of_accounts"))
             db.execute(text("DELETE FROM import_batches"))
-        db.commit()
     except Exception:
-        db.rollback()
+        pass
 
     db.query(CompanySettings).delete()
     db.query(Tenant).delete()
@@ -27,7 +26,7 @@ def test_company_settings_endpoint_creates_row(client: TestClient, db):
 
     tenant = Tenant(id=uuid4(), name="Acme", slug="acme")
     db.add(tenant)
-    db.commit()
+    db.flush()
 
     settings = CompanySettings(
         tenant_id=tenant.id,
@@ -49,7 +48,12 @@ def test_company_settings_endpoint_creates_row(client: TestClient, db):
             os.environ.pop("TEST_TENANT_ID", None)
         else:
             os.environ["TEST_TENANT_ID"] = previous_tid
+
     assert r.status_code == 200
     data = r.json()
     assert data.get("ok") is True
     assert data.get("currency") == "EUR"
+
+    db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant.id).delete()
+    db.query(Tenant).filter(Tenant.id == tenant.id).delete()
+    db.commit()

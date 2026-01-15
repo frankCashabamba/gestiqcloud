@@ -13,6 +13,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { listWarehouses, adjustStock, type Warehouse } from '../inventario/services'
 import { listUsuarios } from '../usuarios/services'
 import type { Usuario } from '../usuarios/types'
+import { listClientes, type Cliente } from '../clientes/services'
 import {
     listRegisters,
     createRegister,
@@ -41,6 +42,8 @@ type CartItem = {
     discount_pct: number
     notes?: string
     categoria?: string
+    price_source?: 'retail' | 'wholesale' | 'wholesale_mixed'
+    pricing_note?: string
 }
 
 type HeldTicket = {
@@ -59,6 +62,9 @@ type PosDraftState = {
     buyerIdNumber: string
     buyerName: string
     buyerEmail: string
+    isWholesaleCustomer: boolean
+    selectedCustomerId: string | null
+    selectedCustomerName: string | null
 }
 
 const POS_DRAFT_KEY = 'posDraftState'
@@ -110,6 +116,11 @@ export default function POSView() {
     const [buyerIdNumber, setBuyerIdNumber] = useState('')
     const [buyerName, setBuyerName] = useState('')
     const [buyerEmail, setBuyerEmail] = useState('')
+    const [isWholesaleCustomer, setIsWholesaleCustomer] = useState(false)
+    const [clients, setClients] = useState<Cliente[]>([])
+    const [clientsLoading, setClientsLoading] = useState(false)
+    const [clientQuery, setClientQuery] = useState('')
+    const [selectedClient, setSelectedClient] = useState<Cliente | null>(null)
     const [createProductForm, setCreateProductForm] = useState({
         sku: '',
         name: '',
@@ -169,6 +180,25 @@ export default function POSView() {
     }, [])
 
     useEffect(() => {
+        if (cart.length === 0) return
+        setCart((prev) =>
+            prev.map((item) => {
+                const product = products.find((p) => p.id === item.product_id)
+                if (!product) return item
+                const priced = applyPricingToCartItem(item, product, item.qty)
+                if (
+                    priced.price === item.price &&
+                    priced.pricing_note === item.pricing_note &&
+                    priced.price_source === item.price_source
+                ) {
+                    return item
+                }
+                return priced
+            })
+        )
+    }, [isWholesaleCustomer, products])
+
+    useEffect(() => {
         if (!selectedCashierId && profile?.user_id) {
             setSelectedCashierId(String(profile.user_id))
         }
@@ -186,6 +216,17 @@ export default function POSView() {
             }
         })()
     }, [esAdminEmpresa])
+
+    useEffect(() => {
+        if (buyerMode === 'CONSUMER_FINAL') {
+            setSelectedClient(null)
+            setIsWholesaleCustomer(false)
+        }
+    }, [buyerMode])
+
+    useEffect(() => {
+        setIsWholesaleCustomer(!!selectedClient?.is_wholesale)
+    }, [selectedClient])
 
     // Persistir tickets en espera en localStorage para sobrevivir recargas
     useEffect(() => {
@@ -213,6 +254,16 @@ export default function POSView() {
             if (typeof draft.buyerIdNumber === 'string') setBuyerIdNumber(draft.buyerIdNumber)
             if (typeof draft.buyerName === 'string') setBuyerName(draft.buyerName)
             if (typeof draft.buyerEmail === 'string') setBuyerEmail(draft.buyerEmail)
+            if (typeof draft.isWholesaleCustomer === 'boolean') {
+                setIsWholesaleCustomer(draft.isWholesaleCustomer)
+            }
+            if (draft.selectedCustomerId) {
+                setSelectedClient({
+                    id: draft.selectedCustomerId,
+                    name: draft.selectedCustomerName || draft.buyerName || 'Cliente',
+                    is_wholesale: !!draft.isWholesaleCustomer,
+                } as Cliente)
+            }
         } catch {
             // ignore corrupted draft
         }
@@ -235,6 +286,9 @@ export default function POSView() {
                 buyerIdNumber,
                 buyerName,
                 buyerEmail,
+                isWholesaleCustomer,
+                selectedCustomerId: selectedClient ? String(selectedClient.id) : null,
+                selectedCustomerName: selectedClient?.name || null,
             }
             if (draft.cart.length === 0 && !draft.ticketNotes) {
                 localStorage.removeItem(POS_DRAFT_KEY)
@@ -251,6 +305,8 @@ export default function POSView() {
         buyerIdNumber,
         buyerName,
         buyerEmail,
+        isWholesaleCustomer,
+        selectedClient,
     ])
 
     const loadRegisters = async () => {
@@ -305,6 +361,18 @@ export default function POSView() {
         }
     }
 
+    const loadClients = async () => {
+        try {
+            setClientsLoading(true)
+            const data = await listClientes()
+            setClients(data)
+        } catch (error) {
+            console.error('Error loading clients:', error)
+        } finally {
+            setClientsLoading(false)
+        }
+    }
+
     const resolveWarehouseForStock = async () => {
         if (headerWarehouseId) return headerWarehouseId
         if (warehouses.length > 0) return String(warehouses[0].id)
@@ -346,7 +414,7 @@ export default function POSView() {
             )
         }
 
-        // Ocultar productos con stock por debajo del punto de reorden
+        // Ocultar productos con stock por debajo del minimo de stock
         result = result.filter((p) => {
             const min = Number((p.product_metadata?.reorder_point ?? globalReorderPoint) || 0)
             if (min > 0) {
@@ -369,6 +437,30 @@ export default function POSView() {
         return result
     }, [products, selectedCategory, searchQuery, viewMode, inventoryConfig.reorderPoint])
 
+    useEffect(() => {
+        if (!showBuyerModal || buyerMode !== 'IDENTIFIED') return
+        if (clients.length > 0 || clientsLoading) return
+        loadClients()
+    }, [showBuyerModal, buyerMode, clients.length, clientsLoading])
+
+    const filteredClients = useMemo(() => {
+        if (!clientQuery.trim()) return clients.slice(0, 8)
+        const q = clientQuery.trim().toLowerCase()
+        return clients
+            .filter((c) => {
+                const name = (c.name || '').toLowerCase()
+                const tax = ((c.identificacion || c.tax_id || '') as string).toLowerCase()
+                const email = (c.email || '').toLowerCase()
+                return name.includes(q) || tax.includes(q) || email.includes(q)
+            })
+            .slice(0, 8)
+    }, [clients, clientQuery])
+
+    const getReorderPoint = (product: Producto) => {
+        const point = Number(product.product_metadata?.reorder_point ?? inventoryConfig.reorderPoint ?? 0)
+        return Number.isFinite(point) ? point : 0
+    }
+
     const violatesStockPolicy = (
         product: Producto,
         desiredQty: number,
@@ -383,15 +475,83 @@ export default function POSView() {
         }
 
         if (!opts?.ignoreReorder) {
-            const reorderPoint = Number(
-                product.product_metadata?.reorder_point ?? inventoryConfig.reorderPoint ?? 0
-            )
+            const reorderPoint = getReorderPoint(product)
             if (reorderPoint > 0 && remaining < reorderPoint) {
-                alert(`Stock bajar? del punto de reorden (${reorderPoint}). No se puede vender.`)
+                alert(`Stock bajo del minimo de stock (${reorderPoint}). No se puede vender.`)
                 return true
             }
         }
         return false
+    }
+
+    const getWholesaleConfig = (product: Producto) => {
+        const meta = (product.product_metadata || {}) as any
+        const raw = (meta.wholesale || {}) as any
+        if (!raw || raw.enabled === false) return null
+        const price = Number(raw.price)
+        if (!Number.isFinite(price) || price <= 0) return null
+        return {
+            price,
+            min_qty_units: Number(raw.min_qty_units ?? 0) || 0,
+            min_qty_by_pack: (raw.min_qty_by_pack || {}) as Record<string, number>,
+            apply_mode: raw.apply_mode === 'excess' ? 'excess' : 'all',
+        }
+    }
+
+    const resolveWholesaleThreshold = (cfg: any, packKey: string) => {
+        const minUnits = Number(cfg.min_qty_units ?? 0) || 0
+        const minPack = Number(cfg.min_qty_by_pack?.[packKey] ?? 0) || 0
+        const candidates = [minUnits, minPack].filter((n) => n > 0)
+        return candidates.length ? Math.min(...candidates) : 0
+    }
+
+    const getPricingForProduct = (product: Producto, qty: number, packKey = 'unit') => {
+        const basePrice = Number(product.price ?? 0) || 0
+        const cfg = getWholesaleConfig(product)
+        if (!cfg) return { unitPrice: basePrice, source: 'retail' as const }
+
+        const reorderPoint = getReorderPoint(product)
+        const stock = Number(product.stock ?? 0)
+        if (reorderPoint > 0 && stock < reorderPoint) {
+            return { unitPrice: basePrice, source: 'retail' as const }
+        }
+
+        const minUnits = Number(cfg.min_qty_units ?? 0) || 0
+        const minPack = Number(cfg.min_qty_by_pack?.[packKey] ?? 0) || 0
+        const meetsMin = (minUnits > 0 && qty >= minUnits) || (minPack > 0 && qty >= minPack)
+        const isActive = isWholesaleCustomer || meetsMin
+        if (!isActive) return { unitPrice: basePrice, source: 'retail' as const }
+
+        if (cfg.apply_mode !== 'excess') {
+            return { unitPrice: cfg.price, source: 'wholesale' as const, note: 'Mayorista' }
+        }
+
+        const threshold = resolveWholesaleThreshold(cfg, packKey)
+        if (threshold <= 0) {
+            return { unitPrice: cfg.price, source: 'wholesale' as const, note: 'Mayorista' }
+        }
+        if (qty <= threshold) {
+            return { unitPrice: basePrice, source: 'retail' as const }
+        }
+
+        const mixedTotal = basePrice * threshold + cfg.price * (qty - threshold)
+        const unitPrice = mixedTotal / qty
+        return {
+            unitPrice,
+            source: 'wholesale_mixed' as const,
+            note: `Mayorista parcial desde ${threshold}`,
+        }
+    }
+
+    const applyPricingToCartItem = (item: CartItem, product: Producto, qty: number) => {
+        const pricing = getPricingForProduct(product, qty)
+        return {
+            ...item,
+            qty,
+            price: pricing.unitPrice,
+            price_source: pricing.source,
+            pricing_note: pricing.note,
+        }
     }
 
     const addToCart = (product: Producto, opts?: { ignoreReorder?: boolean }) => {
@@ -402,22 +562,25 @@ export default function POSView() {
         if (existing) {
             setCart(
                 cart.map((item) =>
-                    item.product_id === product.id ? { ...item, qty: item.qty + 1 } : item
+                    item.product_id === product.id
+                        ? applyPricingToCartItem(item, product, nextQty)
+                        : item
                 )
             )
         } else {
-            const newItem: CartItem = {
+            const baseItem: CartItem = {
                 product_id: product.id,
                 sku: product.sku || '',
                 name: product.name,
                 price: product.price || 0,
-                // Preservar 0% si el producto lo tiene; solo usar fallback de configuraci?n cuando viene null/undefined
+                // Preservar 0% si el producto lo tiene; solo usar fallback de configuracion cuando viene null/undefined
                 iva_tasa: (product as any).iva_tasa ?? defaultTaxPct,
                 qty: 1,
                 discount_pct: 0,
                 categoria: product.categoria || (product.product_metadata?.categoria as any),
             }
-            setCart([...cart, newItem])
+            const priced = applyPricingToCartItem(baseItem, product, 1)
+            setCart([...cart, priced])
         }
     }
 
@@ -430,9 +593,24 @@ export default function POSView() {
                 if (delta > 0 && product && violatesStockPolicy(product, newQty)) {
                     return item
                 }
-                return { ...item, qty: newQty }
+                if (!product) return { ...item, qty: newQty }
+                return applyPricingToCartItem(item, product, newQty)
             })
         )
+    }
+
+    const handleSelectClient = (client: Cliente) => {
+        setSelectedClient(client)
+        setBuyerName(client.name || '')
+        const doc = (client.identificacion || client.tax_id || '').toString()
+        if (doc) setBuyerIdNumber(doc)
+        if (client.email) setBuyerEmail(client.email)
+    }
+
+    const clearSelectedClient = () => {
+        setSelectedClient(null)
+        setClientQuery('')
+        setIsWholesaleCustomer(false)
     }
 
     const removeItem = (index: number) => {
@@ -812,6 +990,7 @@ const setLineNote = (index: number) => {
                 register_id: selectedRegister.id,
                 shift_id: currentShift.id,
                 cashier_id: esAdminEmpresa ? selectedCashierId || undefined : undefined,
+                customer_id: selectedClient ? String(selectedClient.id) : undefined,
                 lines: cart.map((item) => {
                     const line_total = item.price * item.qty * (1 - item.discount_pct / 100)
                     return {
@@ -1120,6 +1299,11 @@ const setLineNote = (index: number) => {
                         <span className="shift-meta">
                             Fondo {currencySymbol}{(Number(currentShift.opening_float) || 0).toFixed(2)}
                         </span>
+                        {inventoryConfig.reorderPoint > 0 && (
+                            <span className="shift-meta">
+                                Minimo stock: {inventoryConfig.reorderPoint}
+                            </span>
+                        )}
                         <button
                             className="btn sm danger"
                             onClick={() => shiftManagerRef.current?.openCloseModal()}
@@ -1349,6 +1533,7 @@ const setLineNote = (index: number) => {
                                     <small style={{ color: 'var(--muted)' }}>
                                         {item.price.toFixed(2)}{currencySymbol}
                                         {item.discount_pct > 0 && ` · Desc ${item.discount_pct}%`}
+                                        {item.pricing_note && ` · ${item.pricing_note}`}
                                         {item.notes && ` · ${item.notes}`}
                                     </small>
                                 </div>
@@ -1366,7 +1551,12 @@ const setLineNote = (index: number) => {
                                             const newQty = parseFloat(e.target.value) || 0
                                             if (newQty > 0) {
                                                 const updated = [...cart]
-                                                updated[idx].qty = newQty
+                                                const product = products.find((p) => p.id === updated[idx].product_id)
+                                                if (product) {
+                                                    updated[idx] = applyPricingToCartItem(updated[idx], product, newQty)
+                                                } else {
+                                                    updated[idx].qty = newQty
+                                                }
                                                 setCart(updated)
                                             }
                                         }}
@@ -1498,6 +1688,55 @@ const setLineNote = (index: number) => {
                         )}
                         {buyerMode === 'IDENTIFIED' && (
                             <div style={{ display: 'grid', gap: 8 }}>
+                                <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 8 }}>
+                                    <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', marginBottom: 6 }}>
+                                        Cliente existente
+                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar cliente (nombre, RUC, email)"
+                                        value={clientQuery}
+                                        onChange={(e) => setClientQuery(e.target.value)}
+                                    />
+                                    {clientsLoading && (
+                                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>Cargando clientes...</div>
+                                    )}
+                                    {!clientsLoading && filteredClients.length > 0 && (
+                                        <div style={{ display: 'grid', gap: 4, marginTop: 6, maxHeight: 160, overflow: 'auto' }}>
+                                            {filteredClients.map((c) => (
+                                                <button
+                                                    key={String(c.id)}
+                                                    type="button"
+                                                    className="btn ghost"
+                                                    style={{ justifyContent: 'space-between' }}
+                                                    onClick={() => handleSelectClient(c)}
+                                                >
+                                                    <span>{c.name}</span>
+                                                    <span style={{ fontSize: 11, color: '#6b7280' }}>
+                                                        {(c.identificacion || c.tax_id || '').toString()}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {!clientsLoading && clientQuery && filteredClients.length === 0 && (
+                                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>Sin resultados.</div>
+                                    )}
+                                    {selectedClient && (
+                                        <div style={{ marginTop: 8, fontSize: 12, color: '#111827' }}>
+                                            Seleccionado: <strong>{selectedClient.name}</strong>
+                                            {selectedClient.is_wholesale ? ' (Mayorista)' : ''}
+                                            <button
+                                                type="button"
+                                                className="btn ghost"
+                                                style={{ marginLeft: 8 }}
+                                                onClick={clearSelectedClient}
+                                            >
+                                                Quitar
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                                 <select
                                     value={buyerIdType}
                                     onChange={(e) => setBuyerIdType(e.target.value)}

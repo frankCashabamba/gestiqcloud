@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import tenantApi from '../shared/api/client'
 import { TENANT_AUTH } from '@shared/endpoints'
 import { useToast, getErrorMessage } from '../shared/toast'
+import { useAuth } from '../auth/AuthContext'
 
 export default function SetPassword() {
   const [sp] = useSearchParams()
@@ -11,6 +12,7 @@ export default function SetPassword() {
   const [pwd2, setPwd2] = useState('')
   const [saving, setSaving] = useState(false)
   const { success, error } = useToast()
+  const { login } = useAuth()
   const nav = useNavigate()
 
   const onSubmit: React.FormEventHandler = async (e) => {
@@ -20,9 +22,12 @@ export default function SetPassword() {
       if (!pwd || pwd.length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres')
       if (pwd !== pwd2) throw new Error('Las contraseñas no coinciden')
       setSaving(true)
-      await tenantApi.post(TENANT_AUTH.setPassword, { token, password: pwd })
+      const { data } = await tenantApi.post(TENANT_AUTH.setPassword, { token, password: pwd })
+      const ident = (data?.email || data?.username || '').trim()
+      if (!ident) throw new Error('No se pudo iniciar sesión con la nueva contraseña')
+      await login({ identificador: ident, password: pwd })
       success('Contraseña actualizada')
-      nav('/login')
+      nav('/onboarding')
     } catch (e:any) {
       error(getErrorMessage(e))
     } finally { setSaving(false) }

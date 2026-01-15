@@ -183,11 +183,12 @@ class ReceiptCreateIn(BaseModel):
     shift_id: str
     register_id: str
     cashier_id: str | None = None
+    customer_id: str | None = None
     lines: list[ReceiptLineIn] = Field(default_factory=list)
     payments: list[PaymentIn] = Field(default_factory=list)
     notes: str | None = Field(default=None, max_length=500)
 
-    @field_validator("shift_id", "register_id", "cashier_id")
+    @field_validator("shift_id", "register_id", "cashier_id", "customer_id")
     @classmethod
     def validate_ids(cls, v):
         if v is not None:
@@ -1444,6 +1445,7 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
     current_user_id = _get_user_id(request)
     shift_uuid = _validate_uuid(payload.shift_id, "Shift ID")
     register_uuid = _validate_uuid(payload.register_id, "Register ID")
+    customer_uuid = _validate_uuid(payload.customer_id, "Customer ID") if payload.customer_id else None
 
     try:
         cashier_id = current_user_id
@@ -1466,6 +1468,20 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
                 raise HTTPException(status_code=400, detail="cashier_not_found")
 
             cashier_id = requested_cashier_id
+
+        if customer_uuid:
+            exists = db.execute(
+                text(
+                    "SELECT 1 FROM clients "
+                    "WHERE id = :cid AND tenant_id = :tid"
+                ).bindparams(
+                    bindparam("cid", type_=PGUUID(as_uuid=True)),
+                    bindparam("tid", type_=PGUUID(as_uuid=True)),
+                ),
+                {"cid": customer_uuid, "tid": tenant_id},
+            ).first()
+            if not exists:
+                raise HTTPException(status_code=400, detail="customer_not_found")
 
         # Verificar que el turno existe y estÃ¡ abierto
         shift = db.execute(
@@ -1509,23 +1525,25 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
         row = db.execute(
             text(
                 "INSERT INTO pos_receipts("
-                "tenant_id, register_id, shift_id, cashier_id, number, status, "
-                "gross_total, tax_total, currency"
+                "tenant_id, register_id, shift_id, cashier_id, customer_id, number, status, "
+                "gross_total, tax_total, currency, created_at"
                 ") VALUES ("
-                ":tid, :rid, :sid, :cashier_id, :number, 'draft', "
-                "0, 0, 'EUR'"
+                ":tid, :rid, :sid, :cashier_id, :customer_id, :number, 'draft', "
+                "0, 0, 'EUR', NOW()"
                 ") RETURNING id"
             ).bindparams(
                 bindparam("tid", type_=PGUUID(as_uuid=True)),
                 bindparam("rid", type_=PGUUID(as_uuid=True)),
                 bindparam("sid", type_=PGUUID(as_uuid=True)),
                 bindparam("cashier_id", type_=PGUUID(as_uuid=True)),
+                bindparam("customer_id", type_=PGUUID(as_uuid=True)),
             ),
             {
                 "tid": tenant_id,
                 "rid": register_uuid,
                 "sid": shift_uuid,
                 "cashier_id": cashier_id,
+                "customer_id": customer_uuid,
                 "number": ticket_number,
             },
         ).first()

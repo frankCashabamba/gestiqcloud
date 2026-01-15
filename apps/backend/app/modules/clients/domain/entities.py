@@ -15,6 +15,7 @@ class Cliente:
     provincia: str | None
     pais: str | None
     codigo_postal: str | None
+    is_wholesale: bool
     tenant_id: int
 
     def validate(self) -> None:

@@ -58,6 +58,7 @@ export default function ClientesList() {
             <th><button className="underline" onClick={()=> { setSortKey('nombre'); setSortDir(d=> d==='asc'?'desc':'asc') }}>Nombre {sortKey==='nombre' ? (sortDir==='asc'?'▲':'▼') : ''}</button></th>
             <th><button className="underline" onClick={()=> { setSortKey('email'); setSortDir(d=> d==='asc'?'desc':'asc') }}>Email {sortKey==='email' ? (sortDir==='asc'?'▲':'▼') : ''}</button></th>
             <th>Teléfono</th>
+            <th>Mayorista</th>
             <th>Acciones</th>
           </tr>
         </thead>
@@ -67,6 +68,7 @@ export default function ClientesList() {
               <td>{c.name}</td>
               <td>{c.email || '-'}</td>
               <td>{c.phone || '-'}</td>
+              <td>{c.is_wholesale ? 'Si' : 'No'}</td>
               <td>
                 <Link to={`${c.id}/editar`} className="text-blue-600 hover:underline mr-3">Editar</Link>
                 <button className="text-red-700" onClick={async () => { if (!confirm('¿Eliminar cliente?')) return; try { await removeCliente(c.id); setItems((p)=>p.filter(x=>x.id!==c.id)); success('Cliente eliminado') } catch(e:any){ toastError(getErrorMessage(e)) } }}>Eliminar</button>

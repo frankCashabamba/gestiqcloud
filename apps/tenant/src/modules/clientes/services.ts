@@ -47,6 +47,7 @@ export type Cliente = {
   notas?: string
   tags?: string[]
   bloqueado?: boolean
+  is_wholesale?: boolean
 }
 
 export async function listClientes(): Promise<Cliente[]> {

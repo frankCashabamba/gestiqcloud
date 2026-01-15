@@ -200,6 +200,8 @@ def build_api_router() -> APIRouter:
 
     # Empresas
     _mount_empresas(r)
+    # Onboarding initialization
+    include_router_safe(r, ("app.routers.onboarding_init", "router"))
     # Alta de empresas: usar router moderno únicamente
 
     # Clientes (mount under /tenant to align FE endpoints)

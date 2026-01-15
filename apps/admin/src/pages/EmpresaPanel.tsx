@@ -41,98 +41,90 @@ export const EmpresaPanel: React.FC = () => {
   };
 
   return (
+    <Container className="empresa-page">
+      <header className="empresa-header">
+        <h1 className="empresa-title">Gestion de empresas</h1>
+        <p className="empresa-subtitle">Administra empresas, modulos y accesos desde un solo lugar.</p>
+      </header>
 
-      <Container className="space-y-6 py-10">
-        <div className="flex justify-between items-center flex-wrap gap-2">
-        <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
-          Gestión de Empresas
-        </h1>
-
-        <Link
-          to="crear" // relativo → /admin/empresas/crear
-          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
-        >
-          ➕ Nueva Empresa
-        </Link>
-      </div>
-
+      <div className="empresa-toolbar">
         <input
           type="search"
           placeholder="Buscar empresa..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 text-sm"
+          className="empresa-search"
         />
+        <Link to="crear" className="empresa-primary">
+          Nueva empresa
+        </Link>
+      </div>
 
-        {loading ? (
-          <p className="text-gray-500 text-sm">Cargando empresas...</p>
-        ) : error ? (
-          <p className="text-red-500 text-sm">❌ Error al cargar empresas.</p>
-        ) : empresasFiltradas.length > 0 ? (
-          <ul className="space-y-4">
-            {empresasFiltradas.map((empresa) => {
-              const nombreEmpresa = empresa?.nombre || (empresa as any)?.name || '(Sin nombre)';
-              const modulos = (empresa as any)?.modulos || (empresa as any)?.modules || [];
-              return (
-                <li
-                  key={empresa.id}
-                  className="empresa-item bg-white border border-gray-200 rounded-xl shadow-sm p-4"
-                >
-                  <div className="text-lg font-semibold text-gray-800 flex justify-between items-center flex-wrap gap-2">
-                    {nombreEmpresa}
-                    <span className="text-sm text-gray-500">
-                      {Array.isArray(modulos) && modulos.length > 0 ? (
-                        `Módulos: ${modulos.join(', ')}`
+      {loading ? (
+        <p className="empresa-muted">Cargando...</p>
+      ) : error ? (
+        <p className="empresa-muted" style={{ color: '#dc2626' }}>Error al cargar empresas</p>
+      ) : empresasFiltradas.length > 0 ? (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Empresa</th>
+                <th>Modulos</th>
+                <th style={{ textAlign: 'right' }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {empresasFiltradas.map((empresa) => {
+                const nombreEmpresa = empresa?.nombre || (empresa as any)?.name || 'Sin nombre';
+                const modulos = (empresa as any)?.modulos || (empresa as any)?.modules || [];
+                return (
+                  <tr key={empresa.id}>
+                    <td style={{ fontWeight: 600 }}>{nombreEmpresa}</td>
+                    <td>
+                      {modulos.length > 0 ? (
+                        <div className="badge-group">
+                          {modulos.map((modulo: string) => (
+                            <span key={`${empresa.id}-${modulo}`} className="badge">
+                              {modulo}
+                            </span>
+                          ))}
+                        </div>
                       ) : (
-                        <span className="text-red-500">Sin módulos</span>
+                        <span className="badge badge-warning">Sin modulos</span>
                       )}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    <a
-                      href={`/admin/empresas/${empresa.id}/editar`}
-                      className="inline-flex items-center gap-1 bg-indigo-500 hover:bg-indigo-600 text-white text-sm px-3 py-1.5 rounded-md"
-                    >
-                      ✏️ Editar
-                    </a>
-                    <a
-                      href={`/admin/empresas/${empresa.id}/usuarios`}
-                      className="inline-flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-sm px-3 py-1.5 rounded-md"
-                    >
-                      👥 Usuarios Empresa
-                    </a>
-                    <a
-                      href={`/admin/empresas/modulos/${empresa.id}`}
-                      className="inline-flex items-center gap-1 bg-yellow-500 hover:bg-yellow-600 text-white text-sm px-3 py-1.5 rounded-md"
-                    >
-                      ⚙️ Módulos
-                    </a>
-                    <a
-                      href={`/admin/empresas/${empresa.id}/configuracion`}
-                      className="inline-flex items-center gap-1 bg-purple-500 hover:bg-purple-600 text-white text-sm px-3 py-1.5 rounded-md"
-                    >
-                      🧩 Configuración avanzada
-                    </a>
-                    <button
-                      onClick={() => alert(`Actuar como empresa ${empresa.id}`)}
-                      className="inline-flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white text-sm px-3 py-1.5 rounded-md"
-                    >
-                      🧭 Actuar como
-                    </button>
-                    <button
-                      onClick={() => setEmpresaAEliminar({ id: String(empresa.id), name: nombreEmpresa })}
-                      className="inline-flex items-center gap-1 bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-1.5 rounded-md"
-                    >
-                      🗑️ Eliminar
-                    </button>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        ) : (
-          <p className="text-gray-500 text-sm mt-4">No hay empresas registradas aún.</p>
-        )}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div className="action-pills">
+                        <Link to={`/admin/empresas/${empresa.id}/editar`} className="action-pill blue">
+                          Editar
+                        </Link>
+                        <Link to={`/admin/empresas/${empresa.id}/usuarios`} className="action-pill green">
+                          Usuarios
+                        </Link>
+                        <Link to={`/admin/empresas/modulos/${empresa.id}`} className="action-pill amber">
+                          Modulos
+                        </Link>
+                        <Link to={`/admin/empresas/${empresa.id}/configuracion`} className="action-pill violet">
+                          Config
+                        </Link>
+                        <button
+                          onClick={() => setEmpresaAEliminar({ id: String(empresa.id), name: nombreEmpresa })}
+                          className="action-pill danger"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="empresa-empty">No hay empresas registradas.</div>
+      )}
 
       {empresaAEliminar && (
         <DeleteEmpresaModal
@@ -141,7 +133,6 @@ export const EmpresaPanel: React.FC = () => {
           onConfirm={handleConfirmDelete}
         />
       )}
-      </Container>
-
+    </Container>
   );
 };

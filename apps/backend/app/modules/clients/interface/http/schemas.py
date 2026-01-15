@@ -15,6 +15,7 @@ class ClienteInSchema(BaseModel):
     state: str | None = None
     pais: str | None = None
     codigo_postal: str | None = None
+    is_wholesale: bool | None = False
 
 
 class ClienteOutSchema(BaseModel):
@@ -28,3 +29,4 @@ class ClienteOutSchema(BaseModel):
     state: str | None = None
     pais: str | None = None
     codigo_postal: str | None = None
+    is_wholesale: bool | None = False

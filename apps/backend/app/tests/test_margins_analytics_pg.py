@@ -23,6 +23,7 @@ def test_margins_endpoints_return_snapshot(db: Session, tenant_minimal, superuse
         margins_product_lines,
         open_shift,
     )
+    from app.models.company.company_user import CompanyUser
 
     tid = tenant_minimal["tenant_id"]
     tid_str = tenant_minimal["tenant_id_str"]
@@ -35,9 +36,30 @@ def test_margins_endpoints_return_snapshot(db: Session, tenant_minimal, superuse
     db.execute(text("SET session_replication_role = REPLICA"))
 
     user = superuser_factory(username="pos_margins_tester", tenant_id=tid)
+    company_user = db.query(CompanyUser).filter(CompanyUser.id == user.id).first()
+    if not company_user:
+        company_user = CompanyUser(
+            id=user.id,
+            tenant_id=tid,
+            first_name="POS",
+            last_name="Tester",
+            email=f"{user.username}@example.com",
+            username=user.username,
+            is_active=True,
+            is_company_admin=True,
+            password_hash=user.password_hash,
+            is_verified=True,
+        )
+        db.add(company_user)
+        db.commit()
+    elif company_user.tenant_id != tid:
+        company_user.tenant_id = tid
+        company_user.is_active = True
+        company_user.is_company_admin = True
+        db.commit()
 
     class _State:
-        access_claims = {"tenant_id": tid_str, "user_id": str(user.id)}
+        access_claims = {"tenant_id": tid_str, "user_id": str(company_user.id)}
 
     class _Req:
         state = _State()

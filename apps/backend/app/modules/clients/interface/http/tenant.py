@@ -35,6 +35,7 @@ def _schema_to_dto(payload: ClienteInSchema) -> ClienteIn:
         provincia=data.get("state") or data.get("provincia"),
         pais=data.get("pais"),
         codigo_postal=data.get("codigo_postal"),
+        is_wholesale=bool(data.get("is_wholesale") or False),
     )
 
 
@@ -51,6 +52,7 @@ def _dto_to_schema(data: ClienteOut) -> ClienteOutSchema:
         state=data.provincia,
         pais=data.pais,
         codigo_postal=data.codigo_postal,
+        is_wholesale=bool(getattr(data, "is_wholesale", False)),
     )
 
 

@@ -4,7 +4,7 @@ Auto-generated module docstring."""
 
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import Boolean, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -32,6 +32,7 @@ class Client(Base):
     state: Mapped[str] = mapped_column("state", String, nullable=True)
     country: Mapped[str] = mapped_column("country", String, nullable=True)
     postal_code: Mapped[str] = mapped_column("postal_code", String, nullable=True)
+    is_wholesale: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     tenant_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("tenants.id"), index=True, nullable=True

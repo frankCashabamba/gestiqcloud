@@ -176,6 +176,9 @@ export default function StockList() {
           <p className="mt-1 text-sm text-gray-500">
             Control de existencias por almacén
           </p>
+          {defaultReorderPoint > 0 && (
+            <p className="mt-1 text-xs text-gray-500">Minimo global de stock: {defaultReorderPoint}</p>
+          )}
         </div>
         <div className="flex gap-2">
           <button
@@ -362,7 +365,7 @@ export default function StockList() {
                         <div className="text-sm font-medium text-gray-900">{item.product?.name || '—'}</div>
                         {item.product?.product_metadata?.reorder_point && (
                           <div className="text-xs text-gray-500">
-                            Min: {item.product.product_metadata.reorder_point} {item.product.product_metadata.max_stock && `/ Max: ${item.product.product_metadata.max_stock}`}
+                            Min stock: {item.product.product_metadata.reorder_point} {item.product.product_metadata.max_stock && `/ Max: ${item.product.product_metadata.max_stock}`}
                           </div>
                         )}
                       </td>

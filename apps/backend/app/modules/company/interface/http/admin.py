@@ -596,9 +596,13 @@ async def create_company_full_json(
             password=tmp_password,
         )
 
-        # Módulos
+        # Módulos: Solo asignar los explícitamente contratados por la empresa
+        # Validar que se contrate al menos 1 módulo
+        if not payload.modules or len(payload.modules) == 0:
+            raise HTTPException(status_code=400, detail="at_least_one_module_required")
+        
         if tenant_uuid:
-            for modulo_id in payload.modules or []:
+            for modulo_id in payload.modules:
                 exists_module = (
                     db.query(CompanyModule)
                     .filter(
@@ -676,7 +680,14 @@ async def create_company_full_json(
         raise HTTPException(status_code=400, detail=str(e))
 
     try:
-        enviar_correo_bienvenida(user.email, user.username, payload.company.name, background_tasks)
+        enviar_correo_bienvenida(
+            user_email=user.email,
+            username=user.username,
+            empresa_nombre=payload.company.name,
+            background_tasks=background_tasks,
+            nombre_usuario=f"{payload.admin.first_name} {payload.admin.last_name}".strip(),
+            is_admin_company=user.is_company_admin,
+        )
     except Exception as e:
         # Do not interrupt the flow on SMTP failure, but log for diagnosis
         logger.warning("Failed to enqueue welcome email for %s: %s", user.email, e, exc_info=True)

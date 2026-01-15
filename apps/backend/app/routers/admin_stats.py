@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.models.auth.useradmis import SuperUser
+from app.models.company.company_user import CompanyUser
 from app.models.core.modulo import CompanyModule
 from app.models.tenant import Tenant
 
@@ -29,10 +29,10 @@ def get_admin_stats(db: Session = Depends(get_db)) -> dict[str, Any]:
         db.execute(select(func.count(Tenant.id)).where(Tenant.active.is_(True))).scalar() or 0
     )
 
-    # Usuarios (superusuarios globales)
-    usuarios_total = db.execute(select(func.count(SuperUser.id))).scalar() or 0
+    # Usuarios (usuarios de empresa)
+    usuarios_total = db.execute(select(func.count(CompanyUser.id))).scalar() or 0
     usuarios_activos = (
-        db.execute(select(func.count(SuperUser.id)).where(SuperUser.is_active.is_(True))).scalar()
+        db.execute(select(func.count(CompanyUser.id)).where(CompanyUser.is_active.is_(True))).scalar()
         or 0
     )
 
@@ -69,7 +69,7 @@ def get_admin_stats(db: Session = Depends(get_db)) -> dict[str, Any]:
     ultimos_tenants = [
         {
             "id": str(t.id),
-            "nombre": t.name,
+            "name": t.name,
             "created_at": t.created_at.isoformat() if t.created_at else None,
         }
         for t in ultimos_tenants_result.scalars().all()

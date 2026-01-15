@@ -150,26 +150,34 @@ def enviar_correo_bienvenida(
     username: str,
     empresa_nombre: str,
     background_tasks: BackgroundTasks,
+    nombre_usuario: str = None,
+    is_admin_company: bool = False,
 ) -> None:
     token = generar_token_email(user_email)
     base = (getattr(settings, "PASSWORD_RESET_URL_BASE", None) or settings.FRONTEND_URL).rstrip("/")
     enlace = f"{base}/set-password?token={token}"
     contexto = {
         "nombre_empresa": empresa_nombre,
+        "nombre_usuario": nombre_usuario or username,
         "username": username,
+        "email": user_email,
         "enlace": enlace,
         "anio": datetime.now().year,
     }
-    html_content = render_template("bienvenida.html", contexto)
+    # Selecciona plantilla según si es admin de empresa
+    template_name = "bienvenida_admin_empresa.html" if is_admin_company else "bienvenida.html"
+    html_content = render_template(template_name, contexto)
+    subject = "¡Bienvenido a GestiqCloud!" if is_admin_company else "Bienvenido a GestiqCloud"
+    
     if getattr(settings, "ENV", "development") == "development" and (
         getattr(settings, "EMAIL_DEV_LOG_ONLY", False) or not getattr(settings, "EMAIL_HOST", None)
     ):
         logger.info("[DEV EMAIL] Bienvenida link: %s", enlace)
     background_tasks.add_task(
-        send_email_mailtrap, user_email, "Bienvenido a GestiqCloud", html_content
+        send_email_mailtrap, user_email, subject, html_content
     )
     try:
-        logger.info("Queued welcome email to %s", user_email)
+        logger.info("Queued welcome email to %s (admin=%s)", user_email, is_admin_company)
     except Exception:
         pass
 

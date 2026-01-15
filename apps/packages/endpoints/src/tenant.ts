@@ -44,7 +44,7 @@ export const TENANT_BANCOS = {
 }
 
 export const TENANT_ONBOARDING = {
-  init: '/api/v1/tenant/configuracion-inicial',
+  init: '/api/v1/tenant/onboarding/init',
 }
 
 export const TENANT_USUARIOS = {

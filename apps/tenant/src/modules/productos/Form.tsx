@@ -5,6 +5,7 @@ import { createProducto, getProducto, updateProducto, listCategorias, type Produ
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { apiFetch } from '../../lib/http'
 import { useCurrency } from '../../hooks/useCurrency'
+import { getCompanySettings, getDefaultReorderPoint } from '../../services/companySettings'
 
 type FieldCfg = {
   field: string
@@ -34,6 +35,7 @@ export default function ProductoForm() {
   const [fields, setFields] = useState<FieldCfg[] | null>(null)
   const [loadingCfg, setLoadingCfg] = useState(false)
   const [categorias, setCategorias] = useState<Categoria[]>([])
+  const [minStockGlobal, setMinStockGlobal] = useState(0)
 
   // Cargar categorías disponibles
   useEffect(() => {
@@ -71,6 +73,23 @@ export default function ProductoForm() {
     }
   }, [empresa])
 
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const settings = await getCompanySettings()
+        if (!cancelled) {
+          setMinStockGlobal(Number(getDefaultReorderPoint(settings) || 0))
+        }
+      } catch {
+        if (!cancelled) setMinStockGlobal(0)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const fieldList = useMemo(() => {
     const base: FieldCfg[] = [
       { field: 'sku', visible: true, required: false, ord: 10, label: 'Code', type: 'text', help: 'Dejar vacío para generar automáticamente' },
@@ -97,6 +116,68 @@ export default function ProductoForm() {
   }, [fields, currencySymbol])
 
   const BARCODE_META_FIELDS = ['codigo_barras', 'barcode', 'ean', 'upc'] as const
+  const parseKeyValueNumberMap = (raw: string) => {
+    const result: Record<string, number> = {}
+    raw
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .forEach((part) => {
+        const [key, value] = part.split('=').map((chunk) => chunk.trim())
+        const num = Number(value)
+        if (key && Number.isFinite(num) && num > 0) {
+          result[key] = num
+        }
+      })
+    return result
+  }
+
+  const formatKeyValueNumberMap = (map?: Record<string, unknown> | null) => {
+    if (!map) return ''
+    return Object.entries(map)
+      .map(([key, value]) => `${key}=${value}`)
+      .join(', ')
+  }
+
+  const updateMetadata = (updater: (meta: Record<string, unknown>) => Record<string, unknown>) => {
+    setForm((prev) => {
+      const current = { ...(((prev.product_metadata ?? {}) as Record<string, unknown>) ?? {}) }
+      const next = updater(current)
+      return { ...prev, product_metadata: next }
+    })
+  }
+
+  const updateWholesale = (patch: Record<string, unknown>) => {
+    updateMetadata((meta) => {
+      const wholesale = { ...(((meta.wholesale ?? {}) as Record<string, unknown>) ?? {}), ...patch }
+      meta.wholesale = wholesale
+      return meta
+    })
+  }
+
+  const updatePacks = (packs: Record<string, number>) => {
+    updateMetadata((meta) => {
+      if (Object.keys(packs).length) {
+        meta.packs = packs
+      } else {
+        delete meta.packs
+      }
+      return meta
+    })
+  }
+
+  const updateWholesaleMinByPack = (packs: Record<string, number>) => {
+    updateMetadata((meta) => {
+      const wholesale = { ...(((meta.wholesale ?? {}) as Record<string, unknown>) ?? {}) }
+      if (Object.keys(packs).length) {
+        wholesale.min_qty_by_pack = packs
+      } else {
+        delete wholesale.min_qty_by_pack
+      }
+      meta.wholesale = wholesale
+      return meta
+    })
+  }
 
   const prepareProductPayload = (metadataOverride?: Record<string, unknown>) => {
     const payload: Record<string, unknown> = { ...(form as Record<string, unknown>) }
@@ -148,6 +229,11 @@ export default function ProductoForm() {
       }
 
       const metadata = { ...(((form.product_metadata ?? {}) as Record<string, unknown>) ?? {}) }
+      const wholesaleMeta = (metadata.wholesale || {}) as Record<string, unknown>
+      const wholesaleEnabled = wholesaleMeta.enabled !== false
+      if (wholesaleEnabled && minStockGlobal > 0 && (Number(form.stock ?? 0) || 0) < minStockGlobal) {
+        throw new Error(`No se permite activar mayorista si el stock inicial es menor al minimo de stock (${minStockGlobal}).`)
+      }
 
       // Auto-cálculo de margen si existe precio_compra (guardar en metadata)
       if (form.precio_compra && form.price) {
@@ -292,6 +378,17 @@ export default function ProductoForm() {
     }
   }
 
+  const metadata = ((form.product_metadata ?? {}) as Record<string, unknown>) ?? {}
+  const wholesale = ((metadata.wholesale ?? {}) as Record<string, unknown>) ?? {}
+  const wholesaleEnabled = wholesale.enabled !== false
+  const wholesalePrice = Number(wholesale.price ?? 0) || 0
+  const wholesaleMinUnits = Number(wholesale.min_qty_units ?? 0) || 0
+  const wholesaleApplyMode = (wholesale.apply_mode as string) === 'excess' ? 'excess' : 'all'
+  const packsInput = formatKeyValueNumberMap(metadata.packs as Record<string, unknown>)
+  const wholesaleMinByPackInput = formatKeyValueNumberMap(wholesale.min_qty_by_pack as Record<string, unknown>)
+  const stockValue = Number(form.stock ?? 0) || 0
+  const stockBelowGlobalMin = minStockGlobal > 0 && stockValue < minStockGlobal
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-6">
@@ -323,6 +420,98 @@ export default function ProductoForm() {
               {f.help && <p className="text-xs text-gray-500 mt-1">{f.help}</p>}
             </div>
           ))}
+        </div>
+
+        <div className="border-t pt-4">
+          <h2 className="text-lg font-semibold text-gray-900">Precio mayorista</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Configura condiciones por producto: cliente mayorista o minimos por cantidad.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+            <div>
+              <label className="block mb-2 font-medium text-gray-700 text-sm">Habilitar mayorista</label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={wholesaleEnabled}
+                  onChange={(e) => updateWholesale({ enabled: e.target.checked })}
+                  disabled={stockBelowGlobalMin && !wholesaleEnabled}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-600">Aplicar reglas de mayorista</span>
+              </label>
+              {minStockGlobal > 0 && (
+                <p className="text-xs text-gray-500 mt-2">
+                  Minimo global de stock: {minStockGlobal}
+                </p>
+              )}
+              {stockBelowGlobalMin && (
+                <p className="text-xs text-amber-600 mt-2">
+                  El stock inicial ({stockValue}) esta por debajo del minimo de stock ({minStockGlobal}). No se permite activar mayorista.
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block mb-2 font-medium text-gray-700 text-sm">Precio mayorista</label>
+              <input
+                type="number"
+                step="0.01"
+                value={wholesalePrice}
+                onChange={(e) => updateWholesale({ price: Number(e.target.value) || 0 })}
+                className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder={`Ej: ${currencySymbol}8.50`}
+              />
+            </div>
+            <div>
+              <label className="block mb-2 font-medium text-gray-700 text-sm">Minimo (unidades)</label>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={wholesaleMinUnits}
+                onChange={(e) => updateWholesale({ min_qty_units: Number(e.target.value) || 0 })}
+                className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Ej: 12"
+              />
+            </div>
+            <div>
+              <label className="block mb-2 font-medium text-gray-700 text-sm">Aplicacion del precio</label>
+              <select
+                value={wholesaleApplyMode}
+                onChange={(e) => updateWholesale({ apply_mode: e.target.value })}
+                className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">Todo el pedido</option>
+                <option value="excess">Solo excedente</option>
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="block mb-2 font-medium text-gray-700 text-sm">Presentaciones (opcional)</label>
+              <input
+                type="text"
+                value={packsInput}
+                onChange={(e) => updatePacks(parseKeyValueNumberMap(e.target.value))}
+                className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Formato: caja=12, bulto=24"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Define equivalencias por presentacion para futuros calculos.
+              </p>
+            </div>
+            <div className="md:col-span-2">
+              <label className="block mb-2 font-medium text-gray-700 text-sm">Minimo por presentacion</label>
+              <input
+                type="text"
+                value={wholesaleMinByPackInput}
+                onChange={(e) => updateWholesaleMinByPack(parseKeyValueNumberMap(e.target.value))}
+                className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Formato: caja=1, bulto=1"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Si la venta se maneja por presentacion, aplica estos minimos.
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="pt-4 flex gap-3 border-t">

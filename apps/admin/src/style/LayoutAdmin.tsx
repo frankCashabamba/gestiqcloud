@@ -37,53 +37,63 @@ export const LayoutAdmin: React.FC<LayoutProps> = ({
     try { await logout() } finally { navigate('/login', { replace: true }) }
   }
 
-  const primary = colorPrimario
   const empresa = empresaNombre || brand || 'GestiqCloud'
 
   return (
     <div style={{ minHeight: '100vh', background: '#f6f7fb', color: '#0f172a', display: 'flex', flexDirection: 'column' }}>
-      <header style={{ background: '#ffffff', borderBottom: `1px solid ${primary}22`, boxShadow: '0 6px 24px rgba(15, 23, 42, 0.06)' }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {logoUrl ? (
-              <img src={logoUrl} alt={empresa} width={40} height={40} style={{ borderRadius: 8, background: '#f1f5f9', objectFit: 'cover' }} />
-            ) : (
-              <div style={{ width: 40, height: 40, borderRadius: 8, background: '#e2e8f0', display: 'grid', placeItems: 'center', color: '#334155', fontWeight: 700 }}>GC</div>
-            )}
-            <span style={{ fontWeight: 800, fontSize: 18, color: primary }}>{empresa}</span>
+      <header className="admin-header">
+        <div className="admin-header__inner">
+          <div className="admin-brand-wrap">
+            <div className="admin-brand">
+              {logoUrl ? (
+                <img src={logoUrl} alt={empresa} width={40} height={40} style={{ borderRadius: 10, background: '#f1f5f9', objectFit: 'cover' }} />
+              ) : (
+                <div className="admin-logo">GC</div>
+              )}
+              <div className="admin-brand__text">
+                <span className="admin-brand__name" style={{ color: colorPrimario }}>{empresa}</span>
+                <span className="admin-brand__sub">Panel administrativo</span>
+              </div>
+            </div>
           </div>
 
-          <nav style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {isAdmin && (
-              <Link
-                to="/admin"
-                style={{ padding: '8px 14px', borderRadius: 10, background: '#ffffff', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f172a', textDecoration: 'none', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}
-                title="Ir al panel principal"
+          <div className="admin-nav-wrap">
+            <nav className="admin-nav">
+              {isAdmin && (
+                <Link
+                  to="/admin"
+                  className="admin-btn"
+                  title="Ir al panel principal"
+                >
+                  Panel Admin
+                </Link>
+              )}
+              <button
+                onClick={handleLogout}
+                className="admin-btn logout"
               >
-                Panel Admin
-              </Link>
-            )}
-            <button
-              onClick={handleLogout}
-              style={{ padding: '8px 14px', borderRadius: 10, background: '#ffffff', border: '1px solid #fecaca', color: '#b91c1c', fontWeight: 700, boxShadow: '0 1px 2px rgba(185, 28, 28, 0.08)' }}
-            >
-              Cerrar sesión
-            </button>
-          </nav>
+                Cerrar sesion
+              </button>
+            </nav>
+          </div>
         </div>
       </header>
 
-      <main style={{ flex: 1, width: '100%', maxWidth: 1200, margin: '0 auto', padding: '24px 16px' }}>
+      <main className="admin-main">
         {showBackButton && (
-          <button onClick={handleBack} style={{ marginBottom: 16, background: 'transparent', border: 0, color: primary, textDecoration: 'underline', cursor: 'pointer' }}>
-            ← Volver
+          <button
+            onClick={handleBack}
+            className="admin-back"
+            style={{ color: colorPrimario }}
+          >
+            Volver
           </button>
         )}
         {children}
       </main>
 
-      <footer style={{ textAlign: 'center', fontSize: 12, color: '#64748b', padding: '24px 12px' }}>
-        © {new Date().getFullYear()} GestiqCloud. Todos los derechos reservados.
+      <footer className="admin-footer">
+        {new Date().getFullYear()} GestiqCloud. Todos los derechos reservados.
       </footer>
     </div>
   )

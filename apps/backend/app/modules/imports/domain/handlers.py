@@ -554,6 +554,8 @@ class ProductHandler:
         if not name:
             return PromoteResult(domain_id=None, skipped=False)
 
+        skip_stock_init = bool(options and options.get("skip_stock_init"))
+
         # Prices and quantities
         price = normalized.get("price") or normalized.get("precio") or normalized.get("pvp") or 0
         try:
@@ -650,6 +652,8 @@ class ProductHandler:
             meta.setdefault("source", "excel_import")
             existing.product_metadata = meta
             db.flush()
+            if skip_stock_init:
+                return PromoteResult(domain_id=str(existing.id), skipped=False)
             # Inicializar stock_items si procede (sólo primera vez y si hay cantidad)
             nested = db.begin_nested()
             try:
@@ -775,6 +779,8 @@ class ProductHandler:
             pass
         db.add(product)
         db.flush()
+        if skip_stock_init:
+            return PromoteResult(domain_id=str(product.id), skipped=False)
         # Inicializar stock_items si procede (sólo si hay cantidad y aún no existen)
         nested = db.begin_nested()
         try:

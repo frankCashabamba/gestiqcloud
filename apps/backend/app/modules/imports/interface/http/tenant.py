@@ -6,7 +6,8 @@ import os
 import re
 import time
 import unicodedata
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -15,7 +16,7 @@ from pydantic import BaseModel
 
 # Avoid importing heavy domain models at import time to keep router mountable in test envs
 # (domain handlers perform promotion separately)
-from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import func, inspect as sa_inspect
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -32,6 +33,10 @@ from app.models.core.modelsimport import (
     ImportMapping,
     ImportOCRJob,
 )
+from app.models.core.products import Product
+from app.models.inventory.stock import StockItem, StockMove
+from app.models.inventory.warehouse import Warehouse
+from app.models.purchases.purchase import Purchase, PurchaseLine
 from app.models.imports import ImportColumnMapping
 from app.modules.imports.application.job_runner import enqueue_job
 from app.modules.imports.schemas import (
@@ -50,6 +55,7 @@ from app.modules.imports.schemas import (
     UpdateClassificationRequest,
 )
 from app.services.excel_analyzer import analyze_excel_stream, detect_header_row, extract_headers
+from app.services.inventory_costing import InventoryCostingService
 from app.modules.imports.parsers.dispatcher import select_parser_for_file
 
 
@@ -2180,6 +2186,10 @@ def promote_items_endpoint(
     create_warehouse: bool = Query(default=True),
     allow_missing_price: bool = Query(default=True),
     activate: bool = Query(default=True),
+    create_purchase: bool = Query(default=False),
+    supplier_id: str | None = Query(default=None),
+    purchase_date: str | None = Query(default=None),
+    purchase_status: str | None = Query(default="received"),
 ):
     """Promote specific items by their IDs (works across batches)."""
     from app.modules.imports.application.status import ImportItemStatus
@@ -2225,6 +2235,7 @@ def promote_items_endpoint(
 
     promoted_count = 0
     errors = []
+    purchase_lines: list[dict] = []
 
     opts = {
         "allow_missing_price": allow_missing_price if auto else False,
@@ -2232,6 +2243,8 @@ def promote_items_endpoint(
         "target_warehouse": target_warehouse if auto else None,
         "create_missing_warehouses": create_warehouse if auto else False,
     }
+    if create_purchase:
+        opts["skip_stock_init"] = True
 
     for item_id in item_ids:
         try:
@@ -2313,6 +2326,10 @@ def promote_items_endpoint(
                         # Audit is best-effort; never block promotion
                         pass
                     promoted_count += 1
+                    if create_purchase:
+                        line = _build_purchase_line(src, result.domain_id)
+                        if line:
+                            purchase_lines.append(line)
                 else:
                     errors.append(
                         {
@@ -2356,7 +2373,37 @@ def promote_items_endpoint(
         )
 
     db.commit()
-    return {"promoted": promoted_count, "total": len(item_ids), "errors": errors}
+
+    purchase_result = None
+    if create_purchase:
+        try:
+            warehouse = _resolve_purchase_warehouse(
+                db,
+                tenant_id,
+                target_warehouse,
+                create_warehouse,
+            )
+            purchase_result = _create_purchase_from_lines(
+                db,
+                tenant_id,
+                user_id=claims.get("user_id") or claims.get("tenant_user_id") or claims.get("user_uuid"),
+                supplier_id=supplier_id,
+                purchase_date=_parse_purchase_date(purchase_date),
+                status=purchase_status or "received",
+                warehouse=warehouse,
+                lines=purchase_lines,
+            )
+        except Exception as exc:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            purchase_result = {"created": False, "error": str(exc)}
+
+    response = {"promoted": promoted_count, "total": len(item_ids), "errors": errors}
+    if purchase_result is not None:
+        response["purchase"] = purchase_result
+    return response
 
 
 @router.post("/batches/{batch_id}/promote")
@@ -2369,6 +2416,10 @@ def promote_batch_endpoint(
     create_warehouse: bool = Query(default=True),
     allow_missing_price: bool = Query(default=True),
     activate: bool = Query(default=True),
+    create_purchase: bool = Query(default=False),
+    supplier_id: str | None = Query(default=None),
+    purchase_date: str | None = Query(default=None),
+    purchase_status: str | None = Query(default="received"),
 ):
     from app.modules.imports.application import use_cases
 
@@ -2383,7 +2434,44 @@ def promote_batch_endpoint(
         "target_warehouse": target_warehouse if auto else None,
         "create_missing_warehouses": create_warehouse if auto else False,
     }
+    if create_purchase:
+        options["skip_stock_init"] = True
+        options["collect_promoted"] = True
     res = use_cases.promote_batch(db, tenant_id, batch_id, options=options)
+    purchase_result = None
+    if create_purchase:
+        try:
+            promoted_items = res.get("promoted_items") or []
+            purchase_lines = []
+            for item in promoted_items:
+                line = _build_purchase_line(item.get("src") or {}, item.get("promoted_id"))
+                if line:
+                    purchase_lines.append(line)
+            warehouse = _resolve_purchase_warehouse(
+                db,
+                tenant_id,
+                target_warehouse,
+                create_warehouse,
+            )
+            purchase_result = _create_purchase_from_lines(
+                db,
+                tenant_id,
+                user_id=claims.get("user_id") or claims.get("tenant_user_id") or claims.get("user_uuid"),
+                supplier_id=supplier_id,
+                purchase_date=_parse_purchase_date(purchase_date),
+                status=purchase_status or "received",
+                warehouse=warehouse,
+                lines=purchase_lines,
+            )
+        except Exception as exc:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            purchase_result = {"created": False, "error": str(exc)}
+    res.pop("promoted_items", None)
+    if purchase_result is not None:
+        res["purchase"] = purchase_result
     return res
 
 
@@ -3009,6 +3097,236 @@ def _parse_num(val):
         return float(s)
     except Exception:
         return None
+
+
+def _to_uuid_or_none(value) -> UUID | None:
+    try:
+        return value if isinstance(value, UUID) else UUID(str(value))
+    except Exception:
+        return None
+
+
+def _dec(value: float | Decimal | None, q: str = "0.000001") -> Decimal:
+    if value is None:
+        value = 0
+    return Decimal(str(value)).quantize(Decimal(q), rounding=ROUND_HALF_UP)
+
+
+def _parse_purchase_date(value: str | None) -> date:
+    if not value:
+        return date.today()
+    try:
+        return date.fromisoformat(value)
+    except Exception:
+        return date.today()
+
+
+def _resolve_purchase_warehouse(
+    db: Session,
+    tenant_id,
+    target_code: str | None,
+    create_missing: bool,
+) -> Warehouse:
+    wh = None
+    if target_code:
+        wh = (
+            db.query(Warehouse)
+            .filter(
+                Warehouse.tenant_id == tenant_id,
+                Warehouse.code == target_code,
+            )
+            .first()
+        )
+        if not wh and create_missing:
+            wh = Warehouse(
+                tenant_id=tenant_id,
+                code=target_code,
+                name=target_code,
+                is_active=True,
+            )
+            db.add(wh)
+            db.flush()
+    if not wh:
+        wh = (
+            db.query(Warehouse)
+            .filter(Warehouse.tenant_id == tenant_id)
+            .order_by(Warehouse.code.asc())
+            .first()
+        )
+    if not wh:
+        wh = Warehouse(
+            tenant_id=tenant_id,
+            code="ALM-1",
+            name="Principal",
+            is_active=True,
+        )
+        db.add(wh)
+        db.flush()
+    return wh
+
+
+def _build_purchase_line(src: dict, product_id: str | None) -> dict | None:
+    if not product_id:
+        return None
+    nmap = _build_norm_map(src or {})
+    qty = _parse_num(
+        _first(
+            nmap,
+            [
+                "stock",
+                "cantidad",
+                "quantity",
+                "existencia",
+                "existencias",
+                "unidades",
+                "sobrante_diario",
+            ],
+        )
+    )
+    if qty is None or qty <= 0:
+        return None
+    unit_cost = _parse_num(
+        _first(
+            nmap,
+            [
+                "costo",
+                "cost",
+                "cost_price",
+                "unit_cost",
+                "purchase_price",
+                "precio_compra",
+                "precio_costo",
+            ],
+        )
+    )
+    if unit_cost is None:
+        unit_cost = 0
+    return {
+        "product_id": str(product_id),
+        "qty": float(qty),
+        "unit_cost": float(unit_cost),
+    }
+
+
+def _create_purchase_from_lines(
+    db: Session,
+    tenant_id,
+    *,
+    user_id,
+    supplier_id: str | None,
+    purchase_date: date,
+    status: str,
+    warehouse: Warehouse,
+    lines: list[dict],
+) -> dict:
+    if not lines:
+        return {"created": False, "reason": "no_lines"}
+    purchase_total = sum((line["qty"] or 0) * (line["unit_cost"] or 0) for line in lines)
+    purchase_number = f"IMP-{purchase_date.strftime('%Y%m%d')}-{uuid4().hex[:6].upper()}"
+
+    purchase = Purchase(
+        id=uuid4(),
+        tenant_id=tenant_id,
+        number=purchase_number,
+        supplier_id=_to_uuid_or_none(supplier_id) if supplier_id else None,
+        date=purchase_date,
+        subtotal=float(purchase_total),
+        taxes=0,
+        total=float(purchase_total),
+        status=status,
+        notes="Importador",
+        user_id=_to_uuid_or_none(user_id) or _to_uuid_or_none(tenant_id) or uuid4(),
+    )
+    db.add(purchase)
+    db.flush()
+
+    costing = InventoryCostingService(db)
+    for line in lines:
+        product_id = str(line["product_id"])
+        qty_dec = _dec(line["qty"])
+        unit_cost_dec = _dec(line["unit_cost"])
+        row = (
+            db.query(StockItem)
+            .filter(
+                StockItem.warehouse_id == str(warehouse.id),
+                StockItem.product_id == product_id,
+            )
+            .with_for_update()
+            .first()
+        )
+        if not row:
+            row = StockItem(
+                tenant_id=str(tenant_id),
+                warehouse_id=str(warehouse.id),
+                product_id=product_id,
+                qty=0,
+            )
+            db.add(row)
+            db.flush()
+
+        costing.apply_inbound(
+            str(tenant_id),
+            str(warehouse.id),
+            product_id,
+            qty=qty_dec,
+            unit_cost=unit_cost_dec,
+            initial_qty=_dec(row.qty),
+            initial_avg_cost=unit_cost_dec,
+        )
+
+        row.qty = (row.qty or 0) + float(qty_dec)
+        db.add(row)
+
+        db.add(
+            StockMove(
+                tenant_id=str(tenant_id),
+                product_id=product_id,
+                warehouse_id=str(warehouse.id),
+                qty=float(qty_dec),
+                kind="receipt",
+                tentative=False,
+                posted=True,
+                ref_type="purchase",
+                ref_id=str(purchase.id),
+                unit_cost=float(unit_cost_dec),
+                total_cost=float(unit_cost_dec * qty_dec),
+            )
+        )
+
+        db.add(
+            PurchaseLine(
+                purchase_id=purchase.id,
+                product_id=_to_uuid_or_none(product_id),
+                description=None,
+                quantity=float(qty_dec),
+                unit_price=float(unit_cost_dec),
+                tax_rate=0,
+                total=float(unit_cost_dec * qty_dec),
+            )
+        )
+
+        try:
+            total_qty = (
+                db.query(func.coalesce(func.sum(StockItem.qty), 0.0))
+                .filter(StockItem.product_id == product_id, StockItem.tenant_id == str(tenant_id))
+                .scalar()
+            ) or 0.0
+            prod = db.query(Product).filter(Product.id == product_id, Product.tenant_id == tenant_id).first()
+            if prod:
+                prod.stock = float(total_qty)
+                db.add(prod)
+        except Exception:
+            pass
+
+    purchase.status = status
+    db.add(purchase)
+    db.commit()
+    return {
+        "created": True,
+        "purchase_id": str(purchase.id),
+        "status": purchase.status,
+        "lines": len(lines),
+    }
 
 
 # ------------------------------

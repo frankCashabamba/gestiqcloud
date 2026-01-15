@@ -405,7 +405,7 @@ const [seriesForm, setSeriesForm] = useState({
                 Permitir stock negativo
               </label>
               <div>
-                <label className="block text-sm mb-1">Punto de reorden</label>
+                <label className="block text-sm mb-1">Minimo de stock</label>
                 <input
                   className="border px-2 py-1 w-full rounded"
                   type="number"

@@ -17,6 +17,7 @@ class ClienteBase(BaseModel):
     state: str | None = None
     pais: str | None = None
     codigo_postal: str | None = None
+    is_wholesale: bool | None = False
 
 
 class ClienteCreate(ClienteBase):

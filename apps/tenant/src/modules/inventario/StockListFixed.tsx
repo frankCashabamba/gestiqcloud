@@ -194,6 +194,9 @@ export default function StockList() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Stock Actual</h1>
           <p className="mt-1 text-sm text-gray-500">Control de existencias por almacén</p>
+          {defaultReorderPoint > 0 && (
+            <p className="mt-1 text-xs text-gray-500">Minimo global de stock: {defaultReorderPoint}</p>
+          )}
         </div>
         <div className="flex gap-2">
           <button className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium" onClick={exportCSV}>
@@ -347,7 +350,7 @@ export default function StockList() {
                         <div className="text-sm font-medium text-gray-900">{item.product?.name || '—'}</div>
                         {getReorderPoint(item) > 0 && (
                           <div className="text-xs text-gray-500">
-                            Min: {getReorderPoint(item)}
+                            Min stock: {getReorderPoint(item)}
                             {item.product?.product_metadata?.max_stock ? ` / Max: ${item.product.product_metadata?.max_stock}` : ''}
                           </div>
                         )}

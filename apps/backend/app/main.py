@@ -564,6 +564,7 @@ except Exception as e:
 
 # E-invoicing - Montado por platform/http/router.py (ver línea ~360)
 
+
 # ElectricSQL shapes
 try:
     from app.modules.electric_shapes import router as electric_router

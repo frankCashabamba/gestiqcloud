@@ -371,6 +371,12 @@ def get_settings_general(tenant_id: str = Depends(ensure_tenant), db: Session = 
         "tax_id": (company_settings.tax_id if company_settings else None)
         or (tenant.tax_id if tenant else None),
         "address": tenant.address if tenant else None,
+        "country_code": tenant.country_code if tenant else None,
+        "phone": tenant.phone if tenant else None,
+        "city": tenant.city if tenant else None,
+        "state": tenant.state if tenant else None,
+        "postal_code": tenant.postal_code if tenant else None,
+        "website": tenant.website if tenant else None,
     }
 
 
@@ -389,6 +395,12 @@ def update_settings_general(
     company_name = payload.get("company_name") or payload.get("razon_social") or payload.get("name")
     tax_id = payload.get("tax_id") or payload.get("ruc")
     address = payload.get("address") or payload.get("direccion")
+    country_code = payload.get("country_code")
+    phone = payload.get("phone")
+    city = payload.get("city")
+    state = payload.get("state")
+    postal_code = payload.get("postal_code")
+    website = payload.get("website")
     if tenant:
         if company_name is not None:
             tenant.name = company_name
@@ -396,6 +408,18 @@ def update_settings_general(
             tenant.tax_id = tax_id
         if address is not None:
             tenant.address = address
+        if country_code is not None:
+            tenant.country_code = country_code
+        if phone is not None:
+            tenant.phone = phone
+        if city is not None:
+            tenant.city = city
+        if state is not None:
+            tenant.state = state
+        if postal_code is not None:
+            tenant.postal_code = postal_code
+        if website is not None:
+            tenant.website = website
     if company_settings:
         if company_name is not None:
             company_settings.company_name = company_name
