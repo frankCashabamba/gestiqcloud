@@ -4,6 +4,15 @@ compatibility_date = "2024-10-01"
 account_id = "0347e711dc94c7d155ad900b0d6c19fd"
 workers_dev = false
 
+# NOTE: Routes must be configured per environment (see [env.production] below)
+# Development routes can be added here if needed
+
+# ============================================================================
+# PRODUCTION ENVIRONMENT - Configure via Cloudflare Dashboard or wrangler secrets
+# ============================================================================
+[env.production]
+
+# Production routes - CONFIGURE THESE IN CLOUDFLARE DASHBOARD
 routes = [
   { pattern = "api.gestiqcloud.com/*",  zone_name = "gestiqcloud.com" },
   { pattern = "admin.gestiqcloud.com/api/*", zone_name = "gestiqcloud.com" },
@@ -12,9 +21,23 @@ routes = [
   { pattern = "www.gestiqcloud.com/v1/*",   zone_name = "gestiqcloud.com" }
 ]
 
-[vars]
-TARGET = "https://gestiqcloud-api.onrender.com"
-ALLOWED_ORIGINS = "https://admin.gestiqcloud.com,https://www.gestiqcloud.com"
-COOKIE_DOMAIN = ".gestiqcloud.com"
-HSTS_ENABLED = "1"
-API_VERSION = "1.0.0"
+# Production vars - MUST be configured via Cloudflare Dashboard or environment variables
+# DO NOT hardcode sensitive URLs here
+[env.production.vars]
+# TARGET = "https://gestiqcloud-api.onrender.com"  # Set via Cloudflare Dashboard
+# ALLOWED_ORIGINS = "https://admin.gestiqcloud.com,https://www.gestiqcloud.com"  # Set via Cloudflare Dashboard
+# COOKIE_DOMAIN = ".gestiqcloud.com"  # Set via Cloudflare Dashboard
+# HSTS_ENABLED = "1"  # Set via Cloudflare Dashboard
+# API_VERSION = "1.0.0"  # Set via Cloudflare Dashboard
+
+# ============================================================================
+# DEVELOPMENT ENVIRONMENT (optional, for local testing)
+# ============================================================================
+[env.development]
+
+[env.development.vars]
+TARGET = "http://localhost:8000"
+ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:8081,http://localhost:8082"
+COOKIE_DOMAIN = "localhost"
+HSTS_ENABLED = "0"
+API_VERSION = "1.0.0-dev"

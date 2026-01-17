@@ -119,11 +119,12 @@ def get_user_role_ids(db: Session, usuario_id, tenant_id):
     return [row[0] for row in rows]
 
 
-def get_contracted_module_ids(db: Session, tenant_id: int):
+def get_contracted_module_ids(db: Session, tenant_id):
+    tenant_key = str(tenant_id) if tenant_id is not None else None
     rows = (
         db.query(CompanyModule.module_id)
         .filter(
-            CompanyModule.tenant_id == tenant_id,
+            CompanyModule.tenant_id == tenant_key,
             CompanyModule.active.is_(True),
         )
         .all()
@@ -189,11 +190,12 @@ def load_user_details(
     return [(u, mod_map.get(u.id, []), role_map.get(u.id, [])) for u in usuarios]
 
 
-def get_contracted_modules(db: Session, tenant_id: int) -> list[dict]:
+def get_contracted_modules(db: Session, tenant_id) -> list[dict]:
+    tenant_key = str(tenant_id) if tenant_id is not None else None
     rows = (
         db.query(CompanyModule)
         .filter(
-            CompanyModule.tenant_id == tenant_id,
+            CompanyModule.tenant_id == tenant_key,
             CompanyModule.active.is_(True),
         )
         .all()

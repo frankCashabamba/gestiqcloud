@@ -40,8 +40,21 @@ def _csp_for_request(request: Request) -> str:
         return "; ".join(parts)
     else:
         # DEV: Vite/HMR
-        dev_hosts = "http://localhost:5173 http://localhost:5174"
-        dev_ws = "ws://localhost:5173 ws://localhost:5174"
+        # Get dev hosts from settings or use defaults
+        dev_hosts_list = getattr(settings, "CSP_DEV_HOSTS", "http://localhost:5173 http://localhost:5174")
+        dev_hosts = dev_hosts_list if isinstance(dev_hosts_list, str) else " ".join(dev_hosts_list)
+        
+        # Convert HTTP hosts to WS equivalents
+        dev_ws_list = []
+        for host in dev_hosts.split():
+            if host.startswith("http://"):
+                dev_ws_list.append("ws://" + host[7:])  # Replace http:// with ws://
+            elif host.startswith("https://"):
+                dev_ws_list.append("wss://" + host[8:])  # Replace https:// with wss://
+            else:
+                dev_ws_list.append(host)
+        dev_ws = " ".join(dev_ws_list)
+        
         return "; ".join(
             [
                 "default-src 'self' blob: data:",

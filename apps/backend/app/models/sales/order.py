@@ -25,8 +25,8 @@ class SalesOrder(Base):
     subtotal: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     tax: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
-    currency: Mapped[str | None] = mapped_column(String(3), default="EUR")
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
+    currency: Mapped[str | None] = mapped_column(String(3))
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

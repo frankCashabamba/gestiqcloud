@@ -228,8 +228,8 @@ class Settings(BaseSettings):
 
     # CORS
     CORS_ORIGINS: str | list[str] = Field(
-        default=["http://localhost:5173", "http://localhost:5174", "http://localhost:8081", "http://localhost:8082"],
-        description="Orígenes permitidos (lista o string con comas).",
+        default=[],  # Empty by default - MUST be configured in production via env var
+        description="Allowed origins for CORS (REQUIRED in production). Examples: 'https://www.gestiqcloud.com,https://admin.gestiqcloud.com' or list format. In development, defaults to empty (allow-all if not set).",
     )
     CORS_ALLOW_ORIGIN_REGEX: str | None = None
     CORS_ALLOW_CREDENTIALS: bool = True
@@ -258,6 +258,10 @@ class Settings(BaseSettings):
 
     # CSP / otros headers
     CSP_REPORT_URI: str | None = None
+    CSP_DEV_HOSTS: str = Field(
+        default="http://localhost:5173 http://localhost:5174",
+        description="Hosts permitidos para Vite/HMR en desarrollo (space-separated)"
+    )
     ALLOW_EMBED: bool = False
     HSTS_ENABLED: bool = True
     REFERRER_POLICY: str = "strict-origin-when-cross-origin"
@@ -287,8 +291,8 @@ class Settings(BaseSettings):
     EMAIL_HOST_USER: str | None = None
     EMAIL_HOST_PASSWORD: str | None = None
     DEFAULT_FROM_EMAIL: str = Field(
-        default="noreply@gestiqcloud.com",
-        description="Email address to use as sender (must be configured in production)"
+        default="",  # Empty - must be configured in environment
+        description="Email address to use as sender (REQUIRED in production, e.g., 'noreply@gestiqcloud.com' or 'GestiqCloud <noreply@gestiqcloud.com>')"
     )
     EMAIL_DEV_LOG_ONLY: bool = False
 
@@ -331,9 +335,37 @@ class Settings(BaseSettings):
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def split_cors_origins(cls, v: str | list[str]) -> list[str]:
+        """
+        Parse CORS_ORIGINS from string (comma-separated) or list.
+        
+        In production, validates that:
+        - Origins are configured
+        - No localhost/127.0.0.1 allowed
+        """
         if isinstance(v, str):
-            return [o.strip() for o in v.split(",") if o.strip()]
-        return v
+            origins = [o.strip() for o in v.split(",") if o.strip()]
+        else:
+            origins = v if isinstance(v, list) else []
+        
+        # Production validation
+        import os
+        environment = os.getenv("ENVIRONMENT", "development").lower()
+        if environment == "production":
+            if not origins:
+                raise ValueError(
+                    "CORS_ORIGINS is empty in production. "
+                    "Set CORS_ORIGINS env var (e.g., https://www.gestiqcloud.com,https://admin.gestiqcloud.com)"
+                )
+            
+            # Validate no localhost
+            dangerous_origins = [o for o in origins if "localhost" in o.lower() or "127.0.0.1" in o]
+            if dangerous_origins:
+                raise ValueError(
+                    f"CORS_ORIGINS contains localhost in production: {dangerous_origins}. "
+                    "Use real domains only."
+                )
+        
+        return origins
 
     @field_validator("ALLOWED_HOSTS", mode="before")
     @classmethod

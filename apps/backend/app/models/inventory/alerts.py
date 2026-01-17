@@ -24,8 +24,8 @@ class AlertConfig(Base):
     tenant_id = Column(PGUUID(as_uuid=True), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     is_active = Column(Boolean, default=True, index=True)
-    alert_type = Column(String(50), nullable=False, default="low_stock")
-    threshold_type = Column(String(20), nullable=False, default="fixed")  # fixed, percentage
+    alert_type = Column(String(50), nullable=False)
+    threshold_type = Column(String(20), nullable=False)  # fixed, percentage
     threshold_value = Column(Float, nullable=True)
 
     # Filters

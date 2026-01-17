@@ -185,7 +185,6 @@ class JournalEntry(Base):
     type: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
-        default="OPERATIONS",
         comment="OPENING, OPERATIONS, REGULARIZATION, CLOSING",
     )
 
@@ -204,7 +203,7 @@ class JournalEntry(Base):
     )
 
     # Status
-    status: Mapped[str] = mapped_column(entry_status, nullable=False, default="DRAFT", index=True)
+    status: Mapped[str] = mapped_column(entry_status, nullable=False, index=True)
 
     # Reference to source document
     ref_doc_type: Mapped[str | None] = mapped_column(

@@ -38,6 +38,7 @@ except Exception:
 
 from .config.settings import settings
 from .core.sessions import SessionMiddlewareServerSide
+from .core.startup_validation import validate_critical_config, ConfigValidationError
 from .middleware.rate_limit import RateLimitMiddleware
 from .middleware.request_log import RequestLogMiddleware
 from .middleware.security_headers import security_headers_middleware
@@ -138,6 +139,13 @@ async def lifespan(app: FastAPI):
     start_after_bind = False
     runner_to_start = None
     global _imports_job_runner
+
+    # 🔒 Validar configuración crítica PRIMERO
+    try:
+        validate_critical_config()
+    except ConfigValidationError as e:
+        logging.getLogger("app.startup").critical(f"Configuration validation failed: {e}")
+        raise
 
     try:
         await _ensure_docs_assets()
@@ -305,11 +313,26 @@ if "*" not in allow_methods:
         if mandatory not in allow_methods:
             allow_methods.append(mandatory)
 try:
-    logging.getLogger("app.cors").info(
-        "CORS configured: allow_origins=%s allow_origin_regex=%s",
-        allow_origins,
-        getattr(settings, "CORS_ALLOW_ORIGIN_REGEX", None),
-    )
+    environment = os.getenv("ENVIRONMENT", "development").lower()
+    
+    if environment == "production":
+        if not allow_origins:
+            logging.getLogger("app.cors").warning(
+                "⚠️  CORS_ORIGINS is empty in production. "
+                "This may cause frontend requests to be blocked."
+            )
+        else:
+            logging.getLogger("app.cors").info(
+                "✅ CORS configured (production): allow_origins=%s allow_origin_regex=%s",
+                allow_origins,
+                getattr(settings, "CORS_ALLOW_ORIGIN_REGEX", None),
+            )
+    else:
+        logging.getLogger("app.cors").debug(
+            "CORS configured (development): allow_origins=%s allow_origin_regex=%s",
+            allow_origins,
+            getattr(settings, "CORS_ALLOW_ORIGIN_REGEX", None),
+        )
 except Exception:
     pass
 app.add_middleware(

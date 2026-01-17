@@ -11,7 +11,7 @@ export default function ProcessingIndicator() {
   const empresaFromUrl = React.useMemo(() => {
     if (empresa) return empresa
     const match = location.pathname.match(/^\/([^/]+)\//)
-    return match ? match[1] : 'kusi-panaderia'
+    return match ? match[1] : null
   }, [empresa, location.pathname])
 
   if (!isProcessing && processingCount === 0) return null

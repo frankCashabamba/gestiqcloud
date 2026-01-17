@@ -9,6 +9,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
 
+UUID_TYPE = PGUUID(as_uuid=True)
+TENANT_UUID = UUID_TYPE.with_variant(String(36), "sqlite")
+
 
 class POSRegister(Base):
     """Registro/Caja de punto de venta"""
@@ -17,16 +20,16 @@ class POSRegister(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+        TENANT_UUID, primary_key=True, default=uuid.uuid4, index=True
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     store_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         nullable=True,
         # Para futuro multi-tienda
     )
@@ -51,15 +54,15 @@ class POSShift(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+        TENANT_UUID, primary_key=True, default=uuid.uuid4, index=True
     )
     register_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("pos_registers.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    opened_by: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    opened_by: Mapped[uuid.UUID] = mapped_column(TENANT_UUID, nullable=False)
     opened_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
     closed_at: Mapped[datetime | None] = mapped_column(nullable=True)
     opening_float: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)

@@ -10,15 +10,18 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+UUID_TYPE = PGUUID(as_uuid=True)
+TENANT_UUID = UUID_TYPE.with_variant(String(36), "sqlite")
+
 
 class CompanyRole(Base):
     """Company Role model."""
 
     __tablename__ = "company_roles"
 
-    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
     tenant_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("tenants.id"), index=True, nullable=True
+        TENANT_UUID, ForeignKey("tenants.id"), index=True, nullable=True
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)

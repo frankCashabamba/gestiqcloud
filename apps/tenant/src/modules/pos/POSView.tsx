@@ -10,6 +10,8 @@ import ConvertToInvoiceModal from './components/ConvertToInvoiceModal'
 import useOfflineSync from './hooks/useOfflineSync'
 import { useCurrency } from '../../hooks/useCurrency'
 import { useAuth } from '../../auth/AuthContext'
+import { POS_DRAFT_KEY } from '../../constants/storage'
+import { POS_DEFAULTS } from '../../constants/defaults'
 import { listWarehouses, adjustStock, type Warehouse } from '../inventario/services'
 import { listUsuarios } from '../usuarios/services'
 import type { Usuario } from '../usuarios/types'
@@ -67,8 +69,6 @@ type PosDraftState = {
     selectedCustomerName: string | null
 }
 
-const POS_DRAFT_KEY = 'posDraftState'
-
 const DEFAULT_ID_TYPES = ['CEDULA', 'RUC', 'PASSPORT']
 
 export default function POSView() {
@@ -107,8 +107,8 @@ export default function POSView() {
     const printFrameRef = useRef<HTMLIFrameElement>(null)
     const [cashiers, setCashiers] = useState<Usuario[]>([])
     const [selectedCashierId, setSelectedCashierId] = useState<string | null>(null)
-    const [newRegisterName, setNewRegisterName] = useState('Caja Principal')
-    const [newRegisterCode, setNewRegisterCode] = useState('CAJA-1')
+    const [newRegisterName, setNewRegisterName] = useState(POS_DEFAULTS.REGISTER_NAME)
+    const [newRegisterCode, setNewRegisterCode] = useState(POS_DEFAULTS.REGISTER_CODE)
     const [companySettings, setCompanySettings] = useState<any | null>(null)
     const [documentConfig, setDocumentConfig] = useState<any | null>(null)
     const [buyerMode, setBuyerMode] = useState<'CONSUMER_FINAL' | 'IDENTIFIED'>('CONSUMER_FINAL')
@@ -206,15 +206,15 @@ export default function POSView() {
 
     useEffect(() => {
         if (!esAdminEmpresa) return
-        ;(async () => {
-            try {
-                const users = await listUsuarios()
-                const actives = users.filter((u) => u.active)
-                setCashiers(actives)
-            } catch {
-                // silencioso
-            }
-        })()
+            ; (async () => {
+                try {
+                    const users = await listUsuarios()
+                    const actives = users.filter((u) => u.active)
+                    setCashiers(actives)
+                } catch {
+                    // silencioso
+                }
+            })()
     }, [esAdminEmpresa])
 
     useEffect(() => {
@@ -624,7 +624,7 @@ export default function POSView() {
         setCart(cart.map((item, i) => (i === index ? { ...item, discount_pct: pct } : item)))
     }
 
-const setLineNote = (index: number) => {
+    const setLineNote = (index: number) => {
         const value = prompt('Notas de línea', cart[index].notes || '')
         if (value === null) return
         setCart(cart.map((item, i) => (i === index ? { ...item, notes: value } : item)))
@@ -939,19 +939,19 @@ const setLineNote = (index: number) => {
         const buyer =
             buyerMode === 'CONSUMER_FINAL'
                 ? {
-                      mode: 'CONSUMER_FINAL' as const,
-                      idType: 'NONE',
-                      idNumber: '',
-                      name: buyerName.trim() || 'CONSUMIDOR FINAL',
-                      email: buyerEmail.trim() || undefined,
-                  }
+                    mode: 'CONSUMER_FINAL' as const,
+                    idType: 'NONE',
+                    idNumber: '',
+                    name: buyerName.trim() || 'CONSUMIDOR FINAL',
+                    email: buyerEmail.trim() || undefined,
+                }
                 : {
-                      mode: 'IDENTIFIED' as const,
-                      idType: normalizeIdType(buyerIdType, allowedIdTypes),
-                      idNumber: buyerIdNumber.trim(),
-                      name: buyerName.trim(),
-                      email: buyerEmail.trim() || undefined,
-                  }
+                    mode: 'IDENTIFIED' as const,
+                    idType: normalizeIdType(buyerIdType, allowedIdTypes),
+                    idNumber: buyerIdNumber.trim(),
+                    name: buyerName.trim(),
+                    email: buyerEmail.trim() || undefined,
+                }
 
         return {
             tenantId,
@@ -1313,33 +1313,33 @@ const setLineNote = (index: number) => {
                     </div>
                 )}
                 <div className="actions top-actions">
-                <button className="btn sm" onClick={() => setTicketNotes(prompt('Notas del ticket', ticketNotes) || ticketNotes)}>
-                Notas
-                </button>
-                {canDiscount && (
-                <button className="btn sm" onClick={() => setGlobalDiscountPct(parseFloat(prompt('Descuento global (%)', String(globalDiscountPct)) || String(globalDiscountPct)))}>
-                Descuento
-                </button>
-                )}
-                {canViewReports && (
-                <button className="btn sm" onClick={() => {
-                      const url = selectedRegister ? `daily-counts?register_id=${selectedRegister.id}` : 'daily-counts'
-                    navigate(url)
-                    }}>
-                        Reportes diarios
+                    <button className="btn sm" onClick={() => setTicketNotes(prompt('Notas del ticket', ticketNotes) || ticketNotes)}>
+                        Notas
                     </button>
-                )}
-                <button className="btn sm" onClick={handleHoldTicket}>
-                Ticket en espera
-                </button>
+                    {canDiscount && (
+                        <button className="btn sm" onClick={() => setGlobalDiscountPct(parseFloat(prompt('Descuento global (%)', String(globalDiscountPct)) || String(globalDiscountPct)))}>
+                            Descuento
+                        </button>
+                    )}
+                    {canViewReports && (
+                        <button className="btn sm" onClick={() => {
+                            const url = selectedRegister ? `daily-counts?register_id=${selectedRegister.id}` : 'daily-counts'
+                            navigate(url)
+                        }}>
+                            Reportes diarios
+                        </button>
+                    )}
+                    <button className="btn sm" onClick={handleHoldTicket}>
+                        Ticket en espera
+                    </button>
                     <button className="btn sm" onClick={handleResumeTicket}>
                         Reimprimir
                     </button>
-                {canManagePending && (
-                <button className="btn sm" onClick={handlePayPending}>
-                    Cobrar pendientes
-                </button>
-                )}
+                    {canManagePending && (
+                        <button className="btn sm" onClick={handlePayPending}>
+                            Cobrar pendientes
+                        </button>
+                    )}
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span className={`badge ${isOnline ? 'ok' : 'off'}`}>
@@ -1513,7 +1513,7 @@ const setLineNote = (index: number) => {
 
             {/* Right Column - Cart & Payment */}
             <aside className="right">
-            <div className="cart" role="list" aria-label="Carrito">
+                <div className="cart" role="list" aria-label="Carrito">
                     {cart.map((item, idx) => {
                         const lineTotal = item.price * item.qty * (1 - item.discount_pct / 100)
                         return (
@@ -1573,65 +1573,65 @@ const setLineNote = (index: number) => {
                             </div>
                         )
                     })}
-                                    </div>
+                </div>
 
                 {cart.length > 0 && (
                     <div className="pay">
                         <div className="totals">
-                        <div>Subtotal</div>
-                        <div className="sum">{totals.subtotal.toFixed(2)}{currencySymbol}</div>
-                        <div>Descuento</div>
-                        <div className="sum">-{(totals.line_discounts + totals.global_discount).toFixed(2)}{currencySymbol}</div>
-                        <div>IVA</div>
-                        <div className="sum">{totals.tax.toFixed(2)}{currencySymbol}</div>
-                        <div className="big">Total</div>
-                        <div className="sum big">{totals.total.toFixed(2)}{currencySymbol}</div>
+                            <div>Subtotal</div>
+                            <div className="sum">{totals.subtotal.toFixed(2)}{currencySymbol}</div>
+                            <div>Descuento</div>
+                            <div className="sum">-{(totals.line_discounts + totals.global_discount).toFixed(2)}{currencySymbol}</div>
+                            <div>IVA</div>
+                            <div className="sum">{totals.tax.toFixed(2)}{currencySymbol}</div>
+                            <div className="big">Total</div>
+                            <div className="sum big">{totals.total.toFixed(2)}{currencySymbol}</div>
+                        </div>
                     </div>
-                </div>
                 )}
             </aside>
 
             {/* Bottom Bar */}
             {cart.length > 0 && (
-            <footer
-                className="bottom"
-                style={{
-                    position: 'fixed',
-                    left: 16,
-                    right: 16,
-                    bottom: 16,
-                    zIndex: 50,
-                    borderRadius: 12,
-                    boxShadow: '0 12px 28px rgba(0,0,0,0.18)',
-                    padding: '10px 12px',
-                    background: 'var(--panel, #111827)',
-                    width: 'min(520px, calc(100% - 32px))',
-                    marginRight: 'auto'
-                }}
-            >
-                <div className="actions">
-                    <button
-                        className="btn"
-                        onClick={() => {
-                            if (confirm('¿Vaciar carrito?')) {
-                                setCart([])
-                                setGlobalDiscountPct(0)
-                                setTicketNotes('')
-                            }
-                        }}
-                    >
-                        Borrar todo
-                    </button>
-                    <button className="btn" onClick={() => setTicketNotes(prompt('Notas del ticket', ticketNotes) || ticketNotes)}>
-                        Notas
-                    </button>
-                </div>
-                <div className="actions">
-                    <button className="btn primary" onClick={handleCheckout} disabled={cart.length === 0 || !currentShift}>
-                        {cart.length > 0 ? `Cobrar ${totals.total.toFixed(2)}${currencySymbol}` : 'Cobrar'}
-                    </button>
-                </div>
-            </footer>
+                <footer
+                    className="bottom"
+                    style={{
+                        position: 'fixed',
+                        left: 16,
+                        right: 16,
+                        bottom: 16,
+                        zIndex: 50,
+                        borderRadius: 12,
+                        boxShadow: '0 12px 28px rgba(0,0,0,0.18)',
+                        padding: '10px 12px',
+                        background: 'var(--panel, #111827)',
+                        width: 'min(520px, calc(100% - 32px))',
+                        marginRight: 'auto'
+                    }}
+                >
+                    <div className="actions">
+                        <button
+                            className="btn"
+                            onClick={() => {
+                                if (confirm('¿Vaciar carrito?')) {
+                                    setCart([])
+                                    setGlobalDiscountPct(0)
+                                    setTicketNotes('')
+                                }
+                            }}
+                        >
+                            Borrar todo
+                        </button>
+                        <button className="btn" onClick={() => setTicketNotes(prompt('Notas del ticket', ticketNotes) || ticketNotes)}>
+                            Notas
+                        </button>
+                    </div>
+                    <div className="actions">
+                        <button className="btn primary" onClick={handleCheckout} disabled={cart.length === 0 || !currentShift}>
+                            {cart.length > 0 ? `Cobrar ${totals.total.toFixed(2)}${currencySymbol}` : 'Cobrar'}
+                        </button>
+                    </div>
+                </footer>
             )}
 
             {/* Modals */}
@@ -1973,12 +1973,12 @@ const setLineNote = (index: number) => {
                                             const remoteMatches = await searchProductos(skuValue)
                                             const remoteProduct = Array.isArray(remoteMatches)
                                                 ? remoteMatches.find((p) => {
-                                                      return (
-                                                          normalizeCode(p.sku) === normalizeCode(skuValue) ||
-                                                          normalizeCode(p.product_metadata?.codigo_barras as string) ===
-                                                              normalizeCode(skuValue)
-                                                      )
-                                                  })
+                                                    return (
+                                                        normalizeCode(p.sku) === normalizeCode(skuValue) ||
+                                                        normalizeCode(p.product_metadata?.codigo_barras as string) ===
+                                                        normalizeCode(skuValue)
+                                                    )
+                                                })
                                                 : null
                                             if (remoteProduct) {
                                                 setProducts((prev) => [remoteProduct, ...prev])

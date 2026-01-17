@@ -2,23 +2,34 @@
 Description=GestiQ Imports Celery Worker
 After=network.target postgresql.service redis.service
 Wants=postgresql.service redis.service
+Documentation=file:///opt/gestiq/ops/systemd/README_ENV_CONFIG.md
 
 [Service]
 Type=simple
 User=gestiq
 Group=gestiq
 WorkingDirectory=/opt/gestiq/apps/backend
+
+# IMPORTANT: Load environment variables from secure config file
+# See README_ENV_CONFIG.md for setup instructions
+EnvironmentFile=/etc/gestiq/worker-imports.env
+
+# Set Python path (safe to hardcode)
 Environment="PYTHONPATH=/opt/gestiq/apps/backend:/opt/gestiq/apps"
-Environment="DB_DSN=postgresql://gestiq:PASSWORD@localhost:5432/gestiqcloud"
-Environment="REDIS_URL=redis://localhost:6379/0"
-Environment="IMPORTS_ENABLED=1"
-Environment="IMPORTS_RUNNER_MODE=celery"
+
+# Note: DB_DSN, REDIS_URL, IMPORTS_ENABLED, IMPORTS_RUNNER_MODE 
+# must be defined in /etc/gestiq/worker-imports.env (permissions: 600)
+
 ExecStart=/opt/gestiq/venv/bin/python -m app.modules.imports.application.worker_main
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=gestiq-imports-worker
+
+# Security: Restrict file access
+PrivateTmp=yes
+NoNewPrivileges=true
 
 [Install]
 WantedBy=multi-user.target

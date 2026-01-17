@@ -12,10 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.config.database import Base
 
 # UUID column type (Postgres UUID or String for SQLite)
-try:
-    _uuid_col = PGUUID(as_uuid=True)
-except Exception:  # pragma: no cover (SQLite/tests)
-    _uuid_col = String  # type: ignore
+_uuid_col = PGUUID(as_uuid=True).with_variant(String(36), "sqlite")
 
 # JSONB with SQLite fallback
 JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
@@ -28,7 +25,7 @@ class Module(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+        _uuid_col, primary_key=True, default=uuid.uuid4, index=True
     )  # type: ignore
     name: Mapped[str] = mapped_column(String(100), nullable=False)  # type: ignore
     description: Mapped[str | None] = mapped_column(Text)  # type: ignore
@@ -49,7 +46,7 @@ class CompanyModule(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+        _uuid_col, primary_key=True, default=uuid.uuid4, index=True
     )  # type: ignore
     tenant_id: Mapped[object] = mapped_column(_uuid_col, ForeignKey("tenants.id"), nullable=False)  # type: ignore
     module_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("modules.id"), nullable=False)  # type: ignore
@@ -77,7 +74,7 @@ class AssignedModule(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        _uuid_col, primary_key=True, default=uuid.uuid4
     )  # pylint: disable=unsubscriptable-object
     tenant_id: Mapped[object] = mapped_column(_uuid_col, ForeignKey("tenants.id"), nullable=True)  # type: ignore
     # CompanyUser.id is UUID; align FK type

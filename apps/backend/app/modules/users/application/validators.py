@@ -20,11 +20,11 @@ def ensure_username_unique(
         raise HTTPException(status_code=400, detail="Username already in use.")
 
 
-def validate_contracted_modules(db: Session, tenant_id: int, modules: list[int]) -> None:
+def validate_contracted_modules(db: Session, tenant_id, modules: list) -> None:
     if not modules:
         return
-    contracted = set(repo.get_contracted_module_ids(db, tenant_id))
-    missing = [module for module in modules if module not in contracted]
+    contracted = {str(module_id) for module_id in repo.get_contracted_module_ids(db, tenant_id)}
+    missing = [module for module in modules if str(module) not in contracted]
     if missing:
         raise HTTPException(
             status_code=400,

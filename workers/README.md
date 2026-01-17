@@ -6,23 +6,45 @@ This Worker fronts the backend API with restrictive CORS, cookie hardening and r
 - Cloudflare account + zone `gestiqcloud.com`
 - `wrangler` CLI installed and authenticated
 
-## Configure
-Edit `workers/wrangler.toml` and set:
-- `vars.TARGET` (o `vars.UPSTREAM_BASE`): Public URL of the backend (Render), sin barra final. Ej.: `https://gestiqcloud-api.onrender.com`
-- `vars.ALLOWED_ORIGINS`: Comma-separated allowed origins. Ej.: `https://admin.gestiqcloud.com,https://www.gestiqcloud.com`
-- `vars.COOKIE_DOMAIN`: `.gestiqcloud.com`
-- `vars.HSTS_ENABLED`: `"1"`
+## Configure (⚠️ IMPORTANT: Do NOT hardcode production URLs)
 
-Alternatively set them with `wrangler secret put` / `wrangler kv` if preferred.
+**PRODUCTION: Use Cloudflare Dashboard**
+- Set environment variables in **Cloudflare Dashboard** (not in code)
+- Required variables:
+  - `TARGET`: Public URL of the backend (e.g., `https://gestiqcloud-api.onrender.com`)
+  - `ALLOWED_ORIGINS`: Comma-separated allowed origins (e.g., `https://admin.gestiqcloud.com,https://www.gestiqcloud.com`)
+  - `COOKIE_DOMAIN`: `.gestiqcloud.com`
+  - `HSTS_ENABLED`: `"1"`
 
-## Publish
-```
+**DEVELOPMENT: Use wrangler.toml or local config**
+- Edit `workers/wrangler.toml` in the `[env.development]` section
+- Or use: `wrangler secret put --env development` for local testing
+
+**NEVER hardcode production URLs in code or wrangler.toml**
+- Production variables are commented out in `wrangler.toml` by design
+- All production config must come from Cloudflare Dashboard or environment
+
+## Deploy
+
+**Development:**
+```bash
 cd workers
-wrangler publish
+wrangler deploy --env development
 ```
-Add routes in Cloudflare (Dashboard or wrangler):
-- `admin.gestiqcloud.com/api/*`
-- `www.gestiqcloud.com/api/*`
+
+**Production:**
+```bash
+cd workers
+# IMPORTANT: Ensure all env vars are set in Cloudflare Dashboard FIRST
+wrangler deploy --env production
+```
+
+**Add routes in Cloudflare Dashboard:**
+- Pattern: `api.gestiqcloud.com/*`
+- Pattern: `admin.gestiqcloud.com/api/*`
+- Pattern: `www.gestiqcloud.com/api/*`
+
+Routes must point to zone: `gestiqcloud.com`
 
 ## What it does
 - CORS (credentials=true), only echoes allowed Origin

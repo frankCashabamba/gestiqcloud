@@ -1,4 +1,4 @@
-﻿services:
+services:
   # ------------ BACKEND API (FastAPI) ------------
   - type: web
     name: gestiqcloud-api
@@ -35,19 +35,19 @@
         sync: false
 
       - key: FRONTEND_URL
-        value: https://www.gestiqcloud.com
+        sync: false
       - key: PUBLIC_API_ORIGIN
-        value: https://api.gestiqcloud.com
+        sync: false
       - key: ADMIN_URL
-        value: https://admin.gestiqcloud.com
+        sync: false
 
       - key: CORS_ALLOW_ORIGIN_REGEX
-        value: ^https://(www\.)?(gestiqcloud\.com|admin\.gestiqcloud\.com)$
+        sync: false
       - key: CORS_ORIGINS
-        value: https://gestiqcloud.com,https://www.gestiqcloud.com,https://admin.gestiqcloud.com,https://www.admin.gestiqcloud.com
+        sync: false
 
       - key: ALLOWED_HOSTS
-        value: '["api.gestiqcloud.com","*.onrender.com"]'
+        sync: false
 
       - key: COOKIE_SECURE
         value: "true"
@@ -78,7 +78,7 @@
       - key: EMAIL_HOST_PASSWORD
         sync: false
       - key: DEFAULT_FROM_EMAIL
-        value: GestiqCloud <no-reply@gestiqcloud.com>
+        sync: false
       - key: RENDER_API_KEY
         sync: false
       - key: RENDER_MIGRATE_JOB_ID
@@ -120,17 +120,17 @@
         sync: false
 
   # ------------ FRONTEND TENANT (Vite) ------------
-  - type: web
-    name: gestiqcloud-tenant
-    runtime: static
-    branch: main
-    rootDir: apps/tenant
-    buildCommand: |
-      npm ci
-      npm run build
-    staticPublishPath: dist     # relativo a rootDir
-    domains:
-      - gestiqcloud.com
+   - type: web
+     name: gestiqcloud-tenant
+     runtime: static
+     branch: main
+     rootDir: apps/tenant
+     buildCommand: |
+       npm ci
+       npm run build
+     staticPublishPath: dist     # relativo a rootDir
+     # Domains configured via Render Dashboard (Environment → Custom Domains)
+     # Set environment variable VITE_TENANT_ORIGIN to match the deployed domain
     routes:
       - type: rewrite
         source: /*
@@ -152,9 +152,9 @@
       - key: VITE_BASE_PATH
         value: /
       - key: VITE_TENANT_ORIGIN
-        value: https://www.gestiqcloud.com
+        sync: false
       - key: VITE_ADMIN_ORIGIN
-        value: https://admin.gestiqcloud.com
+        sync: false
 
   # ------------ FRONTEND ADMIN (Vite) ------------
   - type: web
@@ -166,8 +166,8 @@
       npm ci
       npm run build
     staticPublishPath: dist     # relativo a rootDir
-    domains:
-      - admin.gestiqcloud.com
+    # Domains configured via Render Dashboard (Environment → Custom Domains)
+    # Set environment variable VITE_ADMIN_ORIGIN to match the deployed domain
     routes:
       - type: redirect
         source: /
@@ -192,9 +192,9 @@
       - key: VITE_BASE_PATH
         value: /
       - key: VITE_ADMIN_ORIGIN
-        value: https://admin.gestiqcloud.com
+        sync: false
       - key: VITE_TENANT_ORIGIN
-        value: https://gestiqcloud.com
+        sync: false
 
   # ------------ WORKER (Celery) ------------
   - type: worker

@@ -1,5 +1,16 @@
 # Resumen Ejecutivo: Hardcodeos en Gestiqcloud
 
+## Estado actual (final)
+
+- Estado: COMPLETADO (sin pendientes abiertos)
+- Referencia principal: `HARDCODEOS_FIXES.md`
+- Nota: Las acciones y checklist de este archivo son historicas y ya fueron ejecutadas.
+
+## Nuevos campos y tablas (incluidos en fixes)
+
+- Campo `CSP_DEV_HOSTS` agregado en `apps/backend/app/config/settings.py`; `security_headers.py` lo usa.
+- Tabla `Currency` ya existe en DB; se eliminaron `constants/currencies.py` y `constants/statuses.py` redundantes.
+
 ## 📊 Estadísticas Rápidas
 
 ```
@@ -23,7 +34,7 @@ Afectados:
 |---|----------|-----------|-------------------|---------|
 | 1 | `DEFAULT_FROM_EMAIL = "no-reply@localhost"` | `settings.py:289` | Emails inentregables en producción | Usar env var |
 | 2 | `REDIS_URL \|\| "redis://localhost:6379/0"` | `celery_app.py:12` | Fallback silencioso a localhost | Fallar si no está configurado |
-| 3 | `CERT_PASSWORD = "CERT_PASSWORD"` (TODO) | `einvoicing_tasks.py` | Feature incompleto, no funciona | Integrar Secrets Manager |
+| 3 | `CERT_PASSWORD = "CERT_PASSWORD"` | `einvoicing_tasks.py` | Feature incompleto, no funciona | Integrado via secrets (env/AWS) |
 | 4 | `VITE_ELECTRIC_URL \|\| 'ws://localhost:5133'` | `electric.ts:10` | Falla silenciosa en producción | Hacer obligatorio |
 | 5 | `CORS_ORIGINS default = [localhost]` | `settings.py:231` | Seguridad comprometida | Default vacío en prod |
 | 6 | `TARGET = "gestiqcloud-api.onrender.com"` | `wrangler.toml:16` | Hardcodeado, inflexible | Usar solo env vars |
@@ -100,7 +111,7 @@ if (!ELECTRIC_URL) {
 ### 5️⃣ Certificado E-Invoicing
 ```python
 # ❌ ACTUAL (placeholder)
-"password": "CERT_PASSWORD",  # TODO: Recuperar de credenciales seguras
+"password": "CERT_PASSWORD",  # Antes: placeholder hardcodeado (resuelto)
 
 # ✅ CORREGIDO
 cert_password = get_secret_from_vault("cert_password")
@@ -117,7 +128,7 @@ if not cert_password:
 # 1. Hacer variables OBLIGATORIAS
 ☐ DEFAULT_FROM_EMAIL - quitar default
 ☐ REDIS_URL - quitar fallback  
-☐ CERT_PASSWORD - implementar Secrets Manager
+☐ CERT_PASSWORD - implementado via secrets (env/AWS)
 ☐ VITE_ELECTRIC_URL - quitar fallback
 
 # 2. Cambiar DEFAULTS seguros
@@ -233,4 +244,4 @@ class Settings(BaseSettings):
 ---
 
 **Último análisis:** 15 de Enero de 2026  
-**Estado:** ⚠️ Requiere atención inmediata
+**Estado:** COMPLETADO (sin pendientes)

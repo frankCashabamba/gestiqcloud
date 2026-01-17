@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '../lib/http'
 import { initElectric, setupOnlineSync } from '../lib/electric'
+import { TOKEN_KEY } from '../constants/storage'
 
 type LoginBody = { identificador: string; password: string }
 type LoginResponse = { access_token: string; token_type: 'bearer'; scope?: string }
@@ -19,7 +20,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | null>(null)
 
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
-  const [token, setToken] = useState<string | null>(() => sessionStorage.getItem('access_token_tenant'))
+  const [token, setToken] = useState<string | null>(() => sessionStorage.getItem(TOKEN_KEY))
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<MeCompany | null>(null)
   const isUnauthorized = (e: any) => e?.status === 401 || e?.response?.status === 401
@@ -34,18 +35,18 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             const m = hash.match(/[#&]access_token=([^&]+)/)
             if (m && m[1]) {
               const tok = decodeURIComponent(m[1])
-              sessionStorage.setItem('access_token_tenant', tok)
+              sessionStorage.setItem(TOKEN_KEY, tok)
               try { localStorage.setItem('authToken', tok) } catch {}
               // Limpia el hash para no dejar el token en la URL
               try { history.replaceState(null, document.title, window.location.pathname + window.location.search) } catch {}
             }
-          } catch {}
-        }
-        const t = token ?? sessionStorage.getItem('access_token_tenant') ?? (await refreshOnce())
+            } catch {}
+            }
+            const t = token ?? sessionStorage.getItem(TOKEN_KEY) ?? (await refreshOnce())
         try {
           if (t) {
             setToken(t)
-            sessionStorage.setItem('access_token_tenant', t)
+            sessionStorage.setItem(TOKEN_KEY, t)
             const me = await apiFetch<MeCompany>('/api/v1/me/tenant', { headers: { Authorization: `Bearer ${t}` }, retryOn401: false })
             setProfile(me)
 
@@ -84,7 +85,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   useEffect(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent).detail as { tokenKey?: string } | undefined
-      if (!detail || detail.tokenKey === 'access_token_tenant') {
+      if (!detail || detail.tokenKey === TOKEN_KEY) {
         clear()
       }
     }
@@ -120,14 +121,14 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   function clear() {
     setToken(null)
     setProfile(null)
-    sessionStorage.removeItem('access_token_tenant')
+    sessionStorage.removeItem(TOKEN_KEY)
     try { localStorage.removeItem('authToken') } catch {}
   }
 
   const login = async (body: LoginBody) => {
     const data = await apiFetch<LoginResponse>('/api/v1/tenant/auth/login', { method: 'POST', body: JSON.stringify(body), retryOn401: false })
     setToken(data.access_token)
-    sessionStorage.setItem('access_token_tenant', data.access_token)
+    sessionStorage.setItem(TOKEN_KEY, data.access_token)
     try { localStorage.setItem('authToken', data.access_token) } catch {}
     await loadMe(data.access_token)
   }
@@ -141,7 +142,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     const t = await refreshOnce()
     if (t) {
       setToken(t)
-      sessionStorage.setItem('access_token_tenant', t)
+      sessionStorage.setItem(TOKEN_KEY, t)
       try { localStorage.setItem('authToken', t) } catch {}
       return true
     }

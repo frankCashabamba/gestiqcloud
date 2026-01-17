@@ -3,12 +3,68 @@
 from __future__ import annotations
 
 import os
+import warnings
 
 from celery import Celery
 from kombu import Queue
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-REDIS_RESULT_URL = os.getenv("REDIS_RESULT_URL", "redis://localhost:6379/1")
+
+def _get_redis_url_for_imports() -> str:
+    """
+    Get Redis URL for imports Celery broker with validation.
+    
+    In production: Fails explicitly if REDIS_URL is not configured
+    In development: Warns if using localhost fallback
+    """
+    redis_url = os.getenv("REDIS_URL", "").strip()
+    if redis_url:
+        return redis_url
+    
+    environment = os.getenv("ENVIRONMENT", "development").lower()
+    if environment == "production":
+        raise RuntimeError(
+            "REDIS_URL is not configured. Required for imports Celery broker. "
+            "Example: REDIS_URL=redis://cache.internal:6379/1"
+        )
+    
+    warnings.warn(
+        "REDIS_URL not configured. Using development fallback (localhost).",
+        RuntimeWarning
+    )
+    return "redis://localhost:6379/0"
+
+
+def _get_redis_result_url() -> str:
+    """Get Redis URL for Celery result backend with validation."""
+    # Try REDIS_RESULT_URL first, then fall back to REDIS_URL pattern
+    redis_url = os.getenv("REDIS_RESULT_URL", "").strip()
+    if redis_url:
+        return redis_url
+    
+    # Try REDIS_URL and adjust database
+    redis_base = os.getenv("REDIS_URL", "").strip()
+    if redis_base:
+        # Append /1 if base is /0, otherwise assume it's configured correctly
+        if redis_base.endswith("/0"):
+            return redis_base[:-1] + "1"
+        return redis_base
+    
+    environment = os.getenv("ENVIRONMENT", "development").lower()
+    if environment == "production":
+        raise RuntimeError(
+            "REDIS_RESULT_URL or REDIS_URL is not configured. "
+            "Required for imports Celery result backend."
+        )
+    
+    warnings.warn(
+        "REDIS_RESULT_URL not configured. Using development fallback (localhost/1).",
+        RuntimeWarning
+    )
+    return "redis://localhost:6379/1"
+
+
+REDIS_URL = _get_redis_url_for_imports()
+REDIS_RESULT_URL = _get_redis_result_url()
 RUNNER_MODE = os.getenv("IMPORTS_RUNNER_MODE", "celery")
 
 celery_app = Celery(

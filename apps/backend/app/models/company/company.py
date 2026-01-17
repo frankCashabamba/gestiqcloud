@@ -13,7 +13,11 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+
 from app.config.database import Base
+
+UUID_TYPE = PGUUID(as_uuid=True)
+TENANT_UUID = UUID_TYPE.with_variant(String(36), "sqlite")
 
 
 def _get_now():
@@ -31,9 +35,9 @@ class BusinessType(Base):
     __tablename__ = "business_types"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
     tenant_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False
+        TENANT_UUID, ForeignKey("tenants.id"), nullable=False
     )
     code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -62,7 +66,7 @@ class BusinessCategory(Base):
     __tablename__ = "business_categories"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
 
     code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -90,7 +94,7 @@ class RolBase(Base):
 
     __tablename__ = "base_roles"
 
-    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     permissions: Mapped[dict] = mapped_column(
@@ -122,7 +126,7 @@ class CompanyCategory(Base):
 
     __tablename__ = "company_categories"
 
-    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
     code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -161,7 +165,7 @@ class UserProfile(Base):
     __tablename__ = "user_profiles"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("company_users.id"))
+    user_id: Mapped[UUID] = mapped_column(TENANT_UUID, ForeignKey("company_users.id"))
     language: Mapped[str] = mapped_column(String(10), default="es")
     timezone: Mapped[str] = mapped_column(String(50), default="UTC")
     tenant_id = mapped_column(ForeignKey("tenants.id"))
@@ -247,7 +251,7 @@ class SectorTemplate(Base):
     __tablename__ = "sector_templates"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
     code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -301,9 +305,9 @@ class SectorValidationRule(Base):
     __tablename__ = "sector_validation_rules"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
     sector_template_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("sector_templates.id"), nullable=False
+        TENANT_UUID, ForeignKey("sector_templates.id"), nullable=False
     )
     context: Mapped[str] = mapped_column(String(50), nullable=False)
     field: Mapped[str] = mapped_column(String(100), nullable=False)

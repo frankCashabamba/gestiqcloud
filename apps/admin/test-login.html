@@ -2,31 +2,106 @@
 <html>
 <head>
   <title>Test Login API</title>
+  <style>
+    body { font-family: monospace; margin: 20px; background: #f5f5f5; }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; font-weight: bold; }
+    input { padding: 8px; width: 100%; max-width: 400px; }
+    button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px; }
+    button:hover { background: #0056b3; }
+    pre { background: white; padding: 15px; border-radius: 4px; overflow-x: auto; }
+    .warning { background: #fff3cd; padding: 10px; border-left: 4px solid #ffc107; margin-bottom: 15px; }
+    .error { color: #dc3545; }
+    .success { color: #28a745; }
+  </style>
 </head>
 <body>
-  <h1>Test Login</h1>
+  <h1>🔐 Admin Login Test</h1>
+  
+  <div class="warning">
+    <strong>⚠️ Security Notice:</strong> This is a test tool for development only.
+    Do NOT commit credentials. Use environment variables in production.
+  </div>
+
+  <div class="form-group">
+    <label>API Base URL:</label>
+    <input type="text" id="apiBase" placeholder="e.g., https://api.gestiqcloud.com" value="">
+  </div>
+
+  <div class="form-group">
+    <label>Admin Username/Email:</label>
+    <input type="text" id="username" placeholder="e.g., admingestiqcloud" value="">
+  </div>
+
+  <div class="form-group">
+    <label>Admin Password:</label>
+    <input type="password" id="password" placeholder="Password (will not be saved)" value="">
+  </div>
+
   <button onclick="testLogin()">Test Login</button>
-  <pre id="output"></pre>
+  <button onclick="clearForm()">Clear</button>
+
+  <h2>Output:</h2>
+  <pre id="output">Ready...</pre>
 
   <script>
-    const API_BASE = 'https://api.gestiqcloud.com';
+    // Load from localStorage (for convenience during testing only)
+    window.addEventListener('load', () => {
+      const saved = JSON.parse(localStorage.getItem('test-login-config') || '{}');
+      if (saved.apiBase) document.getElementById('apiBase').value = saved.apiBase;
+      if (saved.username) document.getElementById('username').value = saved.username;
+    });
+
     const output = document.getElementById('output');
 
     async function testLogin() {
-      output.textContent = 'Testing...\n';
+      const apiBase = document.getElementById('apiBase').value.trim();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+
+      // Validate inputs
+      if (!apiBase) {
+        output.textContent = '❌ Error: API Base URL is required\n';
+        return;
+      }
+      if (!username) {
+        output.textContent = '❌ Error: Username is required\n';
+        return;
+      }
+      if (!password) {
+        output.textContent = '❌ Error: Password is required\n';
+        return;
+      }
+
+      // Save config (NOT password) for convenience
+      localStorage.setItem('test-login-config', JSON.stringify({ apiBase, username }));
+
+      output.textContent = '⏳ Testing...\n';
 
       try {
         // Test CSRF first
-        output.textContent += `\nFetching CSRF: ${API_BASE}/v1/admin/auth/csrf\n`;
-        const csrfRes = await fetch(`${API_BASE}/v1/admin/auth/csrf`, {
+        const csrfUrl = `${apiBase}/v1/admin/auth/csrf`;
+        output.textContent += `\n📍 Step 1: Fetching CSRF token\n`;
+        output.textContent += `   URL: ${csrfUrl}\n`;
+        
+        const csrfRes = await fetch(csrfUrl, {
           credentials: 'include',
           headers: { 'Accept': 'application/json' }
         });
-        output.textContent += `CSRF Status: ${csrfRes.status}\n`;
+        
+        if (!csrfRes.ok) {
+          throw new Error(`CSRF request failed: ${csrfRes.status} ${csrfRes.statusText}`);
+        }
+        
+        output.textContent += `   Status: ${csrfRes.status} ✅\n`;
 
         // Test Login
-        output.textContent += `\nTesting Login: ${API_BASE}/v1/admin/auth/login\n`;
-        const loginRes = await fetch(`${API_BASE}/v1/admin/auth/login`, {
+        const loginUrl = `${apiBase}/v1/admin/auth/login`;
+        output.textContent += `\n📍 Step 2: Testing Login\n`;
+        output.textContent += `   URL: ${loginUrl}\n`;
+        output.textContent += `   Username: ${username}\n`;
+
+        const loginRes = await fetch(loginUrl, {
           method: 'POST',
           credentials: 'include',
           headers: {
@@ -34,20 +109,45 @@
             'Accept': 'application/json'
           },
           body: JSON.stringify({
-            ident: 'admingestiqcloud',
-            password: 'Admin.2025'
+            ident: username,
+            password: password
           })
         });
 
-        output.textContent += `Login Status: ${loginRes.status}\n`;
+        output.textContent += `   Status: ${loginRes.status}\n`;
+
+        if (loginRes.ok) {
+          output.textContent += `   <span class="success">✅ Login successful!</span>\n`;
+        } else {
+          output.textContent += `   <span class="error">❌ Login failed</span>\n`;
+        }
+
         const data = await loginRes.json();
-        output.textContent += `Response: ${JSON.stringify(data, null, 2)}\n`;
+        output.textContent += `\n📋 Response:\n${JSON.stringify(data, null, 2)}\n`;
+
+        if (loginRes.ok && data.user) {
+          output.textContent += `\n<span class="success">✅ Test completed successfully</span>\n`;
+        }
 
       } catch (err) {
-        output.textContent += `\nError: ${err.message}\n`;
-        output.textContent += `Stack: ${err.stack}\n`;
+        output.textContent += `\n<span class="error">❌ Error: ${err.message}</span>\n`;
+        if (err.stack) {
+          output.textContent += `Stack: ${err.stack}\n`;
+        }
       }
     }
+
+    function clearForm() {
+      document.getElementById('password').value = '';
+      output.textContent = 'Ready...';
+    }
+
+    // Allow Enter key to submit
+    document.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && document.activeElement.tagName === 'INPUT') {
+        testLogin();
+      }
+    });
   </script>
 </body>
 </html>

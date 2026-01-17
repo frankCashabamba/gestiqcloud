@@ -5,10 +5,12 @@ from uuid import UUID
 
 from app.config.database import Base
 from app.models.company.company_role import CompanyRole
-from sqlalchemy import Boolean, DateTime, ForeignKey, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, text, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+UUID_TYPE = PGUUID(as_uuid=True)
+TENANT_UUID = UUID_TYPE.with_variant(String(36), "sqlite")
 
 class CompanyUserRole(Base):
     """Company User Role model."""
@@ -19,23 +21,23 @@ class CompanyUserRole(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     user_id: Mapped[UUID] = mapped_column(
         "usuario_id",
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("company_users.id"),
     )
     role_id: Mapped[UUID] = mapped_column(
         "rol_id",
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("company_roles.id"),
     )
     tenant_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("tenants.id"), index=True, nullable=True
+        TENANT_UUID, ForeignKey("tenants.id"), index=True, nullable=True
     )
     assigned_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=text("CURRENT_TIMESTAMP")
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     assigned_by_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("company_users.id"), nullable=True
+        TENANT_UUID, ForeignKey("company_users.id"), nullable=True
     )
 
     # Relationships

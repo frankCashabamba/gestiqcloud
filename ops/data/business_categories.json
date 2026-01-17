@@ -1,0 +1,32 @@
+[
+  {
+    "code": "retail",
+    "name": "Retail / Tienda",
+    "description": "Comercio minorista y tiendas"
+  },
+  {
+    "code": "services",
+    "name": "Servicios",
+    "description": "Prestacion de servicios profesionales"
+  },
+  {
+    "code": "manufacturing",
+    "name": "Manufactura",
+    "description": "Produccion y manufactura industrial"
+  },
+  {
+    "code": "food_beverage",
+    "name": "Alimentos y Bebidas",
+    "description": "Sector alimentario y bebidas"
+  },
+  {
+    "code": "healthcare",
+    "name": "Salud",
+    "description": "Servicios de salud y clinicas"
+  },
+  {
+    "code": "education",
+    "name": "Educacion",
+    "description": "Instituciones educativas"
+  }
+]

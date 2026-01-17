@@ -2,6 +2,7 @@
  * POS Services - API calls
  */
 import tenantApi from '../../shared/api/client'
+import { API_PATHS } from '../../constants/api'
 import type {
     POSRegister,
     POSShift,
@@ -17,8 +18,8 @@ import type {
     PaymentLinkRequest
 } from '../../types/pos'
 
-const BASE_URL = '/api/v1/tenant/pos'
-const PAYMENTS_URL = '/api/v1/payments'
+const BASE_URL = API_PATHS.POS.REGISTERS.replace('/registers', '')
+const PAYMENTS_URL = '/api/v1/payments' // TODO: mover a API_PATHS
 
 // Ensure Authorization header is always present even across dev proxies/redirects
 function authHeaders(): Record<string, string> {

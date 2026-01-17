@@ -7,6 +7,7 @@
 
 ## Checks
 - `check_endpoints.py`: smoke test de endpoints FE/BE (usado en CI backend). Ajustar URLs/env antes de ejecutar.
+- `check_db_migrations_coverage.py`: compara tablas public en DB vs migraciones (neto create/drop). Usa `DATABASE_URL`.
 
 ## Notas
 - Ejecutar con el entorno virtual adecuado (`pip install -r ops/requirements.txt`).

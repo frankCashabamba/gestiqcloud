@@ -120,11 +120,31 @@ def main():
         from urllib.parse import urlparse
 
         parsed = urlparse(args.database_url)
+        
+        # Validate required components
+        if not parsed.hostname:
+            raise ValueError(
+                "DATABASE_URL must include a host. "
+                "Example: postgresql://user:pass@db.internal:5432/gestiqcloud"
+            )
+        
+        if not parsed.path or parsed.path == "/":
+            raise ValueError(
+                "DATABASE_URL must include a database name. "
+                "Example: postgresql://user:pass@host/gestiqcloud"
+            )
+        
+        if not parsed.username:
+            raise ValueError("DATABASE_URL must include a username")
+        
+        if not parsed.password:
+            raise ValueError("DATABASE_URL must include a password")
+        
         conn = psycopg2.connect(
-            host=parsed.hostname or "localhost",
+            host=parsed.hostname,
             port=parsed.port or 5432,
             database=parsed.path.lstrip("/"),
-            user=parsed.username or "postgres",
+            user=parsed.username,
             password=parsed.password,
         )
         cursor = conn.cursor()

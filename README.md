@@ -60,6 +60,13 @@ npm run dev -- --host --port 8082
 - Troubleshooting: puertos ocupados → `netstat -ano | findstr :8000` y `taskkill /PID <PID> /F`.
 
 ## 📚 Documentación
+
+### ⭐ Important - Configuration & Security
+- **[ANALISIS_HARDCODEOS.md](ANALISIS_HARDCODEOS.md)** - Hardcodeos y configuración (⭐ READ THIS)
+- **[HARDCODEOS_README.md](HARDCODEOS_README.md)** - Índice de documentación sobre hardcodeos
+- [.env.example](.env.example) - Variables de entorno requeridas
+
+### System Architecture
 - docs/arquitectura.md
 - docs/dev-experience.md
 - docs/seguridad.md
@@ -67,6 +74,8 @@ npm run dev -- --host --port 8082
 - docs/datos-migraciones.md
 - docs/runbooks/README.md
 - docs/deploy.md
+
+### API & Examples
 - docs/examples-curl.md
 - docs/payments-einvoicing.md
 - docs/observabilidad.md
@@ -77,6 +86,8 @@ npm run dev -- --host --port 8082
 - docs/release-checklist.md
 - docs/api-contracts.md
 - docs/cache-uploads.md
+
+### Modules
 - apps/backend/README.md
 - apps/backend/alembic/README.md
 - apps/admin/README.md
@@ -84,4 +95,3 @@ npm run dev -- --host --port 8082
 - apps/packages/README.md
 - ops/README.md
 - importacion/README.md
-- docs/deploy.md

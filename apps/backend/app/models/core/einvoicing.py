@@ -67,7 +67,7 @@ class SRISubmission(Base):
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
     invoice_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
-    status: Mapped[str] = mapped_column(sri_status_enum, nullable=False, default="PENDING")
+    status: Mapped[str] = mapped_column(sri_status_enum, nullable=False)
 
     error_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -95,7 +95,7 @@ class SIIBatch(Base):
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
     period: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYYQn or YYYYMM
-    status: Mapped[str] = mapped_column(sii_batch_status_enum, nullable=False, default="PENDING")
+    status: Mapped[str] = mapped_column(sii_batch_status_enum, nullable=False)
 
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -126,7 +126,7 @@ class SIIBatchItem(Base):
         index=True,
     )
     invoice_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
-    status: Mapped[str] = mapped_column(sii_item_status_enum, nullable=False, default="PENDING")
+    status: Mapped[str] = mapped_column(sii_item_status_enum, nullable=False)
 
     error_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

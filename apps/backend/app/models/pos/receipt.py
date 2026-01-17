@@ -9,6 +9,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
 
+UUID_TYPE = PGUUID(as_uuid=True)
+TENANT_UUID = UUID_TYPE.with_variant(String(36), "sqlite")
+
 
 class POSReceipt(Base):
     """POS sales receipt"""
@@ -17,22 +20,22 @@ class POSReceipt(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+        TENANT_UUID, primary_key=True, default=uuid.uuid4, index=True
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     register_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("pos_registers.id"), nullable=False, index=True
+        TENANT_UUID, ForeignKey("pos_registers.id"), nullable=False, index=True
     )
     shift_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("pos_shifts.id"), nullable=False, index=True
+        TENANT_UUID, ForeignKey("pos_shifts.id"), nullable=False, index=True
     )
     cashier_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("company_users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
@@ -41,27 +44,25 @@ class POSReceipt(Base):
     status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default="draft",
-        # draft, paid, voided, invoiced
     )
     customer_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("clients.id", ondelete="SET NULL"),
         nullable=True,
     )
     invoice_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("invoices.id", ondelete="SET NULL"),
         nullable=True,
     )
     warehouse_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("warehouses.id", ondelete="SET NULL"),
         nullable=True,
     )
     gross_total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     tax_total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="EUR")
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
     paid_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
 
@@ -91,16 +92,16 @@ class POSReceiptLine(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        TENANT_UUID, primary_key=True, default=uuid.uuid4
     )
     receipt_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("pos_receipts.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     product_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("products.id"), nullable=False
+        TENANT_UUID, ForeignKey("products.id"), nullable=False
     )
     qty: Mapped[float] = mapped_column(Numeric(12, 3), nullable=False)
     uom: Mapped[str] = mapped_column(String(20), nullable=False, default="unit")
@@ -131,10 +132,10 @@ class POSPayment(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        TENANT_UUID, primary_key=True, default=uuid.uuid4
     )
     receipt_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("pos_receipts.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

@@ -10,6 +10,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
 
+UUID_TYPE = PGUUID(as_uuid=True)
+TENANT_UUID = UUID_TYPE.with_variant(String(36), "sqlite")
+
 
 class CompanySettings(Base):
     """Company Settings model - consolidates all tenant settings."""
@@ -19,7 +22,7 @@ class CompanySettings(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     tenant_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("tenants.id"),
         unique=True,
         index=True,
@@ -79,7 +82,7 @@ class InventorySettings(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     tenant_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("tenants.id"),
         unique=True,
         index=True,

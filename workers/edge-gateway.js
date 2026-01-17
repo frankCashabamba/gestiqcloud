@@ -16,9 +16,24 @@
 
 export default {
   async fetch(request, env, ctx) {
+    // Validate TARGET (required - no hardcoded defaults)
     const upstreamBase = (env.TARGET || env.UPSTREAM_BASE || '').replace(/\/+$/g, '');
     if (!upstreamBase) {
-      return new Response('Gateway misconfigured: missing TARGET/UPSTREAM_BASE', { status: 500 });
+      const errorMsg = 'Gateway misconfigured: TARGET environment variable must be set in Cloudflare Dashboard. Example: https://api.example.com';
+      console.error('ERROR: ' + errorMsg);
+      return new Response(
+        JSON.stringify({
+          error: 'Gateway misconfigured',
+          detail: 'TARGET environment variable is required',
+        }),
+        { status: 500, headers: { 'content-type': 'application/json' } }
+      );
+    }
+
+    // Validate ALLOWED_ORIGINS (required for production)
+    const allowedOrigins = env.ALLOWED_ORIGINS || '';
+    if (!allowedOrigins && env.ENVIRONMENT === 'production') {
+      console.warn('WARNING: ALLOWED_ORIGINS not configured in production');
     }
 
     const url = new URL(request.url);

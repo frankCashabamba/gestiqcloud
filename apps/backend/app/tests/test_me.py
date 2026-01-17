@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+import secrets
 
 
 def test_me_admin_requires_bearer(client: TestClient):
@@ -7,11 +8,12 @@ def test_me_admin_requires_bearer(client: TestClient):
 
 
 def test_me_admin_ok(client: TestClient, db, superuser_factory):
-    su = superuser_factory(email="root@admin.com", username="root", password="secret")  # noqa: F841
+    test_password = secrets.token_urlsafe(12)  # Random password for testing
+    su = superuser_factory(email="root@admin.com", username="root", password=test_password)  # noqa: F841
     # Login admin
     r = client.post(
         "/api/v1/admin/auth/login",
-        json={"identificador": "root", "password": "secret"},
+        json={"identificador": "root", "password": test_password},
     )
     assert r.status_code == 200
     tok = r.json()["access_token"]
@@ -25,12 +27,13 @@ def test_me_admin_ok(client: TestClient, db, superuser_factory):
 
 
 def test_me_tenant_ok(client: TestClient, db, usuario_empresa_factory):
-    u = usuario_empresa_factory(email="t@x.com", username="tenant", password="secret")  # noqa: F841
+    test_password = secrets.token_urlsafe(12)  # Random password for testing
+    u = usuario_empresa_factory(email="t@x.com", username="tenant", password=test_password)  # noqa: F841
 
     # Login tenant
     r = client.post(
         "/api/v1/tenant/auth/login",
-        json={"identificador": "tenant", "password": "secret"},
+        json={"identificador": "tenant", "password": test_password},
     )
     assert r.status_code == 200
     tok = r.json()["access_token"]
@@ -44,10 +47,11 @@ def test_me_tenant_ok(client: TestClient, db, usuario_empresa_factory):
 
 
 def test_admin_refresh_rotation(client: TestClient, db, superuser_factory):
-    superuser_factory(email="admin@x.com", username="admin", password="secret")
+    test_password = secrets.token_urlsafe(12)  # Random password for testing
+    superuser_factory(email="admin@x.com", username="admin", password=test_password)
     r = client.post(
         "/api/v1/admin/auth/login",
-        json={"identificador": "admin", "password": "secret"},
+        json={"identificador": "admin", "password": test_password},
     )
     assert r.status_code == 200
     old_rt = r.cookies.get("refresh_token")

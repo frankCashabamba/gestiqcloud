@@ -7,7 +7,11 @@ from sqlalchemy import Date, ForeignKey, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+
 from app.config.database import Base
+
+UUID_TYPE = PGUUID(as_uuid=True)
+TENANT_UUID = UUID_TYPE.with_variant(String(36), "sqlite")
 
 
 class Sale(Base):
@@ -17,12 +21,12 @@ class Sale(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+        TENANT_UUID, primary_key=True, default=uuid.uuid4, index=True
     )
 
     # 👇 DEFAULT para compatibilidad con SQLite/tests
     tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -37,7 +41,7 @@ class Sale(Base):
     )
 
     customer_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("clients.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
@@ -55,7 +59,7 @@ class Sale(Base):
 
     # DEFAULT for SQLite/tests compatibility
     user_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         nullable=False,
         default=uuid.uuid4,
     )

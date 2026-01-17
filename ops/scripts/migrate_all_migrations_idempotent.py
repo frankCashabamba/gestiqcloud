@@ -31,14 +31,19 @@ def setup_migrations_table(conn):
     """Create migrations tracking table if it doesn't exist."""
     cursor = conn.cursor()
     try:
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS _migrations (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(255) NOT NULL UNIQUE,
+                id INTEGER NOT NULL,
+                name VARCHAR(255) NOT NULL,
                 hash VARCHAR(64) NOT NULL,
-                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                applied_at TIMESTAMP NOT NULL,
+                CONSTRAINT _migrations_pkey PRIMARY KEY (id),
+                CONSTRAINT _migrations_name_key UNIQUE (name)
             )
-        """)
+            """
+        )
+        cursor.execute("CREATE SEQUENCE IF NOT EXISTS _migrations_id_seq")
         conn.commit()
         print("[OK] Migrations tracking table ready")
     except Exception as e:
@@ -91,7 +96,10 @@ def record_migration(conn, migration_name: str, content_hash: str) -> bool:
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "INSERT INTO _migrations (name, hash) VALUES (%s, %s)",
+            """
+            INSERT INTO _migrations (id, name, hash, applied_at)
+            VALUES (nextval('_migrations_id_seq'), %s, %s, now())
+            """,
             (migration_name, content_hash),
         )
         conn.commit()
@@ -183,11 +191,31 @@ def main():
         from urllib.parse import urlparse
 
         parsed = urlparse(args.database_url)
+        
+        # Validate required components - no fallbacks to localhost allowed
+        if not parsed.hostname:
+            raise ValueError(
+                "DATABASE_URL must include a host. "
+                "Example: postgresql://user:pass@db.internal:5432/gestiqcloud"
+            )
+        
+        if not parsed.path or parsed.path == "/":
+            raise ValueError(
+                "DATABASE_URL must include a database name. "
+                "Example: postgresql://user:pass@host/gestiqcloud"
+            )
+        
+        if not parsed.username:
+            raise ValueError("DATABASE_URL must include a username")
+        
+        if not parsed.password:
+            raise ValueError("DATABASE_URL must include a password")
+        
         conn = psycopg2.connect(
-            host=parsed.hostname or "localhost",
+            host=parsed.hostname,
             port=parsed.port or 5432,
             database=parsed.path.lstrip("/"),
-            user=parsed.username or "postgres",
+            user=parsed.username,
             password=parsed.password,
         )
         cursor = conn.cursor()

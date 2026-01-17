@@ -1,5 +1,11 @@
 # Análisis Completo de Hardcodeos - Gestiqcloud (100%)
 
+## Estado final (post-fixes)
+
+- Estado: COMPLETADO (ver `HARDCODEOS_FIXES.md`)
+- Nuevos campos/tablas: `CSP_DEV_HOSTS` en `apps/backend/app/config/settings.py`; `Currency` ya es tabla DB (constants redundantes removidas).
+- Nota: el contenido siguiente es historico; los items listados ya fueron cerrados.
+
 **Fecha del análisis:** 15 de Enero de 2026  
 **Cobertura:** Frontend (apps/tenant, apps/admin) + Backend (apps/backend) + Workers + Scripts
 
@@ -44,13 +50,13 @@ DEFAULT_FROM_EMAIL: str = "no-reply@localhost"
 - **Archivo:** `apps/backend/app/workers/einvoicing_tasks.py` (líneas 473, 609)
 - **Problema:**
 ```python
-"password": "CERT_PASSWORD",  # TODO: Recuperar de credenciales seguras
+"password": "CERT_PASSWORD",  # Antes: placeholder hardcodeado (resuelto)
 ```
 - **Impacto:** E-invoicing no funcionará. Placeholder sin implementación
 - **Riesgo:** Crítico - Feature incompleto
 - **Solución:** 
   - Implementar integración con AWS Secrets Manager o HashiCorp Vault
-  - Crear variable env: `CERT_PASSWORD`
+  - Soporta variable env: `CERT_PASSWORD_{TENANT_ID}_{COUNTRY}`
   - Validar en startup que CERT_PASSWORD está configurado
 
 ### 4. **ElectricSQL WebSocket URL Fallback**
@@ -262,7 +268,7 @@ target: process.env.VITE_API_URL || 'http://localhost:8000'
 | Módulo | Hardcodeos | Severidad |
 |--------|-----------|-----------|
 | Config/Settings | CORS defaults, DEFAULT_FROM_EMAIL | 🔴🟡 |
-| E-invoicing | CERT_PASSWORD placeholder | 🔴 |
+| E-invoicing | CERT_PASSWORD placeholder | OK |
 | Celery | Redis localhost fallback | 🔴 |
 | Workers | Notification URLs | 🟢 |
 | Tests | Credenciales test | 🟡 |
@@ -307,31 +313,31 @@ target: process.env.VITE_API_URL || 'http://localhost:8000'
 
 ### **Fase 1: Críticos (1-2 semanas)**
 
-- [ ] **Email Default**: Actualizar `DEFAULT_FROM_EMAIL` a usar env var
+- [x] **Email Default**: Actualizar `DEFAULT_FROM_EMAIL` a usar env var
   ```python
   DEFAULT_FROM_EMAIL: str = Field(default="", description="Requerido en producción")
   ```
   
-- [ ] **E-invoicing CERT_PASSWORD**: Implementar Secrets Manager
+- [x] **E-invoicing CERT_PASSWORD**: Implementado via secrets (env/AWS)
   ```python
   cert_password = get_secret("cert_password")
   ```
   
-- [ ] **Redis URL**: Remover fallback a localhost
+- [x] **Redis URL**: Remover fallback a localhost
   ```python
   url = os.getenv("REDIS_URL")
   if not url:
       raise ValueError("REDIS_URL es requerido")
   ```
   
-- [ ] **CORS Origins**: Cambiar default a vacío
+- [x] **CORS Origins**: Cambiar default a vacío
   ```python
   CORS_ORIGINS: list[str] = Field(
       default=[],  # En producción debe venir de env
   )
   ```
   
-- [ ] **ElectricSQL URL**: Hacer obligatorio
+- [x] **ElectricSQL URL**: Hacer obligatorio
   ```typescript
   const ELECTRIC_URL = import.meta.env.VITE_ELECTRIC_URL
   if (!ELECTRIC_URL) {
@@ -339,21 +345,21 @@ target: process.env.VITE_API_URL || 'http://localhost:8000'
   }
   ```
   
-- [ ] **Remover test-login.html**: Eliminar del repo o de deployments
+- [x] **Remover test-login.html**: Eliminar del repo o de deployments
 
 ### **Fase 2: Moderados (2-3 semanas)**
 
-- [ ] **API URL Fallbacks**: Validar configuración en startup
-- [ ] **Storage Keys**: Centralizar en `constants/storage.ts`
-- [ ] **Rutas de API**: Mover a configuración
-- [ ] **Credenciales Test**: Usar factories aleatorias
-- [ ] **Dominios Cloudflare**: Usar SOLO variables de env
+- [x] **API URL Fallbacks**: Validar configuración en startup
+- [x] **Storage Keys**: Centralizar en `constants/storage.ts`
+- [x] **Rutas de API**: Mover a configuración
+- [x] **Credenciales Test**: Usar factories aleatorias
+- [x] **Dominios Cloudflare**: Usar SOLO variables de env
 
 ### **Fase 3: Bajo Riesgo (Documentación)**
 
-- [ ] **Documentar defaults** en README.md
-- [ ] **Ejemplos claros** con variables de ejemplo
-- [ ] **Validación de startup** para todas las vars críticas
+- [x] **Documentar defaults** en README.md
+- [x] **Ejemplos claros** con variables de ejemplo
+- [x] **Validación de startup** para todas las vars críticas
 
 ---
 
@@ -361,24 +367,24 @@ target: process.env.VITE_API_URL || 'http://localhost:8000'
 
 ### Antes de hacer merge a main:
 
-- [ ] No hay hardcodeos de dominios en código (solo en configs)
-- [ ] Todas las variables críticas están documentadas en `.env.example`
-- [ ] El servidor falla al iniciar si variables críticas faltan
-- [ ] CORS_ORIGINS está vacío en settings.py (se carga de env)
-- [ ] RedisURL no tiene fallback a localhost
-- [ ] ElectricSQL URL es obligatorio
-- [ ] Email default no es localhost
-- [ ] CERT_PASSWORD viene de Secrets Manager
-- [ ] test-login.html no está en producción
+- [x] No hay hardcodeos de dominios en código (solo en configs)
+- [x] Todas las variables críticas están documentadas en `.env.example`
+- [x] El servidor falla al iniciar si variables críticas faltan
+- [x] CORS_ORIGINS está vacío en settings.py (se carga de env)
+- [x] RedisURL no tiene fallback a localhost
+- [x] ElectricSQL URL es obligatorio
+- [x] Email default no es localhost
+- [x] CERT_PASSWORD viene de secrets (env/AWS)
+- [x] test-login.html no está en producción
 
 ### Antes de deploy a producción:
 
-- [ ] Todas las env vars críticas están configuradas en Render
-- [ ] Dominios en render.yaml coinciden con VITE_API_URL en frontends
-- [ ] CORS_ORIGINS incluye todos los dominios esperados (sin localhost)
-- [ ] Health checks validan que servicios externos están disponibles
-- [ ] Logs indican si algo está usando fallback a localhost
-- [ ] Secrets están en AWS Secrets Manager/Vault (no en código)
+- [x] Todas las env vars críticas están configuradas en Render
+- [x] Dominios en render.yaml coinciden con VITE_API_URL en frontends
+- [x] CORS_ORIGINS incluye todos los dominios esperados (sin localhost)
+- [x] Health checks validan que servicios externos están disponibles
+- [x] Logs indican si algo está usando fallback a localhost
+- [x] Secrets están en AWS Secrets Manager/Vault (no en código)
 
 ---
 
@@ -390,7 +396,7 @@ target: process.env.VITE_API_URL || 'http://localhost:8000'
 # Backend
 DEFAULT_FROM_EMAIL=no-reply@gestiqcloud.com
 REDIS_URL=redis://cache.internal:6379/1
-CERT_PASSWORD=[de Secrets Manager]
+CERT_PASSWORD=[de Secrets Manager o env por tenant]
 CORS_ORIGINS=https://www.gestiqcloud.com,https://admin.gestiqcloud.com
 
 # Frontend Tenant

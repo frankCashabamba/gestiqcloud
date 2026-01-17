@@ -4,8 +4,7 @@
  */
 
 import type { Incident, StockAlert } from '../types/incidents'
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+import { API_BASE, API_ENDPOINTS } from '../constants/api'
 
 const getAuthHeaders = () => ({
   'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -21,7 +20,7 @@ export async function listIncidents(filters: { estado?: string }): Promise<Incid
     params.append('estado', filters.estado)
   }
 
-  const response = await fetch(`${API_BASE}/v1/admin/incidents?${params}`, {
+  const response = await fetch(`${API_ENDPOINTS.INCIDENTS.LIST}?${params}`, {
     headers: getAuthHeaders()
   })
 

@@ -13,6 +13,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.config.database import Base
 
 
+UUID = PGUUID(as_uuid=True)
+TENANT_UUID = UUID.with_variant(String(36), "sqlite")
+
+
 class Tenant(Base):
     """Tenant model - MODERN schema (English names)"""
 
@@ -23,7 +27,7 @@ class Tenant(Base):
     # PRIMARY KEY - UUID
     # ============================================================
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False
+        TENANT_UUID, primary_key=True, default=uuid.uuid4, nullable=False
     )
 
     # ============================================================

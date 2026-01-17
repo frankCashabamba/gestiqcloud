@@ -1,0 +1,33 @@
+{
+  "countries": [
+    { "code": "EC", "name": "Ecuador" },
+    { "code": "ES", "name": "Espana" },
+    { "code": "US", "name": "Estados Unidos" },
+    { "code": "MX", "name": "Mexico" },
+    { "code": "PE", "name": "Peru" },
+    { "code": "CO", "name": "Colombia" },
+    { "code": "AR", "name": "Argentina" },
+    { "code": "CL", "name": "Chile" },
+    { "code": "BR", "name": "Brasil" },
+    { "code": "FR", "name": "Francia" }
+  ],
+  "locales": [
+    { "code": "es_ES", "name": "Espanol (Espana)" },
+    { "code": "es_EC", "name": "Espanol (Ecuador)" },
+    { "code": "es_MX", "name": "Espanol (Mexico)" },
+    { "code": "es_PE", "name": "Espanol (Peru)" },
+    { "code": "en_US", "name": "English (United States)" }
+  ],
+  "timezones": [
+    { "name": "Europe/Madrid", "display_name": "Europe/Madrid (UTC+1/+2)", "offset_minutes": 60 },
+    { "name": "America/Guayaquil", "display_name": "America/Guayaquil (UTC-5)", "offset_minutes": -300 },
+    { "name": "America/Mexico_City", "display_name": "America/Mexico_City (UTC-6/-5)", "offset_minutes": -360 },
+    { "name": "America/Lima", "display_name": "America/Lima (UTC-5)", "offset_minutes": -300 },
+    { "name": "America/Bogota", "display_name": "America/Bogota (UTC-5)", "offset_minutes": -300 },
+    { "name": "America/Argentina/Buenos_Aires", "display_name": "America/Argentina/Buenos_Aires (UTC-3)", "offset_minutes": -180 },
+    { "name": "America/Santiago", "display_name": "America/Santiago (UTC-4/-3)", "offset_minutes": -240 },
+    { "name": "America/Sao_Paulo", "display_name": "America/Sao_Paulo (UTC-3)", "offset_minutes": -180 },
+    { "name": "America/New_York", "display_name": "America/New_York (UTC-5/-4)", "offset_minutes": -300 },
+    { "name": "UTC", "display_name": "Coordinated Universal Time", "offset_minutes": 0 }
+  ]
+}

@@ -4,6 +4,7 @@ import { listVentas, removeVenta, type Venta } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import StatusBadge from './components/StatusBadge'
+import { PAGINATION_DEFAULTS } from '../../constants/defaults'
 
 export default function VentasList() {
     const [items, setItems] = useState<Venta[]>([])
@@ -17,7 +18,7 @@ export default function VentasList() {
     const [q, setQ] = useState('')
     const [sortKey, setSortKey] = useState<'fecha' | 'numero' | 'total' | 'estado'>('fecha')
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-    const [per, setPer] = useState(10)
+    const [per, setPer] = useState(PAGINATION_DEFAULTS.VENTAS_PER_PAGE)
 
     useEffect(() => {
         (async () => {

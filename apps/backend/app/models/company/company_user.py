@@ -6,6 +6,10 @@ from typing import TYPE_CHECKING
 import sqlalchemy as sa
 from app.config.database import IS_SQLITE, Base
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import String
+
+UUID = PGUUID(as_uuid=True)
+TENANT_UUID = UUID.with_variant(String(36), "sqlite")
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
@@ -22,7 +26,7 @@ class CompanyUser(Base):
 
     # PK UUID
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         primary_key=True,
         default=uuid.uuid4,
         server_default=sa.text("gen_random_uuid()") if not IS_SQLITE else None,
@@ -32,7 +36,7 @@ class CompanyUser(Base):
 
     # FK -> tenants.id (UUID)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         sa.ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

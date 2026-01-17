@@ -115,7 +115,7 @@ class Payroll(Base):
     )
     period_year: Mapped[int] = mapped_column(Integer, nullable=False, comment="Period year")
     type: Mapped[str] = mapped_column(
-        payroll_type, nullable=False, default="MONTHLY", comment="Payroll type"
+        payroll_type, nullable=False, comment="Payroll type"
     )
 
     # === EARNINGS (positive) ===
@@ -166,7 +166,7 @@ class Payroll(Base):
     )
 
     # === ESTADO ===
-    status: Mapped[str] = mapped_column(payroll_status, nullable=False, default="DRAFT", index=True)
+    status: Mapped[str] = mapped_column(payroll_status, nullable=False, index=True)
 
     # === INFORMACIÓN ADICIONAL ===
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

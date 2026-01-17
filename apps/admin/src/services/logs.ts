@@ -4,8 +4,7 @@
  */
 
 import type { LogEntry, LogFilters, LogStats } from '../types/logs'
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+import { API_ENDPOINTS } from '../constants/api'
 
 const AUTH_HEADER = () => ({
   'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -36,7 +35,7 @@ export async function listLogs(filters: LogFilters): Promise<LogEntry[]> {
   const offset = (page - 1) * limit
   params.append('offset', offset.toString())
 
-  const response = await fetch(`${API_BASE}/v1/notifications/log?${params}`, {
+  const response = await fetch(`${API_ENDPOINTS.LOGS.LIST}?${params}`, {
     headers: AUTH_HEADER()
   })
 

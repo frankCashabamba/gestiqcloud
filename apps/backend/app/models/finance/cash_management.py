@@ -104,7 +104,7 @@ class CashMovement(Base):
         comment="Amount (positive=income, negative=expense)",
     )
     currency: Mapped[str] = mapped_column(
-        String(3), nullable=False, default="EUR", comment="ISO 4217 currency code"
+        String(3), nullable=False, comment="ISO 4217 currency code"
     )
 
     # Description
@@ -195,7 +195,7 @@ class CashClosing(Base):
     cash_box_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), nullable=True, index=True, comment="Cash box ID (for multi-cash)"
     )
-    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="EUR")
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
 
     # === BALANCES ===
     opening_balance: Mapped[Decimal] = mapped_column(
@@ -225,7 +225,7 @@ class CashClosing(Base):
 
     # === STATUS ===
     status: Mapped[str] = mapped_column(
-        cash_closing_status, nullable=False, default="OPEN", index=True
+        cash_closing_status, nullable=False, index=True
     )
     is_balanced: Mapped[bool] = mapped_column(
         nullable=False, default=False, comment="True if difference = 0"

@@ -2,17 +2,36 @@
  * ElectricSQL Configuration for Offline-First Sync (MVP-safe)
  *
  * In MVP we gate Electric behind a feature flag to avoid hard deps on SDK.
+ *
+ * Environment Variables (REQUIRED if VITE_ELECTRIC_ENABLED=1):
+ * - VITE_ELECTRIC_URL: WebSocket URL for ElectricSQL (e.g., ws://electric.internal:3000)
+ * - VITE_ELECTRIC_ENABLED: Set to "1" to enable ElectricSQL sync
  */
 
 export type ElectricDatabase = { sync: () => Promise<{ conflicts?: any[] }> } & Record<string, any>
 
 // ElectricSQL sync URL (backend shapes endpoint)
-// Must be configured via VITE_ELECTRIC_URL env var in production
+// Must be configured via VITE_ELECTRIC_URL env var
 const ELECTRIC_URL = (import.meta as any).env?.VITE_ELECTRIC_URL
+const ELECTRIC_ENABLED = (import.meta as any).env?.VITE_ELECTRIC_ENABLED === '1'
 const DB_NAME = 'gestiqcloud_tenant.db'
+const IS_PRODUCTION = (import.meta as any).env?.MODE === 'production'
 
-if (!ELECTRIC_URL) {
-  console.warn('VITE_ELECTRIC_URL not configured. ElectricSQL sync will be disabled.')
+// Validation on module load
+if (ELECTRIC_ENABLED && !ELECTRIC_URL) {
+  const errorMsg = (
+    '❌ CRITICAL: VITE_ELECTRIC_ENABLED=1 but VITE_ELECTRIC_URL is not configured.\n' +
+    'Please set VITE_ELECTRIC_URL environment variable.\n' +
+    'Example: VITE_ELECTRIC_URL=ws://electric.internal:3000'
+  )
+  console.error(errorMsg)
+  if (IS_PRODUCTION) {
+    throw new Error('ElectricSQL configuration error: VITE_ELECTRIC_URL is required when VITE_ELECTRIC_ENABLED=1')
+  }
+}
+
+if (!ELECTRIC_URL && !ELECTRIC_ENABLED) {
+  console.debug('ℹ️  ElectricSQL is disabled (VITE_ELECTRIC_ENABLED not set)')
 }
 
 let PGliteCtor: any = null
@@ -24,12 +43,21 @@ let db: any | null = null
 export async function initElectric(tenantId: string): Promise<ElectricDatabase> {
   if (electric) return electric
 
-  const enabled = (import.meta as any).env?.VITE_ELECTRIC_ENABLED === '1'
-  if (!enabled || !ELECTRIC_URL) {
-    // No-op implementation to keep app functional
-    if (!ELECTRIC_URL) {
-      console.warn('ElectricSQL disabled: VITE_ELECTRIC_URL not configured')
+  // Validation: if enabled but no URL, fail in production
+  if (ELECTRIC_ENABLED && !ELECTRIC_URL) {
+    const errorMsg = 'ElectricSQL enabled but VITE_ELECTRIC_URL is not configured'
+    console.error(`❌ ${errorMsg}`)
+    if (IS_PRODUCTION) {
+      throw new Error(errorMsg)
     }
+    // In development, return no-op
+    electric = { sync: async () => ({ conflicts: [] }) }
+    return electric as ElectricDatabase
+  }
+
+  // If not enabled, return no-op
+  if (!ELECTRIC_ENABLED) {
+    console.debug('ℹ️  ElectricSQL not enabled (VITE_ELECTRIC_ENABLED != "1")')
     electric = { sync: async () => ({ conflicts: [] }) }
     return electric as ElectricDatabase
   }

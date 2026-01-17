@@ -21,6 +21,6 @@ class Delivery(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     tenant_id: Mapped[str] = mapped_column(_uuid_col(), index=True)
     order_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    status: Mapped[str] = mapped_column(String, default="pending")
+    status: Mapped[str] = mapped_column(String)
     # Avoid reserved attribute name 'metadata'
     extra_metadata: Mapped[dict | None] = mapped_column("metadata", JSON)
