@@ -107,6 +107,7 @@ export interface ShiftOpenRequest {
   register_id: string
   opening_float: number
   cashier_id?: string
+  notes?: string
 }
 
 export interface ShiftCloseRequest {
@@ -143,6 +144,7 @@ export interface ReceiptCreateRequest {
   currency?: string
   lines: POSReceiptLine[]
   payment_method?: string
+  metadata?: Record<string, any>
 }
 
 export interface ReceiptToInvoiceRequest {
