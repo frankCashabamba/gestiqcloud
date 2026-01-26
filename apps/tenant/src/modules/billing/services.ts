@@ -175,7 +175,7 @@ export function clearInvoicesCache() {
 }
 
 export async function getInvoice(id: number | string): Promise<Invoice> {
-    const { data } = await tenantApi.get(TENANT_INVOICING.byId(id))
+    const { data } = await tenantApi.get(TENANT_INVOICING.byId(String(id)))
     return normalizeInvoice(data)
 }
 
@@ -225,7 +225,7 @@ export async function updateInvoice(id: number | string, invoice: Partial<Invoic
     }
 
     try {
-        const { data } = await tenantApi.put(TENANT_INVOICING.byId(id), payload)
+        const { data } = await tenantApi.put(TENANT_INVOICING.byId(String(id)), payload)
         return normalizeInvoice(data)
     } catch (error) {
         if (isNetworkIssue(error)) {
@@ -238,7 +238,7 @@ export async function updateInvoice(id: number | string, invoice: Partial<Invoic
 }
 
 export async function deleteInvoice(id: number | string): Promise<void> {
-    await tenantApi.delete(TENANT_INVOICING.byId(id))
+    await tenantApi.delete(TENANT_INVOICING.byId(String(id)))
 }
 
 // ============================================================================

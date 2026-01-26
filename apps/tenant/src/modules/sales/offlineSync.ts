@@ -27,21 +27,21 @@ export const SalesAdapter: SyncAdapter = {
   async create(data: any): Promise<any> {
     const sale = await createVenta(data)
     const remoteVersion = (sale as any)?.updated_at ? new Date((sale as any).updated_at as string).getTime() : Date.now()
-    await storeEntity('sale', sale.id, sale, 'synced', remoteVersion)
+    await storeEntity('sale', String(sale.id), sale, 'synced', remoteVersion)
     return sale
   },
 
   async update(id: string, data: any): Promise<any> {
     const sale = await updateVenta(id, data)
     const remoteVersion = (sale as any)?.updated_at ? new Date((sale as any).updated_at as string).getTime() : Date.now()
-    await storeEntity('sale', id, sale, 'synced', remoteVersion)
+    await storeEntity('sale', String(id), sale, 'synced', remoteVersion)
     return sale
   },
 
   async delete(id: string): Promise<void> {
     try {
       await removeVenta(id)
-      await storeEntity('sale', id, { _deleted: true, _op: 'delete' }, 'synced', Date.now())
+      await storeEntity('sale', String(id), { _deleted: true, _op: 'delete' }, 'synced', Date.now())
     } catch (error) {
       await queueDeletion('sale', id)
       console.warn('[offline] Queued sale deletion for later sync:', id)

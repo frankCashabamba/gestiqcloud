@@ -271,7 +271,7 @@ export interface ConflictInfo {
 
 export async function getConflicts(): Promise<ConflictInfo[]> {
   const store = await getStore()
-  const allEntries = await entries<StoredEntity>(store)
+  const allEntries = (await entries(store)) as Array<[IDBValidKey, StoredEntity]>
   
   return allEntries
     .filter(([_, item]) => item.syncStatus === 'conflict')

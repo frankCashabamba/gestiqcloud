@@ -21,7 +21,7 @@ export default function RRHHRoutes() {
   return (
     <Routes>
       <Route index element={<Index />} />
-      <Route path="vacaciones" element={<VacacionesList />} />
+      <Route path="vacaciones" element={<VacationsList />} />
       <Route path="fichajes" element={<FichajesView />} />
       <Route path="nomina" element={<NominaView />} />
       <Route path="*" element={<Navigate to="vacaciones" replace />} />

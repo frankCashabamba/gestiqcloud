@@ -97,7 +97,7 @@ export const POSShiftAdapter: SyncAdapter = {
       notes: data.notes,
     })
 
-    await storeEntity('shift', shift.id, shift, 'synced', 1)
+    await storeEntity('shift', String(shift.id), shift, 'synced', 1)
     return shift
   },
 
@@ -110,7 +110,7 @@ export const POSShiftAdapter: SyncAdapter = {
       loss_note: data.notes,
     })
 
-    await storeEntity('shift', shift.id, shift, 'synced', 1)
+    await storeEntity('shift', String(shift.id), shift, 'synced', 1)
     return shift
   },
 
