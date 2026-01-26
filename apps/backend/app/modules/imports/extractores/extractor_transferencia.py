@@ -163,11 +163,9 @@ def extraer_transferencias(texto: str) -> list[DocumentoProcesado]:
         print(bloque[:500])
         try:
             fecha = _extraer_fecha_envio(bloque)
-            fecha_valor = _extraer_fecha_valor(bloque)
             importe = _extraer_importe(bloque)
             iban_ordenante = _extraer_iban_ordenante(bloque)
             iban_beneficiario = _extraer_iban_beneficiario(bloque)
-            ordenante = _extraer_ordenante(bloque)
             beneficiario = _extraer_beneficiario(bloque)
             concepto = _extraer_concepto(bloque)
             referencia = _extraer_referencia(bloque)

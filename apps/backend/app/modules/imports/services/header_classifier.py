@@ -73,8 +73,10 @@ class HeaderClassifier:
     def _load_or_create_model(self) -> None:
         """Load pre-trained model or prepare for rule-based classification."""
         try:
-            from sklearn.ensemble import RandomForestClassifier
-            from sklearn.feature_extraction.text import TfidfVectorizer
+            import importlib.util
+
+            if importlib.util.find_spec("sklearn") is None:
+                raise ImportError
 
             self._ml_available = True
 
@@ -199,7 +201,7 @@ class HeaderClassifier:
                 suggested_parser="generic_excel",
                 doc_type="generic",
                 confidence=0.3,
-                probabilities={dt: 0.25 for dt in DOC_TYPES},
+                probabilities=dict.fromkeys(DOC_TYPES, 0.25),
                 method="rules_fallback",
             )
 

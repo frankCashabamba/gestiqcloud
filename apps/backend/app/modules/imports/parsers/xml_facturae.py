@@ -42,7 +42,7 @@ def parse_facturae(file_path: str) -> dict[str, Any]:
 
         invoices = root.findall(".//fe:Invoices/fe:Invoice", ns)
         if not invoices:
-            invoices = root.findall(".//{%s}Invoice" % FACTURAE_NS)
+            invoices = root.findall(f".//{{{FACTURAE_NS}}}Invoice")
 
         for invoice in invoices:
             invoice_data = _extract_invoice(invoice, ns)
@@ -121,7 +121,7 @@ def _build_error_response(errors: list[str]) -> dict[str, Any]:
 def _extract_file_header(root: ET.Element, ns: dict) -> dict[str, Any]:
     header = root.find(".//fe:FileHeader", ns)
     if header is None:
-        header = root.find(".//{%s}FileHeader" % FACTURAE_NS)
+        header = root.find(f".//{{{FACTURAE_NS}}}FileHeader")
 
     if header is None:
         return {}
@@ -136,22 +136,22 @@ def _extract_file_header(root: ET.Element, ns: dict) -> dict[str, Any]:
 def _extract_party(root: ET.Element, ns: dict, party_type: str) -> dict[str, Any]:
     party = root.find(f".//fe:Parties/fe:{party_type}", ns)
     if party is None:
-        party = root.find(".//{%s}%s" % (FACTURAE_NS, party_type))
+        party = root.find(f".//{{{FACTURAE_NS}}}{party_type}")
 
     if party is None:
         return {}
 
     legal_entity = party.find(".//fe:LegalEntity", ns)
     if legal_entity is None:
-        legal_entity = party.find(".//{%s}LegalEntity" % FACTURAE_NS)
+        legal_entity = party.find(f".//{{{FACTURAE_NS}}}LegalEntity")
 
     individual = party.find(".//fe:Individual", ns)
     if individual is None:
-        individual = party.find(".//{%s}Individual" % FACTURAE_NS)
+        individual = party.find(f".//{{{FACTURAE_NS}}}Individual")
 
     tax_id_elem = party.find(".//fe:TaxIdentification", ns)
     if tax_id_elem is None:
-        tax_id_elem = party.find(".//{%s}TaxIdentification" % FACTURAE_NS)
+        tax_id_elem = party.find(f".//{{{FACTURAE_NS}}}TaxIdentification")
 
     result: dict[str, Any] = {}
 
@@ -165,7 +165,7 @@ def _extract_party(root: ET.Element, ns: dict, party_type: str) -> dict[str, Any
         result["trade_name"] = _find_text(legal_entity, "fe:TradeName", ns)
         address = legal_entity.find(".//fe:AddressInSpain", ns)
         if address is None:
-            address = legal_entity.find(".//{%s}AddressInSpain" % FACTURAE_NS)
+            address = legal_entity.find(f".//{{{FACTURAE_NS}}}AddressInSpain")
         if address is not None:
             result["address"] = {
                 "street": _find_text(address, "fe:Address", ns),
@@ -192,15 +192,15 @@ def _extract_party(root: ET.Element, ns: dict, party_type: str) -> dict[str, Any
 def _extract_invoice(invoice: ET.Element, ns: dict) -> dict[str, Any]:
     header = invoice.find(".//fe:InvoiceHeader", ns)
     if header is None:
-        header = invoice.find(".//{%s}InvoiceHeader" % FACTURAE_NS)
+        header = invoice.find(f".//{{{FACTURAE_NS}}}InvoiceHeader")
 
     issue_data = invoice.find(".//fe:InvoiceIssueData", ns)
     if issue_data is None:
-        issue_data = invoice.find(".//{%s}InvoiceIssueData" % FACTURAE_NS)
+        issue_data = invoice.find(f".//{{{FACTURAE_NS}}}InvoiceIssueData")
 
     totals_elem = invoice.find(".//fe:InvoiceTotals", ns)
     if totals_elem is None:
-        totals_elem = invoice.find(".//{%s}InvoiceTotals" % FACTURAE_NS)
+        totals_elem = invoice.find(f".//{{{FACTURAE_NS}}}InvoiceTotals")
 
     result: dict[str, Any] = {
         "invoice_number": None,
@@ -238,12 +238,12 @@ def _extract_invoice(invoice: ET.Element, ns: dict) -> dict[str, Any]:
 
     items_elem = invoice.find(".//fe:Items", ns)
     if items_elem is None:
-        items_elem = invoice.find(".//{%s}Items" % FACTURAE_NS)
+        items_elem = invoice.find(f".//{{{FACTURAE_NS}}}Items")
 
     if items_elem is not None:
         for line in items_elem.findall("fe:InvoiceLine", ns):
             if line is None:
-                for line in items_elem.findall("{%s}InvoiceLine" % FACTURAE_NS):
+                for line in items_elem.findall(f"{{{FACTURAE_NS}}}InvoiceLine"):
                     result["items"].append(_extract_line(line, ns))
             else:
                 result["items"].append(_extract_line(line, ns))
@@ -254,7 +254,7 @@ def _extract_invoice(invoice: ET.Element, ns: dict) -> dict[str, Any]:
 def _extract_line(line: ET.Element, ns: dict) -> dict[str, Any]:
     tax_elem = line.find(".//fe:TaxesOutputs/fe:Tax", ns)
     if tax_elem is None:
-        tax_elem = line.find(".//{%s}Tax" % FACTURAE_NS)
+        tax_elem = line.find(f".//{{{FACTURAE_NS}}}Tax")
 
     tax_rate = None
     tax_amount = None
@@ -263,7 +263,7 @@ def _extract_line(line: ET.Element, ns: dict) -> dict[str, Any]:
         tax_amount_elem = tax_elem.find(".//fe:TaxAmount/fe:TotalAmount", ns)
         if tax_amount_elem is None:
             tax_amount_elem = tax_elem.find(
-                ".//{%s}TaxAmount/{%s}TotalAmount" % (FACTURAE_NS, FACTURAE_NS)
+                f".//{{{FACTURAE_NS}}}TaxAmount/{{{FACTURAE_NS}}}TotalAmount"
             )
         if tax_amount_elem is not None:
             tax_amount = _to_float(tax_amount_elem.text)
@@ -282,7 +282,7 @@ def _find_text(elem: ET.Element, path: str, ns: dict) -> str | None:
     found = elem.find(path, ns)
     if found is not None and found.text:
         return found.text.strip()
-    path_no_ns = path.replace("fe:", "{%s}" % FACTURAE_NS)
+    path_no_ns = path.replace("fe:", f"{{{FACTURAE_NS}}}")
     found = elem.find(path_no_ns)
     if found is not None and found.text:
         return found.text.strip()

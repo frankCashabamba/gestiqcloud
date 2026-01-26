@@ -155,8 +155,6 @@ class LocalAIProvider(AIProvider):
         """
         extracted: dict[str, Any] = {}
         text_norm = text[:6000]  # limitar ruido
-        text_lower = text_norm.lower()
-
         # Fecha: varios formatos comunes
         date_patterns = [
             r"\b\d{2}[/-]\d{2}[/-]\d{4}\b",  # 12/08/2025
@@ -202,9 +200,9 @@ class LocalAIProvider(AIProvider):
         else:
             # fallback: primera línea con letras y algo de longitud
             for line in text_norm.splitlines():
-                l = line.strip()
-                if len(l) > 8 and re.search(r"[A-Za-z]", l):
-                    extracted["concepto"] = l[:120]
+                line_str = line.strip()
+                if len(line_str) > 8 and re.search(r"[A-Za-z]", line_str):
+                    extracted["concepto"] = line_str[:120]
                     break
 
         # Cliente: email o línea tras "bill to"/"cliente"

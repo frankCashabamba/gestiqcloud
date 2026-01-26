@@ -165,7 +165,7 @@ class TestMappingSuggesterAsync:
 
         headers = ["TestHeader1", "TestHeader2", "TestHeader3"]
 
-        result1 = await suggester.suggest_mapping(
+        await suggester.suggest_mapping(
             headers=headers, doc_type="products", tenant_id="test_cache_tenant", use_ai=False
         )
         result2 = await suggester.suggest_mapping(

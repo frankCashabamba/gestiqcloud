@@ -244,7 +244,6 @@ class ReconciliationService:
             for transaction in bank_statement:
                 amount = Decimal(str(transaction.get("amount", 0)))
                 reference = transaction.get("reference", "")
-                date = transaction.get("date")
 
                 # Try to match by reference first
                 matched = self.db.execute(

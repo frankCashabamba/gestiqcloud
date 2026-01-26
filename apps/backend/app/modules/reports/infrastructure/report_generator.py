@@ -272,7 +272,7 @@ class ReportExporter:
                     try:
                         if len(str(cell.value)) > max_length:
                             max_length = len(str(cell.value))
-                    except:
+                    except Exception:
                         pass
                 adjusted_width = min(max_length + 2, 50)
                 ws.column_dimensions[column_letter].width = adjusted_width
@@ -294,8 +294,6 @@ class ReportExporter:
             from reportlab.lib import colors
             from reportlab.lib.pagesizes import letter
             from reportlab.lib.styles import getSampleStyleSheet
-            from reportlab.lib.units import inch
-            from reportlab.pdfgen import canvas
             from reportlab.platypus import Paragraph, SimpleDocTemplate, Table, TableStyle
 
             buffer = io.BytesIO()

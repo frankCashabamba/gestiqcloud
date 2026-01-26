@@ -127,10 +127,6 @@ def create_default_series(db: Session, tenant_id: str, register_id: UUID | None 
 
     Nota: La tabla doc_series actual usa (tipo, anio, serie) sin register_id
     """
-    from datetime import datetime
-
-    current_year = datetime.now().year
-
     # Tipos de documento según nueva estructura (doc_type, name, current_no, reset_policy)
     default_series = [
         {

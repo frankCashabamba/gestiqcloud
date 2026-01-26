@@ -27,7 +27,6 @@ from app.models.company.company import (
 
 # Company models
 from app.models.company.company_role import CompanyRole
-from app.models.company.company_settings import CompanySettings, InventorySettings
 from app.models.company.company_user import CompanyUser
 from app.models.company.company_user_role import CompanyUserRole
 from app.models.company.settings import CompanySettings, InventorySettings

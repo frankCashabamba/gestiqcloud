@@ -61,9 +61,9 @@ def _detect_header_row(rows: list[tuple], ws=None) -> int:
             if all(cell is None or str(cell).strip() == "" for cell in prev_row):
                 score += 3
 
-        unique_values = set(
+        unique_values = {
             str(cell).strip().upper() for cell in row if cell is not None and str(cell).strip()
-        )
+        }
         if len(unique_values) == filled and filled > 2:
             score += 4
 

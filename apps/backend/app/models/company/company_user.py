@@ -6,12 +6,12 @@ from typing import TYPE_CHECKING
 import sqlalchemy as sa
 from sqlalchemy import String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import IS_SQLITE, Base
 
 UUID = PGUUID(as_uuid=True)
 TENANT_UUID = UUID.with_variant(String(36), "sqlite")
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
     from app.models.tenant import Tenant

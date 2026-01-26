@@ -17,6 +17,10 @@ from fastapi.openapi.docs import (
     get_swagger_ui_oauth2_redirect_html,
 )
 from fastapi.staticfiles import StaticFiles
+from app.routers.tenant import roles as tenant_roles_router
+from .platform.http.router import build_api_router
+from .telemetry.otel import init_fastapi
+from .telemetry.sentry import init_sentry
 
 # Set import aliases so both `app.*` and `apps.backend.app.*` imports work
 try:
@@ -52,11 +56,6 @@ _RATE_LIMIT_PER_MINUTE = (
     if os.getenv("ENVIRONMENT", "development").lower() == "development"
     else int(os.getenv("RATE_LIMIT_PER_MINUTE", "120"))
 )
-from app.routers.tenant import roles as tenant_roles_router
-
-from .platform.http.router import build_api_router
-from .telemetry.otel import init_fastapi
-from .telemetry.sentry import init_sentry
 
 # ============================================================================
 # DOCS ASSETS SETUP

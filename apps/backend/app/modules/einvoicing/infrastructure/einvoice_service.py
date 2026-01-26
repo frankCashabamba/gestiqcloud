@@ -290,11 +290,10 @@ class EInvoiceService:
             # Load certificate
             with open(certificate_path, "rb") as f:
                 cert_data = f.read()
-            certificate = load_pem_x509_certificate(cert_data, default_backend())
+            _ = load_pem_x509_certificate(cert_data, default_backend())
 
             # Calculate signature
             xml_bytes = xml.content.encode("utf-8")
-            signature = certificate.public_key().key_size  # Placeholder
 
             # In real implementation, use proper XML signing (xmldsig)
             # This is simplified version

@@ -249,14 +249,14 @@ def obtener_factura_por_id(
     # Asegurar serialización explícita de líneas (evita problemas de polimorfismo)
     lineas = [
         {
-            "sector": getattr(l, "sector", None),
-            "description": getattr(l, "description", ""),
-            "cantidad": float(getattr(l, "quantity", 0) or 0),
-            "precio_unitario": float(getattr(l, "unit_price", 0) or 0),
-            "iva": float(getattr(l, "vat", 0) or 0),
-            "pos_receipt_line_id": getattr(l, "pos_receipt_line_id", None),
+            "sector": getattr(line_item, "sector", None),
+            "description": getattr(line_item, "description", ""),
+            "cantidad": float(getattr(line_item, "quantity", 0) or 0),
+            "precio_unitario": float(getattr(line_item, "unit_price", 0) or 0),
+            "iva": float(getattr(line_item, "vat", 0) or 0),
+            "pos_receipt_line_id": getattr(line_item, "pos_receipt_line_id", None),
         }
-        for l in getattr(factura, "lines", []) or []
+        for line_item in getattr(factura, "lines", []) or []
     ]
 
     cliente_obj = factura.customer

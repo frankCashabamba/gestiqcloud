@@ -56,7 +56,7 @@ class WebhookDispatcher:
 
         try:
             # Create event
-            event = WebhookEvent(
+            _event = WebhookEvent(
                 id=event_id,
                 webhook_id=uuid4(),  # Will be set per endpoint
                 tenant_id=tenant_id,

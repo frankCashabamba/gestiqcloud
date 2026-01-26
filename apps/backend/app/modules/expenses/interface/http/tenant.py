@@ -31,7 +31,6 @@ def list_expenses(db: Session = Depends(get_db), claims: dict = Depends(with_acc
 @router.get("/stats")
 def get_expense_stats(db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)):
     """Get expense statistics (must come before /{expense_id})"""
-    tenant_id = claims["tenant_id"]
     return {"total": 0, "pending": 0}
 
 
