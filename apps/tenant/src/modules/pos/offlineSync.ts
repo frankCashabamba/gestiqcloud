@@ -33,6 +33,8 @@ export const POSReceiptAdapter: SyncAdapter = {
   async create(data: any): Promise<POSReceipt> {
     // Create receipt on server
     const receipt = await posServices.createReceipt({
+      register_id: data.register_id ?? data.registerId,
+      shift_id: data.shift_id ?? data.shiftId,
       lines: data.lines ?? data.items ?? [],
       customer_id: data.customer_id,
       payment_method: data.payment_method,
