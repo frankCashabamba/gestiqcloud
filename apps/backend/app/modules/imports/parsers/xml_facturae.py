@@ -10,7 +10,6 @@ Salida: dict con rows, headers, metadata compatible con el resto de parsers.
 import xml.etree.ElementTree as ET
 from typing import Any
 
-
 FACTURAE_NS = "http://www.facturae.gob.es/formato"
 
 
@@ -95,7 +94,7 @@ def _parse_facturae_xml(file_path: str) -> ET.Element:
         return tree.getroot()
     except ET.ParseError as e:
         if "junk after document element" in str(e):
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
             end_tag = "</Facturae>"
             idx = content.find(end_tag)
@@ -223,28 +222,18 @@ def _extract_invoice(invoice: ET.Element, ns: dict) -> dict[str, Any]:
     if totals_elem is not None:
         result["totals"] = {
             "gross_amount": _to_float(_find_text(totals_elem, "fe:TotalGrossAmount", ns)),
-            "general_discounts": _to_float(
-                _find_text(totals_elem, "fe:TotalGeneralDiscounts", ns)
-            ),
+            "general_discounts": _to_float(_find_text(totals_elem, "fe:TotalGeneralDiscounts", ns)),
             "general_surcharges": _to_float(
                 _find_text(totals_elem, "fe:TotalGeneralSurcharges", ns)
             ),
             "total_gross_before_taxes": _to_float(
                 _find_text(totals_elem, "fe:TotalGrossAmountBeforeTaxes", ns)
             ),
-            "total_tax_outputs": _to_float(
-                _find_text(totals_elem, "fe:TotalTaxOutputs", ns)
-            ),
-            "total_tax_withheld": _to_float(
-                _find_text(totals_elem, "fe:TotalTaxesWithheld", ns)
-            ),
+            "total_tax_outputs": _to_float(_find_text(totals_elem, "fe:TotalTaxOutputs", ns)),
+            "total_tax_withheld": _to_float(_find_text(totals_elem, "fe:TotalTaxesWithheld", ns)),
             "invoice_total": _to_float(_find_text(totals_elem, "fe:InvoiceTotal", ns)),
-            "total_payable": _to_float(
-                _find_text(totals_elem, "fe:TotalOutstandingAmount", ns)
-            ),
-            "total_executable": _to_float(
-                _find_text(totals_elem, "fe:TotalExecutableAmount", ns)
-            ),
+            "total_payable": _to_float(_find_text(totals_elem, "fe:TotalOutstandingAmount", ns)),
+            "total_executable": _to_float(_find_text(totals_elem, "fe:TotalExecutableAmount", ns)),
         }
 
     items_elem = invoice.find(".//fe:Items", ns)
@@ -273,7 +262,9 @@ def _extract_line(line: ET.Element, ns: dict) -> dict[str, Any]:
         tax_rate = _to_float(_find_text(tax_elem, "fe:TaxRate", ns))
         tax_amount_elem = tax_elem.find(".//fe:TaxAmount/fe:TotalAmount", ns)
         if tax_amount_elem is None:
-            tax_amount_elem = tax_elem.find(".//{%s}TaxAmount/{%s}TotalAmount" % (FACTURAE_NS, FACTURAE_NS))
+            tax_amount_elem = tax_elem.find(
+                ".//{%s}TaxAmount/{%s}TotalAmount" % (FACTURAE_NS, FACTURAE_NS)
+            )
         if tax_amount_elem is not None:
             tax_amount = _to_float(tax_amount_elem.text)
 

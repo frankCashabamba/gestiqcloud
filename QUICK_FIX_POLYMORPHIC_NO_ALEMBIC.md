@@ -116,5 +116,5 @@ ops/
 
 ---
 
-**Tiempo total:** ~5 minutos  
+**Tiempo total:** ~5 minutos
 **Riesgo:** Bajo (cambios aditivos, reversibles)

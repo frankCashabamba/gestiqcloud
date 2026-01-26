@@ -6,8 +6,8 @@
 - Nuevos campos/tablas: `CSP_DEV_HOSTS` en `apps/backend/app/config/settings.py`; `Currency` ya es tabla DB (constants redundantes removidas).
 - Nota: el contenido siguiente es historico; los items "pendientes" ya fueron cerrados.
 
-**Última actualización:** 15 de Enero de 2026  
-**Cobertura:** Frontend (apps/tenant, apps/admin) + Backend (apps/backend) + Workers + Scripts  
+**Última actualización:** 15 de Enero de 2026
+**Cobertura:** Frontend (apps/tenant, apps/admin) + Backend (apps/backend) + Workers + Scripts
 **Total identificados:** 35+ hardcodeos
 
 ---
@@ -19,7 +19,7 @@
 - **Cambio**: Default de `"noreply@gestiqcloud.com"` → `""` (vacío)
 - **Validación**: Startup validation + field validator
 - **Impacto**: ✅ Requiere variable ENV `DEFAULT_FROM_EMAIL` en producción
-- **Archivos modificados**: 
+- **Archivos modificados**:
   - `settings.py` - Default vacío
   - `core/startup_validation.py` - Nuevo, con validaciones
   - `main.py` - Llamada a validación en lifespan
@@ -70,7 +70,7 @@
 ### 6. **Dominios hardcodeados en Cloudflare Worker (wrangler.toml)** ✅ CORREGIDO
 - **Archivo**: `workers/wrangler.toml` (línea 16-17)
 - **Cambio**: Movido de `[vars]` a `[env.production.vars]` comentados
-- **Validación**: 
+- **Validación**:
   - `[env.production.vars]` está comentado (no hardcodeado)
   - `[env.development.vars]` tiene valores de ejemplo
   - Edge-gateway.js valida que TARGET esté configurado
@@ -113,7 +113,7 @@
 - **Estado**: Ya resuelto con render.yaml
 
 ### 10. **API URL fallback en Admin Services** ✅ CORREGIDO
-- **Archivos**: 
+- **Archivos**:
   - `apps/admin/src/services/incidents.ts` - Ahora usa API_ENDPOINTS
   - `apps/admin/src/services/logs.ts` - Ahora usa API_ENDPOINTS
 - **Cambio**: Centralizado en `apps/admin/src/constants/api.ts`
@@ -476,15 +476,15 @@ ALLOWED_ORIGINS=https://admin.gestiqcloud.com,https://www.gestiqcloud.com
 
 ---
 
-**Análisis actualizado:** 15 Enero 2026  
-**Estado:** 
+**Análisis actualizado:** 15 Enero 2026
+**Estado:**
 - ✅ 8/8 críticos completados (100%)
 - ✅ 15/15 moderados completados (100%)
 - 📊 Total identificados: 35+ hardcodeos
 
 **Resumen Moderados Completados:**
 1. ✅ #9 API URL fallback Vite
-2. ✅ #10 API URL Admin Services  
+2. ✅ #10 API URL Admin Services
 3. ✅ #11 Storage keys centralizados
 4. ✅ #12 Rutas versionadas
 5. ✅ #13 Slug empresa fallback

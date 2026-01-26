@@ -204,7 +204,7 @@ class ECValidator(CountryValidator):
         Validate RUC checksum using modulo 11.
 
         Algorithm based on Ecuador SRI (Servicio de Rentas Internas).
-        
+
         The check digit is always calculated the same way regardless of type.
         """
         if len(ruc) != 13:

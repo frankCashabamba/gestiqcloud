@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, SmallInteger, String, Text, JSON
+from sqlalchemy import JSON, Boolean, ForeignKey, SmallInteger, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.config.database import Base
-
 
 UUID = PGUUID(as_uuid=True)
 TENANT_UUID = UUID.with_variant(String(36), "sqlite")
@@ -17,9 +16,7 @@ TENANT_UUID = UUID.with_variant(String(36), "sqlite")
 class TenantFieldConfig(Base):
     __tablename__ = "tenant_field_configs"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        TENANT_UUID, primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         TENANT_UUID, ForeignKey("tenants.id", ondelete="CASCADE"), index=True
     )
@@ -55,9 +52,7 @@ class TenantFieldConfig(Base):
 class SectorFieldDefault(Base):
     __tablename__ = "sector_field_defaults"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        TENANT_UUID, primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid.uuid4)
     sector: Mapped[str] = mapped_column(String, nullable=False, index=True)
     module: Mapped[str] = mapped_column(String, nullable=False, index=True)
     field: Mapped[str] = mapped_column(String, nullable=False)

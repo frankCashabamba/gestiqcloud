@@ -253,7 +253,9 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
 
     qty_abs = abs(payload.delta)
     qty_dec = _dec(qty_abs)
-    product = db.query(Product).filter(Product.id == payload.product_id, Product.tenant_id == tid).first()
+    product = (
+        db.query(Product).filter(Product.id == payload.product_id, Product.tenant_id == tid).first()
+    )
     fallback_cost = _dec(getattr(product, "cost_price", 0) if product else 0)
 
     costing = InventoryCostingService(db)
@@ -311,7 +313,11 @@ def adjust_stock(payload: StockAdjustIn, request: Request, db: Session = Depends
             .filter(StockItem.product_id == payload.product_id, StockItem.tenant_id == tid)
             .scalar()
         ) or 0.0
-        prod = db.query(Product).filter(Product.id == payload.product_id, Product.tenant_id == tid).first()
+        prod = (
+            db.query(Product)
+            .filter(Product.id == payload.product_id, Product.tenant_id == tid)
+            .first()
+        )
         if prod:
             prod.stock = float(total_qty)
             db.add(prod)
@@ -378,7 +384,9 @@ def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(
         db.flush()
 
     qty_dec = _dec(payload.qty)
-    product = db.query(Product).filter(Product.id == payload.product_id, Product.tenant_id == tid).first()
+    product = (
+        db.query(Product).filter(Product.id == payload.product_id, Product.tenant_id == tid).first()
+    )
     fallback_cost = _dec(getattr(product, "cost_price", 0) if product else 0)
 
     costing = InventoryCostingService(db)
@@ -446,7 +454,11 @@ def transfer_stock(payload: TransferIn, request: Request, db: Session = Depends(
             .filter(StockItem.product_id == payload.product_id, StockItem.tenant_id == tid)
             .scalar()
         ) or 0.0
-        prod = db.query(Product).filter(Product.id == payload.product_id, Product.tenant_id == tid).first()
+        prod = (
+            db.query(Product)
+            .filter(Product.id == payload.product_id, Product.tenant_id == tid)
+            .first()
+        )
         if prod:
             prod.stock = float(total_qty)
             db.add(prod)
@@ -488,7 +500,11 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
     delta = float(payload.counted_qty) - current
     if delta != 0:
         qty_dec = _dec(abs(delta))
-        product = db.query(Product).filter(Product.id == payload.product_id, Product.tenant_id == tid).first()
+        product = (
+            db.query(Product)
+            .filter(Product.id == payload.product_id, Product.tenant_id == tid)
+            .first()
+        )
         fallback_cost = _dec(getattr(product, "cost_price", 0) if product else 0)
         costing = InventoryCostingService(db)
 
@@ -536,7 +552,6 @@ def cycle_count(payload: CycleCountIn, request: Request, db: Session = Depends(g
     return item
 
 
-
 class ReorderPointIn(BaseModel):
     stock_minimo: float = Field(ge=0)
 
@@ -546,11 +561,7 @@ def set_reorder_point(
     product_id: str, payload: ReorderPointIn, request: Request, db: Session = Depends(get_db)
 ):
     tid = _require_tenant_id(request)
-    product = (
-        db.query(Product)
-        .filter(Product.id == product_id, Product.tenant_id == tid)
-        .first()
-    )
+    product = db.query(Product).filter(Product.id == product_id, Product.tenant_id == tid).first()
     if not product:
         raise HTTPException(status_code=404, detail="product_not_found")
 

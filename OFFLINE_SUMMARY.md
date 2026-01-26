@@ -82,7 +82,7 @@ export const MyEntityAdapter: SyncAdapter = {
 
 **Día 1-2: Adapters** (4-6 horas)
 - [ ] ProductsAdapter
-- [ ] CustomersAdapter  
+- [ ] CustomersAdapter
 - [ ] SalesAdapter (opcional)
 - [ ] Pruebas básicas de sync
 
@@ -244,7 +244,7 @@ OFFLINE_SUMMARY.md              ← Este archivo
 
 1. **IndexedDB > localStorage** para offline-first
    - Más storage, mejor performance, transacciones
-   
+
 2. **Service Worker** + **Client-side Queue** = mejor UX
    - SW cachea, cliente encola lo que falla
    - User nunca ve "error", ve "saved offline"
@@ -284,7 +284,7 @@ A: Sí, pero solo datos offline. Lo synced ya está en servidor. Recomendación:
 A: IndexedDB (IE11+), Service Worker (Chrome 40+, Firefox 44+, Safari 11.1+). Graceful degradation: sin SW, solo offline store.
 
 **P: ¿Cómo debuguear?**
-A: 
+A:
 - DevTools → Application → Storage → IndexedDB
 - `debugDump()` en console
 - Network tab → Offline checkbox
@@ -298,4 +298,3 @@ A:
 **Próximo:** Adapters para 3+ módulos + tests e2e
 **Timeline:** 7-10 días para MVP completo
 **Complejidad:** Media (patterns probados, no experimental)
-

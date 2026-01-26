@@ -1,7 +1,7 @@
 # EXECUTE FIX NOW | EJECUTAR FIX AHORA
 
 ## ⚠️ IMPORTANT | IMPORTANTE
-**Read first:** `START_HERE_POLYMORPHIC_FIX.md`  
+**Read first:** `START_HERE_POLYMORPHIC_FIX.md`
 **Lee primero:** `START_HERE_POLYMORPHIC_FIX.md`
 
 ---
@@ -91,7 +91,7 @@ tail -20 /var/log/gestiqcloud/backend.log | grep -i "polymorphic\|infailed"
 
 ## ✨ ¡HECHO! / DONE!
 
-Si todo arriba funcionó sin errores, ¡tu fix está aplicado!  
+Si todo arriba funcionó sin errores, ¡tu fix está aplicado!
 If everything above worked without errors, your fix is applied!
 
 ---
@@ -136,7 +136,7 @@ tail -200 /var/log/gestiqcloud/backend.log | grep -A 10 "Error\|Exception"
 
 ## 🎉 FELICITACIONES! / CONGRATULATIONS!
 
-Los errores deben haber desaparecido:  
+Los errores deben haber desaparecido:
 The errors should have disappeared:
 
 ❌ **Antes / Before:**
@@ -153,6 +153,6 @@ POST /api/v1/tenant/pos/receipts/{id}/checkout → 200 OK
 
 ---
 
-**Tiempo total / Total time:** 5-10 minutos | minutes  
-**Dificultad / Difficulty:** 🟢 Bajo | Low  
+**Tiempo total / Total time:** 5-10 minutos | minutes
+**Dificultad / Difficulty:** 🟢 Bajo | Low
 **Riesgo / Risk:** 🟢 Bajo | Low

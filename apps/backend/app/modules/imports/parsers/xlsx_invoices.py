@@ -139,7 +139,11 @@ def _to_date(val):
         return val.date().isoformat()
     if isinstance(val, (int, float)):
         try:
-            return datetime.fromordinal(datetime(1899, 12, 30).toordinal() + int(val)).date().isoformat()
+            return (
+                datetime.fromordinal(datetime(1899, 12, 30).toordinal() + int(val))
+                .date()
+                .isoformat()
+            )
         except Exception:
             return str(val)
     return str(val)
@@ -167,7 +171,10 @@ def _clean_dict(d: dict) -> dict:
 
 
 def _result(
-    invoices: list[dict[str, Any]], rows_processed: int, errors: list[str], file_path: str | None = None
+    invoices: list[dict[str, Any]],
+    rows_processed: int,
+    errors: list[str],
+    file_path: str | None = None,
 ) -> dict[str, Any]:
     return {
         "invoices": invoices,

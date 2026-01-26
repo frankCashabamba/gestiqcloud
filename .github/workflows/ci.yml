@@ -236,7 +236,7 @@ jobs:
           echo "Branch: ${{ github.ref }}"
           echo "Commit: ${{ github.sha }}"
           echo "Approved by: ${{ github.actor }}"
-          
+
           # Ejecutar deploy hook de Render
           if [ -n "${{ secrets.RENDER_DEPLOY_HOOK_PROD }}" ]; then
             response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_PROD }}")

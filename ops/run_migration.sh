@@ -43,27 +43,27 @@ case "$COMMAND" in
             echo -e "${RED}Error: Migration name required${NC}"
             usage
         fi
-        
+
         MIGRATION_PATH="$MIGRATIONS_DIR/$MIGRATION"
-        
+
         if [ ! -d "$MIGRATION_PATH" ]; then
             echo -e "${RED}Error: Migration directory not found: $MIGRATION_PATH${NC}"
             exit 1
         fi
-        
+
         if [ ! -f "$MIGRATION_PATH/up.sql" ]; then
             echo -e "${RED}Error: up.sql not found in $MIGRATION_PATH${NC}"
             exit 1
         fi
-        
+
         echo -e "${YELLOW}Applying migration: $MIGRATION${NC}"
         echo "Database: $DB_NAME@$DB_HOST"
-        
+
         # Run migration
         psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
             -v ON_ERROR_STOP=1 \
             -f "$MIGRATION_PATH/up.sql"
-        
+
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}✓ Migration applied successfully${NC}"
         else
@@ -71,33 +71,33 @@ case "$COMMAND" in
             exit 1
         fi
         ;;
-        
+
     down)
         if [ -z "$MIGRATION" ]; then
             echo -e "${RED}Error: Migration name required${NC}"
             usage
         fi
-        
+
         MIGRATION_PATH="$MIGRATIONS_DIR/$MIGRATION"
-        
+
         if [ ! -d "$MIGRATION_PATH" ]; then
             echo -e "${RED}Error: Migration directory not found: $MIGRATION_PATH${NC}"
             exit 1
         fi
-        
+
         if [ ! -f "$MIGRATION_PATH/down.sql" ]; then
             echo -e "${RED}Error: down.sql not found in $MIGRATION_PATH${NC}"
             exit 1
         fi
-        
+
         echo -e "${YELLOW}Rolling back migration: $MIGRATION${NC}"
         echo "Database: $DB_NAME@$DB_HOST"
-        
+
         # Run rollback
         psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
             -v ON_ERROR_STOP=1 \
             -f "$MIGRATION_PATH/down.sql"
-        
+
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}✓ Migration rolled back successfully${NC}"
         else
@@ -105,18 +105,18 @@ case "$COMMAND" in
             exit 1
         fi
         ;;
-        
+
     status)
         echo -e "${YELLOW}Available migrations:${NC}"
         echo ""
-        
+
         if [ ! -z "$(ls -A $MIGRATIONS_DIR)" ]; then
             ls -1d "$MIGRATIONS_DIR"/*/ | while read migration_dir; do
                 migration_name=$(basename "$migration_dir")
-                
+
                 if [ -f "$migration_dir/up.sql" ]; then
                     echo -e "  ${GREEN}✓${NC} $migration_name"
-                    
+
                     if [ -f "$migration_dir/README.md" ]; then
                         # Show first line of README as description
                         head -1 "$migration_dir/README.md" | sed 's/^# /    Purpose: /'
@@ -130,7 +130,7 @@ case "$COMMAND" in
         fi
         echo ""
         ;;
-        
+
     *)
         echo -e "${RED}Error: Unknown command '$COMMAND'${NC}"
         usage

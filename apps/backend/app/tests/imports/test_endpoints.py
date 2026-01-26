@@ -1,13 +1,12 @@
 """Tests de integración para endpoints de imports auto-detect."""
 
-import io
 import csv
-import json
-import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+import io
+from unittest.mock import patch
 from uuid import uuid4
 
 import openpyxl
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -55,16 +54,12 @@ class TestAnalyzeEndpoint:
         )
         assert response.status_code in (401, 403, 404, 422, 500)
 
-    def test_analyze_rejects_unsupported_extension(
-        self, client: TestClient, mock_access_claims
-    ):
+    def test_analyze_rejects_unsupported_extension(self, client: TestClient, mock_access_claims):
         """Test rechazo de extensión no soportada."""
         with patch("app.core.access_guard.with_access_claims") as mock_guard:
             mock_guard.return_value = lambda: mock_access_claims
 
-            with patch.object(
-                client.app.state, "access_claims", mock_access_claims, create=True
-            ):
+            with patch.object(client.app.state, "access_claims", mock_access_claims, create=True):
                 response = client.post(
                     "/api/v1/imports/uploads/analyze",
                     files={
@@ -143,9 +138,7 @@ class TestConfirmEndpoint:
     def test_confirmation_status_endpoint_exists(self, client: TestClient):
         """Test que el endpoint de status existe."""
         batch_id = str(uuid4())
-        response = client.get(
-            f"/api/v1/imports/batches/{batch_id}/confirmation-status"
-        )
+        response = client.get(f"/api/v1/imports/batches/{batch_id}/confirmation-status")
         assert response.status_code in (400, 401, 403, 404)
 
 
@@ -197,9 +190,7 @@ class TestEndpointResponseSchemas:
             correct_count=90,
             corrected_count=10,
             accuracy_rate=0.9,
-            by_doc_type={
-                "products": {"total": 50, "correct": 48, "accuracy_rate": 0.96}
-            },
+            by_doc_type={"products": {"total": 50, "correct": 48, "accuracy_rate": 0.96}},
             most_corrected_parsers=[{"parser": "generic", "corrections": 5}],
         )
 

@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
-from app.core.authz import require_scope
 from app.core.audit_events import audit_event
+from app.core.authz import require_scope
 from app.modules.templates.services import validate_overlay
 
 router = APIRouter(

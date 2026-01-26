@@ -1,5 +1,6 @@
-from fastapi.testclient import TestClient
 import secrets
+
+from fastapi.testclient import TestClient
 
 
 def test_me_admin_requires_bearer(client: TestClient):
@@ -63,9 +64,3 @@ def test_admin_refresh_rotation(client: TestClient, db, superuser_factory):
     assert r2.status_code == 200
     new_rt = r2.cookies.get("refresh_token")
     assert new_rt and new_rt != old_rt
-
-
-
-
-
-

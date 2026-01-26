@@ -32,9 +32,7 @@ class TemplateEngine:
         version = int(doc.render.templateVersion)
 
         tenant_id = doc.seller.tenantId
-        tenant_path = (
-            f"tenants/{tenant_id}/{doc_type}.{fmt}.v{version}.html"
-        )
+        tenant_path = f"tenants/{tenant_id}/{doc_type}.{fmt}.v{version}.html"
         default_path = f"default/{doc_type}/{fmt}.v{version}.html"
 
         if (self.templates_dir / tenant_path).exists():

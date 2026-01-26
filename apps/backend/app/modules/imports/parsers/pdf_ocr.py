@@ -77,7 +77,9 @@ def parse_pdf_ocr(file_path: str) -> dict[str, Any]:
                 rows.append(_documento_to_row(doc, "receipt"))
 
         elif layout == "bank_statement":
-            from app.modules.imports.extractores.extractor_transferencia import extraer_transferencias
+            from app.modules.imports.extractores.extractor_transferencia import (
+                extraer_transferencias,
+            )
 
             documentos = extraer_transferencias(ocr_text)
             for doc in documentos:
@@ -85,16 +87,18 @@ def parse_pdf_ocr(file_path: str) -> dict[str, Any]:
 
         else:
             # Generic extraction - return OCR text for manual mapping
-            rows.append({
-                "doc_type": "generic",
-                "ocr_text": ocr_text[:5000],
-                "text_length": len(ocr_text),
-                "layout_detected": layout,
-                "_metadata": {
-                    "parser": "pdf_ocr",
-                    "extracted_at": datetime.utcnow().isoformat(),
-                },
-            })
+            rows.append(
+                {
+                    "doc_type": "generic",
+                    "ocr_text": ocr_text[:5000],
+                    "text_length": len(ocr_text),
+                    "layout_detected": layout,
+                    "_metadata": {
+                        "parser": "pdf_ocr",
+                        "extracted_at": datetime.utcnow().isoformat(),
+                    },
+                }
+            )
 
     except Exception as e:
         errors.append(f"OCR processing error: {str(e)}")
@@ -119,7 +123,7 @@ def _canonical_to_row(canonical: dict, doc_type: str) -> dict[str, Any]:
     """Convert CanonicalDocument to row format."""
     totals = canonical.get("totals", {})
     vendor = canonical.get("vendor", {})
-    
+
     return {
         "doc_type": doc_type,
         "invoice_number": canonical.get("invoice_number"),

@@ -193,7 +193,7 @@ export default function CompanyConfiguration() {
             setError(null);
             const result = await backfillPosReceiptDocuments(id, receipt);
             setPosBackfillResult(result);
-            
+
             // Check if documents were created
             const docsCreated = Object.keys(result?.documents_created ?? {}).length > 0;
             if (docsCreated) {
@@ -201,7 +201,7 @@ export default function CompanyConfiguration() {
             } else {
                 setSuccess('✓ Backfill ejecutado (documentos ya existían)');
             }
-            
+
             // Reload candidates to update UI after successful backfill
             await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for DB sync
             await loadPosCandidates();
@@ -554,22 +554,22 @@ export default function CompanyConfiguration() {
                     )}
                 </TabPanel>
 
-                
-                
 
-                
-                
+
+
+
+
 
                 {/* Tab 3: Facturación */}
-                
 
-                
-                
+
+
+
 
                 {/* Tab 5: Otros MÃ³dulos */}
-                
 
-                
+
+
             </Paper>
 
             {/* POS Backfill Dialog */}

@@ -1,6 +1,6 @@
 /**
  * Products Offline Sync Adapter
- * 
+ *
  * Handles synchronization of product data
  * - Products can be created, updated, deleted
  * - Conflict detection on price and stock changes
@@ -62,7 +62,7 @@ export const ProductsAdapter: SyncAdapter = {
   detectConflict(local: any, remote: any): boolean {
     // Conflict if critical fields differ
     if (!remote) return false
-    
+
     return local.price !== remote.price ||
            local.stock !== remote.stock ||
            local.name !== remote.name ||

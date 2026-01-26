@@ -9,7 +9,6 @@ This legacy router is kept only for temporary compatibility.
 TODO: Remove this file in the next version.
 """
 
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -18,7 +17,6 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import get_current_user_context
-from app.models.tenant import Tenant
 from app.models.company.company_settings import CompanySettings
 
 router = APIRouter()
@@ -26,36 +24,37 @@ router = APIRouter()
 
 class CompanySettingsCreate(BaseModel):
     """@deprecated - See onboarding_init.py"""
+
     default_language: str
     timezone: str
     currency: str
-    company_logo: Optional[str] = None
+    company_logo: str | None = None
     primary_color: str = "#4f46e5"
     secondary_color: str = "#ffffff"
 
 
 class CompanySettingsOut(BaseModel):
     """@deprecated - See onboarding_init.py"""
-    company_name: Optional[str] = None
-    primary_color: Optional[str] = None
-    secondary_color: Optional[str] = None
-    company_logo: Optional[str] = None
+
+    company_name: str | None = None
+    primary_color: str | None = None
+    secondary_color: str | None = None
+    company_logo: str | None = None
 
 
 class AuthenticatedUser(BaseModel):
     """@deprecated - See onboarding_init.py"""
+
     tenant_id: UUID
 
 
 def get_current_user() -> AuthenticatedUser:
     """@deprecated - See onboarding_init.py"""
-    from app.core.access_guard import get_current_user_context
-    from fastapi import Depends
-    
+
     async def _get():
         user = await get_current_user_context()
         return AuthenticatedUser(tenant_id=user.get("tenant_id"))
-    
+
     return _get
 
 

@@ -58,9 +58,7 @@ def get_sector_units(code: str, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error getting sector units: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"Error getting sector units: {str(e)}") from e
 
 
 @router.get("/{code}/config", summary="Get complete sector configuration")
@@ -107,9 +105,7 @@ def get_sector_config(code: str, db: Session = Depends(get_db)):
         ) from e
 
 
-@router.get(
-    "/{code}/full-config", summary="Get COMPLETE sector configuration (alias for /config)"
-)
+@router.get("/{code}/full-config", summary="Get COMPLETE sector configuration (alias for /config)")
 def get_sector_full_config(code: str, db: Session = Depends(get_db)):
     """
     Alias for GET /{code}/config. Maintains compatibility with hardcoding elimination plan.

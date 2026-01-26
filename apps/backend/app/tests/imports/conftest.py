@@ -2,11 +2,11 @@
 
 import csv
 import io
-import pytest
 from pathlib import Path
 from uuid import uuid4
 
 import openpyxl
+import pytest
 
 
 @pytest.fixture
@@ -56,14 +56,10 @@ def sample_bank_csv(tmp_path) -> Path:
     with open(file_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["fecha", "concepto", "importe", "saldo", "referencia"])
-        writer.writerow(
-            ["2024-01-15", "Transferencia recibida", 1500.00, 5000.00, "TRF-001"]
-        )
+        writer.writerow(["2024-01-15", "Transferencia recibida", 1500.00, 5000.00, "TRF-001"])
         writer.writerow(["2024-01-16", "Pago servicios", -200.00, 4800.00, "PAG-001"])
         writer.writerow(["2024-01-17", "Depósito", 500.00, 5300.00, "DEP-001"])
-        writer.writerow(
-            ["2024-01-18", "Retiro cajero", -100.00, 5200.00, "RET-001"]
-        )
+        writer.writerow(["2024-01-18", "Retiro cajero", -100.00, 5200.00, "RET-001"])
     return file_path
 
 

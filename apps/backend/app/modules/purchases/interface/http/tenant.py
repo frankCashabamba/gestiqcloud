@@ -1,6 +1,10 @@
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -8,9 +12,6 @@ from app.db.rls import ensure_rls
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.purchases.purchase import PurchaseLine
 from app.services.inventory_costing import InventoryCostingService
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
 
 from ...infrastructure.repositories import PurchaseRepo
 from .schemas import PurchaseCreate, PurchaseOut, PurchaseUpdate

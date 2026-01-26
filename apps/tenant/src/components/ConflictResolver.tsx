@@ -1,6 +1,6 @@
 /**
  * ConflictResolver - Modal for resolving offline sync conflicts
- * 
+ *
  * Shows local vs remote versions of conflicted entities
  * and allows user to choose which version to keep
  */
@@ -58,7 +58,7 @@ export default function ConflictResolver({ onConflictResolved }: ConflictResolve
       )
 
       setMessage(`✅ Conflicto resuelto (usando ${choice === 'local' ? 'cambios locales' : 'versión servidor'})`)
-      
+
       // Remove from list
       setTimeout(() => {
         setConflicts(c => c.filter((_, i) => i !== selectedIdx))
@@ -81,7 +81,7 @@ export default function ConflictResolver({ onConflictResolved }: ConflictResolve
   const getDiffFields = (local: any, remote: any) => {
     const fields: string[] = []
     if (!remote) return fields
-    
+
     const allKeys = new Set([...Object.keys(local || {}), ...Object.keys(remote || {})])
     for (const key of allKeys) {
       if (local[key] !== remote[key]) {

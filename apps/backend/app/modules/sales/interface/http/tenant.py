@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from datetime import date
-from uuid import UUID, uuid4
 from decimal import ROUND_HALF_UP, Decimal
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -155,7 +155,9 @@ def get_order(order_id: str, request: Request, db: Session = Depends(get_db)):
         status=order.status,
         customer_id=str(order.customer_id) if order.customer_id else None,
         customer_name=customer_name,
-        pos_receipt_id=str(order.pos_receipt_id) if getattr(order, "pos_receipt_id", None) else None,
+        pos_receipt_id=str(order.pos_receipt_id)
+        if getattr(order, "pos_receipt_id", None)
+        else None,
         currency=order.currency,
         subtotal=float(order.subtotal or 0),
         tax=float(order.tax or 0),
@@ -326,9 +328,7 @@ def do_delivery(
             .first()
         )
         if not row:
-            row = StockItem(
-                warehouse_id=payload.warehouse_id, product_id=it.product_id, qty=0
-            )
+            row = StockItem(warehouse_id=payload.warehouse_id, product_id=it.product_id, qty=0)
             db.add(row)
             db.flush()
 

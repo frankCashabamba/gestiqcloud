@@ -80,16 +80,16 @@ router = APIRouter(
 def _get_tenant_country(db: Session, tenant_id: UUID) -> str:
     """
     Obtiene el país del tenant desde la base de datos.
-    
+
     Retorna el country_code del tenant o "ES" como fallback.
     Los valores válidos son códigos ISO 3166-1 alpha-2 (ES, EC, AR, etc.)
     """
     stmt = select(Tenant).where(Tenant.id == tenant_id)
     tenant = db.execute(stmt).scalar_one_or_none()
-    
+
     if tenant and tenant.country_code:
         return tenant.country_code.upper()
-    
+
     # Fallback a España si no está configurado
     return "ES"
 

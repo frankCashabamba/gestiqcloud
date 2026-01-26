@@ -1,14 +1,14 @@
 /**
  * Hook: useSectorPlaceholders
- * 
+ *
  * Carga placeholders dinámicos para campos de formulario desde BD.
- * 
+ *
  * FASE 4 PASO 4: Eliminar hardcoding de placeholders en formularios.
- * 
+ *
  * Reemplaza:
  *   `placeholder="Ej: H-2025-028"` → `getFieldPlaceholder(config, 'lote')`
  *   `placeholder="Ej: SN-123456789"` → `getFieldPlaceholder(config, 'numero_serie')`
- * 
+ *
  * Características:
  * - Cache 5 minutos TTL
  * - Soporta filtrado por módulo
@@ -52,15 +52,15 @@ const placeholderCache: Map<string, CacheEntry> = new Map()
 
 /**
  * Hook principal: Cargar placeholders del sector
- * 
+ *
  * @param sectorCode - Código del sector (panaderia, taller, etc.)
  * @param module - Módulo opcional (products, inventory, customers, etc.)
  *                Si no se proporciona, retorna placeholders de todos los módulos
- * 
+ *
  * @example
  * // Obtener placeholders de todos los módulos
  * const { placeholders, loading, error } = useSectorPlaceholders('panaderia')
- * 
+ *
  * @example
  * // Obtener placeholders de un módulo específico
  * const { placeholders, getPlaceholder } = useSectorPlaceholders('panaderia', 'inventory')
@@ -111,7 +111,7 @@ export function useSectorPlaceholders(
       .get(url)
       .then(res => {
         const placeholders = res.data.placeholders || {}
-        
+
         // Guardar en cache
         placeholderCache.set(cacheKey, {
           data: placeholders,
@@ -179,13 +179,13 @@ export function useSectorPlaceholders(
 
 /**
  * Hook helper: Obtener placeholder para un campo específico
- * 
+ *
  * Versión simplificada cuando solo necesitas un placeholder
- * 
+ *
  * @param sectorCode - Código del sector
  * @param fieldName - Nombre del campo
  * @param module - Módulo opcional
- * 
+ *
  * @example
  * const { placeholder, loading } = useSectorPlaceholder('panaderia', 'lote', 'inventory')
  * return <Input placeholder={placeholder} />
@@ -214,9 +214,9 @@ export function useSectorPlaceholder(
 
 /**
  * Helper function: Limpiar cache de placeholders
- * 
+ *
  * Útil para testing o cuando necesitas recargar datos
- * 
+ *
  * @example
  * clearPlaceholderCache()
  */
@@ -226,13 +226,13 @@ export function clearPlaceholderCache() {
 
 /**
  * Helper function: Obtener placeholder desde un objeto de placeholders
- * 
+ *
  * Útil cuando ya tienes los placeholders cargados
- * 
+ *
  * @param placeholders - Objeto de placeholders
  * @param fieldName - Nombre del campo a buscar
  * @param defaultValue - Valor por defecto si no existe
- * 
+ *
  * @example
  * const placeholder = getFieldPlaceholder(config.fields.inventory.placeholders, 'lote')
  */
@@ -256,11 +256,11 @@ export function getFieldPlaceholder(
 
 /**
  * Helper function: Obtener placeholder de múltiples módulos
- * 
+ *
  * @param allPlaceholders - Objeto con placeholders de todos los módulos
  * @param module - Módulo específico
  * @param fieldName - Nombre del campo
- * 
+ *
  * @example
  * const placeholder = getFieldPlaceholderForModule(
  *   config.fields,
@@ -279,10 +279,10 @@ export function getFieldPlaceholderForModule(
 
 /**
  * Helper function: Obtener todos los placeholders de un módulo
- * 
+ *
  * @param allPlaceholders - Objeto con placeholders de todos los módulos
  * @param module - Módulo específico
- * 
+ *
  * @example
  * const inventoryPlaceholders = getModulePlaceholders(config.fields, 'inventory')
  */

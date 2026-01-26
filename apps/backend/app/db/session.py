@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+
 # Database URL - MUST be configured via DATABASE_URL or DB_DSN env var
 # For migration scripts using DB_DSN, support both:
 # - DATABASE_URL (preferred, used by FastAPI settings)
@@ -18,12 +19,12 @@ def _get_database_url() -> str:
     db_url = os.getenv("DATABASE_URL")
     if db_url:
         return db_url
-    
+
     # Fall back to DB_DSN (legacy, for systemd services)
     db_url = os.getenv("DB_DSN")
     if db_url:
         return db_url
-    
+
     # No fallback to localhost - fail explicitly in production
     environment = os.getenv("ENVIRONMENT", "development").lower()
     if environment == "production":
@@ -32,22 +33,21 @@ def _get_database_url() -> str:
             "This is required in production. "
             "Example: DATABASE_URL=postgresql://user:pass@db.internal/gestiqcloud"
         )
-    
+
     # Development fallback - use environment variable or fail with clear message
     import warnings
+
     dev_db_url = os.getenv("DEV_DATABASE_URL")
     if dev_db_url:
-        warnings.warn(
-            "DATABASE_URL not set. Using DEV_DATABASE_URL fallback.",
-            RuntimeWarning
-        )
+        warnings.warn("DATABASE_URL not set. Using DEV_DATABASE_URL fallback.", RuntimeWarning)
         return dev_db_url
-    
+
     raise RuntimeError(
         "DATABASE_URL is not configured. "
         "For development, set DEV_DATABASE_URL or DATABASE_URL. "
         "Example: DATABASE_URL=postgresql://user:pass@localhost:5432/gestiqcloud_dev"
     )
+
 
 DATABASE_URL = _get_database_url()
 

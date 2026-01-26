@@ -22,6 +22,10 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -66,9 +70,6 @@ from app.services.recipe_calculator import (
     create_purchase_order_from_recipe,
     get_recipe_profitability,
 )
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/production",
@@ -675,11 +676,7 @@ def get_recipe(
     claims: dict = Depends(with_access_claims),
 ):
     tenant_id = UUID(claims["tenant_id"])
-    recipe = (
-        db.query(Recipe)
-        .filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id)
-        .first()
-    )
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id).first()
     if not recipe:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
     return recipe
@@ -693,11 +690,7 @@ def update_recipe(
     claims: dict = Depends(with_access_claims),
 ):
     tenant_id = UUID(claims["tenant_id"])
-    recipe = (
-        db.query(Recipe)
-        .filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id)
-        .first()
-    )
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id).first()
     if not recipe:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
     update_data = recipe_data.dict(exclude_unset=True)
@@ -738,11 +731,7 @@ def add_recipe_ingredient(
     claims: dict = Depends(with_access_claims),
 ):
     tenant_id = UUID(claims["tenant_id"])
-    recipe = (
-        db.query(Recipe)
-        .filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id)
-        .first()
-    )
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id).first()
     if not recipe:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
 

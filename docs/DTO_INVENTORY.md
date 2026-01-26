@@ -1,6 +1,6 @@
 # Inventario de DTOs/Schemas del Backend
 
-> **Fecha de generación:** 2026-01-17  
+> **Fecha de generación:** 2026-01-17
 > **Estado:** Análisis completo
 
 ## Resumen Ejecutivo

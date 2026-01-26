@@ -2,6 +2,7 @@
 
 # Core models
 # Sistema IA + Incidencias + Alertas
+from app.models.accounting.pos_settings import PaymentMethod, TenantAccountingSettings
 from app.models.ai import Incident, NotificationChannel, NotificationLog, StockAlert
 from app.models.auth.refresh_family import RefreshFamily
 
@@ -29,7 +30,11 @@ from app.models.company.company_role import CompanyRole
 from app.models.company.company_settings import CompanySettings, InventorySettings
 from app.models.company.company_user import CompanyUser
 from app.models.company.company_user_role import CompanyUserRole
+from app.models.company.settings import CompanySettings, InventorySettings
+from app.models.core.audit_event import AuditEvent
 from app.models.core.clients import Client, Cliente
+from app.models.core.country_catalogs import CountryIdType, CountryTaxCode
+from app.models.core.document import Document
 from app.models.core.facturacion import (
     BankAccount,
     BankTransaction,
@@ -40,15 +45,23 @@ from app.models.core.facturacion import (
     TransactionStatus,
     TransactionType,
 )
-from app.models.core.audit_event import AuditEvent
-from app.models.core.country_catalogs import CountryIdType, CountryTaxCode
-from app.models.core.document import Document
 from app.models.core.import_audit import ImportAudit
 from app.models.core.invoiceLine import BakeryLine, InvoiceLine, LineaFactura, WorkshopLine
 from app.models.core.modulo import AssignedModule, CompanyModule, Module
 from app.models.core.product_category import ProductCategory
 from app.models.core.products import Product
-from app.models.company.settings import CompanySettings, InventorySettings
+
+# UI Configuration (Sistema Sin Hardcodes)
+from app.models.core.ui_config import (
+    UiColumn,
+    UiDashboard,
+    UiFilter,
+    UiForm,
+    UiFormField,
+    UiSection,
+    UiTable,
+    UiWidget,
+)
 from app.models.expenses import Expense
 from app.models.finance import BankMovement, CashClosing, CashMovement
 from app.models.hr import Employee, Vacation
@@ -69,7 +82,6 @@ from app.models.pos import (
     StoreCredit,
     StoreCreditEvent,
 )
-from app.models.accounting.pos_settings import TenantAccountingSettings, PaymentMethod
 from app.models.printing.printer_label_configuration import PrinterLabelConfiguration
 
 # Nuevos módulos profesionales
@@ -81,18 +93,6 @@ from app.models.sales.order import SalesOrder, SalesOrderItem
 from app.models.security.auth_audit import AuthAudit
 from app.models.suppliers import Supplier, SupplierAddress, SupplierContact
 from app.models.tenant import Tenant
-
-# UI Configuration (Sistema Sin Hardcodes)
-from app.models.core.ui_config import (
-    UiSection,
-    UiWidget,
-    UiTable,
-    UiColumn,
-    UiFilter,
-    UiForm,
-    UiFormField,
-    UiDashboard,
-)
 
 __all__ = [
     # Core Facturación

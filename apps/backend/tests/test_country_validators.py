@@ -1,10 +1,7 @@
 """Tests for country-specific validators (Frontend/Backend sync)."""
 
 import pytest
-from apps.backend.app.modules.imports.validators.country_validators import (
-    ECValidator,
-    ESValidator,
-)
+from apps.backend.app.modules.imports.validators.country_validators import ECValidator, ESValidator
 
 
 class TestECValidator:
@@ -59,8 +56,7 @@ class TestECValidator:
         """Should reject RUC with invalid type digit."""
         errors = validator.validate_tax_id("0150000000001")
         assert any(
-            e["code"] == "INVALID_TAX_ID_FORMAT" and "type" in e["message"].lower()
-            for e in errors
+            e["code"] == "INVALID_TAX_ID_FORMAT" and "type" in e["message"].lower() for e in errors
         )
 
     def test_invalid_checksum(self, validator):
@@ -83,8 +79,7 @@ class TestECValidator:
         """Should reject RUC with less than 13 digits."""
         errors = validator.validate_tax_id("17900841030")
         assert any(
-            e["code"] == "INVALID_TAX_ID_FORMAT" and "13 digits" in e["message"]
-            for e in errors
+            e["code"] == "INVALID_TAX_ID_FORMAT" and "13 digits" in e["message"] for e in errors
         )
 
     def test_ruc_too_long(self, validator):

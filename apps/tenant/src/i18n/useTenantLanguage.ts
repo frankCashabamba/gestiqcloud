@@ -11,7 +11,7 @@ import type { SupportedLang } from './index'
 
 export function useTenantLanguage(): SupportedLang {
   const { config, loading } = useCompanyConfig()
-  
+
   // Obtener idioma de la configuración del tenant
   const tenantLocale = config?.settings?.locale
 
@@ -19,7 +19,7 @@ export function useTenantLanguage(): SupportedLang {
     if (loading || !tenantLocale) return
 
     const normalized = normalizeLang(tenantLocale)
-    
+
     // Solo cambiar si es diferente al idioma actual
     if (i18n.language !== normalized) {
       i18n.changeLanguage(normalized).catch(err => {

@@ -1,6 +1,6 @@
 # Tracking: Remediación de Duplicación Frontend/Backend
 
-**Inicio**: 17 de Enero 2026  
+**Inicio**: 17 de Enero 2026
 **Target**: 4 semanas (29 horas)
 
 ---
@@ -26,8 +26,8 @@
 
 ## 🔴 CRÍTICA #1: TAX ID VALIDATION
 
-**Descripción**: Frontend acepta RUCs inválidos  
-**Riesgo**: Importaciones con datos basura  
+**Descripción**: Frontend acepta RUCs inválidos
+**Riesgo**: Importaciones con datos basura
 **Estimado**: 3 horas
 
 ### Checklist
@@ -37,17 +37,17 @@
   - [ ] `validateSpainNIF()` con check letter
   - [ ] `validateArgentinaCUIT()` con algoritmo
   - [ ] Tests en `__tests__/countryValidators.test.ts`
-  
+
 - [ ] Frontend: Usar validador compartido
   - [ ] Remover duplicación en `apps/tenant/src/modules/importador/utils/countryValidators.ts`
   - [ ] Re-exportar desde `@api-types`
   - [ ] Validar en hooks y formularios
-  
+
 - [ ] Backend: Validar código Python idéntico
   - [ ] Comparar lógica con TypeScript
   - [ ] Agregar test de sincronización
   - [ ] Documentar en README
-  
+
 - [ ] QA: Validación cross-layer
   - [ ] RUC válido en TS → válido en Python ✓
   - [ ] RUC inválido en TS → inválido en Python ✓
@@ -70,8 +70,8 @@
 
 ## 🔴 CRÍTICA #2: CÁLCULOS TOTALES
 
-**Descripción**: Divergencia en orden de operaciones  
-**Riesgo**: Discrepancias en moneda (1-3%)  
+**Descripción**: Divergencia en orden de operaciones
+**Riesgo**: Discrepancias en moneda (1-3%)
 **Estimado**: 4 horas
 
 ### Checklist
@@ -81,18 +81,18 @@
   - [ ] Clase `TotalsCalculator` con fórmula documentada
   - [ ] Tests exhaustivos (4+ casos)
   - [ ] Soporte para redondeo (round/ceil/floor)
-  
+
 - [ ] Frontend: Usar engine
   - [ ] Remover `calculateTotals()` local de `POSView.tsx` (L866-906)
   - [ ] Importar desde `@shared/calculations/totalsEngine`
   - [ ] Usar en cart, preview, receipt
   - [ ] Tests: verificar totals exactos
-  
+
 - [ ] Backend: Validar al guardar
   - [ ] Endpoint de validación: `POST /pos/validate-totals`
   - [ ] Comparar cálculo frontend vs backend
   - [ ] Rechazar si divergencia > 0.01
-  
+
 - [ ] QA: Casos de uso
   - [ ] Sin descuentos (100 → 115 con 15% tax)
   - [ ] Line discount (180 × 0.15 = 27 tax)
@@ -117,8 +117,8 @@
 
 ## 🟡 MEDIA #3: PAYROLL PREVIEW
 
-**Descripción**: Sin cálculo local, usuario debe guardar para ver resultado  
-**Riesgo**: Mala UX  
+**Descripción**: Sin cálculo local, usuario debe guardar para ver resultado
+**Riesgo**: Mala UX
 **Estimado**: 6 horas
 
 ### Checklist
@@ -128,13 +128,13 @@
   - [ ] Funciones por país (ES, EC, AR, PE)
   - [ ] Tramos progresivos IRPF
   - [ ] Tests por país
-  
+
 - [ ] Frontend: Hook para preview
   - [ ] `apps/tenant/src/modules/rrhh/hooks/usePayrollCalculator.ts`
   - [ ] Usa `calculatePayroll()` en tiempo real
   - [ ] Componente `PayrollPreview` muestra resultado
   - [ ] Integrar en formulario de nómina
-  
+
 - [ ] QA: Validación por país
   - [ ] ES: 6.35% social + IRPF tramos
   - [ ] EC: 9.45% aporte
@@ -152,8 +152,8 @@
 
 ## 🟡 MEDIA #4: RECIPE COSTS PREVIEW
 
-**Descripción**: Sin preview, usuario no ve costo hasta guardar  
-**Riesgo**: Mala UX  
+**Descripción**: Sin preview, usuario no ve costo hasta guardar
+**Riesgo**: Mala UX
 **Estimado**: 5 horas
 
 ### Checklist
@@ -162,12 +162,12 @@
   - [ ] `apps/packages/shared/src/calculations/recipeEngine.ts`
   - [ ] `calculateRecipeCost()` con ingredientes
   - [ ] Desglose: ingredientes + labor + overhead
-  
+
 - [ ] Frontend: Hook para preview
   - [ ] `apps/tenant/src/modules/productos/hooks/useRecipeCostCalculator.ts`
   - [ ] Componente `RecipeCostPreview`
   - [ ] Mostrar margen/rentabilidad
-  
+
 - [ ] Integración en formularios
 
 ### Archivos a Modificar
@@ -182,8 +182,8 @@
 
 ## 🟡 MEDIA #5: SECTOR VALIDATION SYNC
 
-**Descripción**: Reglas DB pueden desincronizarse  
-**Riesgo**: Validación inconsistente  
+**Descripción**: Reglas DB pueden desincronizarse
+**Riesgo**: Validación inconsistente
 **Estimado**: 2 horas
 
 ### Checklist
@@ -191,12 +191,12 @@
 - [ ] Agregar versionado en BD
   - [ ] Columna `rules_version` en tabla de reglas
   - [ ] Timestamp de última actualización
-  
+
 - [ ] Frontend: Cache con invalidación
   - [ ] Guardar version en localStorage
   - [ ] Comparar con server en cada load
   - [ ] Invalidar si versión server > local
-  
+
 - [ ] Tests: Sincronización
 
 ### Archivos a Modificar
@@ -210,8 +210,8 @@
 
 ## 🟡 MEDIA #6: USER UNIQUENESS VALIDATION
 
-**Descripción**: Sin validación local, usuario espera respuesta del server  
-**Riesgo**: Mala UX  
+**Descripción**: Sin validación local, usuario espera respuesta del server
+**Riesgo**: Mala UX
 **Estimado**: 3 horas
 
 ### Checklist
@@ -219,12 +219,12 @@
 - [ ] Backend: Crear endpoints de validación
   - [ ] `POST /users/check-email` → `{exists: boolean}`
   - [ ] `POST /users/check-username` → `{exists: boolean}`
-  
+
 - [ ] Frontend: Hooks con debounce
   - [ ] `useEmailExists(email)` - debounce 500ms
   - [ ] `useUsernameExists(username)` - debounce 500ms
   - [ ] Mostrar error mientras usuario escribe
-  
+
 - [ ] UI: Feedback instantáneo
   - [ ] Campo con icono ✓ cuando no existe
   - [ ] Campo con icono ✗ cuando existe
@@ -241,8 +241,8 @@
 
 ## 🟡 MEDIA #7: BARCODE VALIDATION (Backend)
 
-**Descripción**: Backend no valida checksums  
-**Riesgo**: Barcodes inválidos se guardan  
+**Descripción**: Backend no valida checksums
+**Riesgo**: Barcodes inválidos se guardan
 **Estimado**: 2 horas
 
 ### Checklist
@@ -251,7 +251,7 @@
   - [ ] Importar lógica de `barcodeGenerator.ts`
   - [ ] Validar en endpoint de importación
   - [ ] Rechazar barcodes inválidos
-  
+
 - [ ] Endpoint: `POST /products/validate-barcode`
   - [ ] Input: `barcode, format`
   - [ ] Output: `{valid: bool, error?: string}`
@@ -267,8 +267,8 @@
 
 ## 🟢 BAJA #8: DATA NORMALIZATION
 
-**Descripción**: Documentar flujo  
-**Riesgo**: Bajo  
+**Descripción**: Documentar flujo
+**Riesgo**: Bajo
 **Estimado**: 1 hora
 
 ### Checklist
@@ -287,8 +287,8 @@
 
 ## 🟢 BAJA #9: ENV VALIDATION
 
-**Descripción**: Sin sincronización expectations  
-**Riesgo**: Bajo  
+**Descripción**: Sin sincronización expectations
+**Riesgo**: Bajo
 **Estimado**: 1 hora
 
 ### Checklist
@@ -306,8 +306,8 @@
 
 ## 🟢 BAJA #10: COMPANY VALIDATION
 
-**Descripción**: Diferentes niveles de validación  
-**Riesgo**: Bajo  
+**Descripción**: Diferentes niveles de validación
+**Riesgo**: Bajo
 **Estimado**: 2 horas
 
 ### Checklist
@@ -378,4 +378,3 @@ Para cada issue:
 5. Merged a main
 6. Documentación actualizada
 7. Ticket marcado como completo
-

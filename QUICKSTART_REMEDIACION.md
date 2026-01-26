@@ -1,6 +1,6 @@
 # Quick Start: Remediación de Duplicación
 
-**Tiempo total estimado**: 29 horas en 4 semanas  
+**Tiempo total estimado**: 29 horas en 4 semanas
 **Inicio recomendado**: Ahora mismo con #1
 
 ---
@@ -33,7 +33,7 @@ npm run typecheck
 # Archivo: apps/tenant/src/modules/importador/utils/countryValidators.ts
 
 # Remover toda la implementación local, reemplazar con:
-export { 
+export {
     validateTaxID,
     validateEcuadorRUC,
     validateSpainNIF,
@@ -53,7 +53,7 @@ npm run typecheck
 ```bash
 # Archivo: apps/backend/app/modules/imports/validators/country_validators.py
 
-# Comparar función Python _calculate_ruc_check_digit() 
+# Comparar función Python _calculate_ruc_check_digit()
 # Debe producir EXACTAMENTE los mismos resultados que TypeScript
 
 # Agregar test de validación cruzada
@@ -63,11 +63,11 @@ def test_ruc_validation_sync():
     """Verifica que validadores TS y Python son idénticos"""
     valid_rucs = ["1790084103004", "0992123456001"]
     invalid_rucs = ["9999999999999", "1799999999999"]
-    
+
     for ruc in valid_rucs:
         is_valid, _ = validate_ecuador_ruc(ruc)
         assert is_valid, f"RUC {ruc} debe ser válido"
-    
+
     for ruc in invalid_rucs:
         is_valid, _ = validate_ecuador_ruc(ruc)
         assert not is_valid, f"RUC {ruc} debe ser inválido"
@@ -292,19 +292,19 @@ git checkout -b feature/issue-3-payroll-preview
 
 ## 💬 PREGUNTAS FRECUENTES
 
-**P: ¿Por dónde empiezo?**  
+**P: ¿Por dónde empiezo?**
 A: Issue #1 - Tax ID validators. Es el más crítico y solo toma 3 horas.
 
-**P: ¿Qué si un test falla?**  
+**P: ¿Qué si un test falla?**
 A: No mergear. Debug la falla, entender si es un bug real o test incorrecto.
 
-**P: ¿Qué si descubro otra duplicación?**  
+**P: ¿Qué si descubro otra duplicación?**
 A: Agrégala a este análisis, pero enfócate en completar los 10 issues.
 
-**P: ¿Cuánto tiempo real toma?**  
+**P: ¿Cuánto tiempo real toma?**
 A: Las estimaciones incluyen testing. En promedio: 3-6 horas/día de desarrollo focusado.
 
-**P: ¿Debo hacer todas las issues?**  
+**P: ¿Debo hacer todas las issues?**
 A: Las 2 críticas (#1-2) SÍ. El resto depende de prioridad del negocio.
 
 ---
@@ -352,6 +352,5 @@ cd apps/packages/api-types && npm run typecheck
 # ¡HECHO! Continuamos mañana con paso 2
 ```
 
-**Duración**: 15-20 minutos para setup inicial  
+**Duración**: 15-20 minutos para setup inicial
 **Próximo checkpoint**: Mañana, paso 2 (remover duplicación frontend)
-

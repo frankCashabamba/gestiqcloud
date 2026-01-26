@@ -1,7 +1,5 @@
 """Tests for header classifier ML module."""
 
-import pytest
-
 
 class TestHeaderClassifier:
     """Test cases for HeaderClassifier."""

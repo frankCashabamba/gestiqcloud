@@ -152,7 +152,7 @@ export default function PaymentModal({ receiptId, totalAmount, onSuccess, onCanc
 
             const wh = warehouseId || selectedWarehouse || undefined
             const response = await payReceipt(receiptId, payments, wh ? { warehouse_id: wh } : undefined)
-            
+
             // Mostrar resumen con documentos creados
             setCheckoutResponse(response)
             setShowSummary(true)

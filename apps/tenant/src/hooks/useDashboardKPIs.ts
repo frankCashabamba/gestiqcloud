@@ -240,14 +240,14 @@ export function usePanaderiaKPIs(options: { enabled?: boolean } = {}) {
  */
 export function formatCurrency(value: number, currency?: string | null): string {
   const curr = (currency || '').trim().toUpperCase()
-  
+
   if (!curr || curr.length !== 3) {
     return new Intl.NumberFormat('es-ES', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(value)
   }
-  
+
   try {
     return new Intl.NumberFormat('es-ES', {
       style: 'currency',

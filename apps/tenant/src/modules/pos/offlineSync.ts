@@ -1,6 +1,6 @@
 /**
  * POS Offline Sync Adapter
- * 
+ *
  * Handles synchronization of POS receipts and shifts
  * - Receipts are immutable (create-only)
  * - Shifts can be opened/closed

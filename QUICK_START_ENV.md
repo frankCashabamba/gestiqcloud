@@ -140,7 +140,7 @@ CORS_ORIGINS=https://www.gestiqcloud.com,https://admin.gestiqcloud.com
 
 ### If Production Misconfigured
 ```
-RuntimeError: ❌ Variables de entorno obligatorias faltantes para producción: 
+RuntimeError: ❌ Variables de entorno obligatorias faltantes para producción:
 ['JWT_SECRET_KEY', 'CORS_ORIGINS (not localhost)', 'DEFAULT_FROM_EMAIL']
 ```
 

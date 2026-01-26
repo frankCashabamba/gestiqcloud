@@ -76,7 +76,9 @@ def _map_columns(header: tuple) -> dict[str, int]:
             col_map.setdefault("amount", idx)
         elif any(k in lower for k in ["direction", "tipo", "debito", "credito", "signo"]):
             col_map.setdefault("direction", idx)
-        elif any(k in lower for k in ["concepto", "descripcion", "description", "detalle", "narrativa"]):
+        elif any(
+            k in lower for k in ["concepto", "descripcion", "description", "detalle", "narrativa"]
+        ):
             col_map.setdefault("narrative", idx)
         elif any(k in lower for k in ["counterparty", "contraparte", "beneficiario", "ordenante"]):
             col_map.setdefault("counterparty", idx)
@@ -141,7 +143,11 @@ def _to_date(val):
     if isinstance(val, (int, float)):
         try:
             # Excel serial date
-            return datetime.fromordinal(datetime(1899, 12, 30).toordinal() + int(val)).date().isoformat()
+            return (
+                datetime.fromordinal(datetime(1899, 12, 30).toordinal() + int(val))
+                .date()
+                .isoformat()
+            )
         except Exception:
             return str(val)
     return str(val)
@@ -170,7 +176,10 @@ def _clean_dict(d: dict) -> dict:
 
 
 def _result(
-    transactions: list[dict[str, Any]], rows_processed: int, errors: list[str], file_path: str | None = None
+    transactions: list[dict[str, Any]],
+    rows_processed: int,
+    errors: list[str],
+    file_path: str | None = None,
 ) -> dict[str, Any]:
     return {
         "bank_transactions": transactions,

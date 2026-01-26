@@ -15,4 +15,3 @@ BEGIN
             ON sales_orders(tenant_id, pos_receipt_id) WHERE pos_receipt_id IS NOT NULL;
     END IF;
 END $$;
-

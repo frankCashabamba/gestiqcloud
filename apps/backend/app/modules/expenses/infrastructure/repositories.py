@@ -56,7 +56,13 @@ class ExpenseRepo:
         return self.crud.get(self.db, expense_id)
 
     def create(
-        self, tenant_id: int | UUID, *, date, supplier_id: UUID | None, amount: float, concept: str | None
+        self,
+        tenant_id: int | UUID,
+        *,
+        date,
+        supplier_id: UUID | None,
+        amount: float,
+        concept: str | None,
     ) -> Expense:
         dto = ExpenseCreateDTO(date=date, supplier_id=supplier_id, amount=amount, concept=concept)
         return self.crud.create(self.db, dto)

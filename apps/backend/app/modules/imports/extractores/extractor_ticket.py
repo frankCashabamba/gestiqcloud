@@ -14,7 +14,7 @@ def extraer_ticket_documentos(texto: str, country: str = "EC") -> list[Documento
     """
     resultados_canonicos = extraer_ticket(texto, country)
     documentos = []
-    
+
     for canonical in resultados_canonicos:
         totals = canonical.get("totals", {})
         doc = DocumentoProcesado(
@@ -30,7 +30,7 @@ def extraer_ticket_documentos(texto: str, country: str = "EC") -> list[Documento
             documentoTipo="ticket_pos",
         )
         documentos.append(doc)
-    
+
     return documentos
 
 
@@ -123,7 +123,9 @@ def extraer_ticket(texto: str, country: str = "EC") -> list[dict[str, Any]]:
                 }
             ],
         },
-        "lines": lineas_productos if lineas_productos else [
+        "lines": lineas_productos
+        if lineas_productos
+        else [
             {
                 "desc": "Ticket POS",
                 "qty": 1.0,
@@ -186,13 +188,15 @@ def _extraer_lineas_productos(texto: str) -> list[dict[str, Any]]:
                 if descripcion.lower() in ("total", "subtotal", "iva", "tax"):
                     continue
 
-                lineas.append({
-                    "desc": descripcion,
-                    "qty": cantidad,
-                    "unit_price": precio,
-                    "total": round(cantidad * precio, 2),
-                    "tax_code": "IVA12",
-                })
+                lineas.append(
+                    {
+                        "desc": descripcion,
+                        "qty": cantidad,
+                        "unit_price": precio,
+                        "total": round(cantidad * precio, 2),
+                        "tax_code": "IVA12",
+                    }
+                )
                 break
 
     return lineas

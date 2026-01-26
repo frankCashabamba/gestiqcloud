@@ -236,7 +236,7 @@ Ejemplo de queries para dashboard:
 ocr_queue_size{status="pending"}
 
 # Tasa de éxito (últimos 5 min)
-rate(ocr_jobs_total{status="done"}[5m]) / 
+rate(ocr_jobs_total{status="done"}[5m]) /
 rate(ocr_jobs_total[5m])
 
 # P95 de tiempo de procesamiento
@@ -275,9 +275,9 @@ grep -i "failed.*ocr" /var/log/gestiq/worker.log
 
 1. Revisar tipos de documentos que fallan:
    ```sql
-   SELECT filename, error, COUNT(*) 
-   FROM import_ocr_jobs 
-   WHERE status = 'failed' 
+   SELECT filename, error, COUNT(*)
+   FROM import_ocr_jobs
+   WHERE status = 'failed'
      AND created_at > NOW() - INTERVAL '1 hour'
    GROUP BY filename, error;
    ```

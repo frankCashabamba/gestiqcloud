@@ -3,12 +3,13 @@
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 
 class ReportType(str, Enum):
     """Report types"""
+
     SALES_SUMMARY = "sales_summary"
     SALES_DETAIL = "sales_detail"
     INVENTORY_STATUS = "inventory_status"
@@ -27,6 +28,7 @@ class ReportType(str, Enum):
 
 class ReportFormat(str, Enum):
     """Export formats"""
+
     PDF = "pdf"
     EXCEL = "excel"
     CSV = "csv"
@@ -36,6 +38,7 @@ class ReportFormat(str, Enum):
 
 class ReportStatus(str, Enum):
     """Report generation status"""
+
     PENDING = "pending"
     GENERATING = "generating"
     READY = "ready"
@@ -45,6 +48,7 @@ class ReportStatus(str, Enum):
 
 class ReportFrequency(str, Enum):
     """Report frequency for scheduled reports"""
+
     DAILY = "daily"
     WEEKLY = "weekly"
     MONTHLY = "monthly"
@@ -56,17 +60,18 @@ class ReportFrequency(str, Enum):
 @dataclass
 class ReportDefinition:
     """Report definition/configuration"""
+
     id: UUID
     tenant_id: str
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     report_type: ReportType = ReportType.CUSTOM
-    date_from: Optional[datetime] = None
-    date_to: Optional[datetime] = None
-    filters: Optional[dict[str, Any]] = None  # Custom filters
-    group_by: Optional[list[str]] = None
-    columns: Optional[list[str]] = None
-    sort_by: Optional[dict[str, str]] = None  # {column: 'asc'|'desc'}
+    date_from: datetime | None = None
+    date_to: datetime | None = None
+    filters: dict[str, Any] | None = None  # Custom filters
+    group_by: list[str] | None = None
+    columns: list[str] | None = None
+    sort_by: dict[str, str] | None = None  # {column: 'asc'|'desc'}
     include_totals: bool = True
     include_charts: bool = False
     created_at: datetime = None
@@ -82,19 +87,20 @@ class ReportDefinition:
 @dataclass
 class Report:
     """Generated report"""
+
     id: UUID
     tenant_id: str
     definition_id: UUID
     report_type: ReportType
     format: ReportFormat
     status: ReportStatus = ReportStatus.PENDING
-    file_path: Optional[str] = None
-    file_size: Optional[int] = None
-    row_count: Optional[int] = None
-    download_url: Optional[str] = None
-    generated_at: Optional[datetime] = None
-    expires_at: Optional[datetime] = None
-    error_message: Optional[str] = None
+    file_path: str | None = None
+    file_size: int | None = None
+    row_count: int | None = None
+    download_url: str | None = None
+    generated_at: datetime | None = None
+    expires_at: datetime | None = None
+    error_message: str | None = None
     created_at: datetime = None
     updated_at: datetime = None
 
@@ -108,6 +114,7 @@ class Report:
 @dataclass
 class ScheduledReport:
     """Scheduled report configuration"""
+
     id: UUID
     tenant_id: str
     definition_id: UUID
@@ -115,8 +122,8 @@ class ScheduledReport:
     frequency: ReportFrequency
     recipients: list[str]  # Email addresses
     is_active: bool = True
-    last_generated_at: Optional[datetime] = None
-    next_scheduled_at: Optional[datetime] = None
+    last_generated_at: datetime | None = None
+    next_scheduled_at: datetime | None = None
     created_at: datetime = None
     updated_at: datetime = None
 
@@ -130,11 +137,12 @@ class ScheduledReport:
 @dataclass
 class ReportData:
     """Report data structure"""
+
     columns: list[str]
     rows: list[list[Any]]
-    totals: Optional[dict[str, Any]] = None
-    summary: Optional[dict[str, Any]] = None
-    metadata: Optional[dict[str, Any]] = None
+    totals: dict[str, Any] | None = None
+    summary: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None
 
     def to_dict(self) -> dict:
         """Convert to dictionary"""
@@ -150,6 +158,7 @@ class ReportData:
 @dataclass
 class SalesReport(ReportData):
     """Sales report specific data"""
+
     total_sales: float = 0.0
     total_items: int = 0
     average_order_value: float = 0.0
@@ -159,6 +168,7 @@ class SalesReport(ReportData):
 @dataclass
 class InventoryReport(ReportData):
     """Inventory report specific data"""
+
     total_items: int = 0
     low_stock_count: int = 0
     out_of_stock_count: int = 0
@@ -168,6 +178,7 @@ class InventoryReport(ReportData):
 @dataclass
 class FinancialReport(ReportData):
     """Financial report specific data"""
+
     total_revenue: float = 0.0
     total_expenses: float = 0.0
     net_profit: float = 0.0
@@ -177,6 +188,7 @@ class FinancialReport(ReportData):
 @dataclass
 class ReportFilter:
     """Report filter specification"""
+
     field: str
     operator: str  # 'eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'in', 'contains'
     value: Any

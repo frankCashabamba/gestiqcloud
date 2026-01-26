@@ -1,11 +1,11 @@
 """Tests for SmartRouter."""
 
 import csv
-import pytest
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import openpyxl
+import pytest
 
 
 class TestSmartRouter:
@@ -230,9 +230,7 @@ class TestSmartRouter:
         assert len(result.available_parsers) > 0
 
     @pytest.mark.asyncio
-    async def test_ai_enhancement_triggered_on_low_confidence(
-        self, router, sample_ambiguous_csv
-    ):
+    async def test_ai_enhancement_triggered_on_low_confidence(self, router, sample_ambiguous_csv):
         """Test que AI enhancement se intenta cuando confidence es baja."""
         with patch.object(router, "classifier") as mock_classifier:
             mock_classifier.classify_file.return_value = {
@@ -256,9 +254,7 @@ class TestSmartRouter:
             )
 
             mock_classifier.classify_file_with_ai.assert_called_once()
-            ai_steps = [
-                e for e in result.decision_log if "ai_enhancement" in e.get("step", "")
-            ]
+            ai_steps = [e for e in result.decision_log if "ai_enhancement" in e.get("step", "")]
             assert len(ai_steps) > 0
 
 

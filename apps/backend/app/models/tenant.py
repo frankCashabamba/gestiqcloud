@@ -12,7 +12,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
 
-
 UUID = PGUUID(as_uuid=True)
 TENANT_UUID = UUID.with_variant(String(36), "sqlite")
 
@@ -53,9 +52,7 @@ class Tenant(Base):
     # ============================================================
     # MULTI-TENANT CONFIG
     # ============================================================
-    base_currency: Mapped[str | None] = mapped_column(
-        String(3), nullable=True, comment="ISO 4217"
-    )
+    base_currency: Mapped[str | None] = mapped_column(String(3), nullable=True, comment="ISO 4217")
     country_code: Mapped[str | None] = mapped_column(
         String(2), nullable=True, comment="ISO 3166-1 alpha-2"
     )

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from sqlalchemy.orm import Session
 import uuid
+
+from sqlalchemy.orm import Session
 
 from app.models.core.document import Document
 from app.modules.documents.application.store import store

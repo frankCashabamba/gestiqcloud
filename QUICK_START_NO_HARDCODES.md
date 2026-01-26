@@ -6,10 +6,10 @@
 
 ## 📋 Lo que se creó
 
-✅ **8 nuevas tablas de configuración**  
-✅ **28 API endpoints CRUD**  
-✅ **4 componentes React genéricos**  
-✅ **1 cliente API centralizado**  
+✅ **8 nuevas tablas de configuración**
+✅ **28 API endpoints CRUD**
+✅ **4 componentes React genéricos**
+✅ **1 cliente API centralizado**
 ✅ **100% configurable desde BD - CERO HARDCODES**
 
 ---
@@ -30,7 +30,7 @@ python ops/scripts/migrate_all_migrations_idempotent.py
 - ✅ Evita re-ejecutar migraciones ya aplicadas
 - ✅ Registra todo en tabla `_migrations`
 
-**Resultado esperado:** 
+**Resultado esperado:**
 ```
 [OK] Database connection successful
 [OK] Migrations tracking table ready
@@ -45,8 +45,8 @@ En `apps/backend/app/models/__init__.py`:
 
 ```python
 from app.models.core.ui_config import (
-    UiSection, UiWidget, UiTable, 
-    UiColumn, UiFilter, UiForm, 
+    UiSection, UiWidget, UiTable,
+    UiColumn, UiFilter, UiForm,
     UiFormField, UiDashboard
 )
 ```

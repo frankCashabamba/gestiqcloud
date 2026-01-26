@@ -7,8 +7,8 @@ from app.settings.schemas.company_settings import (  # noqa: F401
     CompanySettingsCreate as ConfiguracionEmpresaCreate,
 )
 from app.settings.schemas.company_settings import (  # noqa: F401
-    CompanySettingsUpdate as ConfiguracionEmpresaUpdate,
+    CompanySettingsOut as ConfiguracionEmpresaOut,
 )
 from app.settings.schemas.company_settings import (  # noqa: F401
-    CompanySettingsOut as ConfiguracionEmpresaOut,
+    CompanySettingsUpdate as ConfiguracionEmpresaUpdate,
 )

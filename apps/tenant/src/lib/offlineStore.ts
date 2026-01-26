@@ -1,6 +1,6 @@
 /**
  * OfflineStore - Central offline data management using IndexedDB
- * 
+ *
  * Handles CRUD operations for offline-enabled entities:
  * - products, customers, sales, receipts, etc.
  * Tracks sync status and detects conflicts.
@@ -43,10 +43,10 @@ let dbInitialized = false
 async function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 1)
-    
+
     request.onerror = () => reject(request.error)
     request.onsuccess = () => resolve(request.result)
-    
+
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result
       // Create stores if they don't exist
@@ -63,15 +63,15 @@ async function openDatabase(): Promise<IDBDatabase> {
 export async function initOfflineStore() {
   try {
     if (dbInitialized) return
-    
+
     // Ensure database exists and stores are created
     await openDatabase()
-    
+
     // Now create idb-keyval stores
     entityStore = createStore(DB_NAME, STORE_NAME)
     metadataStore = createStore(DB_NAME, METADATA_STORE)
     dbInitialized = true
-    
+
     console.log('[offline] OfflineStore initialized')
   } catch (error) {
     console.error('[offline] Failed to initialize OfflineStore:', error)
@@ -108,7 +108,7 @@ export async function storeEntity(
   const store = await getStore()
   const key = `${entity}:${id}`
   const previous = await getEntity(entity, id)
-  
+
   const stored: StoredEntity = {
     id,
     entity,
@@ -118,7 +118,7 @@ export async function storeEntity(
     remoteVersion: remoteVersionOverride ?? previous?.remoteVersion ?? 0,
     lastModified: Date.now(),
   }
-  
+
   await set(key, stored, store)
   await updateMetadata(entity)
 }
@@ -156,7 +156,7 @@ export async function markSynced(entity: EntityType, id: string, remoteVersion?:
   if (remoteVersion !== undefined) {
     stored.remoteVersion = remoteVersion
   }
-  
+
   await storeEntity(entity, id, stored.data, 'synced')
 }
 
@@ -166,7 +166,7 @@ export async function markFailed(entity: EntityType, id: string, error?: string)
 
   stored.syncStatus = 'failed'
   stored.serverError = error
-  
+
   const store = await getStore()
   const key = `${entity}:${id}`
   await set(key, stored, store)
@@ -178,7 +178,7 @@ export async function markConflict(entity: EntityType, id: string): Promise<void
   if (!stored) return
 
   stored.syncStatus = 'conflict'
-  
+
   const store = await getStore()
   const key = `${entity}:${id}`
   await set(key, stored, store)
@@ -192,15 +192,15 @@ export async function markConflict(entity: EntityType, id: string): Promise<void
 async function updateMetadata(entity: EntityType): Promise<void> {
   const items = await listEntities(entity)
   const pending = items.filter(i => i.syncStatus === 'pending' || i.syncStatus === 'failed').length
-  
+
   const metadata: SyncMetadata = {
     entity,
-    lastSync: items.some(i => i.syncStatus === 'synced') 
-      ? Math.max(...items.filter(i => i.syncStatus === 'synced').map(i => i.lastModified)) 
+    lastSync: items.some(i => i.syncStatus === 'synced')
+      ? Math.max(...items.filter(i => i.syncStatus === 'synced').map(i => i.lastModified))
       : 0,
     pendingCount: pending,
   }
-  
+
   const metaStore = await getMetadataStore()
   await set(entity, metadata, metaStore)
 }
@@ -213,7 +213,7 @@ export async function getMetadata(entity: EntityType): Promise<SyncMetadata | un
 export async function getAllMetadata(): Promise<Record<EntityType, SyncMetadata>> {
   const metaStore = await getMetadataStore()
   const allEntries = (await entries(metaStore)) as Array<[IDBValidKey, SyncMetadata]>
-  
+
   const result: any = {}
   allEntries.forEach(([key, value]) => {
     result[key as EntityType] = value
@@ -272,7 +272,7 @@ export interface ConflictInfo {
 export async function getConflicts(): Promise<ConflictInfo[]> {
   const store = await getStore()
   const allEntries = (await entries(store)) as Array<[IDBValidKey, StoredEntity]>
-  
+
   return allEntries
     .filter(([_, item]) => item.syncStatus === 'conflict')
     .map(([_, item]) => ({
@@ -298,17 +298,17 @@ export async function hasConflicts(): Promise<boolean> {
 export async function clearAllOfflineData(): Promise<void> {
   const store = await getStore()
   const metaStore = await getMetadataStore()
-  
+
   const allEntries = await entries(store)
   for (const [key] of allEntries) {
     await del(key, store)
   }
-  
+
   const allMetadata = await entries(metaStore)
   for (const [key] of allMetadata) {
     await del(key, metaStore)
   }
-  
+
   console.log('[offline] All offline data cleared')
 }
 
@@ -319,15 +319,15 @@ export async function getStorageStats(): Promise<{
 }> {
   const store = await getStore()
   const allEntries = (await entries(store)) as Array<[IDBValidKey, StoredEntity]>
-  
+
   const byEntity: any = {}
   const byStatus: any = {}
-  
+
   allEntries.forEach(([_, item]) => {
     byEntity[item.entity] = (byEntity[item.entity] || 0) + 1
     byStatus[item.syncStatus] = (byStatus[item.syncStatus] || 0) + 1
   })
-  
+
   return {
     totalEntities: allEntries.length,
     byEntity,

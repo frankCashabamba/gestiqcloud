@@ -1,6 +1,6 @@
 /**
  * OfflineSyncDashboard - Displays offline sync status and controls
- * 
+ *
  * Shows:
  * - Online/Offline status
  * - Pending changes by module
@@ -89,7 +89,7 @@ export default function OfflineSyncDashboard({
             </span>
           )}
         </div>
-        
+
         {compact && (
           <span style={{
             fontSize: '0.85rem',

@@ -1,15 +1,15 @@
 /**
  * useOffline - Universal hook for offline-first operations
- * 
+ *
  * Replaces useOfflineSync (POS-only) with global offline management.
  * Handles online/offline detection, pending items, and sync triggering.
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { 
-  getTotalPendingCount, 
-  getMetadata, 
-  EntityType, 
+import {
+  getTotalPendingCount,
+  getMetadata,
+  EntityType,
   initOfflineStore,
   clearAllOfflineData,
   getStatusCounts,
@@ -84,7 +84,7 @@ export default function useOffline(autoSyncIntervalMs: number = 30000): UseOffli
         // Get metadata for each entity type
         const entities: EntityType[] = ['product', 'customer', 'sale', 'receipt', 'purchase', 'shift', 'invoice']
         const statuses: Record<EntityType, number> = { ...EMPTY_STATUS }
-        
+
         for (const entity of entities) {
           try {
             const meta = await getMetadata(entity)
@@ -94,7 +94,7 @@ export default function useOffline(autoSyncIntervalMs: number = 30000): UseOffli
             statuses[entity] = 0
           }
         }
-        
+
         setSyncStatus(statuses)
         try {
           const counts = await getStatusCounts()
@@ -144,7 +144,7 @@ export default function useOffline(autoSyncIntervalMs: number = 30000): UseOffli
 
       // Wait a bit for sync to complete
       await new Promise(resolve => setTimeout(resolve, 1000))
-      
+
       setLastSyncAt(new Date())
       const pending = await getTotalPendingCount()
       setTotalPending(pending)

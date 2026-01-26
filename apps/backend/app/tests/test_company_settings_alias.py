@@ -1,5 +1,5 @@
-from uuid import uuid4
 import os
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy import text

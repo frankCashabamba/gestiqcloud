@@ -53,9 +53,7 @@ def generar_numero_documento(
         year = db.execute(text("SELECT EXTRACT(year FROM now())::int")).scalar()
 
         num = db.execute(
-            text(
-                "SELECT public.assign_next_number(CAST(:tenant AS uuid), :tipo, :anio, :serie)"
-            ),
+            text("SELECT public.assign_next_number(CAST(:tenant AS uuid), :tipo, :anio, :serie)"),
             {
                 "tenant": tenant_uuid,
                 "tipo": tipo,
@@ -73,7 +71,8 @@ def generar_numero_documento(
             db.rollback()
         except Exception:
             pass
-        import logging, traceback
+        import logging
+        import traceback
 
         msg = f"assign_next_number failed for {tipo} tenant={tenant_uuid}: {exc}"
         logging.getLogger(__name__).warning(msg, exc_info=True)

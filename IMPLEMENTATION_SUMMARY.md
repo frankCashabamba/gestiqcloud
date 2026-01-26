@@ -74,8 +74,8 @@ python ops/scripts/migrate_all_migrations.py
 ### Step 5: Verify in Database
 ```sql
 -- Check that documents were created
-SELECT 
-  r.id, r.invoice_id, 
+SELECT
+  r.id, r.invoice_id,
   i.invoice_number, i.status
 FROM pos_receipts r
 LEFT JOIN invoices i ON r.invoice_id = i.id

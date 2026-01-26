@@ -20,12 +20,13 @@ from decimal import Decimal
 
 from app.config.database import session_scope
 from app.db.rls import set_tenant_guc
+from app.models.core.modelsimport import ImportBatch, ImportItem
 from app.models.core.products import Product
 from app.models.recipes import Recipe, RecipeIngredient
-from app.models.core.modelsimport import ImportBatch, ImportItem
-from app.modules.imports.domain.canonical_schema import validate_canonical
-from app.modules.imports.application.transform_dsl import eval_expr, _to_number as dsl_to_number
 from app.modules.imports.application.sku_utils import sanitize_sku
+from app.modules.imports.application.transform_dsl import _to_number as dsl_to_number
+from app.modules.imports.application.transform_dsl import eval_expr
+from app.modules.imports.domain.canonical_schema import validate_canonical
 from app.modules.imports.parsers import registry as parsers_registry
 
 
@@ -293,14 +294,25 @@ def _build_canonical_from_item(
             or _first_from_raw(raw, ["name", "nombre", "producto", "articulo"])
             or ""
         )
-        price = _to_number(
-            normalized.get("price")
-            or normalized.get("precio")
-            or _first_from_raw(
-                raw,
-                ["price", "precio", "venta", "valor", "importe", "precio_unitario", "precio_unitario_venta"],
+        price = (
+            _to_number(
+                normalized.get("price")
+                or normalized.get("precio")
+                or _first_from_raw(
+                    raw,
+                    [
+                        "price",
+                        "precio",
+                        "venta",
+                        "valor",
+                        "importe",
+                        "precio_unitario",
+                        "precio_unitario_venta",
+                    ],
+                )
             )
-        ) or 0.0
+            or 0.0
+        )
         cost = _to_number(
             normalized.get("cost_price")
             or normalized.get("cost")
@@ -458,9 +470,7 @@ def _persist_recipes(db, tenant_id: str, parsed_result: dict[str, Any]) -> dict[
         db.add(recipe)
         db.flush()
 
-        recipe_ingredients = [
-            row for row in ingredients_rows if row.get("recipe_name") == name
-        ]
+        recipe_ingredients = [row for row in ingredients_rows if row.get("recipe_name") == name]
         for idx, ing in enumerate(recipe_ingredients):
             prod, auto_created_ing = _get_or_create_product(
                 db, tenant_id, ing.get("ingredient", ""), category=recipe_data.get("classification")
@@ -490,7 +500,10 @@ def _persist_recipes(db, tenant_id: str, parsed_result: dict[str, Any]) -> dict[
         offset = len(recipe_ingredients)
         for m_idx, mat in enumerate(mats_for_recipe):
             prod, auto_created_mat = _get_or_create_product(
-                db, tenant_id, mat.get("description", ""), category=recipe_data.get("classification")
+                db,
+                tenant_id,
+                mat.get("description", ""),
+                category=recipe_data.get("classification"),
             )
             if auto_created_mat:
                 auto_products += 1
@@ -633,7 +646,9 @@ def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id
                 normalized = _to_serializable(mapped or raw)
 
                 if doc_type == "products":
-                    sku_val = normalized.get("sku") or normalized.get("codigo") or normalized.get("code")
+                    sku_val = (
+                        normalized.get("sku") or normalized.get("codigo") or normalized.get("code")
+                    )
                     sku_val = sanitize_sku(sku_val)
                     if sku_val:
                         normalized["sku"] = sku_val

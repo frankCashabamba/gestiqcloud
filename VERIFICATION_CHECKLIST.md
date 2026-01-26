@@ -114,7 +114,7 @@ git reset --hard HEAD~1
 
 ```
 [ ] Admin builds sin errores
-[ ] Tenant builds sin errores  
+[ ] Tenant builds sin errores
 [ ] Tests pasan
 [ ] No hay warnings de import
 [ ] App carga en navegador

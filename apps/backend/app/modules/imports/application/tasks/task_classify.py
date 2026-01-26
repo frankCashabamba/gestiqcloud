@@ -69,7 +69,14 @@ def _classify_document(ocr_result: dict) -> str:
         "factura": ["factura", "invoice", "nif", "cif", "iva", "ruc", "nit"],
         "recibo": ["recibo", "receipt", "comprobante", "paid"],
         "banco": ["extracto", "saldo", "iban", "banco", "bank statement", "movimientos"],
-        "transferencia": ["transferencia", "transfer", "wire", "swift", "ordenante", "beneficiario"],
+        "transferencia": [
+            "transferencia",
+            "transfer",
+            "wire",
+            "swift",
+            "ordenante",
+            "beneficiario",
+        ],
     }
 
     scores = {}
@@ -78,6 +85,7 @@ def _classify_document(ocr_result: dict) -> str:
 
     # Bonus para ticket_pos si tiene formato de línea de producto (10x producto - $1.50)
     import re
+
     if re.search(r"\d+[.,]?\d*\s*x\s+.+", text):
         scores["ticket_pos"] = scores.get("ticket_pos", 0) + 2
 

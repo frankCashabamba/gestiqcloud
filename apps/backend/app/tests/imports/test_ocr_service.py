@@ -1,13 +1,13 @@
 """Tests for OCR service."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from pathlib import Path
-from unittest.mock import MagicMock, patch, AsyncMock
 
 from app.modules.imports.services.ocr_service import (
-    OCRService,
-    OCRResult,
     DocumentLayout,
+    OCRResult,
+    OCRService,
     ocr_service,
 )
 

@@ -1,6 +1,6 @@
 /**
  * Offline Validation Utilities
- * 
+ *
  * Validates that entities are properly structured for offline sync
  * and provides type safety.
  */

@@ -19,7 +19,6 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
 
 DATA_DIR = Path(__file__).parent / "test_data"
 RESULTS_DIR = Path(__file__).parent / "results"
@@ -143,7 +142,7 @@ async def benchmark_tenant_filter(data: dict) -> ShapeBenchmarkResult:
         target_ms=SHAPE_FILTER_TARGET_MS,
     )
 
-    print(f"\n[Benchmark] Filtro por Tenant ID")
+    print("\n[Benchmark] Filtro por Tenant ID")
     print(f"   Dataset: {len(products):,} productos")
     print(f"   Target P95: < {SHAPE_FILTER_TARGET_MS}ms")
 
@@ -153,7 +152,9 @@ async def benchmark_tenant_filter(data: dict) -> ShapeBenchmarkResult:
 
         if (i + 1) % 5 == 0:
             status = "PASS" if elapsed_ms < SHAPE_FILTER_TARGET_MS else "FAIL"
-            print(f"   [{i + 1}/{NUM_ITERATIONS}] {elapsed_ms:.2f}ms ({len(filtered):,} results) [{status}]")
+            print(
+                f"   [{i + 1}/{NUM_ITERATIONS}] {elapsed_ms:.2f}ms ({len(filtered):,} results) [{status}]"
+            )
 
     return result
 
@@ -170,7 +171,7 @@ async def benchmark_date_range_filter(data: dict) -> ShapeBenchmarkResult:
         target_ms=SHAPE_FILTER_TARGET_MS,
     )
 
-    print(f"\n[Benchmark] Filtro por Rango de Fechas")
+    print("\n[Benchmark] Filtro por Rango de Fechas")
     print(f"   Dataset: {len(receipts):,} recibos")
     print(f"   Target P95: < {SHAPE_FILTER_TARGET_MS}ms")
 
@@ -185,7 +186,9 @@ async def benchmark_date_range_filter(data: dict) -> ShapeBenchmarkResult:
 
         if (i + 1) % 5 == 0:
             status = "PASS" if elapsed_ms < SHAPE_FILTER_TARGET_MS else "FAIL"
-            print(f"   [{i + 1}/{NUM_ITERATIONS}] {elapsed_ms:.2f}ms ({len(filtered):,} results) [{status}]")
+            print(
+                f"   [{i + 1}/{NUM_ITERATIONS}] {elapsed_ms:.2f}ms ({len(filtered):,} results) [{status}]"
+            )
 
     return result
 
@@ -202,7 +205,7 @@ async def benchmark_category_filter(data: dict) -> ShapeBenchmarkResult:
         target_ms=SHAPE_FILTER_TARGET_MS,
     )
 
-    print(f"\n[Benchmark] Filtro por Categoria")
+    print("\n[Benchmark] Filtro por Categoria")
     print(f"   Dataset: {len(products):,} productos")
     print(f"   Target P95: < {SHAPE_FILTER_TARGET_MS}ms")
 
@@ -214,7 +217,9 @@ async def benchmark_category_filter(data: dict) -> ShapeBenchmarkResult:
 
         if (i + 1) % 5 == 0:
             status = "PASS" if elapsed_ms < SHAPE_FILTER_TARGET_MS else "FAIL"
-            print(f"   [{i + 1}/{NUM_ITERATIONS}] {elapsed_ms:.2f}ms ({len(filtered):,} results) [{status}]")
+            print(
+                f"   [{i + 1}/{NUM_ITERATIONS}] {elapsed_ms:.2f}ms ({len(filtered):,} results) [{status}]"
+            )
 
     return result
 
@@ -231,7 +236,7 @@ async def benchmark_combined_filter(data: dict) -> ShapeBenchmarkResult:
         target_ms=SHAPE_FILTER_TARGET_MS,
     )
 
-    print(f"\n[Benchmark] Filtros Combinados")
+    print("\n[Benchmark] Filtros Combinados")
     print(f"   Dataset: {len(products):,} productos")
     print(f"   Target P95: < {SHAPE_FILTER_TARGET_MS}ms")
 
@@ -247,7 +252,9 @@ async def benchmark_combined_filter(data: dict) -> ShapeBenchmarkResult:
 
         if (i + 1) % 5 == 0:
             status = "PASS" if elapsed_ms < SHAPE_FILTER_TARGET_MS else "FAIL"
-            print(f"   [{i + 1}/{NUM_ITERATIONS}] {elapsed_ms:.2f}ms ({len(filtered):,} results) [{status}]")
+            print(
+                f"   [{i + 1}/{NUM_ITERATIONS}] {elapsed_ms:.2f}ms ({len(filtered):,} results) [{status}]"
+            )
 
     return result
 
@@ -264,7 +271,7 @@ async def benchmark_large_result_set(data: dict) -> ShapeBenchmarkResult:
         target_ms=SHAPE_FILTER_TARGET_MS * 2,
     )
 
-    print(f"\n[Benchmark] Result Set Grande")
+    print("\n[Benchmark] Result Set Grande")
     print(f"   Dataset: {len(receipts):,} recibos")
     print(f"   Target P95: < {SHAPE_FILTER_TARGET_MS * 2}ms (2x normal)")
 
@@ -274,7 +281,9 @@ async def benchmark_large_result_set(data: dict) -> ShapeBenchmarkResult:
 
         if (i + 1) % 5 == 0:
             status = "PASS" if elapsed_ms < SHAPE_FILTER_TARGET_MS * 2 else "FAIL"
-            print(f"   [{i + 1}/{NUM_ITERATIONS}] {elapsed_ms:.2f}ms ({len(filtered):,} results) [{status}]")
+            print(
+                f"   [{i + 1}/{NUM_ITERATIONS}] {elapsed_ms:.2f}ms ({len(filtered):,} results) [{status}]"
+            )
 
     return result
 
@@ -295,7 +304,11 @@ def print_summary(results: list[ShapeBenchmarkResult]) -> None:
         print(f"   P95:  {result.p95_ms:.2f}ms (target: {result.target_ms}ms) {status}")
 
     print(f"\n{'=' * 60}")
-    overall = "[PASS] ALL BENCHMARKS PASSED" if all_passed else "[FAIL] SOME BENCHMARKS FAILED"
+    overall = (
+        "[PASS] ALL BENCHMARKS PASSED"
+        if all_passed
+        else "[FAIL] SOME BENCHMARKS FAILED"
+    )
     print(overall)
     print(f"{'=' * 60}")
 
@@ -337,7 +350,7 @@ async def main() -> int:
         print("\n❌ No hay datos de prueba. Ejecuta: python setup.py")
         return 1
 
-    print(f"\nDataset cargado:")
+    print("\nDataset cargado:")
     for table, records in data.items():
         print(f"  {table}: {len(records):,} registros")
 

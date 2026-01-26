@@ -18,9 +18,9 @@ except Exception as e:  # pragma: no cover - keep imports resilient in CI
         "Failed to import main settings: %s. Using minimal fallback. "
         "This is only acceptable during testing or CI. "
         "In production, fix the settings import error.",
-        e
+        e,
     )
-    
+
     class _SettingsFallback:  # noqa: D401 - simple fallback
         """Minimal settings fallback used only if real settings fail to import."""
 

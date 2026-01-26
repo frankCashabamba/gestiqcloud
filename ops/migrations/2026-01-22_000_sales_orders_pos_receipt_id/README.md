@@ -6,4 +6,3 @@ Purpose:
 Notes:
 - Safe to apply on existing databases: uses `IF NOT EXISTS`.
 - Includes an index and a partial unique index to prevent duplicate orders per POS receipt per tenant.
-

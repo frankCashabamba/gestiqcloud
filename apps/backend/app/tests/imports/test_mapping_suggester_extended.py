@@ -1,12 +1,9 @@
 """Extended tests for MappingSuggester - Sprint-specific tests."""
 
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 
 from app.modules.imports.ai.mapping_suggester import (
     MappingSuggester,
-    MappingSuggestion,
-    mapping_suggester,
 )
 
 
@@ -262,9 +259,7 @@ class TestMappingSuggesterTransforms:
         )
 
         assert result.transforms is not None
-        date_transforms = [
-            k for k, v in result.transforms.items() if v == "parse_date"
-        ]
+        date_transforms = [k for k, v in result.transforms.items() if v == "parse_date"]
         assert len(date_transforms) > 0
 
     @pytest.mark.asyncio
@@ -279,9 +274,7 @@ class TestMappingSuggesterTransforms:
         )
 
         assert result.transforms is not None
-        number_transforms = [
-            k for k, v in result.transforms.items() if v == "parse_number"
-        ]
+        number_transforms = [k for k, v in result.transforms.items() if v == "parse_number"]
         assert len(number_transforms) > 0
 
 

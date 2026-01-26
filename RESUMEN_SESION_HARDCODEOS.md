@@ -131,7 +131,7 @@ resetToDefaults(formType) // Reset form to defaults
      series: 'A',
      current_no: 0,
    })
-   
+
    // DESPUÉS:
    const [counterForm, setCounterForm] = useState(NUMBERING_DEFAULTS.COUNTER_FORM)
    ```
@@ -148,7 +148,7 @@ resetToDefaults(formType) // Reset form to defaults
      reset_policy: 'yearly',
      active: true,
    })
-   
+
    // DESPUÉS:
    const [seriesForm, setSeriesForm] = useState(NUMBERING_DEFAULTS.DOC_SERIES_FORM)
    ```
@@ -157,7 +157,7 @@ resetToDefaults(formType) // Reset form to defaults
    ```typescript
    // ANTES:
    onClick={() => setCounterForm({ doc_type: 'pos_receipt', year: ..., ... })}
-   
+
    // DESPUÉS:
    onClick={() => setCounterForm(resetToDefaults('COUNTER'))}
    ```
@@ -166,7 +166,7 @@ resetToDefaults(formType) // Reset form to defaults
    ```typescript
    // ANTES:
    setSeriesForm({ id: '', register_id: '', doc_type: 'R', ... })
-   
+
    // DESPUÉS:
    setSeriesForm(resetToDefaults('DOC_SERIES'))
    ```
@@ -186,7 +186,7 @@ resetToDefaults(formType) // Reset form to defaults
   - Enum values distribuidos (order.py, receipt.py, alerts.py, payroll.py)
   - Status hardcodeados en múltiples archivos
   - Monedas defaults ('EUR') distribuidas
-  
+
 - ✅ Identificados hardcodeos en migraciones SQL:
   - Seed data hardcodeado (business_categories, reference_catalogs)
   - Valores fijos en migraciones
@@ -246,7 +246,7 @@ Moderados: 8/12 (67%) ✅
 
 **Prioridad Alta:**
 - [ ] `ShiftManager.tsx` - OPENING_FLOAT
-- [ ] `compras/Form.tsx` - TAX_RATE  
+- [ ] `compras/Form.tsx` - TAX_RATE
 - [ ] `POSView.tsx` - REGISTER_NAME, REGISTER_CODE
 - [ ] `ProductosImportados.tsx` - TARGET_WAREHOUSE
 - [ ] `ProductosList.tsx` - CURRENCY_SYMBOL
@@ -340,12 +340,12 @@ Moderados: 8/12 (67%) ✅
 | Documentación mejorada | +300 líneas |
 
 ### Próximas Fases
-**Fase 2 (React Components):** 4-5 archivos - Est. 30-45 min  
-**Fase 3 (Backend Models):** Enums centralizados - Est. 1-2 horas  
+**Fase 2 (React Components):** 4-5 archivos - Est. 30-45 min
+**Fase 3 (Backend Models):** Enums centralizados - Est. 1-2 horas
 **Fase 4 (Database):** Scripts seed data reutilizables - Est. 1-2 horas
 
 ---
 
-**Sesión finalizada:** 15 Enero 2026  
-**Tiempo invertido:** ~45 minutos  
+**Sesión finalizada:** 15 Enero 2026
+**Tiempo invertido:** ~45 minutos
 **Próximo:** Completar Fase 2 de refactorización React (ShiftManager, compras/Form, POSView, etc.)

@@ -1,7 +1,7 @@
 # 🚀 Guía de Implementación - Sistema Configurable Sin Hardcodes
 
-**Fecha:** 19 Enero 2026  
-**Estado:** Listo para Implementar  
+**Fecha:** 19 Enero 2026
+**Estado:** Listo para Implementar
 **Estimación:** 5-7 días
 
 ---
@@ -173,7 +173,7 @@ from app.models.core.ui_config import (
 
 async def seed_ui_config(db: AsyncSession, tenant_id: uuid.UUID):
     """Create initial UI configuration for a new tenant."""
-    
+
     # Create Dashboard section
     dashboard_section = UiSection(
         tenant_id=tenant_id,
@@ -187,7 +187,7 @@ async def seed_ui_config(db: AsyncSession, tenant_id: uuid.UUID):
     )
     db.add(dashboard_section)
     await db.flush()
-    
+
     # Create stat widgets
     widget_total = UiWidget(
         tenant_id=tenant_id,
@@ -201,7 +201,7 @@ async def seed_ui_config(db: AsyncSession, tenant_id: uuid.UUID):
         refresh_interval=60,
     )
     db.add(widget_total)
-    
+
     widget_pending = UiWidget(
         tenant_id=tenant_id,
         section_id=dashboard_section.id,
@@ -214,7 +214,7 @@ async def seed_ui_config(db: AsyncSession, tenant_id: uuid.UUID):
         refresh_interval=60,
     )
     db.add(widget_pending)
-    
+
     # Create dashboard
     dashboard = UiDashboard(
         tenant_id=tenant_id,
@@ -224,7 +224,7 @@ async def seed_ui_config(db: AsyncSession, tenant_id: uuid.UUID):
         is_default=True,
     )
     db.add(dashboard)
-    
+
     await db.commit()
 ```
 

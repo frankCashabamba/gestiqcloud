@@ -13,7 +13,6 @@ from .modules_catalog import get_available_modules, get_module_by_id, validate_m
 
 
 class SettingsManager:
-
     """Settings Manager for Tenant and Module Configuration"""
 
     def __init__(self, db: Session):
@@ -270,9 +269,7 @@ class SettingsManager:
         """
         # Check if already exists
         existing = (
-            self.db.query(CompanySettings)
-            .filter(CompanySettings.tenant_id == tenant_id)
-            .first()
+            self.db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
         )
 
         if existing:
@@ -288,7 +285,9 @@ class SettingsManager:
             "message": "Defaults are disabled; create company settings explicitly.",
         }
 
-    def _create_default_settings(self, tenant_id: uuid.UUID, country: str = None) -> CompanySettings:
+    def _create_default_settings(
+        self, tenant_id: uuid.UUID, country: str = None
+    ) -> CompanySettings:
         """
         Create default settings (internal use).
 

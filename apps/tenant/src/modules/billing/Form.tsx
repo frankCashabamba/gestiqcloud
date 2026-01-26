@@ -29,7 +29,7 @@ export default function FacturaForm() {
   const currency = config?.settings?.currency || '€'
   const today = new Date().toISOString().slice(0, 10)
   const isNew = !id
-  
+
   const [form, setForm] = useState<FormT>({
     numero: '',
     fecha: today,
@@ -83,7 +83,7 @@ export default function FacturaForm() {
     const newSubtotal = newLineas.reduce((sum, l) => sum + l.total, 0)
     const newIva = newSubtotal * (form.iva_porcentaje / 100)
     const newTotal = newSubtotal + newIva
-    
+
     setForm({
       ...form,
       lineas: newLineas,
@@ -105,7 +105,7 @@ export default function FacturaForm() {
     const newSubtotal = newLineas.reduce((sum, l) => sum + l.total, 0)
     const newIva = newSubtotal * (form.iva_porcentaje / 100)
     const newTotal = newSubtotal + newIva
-    
+
     setForm({
       ...form,
       lineas: newLineas,
@@ -123,7 +123,7 @@ export default function FacturaForm() {
       if (form.lineas.length === 0) throw new Error(t('billing.sectorInvoice.errors.atLeastOneLine'))
       if (form.lineas.some(l => !l.description || l.cantidad <= 0)) throw new Error(t('billing.errors.validationError'))
       if (form.total < 0) throw new Error(t('billing.errors.totalNonNegative'))
-      
+
       const payload = {
         numero: form.numero || undefined,
         fecha: form.fecha,
@@ -138,13 +138,13 @@ export default function FacturaForm() {
         estado: form.estado,
         notas: form.notas,
       }
-      
+
       if (id) await updateFactura(id, payload as any)
       else await createFactura(payload as any)
-      
+
       // Limpiar cache para que la lista se actualice
       clearInvoicesCache()
-      
+
       success(t('billing.saved'))
       nav('..')
     } catch (e: any) {
@@ -155,13 +155,13 @@ export default function FacturaForm() {
   return (
     <div className="p-4">
       <h3 className="text-xl font-semibold mb-4">{id ? t('billing.editTitle') : t('billing.newTitle')}</h3>
-      
+
       {isLocked && (
         <div className="mb-4 rounded border border-amber-300 bg-amber-50 text-amber-800 px-3 py-2 text-sm">
           {t('billing.status.issued')} · {t('common.readonly') || 'Solo lectura'}
         </div>
       )}
-      
+
       {loading ? (
         <div className="text-gray-500">{t('common.loading')}</div>
       ) : (
@@ -407,4 +407,3 @@ export default function FacturaForm() {
     </div>
   )
 }
-

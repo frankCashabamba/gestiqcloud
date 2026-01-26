@@ -62,7 +62,7 @@ import useOffline from '@/hooks/useOffline'
 
 function MyComponent() {
   const { isOnline, totalPending, syncNow } = useOffline()
-  
+
   return (
     <>
       Status: {isOnline ? '🟢' : '🔴'}
@@ -278,7 +278,7 @@ Para cada adapter:
 IF no conflict:
   - adapter.create/update/delete()
   - markSynced()
-  
+
 IF conflict:
   - markConflict()
   - Show modal

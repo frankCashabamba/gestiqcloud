@@ -4,7 +4,7 @@
 
 Archivos creados en Fase 1:
 1. **`lib/offlineStore.ts`** - Central IndexedDB storage para todas las entidades
-2. **`hooks/useOffline.ts`** - Hook global reemplazando `useOfflineSync` 
+2. **`hooks/useOffline.ts`** - Hook global reemplazando `useOfflineSync`
 3. **`lib/syncManager.ts`** - Orquestador central de sincronización
 
 ## 🚀 Próximos Pasos (Implementar en Este Orden)
@@ -22,29 +22,29 @@ import { storeEntity, listEntities } from '@/lib/offlineStore'
 export const POSReceiptAdapter: SyncAdapter = {
   entity: 'receipt',
   canSyncOffline: true,
-  
+
   async fetchAll() {
     // Fetch from server - will be cached
     return [] // TODO: implement
   },
-  
+
   async create(data: any) {
     return await posServices.createReceipt(data)
   },
-  
+
   async update(id: string, data: any) {
     // POS receipts are immutable, so skip
   },
-  
+
   async delete(id: string) {
     // Not supported for receipts
   },
-  
+
   async getRemoteVersion(id: string) {
     // Check server version
     return 0
   },
-  
+
   detectConflict(local: any, remote: any) {
     // Receipts don't conflict (immutable)
     return false
@@ -70,7 +70,7 @@ import useOffline from '@/hooks/useOffline'
 
 function POSView() {
   const { isOnline, totalPending, syncNow } = useOffline()
-  
+
   return (
     <>
       <OfflineBadge isOnline={isOnline} />
@@ -103,7 +103,7 @@ export default function ConflictResolver({ conflicts, onResolved }: ConflictReso
 
   const handleResolve = async (resolution: 'local' | 'remote') => {
     if (!selectedConflict) return
-    
+
     const manager = getSyncManager()
     await manager.resolveConflict(
       selectedConflict.entity,
@@ -111,7 +111,7 @@ export default function ConflictResolver({ conflicts, onResolved }: ConflictReso
       resolution,
       selectedConflict.remote
     )
-    
+
     setSelectedConflict(null)
     onResolved?.()
   }
@@ -122,11 +122,11 @@ export default function ConflictResolver({ conflicts, onResolved }: ConflictReso
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
       <div style={{ background: 'white', padding: '2rem', borderRadius: 8, maxWidth: 600, maxHeight: '80vh', overflow: 'auto' }}>
         <h2>Conflictos de Sincronización ({conflicts.length})</h2>
-        
+
         {selectedConflict ? (
           <div>
             <h3>Conflicto en {selectedConflict.entity}: {selectedConflict.id}</h3>
-            
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginY: '1rem' }}>
               <div>
                 <h4>Cambios Locales</h4>
@@ -137,7 +137,7 @@ export default function ConflictResolver({ conflicts, onResolved }: ConflictReso
                 <pre>{JSON.stringify(selectedConflict.remote, null, 2)}</pre>
               </div>
             </div>
-            
+
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button onClick={() => handleResolve('local')}>Usar Locales</button>
               <button onClick={() => handleResolve('remote')}>Usar Servidor</button>
@@ -166,28 +166,28 @@ Completar `offline-online.integration.test.tsx`:
 ```typescript
 it('should sync receipts offline and handle conflicts', async () => {
   const user = userEvent.setup()
-  
+
   render(
     <ElectricTestProvider>
       <POSView />
     </ElectricTestProvider>
   )
-  
+
   // Simulate offline
   window.dispatchEvent(new Event('offline'))
-  
+
   // Create receipt
   const receiptBtn = screen.getByText('Nueva Venta')
   await user.click(receiptBtn)
   // ... fill form ...
   await user.click(screen.getByText('Guardar'))
-  
+
   // Should show offline message
   expect(screen.getByText(/offline/i)).toBeInTheDocument()
-  
+
   // Go online
   window.dispatchEvent(new Event('online'))
-  
+
   // Should sync automatically
   await waitFor(() => {
     expect(screen.getByText(/sincronizado/i)).toBeInTheDocument()
@@ -201,17 +201,17 @@ it('should sync receipts offline and handle conflicts', async () => {
 ```typescript
 function OfflineSyncDashboard() {
   const { isOnline, syncStatus, totalPending, syncing } = useOffline()
-  
+
   return (
     <div style={{ padding: '1rem', border: '1px solid #ccc' }}>
       <h3>Estado de Sincronización</h3>
       <p>Conexión: {isOnline ? '🟢 Online' : '🔴 Offline'}</p>
       <p>Pendientes: {totalPending}</p>
-      
+
       {Object.entries(syncStatus).map(([entity, count]) => (
         count > 0 && <p key={entity}>{entity}: {count} cambios</p>
       ))}
-      
+
       <button onClick={() => syncNow()} disabled={syncing || !isOnline}>
         {syncing ? 'Sincronizando...' : 'Sincronizar Ahora'}
       </button>
@@ -325,7 +325,7 @@ getStorageStats()     // Stats: total, by entity, by status
 
 1. **Versioning**: Cada entidad necesita `localVersion` y `remoteVersion` para detectar conflictos
 2. **Timestamps**: Usar `Date.now()` consistentemente
-3. **IDB vs localStorage**: 
+3. **IDB vs localStorage**:
    - localStorage: max ~5-10MB, más lento
    - IndexedDB: ~50MB+, más rápido ✅
 4. **Service Worker**: Mantener - no reemplazar con ElectricSQL
@@ -339,4 +339,3 @@ getStorageStats()     // Stats: total, by entity, by status
 - [Service Workers](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API)
 - [idb-keyval](https://github.com/jakearchibald/idb-keyval)
 - [Offline-first patterns](https://offlinefirst.org/)
-

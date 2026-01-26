@@ -27,9 +27,9 @@ Handles:
 5. Enum renaming in finance models
 """
 
-import sys
 import re
 import shutil
+import sys
 from pathlib import Path
 
 # Base path

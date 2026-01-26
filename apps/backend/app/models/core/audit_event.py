@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from uuid import UUID as PyUUID
-
 from uuid import uuid4
 
 from sqlalchemy import JSON, DateTime, Index, String, Text, func
@@ -26,9 +25,7 @@ class AuditEvent(Base):
         {"extend_existing": True},
     )
 
-    id: Mapped[PyUUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid4
-    )
+    id: Mapped[PyUUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     tenant_id: Mapped[PyUUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     user_id: Mapped[PyUUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     actor_type: Mapped[str] = mapped_column(String(20), nullable=False)

@@ -323,8 +323,8 @@ def _best_effort_tenant_family_revoke(refresh_token: str) -> None:
     No lanza.
     """
     try:
-        from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
         from app.config.database import SessionLocal
+        from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
 
         payload = PyJWTTokenService().decode_and_validate(refresh_token, expected_type="refresh")
         jti = payload.get("jti")

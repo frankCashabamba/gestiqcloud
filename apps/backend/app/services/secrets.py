@@ -3,10 +3,9 @@ Secrets Management Service
 Handles retrieval of sensitive credentials from secure sources
 """
 
-import os
 import json
 import logging
-from typing import Optional, Any
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -21,19 +20,19 @@ class SecretsManager:
     def get_certificate_password(tenant_id: str, country: str = "ECU") -> str:
         """
         Get certificate password for a specific tenant and country.
-        
+
         Priority:
         1. AWS Secrets Manager (production)
         2. Environment variable (development)
         3. Raise error
-        
+
         Args:
             tenant_id: Tenant identifier
             country: Country code (ECU, ESP, etc)
-            
+
         Returns:
             Certificate password
-            
+
         Raises:
             ValueError: If password cannot be retrieved
         """
@@ -60,7 +59,7 @@ class SecretsManager:
     def _get_from_aws_secrets(tenant_id: str, country: str) -> str:
         """
         Retrieve certificate password from AWS Secrets Manager.
-        
+
         Assumes secret is stored as JSON:
         {
             "certificate_password": "actual_password"
@@ -92,12 +91,12 @@ class SecretsManager:
         raise ValueError(f"Secret {secret_name} does not contain SecretString")
 
     @staticmethod
-    def get_smtp_password() -> Optional[str]:
+    def get_smtp_password() -> str | None:
         """Get SMTP password from secure source"""
         return os.getenv("SMTP_PASSWORD")
 
     @staticmethod
-    def get_api_key(service: str) -> Optional[str]:
+    def get_api_key(service: str) -> str | None:
         """Get API key for external service"""
         return os.getenv(f"{service.upper()}_API_KEY")
 
@@ -111,11 +110,11 @@ def get_certificate_password(tenant_id: str, country: str = "ECU") -> str:
     return _secrets.get_certificate_password(tenant_id, country)
 
 
-def get_smtp_password() -> Optional[str]:
+def get_smtp_password() -> str | None:
     """Convenience function to get SMTP password"""
     return _secrets.get_smtp_password()
 
 
-def get_api_key(service: str) -> Optional[str]:
+def get_api_key(service: str) -> str | None:
     """Convenience function to get API key"""
     return _secrets.get_api_key(service)

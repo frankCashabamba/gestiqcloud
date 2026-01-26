@@ -69,7 +69,7 @@ python -m ops.migrations run
 
 If you have existing `invoice_lines` with `sector='pos'`:
 
-**Option A: If they're from invalid data import** 
+**Option A: If they're from invalid data import**
 - Delete them (they're orphaned if there's no matching invoice_id)
 ```sql
 DELETE FROM invoice_lines WHERE sector = 'pos' AND invoice_id NOT IN (
@@ -91,7 +91,7 @@ The `create_sale_from_receipt` method in `apps/backend/app/modules/pos/applicati
 ```python
 def create_sale_from_receipt(self, receipt_id: UUID) -> dict | None:
     # ... existing checks ...
-    
+
     try:
         # Start a savepoint to isolate this operation
         # If it fails, we can rollback without affecting other operations
@@ -128,7 +128,7 @@ After applying the migration, verify the fix:
 ## Timeline
 
 - **Migration Created:** 2026-01-22
-- **Files Modified:** 
+- **Files Modified:**
   - `apps/backend/app/models/core/invoiceLine.py` (added POSLine)
   - `ops/migrations/2026-01-22_001_add_pos_invoice_lines/up.sql` (new)
 

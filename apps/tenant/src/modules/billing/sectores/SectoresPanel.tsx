@@ -6,10 +6,10 @@ import { useCompanySector } from '../../../contexts/CompanyConfigContext'
 export default function SectoresPanel() {
   const { t } = useTranslation()
   const sector = useCompanySector()
-  
+
   // Get sector code/name from company config dynamically - no hardcodes
   const sectorCode = sector?.plantilla?.toLowerCase?.() || sector?.is_retail ? 'retail' : sector?.is_panaderia ? 'panaderia' : sector?.is_taller ? 'taller' : 'retail'
-  
+
   // Map sector to available invoice sections
   const sectorMap: Record<string, { path: string; label: string }> = {
     retail: { path: 'retail', label: t('nav.invoicing') },
@@ -18,9 +18,9 @@ export default function SectoresPanel() {
     bakery: { path: 'panaderia', label: t('billing.bySectors.bakery') },
     workshop: { path: 'taller', label: t('billing.bySectors.workshop') },
   }
-  
+
   const sectorSection = sectorMap[sectorCode] || sectorMap['retail']
-  
+
   return (
     <div style={{ padding: 16 }}>
       <h2 className="text-xl font-semibold mb-3">{t('billing.bySectors.title')}</h2>

@@ -321,8 +321,8 @@ class DocumentConverter:
             # Devuelve toda la trazabilidad del documento
         """
         from app.models.core.facturacion import Invoice
-        from app.models.sales.order import SalesOrder
         from app.models.pos.receipt import POSReceipt
+        from app.models.sales.order import SalesOrder
 
         chain = {
             "document_id": str(document_id),
@@ -351,9 +351,11 @@ class DocumentConverter:
                 if invoice.metadata and isinstance(invoice.metadata, dict):
                     sales_order_id = invoice.metadata.get("sales_order_id")
                     if sales_order_id:
-                        order = self.db.query(SalesOrder).filter(
-                            SalesOrder.id == sales_order_id
-                        ).first()
+                        order = (
+                            self.db.query(SalesOrder)
+                            .filter(SalesOrder.id == sales_order_id)
+                            .first()
+                        )
                         if order:
                             chain["sales_order"] = {
                                 "id": str(order.id),
@@ -437,9 +439,9 @@ class DocumentConverter:
 
                 # Check if has invoice
                 if receipt.invoice_id:
-                    invoice = self.db.query(Invoice).filter(
-                        Invoice.id == receipt.invoice_id
-                    ).first()
+                    invoice = (
+                        self.db.query(Invoice).filter(Invoice.id == receipt.invoice_id).first()
+                    )
                     if invoice:
                         chain["invoice"] = {
                             "id": str(invoice.id),

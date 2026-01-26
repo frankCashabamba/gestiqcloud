@@ -13,8 +13,8 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
 from app.core.access_guard import with_access_claims
-from app.modules.imports.services.ocr_service import ocr_service
 from app.modules.imports.extractores.ocr_extractor import ocr_extractor
+from app.modules.imports.services.ocr_service import ocr_service
 
 logger = logging.getLogger("app.imports.ocr")
 

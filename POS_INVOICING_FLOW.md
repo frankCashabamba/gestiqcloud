@@ -2,13 +2,13 @@
 
 ## ✅ What You Already Have
 
-### 1. **Module System** 
+### 1. **Module System**
 Already exists in `app/models/core/modulo.py`:
 - `Module` - Catálogo de módulos disponibles
 - `CompanyModule` - Módulos contratados por tenant
 - `AssignedModule` - Módulos asignados a usuarios
 
-### 2. **Module Catalog** 
+### 2. **Module Catalog**
 `app/modules/settings/application/modules_catalog.py`:
 ```python
 AVAILABLE_MODULES = [
@@ -23,7 +23,7 @@ AVAILABLE_MODULES = [
 ### 3. **Settings Service**
 `app/modules/settings/application/use_cases.py`:
 - `enable_module()` - Activa módulo respetando dependencias
-- `disable_module()` - Desactiva módulo 
+- `disable_module()` - Desactiva módulo
 - `get_module_settings()` - Obtiene configuración del módulo
 
 ### 4. **POS Module**
@@ -60,19 +60,19 @@ After POS checkout, create invoice (if invoicing enabled):
 @router.post("/receipts/{receipt_id}/checkout")
 def checkout(receipt_id: str, payload: CheckoutIn, request: Request, db: Session):
     # ... existing POS checkout logic ...
-    
+
     # ✅ NEW: Create invoice if invoicing enabled
     tenant_id = _get_tenant_id(request)
     manager = SettingsManager(db)
-    
+
     if manager.is_module_enabled(tenant_id, "invoicing"):
         invoice = _create_invoice_from_receipt(
-            db, 
-            receipt_id, 
+            db,
+            receipt_id,
             tenant_id,
             payload.invoice_config  # tipo: "regular", "credit_note"
         )
-        
+
         # If einvoicing enabled, queue for electronic submission
         if manager.is_module_enabled(tenant_id, "einvoicing"):
             queue_for_einvoicing(db, invoice.id)
@@ -185,7 +185,7 @@ POST /api/v1/settings/modules/expenses
 
 ## 🎓 Key Points
 
-1. **Module Dependencies**: 
+1. **Module Dependencies**:
    - POS depends on: `inventory` + `invoicing`
    - If user tries to enable POS without invoicing, system auto-enables it
 

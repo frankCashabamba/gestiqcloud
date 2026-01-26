@@ -16,7 +16,7 @@
 ```
 Total de hardcodeos: 35+
 ├─ 🔴 CRÍTICOS (8)
-├─ 🟡 MODERADOS (12)  
+├─ 🟡 MODERADOS (12)
 └─ 🟢 BAJO RIESGO (15+)
 
 Afectados:
@@ -127,7 +127,7 @@ if not cert_password:
 ```bash
 # 1. Hacer variables OBLIGATORIAS
 ☐ DEFAULT_FROM_EMAIL - quitar default
-☐ REDIS_URL - quitar fallback  
+☐ REDIS_URL - quitar fallback
 ☐ CERT_PASSWORD - implementado via secrets (env/AWS)
 ☐ VITE_ELECTRIC_URL - quitar fallback
 
@@ -179,13 +179,13 @@ import os
 class Settings(BaseSettings):
     # ❌ NO HACER ESTO
     # api_url: str = "http://localhost:8000"
-    
+
     # ✅ HACER ESTO
     api_url: str = Field(
         description="API endpoint (ej: https://api.gestiqcloud.com)",
         # Sin default = OBLIGATORIO en producción
     )
-    
+
     @field_validator('api_url')
     @classmethod
     def validate_api_url(cls, v):
@@ -243,5 +243,5 @@ class Settings(BaseSettings):
 
 ---
 
-**Último análisis:** 15 de Enero de 2026  
+**Último análisis:** 15 de Enero de 2026
 **Estado:** COMPLETADO (sin pendientes)

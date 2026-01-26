@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from typing import Any
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db as _get_db
@@ -19,20 +19,20 @@ def get_db(request: Request) -> Iterator[Session]:
 async def get_tenant_id_from_token(request: Request) -> UUID:
     """
     Extract tenant_id from JWT token in request.
-    
+
     Raises HTTPException(401) if token is invalid or missing tenant_id.
     """
     claims: dict[str, Any] = with_access_claims(request)
-    
+
     tenant_id = claims.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=401, detail="Missing tenant_id in token")
-    
+
     # Convert to UUID if it's a string
     if isinstance(tenant_id, str):
         try:
             return UUID(tenant_id)
         except (ValueError, TypeError):
             raise HTTPException(status_code=401, detail="Invalid tenant_id format")
-    
+
     return tenant_id

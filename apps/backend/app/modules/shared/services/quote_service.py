@@ -67,9 +67,7 @@ class QuoteService:
                 tenant_id=tenant_id,
                 cliente_id=customer_id,
                 supplier="",
-                fecha_emision=self.db.execute(
-                    text("SELECT CURRENT_DATE")
-                ).scalar(),
+                fecha_emision=self.db.execute(text("SELECT CURRENT_DATE")).scalar(),
                 monto=int(total),
                 subtotal=float(subtotal),
                 iva=float(iva),
@@ -117,16 +115,19 @@ class QuoteService:
             Sales order ID
         """
         try:
-            from app.models.core.invoiceLine import LineaFactura
-            from app.models.sales.order import SalesOrder, SalesOrderItem
             from app.models.core.facturacion import Invoice
+            from app.models.sales.order import SalesOrder, SalesOrderItem
             from app.modules.shared.services.numbering import generar_numero_documento
 
             # Get quote
-            quote = self.db.query(Invoice).filter(
-                Invoice.id == quote_id,
-                Invoice.tenant_id == str(tenant_id),
-            ).first()
+            quote = (
+                self.db.query(Invoice)
+                .filter(
+                    Invoice.id == quote_id,
+                    Invoice.tenant_id == str(tenant_id),
+                )
+                .first()
+            )
 
             if not quote:
                 raise ValueError(f"Quote {quote_id} not found")
@@ -149,9 +150,7 @@ class QuoteService:
                 tenant_id=tenant_id,
                 customer_id=quote.cliente_id,
                 status="pending",
-                order_date=self.db.execute(
-                    text("SELECT CURRENT_DATE")
-                ).scalar(),
+                order_date=self.db.execute(text("SELECT CURRENT_DATE")).scalar(),
                 total=quote.total,
             )
 
@@ -188,10 +187,14 @@ class QuoteService:
         try:
             from app.models.core.facturacion import Invoice
 
-            quote = self.db.query(Invoice).filter(
-                Invoice.id == quote_id,
-                Invoice.tenant_id == str(tenant_id),
-            ).first()
+            quote = (
+                self.db.query(Invoice)
+                .filter(
+                    Invoice.id == quote_id,
+                    Invoice.tenant_id == str(tenant_id),
+                )
+                .first()
+            )
 
             if not quote or not quote.metadata or quote.metadata.get("type") != "quote":
                 return {"success": False, "error": "Quote not found"}
@@ -230,9 +233,7 @@ class QuoteService:
             )
 
             # Filter by metadata type = quote
-            query = query.filter(
-                Invoice.metadata["type"].astext == "quote"
-            )
+            query = query.filter(Invoice.metadata["type"].astext == "quote")
 
             if customer_id:
                 query = query.filter(Invoice.cliente_id == str(customer_id))
@@ -270,10 +271,14 @@ class QuoteService:
         try:
             from app.models.core.facturacion import Invoice
 
-            quote = self.db.query(Invoice).filter(
-                Invoice.id == quote_id,
-                Invoice.tenant_id == str(tenant_id),
-            ).first()
+            quote = (
+                self.db.query(Invoice)
+                .filter(
+                    Invoice.id == quote_id,
+                    Invoice.tenant_id == str(tenant_id),
+                )
+                .first()
+            )
 
             if not quote:
                 return {"success": False, "error": "Quote not found"}

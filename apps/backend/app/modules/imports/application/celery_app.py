@@ -12,24 +12,23 @@ from kombu import Queue
 def _get_redis_url_for_imports() -> str:
     """
     Get Redis URL for imports Celery broker with validation.
-    
+
     In production: Fails explicitly if REDIS_URL is not configured
     In development: Warns if using localhost fallback
     """
     redis_url = os.getenv("REDIS_URL", "").strip()
     if redis_url:
         return redis_url
-    
+
     environment = os.getenv("ENVIRONMENT", "development").lower()
     if environment == "production":
         raise RuntimeError(
             "REDIS_URL is not configured. Required for imports Celery broker. "
             "Example: REDIS_URL=redis://cache.internal:6379/1"
         )
-    
+
     warnings.warn(
-        "REDIS_URL not configured. Using development fallback (localhost).",
-        RuntimeWarning
+        "REDIS_URL not configured. Using development fallback (localhost).", RuntimeWarning
     )
     return "redis://localhost:6379/0"
 
@@ -40,7 +39,7 @@ def _get_redis_result_url() -> str:
     redis_url = os.getenv("REDIS_RESULT_URL", "").strip()
     if redis_url:
         return redis_url
-    
+
     # Try REDIS_URL and adjust database
     redis_base = os.getenv("REDIS_URL", "").strip()
     if redis_base:
@@ -48,17 +47,16 @@ def _get_redis_result_url() -> str:
         if redis_base.endswith("/0"):
             return redis_base[:-1] + "1"
         return redis_base
-    
+
     environment = os.getenv("ENVIRONMENT", "development").lower()
     if environment == "production":
         raise RuntimeError(
             "REDIS_RESULT_URL or REDIS_URL is not configured. "
             "Required for imports Celery result backend."
         )
-    
+
     warnings.warn(
-        "REDIS_RESULT_URL not configured. Using development fallback (localhost/1).",
-        RuntimeWarning
+        "REDIS_RESULT_URL not configured. Using development fallback (localhost/1).", RuntimeWarning
     )
     return "redis://localhost:6379/1"
 

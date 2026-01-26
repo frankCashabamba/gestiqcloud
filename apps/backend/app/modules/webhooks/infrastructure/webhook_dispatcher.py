@@ -6,7 +6,6 @@ import hmac
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Optional
 from uuid import UUID, uuid4
 
 import httpx
@@ -42,14 +41,14 @@ class WebhookDispatcher:
     ) -> UUID:
         """
         Trigger a webhook event
-        
+
         Args:
             event_type: Type of event
             resource_type: Type of resource (invoice, sales_order, etc.)
             resource_id: ID of the resource
             data: Event data payload
             tenant_id: Tenant ID
-            
+
         Returns:
             Event ID
         """
@@ -83,11 +82,11 @@ class WebhookDispatcher:
     ) -> dict[UUID, DeliveryStatus]:
         """
         Dispatch event to all matching endpoints
-        
+
         Args:
             event: Webhook event
             endpoints: List of webhook endpoints to dispatch to
-            
+
         Returns:
             Dictionary mapping endpoint_id to delivery_status
         """
@@ -133,11 +132,11 @@ class WebhookDispatcher:
     ) -> DeliveryStatus:
         """
         Deliver webhook to a single endpoint
-        
+
         Args:
             endpoint: Webhook endpoint
             payload: Payload to send
-            
+
         Returns:
             Delivery status
         """
@@ -207,7 +206,9 @@ class WebhookDispatcher:
 
             except httpx.RequestError as e:
                 last_error = str(e)
-                logger.warning(f"Webhook delivery failed to {endpoint.url}: {e} (attempt {attempt})")
+                logger.warning(
+                    f"Webhook delivery failed to {endpoint.url}: {e} (attempt {attempt})"
+                )
 
             except Exception as e:
                 last_error = str(e)
@@ -215,7 +216,7 @@ class WebhookDispatcher:
 
             # Calculate next retry time (exponential backoff)
             if attempt < endpoint.max_retries:
-                backoff_seconds = self.backoff_base ** attempt
+                backoff_seconds = self.backoff_base**attempt
                 next_retry = datetime.now() + timedelta(seconds=backoff_seconds)
 
                 attempt_record.status = DeliveryStatus.RETRYING
@@ -236,11 +237,11 @@ class WebhookDispatcher:
     def _generate_signature(self, secret: str, payload: dict) -> str:
         """
         Generate HMAC signature for webhook payload
-        
+
         Args:
             secret: Webhook secret
             payload: Payload dictionary
-            
+
         Returns:
             Hex signature
         """
@@ -257,12 +258,12 @@ class WebhookDispatcher:
     def verify_signature(secret: str, payload: dict, signature: str) -> bool:
         """
         Verify webhook signature (for receiving end)
-        
+
         Args:
             secret: Webhook secret
             payload: Payload dictionary
             signature: Signature to verify
-            
+
         Returns:
             True if signature is valid
         """

@@ -25,21 +25,21 @@ DO $$
 BEGIN
     -- Check if invoice_lines table exists (should exist from consolidated schema)
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'invoice_lines') THEN
-        
+
         -- Create pos_invoice_lines table (joined table inheritance)
         CREATE TABLE IF NOT EXISTS pos_invoice_lines (
             id UUID NOT NULL PRIMARY KEY,
             pos_receipt_line_id UUID,
             FOREIGN KEY (id) REFERENCES invoice_lines(id) ON DELETE CASCADE
         );
-        
+
         -- Index for pos_receipt_line_id lookups
-        CREATE INDEX IF NOT EXISTS idx_pos_invoice_lines_pos_receipt_line_id 
+        CREATE INDEX IF NOT EXISTS idx_pos_invoice_lines_pos_receipt_line_id
             ON pos_invoice_lines(pos_receipt_line_id);
-        
+
         -- Optional: Composite index for tenant + pos_receipt_id (for better query planning)
         -- Useful for queries like: SELECT * FROM pos_invoice_lines WHERE pos_receipt_line_id = ?
-        
+
     END IF;
 END $$;
 ```
@@ -196,7 +196,7 @@ Estos scripts SQL crean la **estructura de base de datos** para que el código P
 class POSLine(InvoiceLine):
     __tablename__ = "pos_invoice_lines"  # ← Corresponde a la tabla creada por up.sql
     id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), 
+        PGUUID(as_uuid=True),
         ForeignKey("invoice_lines.id"), primary_key=True
     )
     __mapper_args__ = {"polymorphic_identity": "pos"}  # ← Mapeo de sector='pos'
@@ -220,8 +220,8 @@ psql -U gestiqcloud_user -d gestiqcloud -c "\di *pos_invoice*"
 
 # 4. Verificar FK
 psql -U gestiqcloud_user -d gestiqcloud -c \
-  "SELECT constraint_name, table_name, column_name 
-   FROM information_schema.key_column_usage 
+  "SELECT constraint_name, table_name, column_name
+   FROM information_schema.key_column_usage
    WHERE table_name='pos_invoice_lines'"
 
 # 5. Verificar está vacía (es nueva)
@@ -230,7 +230,7 @@ psql -U gestiqcloud_user -d gestiqcloud -c "SELECT COUNT(*) FROM pos_invoice_lin
 
 Resultado esperado:
 ```
- count 
+ count
 -------
      0
 (1 row)

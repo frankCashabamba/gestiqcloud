@@ -1,7 +1,7 @@
 # 🚀 Instrucciones de Migración - Sistema Sin Hardcodes
 
-**Fecha:** 19 Enero 2026  
-**Script a usar:** `python ops/scripts/migrate_all_migrations_idempotent.py`  
+**Fecha:** 19 Enero 2026
+**Script a usar:** `python ops/scripts/migrate_all_migrations_idempotent.py`
 **Status:** ✅ LISTO PARA EJECUTAR
 
 ---

@@ -1,6 +1,6 @@
 # Legacy Routers Migration
 
-**Status:** ✅ Completed  
+**Status:** ✅ Completed
 **Date:** 2026-01-17
 
 ---

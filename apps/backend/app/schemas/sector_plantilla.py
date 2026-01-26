@@ -250,18 +250,24 @@ class SectorConfigUpdateRequest(BaseModel):
     config: SectorConfigJSON = Field(..., description="Nueva configuración completa del sector")
     reason: str | None = Field(None, description="Razón del cambio (opcional, para auditoría)")
 
-    model_config = ConfigDict(json_schema_extra={
-        "example": {
-            "config": {
-                "branding": {"icon": "🥐", "displayName": "Panadería", "color_primario": "#8B4513"},
-                "defaults": {"tax_rate": None, "currency": "EUR"},
-                "modules": {"pos": {"enabled": True}},
-                "pos": {"receipt_width_mm": 58},
-                "inventory": {"enable_expiry_tracking": True}
-            },
-            "reason": "Actualizar color primario y cambiar configuración de inventario"
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "config": {
+                    "branding": {
+                        "icon": "🥐",
+                        "displayName": "Panadería",
+                        "color_primario": "#8B4513",
+                    },
+                    "defaults": {"tax_rate": None, "currency": "EUR"},
+                    "modules": {"pos": {"enabled": True}},
+                    "pos": {"receipt_width_mm": 58},
+                    "inventory": {"enable_expiry_tracking": True},
+                },
+                "reason": "Actualizar color primario y cambiar configuración de inventario",
+            }
         }
-    })
+    )
 
 
 class SectorConfigResponse(BaseModel):

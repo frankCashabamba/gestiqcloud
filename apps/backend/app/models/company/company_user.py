@@ -4,9 +4,10 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
-from app.config.database import IS_SQLITE, Base
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy import String
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
+
+from app.config.database import IS_SQLITE, Base
 
 UUID = PGUUID(as_uuid=True)
 TENANT_UUID = UUID.with_variant(String(36), "sqlite")

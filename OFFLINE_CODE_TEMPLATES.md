@@ -675,4 +675,3 @@ export default function OfflineSyncDashboard() {
 ```
 
 Cada template es independiente. Copia el que necesites y adapta imports/servicios a tu caso.
-

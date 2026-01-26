@@ -180,9 +180,7 @@ class TestMappingSuggesterAsync:
         suggester = MappingSuggester()
 
         headers = ["Producto", "Valor", "Cantidad"]
-        result = await suggester.suggest_mapping(
-            headers=headers, doc_type="products", use_ai=False
-        )
+        result = await suggester.suggest_mapping(headers=headers, doc_type="products", use_ai=False)
 
         assert result.provider == "heuristics"
         assert "Producto" in result.mappings

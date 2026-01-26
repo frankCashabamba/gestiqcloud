@@ -372,6 +372,7 @@ def _locales_in_from_update(data: dict, current) -> LocaleIn:
 
 # Languages
 
+
 @router.get("/language", response_model=list[IdiomaRead])
 def list_languages(db: Session = Depends(get_db)):
     use = ListLanguages(_language_repo(db))
@@ -732,6 +733,7 @@ def list_business_categories(db: Session = Depends(get_db)):
     use = ListBusinessTypes(_business_category_repo(db))
     items = use.execute()
     return [_business_category_schema(item) for item in items]
+
 
 # --------------------------------------------------------------------
 # Spanish aliases (compat) for frontend expecting legacy paths

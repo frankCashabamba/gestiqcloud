@@ -75,12 +75,12 @@ CÓMO USAR
 
 React Component:
   import { useCountryValidation } from '@/hooks/useCountryValidation'
-  
+
   const { isValid, errors, message } = useCountryValidation('EC', rucValue)
 
 API Directa:
   import CountryValidator from '@/modules/importador/utils/countryValidators'
-  
+
   const errors = CountryValidator.validateEcuadorRUC('1791234567890')
 
 ================================================================================

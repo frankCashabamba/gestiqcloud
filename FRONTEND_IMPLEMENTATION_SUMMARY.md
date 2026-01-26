@@ -73,7 +73,7 @@ type CheckoutResponse = {
    ```sql
    -- Check new columns
    \d invoices        -- Check pos_receipt_id column
-   \d sales          -- Check pos_receipt_id column  
+   \d sales          -- Check pos_receipt_id column
    \d expenses       -- Check pos_receipt_id column
    \d pos_receipts   -- Check invoice_id column
    ```
@@ -248,13 +248,13 @@ The `CheckoutSummary` component uses:
    ```bash
    # Run migration
    python ops/scripts/migrate_all_migrations.py
-   
+
    # Start backend
    cd apps/backend && python main.py
-   
+
    # Start frontend
    cd apps/tenant && npm run dev
-   
+
    # Test POS → Payment → CheckoutSummary
    ```
 

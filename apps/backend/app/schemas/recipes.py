@@ -256,7 +256,5 @@ class RecipeFilters(BaseModel):
 
     skip: int = Field(0, ge=0)
     limit: int = Field(100, ge=1, le=500)
-    order_by: str = Field(
-        "name", pattern="^(name|unit_cost|yield_qty|created_at)$"
-    )
+    order_by: str = Field("name", pattern="^(name|unit_cost|yield_qty|created_at)$")
     order_dir: str = Field("asc", pattern="^(asc|desc)$")

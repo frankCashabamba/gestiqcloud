@@ -3,24 +3,24 @@
 -- Description: Adds fields for confirmation flow when classification confidence is low
 
 -- Add requires_confirmation field (default false for existing records)
-ALTER TABLE import_batches 
+ALTER TABLE import_batches
 ADD COLUMN IF NOT EXISTS requires_confirmation BOOLEAN DEFAULT FALSE;
 
 -- Add confirmed_at timestamp
-ALTER TABLE import_batches 
+ALTER TABLE import_batches
 ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMP;
 
 -- Add confirmed_parser (parser chosen after confirmation)
-ALTER TABLE import_batches 
+ALTER TABLE import_batches
 ADD COLUMN IF NOT EXISTS confirmed_parser VARCHAR(100);
 
 -- Add user_override flag (true if user chose different parser than suggested)
-ALTER TABLE import_batches 
+ALTER TABLE import_batches
 ADD COLUMN IF NOT EXISTS user_override BOOLEAN DEFAULT FALSE;
 
 -- Add index for querying batches requiring confirmation
-CREATE INDEX IF NOT EXISTS idx_import_batches_requires_confirmation 
-ON import_batches(requires_confirmation) 
+CREATE INDEX IF NOT EXISTS idx_import_batches_requires_confirmation
+ON import_batches(requires_confirmation)
 WHERE requires_confirmation = TRUE;
 
 -- Add comment for documentation

@@ -4,12 +4,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Optional
 from uuid import UUID
 
 
 class InvoiceStatus(str, Enum):
     """Invoice status enumeration"""
+
     DRAFT = "draft"
     EMITTED = "emitted"
     SENT = "sent"
@@ -21,6 +21,7 @@ class InvoiceStatus(str, Enum):
 
 class CertificateStatus(str, Enum):
     """Certificate status"""
+
     VALID = "valid"
     EXPIRED = "expired"
     REVOKED = "revoked"
@@ -30,6 +31,7 @@ class CertificateStatus(str, Enum):
 @dataclass
 class EInvoiceDocument:
     """Electronic invoice document entity"""
+
     id: UUID
     invoice_id: UUID
     tenant_id: str
@@ -41,9 +43,9 @@ class EInvoiceDocument:
     tax_amount: Decimal
     total: Decimal
     status: InvoiceStatus
-    authorization_code: Optional[str] = None
-    cdr_number: Optional[str] = None
-    emission_timestamp: Optional[datetime] = None
+    authorization_code: str | None = None
+    cdr_number: str | None = None
+    emission_timestamp: datetime | None = None
     created_at: datetime = None
     updated_at: datetime = None
 
@@ -57,6 +59,7 @@ class EInvoiceDocument:
 @dataclass
 class DigitalCertificate:
     """Digital certificate for signing"""
+
     id: UUID
     tenant_id: str
     certificate_path: str
@@ -75,10 +78,7 @@ class DigitalCertificate:
     def is_valid(self) -> bool:
         """Check if certificate is valid and not expired"""
         now = datetime.now()
-        return (
-            self.status == CertificateStatus.VALID and
-            self.valid_from <= now <= self.valid_to
-        )
+        return self.status == CertificateStatus.VALID and self.valid_from <= now <= self.valid_to
 
     def __post_init__(self):
         if self.created_at is None:
@@ -90,13 +90,14 @@ class DigitalCertificate:
 @dataclass
 class EInvoiceConfig:
     """E-invoicing configuration per tenant"""
+
     id: UUID
     tenant_id: str
     country_code: str
     api_type: str  # 'SRI' (Ecuador), 'SUNAT' (Peru), etc.
     base_url: str
     api_key: str  # Encrypted
-    secret_key: Optional[str] = None
+    secret_key: str | None = None
     environment: str = "production"  # or 'test'
     enabled: bool = True
     auto_send: bool = True
@@ -114,6 +115,7 @@ class EInvoiceConfig:
 @dataclass
 class EInvoiceLineItem:
     """Line item for electronic invoice"""
+
     id: UUID
     einvoice_id: UUID
     product_id: UUID
@@ -138,8 +140,9 @@ class EInvoiceLineItem:
 @dataclass
 class EInvoiceXML:
     """XML representation of e-invoice"""
+
     content: str
-    signature: Optional[str] = None
+    signature: str | None = None
     is_signed: bool = False
     timestamp: datetime = None
 

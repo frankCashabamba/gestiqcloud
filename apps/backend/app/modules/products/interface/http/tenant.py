@@ -94,7 +94,6 @@ class ProductUpdate(BaseModel):
     product_metadata: dict | None = None
 
 
-
 class ProductOut(BaseModel):
     id: UUID
     name: str
@@ -116,7 +115,6 @@ class ProductOut(BaseModel):
     product_metadata: dict | None = None
 
     model_config = {"from_attributes": True}
-
 
 
 # ============================================================================
@@ -168,9 +166,7 @@ def _normalize_category_name(value: str | None) -> str | None:
     return name or None
 
 
-def _resolve_category_id(
-    db: Session, tenant_id: str, category_name: str | None
-) -> UUID | None:
+def _resolve_category_id(db: Session, tenant_id: str, category_name: str | None) -> UUID | None:
     if not category_name:
         return None
     category = (
@@ -283,9 +279,9 @@ def list_products(
     if categoria:
         categoria_name = _normalize_category_name(categoria)
         if categoria_name:
-            query = query.join(
-                ProductCategory, Product.category_id == ProductCategory.id
-            ).where(ProductCategory.name == categoria_name)
+            query = query.join(ProductCategory, Product.category_id == ProductCategory.id).where(
+                ProductCategory.name == categoria_name
+            )
 
     query = query.order_by(Product.name.asc()).limit(limit).offset(offset)
     rows = db.execute(query).scalars().all()
@@ -294,16 +290,15 @@ def list_products(
 
 @router.get("/{product_id}", response_model=ProductOut)
 def get_product(
-    product_id: str, request: Request, db: Session = Depends(get_db), _tid: str = Depends(ensure_tenant)
+    product_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    _tid: str = Depends(ensure_tenant),
 ):
     tenant_id = _empresa_id_from_request(request)
     if tenant_id is None:
         raise HTTPException(status_code=403, detail="missing_tenant")
-    obj = (
-        db.query(Product)
-        .filter(Product.id == product_id, Product.tenant_id == tenant_id)
-        .first()
-    )
+    obj = db.query(Product).filter(Product.id == product_id, Product.tenant_id == tenant_id).first()
     if not obj:
         raise HTTPException(status_code=404, detail="product_not_found")
     return obj
@@ -359,9 +354,13 @@ def create_product(payload: ProductCreate, request: Request, db: Session = Depen
         sku = _generate_next_sku(db, tenant_id, category_name)
 
     active_value = payload.active if payload.active is not None else payload.activo
-    description_value = payload.description if payload.description is not None else payload.descripcion
+    description_value = (
+        payload.description if payload.description is not None else payload.descripcion
+    )
     tax_rate_value = payload.tax_rate if payload.tax_rate is not None else payload.iva_tasa
-    cost_price_value = payload.cost_price if payload.cost_price is not None else payload.precio_compra
+    cost_price_value = (
+        payload.cost_price if payload.cost_price is not None else payload.precio_compra
+    )
 
     obj = Product(
         name=payload.name,
@@ -393,7 +392,7 @@ def update_product(
     # Intentar UUID primero
     try:
         obj = db.query(Product).filter(Product.id == product_id).first()
-    except Exception as e:
+    except Exception:
         obj = None
 
     if not obj:
@@ -413,16 +412,22 @@ def update_product(
         obj.category_id = payload.category_id or None
     elif category_value is not None:
         category_name = _normalize_category_name(category_value)
-        obj.category_id = _resolve_category_id(db, tenant_id, category_name) if category_name else None
+        obj.category_id = (
+            _resolve_category_id(db, tenant_id, category_name) if category_name else None
+        )
     if payload.sku is not None:
         obj.sku = payload.sku
-    description_value = payload.description if payload.description is not None else payload.descripcion
+    description_value = (
+        payload.description if payload.description is not None else payload.descripcion
+    )
     if description_value is not None:
         obj.description = description_value
     tax_rate_value = payload.tax_rate if payload.tax_rate is not None else payload.iva_tasa
     if tax_rate_value is not None:
         obj.tax_rate = tax_rate_value
-    cost_price_value = payload.cost_price if payload.cost_price is not None else payload.precio_compra
+    cost_price_value = (
+        payload.cost_price if payload.cost_price is not None else payload.precio_compra
+    )
     if cost_price_value is not None:
         obj.cost_price = cost_price_value
     active_value = payload.active if payload.active is not None else payload.activo
@@ -447,11 +452,7 @@ def delete_product(product_id: str, request: Request, db: Session = Depends(get_
     tenant_id = _empresa_id_from_request(request)
     if tenant_id is None:
         raise HTTPException(status_code=403, detail="missing_tenant")
-    obj = (
-        db.query(Product)
-        .filter(Product.id == product_id, Product.tenant_id == tenant_id)
-        .first()
-    )
+    obj = db.query(Product).filter(Product.id == product_id, Product.tenant_id == tenant_id).first()
     if not obj:
         return  # idempotent
     db.delete(obj)
@@ -743,4 +744,3 @@ legacy_router = APIRouter(
 for route in router.routes:
     if hasattr(route, "methods"):
         legacy_router.routes.append(route)
-

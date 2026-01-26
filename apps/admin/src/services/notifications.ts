@@ -48,7 +48,7 @@ export async function markAllAsRead(): Promise<void> {
   try {
     const response = (await apiClient.notifications.list({ limit: 1000 })) as NotificationResponse;
     const unreadNotifications = response.notifications.filter((n: Notification) => !n.read);
-    
+
     await Promise.all(
       unreadNotifications.map((n: Notification) => markAsRead(n.id))
     );

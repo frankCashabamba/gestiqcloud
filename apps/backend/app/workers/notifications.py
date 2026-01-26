@@ -11,10 +11,11 @@ from email.mime.text import MIMEText
 from typing import Any
 
 import requests
-from app.db.session import get_db_context
-from app.models.ai.incident import NotificationChannel, NotificationLog, StockAlert
 from celery import shared_task
 from sqlalchemy import text
+
+from app.db.session import get_db_context
+from app.models.ai.incident import NotificationChannel, NotificationLog, StockAlert
 
 
 @shared_task(bind=True, max_retries=3)

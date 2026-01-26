@@ -1,7 +1,7 @@
 # Internationalization (i18n) Guide
 
-**Status:** ✅ Configured  
-**Supported Languages:** English (en), Spanish (es)  
+**Status:** ✅ Configured
+**Supported Languages:** English (en), Spanish (es)
 **Default Language:** English
 
 ---
@@ -23,7 +23,7 @@ import { useTranslation } from '@/hooks/useTranslation'
 
 function MyComponent() {
   const { t } = useTranslation()
-  
+
   return (
     <div>
       <h1>{t('common.loading')}</h1>
@@ -41,7 +41,7 @@ import { useTranslation } from '@/hooks/useTranslation'
 
 function AdminPage() {
   const { t } = useTranslation()
-  
+
   return (
     <div>
       <h1>{t('countryPacks.title')}</h1>
@@ -102,7 +102,7 @@ from app.i18n import t
 @router.get("/items/{id}")
 async def get_item(id: str, request: Request):
     lang = getattr(request.state, "lang", "en")
-    
+
     item = db.get(id)
     if not item:
         raise HTTPException(

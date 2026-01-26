@@ -34,14 +34,14 @@ Esta implementación corrige dos errores críticos que impedían operaciones POS
 class POSLine(InvoiceLine):
     """POS-generated line item model."""
     __tablename__ = "pos_invoice_lines"
-    
+
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("invoice_lines.id"), primary_key=True
     )
     pos_receipt_line_id: Mapped[UUID | None] = mapped_column(
         "pos_receipt_line_id", PGUUID(as_uuid=True), nullable=True
     )
-    
+
     __mapper_args__ = {"polymorphic_identity": "pos"}
 ```
 
@@ -123,16 +123,16 @@ except Exception as e:
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'invoice_lines') THEN
-        
+
         CREATE TABLE IF NOT EXISTS pos_invoice_lines (
             id UUID NOT NULL PRIMARY KEY,
             pos_receipt_line_id UUID,
             FOREIGN KEY (id) REFERENCES invoice_lines(id) ON DELETE CASCADE
         );
-        
-        CREATE INDEX IF NOT EXISTS idx_pos_invoice_lines_pos_receipt_line_id 
+
+        CREATE INDEX IF NOT EXISTS idx_pos_invoice_lines_pos_receipt_line_id
             ON pos_invoice_lines(pos_receipt_line_id);
-        
+
     END IF;
 END $$;
 ```
@@ -446,7 +446,7 @@ After deployment, verify: | Después del despliegue, verificar:
 - ✅ Documentation complete: _____________
 - ✅ Ready for production: _____________
 
-**Date | Fecha:** ________________  
+**Date | Fecha:** ________________
 **Deployed to | Desplegado a:** ________________
 
 ---
@@ -460,6 +460,6 @@ For issues or questions | Para problemas o preguntas:
 
 ---
 
-**Implementation Status | Estado de Implementación:** ✅ COMPLETE | COMPLETADO  
-**Date | Fecha:** 2026-01-22  
+**Implementation Status | Estado de Implementación:** ✅ COMPLETE | COMPLETADO
+**Date | Fecha:** 2026-01-22
 **Version | Versión:** 1.0

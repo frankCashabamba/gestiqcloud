@@ -6,7 +6,7 @@
 
 ## 📌 TÚ ESTÁS AQUÍ / YOU ARE HERE
 
-Este es el documento principal. Lee esto primero.  
+Este es el documento principal. Lee esto primero.
 This is the main document. Read this first.
 
 ---
@@ -26,14 +26,14 @@ This is the main document. Read this first.
 ```
 AssertionError: No such polymorphic_identity 'pos' is defined
 ```
-**Cuándo ocurre / When it happens:** Al obtener facturas / Getting invoices  
+**Cuándo ocurre / When it happens:** Al obtener facturas / Getting invoices
 **API:** `GET /api/v1/tenant/invoicing`
 
 ### Error 2: Failed Transaction
 ```
 InFailedSqlTransaction: transacción abortada...
 ```
-**Cuándo ocurre / When it happens:** Al hacer POS checkout / POS checkout  
+**Cuándo ocurre / When it happens:** Al hacer POS checkout / POS checkout
 **API:** `POST /api/v1/tenant/pos/receipts/{id}/checkout`
 
 ---
@@ -179,12 +179,12 @@ tail -100 /var/log/gestiqcloud/backend.log | grep -i "error\|exception"
 
 ## ⚡ VENTAJAS / BENEFITS
 
-✅ **Fácil de instalar** - 3 comandos / 3 commands  
-✅ **Fácil de deshacer** - down.sql reversa todo / down.sql reverses everything  
-✅ **Sin riesgo** - No toca datos existentes / No existing data touched  
-✅ **Totalmente documentado** - 15+ documentos / 15+ documents  
-✅ **Multiidioma** - EN y ES / EN and ES  
-✅ **Listo para producción** - Production ready  
+✅ **Fácil de instalar** - 3 comandos / 3 commands
+✅ **Fácil de deshacer** - down.sql reversa todo / down.sql reverses everything
+✅ **Sin riesgo** - No toca datos existentes / No existing data touched
+✅ **Totalmente documentado** - 15+ documentos / 15+ documents
+✅ **Multiidioma** - EN y ES / EN and ES
+✅ **Listo para producción** - Production ready
 
 ---
 
@@ -304,7 +304,7 @@ tail -100 /var/log/gestiqcloud/backend.log | grep -i "error\|exception"
 - ✅ Lista para producción / Production ready
 - ✅ Reversible / Reversible
 
-**Fecha / Date:** 2026-01-22  
+**Fecha / Date:** 2026-01-22
 **Status:** ✅ READY TO DEPLOY / LISTO PARA DESPLEGAR
 
 ---
@@ -322,12 +322,12 @@ tail -100 /var/log/gestiqcloud/backend.log | grep -i "error\|exception"
 
 ---
 
-**Te necesitas solo un archivo para empezar:**  
+**Te necesitas solo un archivo para empezar:**
 **You only need one file to start:**
 
 # 👉 `EXECUTE_FIX.md` 👈
 
-¡Abre ese archivo y sigue los pasos!  
+¡Abre ese archivo y sigue los pasos!
 Open that file and follow the steps!
 
 ---

@@ -7,9 +7,10 @@ from sqlalchemy.orm import Session
 
 
 def test_smoke_sales_order_confirm_creates_reserve(db: Session, tenant_minimal):
+    from sqlalchemy import text
+
     from app.models.inventory.stock import StockMove
     from app.modules.sales.interface.http.tenant import ConfirmIn, confirm_order
-    from sqlalchemy import text
 
     # Skip on non-Postgres (uses SET LOCAL/policy and UUID bindings)
     eng = db.get_bind()

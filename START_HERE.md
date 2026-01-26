@@ -10,7 +10,7 @@ Si acabas de llegar, lee esto primero (5 minutos).
 
 Un **sistema completamente configurable** sin una sola línea hardcodeada.
 
-**Antes:** Editar código → Redeploy → Esperar  
+**Antes:** Editar código → Redeploy → Esperar
 **Ahora:** POST a API → Cambio inmediato en BD
 
 ---
@@ -108,7 +108,7 @@ Lee **[INDEX_NO_HARDCODES.md](INDEX_NO_HARDCODES.md)**
 ## 🎓 Por Rol/Contexto
 
 ### 👨‍💼 Soy Gerente/PM
-**Tiempo:** 20 min  
+**Tiempo:** 20 min
 **Lee:**
 1. Este archivo (START_HERE.md)
 2. [README_NO_HARDCODES.md](README_NO_HARDCODES.md)
@@ -117,7 +117,7 @@ Lee **[INDEX_NO_HARDCODES.md](INDEX_NO_HARDCODES.md)**
 **Aprenderás:** Qué se hizo, impacto, roadmap
 
 ### 👨‍💻 Soy Desarrollador Backend
-**Tiempo:** 2-3 horas  
+**Tiempo:** 2-3 horas
 **Lee:**
 1. Este archivo (START_HERE.md)
 2. [MIGRATION_INSTRUCTION.md](MIGRATION_INSTRUCTION.md)
@@ -127,7 +127,7 @@ Lee **[INDEX_NO_HARDCODES.md](INDEX_NO_HARDCODES.md)**
 **Implementarás:** API endpoints, migraciones
 
 ### 👨‍💻 Soy Desarrollador Frontend
-**Tiempo:** 1-2 horas  
+**Tiempo:** 1-2 horas
 **Lee:**
 1. Este archivo (START_HERE.md)
 2. [QUICK_START_NO_HARDCODES.md](QUICK_START_NO_HARDCODES.md)
@@ -136,7 +136,7 @@ Lee **[INDEX_NO_HARDCODES.md](INDEX_NO_HARDCODES.md)**
 **Implementarás:** Componentes React
 
 ### 🔧 Soy DevOps/SRE
-**Tiempo:** 30 min  
+**Tiempo:** 30 min
 **Lee:**
 1. Este archivo (START_HERE.md)
 2. [MIGRATION_INSTRUCTION.md](MIGRATION_INSTRUCTION.md)
@@ -144,7 +144,7 @@ Lee **[INDEX_NO_HARDCODES.md](INDEX_NO_HARDCODES.md)**
 **Ejecutarás:** Script de migraciones
 
 ### 📚 Soy QA/Tester
-**Tiempo:** 1-2 horas  
+**Tiempo:** 1-2 horas
 **Lee:**
 1. Este archivo (START_HERE.md)
 2. [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md) (Validation)
@@ -231,19 +231,19 @@ Luego:
 
 ## ❓ Quick FAQs
 
-**P: ¿Es complicado?**  
+**P: ¿Es complicado?**
 R: No. Migración automática, integración simple.
 
-**P: ¿Cuánto tiempo toma?**  
+**P: ¿Cuánto tiempo toma?**
 R: 5-10 minutos para lo básico.
 
-**P: ¿Es seguro?**  
+**P: ¿Es seguro?**
 R: Sí. Script idempotente, multi-tenant, validado.
 
-**P: ¿Puedo revertir?**  
+**P: ¿Puedo revertir?**
 R: Sí. `alembic downgrade -1` si algo falla.
 
-**P: ¿Necesito cambiar código existente?**  
+**P: ¿Necesito cambiar código existente?**
 R: Muy poco. Solo registrar 2 cosas.
 
 ---
@@ -352,11 +352,11 @@ python ops/scripts/migrate_all_migrations_idempotent.py
 
 ---
 
-**Creado:** 19 Enero 2026  
-**Tiempo de Setup:** <5 minutos  
-**Complejidad:** Baja  
-**Riesgo:** Cero  
-**ROI:** Inmediato  
+**Creado:** 19 Enero 2026
+**Tiempo de Setup:** <5 minutos
+**Complejidad:** Baja
+**Riesgo:** Cero
+**ROI:** Inmediato
 
 **¡Bienvenido a GestiqCloud 2.0!** 🚀
 

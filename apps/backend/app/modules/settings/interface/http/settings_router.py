@@ -34,9 +34,7 @@ def get_all_settings(
 ):
     """Get all tenant settings"""
     tenant_id = UUID(current_user["tenant_id"])
-    settings = (
-        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
-    )
+    settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
     base = settings.settings if settings and isinstance(settings.settings, dict) else {}
     config = base.get("config", {}) if isinstance(base, dict) else {}
     enabled_modules = base.get("enabled_modules", []) if isinstance(base, dict) else []
@@ -65,9 +63,7 @@ def get_module_settings(
             detail=f"Module '{module}' not found",
         )
 
-    settings = (
-        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
-    )
+    settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
 
     if not settings:
         return {}
@@ -99,9 +95,7 @@ def update_module_settings(
             detail=f"Module '{module}' not found",
         )
 
-    settings = (
-        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
-    )
+    settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
     if not settings:
         raise HTTPException(status_code=404, detail="company_settings_missing")
 
@@ -139,9 +133,7 @@ def enable_module(
             detail=f"Module '{module}' not found",
         )
 
-    settings = (
-        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
-    )
+    settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
     if not settings:
         raise HTTPException(status_code=404, detail="company_settings_missing")
 
@@ -177,9 +169,7 @@ def disable_module(
             detail=f"Module '{module}' not found",
         )
 
-    settings = (
-        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
-    )
+    settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
     base = settings.settings if settings and isinstance(settings.settings, dict) else {}
     enabled_modules = list(base.get("enabled_modules", [])) if isinstance(base, dict) else []
 
@@ -212,9 +202,7 @@ def list_modules(
     """List all available modules"""
     tenant_id = UUID(current_user["tenant_id"])
 
-    settings = (
-        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
-    )
+    settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
     base = settings.settings if settings and isinstance(settings.settings, dict) else {}
     enabled_modules = base.get("enabled_modules", []) if isinstance(base, dict) else []
 

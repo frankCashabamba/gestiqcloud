@@ -1,5 +1,10 @@
 """Router for tenant (company) role management."""
+
 from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
@@ -8,9 +13,6 @@ from app.db.rls import ensure_rls
 from app.models.company.company_role import CompanyRole as CompanyRole
 from app.models.company.tenant import Empresa
 from app.schemas.company_role import CompanyRoleCreate, CompanyRoleOut, CompanyRoleUpdate
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="/tenant/roles",

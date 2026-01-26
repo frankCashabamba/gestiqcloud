@@ -5,6 +5,7 @@ No hardcodeos - todo configurable dinámicamente desde modules_catalog.py
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -12,7 +13,6 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
 from app.modules.settings.application.modules_catalog import get_available_modules
-from pydantic import BaseModel
 
 # ============================================================================
 # Response Models
@@ -31,7 +31,9 @@ class ModuleInfo(BaseModel):
     default_enabled: bool
     dependencies: list[str]
     countries: list[str]
-    sectors: list[str] | None = None  # None = available for all, [] = none, ["retail", ...] = specific
+    sectors: list[str] | None = (
+        None  # None = available for all, [] = none, ["retail", ...] = specific
+    )
 
 
 class GetModulesResponse(BaseModel):

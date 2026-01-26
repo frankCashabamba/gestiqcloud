@@ -17,17 +17,17 @@ CREATE TABLE IF NOT EXISTS public.sync_conflict_log (
 );
 
 -- Create indexes for efficient querying
-CREATE INDEX IF NOT EXISTS idx_sync_conflicts_tenant 
+CREATE INDEX IF NOT EXISTS idx_sync_conflicts_tenant
     ON public.sync_conflict_log(tenant_id);
 
-CREATE INDEX IF NOT EXISTS idx_sync_conflicts_entity 
+CREATE INDEX IF NOT EXISTS idx_sync_conflicts_entity
     ON public.sync_conflict_log(entity_type, entity_id);
 
-CREATE INDEX IF NOT EXISTS idx_sync_conflicts_resolved_at 
+CREATE INDEX IF NOT EXISTS idx_sync_conflicts_resolved_at
     ON public.sync_conflict_log(resolved_at DESC);
 
 -- Add comment for documentation
-COMMENT ON TABLE public.sync_conflict_log IS 
+COMMENT ON TABLE public.sync_conflict_log IS
     'Logs conflict resolutions during ElectricSQL sync operations for audit purposes';
 
 COMMIT;

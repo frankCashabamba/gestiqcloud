@@ -325,9 +325,7 @@ def build_api_router() -> APIRouter:
     )
 
     # OCR Metrics endpoint
-    include_router_safe(
-        r, ("app.modules.imports.interface.http.metrics", "router"), prefix=""
-    )
+    include_router_safe(r, ("app.modules.imports.interface.http.metrics", "router"), prefix="")
 
     # Imports public (health) router
     if os.getenv("IMPORTS_ENABLED", "0") in ("1", "true", "True"):
@@ -438,7 +436,7 @@ def build_api_router() -> APIRouter:
 
     # Sectors (Plantillas de negocio) - Units, Config, etc.
     include_router_safe(r, ("app.routers.sectors", "router"))
-    
+
     # Admin: Sector Config Editor (FASE 6)
     include_router_safe(r, ("app.routers.admin_sector_config", "router"))
 

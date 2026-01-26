@@ -1,4 +1,5 @@
 """Router for tenant user management."""
+
 from fastapi import APIRouter
 
 router = APIRouter()

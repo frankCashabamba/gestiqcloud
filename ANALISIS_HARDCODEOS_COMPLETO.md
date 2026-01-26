@@ -6,7 +6,7 @@
 - Nuevos campos/tablas: `CSP_DEV_HOSTS` en `apps/backend/app/config/settings.py`; `Currency` ya es tabla DB (constants redundantes removidas).
 - Nota: el contenido siguiente es historico; los items listados ya fueron cerrados.
 
-**Fecha del análisis:** 15 de Enero de 2026  
+**Fecha del análisis:** 15 de Enero de 2026
 **Cobertura:** Frontend (apps/tenant, apps/admin) + Backend (apps/backend) + Workers + Scripts
 
 ---
@@ -38,7 +38,7 @@ ALLOWED_ORIGINS = "https://admin.gestiqcloud.com,https://www.gestiqcloud.com"
 
 ### 2. **Email Default (no-reply@localhost)**
 - **Archivo:** `apps/backend/app/config/settings.py` (línea 289)
-- **Problema:** 
+- **Problema:**
 ```python
 DEFAULT_FROM_EMAIL: str = "no-reply@localhost"
 ```
@@ -54,7 +54,7 @@ DEFAULT_FROM_EMAIL: str = "no-reply@localhost"
 ```
 - **Impacto:** E-invoicing no funcionará. Placeholder sin implementación
 - **Riesgo:** Crítico - Feature incompleto
-- **Solución:** 
+- **Solución:**
   - Implementar integración con AWS Secrets Manager o HashiCorp Vault
   - Soporta variable env: `CERT_PASSWORD_{TENANT_ID}_{COUNTRY}`
   - Validar en startup que CERT_PASSWORD está configurado
@@ -67,7 +67,7 @@ const ELECTRIC_URL = (import.meta as any).env?.VITE_ELECTRIC_URL || 'ws://localh
 ```
 - **Impacto:** Fallback silencioso a localhost. En producción, sin ElectricSQL fallará sin error claro
 - **Riesgo:** Crítico - La app fallará silenciosamente sin saber por qué
-- **Solución:** 
+- **Solución:**
   - Hacer obligatorio `VITE_ELECTRIC_URL`
   - Validar en startup que ElectricSQL está accesible
   - Lanzar error claro si no está disponible
@@ -92,7 +92,7 @@ CORS_ORIGINS: str | list[str] = Field(
 ```
 - **Impacto:** En producción, si no se configura CORS_ORIGINS via env, permitirá localhost
 - **Riesgo:** Seguridad - Brechas potenciales CORS
-- **Solución:** 
+- **Solución:**
   - Usar defaults vacíos para producción
   - Requerir variable env: `CORS_ORIGINS` (lista explícita)
   - Validar que localhost nunca esté en producción
@@ -122,7 +122,7 @@ const API_BASE = 'https://api.gestiqcloud.com';
 ## 🟡 MODERADOS (Revisar y Validar)
 
 ### 9. **API URL Fallbacks en Frontend**
-- **Archivos:** 
+- **Archivos:**
   - `apps/tenant/vite.config.ts` (línea 11): `'http://localhost:8000'`
   - `apps/admin/src/services/incidents.ts` (línea 8): `'http://localhost:8000/api'`
   - `apps/admin/src/services/logs.ts` (línea 8): `'http://localhost:8000/api'`
@@ -317,26 +317,26 @@ target: process.env.VITE_API_URL || 'http://localhost:8000'
   ```python
   DEFAULT_FROM_EMAIL: str = Field(default="", description="Requerido en producción")
   ```
-  
+
 - [x] **E-invoicing CERT_PASSWORD**: Implementado via secrets (env/AWS)
   ```python
   cert_password = get_secret("cert_password")
   ```
-  
+
 - [x] **Redis URL**: Remover fallback a localhost
   ```python
   url = os.getenv("REDIS_URL")
   if not url:
       raise ValueError("REDIS_URL es requerido")
   ```
-  
+
 - [x] **CORS Origins**: Cambiar default a vacío
   ```python
   CORS_ORIGINS: list[str] = Field(
       default=[],  # En producción debe venir de env
   )
   ```
-  
+
 - [x] **ElectricSQL URL**: Hacer obligatorio
   ```typescript
   const ELECTRIC_URL = import.meta.env.VITE_ELECTRIC_URL
@@ -344,7 +344,7 @@ target: process.env.VITE_API_URL || 'http://localhost:8000'
       throw new Error("VITE_ELECTRIC_URL no configurado")
   }
   ```
-  
+
 - [x] **Remover test-login.html**: Eliminar del repo o de deployments
 
 ### **Fase 2: Moderados (2-3 semanas)**
@@ -438,5 +438,5 @@ API_URL: str = Field(default="http://localhost:8000")
 
 ---
 
-**Elaborado por:** Análisis automático  
+**Elaborado por:** Análisis automático
 **Próxima revisión:** Después de implementar Fase 1

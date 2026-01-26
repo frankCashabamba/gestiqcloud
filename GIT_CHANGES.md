@@ -287,5 +287,5 @@ Or: psql -U gestiqcloud_user -d gestiqcloud -f ops/migrations/2026-01-22_001_add
 
 ---
 
-**¡Listo para git add y commit!**  
+**¡Listo para git add y commit!**
 **Ready for git add and commit!**

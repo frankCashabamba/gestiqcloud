@@ -32,14 +32,14 @@ import { useCountryValidation } from '@/hooks/useCountryValidation'
 export function RUCField() {
   const [ruc, setRuc] = useState('')
   const { isValid, errors, message } = useCountryValidation('EC', ruc)
-  
+
   return (
     <div>
-      <input 
-        value={ruc} 
+      <input
+        value={ruc}
         onChange={(e) => setRuc(e.target.value)}
         placeholder="13 dígitos"
-        style={{ 
+        style={{
           borderColor: ruc && !isValid ? 'red' : ruc && isValid ? 'green' : 'gray'
         }}
       />

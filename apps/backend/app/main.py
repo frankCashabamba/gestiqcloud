@@ -38,24 +38,25 @@ except Exception:
         "Module aliasing failed (may be intentional)", exc_info=True
     )
 
+
 from .config.settings import settings
 from .core.sessions import SessionMiddlewareServerSide
-from .core.startup_validation import validate_critical_config, ConfigValidationError
+from .core.startup_validation import ConfigValidationError, validate_critical_config
 from .middleware.rate_limit import RateLimitMiddleware
 from .middleware.request_log import RequestLogMiddleware
 from .middleware.security_headers import security_headers_middleware
-import os
 
 # Rate limiting configuration: increased for development, stricter for production
 _RATE_LIMIT_PER_MINUTE = (
-    int(os.getenv("RATE_LIMIT_PER_MINUTE", "1000")) 
+    int(os.getenv("RATE_LIMIT_PER_MINUTE", "1000"))
     if os.getenv("ENVIRONMENT", "development").lower() == "development"
     else int(os.getenv("RATE_LIMIT_PER_MINUTE", "120"))
 )
+from app.routers.tenant import roles as tenant_roles_router
+
 from .platform.http.router import build_api_router
 from .telemetry.otel import init_fastapi
 from .telemetry.sentry import init_sentry
-from app.routers.tenant import roles as tenant_roles_router
 
 # ============================================================================
 # DOCS ASSETS SETUP
@@ -136,9 +137,7 @@ except Exception:
 
         _engine = engine
     except Exception:
-        logging.getLogger("app.startup").warning(
-            "Database engine not available", exc_info=True
-        )
+        logging.getLogger("app.startup").warning("Database engine not available", exc_info=True)
 
 
 # ============================================================================
@@ -332,7 +331,7 @@ if "*" not in allow_methods:
             allow_methods.append(mandatory)
 try:
     environment = os.getenv("ENVIRONMENT", "development").lower()
-    
+
     if environment == "production":
         if not allow_origins:
             logging.getLogger("app.cors").warning(
@@ -500,6 +499,7 @@ app.include_router(build_api_router(), prefix="/api/v1")
 # UI Configuration router (Sistema Sin Hardcodes)
 try:
     from app.modules.ui_config.interface.http.admin import router as ui_config_router
+
     app.include_router(ui_config_router, prefix="/api/v1/admin")
     _router_logger.info("UI Configuration router mounted at /api/v1/admin")
 except Exception as e:
@@ -627,10 +627,9 @@ except Exception as e:
     _router_logger.error(traceback.format_exc())
 
 # Imports router fallback safeguard
-_IMPORTS_PRIVATE_MARKERS = (
-    "/api/v1/imports/batches",
-)
+_IMPORTS_PRIVATE_MARKERS = ("/api/v1/imports/batches",)
 try:
+
     def _has_imports_with_post(routes):
         markers = {m.rstrip("/") for m in _IMPORTS_PRIVATE_MARKERS}
         for rt in routes:

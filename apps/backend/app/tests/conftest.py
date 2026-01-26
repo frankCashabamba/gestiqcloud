@@ -80,15 +80,15 @@ def _load_all_models():
         "app.models.tenant",
         # Imports pipeline models (UUID/JSON fields are SQLite-friendly in tests)
         "app.models.core.modelsimport",
-          "app.models.inventory.warehouse",
-          # POS models
-          "app.models.pos.receipt",
-          "app.models.pos.register",
-          "app.models.pos.doc_series",
-          # Import models
-          "app.models.imports",
-          # UI config needed by sector rules seeding
-          "app.models.core.ui_field_config",
+        "app.models.inventory.warehouse",
+        # POS models
+        "app.models.pos.receipt",
+        "app.models.pos.register",
+        "app.models.pos.doc_series",
+        # Import models
+        "app.models.imports",
+        # UI config needed by sector rules seeding
+        "app.models.core.ui_field_config",
     ]
     for m in modules:
         importlib.import_module(m)
@@ -289,9 +289,10 @@ def db():
 @pytest.fixture(autouse=True)
 def seed_sector_config(db):
     """Seed mínimo para sectores/templates cuando la BD de pruebas no tiene datos."""
+    from sqlalchemy.orm.attributes import flag_modified
+
     from app.models.company.company import SectorTemplate
     from app.models.core.ui_field_config import SectorFieldDefault
-    from sqlalchemy.orm.attributes import flag_modified
 
     existing_templates = {tpl.code: tpl for tpl in db.query(SectorTemplate).all()}
     sectors = {
@@ -306,10 +307,30 @@ def seed_sector_config(db):
                     {"field": "code", "required": True, "ord": 10, "label": "Código PLU"},
                     {"field": "name", "required": True, "ord": 20, "label": "Nombre"},
                     {"field": "precio", "required": True, "ord": 30, "label": "Precio de venta"},
-                    {"field": "peso_unitario", "required": False, "ord": 40, "label": "Peso unitario"},
-                    {"field": "caducidad_dias", "required": False, "ord": 50, "label": "Días de caducidad"},
-                    {"field": "ingredientes", "required": False, "ord": 60, "label": "Ingredientes"},
-                    {"field": "receta_id", "required": False, "ord": 70, "label": "Receta asociada"},
+                    {
+                        "field": "peso_unitario",
+                        "required": False,
+                        "ord": 40,
+                        "label": "Peso unitario",
+                    },
+                    {
+                        "field": "caducidad_dias",
+                        "required": False,
+                        "ord": 50,
+                        "label": "Días de caducidad",
+                    },
+                    {
+                        "field": "ingredientes",
+                        "required": False,
+                        "ord": 60,
+                        "label": "Ingredientes",
+                    },
+                    {
+                        "field": "receta_id",
+                        "required": False,
+                        "ord": 70,
+                        "label": "Receta asociada",
+                    },
                     {"field": "impuesto", "required": True, "ord": 80, "label": "IVA"},
                 ],
                 "suppliers": [
@@ -335,7 +356,12 @@ def seed_sector_config(db):
                     {"field": "talla", "required": False, "ord": 60, "label": "Talla"},
                     {"field": "color", "required": False, "ord": 70, "label": "Color"},
                     {"field": "margen", "required": False, "ord": 80, "label": "Margen"},
-                    {"field": "stock_minimo", "required": False, "ord": 90, "label": "Stock mínimo"},
+                    {
+                        "field": "stock_minimo",
+                        "required": False,
+                        "ord": 90,
+                        "label": "Stock mínimo",
+                    },
                     {"field": "impuesto", "required": True, "ord": 100, "label": "IVA"},
                 ],
                 "suppliers": [
@@ -356,9 +382,19 @@ def seed_sector_config(db):
                     {"field": "code", "required": True, "ord": 10, "label": "Código"},
                     {"field": "name", "required": True, "ord": 20, "label": "Nombre"},
                     {"field": "precio", "required": True, "ord": 30, "label": "Precio"},
-                    {"field": "ingredientes", "required": False, "ord": 40, "label": "Ingredientes"},
+                    {
+                        "field": "ingredientes",
+                        "required": False,
+                        "ord": 40,
+                        "label": "Ingredientes",
+                    },
                     {"field": "receta_id", "required": False, "ord": 50, "label": "Receta"},
-                    {"field": "tiempo_preparacion", "required": False, "ord": 60, "label": "Tiempo preparación"},
+                    {
+                        "field": "tiempo_preparacion",
+                        "required": False,
+                        "ord": 60,
+                        "label": "Tiempo preparación",
+                    },
                     {"field": "raciones", "required": False, "ord": 70, "label": "Raciones"},
                     {"field": "impuesto", "required": True, "ord": 80, "label": "IVA"},
                 ],
@@ -372,7 +408,14 @@ def seed_sector_config(db):
         "taller": {
             "name": "Taller",
             "defaults": {
-                "categories": ["Motor", "Frenos", "Suspensión", "Transmisión", "Servicios", "Otros"],
+                "categories": [
+                    "Motor",
+                    "Frenos",
+                    "Suspensión",
+                    "Transmisión",
+                    "Servicios",
+                    "Otros",
+                ],
                 "expenses_categories": ["Repuestos", "Herramientas", "Consumibles"],
             },
             "fields": {
@@ -381,8 +424,18 @@ def seed_sector_config(db):
                     {"field": "name", "required": True, "ord": 20, "label": "Nombre"},
                     {"field": "precio", "required": True, "ord": 30, "label": "Precio"},
                     {"field": "type", "required": False, "ord": 40, "label": "Tipo"},
-                    {"field": "marca_vehiculo", "required": False, "ord": 50, "label": "Marca vehículo"},
-                    {"field": "modelo_vehiculo", "required": False, "ord": 60, "label": "Modelo vehículo"},
+                    {
+                        "field": "marca_vehiculo",
+                        "required": False,
+                        "ord": 50,
+                        "label": "Marca vehículo",
+                    },
+                    {
+                        "field": "modelo_vehiculo",
+                        "required": False,
+                        "ord": 60,
+                        "label": "Modelo vehículo",
+                    },
                     {"field": "impuesto", "required": True, "ord": 70, "label": "IVA"},
                 ],
                 "suppliers": [
@@ -818,5 +871,3 @@ def tenant_minimal(db):
         "tenant_id": tid,
         "tenant_id_str": str(tid),
     }
-
-

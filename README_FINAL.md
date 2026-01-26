@@ -12,7 +12,7 @@ Built a **complete modular system** where your POS automatically creates Invoice
 1. **Enable/Disable modules** per tenant via UI (`/admin/modules`)
 2. **Auto-create documents** during POS checkout:
    - 📋 Invoice (for tax/invoicing)
-   - 📊 Sale (for CRM/analytics)  
+   - 📊 Sale (for CRM/analytics)
    - 💰 Expense (for refunds)
 3. **Show beautiful summary** of what was created
 4. **Track relationships** between receipt and documents
@@ -426,7 +426,7 @@ Happy deploying! 🚀
 
 ---
 
-*Last Updated: January 21, 2026*  
-*Status: ✅ Production Ready*  
-*Effort to Deploy: ~5 minutes*  
+*Last Updated: January 21, 2026*
+*Status: ✅ Production Ready*
+*Effort to Deploy: ~5 minutes*
 *Effort to Understand: ~30 minutes (reading docs)*

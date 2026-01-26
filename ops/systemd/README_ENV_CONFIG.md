@@ -128,5 +128,5 @@ systemctl restart gestiq-worker-imports
 
 ---
 
-**Último update:** 15 Enero 2026  
+**Último update:** 15 Enero 2026
 **Status:** 🟡 MODERADO - En implementación

@@ -33,7 +33,7 @@ def get_sector_or_404(code: str, db: Session) -> SectorTemplate:
         sector = get_sector_or_404('panaderia', db)
     """
     code_lower = code.lower()
-    
+
     # Intenta primero por código exacto
     sector = (
         db.query(SectorTemplate)
@@ -47,6 +47,7 @@ def get_sector_or_404(code: str, db: Session) -> SectorTemplate:
     # Si no encontrado por código, intenta por nombre (case-insensitive)
     if not sector:
         from sqlalchemy import func
+
         sector = (
             db.query(SectorTemplate)
             .filter(

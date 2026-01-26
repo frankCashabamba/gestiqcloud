@@ -7,23 +7,24 @@ URLs:
 
 import json
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Request
 from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.core.authz import require_scope
 from app.core.access_guard import with_access_claims
 from app.core.audit_events import audit_event
+from app.core.authz import require_scope
 from app.db.rls import set_tenant_guc
 from app.middleware.tenant import ensure_tenant
-from app.models.company.company_settings import CompanySettings
 from app.models.company.company import SectorTemplate
-from app.models.tenant import Tenant
+from app.models.company.company_settings import CompanySettings
 from app.models.core.country_catalogs import CountryIdType
-from app.services.sector_templates import apply_sector_template
+from app.models.tenant import Tenant
 from app.schemas.sector_plantilla import SectorConfigJSON
+from app.services.sector_templates import apply_sector_template
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,6 @@ class CompanySettingsResponse(BaseModel):
     pos_config: dict | None = None
     invoice_config: dict | None = None
     settings: dict
-
 
 
 @router.get("/settings", summary="Get company settings")
@@ -145,7 +145,9 @@ def get_company_settings(tenant_id: str = Depends(ensure_tenant), db: Session = 
         locale=company_settings.default_language,
         timezone=company_settings.timezone,
         currency=company_settings.currency,
-        sector_id=getattr(tenant, "sector_id", None) if isinstance(getattr(tenant, "sector_id", None), int) else getattr(tenant, "sector_template_name", None),
+        sector_id=getattr(tenant, "sector_id", None)
+        if isinstance(getattr(tenant, "sector_id", None), int)
+        else getattr(tenant, "sector_template_name", None),
         sector_template_name=getattr(tenant, "sector_template_name", None),
         sector_plantilla_name=getattr(tenant, "sector_template_name", None),  # Backward compat
         inventory=inventory_cfg,
@@ -194,7 +196,9 @@ def update_company_settings(
         raise HTTPException(status_code=404, detail="Tenant not found")
 
     # Get or create CompanySettings
-    company_settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+    company_settings = (
+        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+    )
     if not company_settings:
         if not payload.locale:
             raise HTTPException(status_code=400, detail="default_language_required")
@@ -208,7 +212,9 @@ def update_company_settings(
         if template_name:
             template = (
                 db.query(SectorTemplate)
-                .filter((SectorTemplate.code == template_name) | (SectorTemplate.name == template_name))
+                .filter(
+                    (SectorTemplate.code == template_name) | (SectorTemplate.name == template_name)
+                )
                 .first()
             )
             if template:
@@ -244,7 +250,9 @@ def update_company_settings(
 
     try:
         inv_from_settings = (
-            (payload.settings or {}).get("inventory") if isinstance(payload.settings, dict) else None
+            (payload.settings or {}).get("inventory")
+            if isinstance(payload.settings, dict)
+            else None
         )
         logger.debug(
             "company_settings.update inventory=%s settings.inventory=%s",
@@ -327,7 +335,9 @@ def update_company_settings(
     db.refresh(company_settings)
 
     try:
-        claims = getattr(getattr(request, "state", None), "access_claims", None) if request else None
+        claims = (
+            getattr(getattr(request, "state", None), "access_claims", None) if request else None
+        )
         user_id = claims.get("user_id") if isinstance(claims, dict) else None
         audit_event(
             db,
@@ -356,7 +366,9 @@ def update_company_settings(
         sector_id=sector_id_value,
         sector_template_name=sector_template,
         sector_plantilla_name=sector_template,
-        inventory=(company_settings.settings or {}).get("inventory") if isinstance(company_settings.settings, dict) else None,
+        inventory=(company_settings.settings or {}).get("inventory")
+        if isinstance(company_settings.settings, dict)
+        else None,
         pos_config=company_settings.pos_config,
         invoice_config=company_settings.invoice_config,
         settings=company_settings.settings or {},
@@ -669,8 +681,12 @@ def update_settings_limites(
     }
 
 
-@router_admin.get("/{tenant_id}/company/settings/limits", summary="Get limits settings by company_id")
-@router_admin.get("/{tenant_id}/company/settings/limites", summary="Get limits settings by company_id (legacy)")
+@router_admin.get(
+    "/{tenant_id}/company/settings/limits", summary="Get limits settings by company_id"
+)
+@router_admin.get(
+    "/{tenant_id}/company/settings/limites", summary="Get limits settings by company_id (legacy)"
+)
 def get_settings_limites_admin(tenant_id: str, db: Session = Depends(get_db)):
     _set_rls(db, tenant_id)
     company_settings = (
@@ -685,8 +701,12 @@ def get_settings_limites_admin(tenant_id: str, db: Session = Depends(get_db)):
     }
 
 
-@router_admin.put("/{tenant_id}/company/settings/limits", summary="Update limits settings by company_id")
-@router_admin.put("/{tenant_id}/company/settings/limites", summary="Update limits settings by company_id (legacy)")
+@router_admin.put(
+    "/{tenant_id}/company/settings/limits", summary="Update limits settings by company_id"
+)
+@router_admin.put(
+    "/{tenant_id}/company/settings/limites", summary="Update limits settings by company_id (legacy)"
+)
 def update_settings_limites_admin(
     tenant_id: str,
     payload: dict,

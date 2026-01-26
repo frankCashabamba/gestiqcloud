@@ -9,7 +9,7 @@ from app.models.accounting.chart_of_accounts import (  # noqa: E402
     JournalEntry,
     JournalEntryLine,
 )
-from app.models.accounting.pos_settings import TenantAccountingSettings, PaymentMethod
+from app.models.accounting.pos_settings import PaymentMethod, TenantAccountingSettings
 
 # Backward compatibility aliases (Spanish names)
 PlanCuentas = ChartOfAccounts

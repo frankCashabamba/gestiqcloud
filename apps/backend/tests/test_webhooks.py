@@ -1,8 +1,9 @@
 """Webhook module tests"""
 
-import pytest
-from uuid import uuid4
 from datetime import datetime
+from uuid import uuid4
+
+import pytest
 
 from app.modules.webhooks.domain.entities import (
     WebhookEndpoint,

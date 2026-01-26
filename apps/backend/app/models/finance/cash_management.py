@@ -224,9 +224,7 @@ class CashClosing(Base):
     )
 
     # === STATUS ===
-    status: Mapped[str] = mapped_column(
-        cash_closing_status, nullable=False, index=True
-    )
+    status: Mapped[str] = mapped_column(cash_closing_status, nullable=False, index=True)
     is_balanced: Mapped[bool] = mapped_column(
         nullable=False, default=False, comment="True if difference = 0"
     )

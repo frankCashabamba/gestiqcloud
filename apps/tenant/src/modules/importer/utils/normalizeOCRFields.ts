@@ -1,7 +1,7 @@
 /**
  * normalizeOCRFields.ts
  * Normaliza campos extraídos por OCR al schema canónico del backend.
- * 
+ *
  * Problema: El OCR extrae campos en español (fecha, importe, concepto)
  * pero la validación espera campos canónicos (transaction_date, amount, description)
  */
@@ -99,25 +99,25 @@ export function normalizeOCRRows(rows: Row[], docType: string): Row[] {
  */
 export function inferDocTypeFromFields(headers: string[]): string {
   const headersLower = headers.map(h => h.toLowerCase())
-  
+
   // Banco
   const bankFields = ['iban', 'cuenta', 'saldo', 'balance', 'transferencia']
   if (bankFields.some(f => headersLower.some(h => h.includes(f)))) {
     return 'bank'
   }
-  
+
   // Facturas
   const invoiceFields = ['factura', 'invoice', 'ruc', 'cif', 'iva', 'nif']
   if (invoiceFields.some(f => headersLower.some(h => h.includes(f)))) {
     return 'invoices'
   }
-  
+
   // Productos
   const productFields = ['producto', 'sku', 'stock', 'precio', 'price']
   if (productFields.some(f => headersLower.some(h => h.includes(f)))) {
     return 'products'
   }
-  
+
   // Default a gastos para OCR genérico
   return 'expenses'
 }

@@ -291,7 +291,7 @@ Total: 16 documentos + scripts
 
 ---
 
-**Creado:** 2026-01-22  
-**Última actualización:** 2026-01-22  
-**Estado:** ✅ Listo para deploy  
+**Creado:** 2026-01-22
+**Última actualización:** 2026-01-22
+**Estado:** ✅ Listo para deploy
 **Riesgo:** 🟢 Bajo

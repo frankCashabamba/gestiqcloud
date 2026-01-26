@@ -1,35 +1,30 @@
 """Admin endpoints for UI Configuration CRUD."""
 
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db, get_tenant_id_from_token
-from app.schemas.ui_config_schemas import (
-    UiDashboardCreate,
-    UiDashboardResponse,
-    UiDashboardUpdate,
-    UiFormCreate,
-    UiFormResponse,
-    UiFormUpdate,
-    UiSectionCreate,
-    UiSectionResponse,
-    UiSectionUpdate,
-    UiTableCreate,
-    UiTableResponse,
-    UiTableUpdate,
-    UiWidgetCreate,
-    UiWidgetResponse,
-    UiWidgetUpdate,
-)
 from app.modules.ui_config.infrastructure.repositories import (
     UiDashboardRepository,
     UiFormRepository,
     UiSectionRepository,
     UiTableRepository,
     UiWidgetRepository,
+)
+from app.schemas.ui_config_schemas import (
+    UiDashboardCreate,
+    UiDashboardResponse,
+    UiFormCreate,
+    UiFormResponse,
+    UiSectionCreate,
+    UiSectionResponse,
+    UiSectionUpdate,
+    UiTableCreate,
+    UiTableResponse,
+    UiWidgetCreate,
+    UiWidgetResponse,
 )
 
 router = APIRouter(prefix="/ui-config", tags=["ui-config"])

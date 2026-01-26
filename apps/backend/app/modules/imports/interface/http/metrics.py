@@ -13,10 +13,7 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
-from app.modules.imports.monitoring import (
-    get_all_metrics,
-    get_tenant_metrics,
-)
+from app.modules.imports.monitoring import get_all_metrics, get_tenant_metrics
 
 
 class QueueMetrics(BaseModel):
@@ -97,7 +94,7 @@ router = APIRouter(
     - Processing times (p50, p95, p99 percentiles)
     - Success/error rates
     - Health indicators for alerting
-    
+
     Metrics are aggregated across all tenants for system-wide monitoring.
     Processing time percentiles are calculated from a sliding window of recent jobs.
     """,
@@ -126,10 +123,11 @@ async def get_tenant_ocr_metrics(
     tenant_id = claims.get("tenant_id")
     if not tenant_id:
         from fastapi import HTTPException, status
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Tenant ID not found in claims",
         )
-    
+
     metrics = get_tenant_metrics(db, tenant_id)
     return TenantMetricsResponse(**metrics)

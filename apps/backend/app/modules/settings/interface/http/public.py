@@ -4,9 +4,9 @@ Public Company Settings endpoints
 GET /api/v1/company/settings/config -> composite config used by frontend TenantConfigContext
 """
 
-from typing import Any
 import re
 import unicodedata
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
@@ -14,30 +14,31 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.middleware.tenant import get_current_user
-from app.models.core.product_category import ProductCategory
-from app.models.core.modulo import CompanyModule, Module
-from app.models.company.company_settings import CompanySettings
-from app.models.tenant import Tenant
 from app.models.company.company import SectorTemplate
+from app.models.company.company_settings import CompanySettings
+from app.models.core.modulo import CompanyModule, Module
+from app.models.core.product_category import ProductCategory
+from app.models.tenant import Tenant
 
 router = APIRouter(prefix="/company/settings", tags=["Company Settings (public)"])
 
 
 def _normalize_slug(value: str) -> str:
-    value = (value or '').strip().lower()
-    value = unicodedata.normalize('NFD', value)
-    value = ''.join(c for c in value if unicodedata.category(c) != 'Mn')
+    value = (value or "").strip().lower()
+    value = unicodedata.normalize("NFD", value)
+    value = "".join(c for c in value if unicodedata.category(c) != "Mn")
     value = re.sub(r"\s+", "", value)
     return value
 
 
 def _module_slug(module: Module) -> str:
-    if getattr(module, 'url', None):
-        raw = str(module.url or '').lstrip('/')
-        slug = raw.split('/')[0] if raw else ''
+    if getattr(module, "url", None):
+        raw = str(module.url or "").lstrip("/")
+        slug = raw.split("/")[0] if raw else ""
         if slug:
             return _normalize_slug(slug)
-    return _normalize_slug(getattr(module, 'name', '') or '')
+    return _normalize_slug(getattr(module, "name", "") or "")
+
 
 @router.get("/config", response_model=dict[str, Any], status_code=status.HTTP_200_OK)
 def get_tenant_config(
@@ -63,15 +64,13 @@ def get_tenant_config(
     template_inventory: dict[str, Any] = {}
 
     plantilla = _normalize_slug(
-        (tenant.sector_template_name if tenant and tenant.sector_template_name else "default")
+        tenant.sector_template_name if tenant and tenant.sector_template_name else "default"
     )
 
     sector_template = None
     sector_features = {}
     if plantilla and plantilla != "default":
-        sector_template = db.query(SectorTemplate).filter(
-            SectorTemplate.code == plantilla
-        ).first()
+        sector_template = db.query(SectorTemplate).filter(SectorTemplate.code == plantilla).first()
         if sector_template:
             template_config = sector_template.template_config or {}
             template_defaults = template_config.get("defaults", {}) or {}
@@ -99,7 +98,9 @@ def get_tenant_config(
         cats = db.query(ProductCategory).filter(ProductCategory.tenant_id == tid).all()
         categories = [{"id": str(c.id), "name": c.name, "description": c.description} for c in cats]
     if not categories and template_defaults.get("categories"):
-        categories = [{"id": "", "name": c, "description": ""} for c in template_defaults["categories"]]
+        categories = [
+            {"id": "", "name": c, "description": ""} for c in template_defaults["categories"]
+        ]
 
     enabled_modules: list[str] = []
     if tid:
@@ -112,12 +113,12 @@ def get_tenant_config(
         enabled_modules = [_module_slug(mod) for _cm, mod in rows]
 
     if not enabled_modules:
-        modules_cfg = settings_obj.get('modules') if isinstance(settings_obj, dict) else None
+        modules_cfg = settings_obj.get("modules") if isinstance(settings_obj, dict) else None
         if isinstance(modules_cfg, dict):
             enabled_modules = [
                 _normalize_slug(k)
                 for k, v in modules_cfg.items()
-                if isinstance(v, dict) and v.get('enabled') is True
+                if isinstance(v, dict) and v.get("enabled") is True
             ]
 
     pos_receipt_width = None
@@ -135,9 +136,7 @@ def get_tenant_config(
         pos_return_window_days = template_pos.get("return_window_days")
 
     tax_conf = (pos_config.get("tax") if isinstance(pos_config, dict) else {}) or {}
-    price_includes_tax = bool(
-        tax_conf.get("price_includes_tax", price_includes_tax_default)
-    )
+    price_includes_tax = bool(tax_conf.get("price_includes_tax", price_includes_tax_default))
     default_tax_rate = (
         settings_obj.get("iva_tasa_defecto")
         or tax_conf.get("default_rate")
@@ -192,7 +191,9 @@ def get_tenant_config(
             else template_pos.get("enable_weights", False)
         ),
         "pos_enable_batch_tracking": bool(
-            pos_config.get("enable_batch_tracking", template_pos.get("enable_batch_tracking", False))
+            pos_config.get(
+                "enable_batch_tracking", template_pos.get("enable_batch_tracking", False)
+            )
             if isinstance(pos_config, dict)
             else template_pos.get("enable_batch_tracking", False)
         ),
@@ -217,7 +218,9 @@ def get_tenant_config(
             "plantilla_inicio": (tenant.default_template if tenant else None),
             "currency": (currency or (tenant.base_currency if tenant else None)),
             "country": (tenant.country_code or tenant.country) if tenant else None,
-            "config_json": (settings_obj.get("template_config") if isinstance(settings_obj, dict) else {}),
+            "config_json": (
+                settings_obj.get("template_config") if isinstance(settings_obj, dict) else {}
+            ),
         },
         "settings": {
             "settings": settings_obj,

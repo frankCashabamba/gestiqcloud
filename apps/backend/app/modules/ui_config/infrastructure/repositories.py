@@ -1,17 +1,13 @@
 """Repositories for UI Configuration."""
 
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from app.models.core.ui_config import (
-    UiColumn,
     UiDashboard,
-    UiFilter,
     UiForm,
-    UiFormField,
     UiSection,
     UiTable,
     UiWidget,
@@ -24,14 +20,12 @@ class UiSectionRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_by_id(self, section_id: UUID) -> Optional[UiSection]:
+    def get_by_id(self, section_id: UUID) -> UiSection | None:
         """Get section by ID."""
-        result = self.db.execute(
-            select(UiSection).where(UiSection.id == section_id)
-        )
+        result = self.db.execute(select(UiSection).where(UiSection.id == section_id))
         return result.scalar_one_or_none()
 
-    def get_by_slug(self, tenant_id: UUID, slug: str) -> Optional[UiSection]:
+    def get_by_slug(self, tenant_id: UUID, slug: str) -> UiSection | None:
         """Get section by slug and tenant."""
         result = self.db.execute(
             select(UiSection).where(
@@ -59,7 +53,7 @@ class UiSectionRepository:
         self.db.flush()
         return section
 
-    def update(self, section_id: UUID, data: dict) -> Optional[UiSection]:
+    def update(self, section_id: UUID, data: dict) -> UiSection | None:
         """Update section."""
         section = self.get_by_id(section_id)
         if not section:
@@ -86,11 +80,9 @@ class UiWidgetRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_by_id(self, widget_id: UUID) -> Optional[UiWidget]:
+    def get_by_id(self, widget_id: UUID) -> UiWidget | None:
         """Get widget by ID."""
-        result = self.db.execute(
-            select(UiWidget).where(UiWidget.id == widget_id)
-        )
+        result = self.db.execute(select(UiWidget).where(UiWidget.id == widget_id))
         return result.scalar_one_or_none()
 
     def list_by_section(self, section_id: UUID, active_only: bool = True):
@@ -109,7 +101,7 @@ class UiWidgetRepository:
         self.db.flush()
         return widget
 
-    def update(self, widget_id: UUID, data: dict) -> Optional[UiWidget]:
+    def update(self, widget_id: UUID, data: dict) -> UiWidget | None:
         """Update widget."""
         widget = self.get_by_id(widget_id)
         if not widget:
@@ -136,14 +128,12 @@ class UiTableRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_by_id(self, table_id: UUID) -> Optional[UiTable]:
+    def get_by_id(self, table_id: UUID) -> UiTable | None:
         """Get table by ID."""
-        result = self.db.execute(
-            select(UiTable).where(UiTable.id == table_id)
-        )
+        result = self.db.execute(select(UiTable).where(UiTable.id == table_id))
         return result.scalar_one_or_none()
 
-    def get_by_slug(self, tenant_id: UUID, slug: str) -> Optional[UiTable]:
+    def get_by_slug(self, tenant_id: UUID, slug: str) -> UiTable | None:
         """Get table by slug."""
         result = self.db.execute(
             select(UiTable).where(
@@ -170,7 +160,7 @@ class UiTableRepository:
         self.db.flush()
         return table
 
-    def update(self, table_id: UUID, data: dict) -> Optional[UiTable]:
+    def update(self, table_id: UUID, data: dict) -> UiTable | None:
         """Update table."""
         table = self.get_by_id(table_id)
         if not table:
@@ -197,14 +187,12 @@ class UiFormRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_by_id(self, form_id: UUID) -> Optional[UiForm]:
+    def get_by_id(self, form_id: UUID) -> UiForm | None:
         """Get form by ID."""
-        result = self.db.execute(
-            select(UiForm).where(UiForm.id == form_id)
-        )
+        result = self.db.execute(select(UiForm).where(UiForm.id == form_id))
         return result.scalar_one_or_none()
 
-    def get_by_slug(self, tenant_id: UUID, slug: str) -> Optional[UiForm]:
+    def get_by_slug(self, tenant_id: UUID, slug: str) -> UiForm | None:
         """Get form by slug."""
         result = self.db.execute(
             select(UiForm).where(
@@ -231,7 +219,7 @@ class UiFormRepository:
         self.db.flush()
         return form
 
-    def update(self, form_id: UUID, data: dict) -> Optional[UiForm]:
+    def update(self, form_id: UUID, data: dict) -> UiForm | None:
         """Update form."""
         form = self.get_by_id(form_id)
         if not form:
@@ -258,14 +246,12 @@ class UiDashboardRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_by_id(self, dashboard_id: UUID) -> Optional[UiDashboard]:
+    def get_by_id(self, dashboard_id: UUID) -> UiDashboard | None:
         """Get dashboard by ID."""
-        result = self.db.execute(
-            select(UiDashboard).where(UiDashboard.id == dashboard_id)
-        )
+        result = self.db.execute(select(UiDashboard).where(UiDashboard.id == dashboard_id))
         return result.scalar_one_or_none()
 
-    def get_by_slug(self, tenant_id: UUID, slug: str) -> Optional[UiDashboard]:
+    def get_by_slug(self, tenant_id: UUID, slug: str) -> UiDashboard | None:
         """Get dashboard by slug."""
         result = self.db.execute(
             select(UiDashboard).where(
@@ -277,7 +263,7 @@ class UiDashboardRepository:
         )
         return result.scalar_one_or_none()
 
-    def get_default(self, tenant_id: UUID) -> Optional[UiDashboard]:
+    def get_default(self, tenant_id: UUID) -> UiDashboard | None:
         """Get default dashboard for tenant."""
         result = self.db.execute(
             select(UiDashboard).where(
@@ -302,7 +288,7 @@ class UiDashboardRepository:
         self.db.flush()
         return dashboard
 
-    def update(self, dashboard_id: UUID, data: dict) -> Optional[UiDashboard]:
+    def update(self, dashboard_id: UUID, data: dict) -> UiDashboard | None:
         """Update dashboard."""
         dashboard = self.get_by_id(dashboard_id)
         if not dashboard:

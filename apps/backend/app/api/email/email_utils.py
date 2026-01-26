@@ -168,14 +168,12 @@ def enviar_correo_bienvenida(
     template_name = "bienvenida_admin_empresa.html" if is_admin_company else "bienvenida.html"
     html_content = render_template(template_name, contexto)
     subject = "¡Bienvenido a GestiqCloud!" if is_admin_company else "Bienvenido a GestiqCloud"
-    
+
     if getattr(settings, "ENV", "development") == "development" and (
         getattr(settings, "EMAIL_DEV_LOG_ONLY", False) or not getattr(settings, "EMAIL_HOST", None)
     ):
         logger.info("[DEV EMAIL] Bienvenida link: %s", enlace)
-    background_tasks.add_task(
-        send_email_mailtrap, user_email, subject, html_content
-    )
+    background_tasks.add_task(send_email_mailtrap, user_email, subject, html_content)
     try:
         logger.info("Queued welcome email to %s (admin=%s)", user_email, is_admin_company)
     except Exception:

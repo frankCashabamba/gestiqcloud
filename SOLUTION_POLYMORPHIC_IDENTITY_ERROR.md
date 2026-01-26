@@ -18,7 +18,7 @@ Fixed two related errors:
 
 ### Error 1: Transaction Failure
 ```
-psycopg2.errors.InFailedSqlTransaction: 
+psycopg2.errors.InFailedSqlTransaction:
 transacción abortada, las órdenes serán ignoradas hasta el fin de bloque de transacción
 
 [SQL: SELECT id, customer_id, number, status, gross_total, tax_total, created_at
@@ -109,18 +109,18 @@ class WorkshopLine(InvoiceLine):
 class POSLine(InvoiceLine):
     """POS-generated line item model."""
     __tablename__ = "pos_invoice_lines"
-    
+
     id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), 
-        ForeignKey("invoice_lines.id"), 
+        PGUUID(as_uuid=True),
+        ForeignKey("invoice_lines.id"),
         primary_key=True
     )
     pos_receipt_line_id: Mapped[UUID | None] = mapped_column(
-        "pos_receipt_line_id", 
-        PGUUID(as_uuid=True), 
+        "pos_receipt_line_id",
+        PGUUID(as_uuid=True),
         nullable=True
     )
-    
+
     __mapper_args__ = {"polymorphic_identity": "pos"}
 ```
 
@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS pos_invoice_lines (
     FOREIGN KEY (id) REFERENCES invoice_lines(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_pos_invoice_lines_pos_receipt_line_id 
+CREATE INDEX IF NOT EXISTS idx_pos_invoice_lines_pos_receipt_line_id
     ON pos_invoice_lines(pos_receipt_line_id);
 ```
 
@@ -183,7 +183,7 @@ git pull origin main
 ```
 
 Files will be updated:
-- ✅ `apps/backend/app/models/core/invoiceLine.py` 
+- ✅ `apps/backend/app/models/core/invoiceLine.py`
 - ✅ `apps/backend/app/modules/pos/application/invoice_integration.py`
 - ✅ `ops/migrations/2026-01-22_001_add_pos_invoice_lines/` (new)
 
@@ -267,8 +267,8 @@ BEGIN TRANSACTION;
 
 -- Copy existing pos records
 INSERT INTO pos_invoice_lines (id, pos_receipt_line_id)
-SELECT id, NULL 
-FROM invoice_lines 
+SELECT id, NULL
+FROM invoice_lines
 WHERE sector = 'pos'
 ON CONFLICT DO NOTHING;
 
@@ -286,8 +286,8 @@ FROM invoice_lines il
 GROUP BY il.sector;
 
 -- Delete orphaned pos records (if no matching invoice)
-DELETE FROM invoice_lines 
-WHERE sector = 'pos' 
+DELETE FROM invoice_lines
+WHERE sector = 'pos'
 AND invoice_id NOT IN (SELECT id FROM invoices);
 ```
 
@@ -360,5 +360,5 @@ systemctl restart gestiqcloud-backend
 
 ---
 
-**Last Updated:** 2026-01-22  
+**Last Updated:** 2026-01-22
 **Status:** ✅ Ready for deployment

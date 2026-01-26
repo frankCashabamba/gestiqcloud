@@ -217,7 +217,7 @@ Ver: `START_HERE_POLYMORPHIC_FIX.md` → Sección "Troubleshooting"
 
 ---
 
-**Fecha:** 2026-01-22  
-**Versión:** 1.0  
-**Prioridad:** 🔴 ALTA  
+**Fecha:** 2026-01-22
+**Versión:** 1.0
+**Prioridad:** 🔴 ALTA
 **Riesgo:** 🟢 BAJO

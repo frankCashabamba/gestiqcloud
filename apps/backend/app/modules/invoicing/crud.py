@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.empresa_crud import EmpresaCRUD
 from app.models.core.clients import Cliente
 from app.models.core.facturacion import Invoice, InvoiceTemp
-from app.models.core.invoiceLine import BakeryLine, WorkshopLine, POSLine
+from app.models.core.invoiceLine import BakeryLine, POSLine, WorkshopLine
 from app.models.tenant import Tenant
 from app.modules.invoicing import schemas
 from app.modules.shared.services.numbering import generar_numero_documento

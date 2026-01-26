@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import logging
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from uuid import UUID
-
-from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -13,6 +12,7 @@ from app.models.core.product_category import ProductCategory
 from app.models.core.products import Product
 from app.modules.imports.application.sku_utils import sanitize_sku
 from app.services.inventory_costing import InventoryCostingService
+
 
 class PromoteResult:
     def __init__(self, domain_id: str | None, skipped: bool = False):

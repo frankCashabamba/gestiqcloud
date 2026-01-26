@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 from pathlib import Path
 
@@ -57,9 +57,7 @@ def test_orchestrator_issue_applies_tax_profile():
         taxId="0999999999001",
         address="Calle 123",
     )
-    doc = DocumentOrchestrator().issue(
-        sale, cfg, seller, series="001-001", sequential="000000123"
-    )
+    doc = DocumentOrchestrator().issue(sale, cfg, seller, series="001-001", sequential="000000123")
     assert doc.document.series == "001-001"
     assert doc.document.sequential == "000000123"
     assert doc.totals.taxTotal == Decimal("12.00")
@@ -79,9 +77,7 @@ def test_template_engine_renders_basic_fields():
         address="Calle 123",
         footerMessage="Gracias",
     )
-    doc = DocumentOrchestrator().issue(
-        sale, cfg, seller, series="001-001", sequential="000000001"
-    )
+    doc = DocumentOrchestrator().issue(sale, cfg, seller, series="001-001", sequential="000000001")
     html = TemplateEngine().render(doc)
     assert "Mi Tienda" in html
     assert "Gracias" in html
@@ -102,9 +98,7 @@ def test_document_model_includes_effective_from_and_version():
         taxId="0999999999001",
         address="Calle 123",
     )
-    doc = DocumentOrchestrator().issue(
-        sale, cfg, seller, series="001-001", sequential="000000010"
-    )
+    doc = DocumentOrchestrator().issue(sale, cfg, seller, series="001-001", sequential="000000010")
     assert doc.document.meta["configEffectiveFrom"] == "2026-01-01"
     assert doc.document.meta["configVersion"] == 3
     assert doc.render.configEffectiveFrom == "2026-01-01"
@@ -127,10 +121,8 @@ def test_template_snapshot_ticket_80mm():
         email="ventas@mitienda.ec",
         website="mitienda.ec",
     )
-    doc = DocumentOrchestrator().issue(
-        sale, cfg, seller, series="001-001", sequential="000000999"
-    )
-    doc.document.issuedAt = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    doc = DocumentOrchestrator().issue(sale, cfg, seller, series="001-001", sequential="000000999")
+    doc.document.issuedAt = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
     html = TemplateEngine().render(doc)
     fixture = Path(__file__).parent / "fixtures" / "documents_ticket_80mm_v1.html"
     expected = fixture.read_text(encoding="utf-8")

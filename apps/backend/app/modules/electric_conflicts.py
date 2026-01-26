@@ -197,15 +197,15 @@ def log_conflict_resolution(
 ):
     """
     Log conflict resolution for audit purposes.
-    
+
     Uses the sync_conflict_log table created by migration:
     ops/migrations/2026-01-17_001_sync_conflict_log/
     """
     import json
-    
+
     try:
         conflict_data_json = json.dumps(original_conflict, default=str)
-        
+
         db.execute(
             text(
                 """
@@ -227,7 +227,7 @@ def log_conflict_resolution(
             },
         )
         db.commit()
-        
+
         logger.debug(
             "Conflict resolution logged",
             extra={

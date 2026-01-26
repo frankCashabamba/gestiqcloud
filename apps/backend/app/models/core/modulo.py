@@ -73,9 +73,7 @@ class AssignedModule(Base):
         {"extend_existing": True},
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        _uuid_col, primary_key=True, default=uuid.uuid4
-    )  # pylint: disable=unsubscriptable-object
+    id: Mapped[uuid.UUID] = mapped_column(_uuid_col, primary_key=True, default=uuid.uuid4)  # pylint: disable=unsubscriptable-object
     tenant_id: Mapped[object] = mapped_column(_uuid_col, ForeignKey("tenants.id"), nullable=True)  # type: ignore
     # CompanyUser.id is UUID; align FK type
     user_id: Mapped[uuid.UUID] = mapped_column(

@@ -7,12 +7,10 @@ from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text, func
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
 
 from app.config.database import Base
 
@@ -36,9 +34,7 @@ class BusinessType(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(
-        TENANT_UUID, ForeignKey("tenants.id"), nullable=False
-    )
+    tenant_id: Mapped[UUID] = mapped_column(TENANT_UUID, ForeignKey("tenants.id"), nullable=False)
     code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -263,6 +259,7 @@ class SectorTemplate(Base):
     updated_at: Mapped[datetime] = mapped_column(
         default=_get_now, server_default=func.now(), onupdate=_get_now, nullable=False
     )
+
     # Backward compatibility aliases
     @hybrid_property
     def sector_name(self) -> str:

@@ -16,7 +16,6 @@ from app.schemas.sector_plantilla import SectorConfigJSON
 logger = logging.getLogger(__name__)
 
 
-
 def apply_sector_template(
     db: Session,
     tenant_id: str,
@@ -87,7 +86,7 @@ def apply_sector_template(
             try:
                 tenant_template_code = getattr(sector, "code", None)
                 if not tenant_template_code:
-                    tenant_template_code = (getattr(sector, "name", None) or "default")
+                    tenant_template_code = getattr(sector, "name", None) or "default"
                 tenant.sector_template_name = str(tenant_template_code).strip().lower()
             except Exception:
                 tenant.sector_template_name = None
@@ -97,7 +96,7 @@ def apply_sector_template(
                 tenant.base_currency = config.defaults.currency
                 result["changes"].append(f"Moneda: {config.defaults.currency}")
 
-                        # Guardar template_config en CompanySettings
+                # Guardar template_config en CompanySettings
             try:
                 from app.models.company.company_settings import CompanySettings
 

@@ -69,7 +69,9 @@ class POSLineOut(POSLine):
 
 # 🎯 Unión de tipos posibles
 LineaFacturaIn = BakeryLine | WorkshopLine | POSLine
-LineaFacturaOut = Annotated[BakeryLineOut | WorkshopLineOut | POSLineOut, Field(discriminator="sector")]
+LineaFacturaOut = Annotated[
+    BakeryLineOut | WorkshopLineOut | POSLineOut, Field(discriminator="sector")
+]
 
 # Backward compatibility aliases
 LineaPanaderia = BakeryLine

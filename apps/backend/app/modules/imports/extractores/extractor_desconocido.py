@@ -1,4 +1,5 @@
 import asyncio
+
 from app.modules.imports.extractores.extractor_factura import extraer_factura
 from app.modules.imports.extractores.extractor_recibo import extraer_recibo
 from app.modules.imports.extractores.extractor_transferencia import extraer_transferencias
@@ -125,8 +126,12 @@ def _pick_best(documentos: list[DocumentoProcesado]) -> DocumentoProcesado:
 def _es_documento_valido(doc: DocumentoProcesado | dict) -> bool:
     try:
         fecha = getattr(doc, "fecha", None) or (doc.get("fecha") if isinstance(doc, dict) else None)
-        importe = getattr(doc, "importe", None) or (doc.get("importe") if isinstance(doc, dict) else None)
-        concepto = getattr(doc, "concepto", None) or (doc.get("concepto") if isinstance(doc, dict) else None)
+        importe = getattr(doc, "importe", None) or (
+            doc.get("importe") if isinstance(doc, dict) else None
+        )
+        concepto = getattr(doc, "concepto", None) or (
+            doc.get("concepto") if isinstance(doc, dict) else None
+        )
         if importe and float(importe) != 0:
             return True
         if fecha and fecha != "desconocida":
@@ -144,12 +149,16 @@ def _extraer_con_ia(texto: str) -> DocumentoProcesado | None:
     try:
         provider = asyncio.run(get_ai_provider_singleton())  # type: ignore
         expected_fields = ["fecha", "importe", "cliente", "concepto", "categoria", "tipo"]
-        extracted = asyncio.run(provider.extract_fields(texto[:4000], "desconocido", expected_fields))
+        extracted = asyncio.run(
+            provider.extract_fields(texto[:4000], "desconocido", expected_fields)
+        )
         if not extracted:
             return None
         doc_ai = DocumentoProcesado(
             fecha=extracted.get("fecha") or extracted.get("date") or "desconocida",
-            concepto=extracted.get("concepto") or extracted.get("concept") or "Documento sin concepto",
+            concepto=extracted.get("concepto")
+            or extracted.get("concept")
+            or "Documento sin concepto",
             tipo=extracted.get("tipo") or "gasto",
             importe=float(extracted.get("importe") or extracted.get("amount") or 0) or 0,
             cuenta=extracted.get("cuenta") or "desconocida",

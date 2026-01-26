@@ -5,11 +5,12 @@ Reemplazo de Authorization header por cookies seguras.
 
 from __future__ import annotations
 
+from fastapi import Depends, HTTPException, Request, status
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.auth_cookies import get_token_from_cookie_or_header
 from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
-from fastapi import Depends, HTTPException, Request, status
-from sqlalchemy.orm import Session
 
 
 def get_current_user_from_cookie(

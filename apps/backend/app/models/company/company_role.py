@@ -3,12 +3,13 @@
 from typing import Optional
 from uuid import UUID, uuid4
 
-from app.config.database import Base
-from app.models.company.company import RolBase
 from sqlalchemy import JSON, Boolean, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.config.database import Base
+from app.models.company.company import RolBase
 
 UUID_TYPE = PGUUID(as_uuid=True)
 TENANT_UUID = UUID_TYPE.with_variant(String(36), "sqlite")

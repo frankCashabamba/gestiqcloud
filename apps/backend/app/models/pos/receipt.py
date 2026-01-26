@@ -91,9 +91,7 @@ class POSReceiptLine(Base):
     __tablename__ = "pos_receipt_lines"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        TENANT_UUID, primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid.uuid4)
     receipt_id: Mapped[uuid.UUID] = mapped_column(
         TENANT_UUID,
         ForeignKey("pos_receipts.id", ondelete="CASCADE"),
@@ -113,9 +111,7 @@ class POSReceiptLine(Base):
     cogs_unit: Mapped[float] = mapped_column(Numeric(12, 6), nullable=False, default=0)
     cogs_total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     gross_profit: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
-    gross_margin_pct: Mapped[float] = mapped_column(
-        Numeric(7, 4), nullable=False, default=0
-    )
+    gross_margin_pct: Mapped[float] = mapped_column(Numeric(7, 4), nullable=False, default=0)
 
     # Relationships
     receipt: Mapped["POSReceipt"] = relationship("POSReceipt", back_populates="lines")
@@ -131,9 +127,7 @@ class POSPayment(Base):
     __tablename__ = "pos_payments"
     __table_args__ = {"extend_existing": True}
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        TENANT_UUID, primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(TENANT_UUID, primary_key=True, default=uuid.uuid4)
     receipt_id: Mapped[uuid.UUID] = mapped_column(
         TENANT_UUID,
         ForeignKey("pos_receipts.id", ondelete="CASCADE"),

@@ -177,7 +177,14 @@ class LocalAIProvider(AIProvider):
             try:
                 # normalizar a float y escoger el máximo absoluto
                 parsed = [
-                    (c, float(c.replace(".", "").replace(",", ".") if c.count(",") == 1 else c.replace(",", "")))
+                    (
+                        c,
+                        float(
+                            c.replace(".", "").replace(",", ".")
+                            if c.count(",") == 1
+                            else c.replace(",", "")
+                        ),
+                    )
                     for c in candidates
                 ]
                 best = max(parsed, key=lambda x: abs(x[1]))
@@ -187,7 +194,8 @@ class LocalAIProvider(AIProvider):
 
         # Concepto: línea con "concepto"/"description"/"detalle" o primer texto largo
         concept_match = re.search(
-            r"(?i)(concepto|descripcion|description|detalle)[:\-]?\s*(.+)", text_norm.splitlines().__str__()
+            r"(?i)(concepto|descripcion|description|detalle)[:\-]?\s*(.+)",
+            text_norm.splitlines().__str__(),
         )
         if concept_match and concept_match.group(2):
             extracted["concepto"] = concept_match.group(2)[:120].strip()

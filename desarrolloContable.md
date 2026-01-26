@@ -1,4 +1,4 @@
-# Diseño contable POS Panadería  
+# Diseño contable POS Panadería
 _(FastAPI + React + PostgreSQL, multi-tenant)_
 
 ---
@@ -78,7 +78,7 @@ CREATE TABLE accounts (
 );
 ```
 
-**Responsable de datos**: el contable o administrador del tenant, a través de la UI de “Plan Contable”.  
+**Responsable de datos**: el contable o administrador del tenant, a través de la UI de “Plan Contable”.
 **El software no inventa códigos**, solo los guarda y los usa.
 
 ---
@@ -234,7 +234,7 @@ Formulario que guarda/lee `tenant_accounting_settings`.
 
 Campos (tipo select con búsqueda):
 
-- **Cuenta de Caja POS**  
+- **Cuenta de Caja POS**
   - Fuente: `accounts` de tipo `ASSET`.
 - **Cuenta de Bancos / Tarjetas**
 - **Cuenta de Ventas Panadería**

@@ -1,7 +1,11 @@
 """Admin user management endpoints."""
+
 from __future__ import annotations
 
 from uuid import UUID
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 from app.api.email.email_utils import reenviar_correo_reset
 from app.config.database import get_db
@@ -9,8 +13,6 @@ from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.models.company.company_user import CompanyUser as CompanyUser
 from app.models.tenant import Tenant as Company
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from sqlalchemy.orm import Session
 
 router = APIRouter(
     prefix="",
@@ -49,9 +51,7 @@ def list_users(db: Session = Depends(get_db)):
 
 
 @router.post("/{user_id}/resend-reset")
-def resend_reset(
-    user_id: UUID, background_tasks: BackgroundTasks, db: Session = Depends(get_db)
-):
+def resend_reset(user_id: UUID, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Resend password reset email.
 
     In development, if EMAIL_DEV_LOG_ONLY=true (or SMTP is missing), the reset link is printed to logs.

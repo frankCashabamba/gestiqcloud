@@ -1,8 +1,8 @@
 # app/config/database.py
 from __future__ import annotations
 
-from collections.abc import Iterator
 import os
+from collections.abc import Iterator
 from contextlib import asynccontextmanager, contextmanager
 
 from fastapi import Request
@@ -35,20 +35,14 @@ STATEMENT_TIMEOUT_MS = max(1000, settings.DB_STATEMENT_TIMEOUT_MS)  # mÃ­nimo 
 CONNECT_ARGS = {
     # Requiere driver psycopg (postgresql+psycopg://) para respetar options
     "options": f"-c statement_timeout={STATEMENT_TIMEOUT_MS}",
-    "client_encoding": "UTF8"
+    "client_encoding": "UTF8",
 }
 
 _env_db_url = os.getenv("DATABASE_URL")
 _env_db_dsn = os.getenv("DB_DSN")
 _db_url = make_db_url()
-print(
-    "[database] ENV DATABASE_URL type="
-    f"{type(_env_db_url).__name__} repr={_env_db_url!r}"
-)
-print(
-    "[database] ENV DB_DSN type="
-    f"{type(_env_db_dsn).__name__} repr={_env_db_dsn!r}"
-)
+print("[database] ENV DATABASE_URL type=" f"{type(_env_db_url).__name__} repr={_env_db_url!r}")
+print("[database] ENV DB_DSN type=" f"{type(_env_db_dsn).__name__} repr={_env_db_dsn!r}")
 print(
     "[database] ENV PGHOST="
     f"{os.getenv('PGHOST')!r} PGPORT={os.getenv('PGPORT')!r} "

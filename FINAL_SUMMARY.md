@@ -136,7 +136,7 @@ except Exception as rollback_error:
 
 ### Antes / Before:
 ```
-❌ GET /api/v1/tenant/invoicing 
+❌ GET /api/v1/tenant/invoicing
    Error: AssertionError: No such polymorphic_identity 'pos'
 
 ❌ POST /api/v1/tenant/pos/receipts/{id}/checkout
@@ -231,7 +231,7 @@ Todas las documentaciones están en **Inglés y Español / English and Spanish**
 ```
 invoice_lines (tabla base)
 ├─ sector='bakery' → BakeryLine
-├─ sector='workshop' → WorkshopLine  
+├─ sector='workshop' → WorkshopLine
 └─ sector='pos' → POSLine (NEW)
 ```
 
@@ -253,14 +253,14 @@ get_text("invoice.lineTypePos", language="es")  # "Punto de Venta"
 
 ## ✨ VENTAJAS / BENEFITS
 
-✅ **Fácil de instalar** / Easy to install (3 comandos / commands)  
-✅ **Fácil de deshacer** / Easy to rollback (simple down.sql)  
-✅ **Sin breaking changes** / No breaking changes  
-✅ **Totalmente documentado** / Fully documented  
-✅ **Con i18n integrado** / With i18n integrated  
-✅ **Sin riesgo de datos** / No data loss risk  
-✅ **Compatible hacia atrás** / Backward compatible  
-✅ **Listo para producción** / Production ready  
+✅ **Fácil de instalar** / Easy to install (3 comandos / commands)
+✅ **Fácil de deshacer** / Easy to rollback (simple down.sql)
+✅ **Sin breaking changes** / No breaking changes
+✅ **Totalmente documentado** / Fully documented
+✅ **Con i18n integrado** / With i18n integrated
+✅ **Sin riesgo de datos** / No data loss risk
+✅ **Compatible hacia atrás** / Backward compatible
+✅ **Listo para producción** / Production ready
 
 ---
 
@@ -271,7 +271,7 @@ get_text("invoice.lineTypePos", language="es")  # "Punto de Venta"
 EXECUTE_FIX.md
 ```
 
-Luego ejecuta los 3 comandos. ¡Listo!  
+Luego ejecuta los 3 comandos. ¡Listo!
 Then execute the 3 commands. Done!
 
 ---
@@ -305,8 +305,8 @@ Si necesitas ayuda / If you need help:
 - **Lista para producción** / Production ready: ✅
 - **Reversible** / Reversible: ✅
 
-**Fecha / Date:** 2026-01-22  
-**Versión / Version:** 1.0  
+**Fecha / Date:** 2026-01-22
+**Versión / Version:** 1.0
 **Estado / Status:** ✅ READY TO DEPLOY
 
 ---
@@ -322,8 +322,8 @@ Si necesitas ayuda / If you need help:
 └─────────────────────────────────────────┘
 ```
 
-**Tiempo total / Total time:** 5 minutos / minutes  
-**Dificultad / Difficulty:** 🟢 Muy fácil / Very easy  
+**Tiempo total / Total time:** 5 minutos / minutes
+**Dificultad / Difficulty:** 🟢 Muy fácil / Very easy
 **Riesgo / Risk:** 🟢 Muy bajo / Very low
 
 ---

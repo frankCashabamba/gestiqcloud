@@ -1,15 +1,14 @@
 """Reports module tests"""
 
-import pytest
 from uuid import uuid4
 
+import pytest
+
 from app.modules.reports.domain.entities import (
+    InventoryReport,
     ReportDefinition,
     ReportType,
-    ReportFormat,
-    ReportStatus,
     SalesReport,
-    InventoryReport,
 )
 from app.modules.reports.infrastructure.report_generator import ReportExporter
 

@@ -380,8 +380,9 @@ except Exception:  # Provide no-op task decorator in tests when minimal
 @celery_app.task(base=EInvoicingTask, name="einvoicing.sign_and_send_sri")
 def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"):
     """task: Firmar y enviar invoice a SRI Ecuador"""
-    from app.config.database import SessionLocal
     from sqlalchemy import text
+
+    from app.config.database import SessionLocal
 
     db = SessionLocal()
     try:
@@ -470,7 +471,7 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
 
         # Import secrets manager
         from app.services.secrets import get_certificate_password
-        
+
         cert_data = {
             "p12_base64": base64.b64encode(cert_info["cert_data"]).decode(),
             "password": get_certificate_password(tenant_id, "ECU"),
@@ -544,8 +545,9 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
     """task: Firmar y enviar Facturae España"""
     import asyncio
 
-    from app.config.database import SessionLocal
     from sqlalchemy import text
+
+    from app.config.database import SessionLocal
 
     db = SessionLocal()
     try:
@@ -609,7 +611,7 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
 
         # Import secrets manager
         from app.services.secrets import get_certificate_password
-        
+
         cert_data = {
             "p12_base64": base64.b64encode(cert_info["cert_data"]).decode(),
             "password": get_certificate_password(tenant_id, "ESP"),

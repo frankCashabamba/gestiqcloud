@@ -141,7 +141,7 @@ UI Display
 **apps/tenant/src/modules/billing/services.ts**
 
 1. Added `normalizeEstado()` function
-2. Added `normalizeInvoice()` function  
+2. Added `normalizeInvoice()` function
 3. Updated `listInvoices()` to apply normalization
 4. Updated `getInvoice()` to apply normalization
 5. Updated `createInvoice()` to apply normalization

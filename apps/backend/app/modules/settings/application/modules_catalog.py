@@ -201,27 +201,26 @@ MODULE_CATEGORIES = [
 def get_available_modules(country: str = None, sector: str = None) -> list[dict[str, Any]]:
     """
     Get available modules, optionally filtered by country and sector.
-    
+
     Args:
         country: ISO code to filter by country (e.g., 'ES', 'EC')
         sector: Sector code to filter by (e.g., 'retail', 'bakery', 'workshop')
-    
+
     Returns:
         List of available modules for the given filters
     """
     modules = AVAILABLE_MODULES.copy()
-    
+
     # Filter by country
     if country:
         modules = [m for m in modules if country.upper() in m.get("countries", [])]
-    
+
     # Filter by sector
     if sector:
         modules = [
-            m for m in modules
-            if m.get("sectors") is None or sector.lower() in m.get("sectors", [])
+            m for m in modules if m.get("sectors") is None or sector.lower() in m.get("sectors", [])
         ]
-    
+
     return modules
 
 

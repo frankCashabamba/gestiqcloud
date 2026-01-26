@@ -70,13 +70,13 @@ export SYNC_TIMEOUT=60
 ```
 ✅ PASS: P95 < 5s
    El sistema sincroniza 10K registros dentro del objetivo.
-   
+
 ⚠️  WARN: 5s < P95 < 10s
    Revisar:
    - Índices de base de datos
    - Tamaño de batch de sync
    - Latencia de red
-   
+
 ❌ FAIL: P95 > 10s
    Requiere optimización urgente:
    - Reducir tamaño de payload inicial
@@ -89,11 +89,11 @@ export SYNC_TIMEOUT=60
 ```
 ✅ PASS: P95 < 500ms
    Cambios se sincronizan de forma imperceptible.
-   
+
 ⚠️  WARN: 500ms < P95 < 1s
    Aceptable con latencia de red alta.
    Considerar batching de cambios.
-   
+
 ❌ FAIL: P95 > 1s
    Revisar:
    - Debouncing de operaciones
@@ -106,13 +106,13 @@ export SYNC_TIMEOUT=60
 ```
 ✅ PASS: P95 < 200ms
    Filtros responden instantáneamente.
-   
+
 ⚠️  WARN: 200ms < P95 < 500ms
    Revisar índices en columnas filtradas:
    - tenant_id
    - created_at
    - category
-   
+
 ❌ FAIL: P95 > 500ms
    Requiere:
    - Índices compuestos
@@ -133,7 +133,7 @@ CREATE INDEX idx_receipts_tenant_date ON pos_receipts(tenant_id, created_at);
 ```typescript
 // Reducir datos iniciales con shapes
 const shapes = {
-  products: { 
+  products: {
     where: `tenant_id = '${tenantId}' AND is_active = true`,
     limit: 1000  // Cargar solo activos
   }
@@ -164,7 +164,7 @@ function queueSync(change: Change) {
 const receiptShape = {
   table: 'pos_receipts',
   where: `
-    tenant_id = '${tenantId}' 
+    tenant_id = '${tenantId}'
     AND created_at > NOW() - INTERVAL '30 days'
     AND status = 'completed'
   `,
@@ -231,11 +231,11 @@ alerts:
   - name: ElectricSyncSlow
     condition: electric_sync_duration_p95 > 10s
     severity: warning
-    
+
   - name: ElectricShapeSlow
     condition: electric_shape_latency_p95 > 500ms
     severity: warning
-    
+
   - name: ElectricOfflineQueueHigh
     condition: electric_offline_queue_size > 1000
     severity: critical
@@ -257,24 +257,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          
+
       - name: Install deps
         run: pip install -r ops/benchmarks/electric/requirements.txt
-        
+
       - name: Generate test data
         run: python ops/benchmarks/electric/setup.py
-        
+
       - name: Run sync benchmarks
         run: python ops/benchmarks/electric/benchmark_sync.py
-        
+
       - name: Run shape benchmarks
         run: python ops/benchmarks/electric/benchmark_shapes.py
-        
+
       - name: Upload results
         uses: actions/upload-artifact@v4
         with:

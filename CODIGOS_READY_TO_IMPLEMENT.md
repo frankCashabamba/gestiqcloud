@@ -11,7 +11,7 @@ Este archivo contiene código listo para copiar-pegar a los archivos correspondi
 ```typescript
 /**
  * Country-specific Tax ID Validators
- * 
+ *
  * IMPORTANTE: Esta es la fuente única de verdad para validación de Tax IDs.
  * Frontend y Backend deben usar exactamente esta lógica.
  */
@@ -55,7 +55,7 @@ export function validateEcuadorRUC(ruc: string): ValidationResult {
     // Dígito verificador: Último dígito
     const checkDigit = parseInt(ruc.substring(12, 13), 10);
     const calculated = calculateRUCCheckDigit(ruc.substring(0, 12));
-    
+
     if (checkDigit !== calculated) {
         return {
             valid: false,
@@ -76,15 +76,15 @@ function calculateRUCCheckDigit(partial: string): number {
      */
     const weights = [3, 2, 7, 6, 5, 4, 3, 2, 7, 6, 5, 4];
     let sum = 0;
-    
+
     for (let i = 0; i < 12; i++) {
         const digit = parseInt(partial[i], 10);
         sum += digit * weights[i];
     }
-    
+
     const remainder = sum % 11;
     const digit = remainder === 0 ? 0 : 11 - remainder;
-    
+
     return digit > 9 ? digit - 9 : digit;
 }
 
@@ -93,7 +93,7 @@ export const ECUADOR_RUC_TESTS = [
     // Válidos
     { ruc: "1790084103004", valid: true, desc: "RUC válido típico" },
     { ruc: "0992123456001", valid: true, desc: "RUC con provincia 09" },
-    
+
     // Inválidos
     { ruc: "9999999999999", valid: false, desc: "Provincia 99 (fuera de rango)" },
     { ruc: "1799999999999", valid: false, desc: "Check digit incorrecto" },
@@ -107,7 +107,7 @@ export const ECUADOR_RUC_TESTS = [
 
 export function validateSpainNIF(nif: string): ValidationResult {
     nif = nif.toUpperCase().trim();
-    
+
     // NIF: 8 dígitos + letra
     if (!/^\d{8}[A-Z]$/.test(nif)) {
         return {
@@ -115,25 +115,25 @@ export function validateSpainNIF(nif: string): ValidationResult {
             error: "NIF debe tener 8 dígitos seguidos de una letra"
         };
     }
-    
+
     const letters = "TRWAGMYFPDXBNJZSQVHLCKE";
     const number = parseInt(nif.substring(0, 8), 10);
     const letter = nif.substring(8, 9);
     const expected = letters[number % 23];
-    
+
     if (letter !== expected) {
         return {
             valid: false,
             error: `Letra de verificación inválida. Esperada: ${expected}, Recibida: ${letter}`
         };
     }
-    
+
     return { valid: true };
 }
 
 export function validateSpainNIE(nie: string): ValidationResult {
     nie = nie.toUpperCase().trim();
-    
+
     // NIE: X/Y/Z + 7 dígitos + letra
     if (!/^[XYZ]\d{7}[A-Z]$/.test(nie)) {
         return {
@@ -141,30 +141,30 @@ export function validateSpainNIE(nie: string): ValidationResult {
             error: "NIE debe comenzar con X, Y o Z, seguido de 7 dígitos y letra"
         };
     }
-    
+
     // Convertir primera letra a número (X=0, Y=1, Z=2)
     const firstLetter = nie.substring(0, 1);
     let numberStr = nie.substring(0, 8);
     numberStr = numberStr.replace("X", "0").replace("Y", "1").replace("Z", "2");
-    
+
     const letters = "TRWAGMYFPDXBNJZSQVHLCKE";
     const number = parseInt(numberStr, 10);
     const letter = nie.substring(8, 9);
     const expected = letters[number % 23];
-    
+
     if (letter !== expected) {
         return {
             valid: false,
             error: `Letra de verificación NIE inválida. Esperada: ${expected}, Recibida: ${letter}`
         };
     }
-    
+
     return { valid: true };
 }
 
 export function validateSpainCIF(cif: string): ValidationResult {
     cif = cif.toUpperCase().trim();
-    
+
     // CIF: Letra + 7 dígitos + letra/dígito
     if (!/^[A-Z]\d{7}[0-9A-Z]$/.test(cif)) {
         return {
@@ -172,21 +172,21 @@ export function validateSpainCIF(cif: string): ValidationResult {
             error: "CIF debe tener 1 letra + 7 dígitos + 1 letra o dígito"
         };
     }
-    
+
     // Tipos válidos de CIF
     const validTypes = "ABCDEFGHJNPQRSUVW";
     const typeCode = cif.substring(0, 1);
-    
+
     if (!validTypes.includes(typeCode)) {
         return {
             valid: false,
             error: `Tipo de CIF inválido: ${typeCode}`
         };
     }
-    
+
     // Verificación de dígito/letra (complejo, aquí versión simplificada)
     // En producción: implementar algoritmo completo de CIF
-    
+
     return { valid: true };
 }
 
@@ -204,7 +204,7 @@ export const SPAIN_TESTS = [
 
 export function validateArgentinaCUIT(cuit: string): ValidationResult {
     cuit = cuit.replace(/[.-]/g, "");  // Remover guiones/puntos
-    
+
     // Formato: 11 dígitos
     if (!/^\d{11}$/.test(cuit)) {
         return {
@@ -212,26 +212,26 @@ export function validateArgentinaCUIT(cuit: string): ValidationResult {
             error: "CUIT debe tener 11 dígitos (formato: XX-XXXXXXXX-X)"
         };
     }
-    
+
     // Dígito verificador
     const weights = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
     let sum = 0;
-    
+
     for (let i = 0; i < 10; i++) {
         const digit = parseInt(cuit[i], 10);
         sum += digit * weights[i];
     }
-    
+
     const checkDigit = (11 - (sum % 11)) % 11;
     const providedCheckDigit = parseInt(cuit[10], 10);
-    
+
     if (checkDigit !== providedCheckDigit) {
         return {
             valid: false,
             error: `Dígito verificador inválido. Esperado: ${checkDigit}, Recibido: ${providedCheckDigit}`
         };
     }
-    
+
     return { valid: true };
 }
 
@@ -241,7 +241,7 @@ export function validateArgentinaCUIT(cuit: string): ValidationResult {
 
 export function validateTaxID(country: string, taxID: string): ValidationResult {
     const normalized = taxID.trim();
-    
+
     switch (country) {
         case "EC":
             return validateEcuadorRUC(normalized);
@@ -270,14 +270,14 @@ export function runAllTests() {
         ...ECUADOR_RUC_TESTS.map(t => ({ ...t, country: "EC" })),
         ...SPAIN_TESTS.map(t => ({ ...t, country: "ES" })),
     ];
-    
+
     let passed = 0;
     let failed = 0;
-    
+
     for (const test of tests) {
         const result = validateTaxID(test.country, test.id || test.ruc);
         const isPass = result.valid === test.valid;
-        
+
         if (isPass) {
             passed++;
             console.log(`✅ ${test.desc}`);
@@ -286,7 +286,7 @@ export function runAllTests() {
             console.error(`❌ ${test.desc}: ${result.error}`);
         }
     }
-    
+
     console.log(`\nResultado: ${passed}/${passed + failed} tests pasaron`);
 }
 ```
@@ -297,7 +297,7 @@ export function runAllTests() {
 
 ```typescript
 // Remover toda la duplicación local, importar del package compartido
-export { 
+export {
     validateTaxID,
     validateEcuadorRUC,
     validateSpainNIF,
@@ -305,8 +305,8 @@ export {
 } from "@api-types/validators/countryValidators";
 
 // Si necesitas re-exportar con alias:
-export { 
-    validateTaxID as validateTaxIDFrontend 
+export {
+    validateTaxID as validateTaxIDFrontend
 } from "@api-types/validators/countryValidators";
 ```
 
@@ -322,28 +322,28 @@ from typing import Tuple
 
 def validate_ecuador_ruc(ruc: str) -> Tuple[bool, str]:
     """Valida RUC Ecuador - debe ser idéntico a TypeScript"""
-    
+
     # Formato: 13 dígitos
     if not re.match(r'^\d{13}$', ruc):
         return False, "RUC debe tener exactamente 13 dígitos"
-    
+
     # Provincia: 01-24
     province_code = int(ruc[:2])
     if province_code < 1 or province_code > 24:
         return False, f"Código de provincia inválido: {province_code}"
-    
+
     # Tipo: 0, 1, 6, 9
     type_digit = int(ruc[2])
     if type_digit not in [0, 1, 6, 9]:
         return False, f"Tipo de RUC inválido: {type_digit}"
-    
+
     # Check digit
     check_digit = int(ruc[12])
     calculated = _calculate_ruc_check_digit(ruc[:12])
-    
+
     if check_digit != calculated:
         return False, f"Dígito verificador inválido: esperado {calculated}, recibido {check_digit}"
-    
+
     return True, ""
 
 def _calculate_ruc_check_digit(partial: str) -> int:
@@ -363,10 +363,10 @@ def _calculate_ruc_check_digit(partial: str) -> int:
 ```typescript
 /**
  * Totals Calculation Engine
- * 
+ *
  * Esta es la fuente única de verdad para cálculos de POS.
  * Frontend y Backend deben usar exactamente esta fórmula.
- * 
+ *
  * FÓRMULA:
  * 1. Subtotal base = SUM(qty × price) para cada línea
  * 2. Aplicar descuentos por línea: qty × price × (1 - line_discount)
@@ -394,19 +394,19 @@ export interface CalculationInput {
 export interface CalculationResult {
     /** Suma de qty × price sin descuentos */
     subtotalBeforeDiscount: number;
-    
+
     /** Suma de (qty × price × (1 - lineDiscount)) */
     subtotalAfterLineDiscounts: number;
-    
+
     /** subtotalAfterLineDiscounts × (1 - globalDiscount) */
     subtotalAfterGlobalDiscount: number;
-    
+
     /** subtotalAfterGlobalDiscount × taxRate */
     taxAmount: number;
-    
+
     /** subtotalAfterGlobalDiscount + taxAmount */
     totalAmount: number;
-    
+
     /** Desglose por línea (para auditoría) */
     lineBreakdown: Array<{
         lineId: string;
@@ -422,49 +422,49 @@ export class TotalsCalculator {
     private input: CalculationInput;
     private rounding: "round" | "ceil" | "floor";
     private decimals: number;
-    
+
     constructor(input: CalculationInput) {
         this.input = input;
         this.rounding = input.rounding || "round";
         this.decimals = input.decimals ?? 2;
-        
+
         // Validaciones
         if (!input.items || input.items.length === 0) {
             throw new Error("Items no puede estar vacío");
         }
-        
+
         if (input.globalDiscount < 0 || input.globalDiscount > 1) {
             throw new Error("globalDiscount debe estar entre 0 y 1");
         }
-        
+
         if (input.taxRate < 0) {
             throw new Error("taxRate no puede ser negativo");
         }
     }
-    
+
     calculate(): CalculationResult {
         // Paso 1: Subtotal sin descuentos
         const subtotalBefore = this._calculateSubtotalBefore();
-        
+
         // Paso 2: Subtotal con descuentos por línea
         const subtotalAfterLine = this._calculateSubtotalAfterLineDiscounts();
-        
+
         // Paso 3: Subtotal con descuento global
         const subtotalAfterGlobal = this._roundValue(
             subtotalAfterLine * (1 - this.input.globalDiscount)
         );
-        
+
         // Paso 4: Impuesto
         const tax = this._roundValue(
             subtotalAfterGlobal * this.input.taxRate
         );
-        
+
         // Paso 5: Total
         const total = this._roundValue(subtotalAfterGlobal + tax);
-        
+
         // Desglose por línea (para auditoría)
         const lineBreakdown = this._buildLineBreakdown();
-        
+
         return {
             subtotalBeforeDiscount: subtotalBefore,
             subtotalAfterLineDiscounts: subtotalAfterLine,
@@ -474,14 +474,14 @@ export class TotalsCalculator {
             lineBreakdown
         };
     }
-    
+
     private _calculateSubtotalBefore(): number {
         const total = this.input.items.reduce((sum, item) => {
             return sum + (item.quantity * item.price);
         }, 0);
         return this._roundValue(total);
     }
-    
+
     private _calculateSubtotalAfterLineDiscounts(): number {
         const total = this.input.items.reduce((sum, item) => {
             const lineSubtotal = item.quantity * item.price;
@@ -490,12 +490,12 @@ export class TotalsCalculator {
         }, 0);
         return this._roundValue(total);
     }
-    
+
     private _buildLineBreakdown() {
         return this.input.items.map((item, idx) => {
             const lineSubtotal = item.quantity * item.price;
             const afterDiscount = lineSubtotal * (1 - item.lineDiscount);
-            
+
             return {
                 lineId: item.id || `line_${idx}`,
                 quantity: item.quantity,
@@ -506,11 +506,11 @@ export class TotalsCalculator {
             };
         });
     }
-    
+
     private _roundValue(value: number): number {
         const factor = Math.pow(10, this.decimals);
         const scaled = value * factor;
-        
+
         let rounded: number;
         switch (this.rounding) {
             case "round":
@@ -525,7 +525,7 @@ export class TotalsCalculator {
             default:
                 rounded = Math.round(scaled);
         }
-        
+
         return rounded / factor;
     }
 }
@@ -604,12 +604,12 @@ export const CALCULATION_TESTS = [
 export function runCalculationTests(): void {
     let passed = 0;
     let failed = 0;
-    
+
     for (const test of CALCULATION_TESTS) {
         try {
             const result = calculateTotals(test.input as CalculationInput);
             let testPassed = true;
-            
+
             for (const [key, expectedValue] of Object.entries(test.expected)) {
                 const actualValue = (result as any)[key];
                 if (Math.abs(actualValue - expectedValue) > 0.01) {
@@ -619,7 +619,7 @@ export function runCalculationTests(): void {
                     );
                 }
             }
-            
+
             if (testPassed) {
                 passed++;
                 console.log(`✅ ${test.desc}`);
@@ -631,7 +631,7 @@ export function runCalculationTests(): void {
             console.error(`❌ ${test.desc}: ${error}`);
         }
     }
-    
+
     console.log(`\nCalculation Tests: ${passed}/${passed + failed} pasaron`);
 }
 ```
@@ -677,34 +677,34 @@ from typing import List
 
 class TotalsCalculator:
     """Versión Python de totalsEngine.ts - DEBE SER IDÉNTICA"""
-    
+
     def __init__(self, items: List[dict], global_discount: float, tax_rate: float):
         self.items = items
         self.global_discount = global_discount
         self.tax_rate = tax_rate
-    
+
     def calculate(self) -> dict:
         # Paso 1: Subtotal sin descuentos
         subtotal_before = sum(
             Decimal(item['quantity']) * Decimal(item['price'])
             for item in self.items
         )
-        
+
         # Paso 2: Subtotal con descuentos por línea
         subtotal_after_line = sum(
             Decimal(item['quantity']) * Decimal(item['price']) * (1 - Decimal(item['lineDiscount']))
             for item in self.items
         )
-        
+
         # Paso 3: Descuento global
         subtotal_after_global = subtotal_after_line * (1 - Decimal(self.global_discount))
-        
+
         # Paso 4: Impuesto
         tax = subtotal_after_global * Decimal(self.tax_rate)
-        
+
         # Paso 5: Total
         total = subtotal_after_global + tax
-        
+
         return {
             "subtotal": float(subtotal_after_global),
             "tax": float(tax),
@@ -720,11 +720,10 @@ class TotalsCalculator:
 
 **Próximas secciones**:
 - #3: Payroll Calculator Engine
-- #4: Recipe Cost Calculator Engine  
+- #4: Recipe Cost Calculator Engine
 - #5: Sector Validation Sync
 - #6: User Uniqueness Validator
 - #7: Barcode Validator (Backend)
 - #8: Data Normalization (Docs)
 - #9: Env Validation (Sync)
 - #10: Company Validator (Sync)
-

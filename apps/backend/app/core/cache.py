@@ -7,15 +7,16 @@ Proporciona:
 - Funciones de invalidación por patrón
 - Soporte para cache por tenant
 """
+
 from __future__ import annotations
 
-import asyncio
 import functools
 import hashlib
 import json
 import logging
 from enum import IntEnum
-from typing import TYPE_CHECKING, Any, Callable, ParamSpec, TypeVar
+from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar
+from collections.abc import Callable
 
 if TYPE_CHECKING:
     from uuid import UUID

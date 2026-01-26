@@ -11,7 +11,7 @@ from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # UNIFIED env loading (replaces _load_env and _load_env_all)
-from app.config.env_loader import get_env_file_path, load_env_file, inject_env_variables
+from app.config.env_loader import get_env_file_path, inject_env_variables, load_env_file
 
 # Load unified .env file (single source of truth)
 _ENV_FILE = get_env_file_path()
@@ -26,9 +26,7 @@ def _log_env_info():
         env = os.getenv("ENVIRONMENT", "development")
         used = os.getenv("ENV_FILE_USED")
         has_secret = bool(os.getenv("SECRET_KEY"))
-        print(
-            f"[settings] ENVIRONMENT={env} ENV_FILE={used} SECRET_KEY_PRESENT={has_secret}"
-        )
+        print(f"[settings] ENVIRONMENT={env} ENV_FILE={used} SECRET_KEY_PRESENT={has_secret}")
     except Exception:
         pass
 
@@ -76,8 +74,7 @@ class Settings(BaseSettings):
     app_name: str = "GestiqCloud"
     debug: bool = False
     ENVIRONMENT: Literal["development", "staging", "production"] = Field(
-        default="development",
-        description="Environment: development, staging, or production"
+        default="development", description="Environment: development, staging, or production"
     )
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     APP_VERSION: str = "0.1.0"
@@ -165,7 +162,7 @@ class Settings(BaseSettings):
     CSP_REPORT_URI: str | None = None
     CSP_DEV_HOSTS: str = Field(
         default="http://localhost:5173 http://localhost:5174",
-        description="Hosts permitidos para Vite/HMR en desarrollo (space-separated)"
+        description="Hosts permitidos para Vite/HMR en desarrollo (space-separated)",
     )
     ALLOW_EMBED: bool = False
     HSTS_ENABLED: bool = True
@@ -197,7 +194,7 @@ class Settings(BaseSettings):
     EMAIL_HOST_PASSWORD: str | None = None
     DEFAULT_FROM_EMAIL: str = Field(
         default="",  # Empty - must be configured in environment
-        description="Email address to use as sender (REQUIRED in production, e.g., 'noreply@gestiqcloud.com' or 'GestiqCloud <noreply@gestiqcloud.com>')"
+        description="Email address to use as sender (REQUIRED in production, e.g., 'noreply@gestiqcloud.com' or 'GestiqCloud <noreply@gestiqcloud.com>')",
     )
     EMAIL_DEV_LOG_ONLY: bool = False
 
@@ -242,7 +239,7 @@ class Settings(BaseSettings):
     def split_cors_origins(cls, v: str | list[str]) -> list[str]:
         """
         Parse CORS_ORIGINS from string (comma-separated) or list.
-        
+
         In production, validates that:
         - Origins are configured
         - No localhost/127.0.0.1 allowed
@@ -251,7 +248,7 @@ class Settings(BaseSettings):
             origins = [o.strip() for o in v.split(",") if o.strip()]
         else:
             origins = v if isinstance(v, list) else []
-        
+
         # Production validation
         environment = os.getenv("ENVIRONMENT", "development").lower()
         if environment == "production":
@@ -260,7 +257,7 @@ class Settings(BaseSettings):
                     "CORS_ORIGINS is empty in production. "
                     "Set CORS_ORIGINS env var (e.g., https://www.gestiqcloud.com,https://admin.gestiqcloud.com)"
                 )
-            
+
             # Validate no localhost
             dangerous_origins = [o for o in origins if "localhost" in o.lower() or "127.0.0.1" in o]
             if dangerous_origins:
@@ -268,7 +265,7 @@ class Settings(BaseSettings):
                     f"CORS_ORIGINS contains localhost in production: {dangerous_origins}. "
                     "Use real domains only."
                 )
-        
+
         return origins
 
     @field_validator("ALLOWED_HOSTS", mode="before")
@@ -335,11 +332,11 @@ class Settings(BaseSettings):
     @property
     def is_prod(self) -> bool:
         return self.ENVIRONMENT == "production"
-    
+
     @property
     def is_staging(self) -> bool:
         return self.ENVIRONMENT == "staging"
-    
+
     @property
     def ENV(self) -> str:
         """Alias for ENVIRONMENT for backward compatibility."""

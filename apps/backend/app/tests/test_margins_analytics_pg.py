@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 
 def test_margins_endpoints_return_snapshot(db: Session, tenant_minimal, superuser_factory):
+    from app.models.company.company_user import CompanyUser
     from app.modules.pos.interface.http.tenant import (
         CheckoutIn,
         OpenShiftIn,
@@ -23,7 +24,6 @@ def test_margins_endpoints_return_snapshot(db: Session, tenant_minimal, superuse
         margins_product_lines,
         open_shift,
     )
-    from app.models.company.company_user import CompanyUser
 
     tid = tenant_minimal["tenant_id"]
     tid_str = tenant_minimal["tenant_id_str"]

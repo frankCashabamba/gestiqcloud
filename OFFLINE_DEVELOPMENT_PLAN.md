@@ -58,7 +58,7 @@ Crear en cada módulo: `modules/{modulo}/offlineSync.ts`
 
 **Ejemplos:**
 - `modules/products/offlineSync.ts` - Sync de productos
-- `modules/customers/offlineSync.ts` - Sync de clientes  
+- `modules/customers/offlineSync.ts` - Sync de clientes
 - `modules/pos/offlineSync.ts` - Mejorar existente
 
 ```typescript
@@ -66,12 +66,12 @@ export interface SyncAdapter {
   entity: string
   canSyncOffline: boolean
   localStorageKey: string
-  
+
   fetchAll(): Promise<any[]>
   create(data: any): Promise<any>
   update(id: string, data: any): Promise<any>
   delete(id: string): Promise<void>
-  
+
   // Detectar conflictos
   detectConflict(local: any, remote: any): Conflict | null
 }
@@ -83,7 +83,7 @@ export interface SyncAdapter {
 ```typescript
 class SyncManager {
   private adapters: Map<string, SyncAdapter>
-  
+
   registerAdapter(adapter: SyncAdapter)
   syncAll(): Promise<SyncResult>
   sync(entity: string): Promise<SyncResult>
@@ -252,4 +252,3 @@ apps/tenant/src/
 3. **ElectricSQL** - mantener como feature flag, habilitar después
 4. **Versioning** - necesario para detectar conflictos
 5. **Backoff exponencial** - ya implementado en SW, reutilizar
-

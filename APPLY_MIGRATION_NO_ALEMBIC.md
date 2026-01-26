@@ -74,10 +74,10 @@ def run_migration(migration_name: str, direction: str = "up"):
     """Run migration using direct SQL execution"""
     migration_dir = f"ops/migrations/{migration_name}"
     sql_file = os.path.join(migration_dir, f"{direction}.sql")
-    
+
     if not os.path.exists(sql_file):
         raise FileNotFoundError(f"Migration file not found: {sql_file}")
-    
+
     # Run psql with the SQL file
     cmd = [
         "psql",
@@ -87,13 +87,13 @@ def run_migration(migration_name: str, direction: str = "up"):
         "-v", "ON_ERROR_STOP=1",
         "-f", sql_file
     ]
-    
+
     result = subprocess.run(cmd, capture_output=True, text=True)
-    
+
     if result.returncode != 0:
         print(f"Error: {result.stderr}")
         return False
-    
+
     print(f"Migration '{migration_name}' applied successfully")
     return True
 

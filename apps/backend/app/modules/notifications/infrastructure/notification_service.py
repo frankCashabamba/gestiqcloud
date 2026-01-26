@@ -1,13 +1,9 @@
 """Notification service with multi-channel support"""
 
-import asyncio
-import json
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime
 from enum import Enum
-from typing import Optional
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import httpx
 from sqlalchemy.orm import Session
@@ -17,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 class NotificationChannel(str, Enum):
     """Notification channels"""
+
     EMAIL = "email"
     SMS = "sms"
     PUSH = "push"
@@ -26,6 +23,7 @@ class NotificationChannel(str, Enum):
 
 class NotificationPriority(str, Enum):
     """Notification priority"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -41,7 +39,7 @@ class BaseNotificationProvider(ABC):
         recipient: str,
         subject: str,
         body: str,
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
     ) -> dict:
         """Send notification"""
         pass
@@ -61,7 +59,7 @@ class EmailProvider(BaseNotificationProvider):
         recipient: str,
         subject: str,
         body: str,
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
     ) -> dict:
         """Send email"""
         try:
@@ -135,7 +133,7 @@ class SMSProvider(BaseNotificationProvider):
         recipient: str,
         subject: str,
         body: str,
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
     ) -> dict:
         """Send SMS"""
         try:
@@ -189,7 +187,7 @@ class PushNotificationProvider(BaseNotificationProvider):
         recipient: str,
         subject: str,
         body: str,
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
     ) -> dict:
         """Send push notification"""
         try:
@@ -243,7 +241,7 @@ class InAppNotificationProvider(BaseNotificationProvider):
         recipient: str,
         subject: str,
         body: str,
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
     ) -> dict:
         """Store in-app notification"""
         try:
@@ -276,7 +274,7 @@ class NotificationService:
         subject: str,
         body: str,
         priority: NotificationPriority = NotificationPriority.MEDIUM,
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
     ) -> dict:
         """Send notification via specified channel"""
         try:
@@ -287,9 +285,7 @@ class NotificationService:
             result = await provider.send(recipient, subject, body, metadata)
 
             # Log notification
-            logger.info(
-                f"Notification sent via {channel} to {recipient}: {result.get('success')}"
-            )
+            logger.info(f"Notification sent via {channel} to {recipient}: {result.get('success')}")
 
             return result
 

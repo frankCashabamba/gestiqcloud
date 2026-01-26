@@ -173,8 +173,7 @@ class FeedbackService:
             "total_entries": len(self._entries),
             "training_samples": len(training_data),
             "data": [
-                {"headers": headers, "doc_type": doc_type}
-                for headers, doc_type in training_data
+                {"headers": headers, "doc_type": doc_type} for headers, doc_type in training_data
             ],
             "stats": self.get_accuracy_stats(),
             "exported_at": datetime.utcnow().isoformat(),

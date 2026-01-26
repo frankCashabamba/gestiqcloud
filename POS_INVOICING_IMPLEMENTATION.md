@@ -253,13 +253,13 @@ pos_receipts
 def test_pos_checkout_creates_invoice():
     # Enable invoicing, disable sales/expenses
     tenant.enabled_modules = ["invoicing"]
-    
+
     # Do checkout
     response = client.post(
         f"/api/v1/tenant/pos/receipts/{receipt_id}/checkout",
         json={"warehouse_id": "...", "payments": [...]}
     )
-    
+
     # Verify
     assert response["documents_created"]["invoice"] is not None
     assert "sale" not in response["documents_created"]
@@ -272,10 +272,10 @@ def test_pos_checkout_creates_invoice():
 def test_pos_checkout_creates_all_documents():
     # Enable all modules
     tenant.enabled_modules = ["invoicing", "sales", "expenses"]
-    
+
     # Do checkout
     response = client.post(...)
-    
+
     # Verify
     assert response["documents_created"]["invoice"] is not None
     assert response["documents_created"]["sale"] is not None
@@ -288,7 +288,7 @@ def test_pos_checkout_creates_all_documents():
 def test_pos_return_creates_expense():
     # Enable expenses
     tenant.enabled_modules = ["expenses"]
-    
+
     # Do checkout with type="return"
     response = client.post(
         f"/api/v1/tenant/pos/receipts/{receipt_id}/checkout",
@@ -298,7 +298,7 @@ def test_pos_return_creates_expense():
             "payments": [{"method": "refund", "amount": 110.00}]
         }
     )
-    
+
     # Verify
     assert response["documents_created"]["expense"]["expense_type"] == "refund"
 ```
@@ -317,9 +317,9 @@ export async function checkoutReceipt(receiptId: string, payload: CheckoutPayloa
     `/api/v1/tenant/pos/receipts/${receiptId}/checkout`,
     payload
   );
-  
+
   const { documents_created, totals } = response;
-  
+
   // Show toast with what was created
   const created = Object.keys(documents_created);
   if (created.length > 0) {
@@ -329,7 +329,7 @@ export async function checkoutReceipt(receiptId: string, payload: CheckoutPayloa
       type: "success"
     });
   }
-  
+
   return response;
 }
 ```
@@ -355,7 +355,7 @@ print(f"Enabled modules: {settings}")
 
 ```sql
 -- Query to verify invoice was created from receipt
-SELECT 
+SELECT
   r.id as receipt_id,
   r.invoice_id,
   i.invoice_number,

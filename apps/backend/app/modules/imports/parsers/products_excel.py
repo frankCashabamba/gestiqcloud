@@ -1,7 +1,7 @@
 """Excel parser for products with automatic category detection."""
 
-from datetime import datetime
 import re
+from datetime import datetime
 from typing import Any
 
 import openpyxl
@@ -293,10 +293,7 @@ def normalize_product_row(
 
     # Preserve SKU if exists
     sku_val = (
-        raw_row.get("sku")
-        or raw_row.get("codigo")
-        or raw_row.get("c?digo")
-        or raw_row.get("code")
+        raw_row.get("sku") or raw_row.get("codigo") or raw_row.get("c?digo") or raw_row.get("code")
     )
     if sku_val not in (None, ""):
         normalized["sku"] = sku_val

@@ -78,9 +78,7 @@ class FileClassifier:
             Dict with classification results
         """
         if decision_log is None:
-            decision_log = decision_logger.create_log(
-                tenant_id=tenant_id, filename=filename
-            )
+            decision_log = decision_logger.create_log(tenant_id=tenant_id, filename=filename)
 
         ext = Path(filename).suffix.lower()
 
@@ -323,8 +321,7 @@ class FileClassifier:
                 suggested_parser = ml_result.suggested_parser
                 confidence = ml_result.confidence
                 reason = (
-                    f"ML classifier detected {ml_result.doc_type} "
-                    f"(method: {ml_result.method})"
+                    f"ML classifier detected {ml_result.doc_type} " f"(method: {ml_result.method})"
                 )
             elif self._looks_like_products(content_analysis):
                 suggested_parser = "products_excel"
@@ -407,8 +404,7 @@ class FileClassifier:
                 suggested_parser = ml_result.suggested_parser
                 confidence = ml_result.confidence
                 reason = (
-                    f"ML classifier detected {ml_result.doc_type} "
-                    f"(method: {ml_result.method})"
+                    f"ML classifier detected {ml_result.doc_type} " f"(method: {ml_result.method})"
                 )
             elif self._looks_like_bank_csv(content_analysis):
                 suggested_parser = "csv_bank"

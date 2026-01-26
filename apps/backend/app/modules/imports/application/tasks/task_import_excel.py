@@ -3,11 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import unicodedata
 from datetime import datetime
 from typing import Any
 
 import openpyxl
-import unicodedata
 from celery import states
 
 try:
@@ -21,8 +21,8 @@ from decimal import Decimal
 from app.config.database import session_scope
 from app.db.rls import set_tenant_guc
 from app.models.core.modelsimport import ImportBatch, ImportItem
-from app.modules.imports.application.tasks.task_import_file import _to_number
 from app.modules.imports.application.sku_utils import sanitize_sku
+from app.modules.imports.application.tasks.task_import_file import _to_number
 from app.modules.imports.application.transform_dsl import apply_mapping_pipeline
 from app.services.excel_analyzer import detect_header_row, extract_headers
 
@@ -204,7 +204,10 @@ def import_products_excel(
                     )
                 # Normalization using mapped (preferred) or raw heuristics
                 if mapped is None:
-                    nombre = _first_from_maps(row, row_norm, ["nombre", "producto", "articulo", "name"]) or ""
+                    nombre = (
+                        _first_from_maps(row, row_norm, ["nombre", "producto", "articulo", "name"])
+                        or ""
+                    )
                     precio = _first_from_maps(
                         row,
                         row_norm,
@@ -234,20 +237,32 @@ def import_products_excel(
                         ],
                     )
                     cantidad = _first_from_maps(
-                        row, row_norm, ["cantidad", "qty", "stock", "existencia", "existencias", "unidades"]
+                        row,
+                        row_norm,
+                        ["cantidad", "qty", "stock", "existencia", "existencias", "unidades"],
                     )
                     bultos = _first_from_maps(row, row_norm, ["bultos", "packs", "paquetes"])
                     unidades_por_bulto = _first_from_maps(
                         row,
                         row_norm,
-                        ["cantidad_por_bulto", "unidades_por_bulto", "cantidad_x_bulto", "cant_por_bulto"],
+                        [
+                            "cantidad_por_bulto",
+                            "unidades_por_bulto",
+                            "cantidad_x_bulto",
+                            "cant_por_bulto",
+                        ],
                     )
-                    categoria = _first_from_maps(row, row_norm, ["categoria", "category"]) or "SIN_CATEGORIA"
+                    categoria = (
+                        _first_from_maps(row, row_norm, ["categoria", "category"])
+                        or "SIN_CATEGORIA"
+                    )
                     precio_f = _to_number(precio) or 0.0
                     cantidad_f = _to_number(cantidad) or 0.0
                     costo_f = _to_number(costo)
                     if (cantidad_f == 0) and bultos and unidades_por_bulto:
-                        cantidad_f = (_to_number(bultos) or 0.0) * (_to_number(unidades_por_bulto) or 0.0)
+                        cantidad_f = (_to_number(bultos) or 0.0) * (
+                            _to_number(unidades_por_bulto) or 0.0
+                        )
                     has_name = bool(str(nombre).strip())
                     has_price = precio not in (None, "")
                     has_stock = cantidad not in (None, "") or (
@@ -280,7 +295,9 @@ def import_products_excel(
                     )
                     if not str(nombre).strip():
                         nombre = (
-                            _first_from_maps(row, row_norm, ["nombre", "producto", "articulo", "name"])
+                            _first_from_maps(
+                                row, row_norm, ["nombre", "producto", "articulo", "name"]
+                            )
                             or ""
                         )
                     precio_src = mapped.get("price") or mapped.get("precio")
@@ -373,7 +390,9 @@ def import_products_excel(
                         if k not in normalized:
                             normalized[k] = v
                     if not normalized.get("sku"):
-                        normalized["sku"] = _first_from_maps(row, row_norm, ["codigo", "sku", "code", "cod"])
+                        normalized["sku"] = _first_from_maps(
+                            row, row_norm, ["codigo", "sku", "code", "cod"]
+                        )
                     sku = sanitize_sku(normalized.get("sku"))
                     if sku:
                         normalized["sku"] = sku

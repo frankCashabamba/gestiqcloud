@@ -56,7 +56,11 @@ def require_roles(roles: Iterable[str], tenant_required: bool = False):
 def require_permission(permission: str):
     def dep(request: Request):
         claims = _extract_claims(request)
-        if claims.get("is_company_admin") or claims.get("is_admin_company") or claims.get("es_admin_empresa"):
+        if (
+            claims.get("is_company_admin")
+            or claims.get("is_admin_company")
+            or claims.get("es_admin_empresa")
+        ):
             return claims
         perms = claims.get("permissions") or claims.get("permisos") or {}
         if isinstance(perms, dict) and perms.get(permission):

@@ -48,15 +48,15 @@ CREATE TABLE IF NOT EXISTS discount_rules (
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    
+
     -- Rule type (stored as string, configurable)
     rule_type VARCHAR(50) NOT NULL,  -- 'percentage', 'fixed_amount', 'buy_x_get_y'
-    
+
     -- Values (nullable, depends on rule_type)
     discount_value DECIMAL(10, 2),   -- Either percentage or fixed amount
     min_quantity INTEGER,             -- Minimum quantity to apply discount
     min_amount DECIMAL(10, 2),        -- Minimum purchase amount
-    
+
     -- Metadata
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -351,5 +351,5 @@ INSERT INTO categories (name) VALUES ('Electronics');  # ← Error de PK
 
 ---
 
-**Última actualización:** 15 Enero 2026  
+**Última actualización:** 15 Enero 2026
 **Versión:** 1.0

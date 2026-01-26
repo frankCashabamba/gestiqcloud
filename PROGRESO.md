@@ -6,7 +6,7 @@
 
 ## ✅ Completados (6 de 8 Críticos = 75%)
 
-### 1. DEFAULT_FROM_EMAIL 
+### 1. DEFAULT_FROM_EMAIL
 - ✅ `apps/backend/app/config/settings.py` - Default vacío
 - ✅ `apps/backend/app/core/startup_validation.py` - Validación centralizada
 - ✅ `apps/backend/app/main.py` - Validación en startup
@@ -172,6 +172,6 @@ Root:
 
 ---
 
-**Generado:** 15 Enero 2026  
-**Tiempo invertido:** ~3 horas  
+**Generado:** 15 Enero 2026
+**Tiempo invertido:** ~3 horas
 **Próxima estimación:** 1-2 días más para críticos restantes (3 items)

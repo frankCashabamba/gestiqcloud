@@ -3,14 +3,16 @@
 from datetime import datetime
 from uuid import UUID
 
-from app.config.database import Base
-from app.models.company.company_role import CompanyRole
-from sqlalchemy import Boolean, DateTime, ForeignKey, text, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.config.database import Base
+from app.models.company.company_role import CompanyRole
+
 UUID_TYPE = PGUUID(as_uuid=True)
 TENANT_UUID = UUID_TYPE.with_variant(String(36), "sqlite")
+
 
 class CompanyUserRole(Base):
     """Company User Role model."""

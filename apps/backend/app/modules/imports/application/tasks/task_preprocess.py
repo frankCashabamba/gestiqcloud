@@ -127,11 +127,15 @@ def _impl(item_id: str, tenant_id: str, batch_id: str, task_id: str | None = Non
 
 PREPROCESS_TASK: Task | None = None
 
-def _inline_preprocess(item_id: str, tenant_id: str, batch_id: str, task_id: str | None = "inline") -> dict:
+
+def _inline_preprocess(
+    item_id: str, tenant_id: str, batch_id: str, task_id: str | None = "inline"
+) -> dict:
     return _impl(item_id, tenant_id, batch_id, task_id=task_id)
 
 
 if _celery_available and celery_app is not None:
+
     @celery_app.task(base=PreprocessTask, bind=True, name="imports.preprocess")
     def _celery_preprocess(self, item_id: str, tenant_id: str, batch_id: str) -> dict:
         return _inline_preprocess(

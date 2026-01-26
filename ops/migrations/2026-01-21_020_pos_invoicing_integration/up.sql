@@ -39,7 +39,7 @@ BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'expenses') THEN
         ALTER TABLE expenses
         ADD COLUMN IF NOT EXISTS pos_receipt_id UUID REFERENCES pos_receipts(id) ON DELETE SET NULL;
-        
+
         CREATE INDEX IF NOT EXISTS idx_expenses_pos_receipt_id ON expenses(pos_receipt_id);
     END IF;
 END $$;

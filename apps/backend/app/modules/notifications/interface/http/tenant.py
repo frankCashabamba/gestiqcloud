@@ -85,9 +85,7 @@ def _channel_to_response(channel: NotificationChannel) -> NotificationChannelRes
 
 @router.get("/channels", response_model=list[NotificationChannelResponse])
 def list_channels(
-    channel_type: str | None = Query(
-        None, description="Filter by type: email, whatsapp, telegram"
-    ),
+    channel_type: str | None = Query(None, description="Filter by type: email, whatsapp, telegram"),
     activo: bool | None = Query(None),
     db: Session = Depends(get_db),
     tenant_id: str = Depends(get_current_tenant_id),

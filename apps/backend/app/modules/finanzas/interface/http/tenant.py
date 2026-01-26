@@ -109,7 +109,9 @@ def _calcular_totales_dia(
 
 
 @router.get(
-    "/cash-register/movements", response_model=CajaMovimientoList, summary="Listar movimientos de caja"
+    "/cash-register/movements",
+    response_model=CajaMovimientoList,
+    summary="Listar movimientos de caja",
 )
 async def list_movimientos(
     skip: int = Query(0, ge=0),
@@ -209,7 +211,11 @@ async def create_movimiento(
     return CajaMovimientoResponse.from_orm(movimiento)
 
 
-@router.get("/cash-register/balance", response_model=CajaSaldoResponse, summary="Obtener saldo actual de caja")
+@router.get(
+    "/cash-register/balance",
+    response_model=CajaSaldoResponse,
+    summary="Obtener saldo actual de caja",
+)
 async def get_saldo_actual(
     fecha: date | None = Query(None, description="Fecha (por defecto hoy)"),
     caja_id: UUID | None = None,
@@ -374,7 +380,9 @@ async def abrir_caja(
 
 
 @router.post(
-    "/cash-register/close/{close_id}/finalize", response_model=CierreCajaResponse, summary="Cerrar caja"
+    "/cash-register/close/{close_id}/finalize",
+    response_model=CierreCajaResponse,
+    summary="Cerrar caja",
 )
 async def cerrar_caja(
     close_id: UUID,
@@ -429,7 +437,9 @@ async def cerrar_caja(
     return CierreCajaResponse.from_orm(cierre)
 
 
-@router.get("/cash-register/closes", response_model=CierreCajaList, summary="Listar cierres de caja")
+@router.get(
+    "/cash-register/closes", response_model=CierreCajaList, summary="Listar cierres de caja"
+)
 async def list_cierres(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -690,7 +700,9 @@ def get_bank_balances(
     tenant_id = UUID(claims["tenant_id"])
 
     # Caja: suma de amount (positivo ingreso, negativo egreso)
-    caja_query = db.query(func.sum(CajaMovimiento.amount)).filter(CajaMovimiento.tenant_id == tenant_id)
+    caja_query = db.query(func.sum(CajaMovimiento.amount)).filter(
+        CajaMovimiento.tenant_id == tenant_id
+    )
     if date_filter:
         caja_query = caja_query.filter(CajaMovimiento.date <= date_filter)
     caja_total = caja_query.scalar() or Decimal("0")
@@ -700,18 +712,15 @@ def get_bank_balances(
     if date_filter:
         bank_query = bank_query.filter(BankTransaction.date <= date_filter)
 
-    bancos_total = (
-        bank_query.with_entities(func.sum(BankTransaction.amount)).scalar() or Decimal("0")
+    bancos_total = bank_query.with_entities(func.sum(BankTransaction.amount)).scalar() or Decimal(
+        "0"
     )
 
     from app.models.core.facturacion import TransactionStatus
 
-    pendiente_conciliar = (
-        bank_query.filter(BankTransaction.status != TransactionStatus.RECONCILED)
-        .with_entities(func.sum(BankTransaction.amount))
-        .scalar()
-        or Decimal("0")
-    )
+    pendiente_conciliar = bank_query.filter(
+        BankTransaction.status != TransactionStatus.RECONCILED
+    ).with_entities(func.sum(BankTransaction.amount)).scalar() or Decimal("0")
 
     total_disponible = caja_total + bancos_total
 

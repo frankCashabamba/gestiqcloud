@@ -29,7 +29,9 @@ def _resolve_sector(sector: str | None, tenant: Tenant | None) -> str:
     return "default"
 
 
-def _resolve_sector_currency(db: Session, sector_code: str, fallback: str | None = None) -> str | None:
+def _resolve_sector_currency(
+    db: Session, sector_code: str, fallback: str | None = None
+) -> str | None:
     tpl = (
         db.query(SectorTemplate)
         .filter(SectorTemplate.code == sector_code, SectorTemplate.is_active == True)  # noqa: E712
@@ -99,7 +101,11 @@ def _sector_kpis_payload(
             or 0.0
         )
 
-        variation = ((sales_today - sales_yesterday) / sales_yesterday * 100) if sales_yesterday > 0 else 0.0
+        variation = (
+            ((sales_today - sales_yesterday) / sales_yesterday * 100)
+            if sales_yesterday > 0
+            else 0.0
+        )
 
         # CRITICAL STOCK (products with low stock)
         critical_stock = db.execute(
@@ -271,7 +277,9 @@ def _sector_kpis_payload(
             "monthly_revenue": {
                 "current": float(monthly_revenue),
                 "target": 6000.00,
-                "progress": round((monthly_revenue / 6000.00 * 100), 1) if monthly_revenue > 0 else 0.0,
+                "progress": round((monthly_revenue / 6000.00 * 100), 1)
+                if monthly_revenue > 0
+                else 0.0,
                 "currency": currency,
             },
             "low_stock_spare_parts": {

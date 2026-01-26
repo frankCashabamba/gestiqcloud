@@ -69,14 +69,14 @@ export default function App() {
           <Route path='/unauthorized' element={<Unauthorized />} />
         </Routes>
       </Suspense>
-      
+
       {/* Offline Support Components */}
       <OfflineBanner />
       <ConflictResolver onConflictResolved={() => {
         console.log('Conflict resolved - UI updated')
       }} />
       <OfflineSyncDashboard position='bottom-right' compact={false} />
-      
+
       {/* PWA Components */}
       <BuildBadge />
       <UpdatePrompt />

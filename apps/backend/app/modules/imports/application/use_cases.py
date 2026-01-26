@@ -208,7 +208,12 @@ def _normalize_bank_row(raw: dict[str, Any]) -> dict[str, Any] | None:
         or _get_case_insensitive(raw, "concepto")
         or _get_case_insensitive(raw, "concept")
     )
-    account = raw.get("account") or raw.get("cuenta") or raw.get("iban") or _get_case_insensitive(raw, "account")
+    account = (
+        raw.get("account")
+        or raw.get("cuenta")
+        or raw.get("iban")
+        or _get_case_insensitive(raw, "account")
+    )
     reference = (
         raw.get("entry_ref")
         or raw.get("reference")
@@ -273,7 +278,9 @@ def _normalize_expense_row(raw: dict[str, Any]) -> dict[str, Any] | None:
         or _get_case_insensitive(raw, "concept")
     )
     category = raw.get("category") or raw.get("categoria") or _get_case_insensitive(raw, "category")
-    counterparty = raw.get("cliente") or raw.get("customer") or _get_case_insensitive(raw, "cliente")
+    counterparty = (
+        raw.get("cliente") or raw.get("customer") or _get_case_insensitive(raw, "cliente")
+    )
 
     normalized: dict[str, Any] = {}
     if exp_date:
@@ -333,7 +340,9 @@ def _normalize_product_row(raw: dict[str, Any]) -> dict[str, Any]:
         or raw.get("PRECIO")
     )
     try:
-        out["price"] = float(str(out_price).replace(",", ".")) if out_price not in (None, "") else None
+        out["price"] = (
+            float(str(out_price).replace(",", ".")) if out_price not in (None, "") else None
+        )
     except Exception:
         out["price"] = out_price
 
@@ -369,7 +378,9 @@ def _normalize_product_row(raw: dict[str, Any]) -> dict[str, Any]:
         or raw.get("UNIDADES")
     )
     try:
-        out["stock"] = float(str(stock_val).replace(",", ".")) if stock_val not in (None, "") else None
+        out["stock"] = (
+            float(str(stock_val).replace(",", ".")) if stock_val not in (None, "") else None
+        )
     except Exception:
         out["stock"] = stock_val
 
@@ -609,7 +620,9 @@ def ingest_rows(
                     base[k] = v
             raw_effective = base
 
-        normalized = apply_mapping(raw_effective, mappings, transforms, defaults) if mappings else None
+        normalized = (
+            apply_mapping(raw_effective, mappings, transforms, defaults) if mappings else None
+        )
         # Fallback normalization for products when no mapping present
         if not normalized and (batch.source_type in ("products", "productos")):
             normalized = _normalize_product_row(raw_effective)
@@ -644,7 +657,8 @@ def ingest_rows(
         errs = sum(
             1
             for it in created
-            if it.get("status") in (ImportItemStatus.ERROR_VALIDATION, ImportItemStatus.ERROR_PROMOTION, "ERROR")
+            if it.get("status")
+            in (ImportItemStatus.ERROR_VALIDATION, ImportItemStatus.ERROR_PROMOTION, "ERROR")
         )
         if total == 0:
             batch.status = ImportBatchStatus.PENDING
@@ -960,6 +974,7 @@ def ingest_photo(
         raw = parse_texto_banco(texto)
     elif tipo == "ticket_pos":
         from app.modules.imports.extractores.extractor_ticket import extraer_ticket
+
         resultados = extraer_ticket(texto)
         if resultados:
             canonical = resultados[0]
@@ -1026,6 +1041,7 @@ def attach_photo_and_reocr(
         suger = parse_texto_banco(texto)
     elif tipo == "ticket_pos":
         from app.modules.imports.extractores.extractor_ticket import extraer_ticket
+
         resultados = extraer_ticket(texto)
         if resultados:
             canonical = resultados[0]

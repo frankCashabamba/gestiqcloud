@@ -67,7 +67,7 @@ ENVIRONMENT=production REDIS_URL=redis://cache.internal:6379/1 python -c "from c
 
 **Cambios:**
 - Archivo: `apps/admin/test-login.html`
-- Removidas credenciales hardcodeadas: 
+- Removidas credenciales hardcodeadas:
   - `const API_BASE = 'https://api.gestiqcloud.com'` ❌
   - `password: 'Admin.2025'` ❌
 - Reescrito como formulario dinámico:
@@ -96,7 +96,7 @@ ENVIRONMENT=production REDIS_URL=redis://cache.internal:6379/1 python -c "from c
 - Cambié default de localhost list a `[]` (vacío)
 - Agregué validaciones en 3 lugares:
   1. `field_validator` en settings.py
-  2. `startup_validation.py` 
+  2. `startup_validation.py`
   3. Logging mejorado en main.py
 
 **Archivos modificados:**
@@ -465,7 +465,7 @@ PENDIENTES (0 items):
 ```typescript
 // POS Defaults (opening float, register name/code, tax rates)
 // NUMBERING Defaults (doc series form, counter form)
-// PURCHASING Defaults (warehouse, tax rate)  
+// PURCHASING Defaults (warehouse, tax rate)
 // INVENTORY Defaults (currency, pagination)
 // PAGINATION Defaults (multiple per_page values)
 // FILTER Defaults (filter all, sort order)
@@ -610,11 +610,11 @@ def _get_database_url() -> str:
     db_url = os.getenv("DATABASE_URL")
     if db_url:
         return db_url
-    
+
     db_url = os.getenv("DB_DSN")
     if db_url:
         return db_url
-    
+
     # No fallback to localhost - fail explicitly in production
     environment = os.getenv("ENVIRONMENT", "development").lower()
     if environment == "production":
@@ -622,7 +622,7 @@ def _get_database_url() -> str:
             "DATABASE_URL (or DB_DSN) is not configured. "
             "This is required in production."
         )
-    
+
     # Development fallback only
     import warnings
     warnings.warn("DATABASE_URL not set. Using development fallback.")
@@ -680,7 +680,7 @@ domains:
 1. Ir a Render Dashboard → gestiqcloud-api
 2. Environment → Add Environment Variable
    - DEFAULT_FROM_EMAIL=GestiqCloud <noreply@gestiqcloud.com>
-   
+
 3. Para dominios custom (tenant y admin)
    - Render Dashboard → gestiqcloud-tenant → Settings → Domains
    - Render Dashboard → gestiqcloud-admin → Settings → Domains

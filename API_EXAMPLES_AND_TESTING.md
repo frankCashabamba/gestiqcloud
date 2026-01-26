@@ -233,7 +233,7 @@ def get_headers():
     }
 
 class TestPOSInvoicingIntegration:
-    
+
     def test_checkout_with_invoicing_only(self):
         """Test that checkout creates invoice when invoicing enabled"""
         # Enable invoicing
@@ -243,10 +243,10 @@ class TestPOSInvoicingIntegration:
             headers=get_headers()
         )
         assert resp.status_code == 200
-        
+
         # Create receipt
         receipt = create_test_receipt()
-        
+
         # Checkout
         checkout_resp = requests.post(
             f"{BASE_URL}/api/v1/tenant/pos/receipts/{receipt['id']}/checkout",
@@ -256,14 +256,14 @@ class TestPOSInvoicingIntegration:
             },
             headers=get_headers()
         )
-        
+
         # Verify response
         assert checkout_resp.status_code == 200
         data = checkout_resp.json()
         assert data["ok"] == True
         assert "documents_created" in data
         assert "invoice" in data["documents_created"]
-        
+
         invoice = data["documents_created"]["invoice"]
         assert invoice["status"] == "draft"
         assert invoice["total"] == 110.00
@@ -278,9 +278,9 @@ class TestPOSInvoicingIntegration:
                 json={"enabled": True},
                 headers=get_headers()
             )
-        
+
         receipt = create_test_receipt()
-        
+
         checkout_resp = requests.post(
             f"{BASE_URL}/api/v1/tenant/pos/receipts/{receipt['id']}/checkout",
             json={
@@ -289,7 +289,7 @@ class TestPOSInvoicingIntegration:
             },
             headers=get_headers()
         )
-        
+
         data = checkout_resp.json()
         assert "invoice" in data["documents_created"]
         assert "sale" in data["documents_created"]
@@ -304,9 +304,9 @@ class TestPOSInvoicingIntegration:
                 json={"enabled": False},
                 headers=get_headers()
             )
-        
+
         receipt = create_test_receipt()
-        
+
         checkout_resp = requests.post(
             f"{BASE_URL}/api/v1/tenant/pos/receipts/{receipt['id']}/checkout",
             json={
@@ -315,7 +315,7 @@ class TestPOSInvoicingIntegration:
             },
             headers=get_headers()
         )
-        
+
         data = checkout_resp.json()
         # Should still work, but no documents created
         assert data["ok"] == True
@@ -329,9 +329,9 @@ class TestPOSInvoicingIntegration:
             json={"enabled": True},
             headers=get_headers()
         )
-        
+
         receipt = create_test_receipt(amount=-55.00)  # Negative for return
-        
+
         checkout_resp = requests.post(
             f"{BASE_URL}/api/v1/tenant/pos/receipts/{receipt['id']}/checkout",
             json={
@@ -341,7 +341,7 @@ class TestPOSInvoicingIntegration:
             },
             headers=get_headers()
         )
-        
+
         data = checkout_resp.json()
         assert "expense" in data["documents_created"]
         assert data["documents_created"]["expense"]["expense_type"] == "refund"
@@ -360,7 +360,7 @@ import { payReceipt, type CheckoutResponse } from '@/modules/pos/services'
 
 describe('POS Invoicing Integration', () => {
   let receiptId: string
-  
+
   beforeEach(() => {
     receiptId = 'test-receipt-id'
   })
@@ -369,7 +369,7 @@ describe('POS Invoicing Integration', () => {
     const response = await payReceipt(receiptId, [
       { method: 'cash', amount: 110.00 }
     ])
-    
+
     expect(response.ok).toBe(true)
     expect(response.documents_created).toBeDefined()
     expect(response.documents_created?.invoice).toBeDefined()
@@ -381,7 +381,7 @@ describe('POS Invoicing Integration', () => {
       { method: 'cash', amount: 50.00 },
       { method: 'card', amount: 60.00 }
     ])
-    
+
     expect(response.ok).toBe(true)
     expect(response.totals.paid).toBe(110.00)
   })
@@ -415,12 +415,12 @@ describe('POS Invoicing Integration', () => {
         }
       }
     }
-    
+
     // Mount component
     const { getByText } = render(
       <CheckoutSummary response={response} />
     )
-    
+
     expect(getByText('Factura Electrónica')).toBeInTheDocument()
     expect(getByText('Venta Registrada')).toBeInTheDocument()
     expect(getByText('A000001')).toBeInTheDocument()
@@ -435,7 +435,7 @@ describe('POS Invoicing Integration', () => {
 ### Verify Document Creation
 ```sql
 -- Check invoices created from POS
-SELECT 
+SELECT
   p.id as receipt_id,
   p.gross_total as receipt_total,
   i.id as invoice_id,
@@ -452,7 +452,7 @@ LIMIT 10;
 ### Check Sales Created
 ```sql
 -- Check sales created from POS
-SELECT 
+SELECT
   p.id as receipt_id,
   s.id as sale_id,
   s.sale_type,
@@ -469,7 +469,7 @@ LIMIT 10;
 ### Check Expenses Created
 ```sql
 -- Check expenses created from POS (refunds)
-SELECT 
+SELECT
   p.id as receipt_id,
   e.id as expense_id,
   e.expense_type,
@@ -487,13 +487,13 @@ LIMIT 10;
 ```sql
 -- Check that indexes are being used
 EXPLAIN ANALYZE
-SELECT i.* FROM invoices i 
-WHERE i.pos_receipt_id IS NOT NULL 
+SELECT i.* FROM invoices i
+WHERE i.pos_receipt_id IS NOT NULL
 LIMIT 100;
 
 EXPLAIN ANALYZE
-SELECT s.* FROM sales s 
-WHERE s.pos_receipt_id IS NOT NULL 
+SELECT s.* FROM sales s
+WHERE s.pos_receipt_id IS NOT NULL
 LIMIT 100;
 ```
 
@@ -601,4 +601,3 @@ SELECT * FROM pg_stat_statements ORDER BY calls DESC LIMIT 10;
 - [ ] Performance acceptable
 
 ---
-

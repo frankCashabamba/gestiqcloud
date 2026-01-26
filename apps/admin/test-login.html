@@ -17,7 +17,7 @@
 </head>
 <body>
   <h1>🔐 Admin Login Test</h1>
-  
+
   <div class="warning">
     <strong>⚠️ Security Notice:</strong> This is a test tool for development only.
     Do NOT commit credentials. Use environment variables in production.
@@ -83,16 +83,16 @@
         const csrfUrl = `${apiBase}/v1/admin/auth/csrf`;
         output.textContent += `\n📍 Step 1: Fetching CSRF token\n`;
         output.textContent += `   URL: ${csrfUrl}\n`;
-        
+
         const csrfRes = await fetch(csrfUrl, {
           credentials: 'include',
           headers: { 'Accept': 'application/json' }
         });
-        
+
         if (!csrfRes.ok) {
           throw new Error(`CSRF request failed: ${csrfRes.status} ${csrfRes.statusText}`);
         }
-        
+
         output.textContent += `   Status: ${csrfRes.status} ✅\n`;
 
         // Test Login

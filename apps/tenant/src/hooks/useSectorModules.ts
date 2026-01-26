@@ -1,7 +1,7 @@
 /**
  * Hook para validar disponibilidad de módulos según sector
  * FASE: Multi-sector module visibility control
- * 
+ *
  * No hardcoded sector logic - fully dynamic and configurable
  */
 
@@ -40,7 +40,7 @@ export function useSectorModules() {
 
   /**
    * Valida si un módulo está disponible para el sector actual
-   * 
+   *
    * @param module - Información del módulo
    * @returns Restricción indicando si está permitido y por qué no si es negado
    */

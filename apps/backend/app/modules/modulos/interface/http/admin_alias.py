@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from apps.backend.app.shared.utils import ping_ok
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from apps.backend.app.shared.utils import ping_ok
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
@@ -95,4 +95,3 @@ def eliminar_modulo_de_empresa(tenant_id: str, modulo_id: str, db: Session = Dep
     db.delete(empresa_modulo)
     db.commit()
     return {"ok": True}
-

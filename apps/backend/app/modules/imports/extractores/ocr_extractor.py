@@ -7,7 +7,6 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.modules.imports.services.ocr_service import DocumentLayout, OCRResult
 from app.modules.imports.extractores.utilidades import (
     buscar_cif,
     buscar_cliente,
@@ -20,6 +19,7 @@ from app.modules.imports.extractores.utilidades import (
     buscar_subtotal,
     corregir_errores_ocr,
 )
+from app.modules.imports.services.ocr_service import DocumentLayout, OCRResult
 
 logger = logging.getLogger("imports.ocr_extractor")
 
@@ -233,9 +233,7 @@ class OCRExtractor:
 
         return receipt
 
-    def _extract_bank_statement(
-        self, text: str, ocr_result: OCRResult
-    ) -> ExtractedBankStatement:
+    def _extract_bank_statement(self, text: str, ocr_result: OCRResult) -> ExtractedBankStatement:
         """Extrae datos de extracto bancario."""
         statement = ExtractedBankStatement()
 
@@ -259,9 +257,7 @@ class OCRExtractor:
         )
         if balance_match:
             try:
-                statement.closing_balance = float(
-                    balance_match.group(1).replace(",", ".")
-                )
+                statement.closing_balance = float(balance_match.group(1).replace(",", "."))
             except ValueError:
                 pass
 
@@ -331,9 +327,7 @@ class OCRExtractor:
 
         headers = [str(h).lower() for h in table[0]]
 
-        date_col = next(
-            (i for i, h in enumerate(headers) if "fecha" in h or "date" in h), None
-        )
+        date_col = next((i for i, h in enumerate(headers) if "fecha" in h or "date" in h), None)
         desc_col = next(
             (
                 i
@@ -343,11 +337,7 @@ class OCRExtractor:
             None,
         )
         amount_col = next(
-            (
-                i
-                for i, h in enumerate(headers)
-                if "importe" in h or "monto" in h or "amount" in h
-            ),
+            (i for i, h in enumerate(headers) if "importe" in h or "monto" in h or "amount" in h),
             None,
         )
         balance_col = next(

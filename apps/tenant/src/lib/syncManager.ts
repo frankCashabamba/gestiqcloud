@@ -1,16 +1,16 @@
 /**
  * SyncManager - Central synchronization orchestrator
- * 
+ *
  * Coordinates syncing across multiple entities, handles conflicts,
  * and manages retry logic.
  */
 
-import { 
-  EntityType, 
-  StoredEntity, 
-  listEntities, 
-  markSynced, 
-  markFailed, 
+import {
+  EntityType,
+  StoredEntity,
+  listEntities,
+  markSynced,
+  markFailed,
   markConflict,
   getEntity,
   getConflicts,
@@ -20,18 +20,18 @@ import {
 export interface SyncAdapter {
   entity: EntityType
   canSyncOffline: boolean
-  
+
   // Fetch all remote data for this entity
   fetchAll(): Promise<any[]>
-  
+
   // Sync operations
   create(data: any): Promise<any>
   update(id: string, data: any): Promise<any>
   delete(id: string): Promise<void>
-  
+
   // Get remote version for conflict detection
   getRemoteVersion(id: string): Promise<number>
-  
+
   // Detect if local and remote differ
   detectConflict(local: any, remote: any): boolean
 }
@@ -82,7 +82,7 @@ class SyncManager {
   async syncEntity(entity: EntityType): Promise<SyncResult> {
     const startTime = Date.now()
     const adapter = this.adapters.get(entity)
-    
+
     if (!adapter || !adapter.canSyncOffline) {
       throw new Error(`No sync adapter registered for ${entity}`)
     }
@@ -116,7 +116,7 @@ class SyncManager {
         if (isUpdate) {
           try {
             const remoteVersion = await adapter.getRemoteVersion(item.id)
-            
+
             if (remoteVersion > item.remoteVersion) {
               console.warn(`[offline] Conflict detected for ${entity}:${item.id}`)
               await markConflict(entity, item.id)
@@ -246,7 +246,7 @@ export function initSyncEventListener() {
     const entity = customEvent.detail?.entity
 
     const manager = getSyncManager()
-    
+
     try {
       if (entity) {
         await manager.syncEntity(entity)

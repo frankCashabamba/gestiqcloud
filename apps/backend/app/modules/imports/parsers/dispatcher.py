@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import openpyxl
 
 from app.services.excel_analyzer import detect_header_row, extract_headers
 
-from . import DocType, registry
+from . import registry
 from .generic_excel import parse_excel_generic
 
 # Map ext/mime -> parser_id preferente
@@ -98,10 +97,7 @@ def _detect_excel_parser(file_path: str) -> tuple[str, str]:
         if not headers_str.strip():
             rows = list(ws.iter_rows(values_only=True, max_row=10))
             headers_str = " ".join(
-                str(cell or "").lower()
-                for row in rows
-                for cell in row
-                if cell not in (None, "")
+                str(cell or "").lower() for row in rows for cell in row if cell not in (None, "")
             )
     finally:
         try:

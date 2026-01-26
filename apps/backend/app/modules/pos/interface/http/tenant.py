@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import logging
-from typing import Literal
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -16,13 +16,14 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
-from app.core.authz import require_permission, require_scope
 from app.core.audit_events import audit_event
+from app.core.authz import require_permission, require_scope
 from app.db.rls import ensure_guc_from_request, ensure_rls
-from app.modules.settings.infrastructure.repositories import SettingsRepo
-from app.models.accounting.chart_of_accounts import JournalEntry as AsientoContable, JournalEntryLine as AsientoLinea
+from app.models.accounting.chart_of_accounts import JournalEntry as AsientoContable
+from app.models.accounting.chart_of_accounts import JournalEntryLine as AsientoLinea
+from app.models.accounting.pos_settings import PaymentMethod, TenantAccountingSettings
 from app.modules.accounting.interface.http.tenant import _generate_numero_asiento
-from app.models.accounting.pos_settings import TenantAccountingSettings, PaymentMethod
+from app.modules.settings.infrastructure.repositories import SettingsRepo
 from app.services.inventory_costing import InventoryCostingService
 
 logger = logging.getLogger(__name__)
@@ -268,14 +269,14 @@ class DocSeriesUpsertIn(BaseModel):
     doc_type: str = Field(min_length=1, max_length=10)
     name: str = Field(min_length=1, max_length=50)
     current_no: int = Field(ge=0)
-    reset_policy: Literal['yearly', 'never'] = 'yearly'
+    reset_policy: Literal["yearly", "never"] = "yearly"
     active: bool = True
 
-    @field_validator('register_id')
+    @field_validator("register_id")
     @classmethod
     def validate_register_id(cls, v):
         if v is not None:
-            _validate_uuid(v, 'Register ID')
+            _validate_uuid(v, "Register ID")
         return v
 
 
@@ -541,7 +542,9 @@ def open_shift(payload: OpenShiftIn, request: Request, db: Session = Depends(get
     try:
         # Verificar que el registro existe y estÃ¡ activo
         register = db.execute(
-            text("SELECT active FROM pos_registers WHERE id = :rid AND tenant_id = :tid").bindparams(
+            text(
+                "SELECT active FROM pos_registers WHERE id = :rid AND tenant_id = :tid"
+            ).bindparams(
                 bindparam("rid", type_=PGUUID(as_uuid=True)),
                 bindparam("tid", type_=PGUUID(as_uuid=True)),
             ),
@@ -865,13 +868,16 @@ def close_shift(
         expected_cash = opening_float + cash_sales
 
         # Totales de impuestos para calcular base imponible
-        tax_total = db.execute(
-            text(
-                "SELECT COALESCE(SUM(tax_total), 0) FROM pos_receipts "
-                "WHERE shift_id = :sid AND status = 'paid'"
-            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
-            {"sid": shift_uuid},
-        ).scalar() or 0
+        tax_total = (
+            db.execute(
+                text(
+                    "SELECT COALESCE(SUM(tax_total), 0) FROM pos_receipts "
+                    "WHERE shift_id = :sid AND status = 'paid'"
+                ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
+                {"sid": shift_uuid},
+            ).scalar()
+            or 0
+        )
         net_total = total_sales - float(tax_total)
 
         # Configuración contable del tenant
@@ -882,7 +888,9 @@ def close_shift(
                 tenant_id,
                 shift_uuid,
             )
-            raise HTTPException(status_code=400, detail="Config contable POS no configurada para este tenant")
+            raise HTTPException(
+                status_code=400, detail="Config contable POS no configurada para este tenant"
+            )
 
         _ensure_pos_accounting_settings(settings)
 
@@ -909,11 +917,14 @@ def close_shift(
                 elif mkey in ("card", "tarjeta", "debit", "credit"):
                     account_id = settings.bank_account_id
             if not account_id:
-                raise HTTPException(status_code=400, detail=f"No hay cuenta contable para el medio de pago: {method}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"No hay cuenta contable para el medio de pago: {method}",
+                )
             lines.append(
                 AsientoLinea(
-                    account_id=account_id,
-                    debit=Decimal(str(round(amt, 2))))  # credit=0 por defecto
+                    account_id=account_id, debit=Decimal(str(round(amt, 2)))
+                )  # credit=0 por defecto
             )
             debit_total += amt
 
@@ -942,7 +953,9 @@ def close_shift(
         # Pérdidas/mermas
         if payload.loss_amount and payload.loss_amount > 0:
             if not settings.loss_account_id:
-                raise HTTPException(status_code=400, detail="Config contable: falta cuenta de pérdidas/mermas")
+                raise HTTPException(
+                    status_code=400, detail="Config contable: falta cuenta de pérdidas/mermas"
+                )
             lines.append(
                 AsientoLinea(
                     account_id=settings.loss_account_id,
@@ -968,11 +981,16 @@ def close_shift(
         existing_entry = db.execute(
             text(
                 "SELECT id FROM journal_entries WHERE ref_doc_type = 'POS_SHIFT' AND ref_doc_id = :sid AND tenant_id = :tid"
-            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True)), bindparam("tid", type_=PGUUID(as_uuid=True))),
+            ).bindparams(
+                bindparam("sid", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
             {"sid": shift_uuid, "tid": tenant_id},
         ).first()
         if existing_entry:
-            raise HTTPException(status_code=400, detail="Ya existe un asiento contable para este turno")
+            raise HTTPException(
+                status_code=400, detail="Ya existe un asiento contable para este turno"
+            )
 
         # Crear asiento contable
         number = _generate_numero_asiento(db, tenant_id, datetime.utcnow().year)
@@ -1119,13 +1137,16 @@ def generate_accounting_for_closed_shift(
         for method, amount in sales_by_method:
             total_sales += float(amount or 0)
 
-        tax_total = db.execute(
-            text(
-                "SELECT COALESCE(SUM(tax_total), 0) FROM pos_receipts "
-                "WHERE shift_id = :sid AND status = 'paid'"
-            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
-            {"sid": shift_uuid},
-        ).scalar() or 0.0
+        tax_total = (
+            db.execute(
+                text(
+                    "SELECT COALESCE(SUM(tax_total), 0) FROM pos_receipts "
+                    "WHERE shift_id = :sid AND status = 'paid'"
+                ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
+                {"sid": shift_uuid},
+            ).scalar()
+            or 0.0
+        )
         net_total = total_sales - float(tax_total)
 
         settings = db.query(TenantAccountingSettings).filter_by(tenant_id=tenant_id).first()
@@ -1134,7 +1155,9 @@ def generate_accounting_for_closed_shift(
                 "POS accounting settings missing for tenant_id=%s",
                 tenant_id,
             )
-            raise HTTPException(status_code=400, detail="Config contable POS no configurada para este tenant")
+            raise HTTPException(
+                status_code=400, detail="Config contable POS no configurada para este tenant"
+            )
 
         _ensure_pos_accounting_settings(settings)
 
@@ -1157,7 +1180,10 @@ def generate_accounting_for_closed_shift(
                 elif mkey in ("card", "tarjeta", "debit", "credit"):
                     account_id = settings.bank_account_id
             if not account_id:
-                raise HTTPException(status_code=400, detail=f"No hay cuenta contable para el medio de pago: {method}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"No hay cuenta contable para el medio de pago: {method}",
+                )
             lines.append(
                 AsientoLinea(
                     account_id=account_id,
@@ -1195,7 +1221,9 @@ def generate_accounting_for_closed_shift(
         ).scalar()
         if loss_amount and loss_amount > 0:
             if not settings.loss_account_id:
-                raise HTTPException(status_code=400, detail="Config contable: falta cuenta de pérdidas/mermas")
+                raise HTTPException(
+                    status_code=400, detail="Config contable: falta cuenta de pérdidas/mermas"
+                )
             lines.append(
                 AsientoLinea(
                     account_id=settings.loss_account_id,
@@ -1216,11 +1244,16 @@ def generate_accounting_for_closed_shift(
         existing_entry = db.execute(
             text(
                 "SELECT id FROM journal_entries WHERE ref_doc_type = 'POS_SHIFT' AND ref_doc_id = :sid AND tenant_id = :tid"
-            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True)), bindparam("tid", type_=PGUUID(as_uuid=True))),
+            ).bindparams(
+                bindparam("sid", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
             {"sid": shift_uuid, "tid": tenant_id},
         ).first()
         if existing_entry:
-            raise HTTPException(status_code=400, detail="Ya existe un asiento contable para este turno")
+            raise HTTPException(
+                status_code=400, detail="Ya existe un asiento contable para este turno"
+            )
 
         if round(debit_total - credit_total, 2) != 0:
             raise HTTPException(status_code=400, detail="Asiento no balanceado")
@@ -1268,9 +1301,12 @@ def generate_accounting_for_closed_shift(
     response_model=dict,
     dependencies=[Depends(require_permission("pos.shift.close"))],
 )
-def close_shift_with_body(payload: CloseShiftWithIdIn, request: Request, db: Session = Depends(get_db)):
+def close_shift_with_body(
+    payload: CloseShiftWithIdIn, request: Request, db: Session = Depends(get_db)
+):
     """Alias de cierre de turno recibiendo shift_id en el body (compatibilidad front)"""
     return close_shift(payload.shift_id, payload, request, db)
+
 
 @router.get(
     "/shifts",
@@ -1487,7 +1523,9 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
     current_user_id = _get_user_id(request)
     shift_uuid = _validate_uuid(payload.shift_id, "Shift ID")
     register_uuid = _validate_uuid(payload.register_id, "Register ID")
-    customer_uuid = _validate_uuid(payload.customer_id, "Customer ID") if payload.customer_id else None
+    customer_uuid = (
+        _validate_uuid(payload.customer_id, "Customer ID") if payload.customer_id else None
+    )
 
     try:
         cashier_id = current_user_id
@@ -1513,10 +1551,7 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
 
         if customer_uuid:
             exists = db.execute(
-                text(
-                    "SELECT 1 FROM clients "
-                    "WHERE id = :cid AND tenant_id = :tid"
-                ).bindparams(
+                text("SELECT 1 FROM clients " "WHERE id = :cid AND tenant_id = :tid").bindparams(
                     bindparam("cid", type_=PGUUID(as_uuid=True)),
                     bindparam("tid", type_=PGUUID(as_uuid=True)),
                 ),
@@ -1858,12 +1893,8 @@ def checkout(
 
             cogs_unit = state.avg_cost
             cogs_total = _to_decimal_q(qty_sold, "0.000001") * cogs_unit
-            net_total = _to_decimal_q(qty_sold, "0.000001") * _to_decimal_q(
-                unit_price, "0.0001"
-            )
-            net_total = net_total * (
-                Decimal("1") - (_to_decimal_q(discount_pct, "0.01") / 100)
-            )
+            net_total = _to_decimal_q(qty_sold, "0.000001") * _to_decimal_q(unit_price, "0.0001")
+            net_total = net_total * (Decimal("1") - (_to_decimal_q(discount_pct, "0.01") / 100))
             net_total = _to_decimal_q(net_total, "0.01")
             cogs_total_money = _to_decimal_q(cogs_total, "0.01")
             gross_profit = _to_decimal_q(net_total - cogs_total_money, "0.01")
@@ -1944,33 +1975,34 @@ def checkout(
         # 7. Create complementary documents if modules enabled
         try:
             from app.modules.pos.application.invoice_integration import POSInvoicingService
-            
+
             service = POSInvoicingService(db, tenant_id)
             documents_created = {}
-            
+
             # Create invoice if invoicing module enabled
             invoice_result = service.create_invoice_from_receipt(
                 receipt_uuid,
                 customer_id=None,
-                invoice_series=payload.invoice_series if hasattr(payload, 'invoice_series') else "A"
+                invoice_series=payload.invoice_series
+                if hasattr(payload, "invoice_series")
+                else "A",
             )
             if invoice_result:
                 documents_created["invoice"] = invoice_result
-            
+
             # Create sale if sales module enabled
             sale_result = service.create_sale_from_receipt(receipt_uuid)
             if sale_result:
                 documents_created["sale"] = sale_result
-            
+
             # Create expense if expense module enabled and type is return
-            if hasattr(payload, 'type') and payload.type == "return":
+            if hasattr(payload, "type") and payload.type == "return":
                 expense_result = service.create_expense_from_receipt(
-                    receipt_uuid,
-                    expense_type="refund"
+                    receipt_uuid, expense_type="refund"
                 )
                 if expense_result:
                     documents_created["expense"] = expense_result
-            
+
         except Exception as e:
             logger.warning(f"Error creating complementary documents: {e}")
             documents_created = {}
@@ -2043,9 +2075,9 @@ def refund_receipt(
 
     try:
         receipt = db.execute(
-            text("SELECT status, warehouse_id FROM pos_receipts WHERE id = :id FOR UPDATE").bindparams(
-                bindparam("id", type_=PGUUID(as_uuid=True))
-            ),
+            text(
+                "SELECT status, warehouse_id FROM pos_receipts WHERE id = :id FOR UPDATE"
+            ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
             {"id": receipt_uuid},
         ).first()
 
@@ -2387,9 +2419,7 @@ def list_receipts(
                 "created_at": r[8].isoformat() if r[8] else None,
                 "paid_at": r[9].isoformat() if r[9] else None,
                 "cashier_name": (
-                    f"{r[10]} {r[11]}".strip()
-                    if r[10] or r[11]
-                    else (r[12] or r[13])
+                    f"{r[10]} {r[11]}".strip() if r[10] or r[11] else (r[12] or r[13])
                 ),
             }
             for r in rows
@@ -2460,9 +2490,7 @@ def get_receipt(receipt_id: str, request: Request, db: Session = Depends(get_db)
             "paid_at": rec[12].isoformat() if rec[12] else None,
             "cashier_id": str(rec[13]) if rec[13] else None,
             "cashier_name": (
-                f"{rec[14]} {rec[15]}".strip()
-                if rec[14] or rec[15]
-                else (rec[16] or rec[17])
+                f"{rec[14]} {rec[15]}".strip() if rec[14] or rec[15] else (rec[16] or rec[17])
             ),
             "lines": [
                 {
@@ -2508,7 +2536,9 @@ def delete_receipt(receipt_id: str, request: Request, db: Session = Depends(get_
 
     try:
         row = db.execute(
-            text("SELECT status FROM pos_receipts WHERE id = :id").bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+            text("SELECT status FROM pos_receipts WHERE id = :id").bindparams(
+                bindparam("id", type_=PGUUID(as_uuid=True))
+            ),
             {"id": rid},
         ).first()
 
@@ -2517,18 +2547,26 @@ def delete_receipt(receipt_id: str, request: Request, db: Session = Depends(get_
 
         status = row[0]
         if status not in ("draft", "unpaid"):
-            raise HTTPException(status_code=400, detail="Solo se pueden borrar recibos en borrador o sin pagar")
+            raise HTTPException(
+                status_code=400, detail="Solo se pueden borrar recibos en borrador o sin pagar"
+            )
 
         db.execute(
-            text("DELETE FROM pos_payments WHERE receipt_id = :id").bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+            text("DELETE FROM pos_payments WHERE receipt_id = :id").bindparams(
+                bindparam("id", type_=PGUUID(as_uuid=True))
+            ),
             {"id": rid},
         )
         db.execute(
-            text("DELETE FROM pos_receipt_lines WHERE receipt_id = :id").bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+            text("DELETE FROM pos_receipt_lines WHERE receipt_id = :id").bindparams(
+                bindparam("id", type_=PGUUID(as_uuid=True))
+            ),
             {"id": rid},
         )
         db.execute(
-            text("DELETE FROM pos_receipts WHERE id = :id").bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+            text("DELETE FROM pos_receipts WHERE id = :id").bindparams(
+                bindparam("id", type_=PGUUID(as_uuid=True))
+            ),
             {"id": rid},
         )
         db.commit()
@@ -3475,9 +3513,10 @@ def upsert_numbering_counter(
     if not doc_type:
         raise HTTPException(status_code=400, detail="doc_type requerido")
 
-    row = db.execute(
-        text(
-            """
+    row = (
+        db.execute(
+            text(
+                """
             INSERT INTO doc_number_counters (
                 tenant_id, doc_type, year, series, current_no, created_at, updated_at
             )
@@ -3488,15 +3527,18 @@ def upsert_numbering_counter(
                 updated_at = now()
             RETURNING doc_type, year, series, current_no, updated_at
             """
-        ),
-        {
-            "tenant_id": tenant_id,
-            "doc_type": doc_type,
-            "year": payload.year,
-            "series": series,
-            "current_no": payload.current_no,
-        },
-    ).mappings().first()
+            ),
+            {
+                "tenant_id": tenant_id,
+                "doc_type": doc_type,
+                "year": payload.year,
+                "series": series,
+                "current_no": payload.current_no,
+            },
+        )
+        .mappings()
+        .first()
+    )
 
     if not row:
         raise HTTPException(status_code=500, detail="No se pudo actualizar el contador")
@@ -3572,9 +3614,10 @@ def upsert_doc_series(
     }
 
     if payload.id:
-        row = db.execute(
-            text(
-                """
+        row = (
+            db.execute(
+                text(
+                    """
                 UPDATE doc_series
                 SET current_no = :current_no,
                     reset_policy = :reset_policy,
@@ -3583,15 +3626,18 @@ def upsert_doc_series(
                   AND tenant_id = :tenant_id
                 RETURNING id, register_id, doc_type, name, current_no, reset_policy, active, created_at
                 """
-            ),
-            {
-                "id": payload.id,
-                "tenant_id": tenant_id,
-                "current_no": payload.current_no,
-                "reset_policy": payload.reset_policy,
-                "active": payload.active,
-            },
-        ).mappings().first()
+                ),
+                {
+                    "id": payload.id,
+                    "tenant_id": tenant_id,
+                    "current_no": payload.current_no,
+                    "reset_policy": payload.reset_policy,
+                    "active": payload.active,
+                },
+            )
+            .mappings()
+            .first()
+        )
     else:
         existing = db.execute(
             text(
@@ -3608,9 +3654,10 @@ def upsert_doc_series(
         ).scalar()
 
         if existing:
-            row = db.execute(
-                text(
-                    """
+            row = (
+                db.execute(
+                    text(
+                        """
                     UPDATE doc_series
                     SET current_no = :current_no,
                         reset_policy = :reset_policy,
@@ -3618,18 +3665,22 @@ def upsert_doc_series(
                     WHERE id = CAST(:id AS uuid)
                     RETURNING id, register_id, doc_type, name, current_no, reset_policy, active, created_at
                     """
-                ),
-                {
-                    "id": existing,
-                    "current_no": payload.current_no,
-                    "reset_policy": payload.reset_policy,
-                    "active": payload.active,
-                },
-            ).mappings().first()
+                    ),
+                    {
+                        "id": existing,
+                        "current_no": payload.current_no,
+                        "reset_policy": payload.reset_policy,
+                        "active": payload.active,
+                    },
+                )
+                .mappings()
+                .first()
+            )
         else:
-            row = db.execute(
-                text(
-                    """
+            row = (
+                db.execute(
+                    text(
+                        """
                     INSERT INTO doc_series (
                         id, tenant_id, register_id, doc_type, name, current_no, reset_policy, active, created_at
                     )
@@ -3639,17 +3690,20 @@ def upsert_doc_series(
                     )
                     RETURNING id, register_id, doc_type, name, current_no, reset_policy, active, created_at
                     """
-                ),
-                {
-                    "tenant_id": tenant_id,
-                    "register_id": reg_id,
-                    "doc_type": payload.doc_type.strip(),
-                    "name": payload.name.strip(),
-                    "current_no": payload.current_no,
-                    "reset_policy": payload.reset_policy,
-                    "active": payload.active,
-                },
-            ).mappings().first()
+                    ),
+                    {
+                        "tenant_id": tenant_id,
+                        "register_id": reg_id,
+                        "doc_type": payload.doc_type.strip(),
+                        "name": payload.name.strip(),
+                        "current_no": payload.current_no,
+                        "reset_policy": payload.reset_policy,
+                        "active": payload.active,
+                    },
+                )
+                .mappings()
+                .first()
+            )
 
     if not row:
         raise HTTPException(status_code=500, detail="No se pudo actualizar la serie")

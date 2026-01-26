@@ -1251,7 +1251,7 @@ export default function POSView() {
             // Calcular totales para verificar si se debe crear factura automáticamente
             // Usamos el estado actual de totals para evitar llamadas 422 a calculate_totals con payload vacío
             const needsInvoice = shouldCreateInvoice(totals.total, isWholesaleCustomer, companySettings)
-            
+
             // Reset carrito
             setCart([])
             setGlobalDiscountPct(0)

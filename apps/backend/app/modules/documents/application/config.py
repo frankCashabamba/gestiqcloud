@@ -1,18 +1,15 @@
 from __future__ import annotations
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.company.company_settings import CompanySettings
-from sqlalchemy import text
-
 from app.models.tenant import Tenant
 from app.modules.documents.domain.config import TenantDocConfig
 
 
 def load_tenant_doc_config(db: Session, tenant_id: str) -> TenantDocConfig:
-    settings = (
-        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
-    )
+    settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
 
     cfg = TenantDocConfig()
@@ -44,10 +41,7 @@ def load_tenant_doc_config(db: Session, tenant_id: str) -> TenantDocConfig:
     # Load country catalogs (id types + tax codes)
     try:
         id_rows = db.execute(
-            text(
-                "SELECT code FROM country_id_types "
-                "WHERE country_code = :cc AND active = true"
-            ),
+            text("SELECT code FROM country_id_types " "WHERE country_code = :cc AND active = true"),
             {"cc": cfg.country},
         ).fetchall()
         cfg.id_types = [r[0] for r in id_rows if r and r[0]]
@@ -83,9 +77,7 @@ def load_tenant_doc_config(db: Session, tenant_id: str) -> TenantDocConfig:
 
 def build_seller_info(db: Session, tenant_id: str, branding: dict | None) -> dict:
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-    settings = (
-        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
-    )
+    settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
     trade_name = (
         (branding or {}).get("tradeName")
         or (settings.company_name if settings else None)

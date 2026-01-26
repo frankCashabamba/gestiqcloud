@@ -1,16 +1,12 @@
 """E-invoicing module tests"""
 
-import pytest
 from datetime import datetime
 from decimal import Decimal
 from uuid import uuid4
 
-from app.modules.einvoicing.domain.entities import (
-    EInvoiceDocument,
-    InvoiceStatus,
-    EInvoiceLineItem,
-)
-from app.modules.einvoicing.infrastructure.einvoice_service import EInvoiceService
+import pytest
+
+from app.modules.einvoicing.domain.entities import EInvoiceDocument, EInvoiceLineItem, InvoiceStatus
 
 
 class TestEInvoiceDocument:

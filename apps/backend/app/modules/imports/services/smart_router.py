@@ -4,21 +4,19 @@ from __future__ import annotations
 
 import csv
 import logging
-import mimetypes
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import openpyxl
-
-from app.services.excel_analyzer import detect_header_row, extract_headers
 
 from app.config.settings import settings
 from app.modules.imports.ai.mapping_suggester import mapping_suggester
 from app.modules.imports.parsers import registry
 from app.modules.imports.parsers.dispatcher import select_parser_for_file
 from app.modules.imports.services.classifier import FileClassifier
-from app.modules.imports.services.ocr_service import DocumentLayout, ocr_service
+from app.modules.imports.services.ocr_service import ocr_service
+from app.services.excel_analyzer import detect_header_row, extract_headers
 
 logger = logging.getLogger("app.imports.smart_router")
 

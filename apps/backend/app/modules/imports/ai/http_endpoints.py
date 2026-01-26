@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from app.config.settings import settings
 from app.modules.imports.ai import get_ai_provider_singleton
 
-from .mapping_suggester import MappingSuggestion, mapping_suggester
+from .mapping_suggester import mapping_suggester
 from .telemetry import telemetry
 
 logger = logging.getLogger("imports.ai.http")
@@ -272,9 +272,7 @@ class MappingSuggestRequest(BaseModel):
     """Request to suggest column mappings."""
 
     headers: list[str] = Field(..., description="Column headers from the file")
-    sample_rows: list[list[Any]] | None = Field(
-        None, description="Sample data rows for context"
-    )
+    sample_rows: list[list[Any]] | None = Field(None, description="Sample data rows for context")
     doc_type: str = Field(
         "products", description="Document type: products, bank_transactions, invoices, expenses"
     )
@@ -285,12 +283,8 @@ class MappingSuggestResponse(BaseModel):
     """Response with mapping suggestions."""
 
     mappings: dict[str, str] = Field(..., description="Suggested mappings {source: target}")
-    transforms: dict[str, str] | None = Field(
-        None, description="Suggested transforms per column"
-    )
-    defaults: dict[str, Any] | None = Field(
-        None, description="Default values for missing fields"
-    )
+    transforms: dict[str, str] | None = Field(None, description="Suggested transforms per column")
+    defaults: dict[str, Any] | None = Field(None, description="Default values for missing fields")
     confidence: float = Field(..., description="Confidence score 0-1")
     reasoning: str = Field(..., description="Explanation of the suggestion")
     from_cache: bool = Field(False, description="Whether result came from cache")

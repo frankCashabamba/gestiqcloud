@@ -3,12 +3,13 @@
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 
 class WebhookEventType(str, Enum):
     """Supported webhook event types"""
+
     # Invoice events
     INVOICE_CREATED = "invoice.created"
     INVOICE_SENT = "invoice.sent"
@@ -44,6 +45,7 @@ class WebhookEventType(str, Enum):
 
 class WebhookStatus(str, Enum):
     """Webhook status"""
+
     ACTIVE = "active"
     INACTIVE = "inactive"
     SUSPENDED = "suspended"
@@ -52,6 +54,7 @@ class WebhookStatus(str, Enum):
 
 class DeliveryStatus(str, Enum):
     """Delivery status for webhook attempts"""
+
     PENDING = "pending"
     DELIVERED = "delivered"
     FAILED = "failed"
@@ -62,6 +65,7 @@ class DeliveryStatus(str, Enum):
 @dataclass
 class WebhookEndpoint:
     """Webhook endpoint configuration"""
+
     id: UUID
     tenant_id: str
     url: str
@@ -69,7 +73,7 @@ class WebhookEndpoint:
     secret: str  # For HMAC signature
     status: WebhookStatus = WebhookStatus.ACTIVE
     active: bool = True
-    headers: Optional[dict[str, str]] = None
+    headers: dict[str, str] | None = None
     max_retries: int = 5
     timeout_seconds: int = 30
     batch_size: int = 1  # Events per request
@@ -86,6 +90,7 @@ class WebhookEndpoint:
 @dataclass
 class WebhookEvent:
     """Webhook event to be delivered"""
+
     id: UUID
     webhook_id: UUID
     tenant_id: str
@@ -106,17 +111,18 @@ class WebhookEvent:
 @dataclass
 class WebhookDeliveryAttempt:
     """Record of webhook delivery attempt"""
+
     id: UUID
     webhook_id: UUID
     event_id: UUID
     attempt_number: int
     status: DeliveryStatus
-    http_status_code: Optional[int] = None
-    response_body: Optional[str] = None
-    error_message: Optional[str] = None
+    http_status_code: int | None = None
+    response_body: str | None = None
+    error_message: str | None = None
     request_timestamp: datetime = None
-    response_timestamp: Optional[datetime] = None
-    next_retry_at: Optional[datetime] = None
+    response_timestamp: datetime | None = None
+    next_retry_at: datetime | None = None
     created_at: datetime = None
 
     def __post_init__(self):
@@ -129,9 +135,10 @@ class WebhookDeliveryAttempt:
 @dataclass
 class WebhookTrigger:
     """Definition of when webhooks are triggered"""
+
     event_type: WebhookEventType
     resource_type: str
-    conditions: Optional[dict[str, Any]] = None  # Additional conditions
+    conditions: dict[str, Any] | None = None  # Additional conditions
     immediate: bool = True  # Trigger immediately or batch
     batch_window_seconds: int = 60  # For batched events
 
@@ -139,6 +146,7 @@ class WebhookTrigger:
 @dataclass
 class WebhookPayload:
     """Standard webhook payload structure"""
+
     id: str
     timestamp: datetime
     event: WebhookEventType

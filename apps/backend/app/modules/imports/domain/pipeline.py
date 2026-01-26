@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
-from uuid import UUID, NAMESPACE_URL, uuid5
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 try:
     from celery import chain, group
@@ -66,11 +66,7 @@ def enqueue_item_pipeline(
     batch_str = str(batch_id)
 
     mode = _runner_mode()
-    use_inline = (
-        mode == "inline"
-        or not _celery_available
-        or celery_app is None
-    )
+    use_inline = mode == "inline" or not _celery_available or celery_app is None
     if use_inline:
         logger.info(f"Running item {item_str} inline (no Celery)")
         _run_inline(item_str, tenant_str, batch_str)
@@ -134,11 +130,7 @@ def enqueue_batch_pipeline(batch_id: UUID, tenant_id: UUID) -> dict:
             return {"enqueued": 0, "batch_id": batch_str}
 
         mode = _runner_mode()
-        use_inline = (
-            mode == "inline"
-            or not _celery_available
-            or celery_app is None
-        )
+        use_inline = mode == "inline" or not _celery_available or celery_app is None
 
         if use_inline:
             for item in items:

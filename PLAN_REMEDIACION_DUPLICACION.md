@@ -1,7 +1,7 @@
 # Plan de Remediación: Duplicación Frontend/Backend
 
-**Fecha**: 17 de Enero 2026  
-**Total Issues**: 10  
+**Fecha**: 17 de Enero 2026
+**Total Issues**: 10
 **Prioridad**: Riesgo/Impacto
 
 ---
@@ -21,15 +21,15 @@
 | 9 | Env Validation - Sin sincronización | 🟢 BAJA | Refactor | Frontend | 1h | BAJO |
 | 10 | Company Validation - Niveles distintos | 🟢 BAJA | Sincronizar | Frontend | 2h | BAJO |
 
-**Total estimado**: ~29 horas  
+**Total estimado**: ~29 horas
 **Orden recomendado**: 1→2→3→4→5→6→7→8→9→10
 
 ---
 
 ## 🔴 CRÍTICA #1: TAX ID VALIDATION
 
-**Estado**: Divergencia crítica  
-**Riesgo**: Frontend acepta RUCs inválidos  
+**Estado**: Divergencia crítica
+**Riesgo**: Frontend acepta RUCs inválidos
 **Impacto**: Importaciones con datos basura
 
 ### Análisis Actual
@@ -57,13 +57,13 @@
 
 export function validateEcuadorRUC(ruc: string): boolean {
     if (!/^\d{13}$/.test(ruc)) return false;
-    
+
     const province = parseInt(ruc.substring(0, 2));
     if (province < 1 || province > 24) return false;  // ✅ Provincia válida
-    
+
     const typeDigit = parseInt(ruc.substring(2, 3));
     if (![0, 1, 6, 9].includes(typeDigit)) return false;  // ✅ Tipo válido
-    
+
     // ✅ Verificar dígito verificador
     const checkDigit = parseInt(ruc.substring(12, 13));
     const calculated = calculateRUCCheckDigit(ruc.substring(0, 12));
@@ -92,7 +92,7 @@ export function validateSpainNIF(nif: string): boolean {
 
 export function validateArgentinaCUIT(cuit: string): boolean {
     if (!/^\d{11}$/.test(cuit)) return false;
-    
+
     const weights = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
     let sum = 0;
     for (let i = 0; i < 10; i++) {
@@ -163,8 +163,8 @@ const TEST_CASES = {
 
 ## 🔴 CRÍTICA #2: CÁLCULOS TOTALES - DIVERGENCIA
 
-**Estado**: Implementados diferente  
-**Riesgo**: Divergencia de 1-3% en totales  
+**Estado**: Implementados diferente
+**Riesgo**: Divergencia de 1-3% en totales
 **Impacto**: Descuadres contables, problemas POS
 
 ### Análisis Actual
@@ -215,26 +215,26 @@ export function calculateTotals(input: CalculationInput): CalculationResult {
     for (const item of input.items) {
         subtotalBase += item.quantity * item.price;
     }
-    
+
     // Paso 2: Aplicar descuentos por línea
     let subtotalAfterLine = 0;
     for (const item of input.items) {
         const lineTotal = item.quantity * item.price * (1 - item.lineDiscount);
         subtotalAfterLine += lineTotal;
     }
-    
+
     // Paso 3: Aplicar descuento global
     const subtotalAfterGlobal = subtotalAfterLine * (1 - input.globalDiscount);
-    
+
     // Paso 4: Calcular impuesto SOBRE el subtotal con descuentos
     const tax = subtotalAfterGlobal * input.taxRate;
-    
+
     // Paso 5: Redondear según regla
     const rounded = {
         subtotal: _round(subtotalAfterGlobal, input.rounding),
         tax: _round(tax, input.rounding),
     };
-    
+
     return {
         subtotalBeforeDiscount: _round(subtotalBase, input.rounding),
         subtotalAfterLineDiscounts: _round(subtotalAfterLine, input.rounding),
@@ -290,7 +290,7 @@ def validate_receipt_calculation(receipt_dto: ReceiptDTO) -> bool:
         "taxRate": receipt_dto.tax_rate,
         "rounding": "round"
     })
-    
+
     return (
         abs(expected.totalAmount - receipt_dto.total) < 0.01  # Tolerance
     )
@@ -310,12 +310,12 @@ describe("calculateTotals", () => {
             taxRate: 0.15,
             rounding: "round"
         });
-        
+
         expect(result.subtotalAfterLineDiscounts).toBe(180);
         expect(result.taxAmount).toBe(27);
         expect(result.totalAmount).toBe(207);
     });
-    
+
     it("should apply global discount AFTER line discounts", () => {
         const result = calculateTotals({
             items: [
@@ -325,7 +325,7 @@ describe("calculateTotals", () => {
             taxRate: 0.15,
             rounding: "round"
         });
-        
+
         expect(result.subtotalAfterGlobalDiscount).toBe(80);  // 100 × 0.8
         expect(result.taxAmount).toBe(12);  // 80 × 0.15
         expect(result.totalAmount).toBe(92);
@@ -339,8 +339,8 @@ describe("calculateTotals", () => {
 
 ## 🟡 MEDIA #3: PAYROLL - SIN PREVIEW FRONTEND
 
-**Estado**: Completamente ausente en frontend  
-**Riesgo**: Mala UX, sin preview  
+**Estado**: Completamente ausente en frontend
+**Riesgo**: Mala UX, sin preview
 **Impacto**: Usuario debe guardar para ver resultado
 
 ### Plan de Fix
@@ -369,18 +369,18 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
     let socialSecurity = 0;
     let incomeTax = 0;
     let deductions = 0;
-    
+
     if (input.country === "ES") {
         // Social security: 6.35% fijo
         socialSecurity = input.grossSalary * 0.0635;
-        
+
         // IRPF: Tramos progresivos
         if (input.grossSalary < 12000) incomeTax = input.grossSalary * 0.01;
         else if (input.grossSalary < 20000) incomeTax = input.grossSalary * 0.09;
         else if (input.grossSalary < 35000) incomeTax = input.grossSalary * 0.19;
         else if (input.grossSalary < 60000) incomeTax = input.grossSalary * 0.37;
         else incomeTax = input.grossSalary * 0.45;
-        
+
         // Deducciones: Spouse + dependents
         if (input.hasSpouse) deductions += 100;
         deductions += input.numDependents * 50;
@@ -390,10 +390,10 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
         incomeTax = 0;  // Sin IRPF
     }
     // ... más países
-    
+
     const totalDeductions = socialSecurity + incomeTax;
     const net = input.grossSalary - totalDeductions + deductions;
-    
+
     return {
         gross: input.grossSalary,
         socialSecurity,
@@ -412,13 +412,13 @@ import { calculatePayroll } from "@shared/calculations/payrollEngine";
 
 export function usePayrollCalculator(input: PayrollInput) {
     const [preview, setPreview] = useState<PayrollResult | null>(null);
-    
+
     useEffect(() => {
         // Calcula preview en tiempo real
         const result = calculatePayroll(input);
         setPreview(result);
     }, [input]);
-    
+
     return preview;
 }
 ```
@@ -456,7 +456,7 @@ return (
 
 ## 🟡 MEDIA #4: RECIPE/COSTOS - SIN PREVIEW FRONTEND
 
-**Similar a Payroll**  
+**Similar a Payroll**
 **Estimado**: 5h
 
 **Pasos**:
@@ -535,4 +535,3 @@ return (
 - [ ] Data Normalization: Documentado y consistente
 - [ ] Env Validation: Sincronizado backend/frontend
 - [ ] Company Validation: Mismo nivel de strictness
-

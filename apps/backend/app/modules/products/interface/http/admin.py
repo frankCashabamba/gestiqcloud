@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from app.core.access_guard import with_access_claims
-from app.core.authz import require_scope
+from apps.backend.app.shared.utils import ping_ok
 from fastapi import APIRouter, Depends
 
-from apps.backend.app.shared.utils import ping_ok
+from app.core.access_guard import with_access_claims
+from app.core.authz import require_scope
 
 router = APIRouter(
     prefix="/admin/products",

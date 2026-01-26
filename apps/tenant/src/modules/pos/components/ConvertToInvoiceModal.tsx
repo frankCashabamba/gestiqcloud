@@ -46,7 +46,7 @@ export default function ConvertToInvoiceModal({ receiptId, receipt, onSuccess, o
       // Intentar crear en ambos sistemas para garantizar sincronización
       // Primero en invoicing (sistema principal de Billing)
       const invoiceResult = await createInvoiceFromReceipt(receiptId, receipt as any, payload)
-      
+
       // Luego en documents (para e-invoicing)
       try {
         await convertToInvoice(receiptId, payload)

@@ -272,11 +272,11 @@ tail -f apps/backend/logs/app.log | grep "checkout"
 ### Database Metrics
 ```sql
 -- Count created documents
-SELECT 
+SELECT
   'invoices' as table_name, COUNT(*) as pos_linked
 FROM invoices WHERE pos_receipt_id IS NOT NULL
 UNION ALL
-SELECT 
+SELECT
   'sales', COUNT(*)
 FROM sales WHERE pos_receipt_id IS NOT NULL
 UNION ALL
@@ -312,23 +312,23 @@ HAVING COUNT(*) > 1;
 ## 📞 Troubleshooting
 
 ### "documents_created is empty"
-**Cause**: Modules disabled  
+**Cause**: Modules disabled
 **Fix**: Enable invoicing/sales/expenses in `/admin/modules`
 
 ### "Invoice not created"
-**Cause**: `invoicing` module disabled OR `create_invoice_from_receipt()` error  
+**Cause**: `invoicing` module disabled OR `create_invoice_from_receipt()` error
 **Fix**: Check logs for errors, enable invoicing module, verify tables exist
 
 ### "CheckoutSummary not showing"
-**Cause**: `payReceipt()` not returning new response format  
+**Cause**: `payReceipt()` not returning new response format
 **Fix**: Verify backend updated, check API response with DevTools
 
 ### "Database migration failed"
-**Cause**: Existing columns, table doesn't exist  
+**Cause**: Existing columns, table doesn't exist
 **Fix**: Migration is idempotent - safe to re-run. Check error message.
 
 ### "Payment processed but no documents in DB"
-**Cause**: Module checks failing silently  
+**Cause**: Module checks failing silently
 **Fix**: Check `enabled_modules` setting, check logs for warnings
 
 ---

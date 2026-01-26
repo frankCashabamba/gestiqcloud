@@ -1,7 +1,8 @@
 # app/core/security_headers.py
-from backend.app.config.settings import settings
 from starlette.requests import Request
 from starlette.responses import Response
+
+from backend.app.config.settings import settings
 
 
 def _csp_for_request(request: Request) -> str:
@@ -41,9 +42,11 @@ def _csp_for_request(request: Request) -> str:
     else:
         # DEV: Vite/HMR
         # Get dev hosts from settings or use defaults
-        dev_hosts_list = getattr(settings, "CSP_DEV_HOSTS", "http://localhost:5173 http://localhost:5174")
+        dev_hosts_list = getattr(
+            settings, "CSP_DEV_HOSTS", "http://localhost:5173 http://localhost:5174"
+        )
         dev_hosts = dev_hosts_list if isinstance(dev_hosts_list, str) else " ".join(dev_hosts_list)
-        
+
         # Convert HTTP hosts to WS equivalents
         dev_ws_list = []
         for host in dev_hosts.split():
@@ -54,7 +57,7 @@ def _csp_for_request(request: Request) -> str:
             else:
                 dev_ws_list.append(host)
         dev_ws = " ".join(dev_ws_list)
-        
+
         return "; ".join(
             [
                 "default-src 'self' blob: data:",

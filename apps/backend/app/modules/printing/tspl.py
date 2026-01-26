@@ -3,7 +3,7 @@ from dataclasses import dataclass
 try:
     from typing import Literal
 except ImportError:  # python < 3.11
-    from typing_extensions import Literal  # type: ignore[assignment]
+    from typing import Literal  # type: ignore[assignment]
 
 try:
     import serial  # type: ignore[import]
@@ -36,7 +36,9 @@ class ProductLabel:
     price_alignment: Literal["left", "center", "right"] | None = None
 
 
-def _append_text(tspl: list[str], x: int, y: int, font: Literal["0", "3"], size_w: int, size_h: int, content: str) -> None:
+def _append_text(
+    tspl: list[str], x: int, y: int, font: Literal["0", "3"], size_w: int, size_h: int, content: str
+) -> None:
     tspl.append(f'TEXT {x},{y},"{font}",0,{size_w},{size_h},"{content}"')
 
 
@@ -52,7 +54,10 @@ DOTS_PER_MM = 8
 def _mm_to_dots(value: float | None) -> int:
     return int(round((value or 0) * DOTS_PER_MM))
 
-def _append_label(tspl: list[str], field: ProductLabel, config: LabelConfig, base_x_dots: int) -> None:
+
+def _append_label(
+    tspl: list[str], field: ProductLabel, config: LabelConfig, base_x_dots: int
+) -> None:
     x_offset = base_x_dots + _mm_to_dots(field.offset_xmm)
     y_offset = _mm_to_dots(field.offset_ymm)
 

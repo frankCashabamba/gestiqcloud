@@ -3,7 +3,6 @@
 Saves the initial tenant configuration in both Tenant and CompanySettings.
 """
 
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,8 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import get_current_user_context
-from app.models.tenant import Tenant
 from app.models.company.company_settings import CompanySettings
+from app.models.tenant import Tenant
 
 router = APIRouter(prefix="/tenant/onboarding", tags=["Onboarding"])
 
@@ -23,20 +22,20 @@ class OnboardingInitRequest(BaseModel):
 
     # Company information (Tenant)
     company_name: str
-    tax_id: Optional[str] = None
+    tax_id: str | None = None
     country_code: str
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    postal_code: Optional[str] = None
-    website: Optional[str] = None
+    phone: str | None = None
+    address: str | None = None
+    city: str | None = None
+    state: str | None = None
+    postal_code: str | None = None
+    website: str | None = None
 
     # Configuration (CompanySettings)
     default_language: str
     timezone: str
     currency: str
-    logo_empresa: Optional[str] = None
+    logo_empresa: str | None = None
     primary_color: str = "#4f46e5"
     secondary_color: str = "#ffffff"
 
@@ -77,9 +76,7 @@ async def onboarding_init(
         tenant.base_currency = payload.currency
 
         # 2. Create or update CompanySettings with operational configuration
-        settings = db.query(CompanySettings).filter(
-            CompanySettings.tenant_id == tenant_id
-        ).first()
+        settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
 
         if settings:
             # Update existing settings

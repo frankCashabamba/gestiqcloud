@@ -174,13 +174,10 @@ class DecisionLogger:
         if log:
             log.user_override = chosen_parser
             self.logger.info(
-                f"User override for {log_id}: "
-                f"was={log.final_parser}, now={chosen_parser}"
+                f"User override for {log_id}: " f"was={log.final_parser}, now={chosen_parser}"
             )
 
-    def get_recent_logs(
-        self, tenant_id: str | None = None, limit: int = 100
-    ) -> list[DecisionLog]:
+    def get_recent_logs(self, tenant_id: str | None = None, limit: int = 100) -> list[DecisionLog]:
         """Lista logs recientes para análisis."""
         logs = list(self._logs.values())
         if tenant_id:

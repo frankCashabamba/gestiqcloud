@@ -5,10 +5,11 @@ import os
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
-from pydantic import BaseModel, Field, constr, confloat
+
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from pydantic import BaseModel, Field, confloat, constr
 from serial.tools import list_ports
+from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.middleware.tenant import ensure_tenant
@@ -22,6 +23,7 @@ from ...tspl import (
     build_tspl_payload_for_labels,
     send_to_printer,
 )
+
 
 def build_label_config(
     width_mm: float | None,
@@ -42,6 +44,7 @@ def build_label_config(
     if column_gap_mm is not None:
         config.column_gap_mm = column_gap_mm
     return config
+
 
 router = APIRouter()
 logger = logging.getLogger("app.printing")

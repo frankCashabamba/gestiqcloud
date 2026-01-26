@@ -12,7 +12,7 @@
 ✓ apps/backend/app/models/core/invoiceLine.py
   - Added POSLine class (lines 68-85)
 
-✓ apps/backend/app/modules/pos/application/invoice_integration.py  
+✓ apps/backend/app/modules/pos/application/invoice_integration.py
   - Improved exception handling in create_invoice_from_receipt
   - Improved exception handling in create_sale_from_receipt
   - Added savepoint documentation
@@ -100,8 +100,8 @@ BEGIN;
 
 -- Move existing 'pos' records to pos_invoice_lines
 INSERT INTO pos_invoice_lines (id, pos_receipt_line_id)
-SELECT id, NULL 
-FROM invoice_lines 
+SELECT id, NULL
+FROM invoice_lines
 WHERE sector = 'pos';
 
 -- Verify
@@ -113,8 +113,8 @@ COMMIT;
 **Option 2: Delete invalid 'pos' records (if orphaned)**
 ```sql
 -- Delete if no matching invoice exists
-DELETE FROM invoice_lines 
-WHERE sector = 'pos' 
+DELETE FROM invoice_lines
+WHERE sector = 'pos'
 AND invoice_id NOT IN (SELECT id FROM invoices);
 ```
 

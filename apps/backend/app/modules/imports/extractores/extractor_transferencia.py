@@ -11,7 +11,9 @@ from app.modules.imports.schemas import DocumentoProcesado
 
 def _extraer_fecha_envio(bloque: str) -> str:
     """Extrae la fecha de envío del bloque."""
-    match = re.search(r"Fecha\s+de\s+env[ií]o:\s*(\d{2}[-/ ]\d{2}[-/ ]\d{4})", bloque, re.IGNORECASE)
+    match = re.search(
+        r"Fecha\s+de\s+env[ií]o:\s*(\d{2}[-/ ]\d{2}[-/ ]\d{4})", bloque, re.IGNORECASE
+    )
     if match:
         return limpiar_valor(match.group(1))
     match = re.search(r"\b(\d{2}[-/ ]\d{2}[-/ ]\d{4})\b", bloque)
@@ -47,7 +49,9 @@ def _extraer_importe(bloque: str) -> float:
                 continue
 
     # Fallback: buscar patrón "XXX,XX EUR" cerca de BENEFICIARIO
-    match = re.search(r"BENEFICIARIO.*?(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})\s*EUR", bloque, re.IGNORECASE | re.DOTALL)
+    match = re.search(
+        r"BENEFICIARIO.*?(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})\s*EUR", bloque, re.IGNORECASE | re.DOTALL
+    )
     if match:
         valor_raw = match.group(1).replace(".", "").replace(",", ".")
         try:
@@ -131,7 +135,9 @@ def _extraer_concepto(bloque: str) -> str:
         # Limpiar saltos de línea y espacios extras
         concepto = re.sub(r"\s+", " ", concepto)
         # Eliminar campos que se pueden colar
-        concepto = re.split(r"(Nuestra|Fecha operaci|referencia:|Oficina)", concepto, flags=re.IGNORECASE)[0]
+        concepto = re.split(
+            r"(Nuestra|Fecha operaci|referencia:|Oficina)", concepto, flags=re.IGNORECASE
+        )[0]
         concepto = concepto.strip()
         if es_concepto_valido(concepto):
             return limpiar_valor(concepto)

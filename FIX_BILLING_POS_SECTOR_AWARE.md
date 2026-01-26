@@ -28,7 +28,7 @@ class POSLineOut(POSLine):
 
 # Updated union to accept all line types
 LineaFacturaOut = Annotated[
-    BakeryLineOut | WorkshopLineOut | POSLineOut, 
+    BakeryLineOut | WorkshopLineOut | POSLineOut,
     Field(discriminator="sector")
 ]
 ```

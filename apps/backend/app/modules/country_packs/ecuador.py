@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from decimal import Decimal
 import unicodedata
+from decimal import Decimal
 
-from app.modules.country_packs.base import CountryPack
 from app.modules.documents.domain.config import TenantDocConfig
 from app.modules.documents.domain.models import BuyerInfo, SaleDraft, TaxLine, _q2
 from app.modules.documents.domain.validation import ValidationError
@@ -27,6 +26,7 @@ class EcuadorPack:
         errs: list[ValidationError] = []
         policy = cfg.buyer_policy or {}
         if cfg.id_types and input.buyer.mode == "IDENTIFIED":
+
             def normalize(value: str) -> str:
                 cleaned = "".join(
                     ch

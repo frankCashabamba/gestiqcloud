@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 from uuid import uuid4
 
 from app.modules.country_packs.ecuador import EcuadorPack
 from app.modules.documents.domain.config import TenantDocConfig
 from app.modules.documents.domain.models import (
-    BuyerInfo,
     DocumentInfo,
     DocumentLine,
     DocumentModel,
@@ -15,7 +14,6 @@ from app.modules.documents.domain.models import (
     RenderInfo,
     SaleDraft,
     SellerInfo,
-    TaxLine,
     Totals,
     _q2,
 )
@@ -41,7 +39,7 @@ class DocumentOrchestrator:
         series: str | None,
         sequential: str | None,
     ) -> DocumentModel:
-        issued_at = datetime.now(timezone.utc)
+        issued_at = datetime.now(UTC)
         return self._build_document(
             sale,
             cfg=cfg,

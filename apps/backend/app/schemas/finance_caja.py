@@ -26,7 +26,9 @@ class CashMovementBase(BaseModel):
         description="SALE, PURCHASE, EXPENSE, PAYROLL, BANK, CHANGE, ADJUSTMENT, OTHER",
     )
     amount: Decimal = Field(..., alias="importe", description="Movement amount (>0)")
-    currency: str | None = Field(default=None, alias="moneda", max_length=3, description="Currency code")
+    currency: str | None = Field(
+        default=None, alias="moneda", max_length=3, description="Currency code"
+    )
     description: str = Field(
         ...,
         alias="description",

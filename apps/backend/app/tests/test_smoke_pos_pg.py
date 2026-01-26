@@ -14,9 +14,9 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
     from app.modules.pos.interface.http.tenant import (
         CheckoutIn,
         OpenShiftIn,
-        RefundReceiptIn,
         ReceiptCreateIn,
         ReceiptLineIn,
+        RefundReceiptIn,
         RegisterIn,
         checkout,
         create_receipt,
@@ -196,9 +196,7 @@ def test_smoke_pos_post_creates_issue_and_updates_stock(
     assert float(si.qty or 0) == 5.0
 
     refund_line = db.execute(
-        text(
-            "SELECT COUNT(*) FROM pos_receipt_lines WHERE receipt_id = :rid AND qty < 0"
-        ),
+        text("SELECT COUNT(*) FROM pos_receipt_lines WHERE receipt_id = :rid AND qty < 0"),
         {"rid": rid},
     ).scalar()
     assert int(refund_line or 0) == 1

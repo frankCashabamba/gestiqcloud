@@ -4,7 +4,7 @@
 
 Tienes dos errores:
 
-1. **`AssertionError: No such polymorphic_identity 'pos' is defined`** 
+1. **`AssertionError: No such polymorphic_identity 'pos' is defined`**
    - Cuando intentas ver facturas → `/api/v1/tenant/invoicing`
 
 2. **`InFailedSqlTransaction: transacción abortada...`**

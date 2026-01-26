@@ -158,7 +158,9 @@ class MockElectricClient:
         self.synced = False
 
 
-async def benchmark_initial_sync(client: MockElectricClient, data: dict) -> BenchmarkResult:
+async def benchmark_initial_sync(
+    client: MockElectricClient, data: dict
+) -> BenchmarkResult:
     """Benchmark de sync inicial (full load)."""
     result = BenchmarkResult(
         name="initial_sync",
@@ -190,13 +192,18 @@ async def benchmark_incremental_sync(client: MockElectricClient) -> BenchmarkRes
         target_ms=INCREMENTAL_SYNC_TARGET_MS,
     )
 
-    print(f"\n[Benchmark] Sync Incremental")
+    print("\n[Benchmark] Sync Incremental")
     print(f"   Target P95: < {INCREMENTAL_SYNC_TARGET_MS}ms")
     print(f"   Iteraciones: {NUM_ITERATIONS}")
 
     for i in range(NUM_ITERATIONS):
         changes = [
-            {"type": "UPDATE", "table": "products", "id": f"prod_{j}", "data": {"price": 99.99}}
+            {
+                "type": "UPDATE",
+                "table": "products",
+                "id": f"prod_{j}",
+                "data": {"price": 99.99},
+            }
             for j in range(100)
         ]
 
@@ -204,15 +211,17 @@ async def benchmark_incremental_sync(client: MockElectricClient) -> BenchmarkRes
         result.measurements_ms.append(elapsed_ms)
 
         status = "PASS" if elapsed_ms < INCREMENTAL_SYNC_TARGET_MS else "FAIL"
-        print(f"   [{i + 1}/{NUM_ITERATIONS}] {elapsed_ms:.2f}ms (100 cambios) [{status}]")
+        print(
+            f"   [{i + 1}/{NUM_ITERATIONS}] {elapsed_ms:.2f}ms (100 cambios) [{status}]"
+        )
 
     return result
 
 
 async def benchmark_offline_throughput(client: MockElectricClient) -> dict[str, Any]:
     """Benchmark de throughput de operaciones offline."""
-    print(f"\n[Benchmark] Throughput Offline")
-    print(f"   Operaciones: 1000")
+    print("\n[Benchmark] Throughput Offline")
+    print("   Operaciones: 1000")
 
     operations = [
         {"type": "INSERT", "table": "pos_receipts", "data": {"id": f"receipt_{i}"}}
@@ -260,12 +269,16 @@ def print_summary(results: list[BenchmarkResult], throughput: dict) -> None:
         print(f"   P99:  {result.p99_ms:.2f}ms")
         print(f"   Range: {result.min_ms:.2f}ms - {result.max_ms:.2f}ms")
 
-    print(f"\nOffline Throughput:")
+    print("\nOffline Throughput:")
     print(f"   {throughput['ops_per_second']:.0f} ops/s")
     print(f"   Latency P95: {throughput['latency_p95_ms']:.2f}ms")
 
     print(f"\n{'=' * 60}")
-    overall = "[PASS] ALL BENCHMARKS PASSED" if all_passed else "[FAIL] SOME BENCHMARKS FAILED"
+    overall = (
+        "[PASS] ALL BENCHMARKS PASSED"
+        if all_passed
+        else "[FAIL] SOME BENCHMARKS FAILED"
+    )
     print(overall)
     print(f"{'=' * 60}")
 

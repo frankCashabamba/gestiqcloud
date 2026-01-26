@@ -17,7 +17,7 @@ EnvironmentFile=/etc/gestiq/worker-imports.env
 # Set Python path (safe to hardcode)
 Environment="PYTHONPATH=/opt/gestiq/apps/backend:/opt/gestiq/apps"
 
-# Note: DB_DSN, REDIS_URL, IMPORTS_ENABLED, IMPORTS_RUNNER_MODE 
+# Note: DB_DSN, REDIS_URL, IMPORTS_ENABLED, IMPORTS_RUNNER_MODE
 # must be defined in /etc/gestiq/worker-imports.env (permissions: 600)
 
 ExecStart=/opt/gestiq/venv/bin/python -m app.modules.imports.application.worker_main

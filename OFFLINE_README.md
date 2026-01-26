@@ -13,7 +13,7 @@ Welcome! Esta es la guía central para implementar soporte offline robusto en Ge
 1. **[OFFLINE_IMPLEMENTATION_SUMMARY.md](./OFFLINE_IMPLEMENTATION_SUMMARY.md)** ⭐
    - **Para:** Entender qué se hizo en Fase 1
    - **Duración:** 10 min
-   - **Contiene:** 
+   - **Contiene:**
      - Resumen ejecutivo
      - Comparación antes/después
      - Decisiones técnicas
@@ -378,7 +378,6 @@ Tienes todo lo que necesitas para implementar offline-first en GestiqCloud.
 
 ---
 
-**Última actualización:** Enero 19, 2026  
-**Creado por:** Amp (AI Coding Agent)  
+**Última actualización:** Enero 19, 2026
+**Creado por:** Amp (AI Coding Agent)
 **Estado:** ✅ Production Ready
-

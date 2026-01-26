@@ -13,7 +13,6 @@ from app.models.core.ui_template import UiTemplate
 from app.models.tenant import Tenant as Empresa
 from app.services.field_config import resolve_fields
 
-
 router = APIRouter()
 admin_router = APIRouter(prefix="/admin/field-config", tags=["admin-field-config"])
 

@@ -1,7 +1,7 @@
 # API Contracts - GestiqCloud
 
-**Versión API:** v1  
-**Base URL:** `/api/v1`  
+**Versión API:** v1
+**Base URL:** `/api/v1`
 **Última actualización:** 2026-01-17
 
 ---

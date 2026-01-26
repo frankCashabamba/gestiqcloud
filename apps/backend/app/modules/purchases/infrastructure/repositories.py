@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 
+from sqlalchemy.orm import Session
+
 from app.core.crud_base import CRUDBase
 from app.models.purchases import Purchase
-from sqlalchemy.orm import Session
 
 
 @dataclass

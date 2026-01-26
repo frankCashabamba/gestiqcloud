@@ -80,7 +80,7 @@ Applied same fix to:
 
 **Common keys**:
 - `view` - "View" / "Ver"
-- `print` - "Print" / "Imprimir"  
+- `print` - "Print" / "Imprimir"
 - `close` - "Close" / "Cerrar"
 - `open` - "Open" / "Abrir"
 - `add` - "Add" / "Agregar"
@@ -130,7 +130,7 @@ Subtotal: $0.00
 
 ### After
 ```
-Sale Detail  
+Sale Detail
 Number: SALE-001
 Date: 2025-01-22
 Customer: John Doe

@@ -42,7 +42,7 @@ class POSLine(InvoiceLine):
 - Method `create_invoice_from_receipt()` (lines 358-364)
   - Wrapped `db.rollback()` in try-except block
   - Added logging for rollback failures
-  
+
 - Method `create_sale_from_receipt()` (lines 549-560)
   - Wrapped `db.rollback()` in try-except block
   - Added logging for rollback failures
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS pos_invoice_lines (
     FOREIGN KEY (id) REFERENCES invoice_lines(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_pos_invoice_lines_pos_receipt_line_id 
+CREATE INDEX IF NOT EXISTS idx_pos_invoice_lines_pos_receipt_line_id
     ON pos_invoice_lines(pos_receipt_line_id);
 ```
 
@@ -199,7 +199,7 @@ systemctl restart gestiqcloud-backend
 ❌ GET /api/v1/tenant/invoicing
    Error: AssertionError: No such polymorphic_identity 'pos'
 
-❌ POST /api/v1/tenant/pos/receipts/.../checkout  
+❌ POST /api/v1/tenant/pos/receipts/.../checkout
    Error: InFailedSqlTransaction: transacción abortada
 ```
 
@@ -253,8 +253,8 @@ tail -100f /var/log/gestiqcloud/backend.log | grep -i "polymorphic\|pos\|invoice
 
 ---
 
-**Total Time to Deploy:** ~5 minutes (run migration + restart)  
-**Risk Level:** 🟢 LOW (additive, backward compatible)  
+**Total Time to Deploy:** ~5 minutes (run migration + restart)
+**Risk Level:** 🟢 LOW (additive, backward compatible)
 **Priority:** 🔴 HIGH (fixes critical API errors)
 
 ---
@@ -277,6 +277,6 @@ curl -s http://localhost:8000/api/v1/tenant/invoicing \
 
 ---
 
-**Status:** ✅ READY TO DEPLOY  
-**Created:** 2026-01-22  
+**Status:** ✅ READY TO DEPLOY
+**Created:** 2026-01-22
 **Last Updated:** 2026-01-22

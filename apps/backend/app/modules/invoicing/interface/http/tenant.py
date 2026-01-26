@@ -4,17 +4,18 @@ import os
 from pathlib import Path
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import Response
+from sqlalchemy.orm import Session
+
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
-from app.core.authz import require_scope
 from app.core.audit_events import audit_event
+from app.core.authz import require_scope
 from app.db.rls import ensure_rls
 from app.models.core.facturacion import Invoice
 from app.modules.invoicing import schemas
 from app.modules.invoicing.crud import factura_crud
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import Response
-from sqlalchemy.orm import Session
 
 
 def _tenant_uuid(request: Request) -> UUID:
@@ -93,7 +94,7 @@ def actualizar_factura(
 ):
     """Actualizar factura en borrador"""
     from sqlalchemy.orm import joinedload
-    
+
     tenant_id = _tenant_uuid(request)
 
     factura_uuid = factura_id
@@ -191,7 +192,7 @@ def emitir_factura(
     db: Session = Depends(get_db),
 ):
     from sqlalchemy.orm import joinedload
-    
+
     tenant_id = _tenant_uuid(request)
     issued = factura_crud.emitir_factura(db, tenant_id, factura_id)
     # Reload with relations
@@ -231,7 +232,7 @@ def obtener_factura_por_id(
     db: Session = Depends(get_db),
 ):
     from sqlalchemy.orm import joinedload
-    
+
     tenant_id = _tenant_uuid(request)
     factura = (
         db.query(Invoice)

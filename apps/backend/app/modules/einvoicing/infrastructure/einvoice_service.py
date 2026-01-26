@@ -2,13 +2,9 @@
 
 import base64
 import hashlib
-import json
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
-from decimal import Decimal
-from typing import Optional
-from uuid import UUID, uuid4
 
 import httpx
 from lxml import etree
@@ -56,7 +52,7 @@ class SRIClient(FiscalAPIClient):
         self.config = config
         self.base_url = config.base_url
         self.api_key = config.api_key
-        self.access_token: Optional[str] = None
+        self.access_token: str | None = None
 
     async def authenticate(self) -> str:
         """SRI Authentication"""
@@ -241,7 +237,9 @@ class EInvoiceService:
         else:
             raise ValueError(f"Unsupported country: {self.config.country_code}")
 
-    def generate_xml(self, document: EInvoiceDocument, lines: list[EInvoiceLineItem]) -> EInvoiceXML:
+    def generate_xml(
+        self, document: EInvoiceDocument, lines: list[EInvoiceLineItem]
+    ) -> EInvoiceXML:
         """Generate XML for e-invoice"""
         root = etree.Element("factura")
 
@@ -287,8 +285,6 @@ class EInvoiceService:
         """Sign XML with digital certificate"""
         try:
             from cryptography.hazmat.backends import default_backend
-            from cryptography.hazmat.primitives import hashes, serialization
-            from cryptography.hazmat.primitives.asymmetric import padding
             from cryptography.x509 import load_pem_x509_certificate
 
             # Load certificate
@@ -305,16 +301,14 @@ class EInvoiceService:
             xml.signature = base64.b64encode(hashlib.sha256(xml_bytes).digest()).decode()
             xml.is_signed = True
 
-            logger.info(f"XML signed successfully")
+            logger.info("XML signed successfully")
             return xml
 
         except Exception as e:
             logger.error(f"Failed to sign XML: {e}")
             raise
 
-    async def send_to_fiscal_authority(
-        self, document: EInvoiceDocument, xml: EInvoiceXML
-    ) -> dict:
+    async def send_to_fiscal_authority(self, document: EInvoiceDocument, xml: EInvoiceXML) -> dict:
         """Send signed XML to fiscal authority"""
         try:
             result = await self.client.send_invoice(xml.content)

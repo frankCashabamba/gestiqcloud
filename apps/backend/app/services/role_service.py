@@ -4,9 +4,10 @@ Auto-generated module docstring."""
 
 # services/role_service.py
 
-from app.models import CompanyRole, UsuarioRolempresa
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+
+from app.models import CompanyRole, UsuarioRolempresa
 
 
 async def get_user_permisos(usuario_id: int, tenant_id: int, db: AsyncSession) -> list[str]:

@@ -15,13 +15,14 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from app.config.database import Base, schema_column, schema_table_args
 from sqlalchemy import JSON, TIMESTAMP, Date
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.config.database import Base, schema_column, schema_table_args
 
 JSON_TYPE = JSONB().with_variant(JSON(), "sqlite")
 
@@ -114,9 +115,7 @@ class Payroll(Base):
         Integer, nullable=False, comment="Period month (1-12)"
     )
     period_year: Mapped[int] = mapped_column(Integer, nullable=False, comment="Period year")
-    type: Mapped[str] = mapped_column(
-        payroll_type, nullable=False, comment="Payroll type"
-    )
+    type: Mapped[str] = mapped_column(payroll_type, nullable=False, comment="Payroll type")
 
     # === EARNINGS (positive) ===
     base_salary: Mapped[Decimal] = mapped_column(

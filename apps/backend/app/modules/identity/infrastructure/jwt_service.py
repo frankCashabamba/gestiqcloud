@@ -85,6 +85,7 @@ class JwtSettings:
                     "Set JWT_SECRET_KEY environment variable with a secure 32+ character secret."
                 )
             import secrets
+
             secret = secrets.token_hex(32)
             logger.warning(
                 "JWT_SECRET_KEY not set. Using randomly generated secret for development. "

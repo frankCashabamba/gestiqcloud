@@ -61,7 +61,9 @@ def _detect_header_row(rows: list[tuple], ws=None) -> int:
             if all(cell is None or str(cell).strip() == "" for cell in prev_row):
                 score += 3
 
-        unique_values = set(str(cell).strip().upper() for cell in row if cell is not None and str(cell).strip())
+        unique_values = set(
+            str(cell).strip().upper() for cell in row if cell is not None and str(cell).strip()
+        )
         if len(unique_values) == filled and filled > 2:
             score += 4
 
@@ -88,7 +90,7 @@ def _normalize_headers(header: tuple | list) -> list[str | None]:
 def _extract_rows(rows: list[tuple], header_row_idx: int, normalized_headers: list) -> list[dict]:
     """Extrae y normaliza las filas de datos."""
     data_rows = []
-    for row_idx, row in enumerate(rows[header_row_idx + 1:], start=header_row_idx + 2):
+    for row_idx, row in enumerate(rows[header_row_idx + 1 :], start=header_row_idx + 2):
         if not row or all(cell is None or str(cell).strip() == "" for cell in row):
             continue
 
@@ -124,7 +126,10 @@ def _detect_document_type(headers: list[str | None]) -> str:
         return "products"
     if any(kw in headers_str for kw in ["FECHA", "IMPORTE", "SALDO", "BANCO", "IBAN", "CUENTA"]):
         return "bank"
-    if any(kw in headers_str for kw in ["FACTURA", "INVOICE", "VENDOR", "SUPPLIER", "CLIENT", "IVA", "TAX"]):
+    if any(
+        kw in headers_str
+        for kw in ["FACTURA", "INVOICE", "VENDOR", "SUPPLIER", "CLIENT", "IVA", "TAX"]
+    ):
         return "invoices"
     return "generic"
 
@@ -218,7 +223,9 @@ def parse_excel_all_sheets(
             used.add(i)
 
             for j, other_sheet in enumerate(sheets_data):
-                if j not in used and _are_sheets_compatible(sheet, other_sheet, similarity_threshold):
+                if j not in used and _are_sheets_compatible(
+                    sheet, other_sheet, similarity_threshold
+                ):
                     group.append(other_sheet)
                     used.add(j)
             groups.append(group)

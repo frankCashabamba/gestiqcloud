@@ -88,7 +88,7 @@ COBERTURA: 100% del sistema
 PASO 1: MIGRACIÓN (30 segundos)
   Comando:
     python ops/scripts/migrate_all_migrations_idempotent.py
-  
+
   Resultado:
     ✅ 8 tablas nuevas
     ✅ Índices creados

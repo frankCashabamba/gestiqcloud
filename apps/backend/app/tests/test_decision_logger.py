@@ -1,7 +1,5 @@
 """Tests for decision logger module."""
 
-import pytest
-
 from app.modules.imports.services.decision_logger import (
     DecisionEntry,
     DecisionLog,

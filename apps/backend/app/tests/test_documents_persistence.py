@@ -51,9 +51,7 @@ def test_document_persistence_roundtrip(db):
         address="Calle 123",
     )
     sale = _build_sale()
-    doc = DocumentOrchestrator().issue(
-        sale, cfg, seller, series="001-001", sequential="000000010"
-    )
+    doc = DocumentOrchestrator().issue(sale, cfg, seller, series="001-001", sequential="000000010")
 
     tenant_id = str(uuid4())
     db.execute(text("SET app.tenant_id = :tid"), {"tid": tenant_id})
@@ -86,9 +84,7 @@ def test_document_store_fallback_roundtrip():
         address="Calle 123",
     )
     sale = _build_sale()
-    doc = DocumentOrchestrator().issue(
-        sale, cfg, seller, series="001-001", sequential="000000123"
-    )
+    doc = DocumentOrchestrator().issue(sale, cfg, seller, series="001-001", sequential="000000123")
     store.put(doc)
     loaded = store.get(doc.document.id)
     assert loaded is not None

@@ -79,11 +79,7 @@ def obtener_modulo(db: Session, modulo_id: int):
 def crear_modulo(db: Session, modulo_data: schemas.ModuloCreate) -> Module:
     """Function crear_modulo - auto-generated docstring."""
     normalized_name = _normalize_module_name(modulo_data.name)
-    existente = (
-        db.query(Module)
-        .filter(func.lower(Module.name) == normalized_name)
-        .first()
-    )
+    existente = db.query(Module).filter(func.lower(Module.name) == normalized_name).first()
 
     if existente:
         raise ValueError(f"Ya existe un mA3dulo con el nombre '{modulo_data.name}'")
@@ -229,11 +225,7 @@ def listar_modulo_admins(db: Session) -> list[Module]:
 def crear_modulo_db_only(db: Session, modulo_data: schemas.ModuloCreate) -> Module:
     """Crear solo el registro del módulo en BD (sin tocar el filesystem)."""
     name = _normalize_module_name(modulo_data.name)
-    existente = (
-        db.query(Module)
-        .filter(func.lower(Module.name) == name)
-        .first()
-    )
+    existente = db.query(Module).filter(func.lower(Module.name) == name).first()
 
     if existente:
         raise ValueError(f"Ya existe un módulo con el nombre '{name}'")

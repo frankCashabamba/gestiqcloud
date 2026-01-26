@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
+from sqlalchemy import bindparam, text
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -14,10 +18,6 @@ from app.modules.documents.application.repository import get_document, save_docu
 from app.modules.documents.application.template_engine import TemplateEngine
 from app.modules.documents.domain.models import DocumentModel, RenderFormat, SaleDraft, SellerInfo
 from app.modules.shared.services.numbering import generar_numero_documento
-from uuid import UUID
-
-from sqlalchemy import bindparam, text
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
 
 
 def _resolve_tenant_currency(db: Session, tenant_id: str) -> str:
@@ -46,6 +46,7 @@ def _resolve_tenant_currency(db: Session, tenant_id: str) -> str:
                 if cur and len(cur) == 3 and cur.isalpha():
                     return cur
     raise HTTPException(status_code=400, detail="currency_not_configured")
+
 
 router = APIRouter(
     prefix="/documents/sales",
@@ -154,7 +155,9 @@ def _issue_document(payload: SaleDraft, request: Request, db: Session = Depends(
 router.add_api_route("/draft", _create_draft, methods=["POST"], response_model=DocumentModel)
 router.add_api_route("/issue", _issue_document, methods=["POST"], response_model=DocumentModel)
 legacy_router.add_api_route("/draft", _create_draft, methods=["POST"], response_model=DocumentModel)
-legacy_router.add_api_route("/issue", _issue_document, methods=["POST"], response_model=DocumentModel)
+legacy_router.add_api_route(
+    "/issue", _issue_document, methods=["POST"], response_model=DocumentModel
+)
 
 
 @documents_router.get("/{document_id}/render")

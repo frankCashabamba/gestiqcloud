@@ -377,7 +377,7 @@ Country Packs (admin):
 - **Cache strategy**: Documentada en docs/CACHE_STRATEGY.md con invalidación
 - **Monitoreo OCR**: Métricas Prometheus en workers/ocr
 - **Inventario DTOs**: Documentado en docs/DTO_INVENTORY.md
-- **Observabilidad**: 
+- **Observabilidad**:
   - Sentry error tracking: apps/backend/app/telemetry/sentry.py
   - Prometheus metrics: apps/backend/app/telemetry/metrics.py + /api/v1/metrics endpoint
   - OpenTelemetry tracing: apps/backend/app/telemetry/otel.py (existente)

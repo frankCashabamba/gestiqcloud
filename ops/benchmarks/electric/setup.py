@@ -87,7 +87,9 @@ def generate_clients() -> list[dict]:
                 "email": f"client{i}@example.com",
                 "phone": f"+1{random.randint(1000000000, 9999999999)}",
                 "address": f"{random.randint(1, 9999)} {random_string(10)} Street",
-                "city": random.choice(["Lima", "Arequipa", "Cusco", "Trujillo", "Piura"]),
+                "city": random.choice(
+                    ["Lima", "Arequipa", "Cusco", "Trujillo", "Piura"]
+                ),
                 "tax_id": f"{random.randint(10000000000, 99999999999)}",
                 "credit_limit": round(random.uniform(0, 50000), 2),
                 "created_at": random_date(),
@@ -137,13 +139,17 @@ def generate_receipts(products: list[dict], clients: list[dict]) -> list[dict]:
                 "id": str(uuid.uuid4()),
                 "tenant_id": TENANT_ID,
                 "receipt_number": f"REC-{i:06d}",
-                "client_id": random.choice(clients)["id"] if random.random() > 0.3 else None,
+                "client_id": random.choice(clients)["id"]
+                if random.random() > 0.3
+                else None,
                 "items": items,
                 "subtotal": round(subtotal, 2),
                 "tax": tax,
                 "total": total,
                 "payment_method": random.choice(payment_methods),
-                "status": random.choice(["completed", "completed", "completed", "voided"]),
+                "status": random.choice(
+                    ["completed", "completed", "completed", "voided"]
+                ),
                 "created_at": random_date(),
                 "synced_at": None,
                 "offline_created": random.random() > 0.7,
@@ -175,7 +181,9 @@ def clean_data():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Genera datos de prueba para benchmarks")
+    parser = argparse.ArgumentParser(
+        description="Genera datos de prueba para benchmarks"
+    )
     parser.add_argument("--clean", action="store_true", help="Limpiar datos existentes")
     args = parser.parse_args()
 

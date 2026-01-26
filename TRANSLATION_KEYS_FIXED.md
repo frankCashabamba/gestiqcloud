@@ -116,7 +116,7 @@ Translation files (`en.json`, `es.json`) were missing several keys that are used
      "title": "My Feature Title",
      "button": "Click me"
    }
-   
+
    // es.json
    "myFeature": {
      "title": "Título de Mi Característica",

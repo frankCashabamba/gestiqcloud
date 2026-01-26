@@ -7,7 +7,7 @@ import re
 import time
 import unicodedata
 from datetime import date, datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -16,7 +16,8 @@ from pydantic import BaseModel
 
 # Avoid importing heavy domain models at import time to keep router mountable in test envs
 # (domain handlers perform promotion separately)
-from sqlalchemy import func, inspect as sa_inspect
+from sqlalchemy import func
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -34,11 +35,12 @@ from app.models.core.modelsimport import (
     ImportOCRJob,
 )
 from app.models.core.products import Product
+from app.models.imports import ImportColumnMapping
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.inventory.warehouse import Warehouse
 from app.models.purchases.purchase import Purchase, PurchaseLine
-from app.models.imports import ImportColumnMapping
 from app.modules.imports.application.job_runner import enqueue_job
+from app.modules.imports.parsers.dispatcher import select_parser_for_file
 from app.modules.imports.schemas import (
     BatchCreate,
     BatchOut,
@@ -56,7 +58,6 @@ from app.modules.imports.schemas import (
 )
 from app.services.excel_analyzer import analyze_excel_stream, detect_header_row, extract_headers
 from app.services.inventory_costing import InventoryCostingService
-from app.modules.imports.parsers.dispatcher import select_parser_for_file
 
 
 def _get_claims(request: Request) -> dict:
@@ -361,9 +362,7 @@ def create_batch_from_upload(
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
 
-    original_filename = dto.original_filename or _load_original_filename_from_file_key(
-        dto.file_key
-    )
+    original_filename = dto.original_filename or _load_original_filename_from_file_key(dto.file_key)
 
     # Auto-pick mapping by file_pattern if not provided
     auto_mapping_id = None
@@ -510,10 +509,12 @@ def list_batches_private(
 def start_excel_import(batch_id: UUID, request: Request, db: Session = Depends(get_db)):
     """Encola importación genérica de archivo usando dispatcher de parsers."""
     from app.models.core.modelsimport import ImportBatch
-    from app.modules.imports.application.job_runner import RUNNER_MODE
     from app.modules.imports.application.celery_app import celery_app
-    from app.modules.imports.application.tasks.task_import_file import import_file as import_file_task
+    from app.modules.imports.application.job_runner import RUNNER_MODE
     from app.modules.imports.application.tasks.task_import_excel import import_products_excel
+    from app.modules.imports.application.tasks.task_import_file import (
+        import_file as import_file_task,
+    )
 
     claims = _get_claims(request)
     tenant_id = claims.get("tenant_id")
@@ -531,9 +532,9 @@ def start_excel_import(batch_id: UUID, request: Request, db: Session = Depends(g
     # Ensure mapping is auto-picked on reprocess if missing.
     if not getattr(batch, "mapping_id", None):
         try:
-            original_filename = getattr(batch, "original_filename", None) or _load_original_filename_from_file_key(
-                batch.file_key
-            )
+            original_filename = getattr(
+                batch, "original_filename", None
+            ) or _load_original_filename_from_file_key(batch.file_key)
             if original_filename:
                 patterns = (
                     db.query(ImportColumnMapping)
@@ -601,12 +602,15 @@ def start_excel_import(batch_id: UUID, request: Request, db: Session = Depends(g
             "result": result,
         }
     if use_products_task:
-        result = celery_app.send_task("imports.import_products_excel", kwargs={
-            "tenant_id": str(tenant_id),
-            "batch_id": str(batch.id),
-            "file_key": batch.file_key,
-            "source_type": "products",
-        })
+        result = celery_app.send_task(
+            "imports.import_products_excel",
+            kwargs={
+                "tenant_id": str(tenant_id),
+                "batch_id": str(batch.id),
+                "file_key": batch.file_key,
+                "source_type": "products",
+            },
+        )
     else:
         result = celery_app.send_task("imports.import_file", kwargs=args)
     return {
@@ -1286,11 +1290,11 @@ def ingest_rows_endpoint(
 
     # Recipe fast-path: parse server-side file and persist recipes/ingredients
     if batch.source_type == "recipes" or batch.parser_id == "xlsx_recipes":
-        from app.modules.imports.parsers.xlsx_recipes import parse_xlsx_recipes
         from app.modules.imports.application.tasks.task_import_file import (
             _file_path_from_key,
             _persist_recipes,
         )
+        from app.modules.imports.parsers.xlsx_recipes import parse_xlsx_recipes
 
         file_path = _file_path_from_key(batch.file_key) if batch.file_key else None
         if not file_path or not os.path.exists(file_path):
@@ -1715,11 +1719,7 @@ def list_all_products_endpoint(
             batch_ids = {p.get("batch_id") for p in sample if p.get("batch_id")}
             batch_info = {}
             if batch_ids:
-                rows = (
-                    db.query(ImportBatch)
-                    .filter(ImportBatch.id.in_(list(batch_ids)))
-                    .all()
-                )
+                rows = db.query(ImportBatch).filter(ImportBatch.id.in_(list(batch_ids))).all()
                 for b in rows:
                     batch_info[str(b.id)] = {
                         "origin": getattr(b, "origin", None),
@@ -1735,7 +1735,6 @@ def list_all_products_endpoint(
             pass
 
     return {
-
         "items": products,
         "total": len(all_items),
         "limit": limit,
@@ -2303,8 +2302,10 @@ def promote_items_endpoint(
                     # Detectar fallos de integridad en el acto (no esperar al commit global)
                     db.flush()
                     try:
-                        audit_user = claims.get("user_id") or claims.get("tenant_user_id") or claims.get(
-                            "user_uuid"
+                        audit_user = (
+                            claims.get("user_id")
+                            or claims.get("tenant_user_id")
+                            or claims.get("user_uuid")
                         )
                         if not audit_user:
                             audit_user = str(tenant_id)
@@ -2396,7 +2397,9 @@ def promote_items_endpoint(
             purchase_result = _create_purchase_from_lines(
                 db,
                 tenant_id,
-                user_id=claims.get("user_id") or claims.get("tenant_user_id") or claims.get("user_uuid"),
+                user_id=claims.get("user_id")
+                or claims.get("tenant_user_id")
+                or claims.get("user_uuid"),
                 supplier_id=supplier_id,
                 purchase_date=_parse_purchase_date(purchase_date),
                 status=purchase_status or "received",
@@ -2466,7 +2469,9 @@ def promote_batch_endpoint(
             purchase_result = _create_purchase_from_lines(
                 db,
                 tenant_id,
-                user_id=claims.get("user_id") or claims.get("tenant_user_id") or claims.get("user_uuid"),
+                user_id=claims.get("user_id")
+                or claims.get("tenant_user_id")
+                or claims.get("user_uuid"),
                 supplier_id=supplier_id,
                 purchase_date=_parse_purchase_date(purchase_date),
                 status=purchase_status or "received",
@@ -3321,7 +3326,11 @@ def _create_purchase_from_lines(
                 .filter(StockItem.product_id == product_id, StockItem.tenant_id == str(tenant_id))
                 .scalar()
             ) or 0.0
-            prod = db.query(Product).filter(Product.id == product_id, Product.tenant_id == tenant_id).first()
+            prod = (
+                db.query(Product)
+                .filter(Product.id == product_id, Product.tenant_id == tenant_id)
+                .first()
+            )
             if prod:
                 prod.stock = float(total_qty)
                 db.add(prod)

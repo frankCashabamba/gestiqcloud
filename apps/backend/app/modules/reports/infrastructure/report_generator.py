@@ -5,9 +5,6 @@ import io
 import json
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime
-from typing import Any, Optional
-from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -15,11 +12,9 @@ from sqlalchemy.orm import Session
 from app.modules.reports.domain.entities import (
     FinancialReport,
     InventoryReport,
-    Report,
     ReportData,
     ReportDefinition,
     ReportFormat,
-    ReportStatus,
     ReportType,
     SalesReport,
 )
@@ -43,7 +38,7 @@ class SalesReportGenerator(BaseReportGenerator):
         """Generate sales report"""
         try:
             query = """
-                SELECT 
+                SELECT
                     DATE(so.created_at) as fecha,
                     COUNT(DISTINCT so.id) as num_pedidos,
                     SUM(soi.qty) as total_items,
@@ -75,9 +70,7 @@ class SalesReportGenerator(BaseReportGenerator):
             avg_order_value = total_sales / order_count if order_count > 0 else 0
 
             columns = ["Fecha", "Pedidos", "Items", "Total"]
-            rows = [
-                [str(row[0]), row[1], row[2], f"${row[3]:.2f}"] for row in result
-            ]
+            rows = [[str(row[0]), row[1], row[2], f"${row[3]:.2f}"] for row in result]
 
             return SalesReport(
                 columns=columns,
@@ -106,7 +99,7 @@ class InventoryReportGenerator(BaseReportGenerator):
         """Generate inventory report"""
         try:
             query = """
-                SELECT 
+                SELECT
                     p.id,
                     p.nombre,
                     COALESCE(i.cantidad, 0) as stock,
@@ -127,9 +120,7 @@ class InventoryReportGenerator(BaseReportGenerator):
             total_value = sum(row[4] or 0 for row in result)
 
             columns = ["Producto", "Stock", "Precio Unit.", "Valor Total"]
-            rows = [
-                [row[1], row[2], f"${row[3]:.2f}", f"${row[4]:.2f}"] for row in result
-            ]
+            rows = [[row[1], row[2], f"${row[3]:.2f}", f"${row[4]:.2f}"] for row in result]
 
             return InventoryReport(
                 columns=columns,
@@ -178,9 +169,7 @@ class FinancialReportGenerator(BaseReportGenerator):
             total_revenue = db.execute(text(revenue_query), params).scalar() or 0
             total_expenses = db.execute(text(expense_query), params).scalar() or 0
             net_profit = total_revenue - total_expenses
-            profit_margin = (
-                (net_profit / total_revenue * 100) if total_revenue > 0 else 0
-            )
+            profit_margin = (net_profit / total_revenue * 100) if total_revenue > 0 else 0
 
             columns = ["Concepto", "Cantidad"]
             rows = [
@@ -304,10 +293,10 @@ class ReportExporter:
         try:
             from reportlab.lib import colors
             from reportlab.lib.pagesizes import letter
+            from reportlab.lib.styles import getSampleStyleSheet
             from reportlab.lib.units import inch
             from reportlab.pdfgen import canvas
-            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
-            from reportlab.lib.styles import getSampleStyleSheet
+            from reportlab.platypus import Paragraph, SimpleDocTemplate, Table, TableStyle
 
             buffer = io.BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=letter)
@@ -315,9 +304,7 @@ class ReportExporter:
 
             # Title
             styles = getSampleStyleSheet()
-            elements.append(
-                Paragraph(f"<b>{title}</b>", styles["Title"])
-            )
+            elements.append(Paragraph(f"<b>{title}</b>", styles["Title"]))
 
             # Create table
             table_data = [data.columns] + data.rows
@@ -347,9 +334,7 @@ class ReportExporter:
             return buffer.getvalue()
 
         except ImportError:
-            logger.error(
-                "reportlab not installed. Install with: pip install reportlab"
-            )
+            logger.error("reportlab not installed. Install with: pip install reportlab")
             raise
 
     @staticmethod
@@ -406,9 +391,7 @@ class ReportService:
         }
         self.exporter = ReportExporter()
 
-    def generate_report(
-        self, definition: ReportDefinition, export_format: ReportFormat
-    ) -> bytes:
+    def generate_report(self, definition: ReportDefinition, export_format: ReportFormat) -> bytes:
         """Generate and export report"""
         try:
             # Get generator

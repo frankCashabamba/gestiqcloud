@@ -18,12 +18,12 @@ interface FormData {
   state: string
   postal_code: string
   website: string
-  
+
   // Regional (paso 2)
   default_language: string
   timezone: string
   currency: string
-  
+
   // Branding (paso 3)
   logo: string | null
   primary_color: string
@@ -208,7 +208,7 @@ export default function Onboarding() {
         state: formData.state || null,
         postal_code: formData.postal_code || null,
         website: formData.website || null,
-        
+
         // Settings
         default_language: formData.default_language,
         timezone: formData.timezone,
@@ -218,7 +218,7 @@ export default function Onboarding() {
         secondary_color: formData.secondary_color,
       })
       success('Configuración guardada exitosamente')
-      
+
       // Redireccionar a set-password si tiene token
       const token = searchParams.get('token')
       if (token) {

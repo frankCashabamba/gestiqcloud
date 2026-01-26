@@ -9,8 +9,7 @@ from typing import Any
 from uuid import uuid4
 
 import jwt
-from app.config.database import SessionLocal
-from app.config.settings import settings
+from apps.backend.app.shared.utils import now_ts
 from fastapi import HTTPException
 from jwt import (
     ExpiredSignatureError,
@@ -23,7 +22,8 @@ from jwt import (
 from pydantic import SecretStr
 from sqlalchemy import text
 
-from apps.backend.app.shared.utils import now_ts
+from app.config.database import SessionLocal
+from app.config.settings import settings
 
 # ---------------------------
 # Helpers

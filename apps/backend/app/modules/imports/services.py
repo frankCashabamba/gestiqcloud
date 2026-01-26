@@ -125,7 +125,9 @@ def extraer_texto_ocr_hibrido_paginas(file_bytes: bytes) -> list[str]:
                 if _Image is not None and _pytesseract is not None:
                     try:
                         image = _Image.open(img_path)  # type: ignore[attr-defined]
-                        langs = "+".join(getattr(settings, "IMPORTS_OCR_LANGS", ["es", "en"]) or ["es", "en"])
+                        langs = "+".join(
+                            getattr(settings, "IMPORTS_OCR_LANGS", ["es", "en"]) or ["es", "en"]
+                        )
                         # psm 6: assume a uniform block of text; works well for facturas/recibos
                         text_page = (
                             _pytesseract.image_to_string(

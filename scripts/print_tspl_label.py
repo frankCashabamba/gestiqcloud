@@ -36,20 +36,44 @@ from apps.backend.app.modules.printing.tspl import (
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Print a TSPL product label via Bluetooth COM port.")
-    parser.add_argument("--port", required=True, help="Serial port for the printer (COM5, COM7, ...).")
+    parser = argparse.ArgumentParser(
+        description="Print a TSPL product label via Bluetooth COM port."
+    )
+    parser.add_argument(
+        "--port", required=True, help="Serial port for the printer (COM5, COM7, ...)."
+    )
     parser.add_argument("--name", required=True, help="Product name to print.")
     parser.add_argument("--barcode", required=True, help="Barcode value for the label.")
     parser.add_argument("--price", help="Price text to show below the barcode.")
-    parser.add_argument("--copies", type=int, default=1, help="Number of copies to print.")
-    parser.add_argument("--dry-run", action="store_true", help="Print the TSPL commands without sending them.")
-    parser.add_argument("--baudrate", type=int, default=9600, help="Serial port baud rate (default 9600).")
-    parser.add_argument("--log-level", default="INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR).")
+    parser.add_argument(
+        "--copies", type=int, default=1, help="Number of copies to print."
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the TSPL commands without sending them.",
+    )
+    parser.add_argument(
+        "--baudrate",
+        type=int,
+        default=9600,
+        help="Serial port baud rate (default 9600).",
+    )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        help="Logging level (DEBUG, INFO, WARNING, ERROR).",
+    )
 
     args = parser.parse_args()
-    logging.basicConfig(level=getattr(logging, args.log_level.upper(), logging.INFO), format="%(message)s")
+    logging.basicConfig(
+        level=getattr(logging, args.log_level.upper(), logging.INFO),
+        format="%(message)s",
+    )
 
-    label = ProductLabel(name=args.name, barcode=args.barcode, price=args.price, copies=args.copies)
+    label = ProductLabel(
+        name=args.name, barcode=args.barcode, price=args.price, copies=args.copies
+    )
     payload = build_tspl_payload(label, LabelConfig())
 
     logging.debug("TSPL payload:\n%s", payload)
@@ -58,7 +82,9 @@ def main() -> None:
         print(payload)
         return
 
-    logging.info("Sending %d copies to %s at %d baud…", label.copies, args.port, args.baudrate)
+    logging.info(
+        "Sending %d copies to %s at %d baud…", label.copies, args.port, args.baudrate
+    )
     send_to_printer(args.port, payload, baudrate=args.baudrate)
     logging.info("✅ Enviado.")
 

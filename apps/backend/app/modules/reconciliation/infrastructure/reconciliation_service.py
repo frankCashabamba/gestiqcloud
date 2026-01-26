@@ -3,10 +3,9 @@
 import logging
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import and_, text
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -26,7 +25,7 @@ class ReconciliationService:
         payment_date: datetime,
         payment_reference: str,
         payment_method: str = "bank_transfer",
-        notes: Optional[str] = None,
+        notes: str | None = None,
     ) -> dict:
         """
         Reconcile a payment against an invoice
@@ -168,9 +167,7 @@ class ReconciliationService:
             self.db.rollback()
             return {"success": False, "error": str(e)}
 
-    def get_reconciliation_status(
-        self, tenant_id: str | UUID, invoice_id: UUID
-    ) -> dict:
+    def get_reconciliation_status(self, tenant_id: str | UUID, invoice_id: UUID) -> dict:
         """Get current reconciliation status for an invoice"""
         try:
             result = self.db.execute(
@@ -210,7 +207,9 @@ class ReconciliationService:
                 "payment_count": payment_count,
                 "reconciliation_status": "paid"
                 if remaining <= 0
-                else "partial" if total_paid > 0 else "pending",
+                else "partial"
+                if total_paid > 0
+                else "pending",
                 "invoice_status": status,
             }
 

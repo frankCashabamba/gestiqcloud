@@ -113,7 +113,7 @@ systemctl restart gestiqcloud-backend
 
 ---
 
-**Status:** ✅ Ready to Deploy  
-**Created:** 2026-01-22  
-**Impact:** High (fixes critical API errors)  
+**Status:** ✅ Ready to Deploy
+**Created:** 2026-01-22
+**Impact:** High (fixes critical API errors)
 **Risk:** Low (additive changes, backward compatible)

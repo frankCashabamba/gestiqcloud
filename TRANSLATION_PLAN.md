@@ -6,8 +6,8 @@ Systematic translation of remaining Spanish UI components and strings to English
 ---
 
 ## Phase 1: Admin Components (Priority: HIGH)
-**Status**: Ready to start  
-**Estimated files**: 5-6  
+**Status**: Ready to start
+**Estimated files**: 5-6
 **Estimated time**: 2-3 hours
 
 ### Files to translate:
@@ -28,7 +28,7 @@ Systematic translation of remaining Spanish UI components and strings to English
    - No further action needed
 
 5. **Admin page files** - Status: PENDING (Multiple Spanish strings found)
-   
+
    **High Priority (Spanish UI):**
    - [ ] CrearEmpresa.tsx - Line 237-239, 455 (Registrar nueva empresa, Crear empresa y usuario)
    - [ ] EditarEmpresa.tsx - Line 44, 60 (Editar Empresa, Guardar)
@@ -42,8 +42,8 @@ Systematic translation of remaining Spanish UI components and strings to English
 ---
 
 ## Phase 2: Common Components (Priority: HIGH)
-**Status**: Ready to start  
-**Estimated files**: 2  
+**Status**: Ready to start
+**Estimated files**: 2
 **Estimated time**: 1-2 hours
 
 ### Files to translate:
@@ -59,8 +59,8 @@ Systematic translation of remaining Spanish UI components and strings to English
 ---
 
 ## Phase 3: Tenant Modules (Priority: MEDIUM)
-**Status**: To be assessed  
-**Estimated files**: 50+ files  
+**Status**: To be assessed
+**Estimated files**: 50+ files
 **Estimated time**: 8-12 hours
 
 ### Module breakdown:

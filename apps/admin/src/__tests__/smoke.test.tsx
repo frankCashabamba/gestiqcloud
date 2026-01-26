@@ -63,13 +63,13 @@ describe('App smoke tests', () => {
 
   it('Login page renders correctly', async () => {
     const { default: Login } = await import('../pages/Login')
-    
+
     render(
       <MemoryRouter>
         <Login />
       </MemoryRouter>
     )
-    
+
     expect(screen.getByText(/Iniciar sesión/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/Usuario o email/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Entrar/i })).toBeInTheDocument()
@@ -77,13 +77,13 @@ describe('App smoke tests', () => {
 
   it('Login page has password field', async () => {
     const { default: Login } = await import('../pages/Login')
-    
+
     render(
       <MemoryRouter>
         <Login />
       </MemoryRouter>
     )
-    
+
     const passwordInput = document.getElementById('admin-password')
     expect(passwordInput).toBeInTheDocument()
     expect(passwordInput).toHaveAttribute('type', 'password')
@@ -91,21 +91,21 @@ describe('App smoke tests', () => {
 
   it('AdminPanel component exists and exports default', async () => {
     const AdminPanelModule = await import('../pages/AdminPanel')
-    
+
     expect(AdminPanelModule.default).toBeDefined()
     expect(typeof AdminPanelModule.default).toBe('function')
   })
 
   it('ProtectedRoute component exists', async () => {
     const ProtectedRouteModule = await import('../app/ProtectedRoute')
-    
+
     expect(ProtectedRouteModule.default).toBeDefined()
     expect(typeof ProtectedRouteModule.default).toBe('function')
   })
 
   it('ErrorPage component exists and renders', async () => {
     const { default: ErrorPage } = await import('../pages/ErrorPage')
-    
+
     expect(ErrorPage).toBeDefined()
     expect(typeof ErrorPage).toBe('function')
   })
@@ -127,9 +127,9 @@ describe('App smoke tests', () => {
       timezone: 'America/Lima',
       currency: 'PEN',
     }
-    
+
     const result = buildEmpresaPayload(formData as any)
-    
+
     expect(result.name).toBe('Test Company')
     expect(result.tax_id).toBe('12345678901')
     expect(result.country_code).toBe('PE')
@@ -141,9 +141,9 @@ describe('App smoke tests', () => {
       nombre_empresa: 'Test',
       config_json: 'invalid json',
     }
-    
+
     const result = buildEmpresaPayload(formData as any)
-    
+
     expect(result.name).toBe('Test')
     expect(result.config_json).toEqual({})
   })
@@ -152,9 +152,9 @@ describe('App smoke tests', () => {
     const content = 'test content'
     const blob = new Blob([content], { type: 'text/plain' })
     const file = new File([blob], 'test.txt', { type: 'text/plain' })
-    
+
     const result = await fileToDataUrl(file)
-    
+
     expect(result).toMatch(/^data:text\/plain;base64,/)
   })
 })

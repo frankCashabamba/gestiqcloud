@@ -334,20 +334,20 @@ ui_dashboards
 <GenericDashboard dashboardId="default" />
 
 // GenericWidget - renderiza según tipo
-<GenericWidget 
+<GenericWidget
   config={widget}
   onRefresh={() => refetch()}
 />
 
 // GenericTable - tabla dinámica
-<GenericTable 
+<GenericTable
   tableConfig={tableConfig}
   apiEndpoint="/incidents"
   filters={filters}
 />
 
 // GenericForm - formulario dinámico
-<GenericForm 
+<GenericForm
   formConfig={formConfig}
   onSubmit={handleSubmit}
 />
@@ -386,7 +386,7 @@ ui_tables
 ```typescript
 export function PaymentsDashboard() {
   const { data: section } = useApiData('/api/v1/sections/payments');
-  
+
   return (
     <div>
       <h1>{section.label}</h1>

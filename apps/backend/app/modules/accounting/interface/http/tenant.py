@@ -15,10 +15,15 @@ MIGRADO DE:
 - app/routers/accounting.py
 """
 
+import logging
 from datetime import date, datetime
 from decimal import Decimal
 from math import ceil
 from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
@@ -27,7 +32,7 @@ from app.db.rls import ensure_rls
 from app.models.accounting.chart_of_accounts import ChartOfAccounts as PlanCuentas
 from app.models.accounting.chart_of_accounts import JournalEntry as AsientoContable
 from app.models.accounting.chart_of_accounts import JournalEntryLine as AsientoLinea
-from app.models.accounting.pos_settings import TenantAccountingSettings, PaymentMethod
+from app.models.accounting.pos_settings import PaymentMethod, TenantAccountingSettings
 from app.schemas.accounting import (
     AsientoContableCreate,
     AsientoContableList,
@@ -39,10 +44,6 @@ from app.schemas.accounting import (
     PlanCuentasResponse,
     PlanCuentasUpdate,
 )
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
-import logging
 
 router = APIRouter(
     prefix="/accounting",
@@ -392,7 +393,9 @@ async def get_pos_accounting_settings(
     return {
         "cash_account_id": str(cfg.cash_account_id),
         "bank_account_id": str(cfg.bank_account_id),
-        "sales_bakery_account_id": str(cfg.sales_bakery_account_id) if cfg.sales_bakery_account_id else None,
+        "sales_bakery_account_id": str(cfg.sales_bakery_account_id)
+        if cfg.sales_bakery_account_id
+        else None,
         "vat_output_account_id": str(cfg.vat_output_account_id),
         "loss_account_id": str(cfg.loss_account_id) if cfg.loss_account_id else None,
     }
@@ -442,7 +445,9 @@ async def list_payment_methods(
     claims: dict = Depends(with_access_claims),
 ):
     tid = claims["tenant_id"]
-    methods = db.query(PaymentMethod).filter_by(tenant_id=tid).order_by(PaymentMethod.name.asc()).all()
+    methods = (
+        db.query(PaymentMethod).filter_by(tenant_id=tid).order_by(PaymentMethod.name.asc()).all()
+    )
     return [
         {
             "id": str(m.id),
@@ -500,7 +505,11 @@ async def update_payment_method(
     # Validar duplicado de nombre
     dup = (
         db.query(PaymentMethod)
-        .filter(PaymentMethod.tenant_id == tid, PaymentMethod.name == payload.name, PaymentMethod.id != method_id)
+        .filter(
+            PaymentMethod.tenant_id == tid,
+            PaymentMethod.name == payload.name,
+            PaymentMethod.id != method_id,
+        )
         .first()
     )
     if dup:
@@ -637,9 +646,7 @@ async def create_asiento(
     db.commit()
     db.refresh(asiento)
     asiento.lineas = (
-        db.execute(select(AsientoLinea).where(AsientoLinea.entry_id == asiento.id))
-        .scalars()
-        .all()
+        db.execute(select(AsientoLinea).where(AsientoLinea.entry_id == asiento.id)).scalars().all()
     )
 
     return _asiento_to_response(asiento)
@@ -660,9 +667,7 @@ async def get_asiento(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asiento no encontrado")
 
     asiento.lineas = (
-        db.execute(select(AsientoLinea).where(AsientoLinea.entry_id == asiento.id))
-        .scalars()
-        .all()
+        db.execute(select(AsientoLinea).where(AsientoLinea.entry_id == asiento.id)).scalars().all()
     )
 
     return _asiento_to_response(asiento)
@@ -696,9 +701,7 @@ async def update_asiento(
     db.commit()
     db.refresh(asiento)
     asiento.lineas = (
-        db.execute(select(AsientoLinea).where(AsientoLinea.entry_id == asiento.id))
-        .scalars()
-        .all()
+        db.execute(select(AsientoLinea).where(AsientoLinea.entry_id == asiento.id)).scalars().all()
     )
 
     return _asiento_to_response(asiento)
@@ -734,9 +737,7 @@ async def contabilizar_asiento(
 
     # Update saldos de cuentas
     lineas = (
-        db.execute(select(AsientoLinea).where(AsientoLinea.entry_id == asiento.id))
-        .scalars()
-        .all()
+        db.execute(select(AsientoLinea).where(AsientoLinea.entry_id == asiento.id)).scalars().all()
     )
 
     for linea in lineas:

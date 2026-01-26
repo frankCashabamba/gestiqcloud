@@ -250,6 +250,6 @@ Para incorporar estos cambios:
 
 ---
 
-**Generado:** 15 Enero 2026  
-**Estado:** 4/8 críticos completados (50%)  
+**Generado:** 15 Enero 2026
+**Estado:** 4/8 críticos completados (50%)
 **Tiempo estimado restante:** 2-3 días más (rest de críticos)

@@ -221,14 +221,12 @@ class POSInvoicingService:
                 {"tid": self.tenant_id},
             ).scalar()
             if not sector:
-                sector = (
-                    self.db.execute(
-                        text("SELECT sector_template_name FROM tenants WHERE id = :tid").bindparams(
-                            bindparam("tid", type_=PGUUID(as_uuid=True))
-                        ),
-                        {"tid": self.tenant_id},
-                    ).scalar()
-                )
+                sector = self.db.execute(
+                    text("SELECT sector_template_name FROM tenants WHERE id = :tid").bindparams(
+                        bindparam("tid", type_=PGUUID(as_uuid=True))
+                    ),
+                    {"tid": self.tenant_id},
+                ).scalar()
             # Map sector to supported polymorphic identities (invoice_lines.polymorphic_on)
             sector = sector or "pos"
             if sector not in {"pos", "bakery", "workshop"}:
@@ -323,7 +321,15 @@ class POSInvoicingService:
                 {"rid": receipt_uuid},
             ).fetchall()
 
-            for receipt_line_id, product_id, qty, unit_price, tax_rate, discount_pct, product_name in lines:
+            for (
+                receipt_line_id,
+                product_id,
+                qty,
+                unit_price,
+                tax_rate,
+                discount_pct,
+                product_name,
+            ) in lines:
                 q = Decimal(str(qty or 0))
                 up = Decimal(str(unit_price or 0))
                 disc = Decimal(str(discount_pct or 0)) / Decimal("100")
@@ -345,10 +351,10 @@ class POSInvoicingService:
                             :quantity, :unit_price, :vat
                         )
                     """
-                ).bindparams(
-                    bindparam("id", type_=PGUUID(as_uuid=True)),
-                    bindparam("invoice_id", type_=PGUUID(as_uuid=True)),
-                ),
+                    ).bindparams(
+                        bindparam("id", type_=PGUUID(as_uuid=True)),
+                        bindparam("invoice_id", type_=PGUUID(as_uuid=True)),
+                    ),
                     {
                         "id": line_id,
                         "invoice_id": invoice_id,
@@ -485,7 +491,7 @@ class POSInvoicingService:
                 ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
                 {"tid": self.tenant_id},
             ).scalar()
-            
+
             if not tenant_currency:
                 logger.warning("Tenant %s has no configured currency", self.tenant_id)
                 return None
@@ -499,7 +505,9 @@ class POSInvoicingService:
             sales_order_id = uuid4()
             sales_order_number = f"SO-{receipt_number}-{str(receipt_uuid)[:8]}"
             order_date = (
-                created_at.date().isoformat() if hasattr(created_at, "date") else date.today().isoformat()
+                created_at.date().isoformat()
+                if hasattr(created_at, "date")
+                else date.today().isoformat()
             )
             notes = f"POS receipt {receipt_number}"
 

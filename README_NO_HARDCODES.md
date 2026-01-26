@@ -248,11 +248,11 @@ curl -X POST http://localhost:8000/api/v1/admin/ui-config/sections \
 
 ## 🔒 Seguridad
 
-✅ **Multi-tenant:** Cada cliente aislado  
-✅ **RBAC:** Restricciones por rol  
-✅ **Validación:** Pydantic schemas  
-✅ **Autenticación:** Token JWT  
-✅ **Rate limiting:** Preparado  
+✅ **Multi-tenant:** Cada cliente aislado
+✅ **RBAC:** Restricciones por rol
+✅ **Validación:** Pydantic schemas
+✅ **Autenticación:** Token JWT
+✅ **Rate limiting:** Preparado
 
 ---
 
@@ -307,21 +307,21 @@ curl -X POST http://localhost:8000/api/v1/admin/ui-config/sections \
 
 ### Antes (Tradicional)
 ```
-Cambio solicitado → Desarrollador edita código → 
+Cambio solicitado → Desarrollador edita código →
   Build → Test → Redeploy → Downtime → Verificación
-  
-Tiempo: 30 min - 2 horas  
-Riesgo: Alto (regresiones)  
-Costo: ~$100 por cambio  
+
+Tiempo: 30 min - 2 horas
+Riesgo: Alto (regresiones)
+Costo: ~$100 por cambio
 ```
 
 ### Ahora (Sin Hardcodes)
 ```
 Cambio solicitado → POST a API → Cambio inmediato en BD
-  
-Tiempo: 1-2 minutos  
-Riesgo: Bajo (validado en BD)  
-Costo: Prácticamente gratis  
+
+Tiempo: 1-2 minutos
+Riesgo: Bajo (validado en BD)
+Costo: Prácticamente gratis
 ```
 
 ---
@@ -418,7 +418,6 @@ Tienes una **plataforma empresarial moderna** donde:
 
 ---
 
-**Creado:** 19 Enero 2026  
-**Status:** ✅ LISTO PARA PRODUCCIÓN  
+**Creado:** 19 Enero 2026
+**Status:** ✅ LISTO PARA PRODUCCIÓN
 **Siguiente:** Ejecutar migraciones
-

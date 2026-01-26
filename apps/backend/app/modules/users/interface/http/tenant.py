@@ -122,7 +122,6 @@ def list_company_modules(
     return services.list_company_modules(db, tenant_id)
 
 
-
 @router.get("/roles", response_model=list[CompanyRoleOption])
 def list_company_roles(
     request: Request,

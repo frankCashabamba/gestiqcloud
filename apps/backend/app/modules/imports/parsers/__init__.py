@@ -52,16 +52,16 @@ def _register_parsers():
     from .csv_invoices import parse_csv_invoices
     from .csv_products import parse_csv_products
     from .generic_excel import parse_excel_generic
+    from .pdf_ocr import parse_pdf_ocr
     from .pdf_qr import parse_pdf_qr
     from .products_excel import parse_products_excel
     from .xlsx_bank import parse_xlsx_bank
     from .xlsx_expenses import parse_xlsx_expenses
     from .xlsx_invoices import parse_xlsx_invoices
-    from .xml_camt053_bank import parse_xml_camt053_bank
-    from .xml_invoice import parse_xml_invoice
     from .xlsx_recipes import parse_xlsx_recipes
-    from .pdf_ocr import parse_pdf_ocr
+    from .xml_camt053_bank import parse_xml_camt053_bank
     from .xml_facturae import parse_facturae
+    from .xml_invoice import parse_xml_invoice
     from .xml_products import parse_xml_products
 
     registry.register(

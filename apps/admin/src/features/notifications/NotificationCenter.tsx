@@ -16,7 +16,7 @@ export const NotificationCenter: React.FC = () => {
     markAsRead,
     markAllAsRead,
   } = useNotifications(true, 10000);
-  
+
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
   const filteredNotifications =

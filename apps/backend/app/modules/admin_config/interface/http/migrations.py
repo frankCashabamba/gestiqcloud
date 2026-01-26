@@ -175,9 +175,7 @@ async def execute_migrations(
                     migrations_applied=0,
                 )
             else:
-                logger.error(
-                    f"Error triggering Render job: {response.status_code} {response.text}"
-                )
+                logger.error(f"Error triggering Render job: {response.status_code} {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,
                     detail=f"Error triggering Render job: {response.status_code}",

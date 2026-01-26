@@ -16,16 +16,23 @@ from app.api.email.email_utils import enviar_correo_bienvenida
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.models.company.company_user import CompanyUser
+from app.models.company.company import (
+    Country,
+    Currency,
+    Language,
+    RefLocale,
+    RefTimezone,
+    SectorPlantilla,
+)
 from app.models.company.company_settings import CompanySettings
-from app.models.company.company import Country, Currency, Language, RefLocale, RefTimezone, SectorPlantilla
+from app.models.company.company_user import CompanyUser
 from app.models.core.modulo import CompanyModule, Module
 from app.models.tenant import Tenant
 from app.modules.company.application.use_cases import ListCompaniesAdmin, create_company_admin_user
 from app.modules.company.infrastructure.repositories import SqlCompanyRepo
 from app.modules.company.interface.http.schemas import CompanyInSchema, CompanyOutSchema
-from app.schemas.sector_plantilla import SectorConfigJSON
 from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
+from app.schemas.sector_plantilla import SectorConfigJSON
 from app.shared.utils import slugify
 
 router = APIRouter(
@@ -37,7 +44,9 @@ router = APIRouter(
 logger = logging.getLogger("app.company.admin")
 
 
-def _collect_fk_tables(db: Session, referenced_table: str, schema: str = "public") -> list[tuple[str, str]]:
+def _collect_fk_tables(
+    db: Session, referenced_table: str, schema: str = "public"
+) -> list[tuple[str, str]]:
     rows = db.execute(
         text(
             """
@@ -252,7 +261,9 @@ def admin_list_pos_backfill_candidates(
             {
                 "receipt_id": str(receipt_id),
                 "number": number,
-                "paid_at": paid_at.isoformat() if hasattr(paid_at, "isoformat") and paid_at else None,
+                "paid_at": paid_at.isoformat()
+                if hasattr(paid_at, "isoformat") and paid_at
+                else None,
                 "gross_total": float(gross_total or 0),
                 "tax_total": float(tax_total or 0),
                 # Nunca mostramos una moneda distinta a la configurada del tenant.
@@ -816,13 +827,16 @@ async def create_company_full_json(
     if not currency:
         raise HTTPException(status_code=400, detail="currency_required")
 
-
     if default_language:
         locale_exists = (
-            db.query(RefLocale).filter(RefLocale.code == default_language, RefLocale.active.is_(True)).first()
+            db.query(RefLocale)
+            .filter(RefLocale.code == default_language, RefLocale.active.is_(True))
+            .first()
         )
         language_exists = (
-            db.query(Language).filter(Language.code == default_language, Language.active.is_(True)).first()
+            db.query(Language)
+            .filter(Language.code == default_language, Language.active.is_(True))
+            .first()
         )
         if not locale_exists and not language_exists:
             raise HTTPException(status_code=400, detail="default_language_not_found")
@@ -902,7 +916,7 @@ async def create_company_full_json(
         # Validar que se contrate al menos 1 módulo
         if not payload.modules or len(payload.modules) == 0:
             raise HTTPException(status_code=400, detail="at_least_one_module_required")
-        
+
         if tenant_uuid:
             for modulo_id in payload.modules:
                 exists_module = (

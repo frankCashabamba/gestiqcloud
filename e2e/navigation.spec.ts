@@ -17,7 +17,7 @@ test.describe('Navigation', () => {
 
   test('should redirect unauthenticated users to login', async ({ page }) => {
     await page.goto('/dashboard');
-    
+
     await expect(page).toHaveURL(/.*login/, { timeout: 5000 }).catch(() => {});
   });
 

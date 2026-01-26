@@ -11,16 +11,17 @@ from app.telemetry.otel import init_celery
 def _redis_url() -> str:
     """
     Get Redis URL from environment.
-    
+
     In production, REDIS_URL is REQUIRED and must not point to localhost.
     In development, can fallback to localhost if explicitly set.
     """
     url = os.getenv("REDIS_URL", "").strip()
-    
+
     if not url:
         import sys
+
         environment = os.getenv("ENVIRONMENT", "development").lower()
-        
+
         if environment == "production":
             error_msg = (
                 "REDIS_URL is not configured. Required in production.\n"
@@ -28,7 +29,7 @@ def _redis_url() -> str:
             )
             print(f"❌ CRITICAL: {error_msg}", file=sys.stderr)
             raise RuntimeError(error_msg)
-        
+
         # In development, require explicit DEV_REDIS_URL or fail
         dev_redis_url = os.getenv("DEV_REDIS_URL")
         if dev_redis_url:
@@ -42,13 +43,13 @@ def _redis_url() -> str:
             )
             print(f"❌ ERROR: {error_msg}", file=sys.stderr)
             raise RuntimeError(error_msg)
-    
+
     # Validate no localhost in production
     if environment == "production" and ("localhost" in url or "127.0.0.1" in url):
         error_msg = f"REDIS_URL points to localhost in production: {url}"
         print(f"❌ CRITICAL: {error_msg}", file=sys.stderr)
         raise RuntimeError(error_msg)
-    
+
     return url
 
 

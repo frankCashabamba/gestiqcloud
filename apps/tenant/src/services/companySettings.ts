@@ -155,16 +155,16 @@ export function shouldCreateInvoice(
   settings?: CompanySettings
 ): boolean {
   const config = getInvoiceConfig(settings)
-  
+
   // Si es mayorista y está configurado auto-crear para mayoristas
   if (isWholesale && config.autoCreateWholesale) {
     return true
   }
-  
+
   // Si supera el mínimo configurado
   if (config.minimumAmount > 0 && totalAmount >= config.minimumAmount) {
     return true
   }
-  
+
   return false
 }

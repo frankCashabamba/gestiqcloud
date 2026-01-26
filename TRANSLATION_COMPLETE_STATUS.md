@@ -79,7 +79,7 @@ Los siguientes archivos no fueron encontrados o tienen nombres que requieren val
 1. **apps/tenant/src/modules/usuarios/**
    - PermisoForm.tsx, PermisosList.tsx, PermisoGuard.tsx, withPermiso.tsx
    - RoleForm.tsx, RolesList.tsx, RolesRouter.tsx
-   
+
 2. **apps/tenant/src/modules/billing/**
    - FacturaStatusBadge.tsx
    - PanaderiaFacturaPage.tsx
@@ -122,4 +122,3 @@ La mayoría de UI strings ya están en inglés. Algunas excepciones:
 - `rename_component_files.py` - Fase 3a: Accounting, Inventory, HR
 - `rename_remaining_files.py` - Búsqueda de más archivos
 - `rename_all_remaining.py` - Fase 3b: Archivos finales
-

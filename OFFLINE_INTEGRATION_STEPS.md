@@ -5,7 +5,7 @@ Guía detallada para integrar el sistema offline en la app.
 ## ✅ Estado Actual
 
 - [x] `lib/offlineStore.ts` - Central storage
-- [x] `lib/syncManager.ts` - Sync orchestrator  
+- [x] `lib/syncManager.ts` - Sync orchestrator
 - [x] `lib/offlineValidation.ts` - Type safety
 - [x] `hooks/useOffline.ts` - Global hook
 - [x] `modules/pos/offlineSync.ts` - POS adapter (ejemplo)
@@ -97,7 +97,7 @@ export const ProductsAdapter: SyncAdapter = {
 
   detectConflict(local: any, remote: any): boolean {
     // Products: conflict si price o stock difieren
-    return local.price !== remote.price || 
+    return local.price !== remote.price ||
            local.stock !== remote.stock
   }
 }
@@ -147,7 +147,7 @@ import useOffline from '@/hooks/useOffline'
 
 function POSView() {
   const { isOnline, totalPending, syncNow } = useOffline()
-  
+
   // Si necesitas stats por módulo:
   const { syncStatus } = useOffline()
   const receiptsPending = syncStatus.receipt ?? 0
@@ -250,13 +250,13 @@ export default function ConflictResolver() {
         overflow: 'auto'
       }}>
         <h2>⚠️ Conflictos de Sincronización</h2>
-        
+
         {!selected ? (
           <div>
             <p>{conflicts.length} conflictos detectados</p>
             <ul>
               {conflicts.map(c => (
-                <li 
+                <li
                   key={`${c.entity}:${c.id}`}
                   onClick={() => setSelectedId(`${c.entity}:${c.id}`)}
                   style={{
@@ -277,7 +277,7 @@ export default function ConflictResolver() {
         ) : (
           <div>
             <h3>{selected.entity}: {selected.id}</h3>
-            
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginY: '1rem' }}>
               <div style={{ border: '1px solid #4CAF50', padding: '1rem', borderRadius: 4 }}>
                 <h4 style={{ color: '#4CAF50' }}>📱 Local (v{selected.localVersion})</h4>
@@ -378,24 +378,24 @@ Completar los TODOs:
 ```typescript
 it('should sync receipts when coming online', async () => {
   const user = userEvent.setup()
-  
+
   render(<POSView />)
-  
+
   // Go offline
   window.dispatchEvent(new Event('offline'))
   expect(screen.getByText(/offline/i)).toBeInTheDocument()
-  
+
   // Create receipt
   await user.click(screen.getByText('Nueva Venta'))
   // ... fill form ...
   await user.click(screen.getByText('Guardar'))
-  
+
   // Should show offline message
   expect(screen.getByText(/guardado offline/i)).toBeInTheDocument()
-  
+
   // Go online
   window.dispatchEvent(new Event('online'))
-  
+
   // Should auto-sync
   await waitFor(() => {
     expect(screen.getByText(/sincronizado/i)).toBeInTheDocument()
@@ -413,28 +413,28 @@ import { test, expect } from '@playwright/test'
 test('POS offline workflow', async ({ browser }) => {
   const context = await browser.createBrowserContext()
   const page = await context.newPage()
-  
+
   // Navigate
   await page.goto('http://localhost:5173/pos')
-  
+
   // Simulate offline
   await context.setOffline(true)
-  
+
   // Create receipt
   await page.click('button:has-text("Nueva Venta")')
   await page.fill('[name="qty"]', '1')
   await page.fill('[name="price"]', '100')
   await page.click('button:has-text("Guardar")')
-  
+
   // Should see offline message
   await expect(page.locator('text=Offline')).toBeVisible()
-  
+
   // Go online
   await context.setOffline(false)
-  
+
   // Should sync
   await expect(page.locator('text=Sincronizado')).toBeVisible()
-  
+
   await context.close()
 })
 ```
@@ -447,7 +447,7 @@ test('POS offline workflow', async ({ browser }) => {
 ```typescript
 function OfflineSyncDashboard() {
   const { isOnline, syncStatus, totalPending, syncing, syncNow } = useOffline()
-  
+
   if (isOnline && totalPending === 0) return null
 
   return (
@@ -466,13 +466,13 @@ function OfflineSyncDashboard() {
       <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>
         {isOnline ? '🟢' : '🔴'} {isOnline ? 'Online' : 'Offline'}
       </div>
-      
+
       {totalPending > 0 && (
         <>
           <div style={{ fontSize: 12, color: '#666', marginBottom: '0.5rem' }}>
             {totalPending} cambios pendientes
           </div>
-          
+
           {Object.entries(syncStatus).map(([entity, count]) => (
             count > 0 && (
               <div key={entity} style={{ fontSize: 11, color: '#999' }}>
@@ -480,7 +480,7 @@ function OfflineSyncDashboard() {
               </div>
             )
           ))}
-          
+
           <button
             onClick={() => syncNow()}
             disabled={syncing || !isOnline}
@@ -596,4 +596,3 @@ En caso de dudas:
 - Ver código en `lib/offlineStore.ts`, `lib/syncManager.ts`
 - Usar `debugDump()` para inspeccionar datos
 - Abrir DevTools → Application → IndexedDB
-

@@ -1,7 +1,7 @@
 # ✅ Checklist de Validación - Hardcodeos Arreglados
 
-**Documento:** Checklist para validar que todos los hardcodeos han sido arreglados correctamente  
-**Última actualización:** 15 Enero 2026  
+**Documento:** Checklist para validar que todos los hardcodeos han sido arreglados correctamente
+**Última actualización:** 15 Enero 2026
 **Estado:** 🟢 Listo para Validación
 
 ---
@@ -362,6 +362,6 @@ VITE_API_URL=https://api.example.com npm run build
 
 ---
 
-**Creado por:** Amp (Sesión Fase 5)  
-**Fecha:** 15 Enero 2026  
+**Creado por:** Amp (Sesión Fase 5)
+**Fecha:** 15 Enero 2026
 **Versión:** 1.0 - Final

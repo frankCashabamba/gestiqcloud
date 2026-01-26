@@ -8,4 +8,3 @@ BEGIN
         ALTER TABLE sales_orders DROP COLUMN IF EXISTS pos_receipt_id;
     END IF;
 END $$;
-
