@@ -26,21 +26,21 @@ export const CustomersAdapter: SyncAdapter = {
   async create(data: any): Promise<any> {
     const customer = await createCliente(data)
     const remoteVersion = (customer as any)?.updated_at ? new Date((customer as any).updated_at as string).getTime() : Date.now()
-    await storeEntity('customer', customer.id, customer, 'synced', remoteVersion)
+    await storeEntity('customer', String(customer.id), customer, 'synced', remoteVersion)
     return customer
   },
 
   async update(id: string, data: any): Promise<any> {
     const customer = await updateCliente(id, data)
     const remoteVersion = (customer as any)?.updated_at ? new Date((customer as any).updated_at as string).getTime() : Date.now()
-    await storeEntity('customer', id, customer, 'synced', remoteVersion)
+    await storeEntity('customer', String(id), customer, 'synced', remoteVersion)
     return customer
   },
 
   async delete(id: string): Promise<void> {
     try {
       await removeCliente(id)
-      await storeEntity('customer', id, { _deleted: true, _op: 'delete' }, 'synced', Date.now())
+      await storeEntity('customer', String(id), { _deleted: true, _op: 'delete' }, 'synced', Date.now())
     } catch (error) {
       await queueDeletion('customer', id)
       console.warn('[offline] Queued customer deletion for later sync:', id)

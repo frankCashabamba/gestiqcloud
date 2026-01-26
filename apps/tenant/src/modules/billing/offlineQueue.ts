@@ -7,7 +7,7 @@ import type { InvoiceCreate } from './services'
 const entity: EntityType = 'invoice'
 
 export async function queueInvoiceForSync(
-  data: InvoiceCreate | Partial<InvoiceCreate> & { id?: string },
+  data: Partial<InvoiceCreate> & { id?: string },
   op: 'create' | 'update' = 'create'
 ): Promise<string> {
   const id = data?.id ? String(data.id) : `invoice-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`

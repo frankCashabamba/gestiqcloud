@@ -123,15 +123,17 @@ export interface InvoiceCreate {
     total: number
     estado?: string
     cliente_id?: number
-    lineas?: InvoiceLine[]
+    lineas?: Array<InvoiceLine | Record<string, any>>
 }
 
 export interface InvoiceLine {
-    cantidad: number
-    precio_unitario: number
-    total: number
-    description: string
+    cantidad?: number
+    precio_unitario?: number
+    total?: number
+    description?: string
     sku?: string
+    quantity?: number
+    unit_price?: number
 }
 
 export async function listInvoices(params?: {

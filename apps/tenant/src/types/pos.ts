@@ -57,6 +57,7 @@ export interface POSReceipt {
   invoice_id?: string
   gross_total: number
   tax_total: number
+  subtotal?: number
   currency: string
   paid_at?: string
   created_at?: string

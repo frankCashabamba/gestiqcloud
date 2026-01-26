@@ -29,7 +29,17 @@ export interface UseOfflineReturn {
 export default function useOffline(autoSyncIntervalMs: number = 30000): UseOfflineReturn {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [totalPending, setTotalPending] = useState(0)
-  const [syncStatus, setSyncStatus] = useState<Record<EntityType, number>>({})
+  const EMPTY_STATUS: Record<EntityType, number> = {
+    product: 0,
+    customer: 0,
+    sale: 0,
+    receipt: 0,
+    purchase: 0,
+    shift: 0,
+    invoice: 0,
+  }
+
+  const [syncStatus, setSyncStatus] = useState<Record<EntityType, number>>(EMPTY_STATUS)
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({})
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null)
   const [syncing, setSyncing] = useState(false)
@@ -73,7 +83,7 @@ export default function useOffline(autoSyncIntervalMs: number = 30000): UseOffli
 
         // Get metadata for each entity type
         const entities: EntityType[] = ['product', 'customer', 'sale', 'receipt', 'purchase', 'shift', 'invoice']
-        const statuses: Record<EntityType, number> = {} as any
+        const statuses: Record<EntityType, number> = { ...EMPTY_STATUS }
         
         for (const entity of entities) {
           try {
@@ -96,7 +106,7 @@ export default function useOffline(autoSyncIntervalMs: number = 30000): UseOffli
         // Silently handle offline store errors - offline feature is optional
         console.debug('Offline counts unavailable:', error)
         setTotalPending(0)
-        setSyncStatus({})
+        setSyncStatus(EMPTY_STATUS)
         setStatusCounts({})
       }
     }
@@ -153,7 +163,7 @@ export default function useOffline(autoSyncIntervalMs: number = 30000): UseOffli
     try {
       await clearAllOfflineData()
       setTotalPending(0)
-      setSyncStatus({} as any)
+      setSyncStatus(EMPTY_STATUS)
     } catch (error) {
       console.error('Failed to clear pending:', error)
     }

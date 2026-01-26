@@ -9,7 +9,7 @@
 import { SyncAdapter, getSyncManager } from '@/lib/syncManager'
 import { storeEntity, getEntity, listEntities } from '@/lib/offlineStore'
 import * as posServices from './services'
-import type { POSReceipt, POSShift } from './types'
+import type { POSReceipt, POSShift } from '../../types/pos'
 
 // =============================================================================
 // Receipt Adapter (Immutable - Create Only)
@@ -33,14 +33,14 @@ export const POSReceiptAdapter: SyncAdapter = {
   async create(data: any): Promise<POSReceipt> {
     // Create receipt on server
     const receipt = await posServices.createReceipt({
-      items: data.items,
+      lines: data.lines ?? data.items ?? [],
       customer_id: data.customer_id,
       payment_method: data.payment_method,
       metadata: data.metadata,
     })
 
     // Store locally as synced
-    await storeEntity('receipt', receipt.id, receipt, 'synced', 1)
+    await storeEntity('receipt', String(receipt.id), receipt, 'synced', 1)
 
     return receipt
   },
@@ -93,7 +93,7 @@ export const POSShiftAdapter: SyncAdapter = {
     const shift = await posServices.openShift({
       register_id: data.register_id,
       cashier_id: data.cashier_id,
-      opening_balance: data.opening_balance,
+      opening_float: data.opening_balance ?? data.opening_float ?? 0,
       notes: data.notes,
     })
 
@@ -105,9 +105,9 @@ export const POSShiftAdapter: SyncAdapter = {
     // Close shift on server
     const shift = await posServices.closeShift({
       shift_id: id,
-      closing_balance: data.closing_balance,
-      variance: data.variance,
-      notes: data.notes,
+      closing_cash: data.closing_balance ?? data.closing_cash ?? 0,
+      loss_amount: data.variance ?? data.loss_amount,
+      loss_note: data.notes,
     })
 
     await storeEntity('shift', shift.id, shift, 'synced', 1)

@@ -10,12 +10,12 @@ export default function RRHHRoutes() {
   return (
     <Routes>
       <Route index element={<Panel />} />
-      <Route path="empleados" element={<EmpleadosList />} />
-      <Route path="empleados/nuevo" element={<EmpleadoForm />} />
-      <Route path="empleados/:id" element={<EmpleadoDetail />} />
-      <Route path="empleados/:id/editar" element={<EmpleadoForm />} />
-      <Route path="vacaciones" element={<VacacionesList />} />
-      <Route path="vacaciones/nueva" element={<VacacionForm />} />
+      <Route path="empleados" element={<EmployeesList />} />
+      <Route path="empleados/nuevo" element={<EmployeeForm />} />
+      <Route path="empleados/:id" element={<EmployeeDetail />} />
+      <Route path="empleados/:id/editar" element={<EmployeeForm />} />
+      <Route path="vacaciones" element={<VacationsList />} />
+      <Route path="vacaciones/nueva" element={<VacationForm />} />
     </Routes>
   )
 }

@@ -31,7 +31,7 @@ export function GenericWidget({ widget }: GenericWidgetProps) {
     loadWidgetData();
 
     // Set up auto-refresh if interval is specified
-    let interval: NodeJS.Timer | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
     if (widget.refresh_interval && widget.refresh_interval > 0) {
       interval = setInterval(loadWidgetData, widget.refresh_interval * 1000);
     }

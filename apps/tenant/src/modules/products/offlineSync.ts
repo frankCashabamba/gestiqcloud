@@ -27,21 +27,21 @@ export const ProductsAdapter: SyncAdapter = {
   async create(data: any): Promise<Producto> {
     const product = await productServices.createProducto(data)
     const remoteVersion = product.updated_at ? new Date(product.updated_at).getTime() : Date.now()
-    await storeEntity('product', product.id, product, 'synced', remoteVersion)
+    await storeEntity('product', String(product.id), product, 'synced', remoteVersion)
     return product
   },
 
   async update(id: string, data: any): Promise<Producto> {
     const product = await productServices.updateProducto(id, data)
     const remoteVersion = product.updated_at ? new Date(product.updated_at).getTime() : Date.now()
-    await storeEntity('product', id, product, 'synced', remoteVersion)
+    await storeEntity('product', String(id), product, 'synced', remoteVersion)
     return product
   },
 
   async delete(id: string): Promise<void> {
     try {
       await productServices.removeProducto(id)
-      await storeEntity('product', id, { _deleted: true, _op: 'delete' }, 'synced', Date.now())
+      await storeEntity('product', String(id), { _deleted: true, _op: 'delete' }, 'synced', Date.now())
     } catch (error) {
       // If offline or server fails, queue deletion to ensure it is processed later
       await queueDeletion('product', id)

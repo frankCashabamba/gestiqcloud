@@ -17,6 +17,7 @@ import type {
     RefundRequest,
     PaymentLinkRequest
 } from '../../types/pos'
+export type { POSReceipt } from '../../types/pos'
 
 const BASE_URL = API_PATHS.POS.REGISTERS.replace('/registers', '')
 const PAYMENTS_URL = '/api/v1/payments' // TODO: mover a API_PATHS

@@ -126,7 +126,7 @@ export async function storeEntity(
 export async function getEntity(entity: EntityType, id: string): Promise<StoredEntity | undefined> {
   const store = await getStore()
   const key = `${entity}:${id}`
-  return get<StoredEntity>(key, store)
+  return (await get(key, store)) as StoredEntity | undefined
 }
 
 export async function deleteEntity(entity: EntityType, id: string): Promise<void> {
@@ -138,7 +138,7 @@ export async function deleteEntity(entity: EntityType, id: string): Promise<void
 
 export async function listEntities(entity: EntityType): Promise<StoredEntity[]> {
   const store = await getStore()
-  const allEntries = await entries<StoredEntity>(store)
+  const allEntries = (await entries(store)) as Array<[IDBValidKey, StoredEntity]>
   return allEntries
     .filter(([key]) => key.toString().startsWith(`${entity}:`))
     .map(([_, value]) => value)
@@ -207,12 +207,12 @@ async function updateMetadata(entity: EntityType): Promise<void> {
 
 export async function getMetadata(entity: EntityType): Promise<SyncMetadata | undefined> {
   const metaStore = await getMetadataStore()
-  return get<SyncMetadata>(entity, metaStore)
+  return (await get(entity, metaStore)) as SyncMetadata | undefined
 }
 
 export async function getAllMetadata(): Promise<Record<EntityType, SyncMetadata>> {
   const metaStore = await getMetadataStore()
-  const allEntries = await entries<SyncMetadata>(metaStore)
+  const allEntries = (await entries(metaStore)) as Array<[IDBValidKey, SyncMetadata]>
   
   const result: any = {}
   allEntries.forEach(([key, value]) => {
@@ -318,7 +318,7 @@ export async function getStorageStats(): Promise<{
   byStatus: Record<SyncStatus, number>
 }> {
   const store = await getStore()
-  const allEntries = await entries<StoredEntity>(store)
+  const allEntries = (await entries(store)) as Array<[IDBValidKey, StoredEntity]>
   
   const byEntity: any = {}
   const byStatus: any = {}

@@ -17,7 +17,7 @@ export default function InventarioPanel() {
   return (
     <Routes>
       <Route index element={<Index />} />
-      <Route path="products" element={<ProductosList />} />
+      <Route path="products" element={<ProductsList />} />
       <Route path="alerts" element={<AlertConfigManager />} />
       <Route path="*" element={<Navigate to="products" replace />} />
     </Routes>

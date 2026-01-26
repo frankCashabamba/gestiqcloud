@@ -50,6 +50,10 @@ const ENTITY_SCHEMAS: Record<EntityType, {
     requiredFields: ['id', 'supplier_id', 'items'],
     maxSize: 1024 * 100,
   },
+  invoice: {
+    requiredFields: ['id', 'lineas'],
+    maxSize: 1024 * 120,
+  },
 }
 
 // =============================================================================

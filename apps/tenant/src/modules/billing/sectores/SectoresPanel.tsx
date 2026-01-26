@@ -7,8 +7,8 @@ export default function SectoresPanel() {
   const { t } = useTranslation()
   const sector = useCompanySector()
   
-  // Get sector from company config dynamically - no hardcodes
-  const sectorCode = sector?.code?.toLowerCase() || 'retail'
+  // Get sector code/name from company config dynamically - no hardcodes
+  const sectorCode = sector?.plantilla?.toLowerCase?.() || sector?.is_retail ? 'retail' : sector?.is_panaderia ? 'panaderia' : sector?.is_taller ? 'taller' : 'retail'
   
   // Map sector to available invoice sections
   const sectorMap: Record<string, { path: string; label: string }> = {

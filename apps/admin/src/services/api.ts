@@ -35,9 +35,9 @@ async function request<T = any>(
   const url = `${API_BASE}${endpoint}`;
   const token = getAuthToken();
 
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...options.headers,
+    ...(options.headers as Record<string, string> | undefined),
   };
 
   if (token) {
@@ -89,13 +89,67 @@ function PUT<T = any>(endpoint: string, data?: any): Promise<T> {
   });
 }
 
+function PATCH<T = any>(endpoint: string, data?: any): Promise<T> {
+  return request<T>(endpoint, {
+    method: "PATCH",
+    body: data ? JSON.stringify(data) : undefined,
+  });
+}
+
 function DELETE<T = any>(endpoint: string): Promise<T> {
   return request<T>(endpoint, { method: "DELETE" });
 }
 
+const withParams = (endpoint: string, params?: Record<string, any>) => {
+  if (!params) return endpoint;
+  const query = new URLSearchParams(params).toString();
+  if (!query) return endpoint;
+  return `${endpoint}${endpoint.includes("?") ? "&" : "?"}${query}`;
+};
+
 // ============ UI Config API ============
 
 export const apiClient = {
+  // Axios-like helpers kept for compatibility
+  get: async <T = any>(
+    endpoint: string,
+    config?: { params?: Record<string, any> }
+  ): Promise<{ data: T }> => {
+    const data = await GET<T>(withParams(endpoint, config?.params));
+    return { data };
+  },
+  post: async <T = any>(
+    endpoint: string,
+    body?: any,
+    config?: { params?: Record<string, any> }
+  ): Promise<{ data: T }> => {
+    const data = await POST<T>(withParams(endpoint, config?.params), body);
+    return { data };
+  },
+  put: async <T = any>(
+    endpoint: string,
+    body?: any,
+    config?: { params?: Record<string, any> }
+  ): Promise<{ data: T }> => {
+    const data = await PUT<T>(withParams(endpoint, config?.params), body);
+    return { data };
+  },
+  patch: async <T = any>(
+    endpoint: string,
+    body?: any,
+    config?: { params?: Record<string, any> }
+  ): Promise<{ data: T }> => {
+    const data = await PATCH<T>(withParams(endpoint, config?.params), body);
+    return { data };
+  },
+  delete: async <T = any>(
+    endpoint: string,
+    config?: { params?: Record<string, any> }
+  ): Promise<{ data: T }> => {
+    const data = await DELETE<T>(withParams(endpoint, config?.params));
+    return { data };
+  },
+
   // UI Configuration Endpoints
   uiConfig: {
     basePath: "/v1/admin/ui-config",

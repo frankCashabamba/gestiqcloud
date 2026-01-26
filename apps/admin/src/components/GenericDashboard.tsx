@@ -5,7 +5,6 @@
  */
 
 import { useEffect, useState } from "react";
-import { useAuth } from "../auth/AuthContext";
 import { apiClient } from "../services/api";
 import { GenericWidget } from "./GenericWidget";
 import "./generic-components.css";
@@ -32,7 +31,6 @@ export function GenericDashboard({
   dashboardSlug = "default",
   onSectionChange,
 }: DashboardProps) {
-  const { user } = useAuth();
   const [sections, setSections] = useState<UiSection[]>([]);
   const [activeSection, setActiveSection] = useState<UiSection | null>(null);
   const [widgets, setWidgets] = useState<any[]>([]);

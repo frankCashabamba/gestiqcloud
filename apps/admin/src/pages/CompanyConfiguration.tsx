@@ -195,9 +195,9 @@ export default function CompanyConfiguration() {
             setPosBackfillResult(result);
             
             // Check if documents were created
-            const docsCreated = Object.keys(result?.documents_created || {}).length > 0;
+            const docsCreated = Object.keys(result?.documents_created ?? {}).length > 0;
             if (docsCreated) {
-                setSuccess(`✓ Backfill completado: ${Object.keys(result.documents_created).join(', ')}`);
+                setSuccess(`✓ Backfill completado: ${Object.keys(result.documents_created ?? {}).join(', ')}`);
             } else {
                 setSuccess('✓ Backfill ejecutado (documentos ya existían)');
             }

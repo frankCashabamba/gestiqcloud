@@ -4,7 +4,7 @@
  * No hardcodes - totalmente dinámico desde backend
  */
 
-import { apiClient } from './api'
+import { apiClient } from './api/client'
 
 export interface ModuleInfo {
   id: string
