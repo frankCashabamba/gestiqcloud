@@ -17,6 +17,7 @@ from app.models.core.facturacion import Invoice, InvoiceTemp
 from app.models.core.invoiceLine import BakeryLine, WorkshopLine, POSLine
 from app.models.tenant import Tenant
 from app.modules.invoicing import schemas
+from app.modules.shared.services.numbering import generar_numero_documento
 
 # asegúrate de tener esta función creada
 
@@ -57,6 +58,12 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
 
         if factura_data.supplier is None:
             factura_data = factura_data.copy(update={"supplier": "N/A"})
+
+        # Número automático si viene vacío/nulo
+        numero_raw = getattr(factura_data, "numero", None)
+        if not numero_raw or (isinstance(numero_raw, str) and not numero_raw.strip()):
+            auto_numero = generar_numero_documento(db, tenant_id, "invoice")
+            factura_data = factura_data.copy(update={"numero": auto_numero})
 
         try:
             # Crear factura sin cometer hasta validar líneas

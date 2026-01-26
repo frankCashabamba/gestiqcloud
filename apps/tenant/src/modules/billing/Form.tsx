@@ -28,6 +28,7 @@ export default function FacturaForm() {
   const { config } = useCompanyConfig()
   const currency = config?.settings?.currency || '€'
   const today = new Date().toISOString().slice(0, 10)
+  const isNew = !id
   
   const [form, setForm] = useState<FormT>({
     numero: '',
@@ -44,6 +45,7 @@ export default function FacturaForm() {
     notas: '',
   })
   const [loading, setLoading] = useState(false)
+  const isLocked = form.estado !== 'draft' && form.estado !== 'borrador'
 
   useEffect(() => {
     if (id) {
@@ -115,6 +117,7 @@ export default function FacturaForm() {
 
   const onSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault()
+    if (isLocked) return
     try {
       if (!form.fecha) throw new Error(t('billing.errors.dateRequired'))
       if (form.lineas.length === 0) throw new Error(t('billing.sectorInvoice.errors.atLeastOneLine'))
@@ -153,6 +156,12 @@ export default function FacturaForm() {
     <div className="p-4">
       <h3 className="text-xl font-semibold mb-4">{id ? t('billing.editTitle') : t('billing.newTitle')}</h3>
       
+      {isLocked && (
+        <div className="mb-4 rounded border border-amber-300 bg-amber-50 text-amber-800 px-3 py-2 text-sm">
+          {t('billing.status.issued')} · {t('common.readonly') || 'Solo lectura'}
+        </div>
+      )}
+      
       {loading ? (
         <div className="text-gray-500">{t('common.loading')}</div>
       ) : (
@@ -166,6 +175,7 @@ export default function FacturaForm() {
                 value={form.fecha}
                 onChange={(e) => setForm({ ...form, fecha: e.target.value })}
                 className="border px-2 py-1 w-full rounded text-sm"
+                disabled={isLocked}
                 required
               />
             </div>
@@ -175,9 +185,15 @@ export default function FacturaForm() {
                 type="text"
                 value={form.numero}
                 onChange={(e) => setForm({ ...form, numero: e.target.value })}
-                placeholder={t('billing.numberPlaceholder')}
+                placeholder={isNew ? '' : t('billing.numberPlaceholder')}
                 className="border px-2 py-1 w-full rounded text-sm"
+                disabled={isLocked || isNew}
               />
+              {isNew && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {t('billing.numberAutoPlaceholder') || 'Se asignara automaticamente al guardar'}
+                </p>
+              )}
             </div>
             <div className="col-span-2">
               <label className="block text-sm font-medium mb-1">{t('common.status')}</label>
@@ -185,6 +201,7 @@ export default function FacturaForm() {
                 value={form.estado}
                 onChange={(e) => setForm({ ...form, estado: e.target.value })}
                 className="border px-2 py-1 w-full rounded text-sm"
+                disabled={isLocked}
               >
                 <option value="draft">{t('billing.status.draft')}</option>
                 <option value="issued">{t('billing.status.issued')}</option>
@@ -202,6 +219,7 @@ export default function FacturaForm() {
                 value={form.cliente_id || ''}
                 onChange={(e) => setForm({ ...form, cliente_id: e.target.value ? Number(e.target.value) : undefined })}
                 className="border px-2 py-1 w-full rounded text-sm"
+                disabled={isLocked}
               />
             </div>
             <div>
@@ -212,6 +230,7 @@ export default function FacturaForm() {
                 onChange={(e) => setForm({ ...form, cliente_nombre: e.target.value })}
                 placeholder="Nombre del cliente"
                 className="border px-2 py-1 w-full rounded text-sm"
+                disabled={isLocked}
               />
             </div>
             <div className="col-span-2">
@@ -221,6 +240,7 @@ export default function FacturaForm() {
                 onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
                 rows={2}
                 className="border px-2 py-1 w-full rounded text-sm"
+                disabled={isLocked}
               />
             </div>
           </div>
@@ -232,9 +252,10 @@ export default function FacturaForm() {
               <button
                 type="button"
                 onClick={addLine}
-                className="bg-green-600 text-white px-3 py-1 rounded text-sm"
+                className={`px-3 py-1 rounded text-sm ${isLocked ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-green-600 text-white'}`}
+                disabled={isLocked}
               >
-                {t('billing.sectorInvoice.addLine')}
+                {isLocked ? (t('common.readonly') || 'Solo lectura') : t('billing.sectorInvoice.addLine')}
               </button>
             </div>
 
@@ -256,52 +277,56 @@ export default function FacturaForm() {
                         <input
                           type="text"
                           value={linea.description}
-                          onChange={(e) =>
-                            updateLineTotal(idx, { ...linea, description: e.target.value })
-                          }
-                          className="border px-2 py-1 w-full rounded text-sm"
-                          required
-                        />
-                      </td>
+                      onChange={(e) =>
+                        updateLineTotal(idx, { ...linea, description: e.target.value })
+                      }
+                      className="border px-2 py-1 w-full rounded text-sm"
+                      disabled={isLocked}
+                      required
+                    />
+                  </td>
                       <td className="border p-2">
                         <input
                           type="number"
                           min="0.01"
                           step="0.01"
                           value={linea.cantidad}
-                          onChange={(e) =>
-                            updateLineTotal(idx, { ...linea, cantidad: Number(e.target.value) })
-                          }
-                          className="border px-2 py-1 w-full rounded text-sm text-center"
-                          required
-                        />
-                      </td>
+                      onChange={(e) =>
+                        updateLineTotal(idx, { ...linea, cantidad: Number(e.target.value) })
+                      }
+                      className="border px-2 py-1 w-full rounded text-sm text-center"
+                      disabled={isLocked}
+                      required
+                    />
+                  </td>
                       <td className="border p-2">
                         <input
                           type="number"
                           min="0"
                           step="0.01"
                           value={linea.precio_unitario}
-                          onChange={(e) =>
-                            updateLineTotal(idx, { ...linea, precio_unitario: Number(e.target.value) })
-                          }
-                          className="border px-2 py-1 w-full rounded text-sm text-right"
-                          required
-                        />
-                      </td>
+                      onChange={(e) =>
+                        updateLineTotal(idx, { ...linea, precio_unitario: Number(e.target.value) })
+                      }
+                      className="border px-2 py-1 w-full rounded text-sm text-right"
+                      disabled={isLocked}
+                      required
+                    />
+                  </td>
                       <td className="border p-2 text-right">
                         {currency}{linea.total.toFixed(2)}
                       </td>
                       <td className="border p-2 text-center">
                         <button
-                          type="button"
-                          onClick={() => removeLine(idx)}
-                          className="text-red-600 hover:text-red-800 text-sm"
-                        >
-                          {t('billing.sectorInvoice.remove')}
-                        </button>
-                      </td>
-                    </tr>
+                      type="button"
+                      onClick={() => removeLine(idx)}
+                      className="text-red-600 hover:text-red-800 text-sm"
+                      disabled={isLocked}
+                    >
+                      {t('billing.sectorInvoice.remove')}
+                    </button>
+                  </td>
+                </tr>
                   ))}
                 </tbody>
               </table>
@@ -335,6 +360,7 @@ export default function FacturaForm() {
                       })
                     }}
                     className="border px-2 py-1 w-16 rounded text-sm text-right"
+                    disabled={isLocked}
                   />
                 </label>
                 <span>{currency}{form.iva.toFixed(2)}</span>
@@ -355,6 +381,7 @@ export default function FacturaForm() {
               rows={3}
               placeholder={t('billing.notesPlaceholder')}
               className="border px-2 py-1 w-full rounded text-sm"
+              disabled={isLocked}
             />
           </div>
 
@@ -362,9 +389,10 @@ export default function FacturaForm() {
           <div className="flex gap-3 pt-4">
             <button
               type="submit"
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              className={`px-4 py-2 rounded ${isLocked ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+              disabled={isLocked}
             >
-              {t('common.save')}
+              {isLocked ? t('common.readonly') || 'Solo lectura' : t('common.save')}
             </button>
             <button
               type="button"

@@ -263,8 +263,16 @@ export async function sendEinvoice(request: EinvoiceSendRequest): Promise<{ task
 }
 
 export async function getEinvoiceStatus(invoiceId: string): Promise<EinvoiceStatus> {
-    const { data } = await tenantApi.get(`/api/v1/tenant/einvoicing/status/${invoiceId}`)
-    return data
+    try {
+        const { data } = await tenantApi.get(`/api/v1/tenant/einvoicing/status/${invoiceId}`)
+        return data
+    } catch (err: any) {
+        if (err?.response?.status === 404) {
+            // No hay estado aún -> tratar como no enviado
+            return null as any
+        }
+        throw err
+    }
 }
 
 // ============================================================================

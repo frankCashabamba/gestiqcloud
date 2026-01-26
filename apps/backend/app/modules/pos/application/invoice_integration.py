@@ -213,13 +213,13 @@ class POSInvoicingService:
                 return None
 
             # Resolve sector from company_settings (fallback to tenant template or 'pos')
-            sector = (
-                self.db.execute(
-                    text(
-                        "SELECT COALESCE(settings->>'sector', NULL) FROM company_settings WHERE tenant_id = :tid"
-                    ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True)))
-                ).scalar()
-            )
+            sector = self.db.execute(
+                text(
+                    "SELECT COALESCE(settings->>'sector', NULL) "
+                    "FROM company_settings WHERE tenant_id = :tid"
+                ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+                {"tid": self.tenant_id},
+            ).scalar()
             if not sector:
                 sector = (
                     self.db.execute(
@@ -229,7 +229,10 @@ class POSInvoicingService:
                         {"tid": self.tenant_id},
                     ).scalar()
                 )
+            # Map sector to supported polymorphic identities (invoice_lines.polymorphic_on)
             sector = sector or "pos"
+            if sector not in {"pos", "bakery", "workshop"}:
+                sector = "pos"
 
             # Generate canonical invoice number (uses DB sequence; fallback in dev)
             from app.modules.shared.services.numbering import generar_numero_documento
@@ -311,7 +314,7 @@ class POSInvoicingService:
             lines = self.db.execute(
                 text(
                     """
-                    SELECT rl.product_id, rl.qty, rl.unit_price, rl.tax_rate, rl.discount_pct, p.name
+                    SELECT rl.id, rl.product_id, rl.qty, rl.unit_price, rl.tax_rate, rl.discount_pct, p.name
                     FROM pos_receipt_lines rl
                     LEFT JOIN products p ON p.id = rl.product_id
                     WHERE rl.receipt_id = :rid
@@ -320,7 +323,7 @@ class POSInvoicingService:
                 {"rid": receipt_uuid},
             ).fetchall()
 
-            for product_id, qty, unit_price, tax_rate, discount_pct, product_name in lines:
+            for receipt_line_id, product_id, qty, unit_price, tax_rate, discount_pct, product_name in lines:
                 q = Decimal(str(qty or 0))
                 up = Decimal(str(unit_price or 0))
                 disc = Decimal(str(discount_pct or 0)) / Decimal("100")
@@ -330,6 +333,7 @@ class POSInvoicingService:
                 # invoice_lines table stores vat amount per line (not the rate)
                 description = str(product_name or f"Producto {product_id}")
 
+                line_id = uuid4()
                 self.db.execute(
                     text(
                         """
@@ -345,15 +349,28 @@ class POSInvoicingService:
                     bindparam("id", type_=PGUUID(as_uuid=True)),
                     bindparam("invoice_id", type_=PGUUID(as_uuid=True)),
                 ),
-                {
-                    "id": uuid4(),
-                    "invoice_id": invoice_id,
-                    "sector": sector,
+                    {
+                        "id": line_id,
+                        "invoice_id": invoice_id,
+                        "sector": sector,
                         "description": description,
                         "quantity": float(q),
                         "unit_price": float(up),
                         "vat": float(line_iva),
                     },
+                )
+                # Insert subclass row for POS polymorphic identity
+                self.db.execute(
+                    text(
+                        """
+                        INSERT INTO pos_invoice_lines (id, pos_receipt_line_id)
+                        VALUES (:id, :receipt_line_id)
+                        """
+                    ).bindparams(
+                        bindparam("id", type_=PGUUID(as_uuid=True)),
+                        bindparam("receipt_line_id", type_=PGUUID(as_uuid=True)),
+                    ),
+                    {"id": line_id, "receipt_line_id": receipt_line_id},
                 )
 
             self.db.execute(

@@ -244,7 +244,42 @@ def obtener_factura_por_id(
     )
     if not factura:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
-    return factura
+
+    # Asegurar serialización explícita de líneas (evita problemas de polimorfismo)
+    lineas = [
+        {
+            "sector": getattr(l, "sector", None),
+            "description": getattr(l, "description", ""),
+            "cantidad": float(getattr(l, "quantity", 0) or 0),
+            "precio_unitario": float(getattr(l, "unit_price", 0) or 0),
+            "iva": float(getattr(l, "vat", 0) or 0),
+            "pos_receipt_line_id": getattr(l, "pos_receipt_line_id", None),
+        }
+        for l in getattr(factura, "lines", []) or []
+    ]
+
+    cliente_obj = factura.customer
+    cliente = None
+    if cliente_obj:
+        cliente = {
+            "id": getattr(cliente_obj, "id", None),
+            "name": getattr(cliente_obj, "name", "") or "",
+            "email": getattr(cliente_obj, "email", "") or "",
+            "identificacion": getattr(cliente_obj, "identificacion", "") or "",
+        }
+
+    return {
+        "id": factura.id,
+        "numero": factura.number,
+        "fecha_emision": factura.issue_date,
+        "estado": factura.status,
+        "subtotal": getattr(factura, "subtotal", None),
+        "iva": getattr(factura, "vat", None),
+        "total": getattr(factura, "total", getattr(factura, "amount", None)),
+        "cliente": cliente,
+        "lineas": lineas,
+        "lines": lineas,
+    }
 
 
 @router.get("/{factura_id}/pdf", response_class=Response)

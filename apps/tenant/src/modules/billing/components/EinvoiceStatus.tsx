@@ -33,14 +33,9 @@ export default function EinvoiceStatus({ invoiceId, country, canSend = true, ena
     try {
       setLoading(true)
       const s = await getEinvoiceStatus(invoiceId)
-      setStatus(s)
+      setStatus(s || null)
     } catch (err: any) {
-      // 404 == no enviado aún: lo tratamos como estado inicial
-      if (err.response?.status === 404) {
-        setStatus(null)
-      } else {
-        setError(t('billing.einvoiceStatus.errorLoading'))
-      }
+      setError(t('billing.einvoiceStatus.errorLoading'))
     } finally {
       setLoading(false)
     }

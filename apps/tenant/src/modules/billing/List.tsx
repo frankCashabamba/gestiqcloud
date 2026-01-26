@@ -9,6 +9,38 @@ import EinvoiceStatus from './components/EinvoiceStatus'
 import { useCompanyConfig } from '../../contexts/CompanyConfigContext'
 import { useCurrency } from '../../hooks/useCurrency'
 
+function sortInvoices(arr: Factura[]): Factura[] {
+  // Extrae la última secuencia numérica de un string (ej: "A-2026-000037" -> 37)
+  const parseNumber = (value?: string | number) => {
+    if (value === undefined || value === null) return null
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null
+    const match = value.match(/(\d+)(?!.*\d)/) // última secuencia de dígitos
+    if (!match) return null
+    const n = Number(match[1])
+    return Number.isFinite(n) ? n : null
+  }
+  const parseDate = (value?: string) => {
+    const ts = value ? Date.parse(value) : NaN
+    return Number.isNaN(ts) ? null : ts
+  }
+  return [...arr].sort((a, b) => {
+    // 1) número de factura descendente si es numérico
+    const na = parseNumber(a.numero)
+    const nb = parseNumber(b.numero)
+    if (nb !== null || na !== null) {
+      if (nb === null) return 1
+      if (na === null) return -1
+      if (nb !== na) return nb - na
+    }
+    // 2) fecha descendente
+    const da = parseDate(a.fecha)
+    const db = parseDate(b.fecha)
+    if (da !== null && db !== null && db !== da) return db - da
+    // 3) último recurso: orden estable por id
+    return String(b.id).localeCompare(String(a.id))
+  })
+}
+
 export default function FacturasList() {
   const { t } = useTranslation()
   const { config } = useCompanyConfig()
@@ -29,7 +61,9 @@ export default function FacturasList() {
         setLoading(true)
         setErrMsg(null)
         const facturas = await listFacturas()
-        setItems(facturas)
+        // Ordenar más recientes primero por fecha (fallback a created order)
+        const sorted = sortInvoices(facturas)
+        setItems(sorted)
       } catch (e: any) {
         const m = getErrorMessage(e)
         setErrMsg(m)
@@ -42,13 +76,16 @@ export default function FacturasList() {
     loadFacturas()
   }, [])
 
-  const filtered = useMemo(() => items.filter(v => {
-    if (estado && (v.estado||'') !== estado) return false
-    if (desde && v.fecha < desde) return false
-    if (hasta && v.fecha > hasta) return false
-    if (q && !(`${v.id}`.includes(q) || (v.estado||'').toLowerCase().includes(q.toLowerCase()))) return false
-    return true
-  }), [items, estado, desde, hasta, q])
+  const filtered = useMemo(() => {
+    const res = items.filter(v => {
+      if (estado && (v.estado||'') !== estado) return false
+      if (desde && v.fecha < desde) return false
+      if (hasta && v.fecha > hasta) return false
+      if (q && !(`${v.id}`.includes(q) || (v.estado||'').toLowerCase().includes(q.toLowerCase()))) return false
+      return true
+    })
+    return sortInvoices(res)
+  }, [items, estado, desde, hasta, q])
 
   const { page, setPage, totalPages, view } = usePagination(filtered, 10)
 
@@ -105,14 +142,23 @@ export default function FacturasList() {
       <EinvoiceStatus
         invoiceId={v.id.toString()}
           country="ES"  // TODO: Detectar desde company config
-            canSend={v.estado === 'posted'}
-            enabled={v.estado === 'issued' || v.estado === 'emitida' || v.estado === 'posted'}
+            canSend={['posted','issued','emitida'].includes((v.estado||'').toLowerCase())}
+            enabled={['posted','issued','emitida'].includes((v.estado||'').toLowerCase())}
             />
           </td>
             <td>
+              {['emitida','issued','posted','confirmed'].includes((v.estado||'').toLowerCase()) ? (
+                <>
+                  <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline mr-3">
+                    {t('common.view') || 'Ver'}
+                  </Link>
+                  <span className="text-gray-500 mr-3 text-sm">{t('common.readonly') || 'Solo lectura'}</span>
+                </>
+              ) : (
                 <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline mr-3">{t('common.edit')}</Link>
-                <button className="text-red-700" onClick={async ()=> { if(!confirm(t('billing.deleteConfirm'))) return; try { await removeFactura(v.id); clearInvoicesCache(); setItems((p)=>p.filter(x=>x.id!==v.id)); success(t('billing.deleted')) } catch(e:any){ toastError(getErrorMessage(e)) } }}>{t('common.delete')}</button>
-              </td>
+              )}
+              <button className="text-red-700" onClick={async ()=> { if(!confirm(t('billing.deleteConfirm'))) return; try { await removeFactura(v.id); clearInvoicesCache(); setItems((p)=>p.filter(x=>x.id!==v.id)); success(t('billing.deleted')) } catch(e:any){ toastError(getErrorMessage(e)) } }}>{t('common.delete')}</button>
+            </td>
             </tr>
           ))}
           {!loading && items.length===0 && <tr><td className="py-3 px-3" colSpan={5}>{t('common.noRecords')}</td></tr>}
