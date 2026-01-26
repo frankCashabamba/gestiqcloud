@@ -320,8 +320,144 @@ class DocumentConverter:
             )
             # Devuelve toda la trazabilidad del documento
         """
-        # TODO: Implementar trazabilidad completa
-        raise NotImplementedError("Trazabilidad de documentos pendiente de implementación")
+        from app.models.core.facturacion import Invoice
+        from app.models.sales.order import SalesOrder
+        from app.models.pos.receipt import POSReceipt
+
+        chain = {
+            "document_id": str(document_id),
+            "document_type": document_type,
+            "chain": [],
+            "payments": [],
+            "timeline": [],
+        }
+
+        try:
+            if document_type == "invoice":
+                # Get invoice and trace backwards to source
+                invoice = self.db.query(Invoice).filter(Invoice.id == document_id).first()
+                if not invoice:
+                    raise ValueError(f"Invoice {document_id} not found")
+
+                chain["invoice"] = {
+                    "id": str(invoice.id),
+                    "numero": invoice.numero,
+                    "monto": invoice.monto,
+                    "estado": invoice.estado,
+                    "fecha_emision": str(invoice.fecha_emision),
+                }
+
+                # Check if comes from sales order
+                if invoice.metadata and isinstance(invoice.metadata, dict):
+                    sales_order_id = invoice.metadata.get("sales_order_id")
+                    if sales_order_id:
+                        order = self.db.query(SalesOrder).filter(
+                            SalesOrder.id == sales_order_id
+                        ).first()
+                        if order:
+                            chain["sales_order"] = {
+                                "id": str(order.id),
+                                "numero": order.numero,
+                                "status": order.status,
+                                "created_at": str(order.created_at),
+                            }
+                            chain["chain"].append("sales_order -> invoice")
+
+                # Get payments
+                payments = self.db.execute(
+                    text(
+                        """
+                        SELECT id, amount, payment_date, payment_method, status
+                        FROM payments
+                        WHERE invoice_id = :invoice_id
+                        ORDER BY payment_date DESC
+                    """
+                    ),
+                    {"invoice_id": str(invoice.id)},
+                ).fetchall()
+
+                chain["payments"] = [
+                    {
+                        "id": str(p[0]),
+                        "amount": float(p[1]),
+                        "date": str(p[2]),
+                        "method": p[3],
+                        "status": p[4],
+                    }
+                    for p in payments
+                ]
+
+            elif document_type == "sales_order":
+                # Get sales order and trace forward
+                order = self.db.query(SalesOrder).filter(SalesOrder.id == document_id).first()
+                if not order:
+                    raise ValueError(f"Sales Order {document_id} not found")
+
+                chain["sales_order"] = {
+                    "id": str(order.id),
+                    "numero": order.numero,
+                    "status": order.status,
+                    "created_at": str(order.created_at),
+                }
+
+                # Check if has invoice
+                invoice = self.db.execute(
+                    text(
+                        """
+                        SELECT id, numero, estado, fecha_emision
+                        FROM invoices
+                        WHERE metadata::jsonb->>'sales_order_id' = :order_id
+                        LIMIT 1
+                    """
+                    ),
+                    {"order_id": str(order.id)},
+                ).first()
+
+                if invoice:
+                    chain["invoice"] = {
+                        "id": str(invoice[0]),
+                        "numero": invoice[1],
+                        "estado": invoice[2],
+                        "fecha_emision": str(invoice[3]),
+                    }
+                    chain["chain"].append("sales_order -> invoice")
+
+            elif document_type == "pos_receipt":
+                # Get POS receipt and trace forward
+                receipt = self.db.query(POSReceipt).filter(POSReceipt.id == document_id).first()
+                if not receipt:
+                    raise ValueError(f"POS Receipt {document_id} not found")
+
+                chain["pos_receipt"] = {
+                    "id": str(receipt.id),
+                    "number": receipt.receipt_number,
+                    "status": receipt.status,
+                    "created_at": str(receipt.created_at),
+                }
+
+                # Check if has invoice
+                if receipt.invoice_id:
+                    invoice = self.db.query(Invoice).filter(
+                        Invoice.id == receipt.invoice_id
+                    ).first()
+                    if invoice:
+                        chain["invoice"] = {
+                            "id": str(invoice.id),
+                            "numero": invoice.numero,
+                            "estado": invoice.estado,
+                        }
+                        chain["chain"].append("pos_receipt -> invoice")
+
+            return {
+                "success": True,
+                "data": chain,
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+            }
 
 
 # EJEMPLO DE USO EN ENDPOINT

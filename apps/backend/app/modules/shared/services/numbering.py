@@ -50,31 +50,35 @@ def generar_numero_documento(
 
     try:
         # Intenta usar la función SQL assign_next_number (atómica y segura)
-        tenant_result = db.execute(text("SELECT public.current_tenant()::text")).scalar()
         year = db.execute(text("SELECT EXTRACT(year FROM now())::int")).scalar()
 
-        if tenant_result and year:
-            num = db.execute(
-                text(
-                    "SELECT public.assign_next_number(CAST(:tenant AS uuid), :tipo, :anio, :serie)"
-                ),
-                {
-                    "tenant": tenant_uuid,
-                    "tipo": tipo,
-                    "anio": int(year),
-                    "serie": serie,
-                },
-            ).scalar()
+        num = db.execute(
+            text(
+                "SELECT public.assign_next_number(CAST(:tenant AS uuid), :tipo, :anio, :serie)"
+            ),
+            {
+                "tenant": tenant_uuid,
+                "tipo": tipo,
+                "anio": int(year),
+                "serie": serie,
+            },
+        ).scalar()
 
-            if num:
-                return formatear_numero(tipo, serie, year, num)
+        if num:
+            return formatear_numero(tipo, serie, year, num)
 
-    except Exception:
-        # Si falla (funci?n no existe, permisos, etc.), limpiar transacci?n y usar fallback
+    except Exception as exc:
+        # Si falla (función no existe, permisos, etc.), limpiar transacción y usar fallback
         try:
             db.rollback()
         except Exception:
             pass
+        import logging, traceback
+
+        msg = f"assign_next_number failed for {tipo} tenant={tenant_uuid}: {exc}"
+        logging.getLogger(__name__).warning(msg, exc_info=True)
+        print(msg)
+        print(traceback.format_exc())
 
     # Fallback: generar número no atómico (solo para dev/test)
     # En producción DEBE existir la función assign_next_number

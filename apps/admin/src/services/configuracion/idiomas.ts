@@ -22,25 +22,25 @@ const toPayload = (payload: Omit<Idioma, 'id'>) => ({
 })
 
 export async function listIdiomas(): Promise<Idioma[]> {
-  const { data } = await api.get<Idioma[]>(`${ADMIN_CONFIG.idiomas.base}`)
+  const { data } = await api.get<Idioma[]>(`${ADMIN_CONFIG.languages.base}`)
   return (data || []).map(normalize)
 }
 
 export async function getIdioma(id: number | string): Promise<Idioma> {
-  const { data } = await api.get<Idioma>(ADMIN_CONFIG.idiomas.byId(id))
+  const { data } = await api.get<Idioma>(ADMIN_CONFIG.languages.byId(id))
   return normalize(data)
 }
 
 export async function createIdioma(payload: Omit<Idioma, 'id'>): Promise<Idioma> {
-  const { data } = await api.post<Idioma>(`${ADMIN_CONFIG.idiomas.base}`, toPayload(payload))
+  const { data } = await api.post<Idioma>(`${ADMIN_CONFIG.languages.base}`, toPayload(payload))
   return normalize(data)
 }
 
 export async function updateIdioma(id: number | string, payload: Omit<Idioma, 'id'>): Promise<Idioma> {
-  const { data } = await api.put<Idioma>(ADMIN_CONFIG.idiomas.byId(id), toPayload(payload))
+  const { data } = await api.put<Idioma>(ADMIN_CONFIG.languages.byId(id), toPayload(payload))
   return normalize(data)
 }
 
 export async function removeIdioma(id: number | string): Promise<void> {
-  await api.delete(ADMIN_CONFIG.idiomas.byId(id))
+  await api.delete(ADMIN_CONFIG.languages.byId(id))
 }

@@ -21,7 +21,7 @@ export interface CompanyModule {
   activation_date?: string | null;
   expiration_date?: string | null;
   initial_template?: string | null;
-  module: Module;
+  module: Module | null;
 }
 
 export interface UserModule {

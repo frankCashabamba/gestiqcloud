@@ -1,5 +1,5 @@
 import api from '../shared/api/client'
-import { ADMIN_MODULOS, ADMIN_MODULOS_EMPRESA } from '@shared/endpoints'
+import { ADMIN_MODULES, ADMIN_COMPANY_MODULES } from '@shared/endpoints'
 
 import { Module, CompanyModule } from '../modulos/types'
 
@@ -33,31 +33,31 @@ const toApiPayload = (payload: Partial<Module>) => ({
 })
 
 export async function listModulos(): Promise<Module[]> {
-  const { data } = await api.get<Module[]>(ADMIN_MODULOS.base)
+  const { data } = await api.get<Module[]>(ADMIN_MODULES.base)
   return (data || []).map(normalizeModule)
 }
 
 export async function getModulo(id: number | string): Promise<Module> {
-  const { data } = await api.get<Module>(ADMIN_MODULOS.byId(id))
+  const { data } = await api.get<Module>(ADMIN_MODULES.byId(id))
   return normalizeModule(data)
 }
 
 export async function createModulo(payload: Partial<Module>): Promise<Module> {
-  const { data } = await api.post<Module>(ADMIN_MODULOS.base, toApiPayload(payload))
+  const { data } = await api.post<Module>(ADMIN_MODULES.base, toApiPayload(payload))
   return normalizeModule(data)
 }
 
 export async function updateModulo(id: number | string, payload: Partial<Module>): Promise<Module> {
-  const { data } = await api.put<Module>(ADMIN_MODULOS.byId(id), toApiPayload(payload))
+  const { data } = await api.put<Module>(ADMIN_MODULES.byId(id), toApiPayload(payload))
   return normalizeModule(data)
 }
 
 export async function removeModulo(id: number | string): Promise<void> {
-  await api.delete(ADMIN_MODULOS.byId(id))
+  await api.delete(ADMIN_MODULES.byId(id))
 }
 
 export async function toggleModulo(id: number | string, activar: boolean): Promise<Module> {
-  const endpoint = activar ? ADMIN_MODULOS.activar(id) : ADMIN_MODULOS.desactivar(id)
+  const endpoint = activar ? ADMIN_MODULES.activate(id) : ADMIN_MODULES.deactivate(id)
   const { data } = await api.post<Module>(endpoint)
   return normalizeModule(data)
 }
@@ -69,18 +69,18 @@ export type RegistrarRespuesta = {
 }
 
 export async function registrarModulosFS(): Promise<RegistrarRespuesta> {
-  const { data } = await api.post<RegistrarRespuesta>(ADMIN_MODULOS.registrar)
+  const { data } = await api.post<RegistrarRespuesta>(ADMIN_MODULES.register)
   return data
 }
 
 // ---- Empresa <-> Módulos ----
 export async function listModulosPublicos(): Promise<Module[]> {
-  const { data } = await api.get<Module[]>(ADMIN_MODULOS.publicos)
+  const { data } = await api.get<Module[]>(ADMIN_MODULES.public)
   return (data || []).map(normalizeModule)
 }
 
 export async function listEmpresaModulos(empresaId: number | string): Promise<CompanyModule[]> {
-  const { data } = await api.get<any[]>(ADMIN_MODULOS_EMPRESA.base(empresaId))
+  const { data } = await api.get<any[]>(ADMIN_COMPANY_MODULES.base(empresaId))
   return (
     data?.map((item) => ({
       id: String(item.id),
@@ -107,10 +107,10 @@ export async function upsertEmpresaModulo(
     expiration_date: payload?.expiration_date,
     initial_template: payload?.initial_template,
   }
-  const { data } = await api.post(ADMIN_MODULOS_EMPRESA.upsert(empresaId), body)
+  const { data } = await api.post(ADMIN_COMPANY_MODULES.upsert(empresaId), body)
   return data
 }
 
 export async function removeEmpresaModulo(empresaId: number | string, moduloId: number | string): Promise<void> {
-  await api.delete(ADMIN_MODULOS_EMPRESA.remove(empresaId, moduloId))
+  await api.delete(ADMIN_COMPANY_MODULES.remove(empresaId, moduloId))
 }

@@ -16,10 +16,6 @@ try:
 except Exception:
     pass
 try:
-    import app.modules.sales.infrastructure.models  # noqa: F401
-except Exception:
-    pass
-try:
     import app.modules.purchases.infrastructure.models  # noqa: F401
 except Exception:
     pass

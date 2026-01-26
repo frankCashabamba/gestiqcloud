@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import tenantApi from '../shared/api/client'
 import { TENANT_ONBOARDING } from '@shared/endpoints'
 import { useToast, getErrorMessage } from '../shared/toast'
+import { resolveTenantPath } from '../lib/tenantNavigation'
 
 type Step = 'info' | 'regional' | 'branding' | 'review'
 
@@ -223,7 +224,8 @@ export default function Onboarding() {
       if (token) {
         navigate(`/set-password?token=${token}`)
       } else {
-        navigate('/dashboard')
+        const target = await resolveTenantPath()
+        navigate(target)
       }
     } catch (e: any) {
       error(getErrorMessage(e))
@@ -601,7 +603,7 @@ export default function Onboarding() {
 
                 <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                   <p className="text-sm text-green-800">
-                    <strong>✓ Todo listo:</strong> Una vez guardes, serás redirigido para establecer tu contraseña
+                    <strong>✓ Todo listo:</strong> Una vez guardes, serás redirigido a la pantalla principal
                   </p>
                 </div>
               </div>

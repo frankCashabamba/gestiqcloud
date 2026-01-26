@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { listProductMargins, listCustomerMargins, listProductLines, type ProductMargin, type CustomerMargin, type ProductLineMargin } from '../../services/api/margins'
 import { listProducts } from '../../services/api/products'
-import { fetchBodegas } from '../inventario/services/inventario'
+import { fetchBodegas } from '../inventory/services/inventory'
+import { getCompanySettings, formatCurrency as formatCurrencyWithSettings, type CompanySettings } from '../../services/companySettings'
 import './reportes.css'
 
 type Warehouse = { id: string; name: string }
@@ -11,13 +12,14 @@ type Product = { id: string; name: string }
 const toISO = (d: Date) => d.toISOString().split('T')[0]
 const addDays = (d: Date, days: number) => new Date(d.getTime() + days * 86400000)
 
-const formatMoney = (v: number) =>
-  new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(v || 0)
+const formatMoney = (v: number, settings?: CompanySettings | null) =>
+  formatCurrencyWithSettings(v || 0, settings || undefined)
 
 const formatPct = (v: number) => `${(v * 100).toFixed(2)}%`
 
 export default function MarginsDashboard() {
   const { empresa } = useParams()
+  const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null)
   const [fromDate, setFromDate] = useState(() => toISO(addDays(new Date(), -30)))
   const [toDate, setToDate] = useState(() => toISO(new Date()))
   const [warehouseId, setWarehouseId] = useState<string | ''>('')
@@ -47,6 +49,8 @@ export default function MarginsDashboard() {
     let mounted = true
     ;(async () => {
       try {
+        const settings = await getCompanySettings()
+        if (mounted) setCompanySettings(settings)
         const [ws, prods] = await Promise.all([fetchBodegas(), listProducts({ limit: 500 })])
         if (!mounted) return
         setWarehouses(ws.map((w) => ({ id: String(w.id), name: w.name })))
@@ -71,7 +75,7 @@ export default function MarginsDashboard() {
         setCustomerRows(c)
       } catch (e: any) {
         if (!mounted) return
-        setError(e?.message || 'Error cargando reportes')
+        setError(e?.message || 'Error loading reports')
       } finally {
         if (mounted) setLoading(false)
       }
@@ -125,29 +129,29 @@ export default function MarginsDashboard() {
     <div className="reports-shell">
       <div className="reports-hero">
         <div>
-          <h1>Margenes y rentabilidad</h1>
-          <p>Ventas netas, COGS y margen bruto con corte por fecha y almacen.</p>
+          <h1>Margins and Profitability</h1>
+          <p>Net sales, COGS, and gross margin filtered by date and warehouse.</p>
         </div>
         <div className="reports-filters">
           <div className="field">
-            <label>Desde</label>
+            <label>From</label>
             <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
           </div>
           <div className="field">
-            <label>Hasta</label>
+            <label>To</label>
             <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
           </div>
           <div className="field">
-            <label>Almacen</label>
+            <label>Warehouse</label>
             <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-              <option value="">Todos</option>
+              <option value="">All</option>
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>{w.name}</option>
               ))}
             </select>
           </div>
           <div className="field">
-            <label>Umbral margen</label>
+            <label>Margin threshold</label>
             <input
               type="number"
               min={0}
@@ -162,35 +166,35 @@ export default function MarginsDashboard() {
 
       <div className="reports-cards">
         <div className="card">
-          <span>Ventas netas</span>
-          <strong>{formatMoney(totals.sales)}</strong>
+          <span>Net sales</span>
+          <strong>{formatMoney(totals.sales, companySettings)}</strong>
         </div>
         <div className="card">
           <span>COGS</span>
-          <strong>{formatMoney(totals.cogs)}</strong>
+          <strong>{formatMoney(totals.cogs, companySettings)}</strong>
         </div>
         <div className="card highlight">
-          <span>Beneficio bruto</span>
-          <strong>{formatMoney(totals.profit)}</strong>
+          <span>Gross profit</span>
+          <strong>{formatMoney(totals.profit, companySettings)}</strong>
         </div>
         <div className="card">
-          <span>Margen bruto</span>
+          <span>Gross margin</span>
           <strong>{formatPct(totals.margin)}</strong>
         </div>
       </div>
 
       <div className="reports-grid">
         <div className="panel">
-          <h3>Top beneficio</h3>
+          <h3>Top profit</h3>
           {topByProfit.map((r) => (
             <div key={r.product_id} className="row">
               <span>{productNameById(r.product_id)}</span>
-              <strong>{formatMoney(r.gross_profit)}</strong>
+              <strong>{formatMoney(r.gross_profit, companySettings)}</strong>
             </div>
           ))}
         </div>
         <div className="panel">
-          <h3>Peor margen</h3>
+          <h3>Worst margin</h3>
           {worstByMargin.map((r) => (
             <div key={r.product_id} className="row">
               <span>{productNameById(r.product_id)}</span>
@@ -199,19 +203,19 @@ export default function MarginsDashboard() {
           ))}
         </div>
         <div className="panel">
-          <h3>Alertas</h3>
-          <p>Margen bajo: {alerts.low.length}</p>
-          <p>Beneficio negativo: {alerts.negative.length}</p>
+          <h3>Alerts</h3>
+          <p>Low margin: {alerts.low.length}</p>
+          <p>Negative profit: {alerts.negative.length}</p>
         </div>
       </div>
 
       <div className="tabs">
-        <button className={activeTab === 'productos' ? 'active' : ''} onClick={() => setActiveTab('productos')}>Productos</button>
-        <button className={activeTab === 'clientes' ? 'active' : ''} onClick={() => setActiveTab('clientes')}>Clientes</button>
-        <button className={activeTab === 'detalle' ? 'active' : ''} onClick={() => setActiveTab('detalle')}>Detalle</button>
+        <button className={activeTab === 'productos' ? 'active' : ''} onClick={() => setActiveTab('productos')}>Products</button>
+        <button className={activeTab === 'clientes' ? 'active' : ''} onClick={() => setActiveTab('clientes')}>Customers</button>
+        <button className={activeTab === 'detalle' ? 'active' : ''} onClick={() => setActiveTab('detalle')}>Detail</button>
       </div>
 
-      {loading ? <div className="panel">Cargando...</div> : null}
+      {loading ? <div className="panel">Loading...</div> : null}
       {error ? <div className="panel error">{error}</div> : null}
 
       {!loading && !error && activeTab === 'productos' ? (
@@ -219,11 +223,11 @@ export default function MarginsDashboard() {
           <table>
             <thead>
               <tr>
-                <th>Producto</th>
-                <th>Ventas netas</th>
+                <th>Product</th>
+                <th>Net sales</th>
                 <th>COGS</th>
-                <th>Beneficio</th>
-                <th>Margen</th>
+                <th>Profit</th>
+                <th>Margin</th>
               </tr>
             </thead>
             <tbody>
@@ -233,9 +237,9 @@ export default function MarginsDashboard() {
                 return (
                   <tr key={r.product_id} className={neg ? 'neg' : low ? 'low' : ''}>
                     <td>{productNameById(r.product_id)}</td>
-                    <td>{formatMoney(r.sales_net)}</td>
-                    <td>{formatMoney(r.cogs)}</td>
-                    <td>{formatMoney(r.gross_profit)}</td>
+                    <td>{formatMoney(r.sales_net, companySettings)}</td>
+                    <td>{formatMoney(r.cogs, companySettings)}</td>
+                    <td>{formatMoney(r.gross_profit, companySettings)}</td>
                     <td>{formatPct(r.margin_pct)}</td>
                   </tr>
                 )
@@ -250,20 +254,20 @@ export default function MarginsDashboard() {
           <table>
             <thead>
               <tr>
-                <th>Cliente</th>
-                <th>Ventas netas</th>
+                <th>Customer</th>
+                <th>Net sales</th>
                 <th>COGS</th>
-                <th>Beneficio</th>
-                <th>Margen</th>
+                <th>Profit</th>
+                <th>Margin</th>
               </tr>
             </thead>
             <tbody>
               {customerRows.map((r, idx) => (
                 <tr key={r.customer_id || `c-${idx}`}>
-                  <td>{r.customer_id || 'Sin cliente'}</td>
-                  <td>{formatMoney(r.sales_net)}</td>
-                  <td>{formatMoney(r.cogs)}</td>
-                  <td>{formatMoney(r.gross_profit)}</td>
+                  <td>{r.customer_id || 'No customer'}</td>
+                  <td>{formatMoney(r.sales_net, companySettings)}</td>
+                  <td>{formatMoney(r.cogs, companySettings)}</td>
+                  <td>{formatMoney(r.gross_profit, companySettings)}</td>
                   <td>{formatPct(r.margin_pct)}</td>
                 </tr>
               ))}
@@ -276,9 +280,9 @@ export default function MarginsDashboard() {
         <div className="panel">
           <div className="detail-header">
             <div className="field">
-              <label>Producto</label>
+              <label>Product</label>
               <select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
-                <option value="">Selecciona</option>
+                <option value="">Select</option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
@@ -289,12 +293,12 @@ export default function MarginsDashboard() {
             <table>
               <thead>
                 <tr>
-                  <th>Fecha</th>
+                  <th>Date</th>
                   <th>Qty</th>
                   <th>Net</th>
                   <th>COGS</th>
-                  <th>Beneficio</th>
-                  <th>Margen</th>
+                  <th>Profit</th>
+                  <th>Margin</th>
                 </tr>
               </thead>
               <tbody>
@@ -302,15 +306,15 @@ export default function MarginsDashboard() {
                   <tr key={l.line_id}>
                     <td>{l.created_at ? l.created_at.split('T')[0] : ''}</td>
                     <td>{l.qty}</td>
-                    <td>{formatMoney(l.net_total)}</td>
-                    <td>{formatMoney(l.cogs_total)}</td>
-                    <td>{formatMoney(l.gross_profit)}</td>
+                    <td>{formatMoney(l.net_total, companySettings)}</td>
+                    <td>{formatMoney(l.cogs_total, companySettings)}</td>
+                    <td>{formatMoney(l.gross_profit, companySettings)}</td>
                     <td>{formatPct(l.gross_margin_pct)}</td>
                   </tr>
                 ))}
                 {!lines.length ? (
                   <tr>
-                    <td colSpan={6} className="muted">Sin lineas para el rango.</td>
+                    <td colSpan={6} className="muted">No lines for the selected range.</td>
                   </tr>
                 ) : null}
               </tbody>

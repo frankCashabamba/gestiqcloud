@@ -34,7 +34,9 @@ try:
     sys.modules.setdefault("apps.backend", _backend_pkg)
     sys.modules.setdefault("apps.backend.app", _app_pkg)
 except Exception:
-    pass
+    logging.getLogger("app.startup").debug(
+        "Module aliasing failed (may be intentional)", exc_info=True
+    )
 
 from .config.settings import settings
 from .core.sessions import SessionMiddlewareServerSide
@@ -42,8 +44,17 @@ from .core.startup_validation import validate_critical_config, ConfigValidationE
 from .middleware.rate_limit import RateLimitMiddleware
 from .middleware.request_log import RequestLogMiddleware
 from .middleware.security_headers import security_headers_middleware
+import os
+
+# Rate limiting configuration: increased for development, stricter for production
+_RATE_LIMIT_PER_MINUTE = (
+    int(os.getenv("RATE_LIMIT_PER_MINUTE", "1000")) 
+    if os.getenv("ENVIRONMENT", "development").lower() == "development"
+    else int(os.getenv("RATE_LIMIT_PER_MINUTE", "120"))
+)
 from .platform.http.router import build_api_router
 from .telemetry.otel import init_fastapi
+from .telemetry.sentry import init_sentry
 from app.routers.tenant import roles as tenant_roles_router
 
 # ============================================================================
@@ -125,7 +136,9 @@ except Exception:
 
         _engine = engine
     except Exception:
-        pass
+        logging.getLogger("app.startup").warning(
+            "Database engine not available", exc_info=True
+        )
 
 
 # ============================================================================
@@ -146,6 +159,9 @@ async def lifespan(app: FastAPI):
     except ConfigValidationError as e:
         logging.getLogger("app.startup").critical(f"Configuration validation failed: {e}")
         raise
+
+    # Initialize error tracking
+    init_sentry()
 
     try:
         await _ensure_docs_assets()
@@ -194,7 +210,9 @@ async def lifespan(app: FastAPI):
         try:
             _imports_job_runner.stop()
         except Exception:
-            pass
+            logging.getLogger("app.startup").warning(
+                "Error stopping imports runner during shutdown", exc_info=True
+            )
 
 
 # ============================================================================
@@ -291,7 +309,7 @@ try:
     if str(os.getenv("RATE_LIMIT_ENABLED", "1")).lower() in ("1", "true"):
         app.add_middleware(
             RateLimitMiddleware,
-            limit_per_minute=int(os.getenv("RATE_LIMIT_PER_MIN", "120") or 120),
+            limit_per_minute=_RATE_LIMIT_PER_MINUTE,
         )
 except Exception:
     pass
@@ -358,8 +376,8 @@ try:
                 "/api/v1/auth/login": (10, 60),
                 "/api/v1/tenant/auth/password-reset": (5, 300),  # 5 req/5min
                 "/api/v1/tenant/auth/password-reset-confirm": (5, 300),
-                "/api/v1/admin/usuarios": (30, 60),
-                "/api/v1/admin/empresas": (20, 60),
+                "/api/v1/admin/users": (30, 60),
+                "/api/v1/admin/companies": (20, 60),
             },
         )
         logging.getLogger("app.startup").info("Endpoint-specific rate limiting enabled")
@@ -478,6 +496,14 @@ _email_logger.propagate = False
 
 # API routers
 app.include_router(build_api_router(), prefix="/api/v1")
+
+# UI Configuration router (Sistema Sin Hardcodes)
+try:
+    from app.modules.ui_config.interface.http.admin import router as ui_config_router
+    app.include_router(ui_config_router, prefix="/api/v1/admin")
+    _router_logger.info("UI Configuration router mounted at /api/v1/admin")
+except Exception as e:
+    _router_logger.error(f"Error mounting UI Configuration router: {e}")
 
 # ============================================================================
 # LEGACY ROUTERS ELIMINADOS (2025-11-06)
@@ -695,29 +721,29 @@ try:
 
     app.include_router(_admin_auth.router, prefix="/api/v1/admin")
 except Exception:
-    pass
+    _router_logger.debug("Admin auth router not available", exc_info=True)
 try:
     from backend.app.routers.admin import ops as _admin_ops
 
     app.include_router(_admin_ops.router, prefix="/api/v1/admin")
 except Exception:
-    pass
+    _router_logger.debug("Admin ops router not available", exc_info=True)
 try:
     from app.routers.admin_scripts import router as _admin_scripts_router
 
     app.include_router(_admin_scripts_router, prefix="")
 except Exception:
-    pass
+    _router_logger.debug("Admin scripts router not available", exc_info=True)
 try:
     from app.api.v1 import auth as _generic_auth
 
     app.include_router(_generic_auth.router, prefix="/api/v1")
 except Exception:
-    pass
+    _router_logger.debug("Generic auth router not available", exc_info=True)
 try:
     from app.api.v1.tenant import auth as _tenant_auth
 
     app.include_router(_tenant_auth.router, prefix="/api/v1/tenant")
     app.include_router(tenant_roles_router.router, prefix="/api/v1")
 except Exception:
-    pass
+    _router_logger.debug("Tenant auth router not available", exc_info=True)

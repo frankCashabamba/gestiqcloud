@@ -1,5 +1,5 @@
 import api from '../shared/api/client'
-import { ADMIN_USUARIOS } from '@shared/endpoints'
+import { ADMIN_USERS } from '@shared/endpoints'
 
 export type AdminUsuario = {
   id: string | number
@@ -10,30 +10,30 @@ export type AdminUsuario = {
 }
 
 export async function listUsuarios(): Promise<AdminUsuario[]> {
-  const { data } = await api.get<AdminUsuario[]>(ADMIN_USUARIOS.base)
+  const { data } = await api.get<AdminUsuario[]>(ADMIN_USERS.base)
   return data || []
 }
 
 export async function reenviarReset(id: number | string): Promise<void> {
-  await api.post(ADMIN_USUARIOS.reenviarReset(String(id)))
+  await api.post(ADMIN_USERS.resendReset(String(id)))
 }
 
 export async function activarUsuario(id: number | string): Promise<void> {
-  await api.post(ADMIN_USUARIOS.activar(String(id)))
+  await api.post(ADMIN_USERS.activate(String(id)))
 }
 
 export async function desactivarUsuario(id: number | string): Promise<void> {
-  await api.post(ADMIN_USUARIOS.desactivar(String(id)))
+  await api.post(ADMIN_USERS.deactivate(String(id)))
 }
 
 export async function desactivarEmpresa(id: number | string): Promise<void> {
-  await api.post(ADMIN_USUARIOS.desactivarEmpresa(String(id)))
+  await api.post(ADMIN_USERS.deactivateCompany(String(id)))
 }
 
 export async function asignarNuevoAdmin(id: number | string, payload: { email?: string; usuario_id?: number | string }) {
-  await api.post(ADMIN_USUARIOS.asignarNuevoAdmin(String(id)), payload)
+  await api.post(ADMIN_USERS.assignNewAdmin(String(id)), payload)
 }
 
 export async function setPasswordDirect(id: number | string, password: string): Promise<void> {
-  await api.post(ADMIN_USUARIOS.setPassword(String(id)), { password })
+  await api.post(ADMIN_USERS.setPassword(String(id)), { password })
 }

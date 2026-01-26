@@ -876,31 +876,13 @@ CREATE TABLE IF NOT EXISTS purchases (
 	updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
 	PRIMARY KEY (id)
 );
-
-
-CREATE TABLE IF NOT EXISTS sales (
-	id UUID NOT NULL,
-	tenant_id UUID NOT NULL,
-	number VARCHAR(50) NOT NULL,
-	customer_id UUID,
-	date DATE NOT NULL,
-	subtotal NUMERIC(12, 2) NOT NULL,
-	taxes NUMERIC(12, 2) NOT NULL,
-	total NUMERIC(12, 2) NOT NULL,
-	status VARCHAR(20) NOT NULL,
-	notes TEXT,
-	user_id UUID NOT NULL,
-	created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-	updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-	PRIMARY KEY (id)
-);
-
 -- Sales Orders (missing in consolidated schema)
 CREATE TABLE IF NOT EXISTS sales_orders (
 	id UUID DEFAULT gen_random_uuid() NOT NULL,
 	tenant_id UUID NOT NULL,
 	number VARCHAR(50) NOT NULL,
 	customer_id UUID,
+	pos_receipt_id UUID,
 	order_date DATE NOT NULL DEFAULT now(),
 	required_date DATE,
 	subtotal NUMERIC(12, 2) DEFAULT 0 NOT NULL,

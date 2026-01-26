@@ -18,6 +18,7 @@ router = APIRouter(
     prefix="/products",
     tags=["Products"],
 )
+
 protected = [Depends(with_access_claims), Depends(require_scope("tenant"))]
 
 
@@ -724,3 +725,22 @@ def bulk_assign_category(payload: BulkCategoryIn, request: Request, db: Session 
         "category_created": category_created,
         "category_name": payload.category_name,
     }
+
+
+# ============================================================================
+# DEPRECATED: Legacy Spanish router /productos for backward compatibility
+# ============================================================================
+# This router mirrors /products routes under /productos prefix
+# Clients should migrate to /products - this alias will be removed in Q2 2026
+
+legacy_router = APIRouter(
+    prefix="/productos",
+    tags=["Products"],
+    deprecated=True,
+)
+
+# Re-export all routes from main router with deprecated flag
+for route in router.routes:
+    if hasattr(route, "methods"):
+        legacy_router.routes.append(route)
+

@@ -176,7 +176,16 @@
       {id:101, sku:'COM1', name:'Combo Café + Croissant', price:2.20, cat:'Combos', tags:['ahorro']}
     ];
     const TAX = 0.10;
-    const euros = n => n.toLocaleString('es-ES',{style:'currency', currency:'EUR'});
+    // Nunca asumir moneda: si no hay configuración disponible, mostrar número sin símbolo.
+    const euros = (n) => {
+      const cur = (window.__TENANT_CURRENCY__ || '').toString().trim().toUpperCase();
+      if (!cur) return Number(n || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      try {
+        return Number(n || 0).toLocaleString('es-ES', { style: 'currency', currency: cur, maximumFractionDigits: 2 });
+      } catch {
+        return Number(n || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+    };
 
     // --- State ---
     let cart = [];

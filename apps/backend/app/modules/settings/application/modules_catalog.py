@@ -14,6 +14,7 @@ AVAILABLE_MODULES: list[dict[str, Any]] = [
         "default_enabled": True,
         "dependencies": ["inventory", "invoicing"],
         "countries": ["ES", "EC"],
+        "sectors": None,  # Available for all sectors
     },
     {
         "id": "inventory",
@@ -26,6 +27,7 @@ AVAILABLE_MODULES: list[dict[str, Any]] = [
         "default_enabled": True,
         "dependencies": [],
         "countries": ["ES", "EC"],
+        "sectors": None,  # Available for all sectors
     },
     {
         "id": "invoicing",
@@ -38,6 +40,7 @@ AVAILABLE_MODULES: list[dict[str, Any]] = [
         "default_enabled": True,
         "dependencies": [],
         "countries": ["ES", "EC"],
+        "sectors": ["retail"],  # Only available for retail sector
     },
     {
         "id": "einvoicing",
@@ -195,11 +198,31 @@ MODULE_CATEGORIES = [
 ]
 
 
-def get_available_modules(country: str = None) -> list[dict[str, Any]]:
-    """Get available modules, optionally filtered by country"""
+def get_available_modules(country: str = None, sector: str = None) -> list[dict[str, Any]]:
+    """
+    Get available modules, optionally filtered by country and sector.
+    
+    Args:
+        country: ISO code to filter by country (e.g., 'ES', 'EC')
+        sector: Sector code to filter by (e.g., 'retail', 'bakery', 'workshop')
+    
+    Returns:
+        List of available modules for the given filters
+    """
+    modules = AVAILABLE_MODULES.copy()
+    
+    # Filter by country
     if country:
-        return [m for m in AVAILABLE_MODULES if country.upper() in m["countries"]]
-    return AVAILABLE_MODULES.copy()
+        modules = [m for m in modules if country.upper() in m.get("countries", [])]
+    
+    # Filter by sector
+    if sector:
+        modules = [
+            m for m in modules
+            if m.get("sectors") is None or sector.lower() in m.get("sectors", [])
+        ]
+    
+    return modules
 
 
 def get_module_by_id(module_id: str) -> dict[str, Any] | None:

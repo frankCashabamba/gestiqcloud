@@ -24,7 +24,7 @@ export const manifest = {
     { path: '/settings/horarios', element: HorariosSettings },
     { path: '/settings/avanzado', element: AvanzadoSettings },
     { path: '/settings/notificaciones', element: NotificacionesSettings },
-    { path: '/settings/modulos', element: ModulosSettings },
+    { path: '/settings/modules', element: ModulosSettings },
   ],
   menu: {
     title: 'Configuracion',

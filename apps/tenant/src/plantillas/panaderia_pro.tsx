@@ -67,8 +67,8 @@ const PanaderiaDashboard: React.FC = () => {
   const prefix = empresa ? `/${empresa}` : ''
   const customLinks = [
     isModuleEnabled('produccion') && { label: 'Recipes', href: `${prefix}/produccion/recetas`, icon: 'R' },
-    isModuleEnabled('inventario') && { label: 'Inventory', href: `${prefix}/inventario`, icon: 'I' },
-    isModuleEnabled('compras') && { label: 'Purchasing', href: `${prefix}/compras`, icon: 'P' },
+    isModuleEnabled('inventario') && { label: 'Inventory', href: `${prefix}/inventory`, icon: 'I' },
+    isModuleEnabled('compras') && { label: 'Purchasing', href: `${prefix}/purchases`, icon: 'P' },
   ].filter(Boolean) as Array<{ label: string; href: string; icon: string }>
 
   return (
@@ -84,7 +84,7 @@ const PanaderiaDashboard: React.FC = () => {
           <p style={{ marginTop: '12px', opacity: 0.9 }}>
             Start by adding your customers. Other modules will unlock as you progress.
           </p>
-          <a href={`${prefix}/clientes`} className="btn" style={{ marginTop: '20px', display: 'inline-block', background: '#fff', color: 'var(--primary)', fontWeight: 600 }}>
+          <a href={`${prefix}/clients`} className="btn" style={{ marginTop: '20px', display: 'inline-block', background: '#fff', color: 'var(--primary)', fontWeight: 600 }}>
             Go to Customers
           </a>
         </section>
@@ -111,8 +111,8 @@ const PanaderiaDashboard: React.FC = () => {
               </a>
             )}
             {isModuleEnabled('produccion') && <a className="link" href={`${prefix}/produccion/recetas`}>Recipes</a>}
-            {isModuleEnabled('ventas') && <a className="link" href={`${prefix}/ventas`}>Sales</a>}
-            {isModuleEnabled('clientes') && <a className="link" href={`${prefix}/clientes`}>Customers</a>}
+            {isModuleEnabled('ventas') && <a className="link" href={`${prefix}/sales`}>Sales</a>}
+            {isModuleEnabled('clientes') && <a className="link" href={`${prefix}/clients`}>Customers</a>}
           </div>
         </section>
 
@@ -284,7 +284,7 @@ const PanaderiaDashboard: React.FC = () => {
               </a>
             )}
             {isModuleEnabled('clientes') && (
-              <a href={`${prefix}/clientes`} className="action-btn">
+              <a href={`${prefix}/clients`} className="action-btn">
                 <span className="action-btn__icon">@</span>
                 <span>New customer</span>
               </a>

@@ -1,0 +1,516 @@
+{
+  "accounting": {
+    "accountTypes": {
+      "ACTIVO": "Asset",
+      "GASTO": "Expense",
+      "INGRESO": "Income",
+      "PASIVO": "Liability",
+      "PATRIMONIO": "Equity"
+    },
+    "chartOfAccounts": {
+      "columns": {
+        "code": "Code",
+        "level": "Level"
+      },
+      "createFirst": "Create the first one",
+      "deleteConfirm": "Delete account \"{{name}}\"?",
+      "deleted": "Account deleted",
+      "empty": "No accounts.",
+      "form": {
+        "code": "Code *",
+        "codePlaceholder": "E.g.: 1000, 2000",
+        "editTitle": "Edit account",
+        "errors": {
+          "codeNameRequired": "Code and name are required"
+        },
+        "level": "Level",
+        "newTitle": "New account",
+        "noParent": "No parent (top-level account)",
+        "parentOptional": "Parent account (optional)"
+      },
+      "new": "+ New account",
+      "placeholder": "Company's chart of accounts catalog. (View under construction)",
+      "saved": "Account saved",
+      "searchPlaceholder": "Search by code or name...",
+      "title": "Chart of accounts"
+    },
+    "dashboard": {
+      "result": "Result",
+      "totalExpenses": "Total expenses",
+      "totalIncome": "Total income"
+    },
+    "errors": {
+      "loadTransactions": "Could not load transactions"
+    },
+    "generalLedger": {
+      "columns": {
+        "balance": "Balance"
+      },
+      "loading": "Loading...",
+      "title": "General ledger"
+    },
+    "journalEntries": {
+      "actions": {
+        "post": "Post",
+        "posted": "Posted"
+      },
+      "columns": {
+        "credit": "Credit",
+        "debit": "Debit",
+        "number": "Number"
+      },
+      "createFirst": "Create the first one",
+      "deleteConfirm": "Delete journal entry \"{{number}}\"?",
+      "deleted": "Entry deleted",
+      "empty": "No entries.",
+      "new": "+ New entry",
+      "postConfirm": "Post journal entry \"{{number}}\"? This action cannot be undone.",
+      "posted": "Entry posted",
+      "searchPlaceholder": "Search by number or description...",
+      "status": {
+        "DRAFT": "Draft",
+        "POSTED": "Posted",
+        "VOIDED": "Voided"
+      },
+      "title": "Journal entries"
+    },
+    "loadingTransactions": "Loading transactions...",
+    "movimientos": "Accounting movements",
+    "nav": {
+      "bankReconciliation": "Bank reconciliation",
+      "chartOfAccounts": "Chart of accounts",
+      "dashboard": "Dashboard",
+      "generalLedger": "General ledger",
+      "journal": "Journal",
+      "paymentMethods": "Payment methods",
+      "posConfig": "POS config",
+      "profitLoss": "Profit & Loss",
+      "transactions": "Transactions"
+    },
+    "paymentMethods": {
+      "account": "Accounting account",
+      "deleteConfirm": "Delete this payment method?",
+      "empty": "No payment methods configured.",
+      "errors": {
+        "delete": "Could not delete",
+        "load": "Could not load payment methods",
+        "nameAccountRequired": "Name and account are required",
+        "save": "Could not save"
+      },
+      "help": "Associate each payment method with an accounting account. Without mapping, accounting entries cannot be created.",
+      "namePlaceholder": "CASH, CARD, LINK...",
+      "selectAccount": "Select...",
+      "title": "POS payment methods"
+    },
+    "pl": {
+      "expenses": "Expenses",
+      "income": "Income",
+      "loading": "Calculating P&L...",
+      "netResult": "Net result",
+      "title": "Profit & Loss Statement"
+    },
+    "posConfig": {
+      "errors": {
+        "generate": "Could not generate the entry.",
+        "load": "Could not load configuration",
+        "missingConfig": "Missing configuration: {{fields}}",
+        "save": "Error saving",
+        "shiftRequired": "Enter a valid shift to generate the journal entry."
+      },
+      "fields": {
+        "bankAccount": "Bank / card account",
+        "cashAccount": "POS cash account",
+        "lossAccountOptional": "Loss / shrinkage account (optional)",
+        "vatOutputAccount": "Output VAT account"
+      },
+      "generate": {
+        "createJournalEntry": "Create journal entry",
+        "generating": "Generating...",
+        "help": "Use this button if you already closed the register and need to create/force the journal entry for that shift.",
+        "shiftId": "Shift ID",
+        "shiftIdPlaceholder": "Closed shift UUID",
+        "title": "Generate entry for a completed close"
+      },
+      "help": "Define the accounting accounts for cash, banks, sales, VAT and losses/shrinkage. No hardcoded values: your chart of accounts is used.",
+      "messages": {
+        "generated": "Journal entry generated/updated for the shift.",
+        "saved": "Configuration saved"
+      },
+      "recent": {
+        "dateLabel": "Date",
+        "generateEntry": "Generate entry",
+        "hint": "Use the button to recreate the entry",
+        "salesLabel": "Sales",
+        "shiftLabel": "Shift",
+        "title": "Recent register closes"
+      },
+      "salesAccount": "Sales account",
+      "salesAccountWithSector": "Sales account ({{sector}})",
+      "sectorFallback": "sector",
+      "selectAccount": "Select account...",
+      "title": "POS accounting configuration"
+    }
+  },
+  "auth": {
+    "email": "Email",
+    "forgotPassword": "Forgot password?",
+    "login": "Login",
+    "logout": "Logout",
+    "password": "Password",
+    "rememberMe": "Remember me",
+    "username": "Username"
+  },
+  "billing": {
+    "bySectors": {
+      "bakery": "Bakery",
+      "help": "Choose a sector to create invoices with specific fields.",
+      "title": "Invoicing by sectors",
+      "workshop": "Workshop"
+    },
+    "deleteConfirm": "Delete invoice?",
+    "deleted": "Invoice deleted",
+    "editTitle": "Edit Invoice",
+    "einvoice": "E-invoice",
+    "einvoiceStatus": {
+      "errorLoading": "Error loading status",
+      "errorSending": "Error sending e-invoice",
+      "notSent": "Not sent",
+      "receipt": "Receipt",
+      "ref": "Ref",
+      "refresh": "Refresh status",
+      "send": "Send {{provider}}",
+      "sending": "Sending..."
+    },
+    "errors": {
+      "dateRequired": "Date is required",
+      "lineasRequired": "At least one invoice line is required",
+      "totalNonNegative": "Total must be >= 0"
+    },
+    "facturae": {
+      "downloadXml": "Download XML",
+      "errors": {
+        "idRequired": "Id required"
+      },
+      "exported": "Facturae exported",
+      "title": "Facturae"
+    },
+    "fromPOS": "Invoice from POS",
+    "invoiceNumber": "Invoice No.",
+    "newTitle": "New Invoice",
+    "notesPlaceholder": "Payment terms, special conditions, etc.",
+    "numberPlaceholder": "INV-001",
+    "posReceipt": "POS Receipt",
+    "posSale": "POS Sale",
+    "retailOnly": "Retail only",
+    "saved": "Invoice saved",
+    "searchPlaceholder": "ID or status",
+    "sectorInvoice": {
+      "addLine": "+ Add line",
+      "bakeryTitle": "Bakery sector invoice",
+      "createdBakery": "Invoice created (bakery)",
+      "createdWorkshop": "Invoice created (workshop)",
+      "errors": {
+        "atLeastOneLine": "Add at least one line"
+      },
+      "fields": {
+        "description": "Description",
+        "hours": "Hours",
+        "labor": "Labor",
+        "licensePlate": "License plate",
+        "notes": "Notes",
+        "part": "Part",
+        "quantity": "Quantity",
+        "rate": "Rate",
+        "sparePart": "Spare part",
+        "type": "Type",
+        "unitPrice": "Unit price",
+        "vatPercent": "VAT %"
+      },
+      "lines": "Lines",
+      "remove": "Remove",
+      "subtotal": "Subtotal",
+      "total": "Total",
+      "vat": "VAT",
+      "workshopTitle": "Workshop sector invoice"
+    },
+    "sectors": "Sectors",
+    "sectorsInfo": "Available for {{sectors}}",
+    "status": {
+      "draft": "Draft",
+      "issued": "Issued",
+      "voided": "Voided"
+    }
+  },
+  "common": {
+    "account": "Account",
+    "actions": "Actions",
+    "active": "Active",
+    "add": "Add",
+    "all": "All",
+    "amount": "Amount",
+    "back": "Back",
+    "cancel": "Cancel",
+    "category": "Category",
+    "close": "Close",
+    "confirm": "Confirm",
+    "create": "Create",
+    "date": "Date",
+    "delete": "Delete",
+    "description": "Description",
+    "disabled": "Disabled",
+    "download": "Download",
+    "edit": "Edit",
+    "enabled": "Enabled",
+    "error": "Error",
+    "export": "Export",
+    "filter": "Filter",
+    "from": "From",
+    "import": "Import",
+    "inactive": "Inactive",
+    "info": "Information",
+    "loading": "Loading...",
+    "loadingModule": "Loading module...",
+    "name": "Name",
+    "new": "New",
+    "next": "Next",
+    "no": "No",
+    "noRecords": "No records",
+    "notes": "Notes",
+    "notesPlaceholder": "Internal observations",
+    "open": "Open",
+    "optional": "Optional",
+    "price": "Price",
+    "print": "Print",
+    "quantity": "Quantity",
+    "refresh": "Refresh",
+    "remove": "Remove",
+    "save": "Save",
+    "saving": "Saving...",
+    "search": "Search",
+    "select": "Select...",
+    "sort": "Sort",
+    "status": "Status",
+    "success": "Success",
+    "to": "To",
+    "total": "Total",
+    "type": "Type",
+    "update": "Update",
+    "upload": "Upload",
+    "view": "View",
+    "warning": "Warning",
+    "yes": "Yes"
+  },
+  "dashboardPro": {
+    "closeDay": "Close day",
+    "darkMode": "Dark mode",
+    "lightMode": "Light mode",
+    "loadingModules": "Loading modules...",
+    "searchPlaceholder": "Search (/) tickets, customers, SKUs",
+    "sectorTools": "Sector tools",
+    "shortcuts": "Shortcuts: / search, Cmd+K commands",
+    "stores": {
+      "branch": "Branch {{n}}",
+      "main": "Main store"
+    }
+  },
+  "defaultDashboard": {
+    "highlightedModules": "Highlighted modules",
+    "kpis": {
+      "expenses": {
+        "help": "Upload receipts to monitor operating costs.",
+        "title": "Expenses today"
+      },
+      "invoices": {
+        "help": "Review receivables and plan cash flow.",
+        "title": "Invoices to collect"
+      },
+      "placeholder": {
+        "help": "Enable metrics in Settings > Dashboards.",
+        "title": "KPIs pending"
+      },
+      "sales": {
+        "help": "Connect billing to see real-time data.",
+        "title": "Sales today"
+      }
+    },
+    "nextSteps": "Recommended next steps",
+    "nextStepsItems": {
+      "banking": "Connect bank accounts or upload statements to automate reconciliations.",
+      "branding": "Configure your company profile to show branding across the app.",
+      "owners": "Assign module owners to receive alerts and pending tasks."
+    },
+    "openModule": "Open module",
+    "personalizeHelp": "In Settings you can define which KPIs are visible to your team, assign templates by role, and control module access.",
+    "personalizeTitle": "Personalize your dashboard",
+    "quickAccess": "Quick access",
+    "subtitle": "Quick access to enabled modules and your main business metrics.",
+    "title": "Company overview",
+    "welcome": "Welcome",
+    "welcomeHelp": "Use the side navigation to open each module or start with the suggested quick links. Everything is synced with your tenant, so access and data depend on your profile."
+  },
+  "errors": {
+    "forbidden": "Forbidden",
+    "invalidFormat": "Invalid format",
+    "loadingFailed": "Failed to load data",
+    "moduleLoadError": "Error loading module.",
+    "moduleNotAvailableForSector": "Module is not available for sector {{sector}}. Available in: {{availableSectors}}",
+    "moduleNotFound": "Module not found.",
+    "networkError": "Network error",
+    "notFound": "Not found",
+    "required": "This field is required",
+    "sectorNotDefined": "Sector not defined for this workspace",
+    "serverError": "Server error",
+    "unauthorized": "Unauthorized",
+    "validationError": "Validation error"
+  },
+  "layout": {
+    "noModulesAssigned": "No modules assigned to this workspace yet.",
+    "skipToContent": "Skip to content",
+    "workspace": "Workspace"
+  },
+  "modules": {
+    "accounting": "Accounting",
+    "customers": "Customers",
+    "einvoicing": "E-invoicing",
+    "expenses": "Expenses",
+    "finances": "Finance",
+    "hr": "HR",
+    "importer": "Imports",
+    "pos": "POS",
+    "production": "Production",
+    "purchases": "Purchases",
+    "reconciliation": "Reconciliation",
+    "reports": "Reports",
+    "settings": "Settings",
+    "suppliers": "Suppliers",
+    "templates": "Templates",
+    "users": "Users",
+    "webhooks": "Webhooks"
+  },
+  "nav": {
+    "clients": "Clients",
+    "dashboard": "Dashboard",
+    "inventory": "Inventory",
+    "invoicing": "Invoicing",
+    "pos": "Point of Sale",
+    "products": "Products",
+    "reports": "Reports",
+    "sales": "Sales",
+    "settings": "Settings",
+    "suppliers": "Suppliers",
+    "users": "Users"
+  },
+  "posView": {
+    "actions": {
+      "charge": "Charge",
+      "chargeNoReceipt": "Charge without receipt",
+      "chargeNoReceiptWithTotal": "Charge {{amount}}{{currency}} without receipt",
+      "chargeWithTotal": "Charge {{amount}}{{currency}}"
+    },
+    "errors": {
+      "invalidPrice": "Enter a valid price greater than 0.",
+      "productPriceRequired": "This product has no sale price configured."
+    },
+    "prompts": {
+      "enterPrice": "Enter a sale price for \"{{name}}\"",
+      "unnamedProduct": "the product"
+    }
+  },
+  "sales": {
+    "addLine": "Add Line",
+    "customer": "Customer",
+    "customerId": "Customer ID",
+    "date": "Date",
+    "deleteConfirm": "Delete this sale permanently?",
+    "draft": "Draft",
+    "editSale": "Edit Sale",
+    "errors": {
+      "dateRequired": "Date is required",
+      "totalNonNegative": "Total must be >= 0"
+    },
+    "exportCsv": "Export CSV",
+    "fields": {
+      "discountPercent": "Disc. %",
+      "productId": "Product ID",
+      "taxPercent": "Tax %",
+      "unitPrice": "Unit Price"
+    },
+    "integrateCustomerSelector": "Integrate with customer selector",
+    "invoice": "Invoice",
+    "issued": "Issued",
+    "lineTotal": "Line total",
+    "lines": "Sale Lines",
+    "newSale": "New Sale",
+    "noLines": "No lines. Click \"Add line\"",
+    "numberPlaceholder": "Auto-generated if empty",
+    "saleNumber": "Sale #",
+    "saved": "Sale saved",
+    "searchPlaceholder": "Search sales...",
+    "status": "Status",
+    "subtotal": "Subtotal",
+    "taxes": "Taxes",
+    "title": "Sales",
+    "voided": "Voided"
+  },
+  "sectors": {
+    "bakery": "Bakery",
+    "panaderia": "Bakery",
+    "retail": "Retail",
+    "taller": "Workshop",
+    "workshop": "Workshop"
+  },
+  "settings": {
+    "advanced": "Advanced",
+    "general": "General",
+    "loadingConfig": "Loading configuration...",
+    "loadingPermissions": "Loading permissions...",
+    "moduleDependencies": "Some modules require other modules to be active (dependencies)",
+    "modules": "Modules",
+    "modulesActive": "{{active}} of {{total}} active modules",
+    "noCounters": "No counters",
+    "noSeries": "No series",
+    "notifications": "Notifications",
+    "regional": {
+      "currency": "Currency",
+      "locale": "Language",
+      "timezone": "Timezone"
+    },
+    "title": "Settings"
+  },
+  "users": {
+    "activeUser": "Active User",
+    "created": "User created",
+    "editUser": "Edit User",
+    "errors": {
+      "passwordRequired": "Password is required for new users"
+    },
+    "firstName": "First Name",
+    "lastName": "Last Name",
+    "modules": "Modules",
+    "newUser": "New User",
+    "roles": "Roles",
+    "title": "Users",
+    "updated": "User updated"
+  },
+  "webhooks": {
+    "created": "Webhook created",
+    "creating": "Creating...",
+    "deleteConfirm": "Delete this subscription?",
+    "deleted": "Webhook deleted",
+    "errors": {
+      "creating": "Error creating webhook",
+      "deleting": "Error deleting webhook",
+      "loading": "Error loading webhooks",
+      "required": "Event and URL are required",
+      "testing": "Error sending test event"
+    },
+    "event": "Event",
+    "newWebhook": "New Webhook",
+    "noWebhooks": "No webhooks configured",
+    "secret": "Secret (optional)",
+    "test": "Test",
+    "testSent": "Sent {{count}} test events",
+    "title": "Webhooks",
+    "url": "URL"
+  }
+}

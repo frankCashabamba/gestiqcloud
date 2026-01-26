@@ -5,34 +5,33 @@ export const ADMIN_AUTH = {
   logout: '/v1/admin/auth/logout',
 }
 
-export const ADMIN_MODULOS = {
-  publicos: '/v1/admin/modulos/publicos',
-  base: '/v1/admin/modulos',
-  byId: (id: number | string) => `/v1/admin/modulos/${id}`,
-  activar: (id: number | string) => `/v1/admin/modulos/${id}/activar`,
-  desactivar: (id: number | string) => `/v1/admin/modulos/${id}/desactivar`,
-  registrar: '/v1/admin/modulos/registrar-modulos',
+export const ADMIN_MODULES = {
+  public: '/v1/admin/modules/public',
+  base: '/v1/admin/modules',
+  byId: (id: number | string) => `/v1/admin/modules/${id}`,
+  activate: (id: number | string) => `/v1/admin/modules/${id}/activate`,
+  deactivate: (id: number | string) => `/v1/admin/modules/${id}/deactivate`,
+  register: '/v1/admin/modules/registrar-modulos',
 }
 
-export const ADMIN_EMPRESAS = {
-  base: '/v1/admin/empresas',
-  createFull: '/v1/admin/empresas/full-json',
-  byId: (id: number | string) => `/v1/admin/empresas/${id}`,
+export const ADMIN_COMPANIES = {
+  base: '/v1/admin/companies',
+  createFull: '/v1/admin/companies/full-json',
+  byId: (id: number | string) => `/v1/admin/companies/${id}`,
 }
 
-export const ADMIN_MODULOS_EMPRESA = {
-  base: (tenantId: number | string) => `/v1/admin/modulos/empresa/${tenantId}`,
-  upsert: (tenantId: number | string) => `/v1/admin/modulos/empresa/${tenantId}/upsert`,
-  remove: (tenantId: number | string, moduloId: number | string) => `/v1/admin/modulos/empresa/${tenantId}/modulo/${moduloId}`,
+export const ADMIN_COMPANY_MODULES = {
+  base: (tenantId: number | string) => `/v1/admin/modules/company/${tenantId}`,
+  upsert: (tenantId: number | string) => `/v1/admin/modules/company/${tenantId}/upsert`,
+  remove: (tenantId: number | string, moduleId: number | string) => `/v1/admin/modules/company/${tenantId}/module/${moduleId}`,
 }
 
 export const ADMIN_CONFIG = {
-  monedas: {
-    // Backend expone rutas en inglés (/currency); mantener alias en español aquí solo rompía el panel (404)
+  currencies: {
     base: '/v1/admin/config/currency',
     byId: (id: number | string) => `/v1/admin/config/currency/${id}`,
   },
-  paises: {
+  countries: {
     base: '/v1/admin/config/country',
     byId: (id: number | string) => `/v1/admin/config/country/${id}`,
   },
@@ -44,8 +43,7 @@ export const ADMIN_CONFIG = {
     base: '/v1/admin/config/locale',
     byId: (code: string) => `/v1/admin/config/locale/${encodeURIComponent(code)}`,
   },
-  idiomas: {
-    // El backend usa /language; el endpoint anterior /language fallaba por ruta en español
+  languages: {
     base: '/v1/admin/config/language',
     byId: (id: number | string) => `/v1/admin/config/language/${id}`,
   },
@@ -53,35 +51,34 @@ export const ADMIN_CONFIG = {
     base: '/v1/admin/config/settings-defaults',
     byId: (id: number | string) => `/v1/admin/config/settings-defaults/${id}`,
   },
-  sectores: {
+  sectors: {
     base: '/v1/admin/config/template-sector',
     byId: (id: number | string) => `/v1/admin/config/template-sector/${id}`,
   },
-  tipoEmpresa: {
+  businessType: {
     base: '/v1/admin/config/business-type',
     byId: (id: number | string) => `/v1/admin/config/business-type/${id}`,
   },
-  tipoNegocio: {
+  businessCategory: {
     base: '/v1/admin/config/business-category',
     byId: (id: number | string) => `/v1/admin/config/business-category/${id}`,
   },
-  diasSemana: {
+  weekdays: {
     base: '/v1/admin/config/weekday',
   },
-  horarioAtencion: {
+  attentionSchedule: {
     base: '/v1/admin/config/attention-schedule',
     byId: (id: number | string) => `/v1/admin/config/attention-schedule/${id}`,
   },
 }
 
-export const ADMIN_USUARIOS = {
-  base: '/v1/admin/usuarios',
-  byId: (id: string) => `/v1/admin/usuarios/${id}`,
-  reenviarReset: (id: string) => `/v1/admin/usuarios/${id}/reenviar-reset`,
-  activar: (id: string) => `/v1/admin/usuarios/${id}/activar`,
-  desactivar: (id: string) => `/v1/admin/usuarios/${id}/desactivar`,
-  desactivarEmpresa: (id: string) => `/v1/admin/usuarios/${id}/desactivar-empresa`,
-  asignarNuevoAdmin: (id: string) => `/v1/admin/usuarios/${id}/asignar-nuevo-admin`,
-  // Password management for admin users lives under /admin/users (english, no legacy alias)
+export const ADMIN_USERS = {
+  base: '/v1/admin/users',
+  byId: (id: string) => `/v1/admin/users/${id}`,
+  resendReset: (id: string) => `/v1/admin/users/${id}/resend-reset`,
+  activate: (id: string) => `/v1/admin/users/${id}/activate`,
+  deactivate: (id: string) => `/v1/admin/users/${id}/deactivate`,
+  deactivateCompany: (id: string) => `/v1/admin/users/${id}/deactivate-company`,
+  assignNewAdmin: (id: string) => `/v1/admin/users/${id}/assign-new-admin`,
   setPassword: (id: string) => `/v1/admin/users/${id}/set-password`,
 }

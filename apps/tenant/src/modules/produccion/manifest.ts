@@ -11,18 +11,18 @@ export const manifest = {
     version: '1.0.0',
     permissions: ['produccion.read', 'produccion.write'],
     routes: [
-        { path: '/produccion', element: RecetasList },
-        { path: '/produccion/recetas', element: RecetasList },
-        { path: '/produccion/ordenes', element: OrdersList },
-        { path: '/produccion/ordenes/nuevo', element: OrderForm },
-        { path: '/produccion/ordenes/:id/editar', element: OrderForm },
-        { path: '/produccion/rutas', element: Rutas },
-        { path: '/produccion/rutas/nuevo', element: OrderForm },
+        { path: '/production', element: RecetasList },
+        { path: '/production/recipes', element: RecetasList },
+        { path: '/production/orders', element: OrdersList },
+        { path: '/production/orders/new', element: OrderForm },
+        { path: '/production/orders/:id/edit', element: OrderForm },
+        { path: '/production/routes', element: Rutas },
+        { path: '/production/routes/new', element: OrderForm },
     ],
     menu: {
         title: 'Producción',
         icon: '🏭',
-        route: '/produccion/recetas',
+        route: '/production/recipes',
         order: 50
     }
 }

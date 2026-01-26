@@ -16,6 +16,7 @@ function pkgPath(p: string) {
   return fileURLToPath(new URL(p, import.meta.url))
 }
 const alias = {
+  '@': pkgPath('./src'),
   '@ui': pkgPath('../packages/ui/src'),
   '@assets': pkgPath('../packages/assets'),
   '@pwa': pkgPath('../packages/pwa/src'),

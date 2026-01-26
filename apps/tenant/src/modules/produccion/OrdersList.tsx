@@ -60,11 +60,11 @@ export default function OrdersList() {
     return (
         <div className="p-4">
             <div className="flex justify-between items-center mb-3">
-                <h2 className="font-semibold text-lg">Órdenes de Producción</h2>
-                <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={() => nav('nuevo')}>Nueva</button>
+                <h2 className="font-semibold text-lg">Production Orders</h2>
+                <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={() => nav('new')}>New</button>
             </div>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar número, lote o notas..." className="mb-3 w-full px-3 py-2 border rounded text-sm" />
-            {loading && <div className="text-sm text-gray-500">Cargando…</div>}
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search order number, batch or notes..." className="mb-3 w-full px-3 py-2 border rounded text-sm" />
+            {loading && <div className="text-sm text-gray-500">Loading…</div>}
             {errMsg && <div className="bg-red-100 text-red-700 px-3 py-2 rounded mb-3">{errMsg}</div>}
             <div className="flex items-center gap-3 mb-2 text-sm">
                 <label>Por página</label>

@@ -83,7 +83,7 @@ export interface FeaturesConfig {
 export interface DefaultsConfig {
   categories: string[]
   tax_rate: number | null
-  currency: string
+  currency: string | null
   locale: string
   timezone: string
   price_includes_tax: boolean
@@ -274,7 +274,7 @@ export function getSectorDefaults(config: SectorFullConfig | null): DefaultsConf
     config?.defaults || {
       categories: [],
       tax_rate: null,
-      currency: 'EUR',
+      currency: null,
       locale: 'es',
       timezone: 'Europe/Madrid',
       price_includes_tax: true,

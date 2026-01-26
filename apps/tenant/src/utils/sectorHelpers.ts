@@ -110,7 +110,7 @@ export function formatBySector(
   value: any,
   type: 'currency' | 'quantity' | 'date' | 'weight' | 'percentage',
   plantilla?: string,
-  currency: string = 'EUR'
+  currency?: string | null
 ): string {
   if (value === null || value === undefined || value === '') {
     return '-'
@@ -121,9 +121,16 @@ export function formatBySector(
   switch (type) {
     case 'currency': {
       const numValue = typeof value === 'string' ? parseFloat(value) : value
-      return new Intl.NumberFormat(currency === 'USD' ? 'en-US' : 'en-GB', {
+      const curr = (currency || '').trim().toUpperCase()
+      if (!curr) {
+        return new Intl.NumberFormat(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(numValue)
+      }
+      return new Intl.NumberFormat(undefined, {
         style: 'currency',
-        currency: currency,
+        currency: curr,
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       }).format(numValue)

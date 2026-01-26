@@ -5,7 +5,8 @@ CRM Application Services
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func
+from sqlalchemy import bindparam, func, text
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Session
 
 from app.modules.crm.application.schemas import (
@@ -27,6 +28,28 @@ from app.modules.crm.domain.models import Activity, Lead, Opportunity
 class CRMService:
     def __init__(self, db: Session):
         self.db = db
+
+    def _resolve_tenant_currency(self, tenant_id: UUID) -> str:
+        row = self.db.execute(
+            text(
+                """
+                SELECT cs.currency, t.base_currency
+                FROM tenants t
+                LEFT JOIN company_settings cs ON cs.tenant_id = t.id
+                WHERE t.id = :tid
+                LIMIT 1
+                """
+            ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+            {"tid": tenant_id},
+        ).first()
+        if row:
+            cs_cur, base_cur = row
+            for val in (cs_cur, base_cur):
+                if val:
+                    cur = str(val).strip().upper()
+                    if cur:
+                        return cur
+        raise ValueError("currency_not_configured")
 
     def list_leads(
         self,
@@ -103,12 +126,20 @@ class CRMService:
         opportunity = None
         if create_opportunity:
             opp_data = opportunity_data or {}
+            currency = opp_data.get("currency")
+            if not currency:
+                try:
+                    currency = self._resolve_tenant_currency(tenant_id)
+                except Exception:
+                    currency = None
+            if not currency:
+                raise ValueError("currency_not_configured")
             opportunity = Opportunity(
                 tenant_id=tenant_id,
                 lead_id=lead_id,
                 title=opp_data.get("title") or f"Oportunidad de {lead.name}",
                 value=opp_data.get("value", 0),
-                currency=opp_data.get("currency", "EUR"),
+                currency=str(currency).strip().upper(),
                 probability=opp_data.get("probability", 50),
                 stage=OpportunityStage.QUALIFICATION,
                 assigned_to=lead.assigned_to,
@@ -152,7 +183,12 @@ class CRMService:
         return OpportunityOut.model_validate(opp) if opp else None
 
     def create_opportunity(self, tenant_id: UUID, data: OpportunityCreate) -> OpportunityOut:
-        opp = Opportunity(tenant_id=tenant_id, **data.model_dump())
+        payload = data.model_dump()
+        currency = (payload.get("currency") or "").strip().upper()
+        if not currency:
+            currency = self._resolve_tenant_currency(tenant_id)
+        payload["currency"] = currency
+        opp = Opportunity(tenant_id=tenant_id, **payload)
         self.db.add(opp)
         self.db.commit()
         self.db.refresh(opp)

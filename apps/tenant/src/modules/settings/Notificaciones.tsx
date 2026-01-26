@@ -146,7 +146,7 @@ export default function NotificacionesSettings() {
         Configura canales para alertas y avisos. Los datos se guardan por tenant.
       </p>
 
-      {loading && <div className="text-sm text-slate-500 mb-4">Cargando configuracion...</div>}
+      {loading && <div className="text-sm text-slate-500 mb-4">Loading configuration...</div>}
 
       <section className="border rounded-lg p-4 mb-6">
         <div className="flex items-center justify-between mb-4">
@@ -157,7 +157,7 @@ export default function NotificacionesSettings() {
               checked={emailChannel.active}
               onChange={(e) => setEmailChannel({ ...emailChannel, active: e.target.checked })}
             />
-            Activo
+            Active
           </label>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -249,7 +249,7 @@ export default function NotificacionesSettings() {
           onClick={() => saveChannel('email', emailChannel)}
           disabled={saving === 'email'}
         >
-          Guardar Email
+          Save Email
         </button>
       </section>
 
@@ -262,7 +262,7 @@ export default function NotificacionesSettings() {
               checked={whatsappChannel.active}
               onChange={(e) => setWhatsappChannel({ ...whatsappChannel, active: e.target.checked })}
             />
-            Activo
+            Active
           </label>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -363,7 +363,7 @@ export default function NotificacionesSettings() {
           onClick={() => saveChannel('whatsapp', whatsappChannel)}
           disabled={saving === 'whatsapp'}
         >
-          Guardar WhatsApp
+          Save WhatsApp
         </button>
       </section>
 
@@ -376,7 +376,7 @@ export default function NotificacionesSettings() {
               checked={telegramChannel.active}
               onChange={(e) => setTelegramChannel({ ...telegramChannel, active: e.target.checked })}
             />
-            Activo
+            Active
           </label>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -416,7 +416,7 @@ export default function NotificacionesSettings() {
           onClick={() => saveChannel('telegram', telegramChannel)}
           disabled={saving === 'telegram'}
         >
-          Guardar Telegram
+          Save Telegram
         </button>
       </section>
     </div>

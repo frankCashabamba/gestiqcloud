@@ -2,16 +2,18 @@
  * PaymentModal - Modal de pago (efectivo, tarjeta, vale, link online)
  */
 import React, { useState } from 'react'
-import { payReceipt, redeemStoreCredit, createPaymentLink } from '../services'
-import { listWarehouses, type Warehouse } from '../../inventario/services'
+import { payReceipt, redeemStoreCredit, createPaymentLink, type CheckoutResponse } from '../services'
+import { createMovimientoCaja } from '../../finances/services'
+import { listWarehouses, type Warehouse } from '../../inventory/services'
 import StoreCreditsModal from './StoreCreditsModal'
+import CheckoutSummary from './CheckoutSummary'
 import type { POSPayment, StoreCredit } from '../../../types/pos'
 import { useCurrency } from '../../../hooks/useCurrency'
 
 interface PaymentModalProps {
     receiptId: string
     totalAmount: number
-    onSuccess: (payments: POSPayment[]) => void
+    onSuccess: (payments: POSPayment[], checkoutResponse?: CheckoutResponse) => void
     onCancel: () => void
     warehouseId?: string // Selección previa desde header (admin)
 }
@@ -26,6 +28,8 @@ export default function PaymentModal({ receiptId, totalAmount, onSuccess, onCanc
     const [loading, setLoading] = useState(false)
     const [paymentLink, setPaymentLink] = useState<string | null>(null)
     const [showQR, setShowQR] = useState(false)
+    const [checkoutResponse, setCheckoutResponse] = useState<CheckoutResponse | null>(null)
+    const [showSummary, setShowSummary] = useState(false)
 
     // Warehouses (multi-almacén)
     const [warehouses, setWarehouses] = useState<Warehouse[]>([])
@@ -147,9 +151,32 @@ export default function PaymentModal({ receiptId, totalAmount, onSuccess, onCanc
             }
 
             const wh = warehouseId || selectedWarehouse || undefined
-            await payReceipt(receiptId, payments, wh ? { warehouse_id: wh } : undefined)
-            alert('Pago procesado exitosamente')
-            onSuccess(payments)
+            const response = await payReceipt(receiptId, payments, wh ? { warehouse_id: wh } : undefined)
+            
+            // Mostrar resumen con documentos creados
+            setCheckoutResponse(response)
+            setShowSummary(true)
+
+            // Fallback: registrar ingreso en caja si el backend no devolviÃ³ venta/documento
+            try {
+                const hasDocuments = !!(response?.documents_created?.sale || response?.documents_created?.invoice)
+                if (!hasDocuments) {
+                    const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+                    if (totalPaid > 0) {
+                        await createMovimientoCaja({
+                            fecha: new Date().toISOString(),
+                            concepto: `POS Receipt ${receiptId}`,
+                            tipo: 'ingreso',
+                            monto: totalPaid,
+                            referencia: receiptId,
+                        })
+                    }
+                }
+            } catch (syncErr) {
+                console.warn('Could not sync cash movement fallback:', syncErr)
+            }
+
+            onSuccess(payments, response)
         } catch (error: any) {
             alert(error.response?.data?.detail || 'Error al procesar pago')
         } finally {
@@ -345,6 +372,23 @@ export default function PaymentModal({ receiptId, totalAmount, onSuccess, onCanc
                     </div>
                 )}
             </div>
+
+            {/* Mostrar resumen de checkout si hay respuesta */}
+            {showSummary && checkoutResponse && (
+                <CheckoutSummary
+                    response={checkoutResponse}
+                    onPrint={() => {
+                        // TODO: Implementar impresión de recibo
+                        window.print()
+                    }}
+                    onClose={() => {
+                        setShowSummary(false)
+                        // Cerrar modal de pago principal
+                        // Limpiar estado para nueva venta
+                        window.location.reload() // Simplista - mejor sería navegar a nueva venta
+                    }}
+                />
+            )}
         </div>
     )
 }

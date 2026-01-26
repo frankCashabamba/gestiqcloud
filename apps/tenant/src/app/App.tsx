@@ -1,9 +1,12 @@
-import React, { lazy, Suspense } from 'react'
+import React, { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import ParamRedirect from './ParamRedirect'
 import ProtectedRoute from './ProtectedRoute'
 import { OfflineBanner, BuildBadge, UpdatePrompt, OfflineReadyToast } from '@shared/ui'
 import CompanyShell from './CompanyShell'
+import ConflictResolver from '@/components/ConflictResolver'
+import OfflineSyncDashboard from '@/components/OfflineSyncDashboard'
+import { initializeOfflineSystem } from '@/lib/initOfflineSystem'
 
 // Lazy load de páginas para reducir bundle inicial
 const Login = lazy(() => import('../pages/Login'))
@@ -26,11 +29,18 @@ const PageLoader = () => (
     fontSize: '1.2rem',
     color: '#666'
   }}>
-    Cargando...
+    Loading...
   </div>
 )
 
 export default function App() {
+  useEffect(() => {
+    // Initialize offline system on app startup
+    initializeOfflineSystem().catch(err => {
+      console.error('Offline system initialization failed:', err)
+    })
+  }, [])
+
   return (
     <>
       <Suspense fallback={<PageLoader />}>
@@ -59,7 +69,15 @@ export default function App() {
           <Route path='/unauthorized' element={<Unauthorized />} />
         </Routes>
       </Suspense>
+      
+      {/* Offline Support Components */}
       <OfflineBanner />
+      <ConflictResolver onConflictResolved={() => {
+        console.log('Conflict resolved - UI updated')
+      }} />
+      <OfflineSyncDashboard position='bottom-right' compact={false} />
+      
+      {/* PWA Components */}
       <BuildBadge />
       <UpdatePrompt />
       <OfflineReadyToast />

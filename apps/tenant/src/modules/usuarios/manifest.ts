@@ -1,15 +1,15 @@
 import { lazy } from 'react'
 
 export const manifest = {
-  id: 'usuarios',
-  name: 'Usuarios',
+  id: 'users',
+  name: 'Users',
   icon: '👤',
   color: '#6366F1',
   order: 80,
   routes: [
     {
       path: '',
-      label: 'Usuarios',
+      label: 'Users',
       component: lazy(() => import('./List'))
     }
   ]

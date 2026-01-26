@@ -1,9 +1,10 @@
-﻿// src/pages/AdminPanel.tsx
+// src/pages/AdminPanel.tsx
 import React from 'react'
 import { useAuthGuard } from '../hooks/useAuthGuard'
 import { AdminCard } from '../components/AdminCard'
 import { MetricCard } from '../components/MetricCard'
 import { SimpleLineChart } from '../components/SimpleLineChart'
+import { GenericDashboard } from '../components/GenericDashboard'
 import { useAdminStats } from '../hooks/useAdminStats'
 import './admin-panel.css'
 
@@ -20,7 +21,7 @@ const saasCards: Card[] = [
     nombre: 'Empresas',
     descripcion: 'Gestión de empresas registradas',
     icono: '/icons/empresas.png',
-    url: 'empresas',
+    url: 'companies',
   },
   {
     nombre: 'Usuarios Principales',
@@ -32,7 +33,7 @@ const saasCards: Card[] = [
     nombre: 'Configuración del sistema',
     descripcion: 'Campos, formularios y defaults',
     icono: '/icons/configuracion.jpeg',
-    url: 'configuracion',
+    url: 'config',
   },
   {
     nombre: 'Módulos por empresa',
@@ -68,13 +69,13 @@ const operationsCards: Card[] = [
     nombre: 'Importar Empresas',
     descripcion: 'Carga masiva mediante plantillas',
     emoji: '📥',
-    url: 'empresas/import',
+    url: 'companies/import',
   },
   {
-    nombre: 'Crear Empresa',
-    descripcion: 'Onboarding guiado en minutos',
+    nombre: 'Create Company',
+    descripcion: 'Guided onboarding in minutes',
     emoji: '✨',
-    url: 'empresas/crear',
+    url: 'companies/create',
   },
 ]
 
@@ -84,16 +85,16 @@ export default function AdminPanel() {
 
   const metrics = React.useMemo(() => ([
     {
-      title: 'Empresas activas',
+      title: 'Active companies',
       value: stats?.tenants_activos ?? '—',
-      subtitle: stats ? `${stats.tenants_total} totales` : '—',
+      subtitle: stats ? `${stats.tenants_total} total` : '—',
       icon: '🏢',
       color: 'blue' as const,
     },
     {
-      title: 'Usuarios',
+      title: 'Users',
       value: stats?.usuarios_total ?? '—',
-      subtitle: stats ? `${stats.usuarios_activos} activos` : '—',
+      subtitle: stats ? `${stats.usuarios_activos} active` : '—',
       icon: '👤',
       color: 'green' as const,
     },
@@ -185,24 +186,24 @@ export default function AdminPanel() {
           <div className="insight-card">
             <div className="insight-header">
               <div>
-                <h3>Nuevos tenants (30 días)</h3>
+                <h3>New tenants (30 days)</h3>
                 <p className="insight-helper">
-                  Último registro: {latestCount ?? '—'} / día
+                  Latest record: {latestCount ?? '—'} / day
                 </p>
               </div>
             </div>
             {stats?.tenants_por_dia?.length ? (
               <SimpleLineChart data={stats.tenants_por_dia} />
             ) : (
-              <div className="insight-empty">Sin datos suficientes para mostrar la tendencia.</div>
+              <div className="insight-empty">Not enough data to show trend.</div>
             )}
           </div>
 
           <div className="insight-card">
             <div className="insight-header">
               <div>
-                <h3>Últimos tenants creados</h3>
-                <p className="insight-helper">Validación rápida del on-boarding</p>
+                <h3>Latest tenants created</h3>
+                <p className="insight-helper">Quick on-boarding validation</p>
               </div>
             </div>
             {latestCompanies.length ? (
@@ -242,6 +243,11 @@ export default function AdminPanel() {
       <section className="admin-section">
         <h2>🚀 Operaciones de Soporte</h2>
         {renderCards(operationsCards)}
+      </section>
+
+      <section className="admin-section">
+        <h2>📱 Dashboard Configurable (Sistema Sin Hardcodes)</h2>
+        <GenericDashboard dashboardSlug="default" />
       </section>
     </div>
   )

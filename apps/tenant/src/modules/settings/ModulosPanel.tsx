@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import ModuleCard from './components/ModuleCard'
 import ModuleConfigForm from './components/ModuleConfigForm'
 import { useToast, getErrorMessage } from '../../shared/toast'
@@ -46,6 +47,7 @@ const AVAILABLE_MODULES: Module[] = [
 ]
 
 export default function ModulosPanel() {
+  const { t } = useTranslation()
   const [modules, setModules] = useState<Module[]>(AVAILABLE_MODULES)
   const [selectedModule, setSelectedModule] = useState<Module | null>(null)
   const [activeTab, setActiveTab] = useState<string>('Todos')
@@ -160,7 +162,7 @@ export default function ModulosPanel() {
           Activa o desactiva módulos según las necesidades de tu negocio
         </p>
         <div className="mt-4 inline-block bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-semibold">
-          {activeCount} de {totalCount} módulos activos
+          {t('settings.modulesActive', { active: activeCount, total: totalCount })}
         </div>
       </div>
 
@@ -226,7 +228,7 @@ export default function ModulosPanel() {
         <ul className="text-sm text-yellow-700 space-y-1 list-disc pl-5">
           <li>Haz clic en cualquier tarjeta para configurar el módulo</li>
           <li>Los módulos desactivados no aparecerán en el menú principal</li>
-          <li>Algunos módulos requieren que otros estén activos (dependencias)</li>
+          <li>{t('settings.moduleDependencies')}</li>
           <li>La configuración se guarda automáticamente</li>
         </ul>
       </div>

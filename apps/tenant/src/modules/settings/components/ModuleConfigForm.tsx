@@ -194,14 +194,14 @@ export default function ModuleConfigForm({ moduleId, moduleName, config, onSave,
             disabled={saving}
             className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
-            Cancelar
+            Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
           >
-            {saving ? 'Guardando...' : 'Guardar Cambios'}
+            {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>

@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 router = APIRouter(
-    prefix="/facturacion",
+    prefix="/invoicing",
     tags=["Facturacion"],
     dependencies=[
         Depends(with_access_claims),

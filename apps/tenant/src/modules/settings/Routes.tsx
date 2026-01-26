@@ -14,7 +14,7 @@ import { useSettingsAccess, type SettingsSection } from './useSettingsAccess'
 
 function Guard({ section, children }: { section: SettingsSection; children: React.ReactElement }) {
   const { canAccessSection, limitsLoading } = useSettingsAccess()
-  if (limitsLoading) return <div className="p-4">Cargando permisos...</div>
+  if (limitsLoading) return <div className="p-4">Loading permissions...</div>
   if (!canAccessSection(section)) return <Navigate to="." replace />
   return children
 }

@@ -1,0 +1,90 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "new": "New",
+    "search": "Search",
+    "back": "Back",
+    "yes": "Yes",
+    "no": "No",
+    "active": "Active",
+    "inactive": "Inactive",
+    "actions": "Actions",
+    "status": "Status",
+    "name": "Name",
+    "saving": "Saving...",
+    "error": "Error",
+    "success": "Success"
+  },
+  "errors": {
+    "notFound": "Not found",
+    "saving": "Error saving",
+    "loading": "Error loading",
+    "required": "This field is required",
+    "invalidJson": "must be valid JSON"
+  },
+  "countryPacks": {
+    "title": "Country Packs",
+    "newPack": "New Pack",
+    "code": "Code",
+    "validators": "Validators",
+    "taxRules": "Tax Rules",
+    "deleted": "Pack deleted",
+    "updated": "Pack updated",
+    "deleteConfirm": "Delete this pack?",
+    "errors": {
+      "loading": "Error loading country packs",
+      "deleting": "Error deleting pack",
+      "updating": "Error updating pack"
+    }
+  },
+  "roles": {
+    "title": "Roles",
+    "newRole": "New Role",
+    "editRole": "Edit Role",
+    "roleName": "Role Name",
+    "permissions": "Permissions",
+    "module": "Module",
+    "created": "Role created successfully",
+    "deleted": "Role deleted",
+    "deleteConfirm": "Delete this role?",
+    "errors": {
+      "nameRequired": "Role name is required"
+    }
+  },
+  "permissions": {
+    "title": "Permissions",
+    "newPermission": "New Permission",
+    "key": "Key",
+    "errors": {
+      "moduleRequired": "Module is required",
+      "keyRequired": "Key is required"
+    }
+  },
+  "companies": {
+    "title": "Companies",
+    "create": "Create Company",
+    "companyName": "Company Name",
+    "managerName": "Manager Name",
+    "managerLastName": "Manager Last Name",
+    "email": "Email",
+    "country": "Country",
+    "taxId": "Tax ID",
+    "errors": {
+      "companyNameRequired": "Company name is required",
+      "managerNameRequired": "Manager name is required",
+      "managerLastNameRequired": "Manager last name is required",
+      "emailRequired": "Email is required",
+      "invalidTaxId": "Invalid tax ID format"
+    }
+  },
+  "sectors": {
+    "title": "Sectors",
+    "config": "Configuration",
+    "jsonNote": "You can edit the advanced configuration; must be valid JSON."
+  }
+}

@@ -134,19 +134,24 @@ def convert_lead(
     tenant_id = _get_tenant_id(request)
     service = CRMService(db)
 
-    opportunity = service.convert_lead(
-        tenant_id=tenant_id,
-        lead_id=UUID(lead_id),
-        create_opportunity=payload.create_opportunity,
-        opportunity_data=(
-            {
-                "title": payload.opportunity_title,
-                "value": payload.opportunity_value,
-            }
-            if payload.create_opportunity
-            else None
-        ),
-    )
+    try:
+        opportunity = service.convert_lead(
+            tenant_id=tenant_id,
+            lead_id=UUID(lead_id),
+            create_opportunity=payload.create_opportunity,
+            opportunity_data=(
+                {
+                    "title": payload.opportunity_title,
+                    "value": payload.opportunity_value,
+                }
+                if payload.create_opportunity
+                else None
+            ),
+        )
+    except ValueError as e:
+        if str(e) == "currency_not_configured":
+            raise HTTPException(status_code=400, detail="currency_not_configured")
+        raise
 
     if not opportunity:
         raise HTTPException(status_code=404, detail="Lead no encontrado o ya convertido")

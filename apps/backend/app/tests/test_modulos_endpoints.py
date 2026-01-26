@@ -83,7 +83,7 @@ def seeded_modulos(db, usuario_empresa_factory):
 
 def test_public_modulos_por_empresa_returns_array(client: TestClient, seeded_modulos):
     _, tenant, _ = seeded_modulos
-    r = client.get(f"/api/v1/modulos/empresa/{tenant.slug}/seleccionables")
+    r = client.get(f"/api/v1/modules/empresa/{tenant.slug}/seleccionables")
     assert r.status_code == 200, r.text
     data = r.json()
     assert isinstance(data, list)
@@ -104,7 +104,7 @@ def test_tenant_modulos_list_returns_array(client: TestClient, seeded_modulos):
     token = rlogin.json().get("access_token")
     assert token
 
-    r = client.get("/api/v1/modulos/", headers={"Authorization": f"Bearer {token}"})
+    r = client.get("/api/v1/modules/", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200, r.text
     data = r.json()
     assert isinstance(data, list)

@@ -144,6 +144,9 @@ def _update_job(
 
 def process_ocr_job(job_id: UUID) -> dict[str, Any]:
     """Procesa un trabajo OCR (usado por Celery o runner inline)."""
+    import time as _time
+    start_time = _time.perf_counter()
+    
     try:
         from app.modules.imports import services  # import pesado, lazy
     except Exception as exc:  # pragma: no cover - best effort
@@ -169,10 +172,28 @@ def process_ocr_job(job_id: UUID) -> dict[str, Any]:
             "documentos": _serialize_documentos(documentos),
         }
         _update_job(job_id, status="done", result=result, error=None)
+        
+        # Record metrics
+        duration_ms = (_time.perf_counter() - start_time) * 1000
+        try:
+            from app.modules.imports.monitoring import record_job_completion
+            record_job_completion(job_id, duration_ms, "done")
+        except Exception:
+            pass  # Don't fail job on metrics error
+        
         return {"status": "done", "job_id": str(job_id), "documents": len(result["documentos"])}
     except Exception as exc:  # pragma: no cover - best effort logging
         _LOGGER.exception("Failed to process OCR job %s", job_id)
         _update_job(job_id, status="failed", result=None, error=str(exc))
+        
+        # Record failure metrics
+        duration_ms = (_time.perf_counter() - start_time) * 1000
+        try:
+            from app.modules.imports.monitoring import record_job_completion
+            record_job_completion(job_id, duration_ms, "failed")
+        except Exception:
+            pass  # Don't fail job on metrics error
+        
         raise
 
 

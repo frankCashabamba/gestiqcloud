@@ -61,7 +61,7 @@ class EmpresaModuloOut(EmpresaModuloBase):
     tenant_id: UUID
     company_slug: str | None
     activation_date: date | None = None
-    module: ModuloOut
+    module: ModuloOut | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -103,21 +103,21 @@ class EmpresaModuloOutAdmin(BaseModel):
     expiration_date: date | None
     initial_template: str | None
     company_slug: str | None
-    module: ModuloOut
+    module: ModuloOut | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class ModuloUpdate(BaseModel):
-    """Class ModuloUpdate - auto-generated docstring."""
+    """Schema used when updating a module."""
 
     name: str | None
     description: str | None
-    icono: str | None
+    icon: str | None
     url: str | None
-    plantilla_inicial: str | None
+    initial_template: str | None
     context_type: str | None
-    modelo_objetivo: str | None
-    filtros_contexto: dict | None
-    categoria: str | None
+    target_model: str | None
+    context_filters: dict | None
+    category: str | None
     active: bool | None

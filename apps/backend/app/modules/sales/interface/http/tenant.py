@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+from uuid import UUID, uuid4
 from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -10,6 +12,7 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
+from app.models.core.clients import Client
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.sales.delivery import Delivery
 from app.models.sales.order import SalesOrder, SalesOrderItem
@@ -35,6 +38,12 @@ def _tenant_id_str(request: Request) -> str | None:
         return None
 
 
+def _uuid_or_none(value: str | None) -> UUID | None:
+    if value is None:
+        return None
+    return UUID(str(value))
+
+
 def _dec(value: float | Decimal | None, q: str = "0.000001") -> Decimal:
     if value is None:
         value = 0
@@ -42,22 +51,30 @@ def _dec(value: float | Decimal | None, q: str = "0.000001") -> Decimal:
 
 
 class OrderItemIn(BaseModel):
-    product_id: int
+    product_id: str
     qty: float = Field(gt=0)
     unit_price: float = 0
 
 
 class OrderCreateIn(BaseModel):
-    customer_id: int | None = None
+    customer_id: str | None = None
     currency: str | None = None
     items: list[OrderItemIn]
 
 
 class OrderOut(BaseModel):
-    id: int
+    id: str
+    number: str | None = None
+    order_date: date | None = None
+    created_at: str | None = None
     status: str
-    customer_id: int | None
+    customer_id: str | None
+    customer_name: str | None = None
+    pos_receipt_id: str | None = None
     currency: str | None
+    subtotal: float | None = None
+    tax: float | None = None
+    total: float | None = None
 
     model_config = {"from_attributes": True}
 
@@ -67,39 +84,83 @@ def list_orders(
     request: Request,
     db: Session = Depends(get_db),
     status: str | None = None,
-    customer_id: int | None = None,
+    customer_id: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ):
     """Listar órdenes de venta"""
     tid = _tenant_id_str(request)
 
-    query = db.query(SalesOrder).filter(SalesOrder.tenant_id == tid)
+    tenant_uuid = UUID(str(tid)) if tid else None
+    if not tenant_uuid:
+        raise HTTPException(status_code=401, detail="tenant_id invalido")
+    query = (
+        db.query(SalesOrder, Client.name)
+        .outerjoin(Client, Client.id == SalesOrder.customer_id)
+        .filter(SalesOrder.tenant_id == tenant_uuid)
+    )
 
     if status:
         query = query.filter(SalesOrder.status == status)
 
     if customer_id:
-        query = query.filter(SalesOrder.customer_id == customer_id)
+        query = query.filter(SalesOrder.customer_id == _uuid_or_none(customer_id))
 
-    orders = query.order_by(SalesOrder.created_at.desc()).offset(offset).limit(limit).all()
+    rows = query.order_by(SalesOrder.created_at.desc()).offset(offset).limit(limit).all()
 
-    return orders
+    return [
+        OrderOut(
+            id=str(o.id),
+            number=getattr(o, "number", None),
+            order_date=getattr(o, "order_date", None),
+            created_at=o.created_at.isoformat() if getattr(o, "created_at", None) else None,
+            status=o.status,
+            customer_id=str(o.customer_id) if o.customer_id else None,
+            customer_name=customer_name,
+            pos_receipt_id=str(o.pos_receipt_id) if getattr(o, "pos_receipt_id", None) else None,
+            currency=o.currency,
+            subtotal=float(o.subtotal or 0),
+            tax=float(o.tax or 0),
+            total=float(o.total or 0),
+        )
+        for (o, customer_name) in rows
+    ]
 
 
 @router.get("/{order_id}", response_model=OrderOut)
-def get_order(order_id: int, request: Request, db: Session = Depends(get_db)):
+def get_order(order_id: str, request: Request, db: Session = Depends(get_db)):
     """Obtener orden de venta por ID"""
     tid = _tenant_id_str(request)
+    tenant_uuid = UUID(str(tid)) if tid else None
+    if not tenant_uuid:
+        raise HTTPException(status_code=401, detail="tenant_id invalido")
 
-    order = (
-        db.query(SalesOrder).filter(SalesOrder.id == order_id, SalesOrder.tenant_id == tid).first()
+    order_uuid = UUID(str(order_id))
+    row = (
+        db.query(SalesOrder, Client.name)
+        .outerjoin(Client, Client.id == SalesOrder.customer_id)
+        .filter(SalesOrder.id == order_uuid, SalesOrder.tenant_id == tenant_uuid)
+        .first()
     )
 
-    if not order:
+    if not row:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
 
-    return order
+    order, customer_name = row
+    return OrderOut(
+        id=str(order.id),
+        number=getattr(order, "number", None),
+        order_date=getattr(order, "order_date", None),
+        created_at=order.created_at.isoformat() if getattr(order, "created_at", None) else None,
+        status=order.status,
+        customer_id=str(order.customer_id) if order.customer_id else None,
+        customer_name=customer_name,
+        pos_receipt_id=str(order.pos_receipt_id) if getattr(order, "pos_receipt_id", None) else None,
+        currency=order.currency,
+        subtotal=float(order.subtotal or 0),
+        tax=float(order.tax or 0),
+        total=float(order.total or 0),
+    )
 
 
 @router.post("", response_model=OrderOut, status_code=201)
@@ -107,11 +168,16 @@ def create_order(payload: OrderCreateIn, request: Request, db: Session = Depends
     if not payload.items:
         raise HTTPException(status_code=400, detail="items_required")
     tid = _tenant_id_str(request)
+    tenant_uuid = UUID(str(tid)) if tid else None
+    if not tenant_uuid:
+        raise HTTPException(status_code=401, detail="tenant_id invalido")
     so = SalesOrder(
-        customer_id=payload.customer_id,
+        customer_id=_uuid_or_none(payload.customer_id),
         currency=payload.currency,
         status="draft",
-        tenant_id=tid,
+        tenant_id=tenant_uuid,
+        number=f"SO-{str(tenant_uuid)[:8]}-{uuid4().hex[:6]}",
+        order_date=date.today(),
     )
     db.add(so)
     db.flush()
@@ -119,15 +185,31 @@ def create_order(payload: OrderCreateIn, request: Request, db: Session = Depends
         db.add(
             SalesOrderItem(
                 order_id=so.id,
-                product_id=it.product_id,
+                product_id=_uuid_or_none(it.product_id),
                 qty=it.qty,
                 unit_price=it.unit_price,
-                tenant_id=tid,
             )
         )
     db.commit()
     db.refresh(so)
-    return so
+    return OrderOut(
+        id=str(so.id),
+        number=so.number,
+        order_date=so.order_date,
+        created_at=so.created_at.isoformat() if getattr(so, "created_at", None) else None,
+        status=so.status,
+        customer_id=str(so.customer_id) if so.customer_id else None,
+        customer_name=(
+            db.query(Client.name).filter(Client.id == so.customer_id).scalar()
+            if so.customer_id
+            else None
+        ),
+        pos_receipt_id=str(so.pos_receipt_id) if getattr(so, "pos_receipt_id", None) else None,
+        currency=so.currency,
+        subtotal=float(so.subtotal or 0),
+        tax=float(so.tax or 0),
+        total=float(so.total or 0),
+    )
 
 
 class ConfirmIn(BaseModel):
@@ -136,10 +218,19 @@ class ConfirmIn(BaseModel):
 
 @router.post("/{order_id}/confirm", response_model=OrderOut)
 def confirm_order(
-    order_id: int, payload: ConfirmIn, request: Request, db: Session = Depends(get_db)
+    order_id: str, payload: ConfirmIn, request: Request, db: Session = Depends(get_db)
 ):
     tid = _tenant_id_str(request)
-    so = db.get(SalesOrder, order_id)
+    tenant_uuid = UUID(str(tid)) if tid else None
+    if not tenant_uuid:
+        raise HTTPException(status_code=401, detail="tenant_id invalido")
+
+    so_id = UUID(str(order_id))
+    so = (
+        db.query(SalesOrder)
+        .filter(SalesOrder.id == so_id, SalesOrder.tenant_id == tenant_uuid)
+        .first()
+    )
     if not so:
         raise HTTPException(status_code=404, detail="order_not_found")
     if tid and str(getattr(so, "tenant_id", None)) != tid:

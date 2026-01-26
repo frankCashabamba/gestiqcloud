@@ -1,7 +1,8 @@
 import React, { Suspense, useEffect, useMemo, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
-import { useI18n } from '../i18n/I18nProvider'
+import { useTranslation } from 'react-i18next'
 import { useMisModulos } from '../hooks/useMisModulos'
+import { useSectorModules } from '../hooks/useSectorModules'
 
 // Convención: cada módulo expone ./<modulo>/Routes.tsx (preferido) o ./<modulo>/Panel.tsx
 // Ejemplos: contabilidad/Panel.tsx, inventario/Panel.tsx, ventas/Routes.tsx, etc.
@@ -13,15 +14,33 @@ const PANELS = import.meta.glob('./*/Panel.tsx')
 // Alias opcionales por compatibilidad (slug viejo -> carpeta nueva)
 const ALIASES: Record<string, string> = {
   // Rutas legacy -> carpeta real
-  imports: 'importador',
+  imports: 'importer',
+  importador: 'importer',
   reports: 'reportes',
+  clientes: 'customers',
+  clients: 'customers',
+  contabilidad: 'accounting',
+  compras: 'purchases',
+  facturacion: 'billing',
+  invoicing: 'billing',
+  gastos: 'expenses',
+  finanzas: 'finances',
+  finance: 'finances',
+  rrhh: 'hr',
+  inventario: 'inventory',
+  ventas: 'sales',
+  productos: 'products',
+  proveedores: 'suppliers',
+  importaciones: 'importer',
+  users: 'usuarios',
+  manufacturing: 'produccion',
 }
 
 export default function ModuleLoader() {
   const { mod } = useParams()
   const [Component, setComponent] = useState<React.ComponentType<any> | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const { t } = useI18n()
+  const { t } = useTranslation()
   const { allowedSlugs, loading } = useMisModulos()
 
   const folder = useMemo(() => {
@@ -29,11 +48,13 @@ export default function ModuleLoader() {
     const norm = mod.toLowerCase()
     return ALIASES[norm] || norm
   }, [mod])
-  const allowedSlug = useMemo(() => {
-    if (!mod) return ''
+  const allowedSlugsForFolder = useMemo(() => {
+    if (!mod) return []
     const norm = mod.toLowerCase()
-    const alias = Object.entries(ALIASES).find(([, v]) => v === folder)?.[0]
-    return alias || norm
+    const aliases = Object.entries(ALIASES)
+      .filter(([, v]) => v === folder)
+      .map(([k]) => k)
+    return Array.from(new Set([norm, folder, ...aliases]))
   }, [mod, folder])
   const keyRoutes = useMemo(() => (folder ? `./${folder}/Routes.tsx` : ''), [folder])
   const keyPanel = useMemo(() => (folder ? `./${folder}/Panel.tsx` : ''), [folder])
@@ -67,15 +88,18 @@ export default function ModuleLoader() {
   }, [mod, keyRoutes, keyPanel])
 
   if (!mod) return <Navigate to="/error" replace />
-  if (loading) return <div style={{ padding: 16 }}>{t('common:loading.module')}</div>
+  if (loading) return <div style={{ padding: 16 }}>{t('common.loadingModule')}</div>
   const bypass = folder === 'contabilidad' || folder === 'finanzas'
-  if (folder && !bypass && !(allowedSlugs.has(folder) || allowedSlugs.has(allowedSlug))) return <Navigate to="/unauthorized" replace />
-  if (loadError === 'not-found') return <div style={{ padding: 16 }}>Module not found.</div>
-  if (loadError === 'load-error') return <div style={{ padding: 16 }}>Error loading module.</div>
-  if (!Component) return <div style={{ padding: 16 }}>{t('common:loading.module')}</div>
+  if (folder && !bypass) {
+    const isAllowed = allowedSlugsForFolder.some((slug) => allowedSlugs.has(slug))
+    if (!isAllowed) return <Navigate to="/unauthorized" replace />
+  }
+  if (loadError === 'not-found') return <div style={{ padding: 16 }}>{t('errors.moduleNotFound')}</div>
+  if (loadError === 'load-error') return <div style={{ padding: 16 }}>{t('errors.moduleLoadError')}</div>
+  if (!Component) return <div style={{ padding: 16 }}>{t('common.loadingModule')}</div>
 
   return (
-    <Suspense fallback={<div style={{ padding: 16 }}>{t('common:loading.module')}</div>}>
+    <Suspense fallback={<div style={{ padding: 16 }}>{t('common.loadingModule')}</div>}>
       <Component />
     </Suspense>
   )

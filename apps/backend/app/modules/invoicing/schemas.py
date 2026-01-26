@@ -50,9 +50,26 @@ class WorkshopLineOut(WorkshopLine):
     model_config = ConfigDict(from_attributes=True)
 
 
+# 🎯 Línea POS (genérica)
+class POSLine(BaseModel):
+    """Class POSLine - auto-generated docstring."""
+
+    sector: Literal["pos"]
+    description: str
+    cantidad: float = 1
+    precio_unitario: float = 0
+    iva: float | None = 0
+
+
+class POSLineOut(POSLine):
+    """Class POSLineOut - auto-generated docstring."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # 🎯 Unión de tipos posibles
-LineaFacturaIn = BakeryLine | WorkshopLine
-LineaFacturaOut = Annotated[BakeryLineOut | WorkshopLineOut, Field(discriminator="sector")]
+LineaFacturaIn = BakeryLine | WorkshopLine | POSLine
+LineaFacturaOut = Annotated[BakeryLineOut | WorkshopLineOut | POSLineOut, Field(discriminator="sector")]
 
 # Backward compatibility aliases
 LineaPanaderia = BakeryLine
@@ -97,10 +114,11 @@ class InvoiceOut(BaseModel):
     subtotal: float
     iva: float
     total: float
-    cliente: ClienteSchema
-    lineas: list[LineaFacturaOut]  # polimórficas
+    cliente: ClienteSchema = None  # Hacer opcional para evitar errores de validación
+    lineas: list[LineaFacturaOut] = []  # polimórficas - default vacío
+    lines: list[LineaFacturaOut] = []  # Alias en inglés para compatibilidad con ORM
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class InvoiceUpdate(BaseModel):

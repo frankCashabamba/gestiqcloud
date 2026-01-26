@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.core.modulo import AssignedModule, CompanyModule, Module
@@ -14,6 +15,14 @@ from app.modules import schemas
 
 
 # ---------- MODULOS ----------
+def _normalize_module_name(name: str) -> str:
+    return (name or "").strip().lower()
+
+
+def _asciify(value: str) -> str:
+    return value.encode("utf-8", "backslashreplace").decode("ascii")
+
+
 def crear_estructura_modulo(nombre: str):
     """Function crear_estructura_modulo - auto-generated docstring."""
     # 1. Validar que el nombre sea seguro (letras, nA�meros, guiones, guion_bajo)
@@ -23,7 +32,7 @@ def crear_estructura_modulo(nombre: str):
         )
 
     # 2. Normalizar nombre
-    safe_name = nombre.lower().replace(" ", "_")
+    safe_name = _normalize_module_name(nombre).replace(" ", "_")
 
     # 3. Ruta base del frontend montado
     base_dir = "/app/src/modules"  # Debe coincidir con tu volumen montado
@@ -35,7 +44,7 @@ def crear_estructura_modulo(nombre: str):
 
     # 5. Crear carpeta si no existe
     try:
-        print("📁 Creando carpeta en:", base_path)
+        print("Creating module folder at:", _asciify(base_path))
         os.makedirs(base_path, exist_ok=True)
 
         # 6. Crear archivo Panel.tsx solo si no existe
@@ -53,12 +62,12 @@ const Panel = () => {{
 export default Panel;
 """
                 )
-            print(f"✓ Panel.tsx creado en: {panel_path}")
+            print(f"Panel.tsx created at: {_asciify(panel_path)}")
         else:
-            print(f"⚠ Ya existe: {panel_path} (no se sobrescribe)")
+            print(f"Panel.tsx already exists: {_asciify(panel_path)} (skipped)")
 
     except Exception as e:
-        print("✗ Error al crear la estructura del módulo:", e)
+        print("Error creating module structure:", e)
         raise
 
 
@@ -69,12 +78,19 @@ def obtener_modulo(db: Session, modulo_id: int):
 
 def crear_modulo(db: Session, modulo_data: schemas.ModuloCreate) -> Module:
     """Function crear_modulo - auto-generated docstring."""
-    existente = db.query(Module).filter(Module.name.ilike(modulo_data.name.strip())).first()
+    normalized_name = _normalize_module_name(modulo_data.name)
+    existente = (
+        db.query(Module)
+        .filter(func.lower(Module.name) == normalized_name)
+        .first()
+    )
 
     if existente:
         raise ValueError(f"Ya existe un mA3dulo con el nombre '{modulo_data.name}'")
 
-    nuevo_modulo = Module(**modulo_data.model_dump())
+    payload = modulo_data.model_dump()
+    payload["name"] = normalized_name
+    nuevo_modulo = Module(**payload)
     db.add(nuevo_modulo)
     db.commit()
     db.refresh(nuevo_modulo)
@@ -94,6 +110,8 @@ def actualizar_modulo(db: Session, modulo_id: int, modulo_data: schemas.ModuloUp
         return None
 
     for field, value in modulo_data.dict(exclude_unset=True).items():
+        if field == "name" and value:
+            value = _normalize_module_name(value)
         setattr(modulo, field, value)
 
     db.commit()
@@ -113,11 +131,11 @@ def eliminar_modulo(db: Session, modulo_id: int):
         base_path = f"/app/src/modules/{safe_name}"
         if os.path.exists(base_path):
             shutil.rmtree(base_path)
-            print(f"dY-`�,? Carpeta eliminada: {base_path}")
+            print(f"Module folder deleted: {_asciify(base_path)}")
         else:
-            print(f"�s��,? Carpeta no encontrada: {base_path}")
+            print(f"Module folder not found: {_asciify(base_path)}")
     except Exception as e:
-        print(f"�?O Error al eliminar carpeta del mA3dulo: {e}")
+        print(f"Error deleting module folder: {e}")
 
     # Borrar registro de la base de datos
     db.delete(modulo)
@@ -210,8 +228,12 @@ def listar_modulo_admins(db: Session) -> list[Module]:
 
 def crear_modulo_db_only(db: Session, modulo_data: schemas.ModuloCreate) -> Module:
     """Crear solo el registro del módulo en BD (sin tocar el filesystem)."""
-    name = (modulo_data.name or "").strip()
-    existente = db.query(Module).filter(Module.name.ilike(name)).first()
+    name = _normalize_module_name(modulo_data.name)
+    existente = (
+        db.query(Module)
+        .filter(func.lower(Module.name) == name)
+        .first()
+    )
 
     if existente:
         raise ValueError(f"Ya existe un módulo con el nombre '{name}'")

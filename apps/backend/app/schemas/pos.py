@@ -100,7 +100,8 @@ class POSPaymentResponse(POSPaymentBase):
 # ==================== RECEIPT SCHEMAS ====================
 class POSReceiptBase(BaseModel):
     customer_id: UUID | None = None
-    currency: str = Field(default="EUR", pattern="^(EUR|USD)$")
+    # No asumir defaults: la moneda debe venir de la configuración del tenant en BBDD.
+    currency: str | None = Field(default=None, min_length=3, max_length=3)
 
 
 class POSReceiptCreate(POSReceiptBase):

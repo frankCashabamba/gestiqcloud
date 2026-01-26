@@ -189,7 +189,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
       <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
         <DialogContent>
           <Box display="flex" justifyContent="center" alignItems="center" p={4}>
-            <Typography>Cargando productos...</Typography>
+            <Typography>Loading products...</Typography>
           </Box>
         </DialogContent>
       </Dialog>
@@ -378,9 +378,9 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
         </DialogContent>
 
         <DialogActions>
-          <Button onClick={onClose}>Cancelar</Button>
+          <Button onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="contained" disabled={loading}>
-            {loading ? 'Guardando...' : 'Save'}
+            {loading ? 'Saving...' : 'Save'}
           </Button>
         </DialogActions>
       </form>

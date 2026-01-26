@@ -6,48 +6,48 @@ export const TENANT_AUTH = {
   setPassword: '/api/v1/tenant/auth/set-password',
 }
 
-export const TENANT_MODULOS = {
-  // añade endpoints de tenant si los expones públicamente
+export const TENANT_MODULES = {
+  // add tenant endpoints if exposed publicly
 }
 
-export const TENANT_EMPRESAS = {
-  base: '/api/v1/empresa',
+export const TENANT_COMPANIES = {
+  base: '/api/v1/company',
 }
 
-export const TENANT_CLIENTES = {
-  base: '/api/v1/tenant/clientes',
-  byId: (id: number | string) => `/api/v1/tenant/clientes/${id}`,
+export const TENANT_CLIENTS = {
+  base: '/api/v1/tenant/clients',
+  byId: (id: number | string) => `/api/v1/tenant/clients/${id}`,
 }
 
-export const TENANT_PROVEEDORES = {
-  base: '/api/v1/tenant/proveedores/',
-  byId: (id: number | string) => `/api/v1/tenant/proveedores/${id}`,
+export const TENANT_SUPPLIERS = {
+  base: '/api/v1/tenant/suppliers',
+  byId: (id: number | string) => `/api/v1/tenant/suppliers/${id}`,
 }
 
-export const TENANT_VENTAS = {
+export const TENANT_SALES = {
   base: '/api/v1/tenant/sales_orders',
   byId: (id: number | string) => `/api/v1/tenant/sales_orders/${id}`,
 }
 
-export const TENANT_COMPRAS = {
+export const TENANT_PURCHASES = {
   base: '/api/v1/tenant/purchases',
   byId: (id: number | string) => `/api/v1/tenant/purchases/${id}`,
 }
 
-export const TENANT_CAJA = {
-  base: '/api/v1/tenant/finance/caja/movimientos',
+export const TENANT_CASHBOX = {
+  base: '/api/v1/tenant/finance/cashbox/movements',
 }
 
-export const TENANT_BANCOS = {
-  base: '/api/v1/tenant/finance/banco/movimientos',
-  saldos: '/api/v1/tenant/finance/banco/saldos',
+export const TENANT_BANKS = {
+  base: '/api/v1/tenant/finance/bank/movements',
+  balances: '/api/v1/tenant/finance/bank/balances',
 }
 
 export const TENANT_ONBOARDING = {
   init: '/api/v1/tenant/onboarding/init',
 }
 
-export const TENANT_USUARIOS = {
+export const TENANT_USERS = {
   base: '/api/v1/tenant/users',
   byId: (id: number | string) => `/api/v1/tenant/users/${id}`,
   modules: '/api/v1/tenant/users/modules',
@@ -65,18 +65,18 @@ export const TENANT_SETTINGS = {
   general: '/api/v1/company/settings/general',
   branding: '/api/v1/company/settings/branding',
   fiscal: '/api/v1/company/settings/fiscal',
-  horarios: '/api/v1/company/settings/horarios',
-  limites: '/api/v1/company/settings/limites',
+  schedules: '/api/v1/company/settings/schedules',
+  limits: '/api/v1/company/settings/limits',
 }
 
-export const TENANT_FACTURACION = {
-  base: '/api/v1/tenant/facturacion',
-  byId: (id: number | string) => `/api/v1/tenant/facturacion/${id}`,
+export const TENANT_INVOICING = {
+  base: '/api/v1/tenant/invoicing',
+  byId: (id: number | string) => `/api/v1/tenant/invoicing/${id}`,
 }
 
 
 
-export const TENANT_GASTOS = {
+export const TENANT_EXPENSES = {
   base: '/api/v1/tenant/expenses',
   byId: (id: number | string) => `/api/v1/tenant/expenses/${id}`,
 }
@@ -99,16 +99,16 @@ export const TENANT_CRM = {
   },
 }
 
-export const TENANT_RRHH = {
-  vacaciones: {
-    base: '/api/v1/tenant/hr/vacaciones',
-    byId: (id: number | string) => `/api/v1/tenant/hr/vacaciones/${id}`,
-    approve: (id: number | string) => `/api/v1/tenant/hr/vacaciones/${id}/approve`,
-    reject: (id: number | string) => `/api/v1/tenant/hr/vacaciones/${id}/reject`,
+export const TENANT_HR = {
+  vacations: {
+    base: '/api/v1/tenant/hr/vacations',
+    byId: (id: number | string) => `/api/v1/tenant/hr/vacations/${id}`,
+    approve: (id: number | string) => `/api/v1/tenant/hr/vacations/${id}/approve`,
+    reject: (id: number | string) => `/api/v1/tenant/hr/vacations/${id}/reject`,
   },
-  empleados: {
-    base: '/api/v1/tenant/hr/empleados',
-    byId: (id: number | string) => `/api/v1/tenant/hr/empleados/${id}`,
+  employees: {
+    base: '/api/v1/tenant/hr/employees',
+    byId: (id: number | string) => `/api/v1/tenant/hr/employees/${id}`,
   },
 }
 

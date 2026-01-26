@@ -110,12 +110,12 @@ export default function StoreCreditsModal({ onSelect, onClose }: StoreCreditsMod
 
         {/* Lista de vales */}
         <div>
-          <h3 className="font-semibold mb-3">Vales Disponibles</h3>
+          <h3 className="font-semibold mb-3">Available Credits</h3>
 
           {loading ? (
-            <div className="text-center py-4">Cargando vales...</div>
+            <div className="text-center py-4">Loading credits...</div>
           ) : credits.length === 0 ? (
-            <div className="text-center py-4 text-gray-500">No hay vales disponibles</div>
+            <div className="text-center py-4 text-gray-500">No credits available</div>
           ) : (
             <div className="grid gap-3 max-h-96 overflow-y-auto">
               {credits.map((credit) => (

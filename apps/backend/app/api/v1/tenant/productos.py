@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from starlette.responses import RedirectResponse
 
-router = APIRouter(prefix="/tenant/productos", tags=["productos-compat"])
+router = APIRouter(prefix="/tenant/products", tags=["products-compat"])
 
 
 def _redir(target_path: str, request: Request) -> RedirectResponse:

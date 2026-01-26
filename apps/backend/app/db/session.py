@@ -33,14 +33,21 @@ def _get_database_url() -> str:
             "Example: DATABASE_URL=postgresql://user:pass@db.internal/gestiqcloud"
         )
     
-    # Development fallback only (used for local testing)
+    # Development fallback - use environment variable or fail with clear message
     import warnings
-    warnings.warn(
-        "DATABASE_URL not set. Using development fallback. "
-        "Set DATABASE_URL=postgresql://... in production.",
-        RuntimeWarning
+    dev_db_url = os.getenv("DEV_DATABASE_URL")
+    if dev_db_url:
+        warnings.warn(
+            "DATABASE_URL not set. Using DEV_DATABASE_URL fallback.",
+            RuntimeWarning
+        )
+        return dev_db_url
+    
+    raise RuntimeError(
+        "DATABASE_URL is not configured. "
+        "For development, set DEV_DATABASE_URL or DATABASE_URL. "
+        "Example: DATABASE_URL=postgresql://user:pass@localhost:5432/gestiqcloud_dev"
     )
-    return "postgresql://postgres:root@localhost:5432/gestiqclouddb_dev"
 
 DATABASE_URL = _get_database_url()
 

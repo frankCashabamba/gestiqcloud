@@ -9,7 +9,7 @@ from app.modules import crud as mod_crud
 from app.modules.modulos.interface.http.schemas import ModuloOutSchema
 
 router = APIRouter(
-    prefix="/modulos",
+    prefix="/modules",
     tags=["Modulos Public"],
 )
 

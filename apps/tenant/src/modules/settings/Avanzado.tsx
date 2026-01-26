@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import tenantApi from '../../shared/api/client'
 import { clearCompanySettingsCache, getCompanySettings } from '../../services/companySettings'
 import { getErrorMessage, useToast } from '../../shared/toast'
@@ -46,6 +47,7 @@ type AvanzadoSettingsProps = {
 }
 
 export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettingsProps) {
+    const { t } = useTranslation()
     const { success, error } = useToast()
     const { profile } = useAuth()
     const isCompanyAdmin = Boolean(
@@ -322,7 +324,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                 </div>
             )}
 
-            {loading && <div className="text-sm text-slate-500 mb-4">Cargando...</div>}
+            {loading && <div className="text-sm text-slate-500 mb-4">Loading...</div>}
 
             {!isAdminView && (
                 <>
@@ -330,7 +332,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                         <h3 className="font-semibold mb-3">Regional</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                                <label className="block text-sm mb-1">Locale</label>
+                                <label className="block text-sm mb-1">{t('settings.regional.locale')}</label>
                                 <input
                                     className="border px-2 py-1 w-full rounded"
                                     value={locale}
@@ -339,7 +341,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm mb-1">Timezone</label>
+                                <label className="block text-sm mb-1">{t('settings.regional.timezone')}</label>
                                 <input
                                     className="border px-2 py-1 w-full rounded"
                                     value={timezone}
@@ -348,7 +350,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm mb-1">Moneda</label>
+                                <label className="block text-sm mb-1">{t('settings.regional.currency')}</label>
                                 <input
                                     className="border px-2 py-1 w-full rounded"
                                     value={currency}
@@ -601,7 +603,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                         }}
                                         disabled={numberingLoading}
                                     >
-                                        Guardar contador
+                                        Save counter
                                     </button>
                                     <button
                                         className="btn ghost"
@@ -654,7 +656,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                             {numberingCounters.length === 0 && (
                                                 <tr>
                                                     <td className="px-3 py-3 text-center text-slate-500" colSpan={6}>
-                                                        {numberingLoading ? 'Cargando...' : 'Sin contadores'}
+                                                        {numberingLoading ? 'Loading...' : 'No counters'}
                                                     </td>
                                                 </tr>
                                             )}
@@ -727,7 +729,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                                 checked={seriesForm.active}
                                                 onChange={(e) => setSeriesForm((prev) => ({ ...prev, active: e.target.checked }))}
                                             />
-                                            Activa
+                                            Active
                                         </label>
                                     </div>
                                 </div>
@@ -754,7 +756,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                         }}
                                         disabled={docSeriesLoading}
                                     >
-                                        Guardar serie
+                                        Save series
                                     </button>
                                     <button
                                         className="btn ghost"
@@ -802,7 +804,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                                     <td className="px-3 py-2">{row.register_id || '-'}</td>
                                                     <td className="px-3 py-2 text-right">{row.current_no}</td>
                                                     <td className="px-3 py-2">{row.reset_policy}</td>
-                                                    <td className="px-3 py-2">{row.active ? 'Si' : 'No'}</td>
+                                                    <td className="px-3 py-2">{row.active ? 'Yes' : 'No'}</td>
                                                     <td className="px-3 py-2 text-right">
                                                         <button
                                                             className="btn ghost"
@@ -826,7 +828,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                             {docSeriesList.length === 0 && (
                                                 <tr>
                                                     <td className="px-3 py-3 text-center text-slate-500" colSpan={7}>
-                                                        {docSeriesLoading ? 'Cargando...' : 'Sin series'}
+                                                        {docSeriesLoading ? 'Loading...' : 'No series'}
                                                     </td>
                                                 </tr>
                                             )}
@@ -920,9 +922,8 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                 onClick={save}
                 disabled={saving}
             >
-                Guardar configuracion
+                Save configuration
             </button>
         </div>
     )
 }
-

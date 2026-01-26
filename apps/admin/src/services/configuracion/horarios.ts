@@ -11,30 +11,30 @@ export type HorarioAtencion = {
 }
 
 export async function listHorarios(): Promise<HorarioAtencion[]> {
-  const { data } = await api.get<HorarioAtencion[]>(ADMIN_CONFIG.horarioAtencion.base)
+  const { data } = await api.get<HorarioAtencion[]>(ADMIN_CONFIG.attentionSchedule.base)
   return data || []
 }
 
 export async function getHorario(id: number | string): Promise<HorarioAtencion> {
-  const { data } = await api.get<HorarioAtencion>(ADMIN_CONFIG.horarioAtencion.byId(id))
+  const { data } = await api.get<HorarioAtencion>(ADMIN_CONFIG.attentionSchedule.byId(id))
   return data
 }
 
 export async function createHorario(payload: Omit<HorarioAtencion, 'id'>): Promise<HorarioAtencion> {
-  const { data } = await api.post<HorarioAtencion>(ADMIN_CONFIG.horarioAtencion.base, payload)
+  const { data } = await api.post<HorarioAtencion>(ADMIN_CONFIG.attentionSchedule.base, payload)
   return data
 }
 
 export async function updateHorario(id: number | string, payload: Omit<HorarioAtencion, 'id'>): Promise<HorarioAtencion> {
-  const { data } = await api.put<HorarioAtencion>(ADMIN_CONFIG.horarioAtencion.byId(id), payload)
+  const { data } = await api.put<HorarioAtencion>(ADMIN_CONFIG.attentionSchedule.byId(id), payload)
   return data
 }
 
 export async function removeHorario(id: number | string): Promise<void> {
-  await api.delete(ADMIN_CONFIG.horarioAtencion.byId(id))
+  await api.delete(ADMIN_CONFIG.attentionSchedule.byId(id))
 }
 
 export async function listDiasSemana(): Promise<DiaSemana[]> {
-  const { data } = await api.get<DiaSemana[]>(ADMIN_CONFIG.diasSemana.base)
+  const { data } = await api.get<DiaSemana[]>(ADMIN_CONFIG.weekdays.base)
   return data || []
 }

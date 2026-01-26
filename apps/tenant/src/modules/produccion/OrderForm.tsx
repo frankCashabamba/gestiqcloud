@@ -104,9 +104,9 @@ export default function OrderForm() {
 
     return (
         <div className="p-4">
-            <h3 className="text-xl font-semibold mb-3">{id ? 'Editar orden de producción' : 'Nueva orden de producción'}</h3>
+            <h3 className="text-xl font-semibold mb-3">{id ? 'Edit production order' : 'New production order'}</h3>
             <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
-                {loadingCfg && <div className="text-sm text-gray-500">Cargando campos…</div>}
+                {loadingCfg && <div className="text-sm text-gray-500">Loading fields…</div>}
                 {fieldList.map((f) => {
                     const label = f.label || (f.field.charAt(0).toUpperCase() + f.field.slice(1).replace(/_/g, ' '))
                     const type = getInputType(f.field)
@@ -138,8 +138,8 @@ export default function OrderForm() {
                     )
                 })}
                 <div className="pt-2">
-                    <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">Guardar</button>
-                    <button type="button" className="ml-3 px-3 py-2" onClick={() => nav('..')}>Cancelar</button>
+                    <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded">Save</button>
+                    <button type="button" className="ml-3 px-3 py-2" onClick={() => nav('..')}>Cancel</button>
                 </div>
             </form>
         </div>

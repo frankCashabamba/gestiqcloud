@@ -121,6 +121,41 @@ def _to_decimal_q(value: float | Decimal, q: str) -> Decimal:
     return Decimal(str(value)).quantize(Decimal(q), rounding=ROUND_HALF_UP)
 
 
+def _resolve_tenant_currency(db: Session, tenant_id: UUID) -> str:
+    """Resuelve la moneda base del tenant para POS.
+
+    Orden:
+    1) company_settings.currency
+    2) tenants.base_currency
+
+    Nota: no usamos fallbacks hardcodeados (EUR/USD). Si no hay moneda configurada,
+    devolvemos error para evitar crear datos con una moneda incorrecta.
+    """
+    row = db.execute(
+        text("SELECT currency FROM company_settings WHERE tenant_id = :tid LIMIT 1").bindparams(
+            bindparam("tid", type_=PGUUID(as_uuid=True))
+        ),
+        {"tid": tenant_id},
+    ).first()
+    if row and row[0]:
+        cur = str(row[0]).strip().upper()
+        if cur:
+            return cur
+
+    row = db.execute(
+        text("SELECT base_currency FROM tenants WHERE id = :tid LIMIT 1").bindparams(
+            bindparam("tid", type_=PGUUID(as_uuid=True))
+        ),
+        {"tid": tenant_id},
+    ).first()
+    if row and row[0]:
+        cur = str(row[0]).strip().upper()
+        if cur:
+            return cur
+
+    raise HTTPException(status_code=400, detail="currency_not_configured")
+
+
 # ============================================================================
 # MODELOS PYDANTIC
 # ============================================================================
@@ -402,6 +437,10 @@ class PostReceiptIn(BaseModel):
 
 class RefundReceiptIn(BaseModel):
     reason: str = Field(min_length=1, max_length=500)
+    refund_method: str | None = None  # original|cash|store_credit (frontend may send this)
+    restock: bool | None = None
+    line_ids: list[str] | None = None
+    store_credit_expiry_months: int | None = None
 
 
 # ============================================================================
@@ -529,18 +568,21 @@ def open_shift(payload: OpenShiftIn, request: Request, db: Session = Depends(get
             )
 
         # Insertar turno
+        opened_at = datetime.utcnow()
         row = db.execute(
             text(
-                "INSERT INTO pos_shifts(register_id, opened_by, opening_float, status) "
-                "VALUES (:rid, :opened_by, :opening_float, 'open') "
+                "INSERT INTO pos_shifts(register_id, opened_by, opened_at, opening_float, status) "
+                "VALUES (:rid, :opened_by, :opened_at, :opening_float, 'open') "
                 "RETURNING id"
             ).bindparams(
                 bindparam("rid", type_=PGUUID(as_uuid=True)),
                 bindparam("opened_by", type_=PGUUID(as_uuid=True)),
+                bindparam("opened_at"),
             ),
             {
                 "rid": register_uuid,
                 "opened_by": user_id,
+                "opened_at": opened_at,
                 "opening_float": payload.opening_float,
             },
         ).first()
@@ -1521,6 +1563,8 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
 
         ticket_number = f"R-{ticket_number:04d}"
 
+        currency = _resolve_tenant_currency(db, tenant_id)
+
         # Crear el recibo
         row = db.execute(
             text(
@@ -1529,7 +1573,7 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
                 "gross_total, tax_total, currency, created_at"
                 ") VALUES ("
                 ":tid, :rid, :sid, :cashier_id, :customer_id, :number, 'draft', "
-                "0, 0, 'EUR', NOW()"
+                "0, 0, :currency, NOW()"
                 ") RETURNING id"
             ).bindparams(
                 bindparam("tid", type_=PGUUID(as_uuid=True)),
@@ -1545,6 +1589,7 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
                 "cashier_id": cashier_id,
                 "customer_id": customer_uuid,
                 "number": ticket_number,
+                "currency": currency,
             },
         ).first()
 
@@ -1582,14 +1627,23 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
                 elif tax_rate < 0:
                     tax_rate = 0.0
 
+            qty_sold = abs(float(line.qty or 0))
+            unit_price = float(line.unit_price or 0)
+            discount_pct = float(line.discount_pct or 0)
+            net_total = _to_decimal_q(qty_sold, "0.000001") * _to_decimal_q(unit_price, "0.0001")
+            net_total = net_total * (Decimal("1") - (_to_decimal_q(discount_pct, "0.01") / 100))
+            net_total = _to_decimal_q(net_total, "0.01")
+            tax_total = _to_decimal_q(net_total * Decimal(str(tax_rate)), "0.01")
+            line_total = _to_decimal_q(net_total + tax_total, "0.01")
+
             db.execute(
                 text(
                     "INSERT INTO pos_receipt_lines("
-                    "receipt_id, product_id, qty, unit_price, tax_rate, "
-                    "discount_pct, line_total, uom"
+                    "receipt_id, product_id, qty, unit_price, tax_rate, discount_pct, line_total, "
+                    "uom, net_total, cogs_unit, cogs_total, gross_profit, gross_margin_pct"
                     ") VALUES ("
-                    ":receipt_id, :product_id, :qty, :unit_price, :tax_rate, "
-                    ":discount_pct, :line_total, :uom"
+                    ":receipt_id, :product_id, :qty, :unit_price, :tax_rate, :discount_pct, :line_total, "
+                    ":uom, :net_total, :cogs_unit, :cogs_total, :gross_profit, :gross_margin_pct"
                     ")"
                 ).bindparams(
                     bindparam("receipt_id", type_=PGUUID(as_uuid=True)),
@@ -1598,12 +1652,17 @@ def create_receipt(payload: ReceiptCreateIn, request: Request, db: Session = Dep
                 {
                     "receipt_id": receipt_id,
                     "product_id": product_uuid,
-                    "qty": line.qty,
-                    "unit_price": line.unit_price,
+                    "qty": qty_sold,
+                    "unit_price": unit_price,
                     "tax_rate": tax_rate,
-                    "discount_pct": line.discount_pct,
-                    "line_total": line.line_total,
+                    "discount_pct": discount_pct,
+                    "line_total": float(line_total),
                     "uom": line.uom,
+                    "net_total": float(net_total),
+                    "cogs_unit": 0.0,
+                    "cogs_total": 0.0,
+                    "gross_profit": 0.0,
+                    "gross_margin_pct": 0.0,
                 },
             )
 
@@ -1835,9 +1894,9 @@ def checkout(
                 text(
                     "INSERT INTO stock_moves("
                     "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id, "
-                    "tentative, posted, unit_cost, total_cost"
+                    "tentative, posted, unit_cost, total_cost, occurred_at"
                     ") VALUES ("
-                    ":tid, :pid, :wid, :q, 'sale', 'pos_receipt', :rid, FALSE, TRUE, :uc, :tc"
+                    ":tid, :pid, :wid, :q, 'sale', 'pos_receipt', :rid, FALSE, TRUE, :uc, :tc, :occurred_at"
                     ")"
                 ).bindparams(
                     bindparam("tid", type_=PGUUID(as_uuid=True)),
@@ -1853,6 +1912,7 @@ def checkout(
                     "rid": receipt_uuid,
                     "uc": float(cogs_unit),
                     "tc": float(cogs_total_money),
+                    "occurred_at": datetime.utcnow(),
                 },
             )
 
@@ -1881,6 +1941,40 @@ def checkout(
 
         db.commit()
 
+        # 7. Create complementary documents if modules enabled
+        try:
+            from app.modules.pos.application.invoice_integration import POSInvoicingService
+            
+            service = POSInvoicingService(db, tenant_id)
+            documents_created = {}
+            
+            # Create invoice if invoicing module enabled
+            invoice_result = service.create_invoice_from_receipt(
+                receipt_uuid,
+                customer_id=None,
+                invoice_series=payload.invoice_series if hasattr(payload, 'invoice_series') else "A"
+            )
+            if invoice_result:
+                documents_created["invoice"] = invoice_result
+            
+            # Create sale if sales module enabled
+            sale_result = service.create_sale_from_receipt(receipt_uuid)
+            if sale_result:
+                documents_created["sale"] = sale_result
+            
+            # Create expense if expense module enabled and type is return
+            if hasattr(payload, 'type') and payload.type == "return":
+                expense_result = service.create_expense_from_receipt(
+                    receipt_uuid,
+                    expense_type="refund"
+                )
+                if expense_result:
+                    documents_created["expense"] = expense_result
+            
+        except Exception as e:
+            logger.warning(f"Error creating complementary documents: {e}")
+            documents_created = {}
+
         try:
             claims = getattr(request.state, "access_claims", None)
             user_id = claims.get("user_id") if isinstance(claims, dict) else None
@@ -1902,6 +1996,7 @@ def checkout(
                         "paid": float(paid),
                         "change": float(paid - total),
                     },
+                    "documents_created": list(documents_created.keys()),
                 },
                 req=request,
             )
@@ -1919,6 +2014,7 @@ def checkout(
                 "paid": float(paid),
                 "change": float(paid - total),
             },
+            "documents_created": documents_created,
         }
 
     except HTTPException:
@@ -2082,9 +2178,9 @@ def refund_receipt(
                 text(
                     "INSERT INTO stock_moves("
                     "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id, tentative, "
-                    "posted, unit_cost, total_cost"
+                    "posted, unit_cost, total_cost, occurred_at"
                     ") VALUES ("
-                    ":tid, :pid, :wid, :q, 'return', 'pos_receipt_refund', :rid, FALSE, TRUE, :uc, :tc"
+                    ":tid, :pid, :wid, :q, 'return', 'pos_receipt_refund', :rid, FALSE, TRUE, :uc, :tc, :occurred_at"
                     ")"
                 ).bindparams(
                     bindparam("tid", type_=PGUUID(as_uuid=True)),
@@ -2100,10 +2196,42 @@ def refund_receipt(
                     "rid": receipt_uuid,
                     "uc": float(cogs_unit_dec),
                     "tc": float(cogs_unit_dec * qty_dec),
+                    "occurred_at": datetime.utcnow(),
                 },
             )
 
         db.commit()
+
+        # Best-effort: mark receipt as refunded (status is used by UI filters)
+        try:
+            db.execute(
+                text("UPDATE pos_receipts SET status = 'refunded' WHERE id = :id").bindparams(
+                    bindparam("id", type_=PGUUID(as_uuid=True))
+                ),
+                {"id": receipt_uuid},
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+
+        # Create complementary documents (refund -> expense) if modules enabled
+        documents_created: dict = {}
+        try:
+            from app.modules.pos.application.invoice_integration import POSInvoicingService
+
+            service = POSInvoicingService(db, tenant_id)
+            expense_result = service.create_expense_from_receipt(
+                receipt_uuid,
+                expense_type="refund",
+                refund_reason=payload.reason,
+                payment_method=("cash" if payload.refund_method == "cash" else None),
+            )
+            if expense_result:
+                documents_created["expense"] = expense_result
+        except Exception as e:
+            logger.warning(f"Error creating refund documents: {e}")
+            documents_created = {}
+
         try:
             claims = getattr(request.state, "access_claims", None)
             user_id = claims.get("user_id") if isinstance(claims, dict) else None
@@ -2116,12 +2244,21 @@ def refund_receipt(
                 source="api",
                 tenant_id=str(tenant_id),
                 user_id=str(user_id) if user_id else None,
-                changes={"status": "refunded", "reason": payload.reason},
+                changes={
+                    "status": "refunded",
+                    "reason": payload.reason,
+                    "documents_created": list(documents_created.keys()),
+                },
                 req=request,
             )
         except Exception:
             pass
-        return {"ok": True, "receipt_id": str(receipt_uuid), "status": "refunded"}
+        return {
+            "ok": True,
+            "receipt_id": str(receipt_uuid),
+            "status": "refunded",
+            "documents_created": documents_created,
+        }
 
     except HTTPException:
         db.rollback()
@@ -2129,6 +2266,57 @@ def refund_receipt(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al reembolsar: {str(e)}")
+
+
+@router.post(
+    "/receipts/{receipt_id}/backfill_documents",
+    response_model=dict,
+    dependencies=[Depends(require_permission("pos.receipt.read"))],
+)
+def backfill_receipt_documents(
+    receipt_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Crea documentos faltantes para un recibo ya pagado (rescate/backfill).
+
+    Útil cuando el recibo quedó en `paid` pero falló la creación de invoice/sales_order en checkout.
+    Idempotente: si ya existen, no crea duplicados.
+    """
+    ensure_guc_from_request(request, db, persist=True)
+    receipt_uuid = _validate_uuid(receipt_id, "Receipt ID")
+    tenant_id = _get_tenant_id(request)
+
+    # Lock receipt row to prevent concurrent backfills
+    receipt = db.execute(
+        text("SELECT status FROM pos_receipts WHERE id = :id FOR UPDATE").bindparams(
+            bindparam("id", type_=PGUUID(as_uuid=True))
+        ),
+        {"id": receipt_uuid},
+    ).first()
+    if not receipt:
+        raise HTTPException(status_code=404, detail="Recibo no encontrado")
+    if receipt[0] != "paid":
+        raise HTTPException(status_code=400, detail="invalid_status")
+
+    documents_created: dict = {}
+    try:
+        from app.modules.pos.application.invoice_integration import POSInvoicingService
+
+        service = POSInvoicingService(db, tenant_id)
+
+        invoice_result = service.create_invoice_from_receipt(receipt_uuid, customer_id=None)
+        if invoice_result:
+            documents_created["invoice"] = invoice_result
+
+        sale_result = service.create_sale_from_receipt(receipt_uuid)
+        if sale_result:
+            documents_created["sale"] = sale_result
+
+    except Exception as e:
+        logger.warning(f"Error backfilling documents: {e}")
+
+    return {"ok": True, "receipt_id": str(receipt_uuid), "documents_created": documents_created}
 
 
 @router.get(
@@ -2842,8 +3030,8 @@ def post_receipt(
             db.execute(
                 text(
                     "INSERT INTO stock_moves("
-                    "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id, tentative, posted"
-                    ") VALUES (:tid, :pid, :wid, :q, 'issue', 'pos_receipt', :rid, FALSE, TRUE)"
+                    "tenant_id, product_id, warehouse_id, qty, kind, ref_type, ref_id, tentative, posted, occurred_at"
+                    ") VALUES (:tid, :pid, :wid, :q, 'issue', 'pos_receipt', :rid, FALSE, TRUE, :occurred_at)"
                 ).bindparams(
                     bindparam("tid", type_=PGUUID(as_uuid=True)),
                     bindparam("pid", type_=PGUUID(as_uuid=True)),
@@ -2856,6 +3044,7 @@ def post_receipt(
                     "wid": wh_id,
                     "q": float(it[1]),
                     "rid": receipt_uuid,
+                    "occurred_at": datetime.utcnow(),
                 },
             )
 

@@ -718,7 +718,12 @@ def _ensure_sqlite_stub_tables(engine):
                         unit_price REAL,
                         tax_rate REAL,
                         discount_pct REAL,
-                        line_total REAL
+                        line_total REAL,
+                        net_total REAL,
+                        cogs_unit REAL,
+                        cogs_total REAL,
+                        gross_profit REAL,
+                        gross_margin_pct REAL
                     )
                     """
                 )
@@ -813,6 +818,5 @@ def tenant_minimal(db):
         "tenant_id": tid,
         "tenant_id_str": str(tid),
     }
-
 
 

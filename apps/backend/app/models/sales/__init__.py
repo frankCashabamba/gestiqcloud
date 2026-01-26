@@ -1,5 +1,3 @@
 """Sales module models."""
 
-from .sale import Sale
-
-__all__ = ["Sale"]
+__all__: list[str] = []

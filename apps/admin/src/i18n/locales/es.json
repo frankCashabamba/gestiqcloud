@@ -1,0 +1,90 @@
+{
+  "common": {
+    "loading": "Cargando...",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "create": "Crear",
+    "new": "Nuevo",
+    "search": "Buscar",
+    "back": "Volver",
+    "yes": "Sí",
+    "no": "No",
+    "active": "Activo",
+    "inactive": "Inactivo",
+    "actions": "Acciones",
+    "status": "Estado",
+    "name": "Nombre",
+    "saving": "Guardando...",
+    "error": "Error",
+    "success": "Éxito"
+  },
+  "errors": {
+    "notFound": "No encontrado",
+    "saving": "Error guardando",
+    "loading": "Error cargando",
+    "required": "Este campo es obligatorio",
+    "invalidJson": "debe ser JSON válido"
+  },
+  "countryPacks": {
+    "title": "Paquetes de País",
+    "newPack": "Nuevo Paquete",
+    "code": "Código",
+    "validators": "Validadores",
+    "taxRules": "Reglas de Impuestos",
+    "deleted": "Paquete eliminado",
+    "updated": "Paquete actualizado",
+    "deleteConfirm": "¿Eliminar este paquete?",
+    "errors": {
+      "loading": "Error cargando paquetes de país",
+      "deleting": "Error eliminando paquete",
+      "updating": "Error actualizando paquete"
+    }
+  },
+  "roles": {
+    "title": "Roles",
+    "newRole": "Nuevo Rol",
+    "editRole": "Editar Rol",
+    "roleName": "Nombre del Rol",
+    "permissions": "Permisos",
+    "module": "Módulo",
+    "created": "Rol creado correctamente",
+    "deleted": "Rol eliminado",
+    "deleteConfirm": "¿Eliminar este rol?",
+    "errors": {
+      "nameRequired": "El nombre del rol es obligatorio"
+    }
+  },
+  "permissions": {
+    "title": "Permisos",
+    "newPermission": "Nuevo Permiso",
+    "key": "Clave",
+    "errors": {
+      "moduleRequired": "El módulo es obligatorio",
+      "keyRequired": "La clave es obligatoria"
+    }
+  },
+  "companies": {
+    "title": "Empresas",
+    "create": "Crear Empresa",
+    "companyName": "Nombre de la Empresa",
+    "managerName": "Nombre del Encargado",
+    "managerLastName": "Apellido del Encargado",
+    "email": "Correo Electrónico",
+    "country": "País",
+    "taxId": "Identificación Fiscal",
+    "errors": {
+      "companyNameRequired": "El nombre de la empresa es obligatorio",
+      "managerNameRequired": "El nombre del encargado es obligatorio",
+      "managerLastNameRequired": "El apellido del encargado es obligatorio",
+      "emailRequired": "El correo es obligatorio",
+      "invalidTaxId": "Formato de identificación fiscal inválido"
+    }
+  },
+  "sectors": {
+    "title": "Sectores",
+    "config": "Configuración",
+    "jsonNote": "Puedes editar la configuración avanzada; debe ser un JSON válido."
+  }
+}

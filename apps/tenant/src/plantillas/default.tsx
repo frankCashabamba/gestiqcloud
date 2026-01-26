@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import SectorLayout from './components/SectorLayout'
 import { useMisModulos } from '../hooks/useMisModulos'
 
@@ -26,6 +27,7 @@ const kpiCard = (key: string, title: string, helper: string) => (
 )
 
 const DefaultPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
+  const { t } = useTranslation()
   const { modules, allowedSlugs } = useMisModulos()
   const { empresa } = useParams()
   const prefix = empresa ? `/${empresa}` : ''
@@ -46,26 +48,26 @@ const DefaultPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
   const kpis = useMemo(() => {
     const items: React.ReactNode[] = []
     if (allowedSlugs.has('ventas')) {
-      items.push(kpiCard('sales', 'Sales today', 'Connect billing to see real-time data.'))
+      items.push(kpiCard('sales', t('defaultDashboard.kpis.sales.title'), t('defaultDashboard.kpis.sales.help')))
     }
     if (allowedSlugs.has('gastos')) {
-      items.push(kpiCard('expenses', 'Expenses today', 'Upload receipts to monitor operating costs.'))
+      items.push(kpiCard('expenses', t('defaultDashboard.kpis.expenses.title'), t('defaultDashboard.kpis.expenses.help')))
     }
     if (allowedSlugs.has('facturacion')) {
-      items.push(kpiCard('invoices', 'Invoices to collect', 'Review receivables and plan cash flow.'))
+      items.push(kpiCard('invoices', t('defaultDashboard.kpis.invoices.title'), t('defaultDashboard.kpis.invoices.help')))
     }
     if (!items.length) {
-      items.push(kpiCard('placeholder', 'KPIs pending', 'Enable metrics in Settings > Dashboards.'))
+      items.push(kpiCard('placeholder', t('defaultDashboard.kpis.placeholder.title'), t('defaultDashboard.kpis.placeholder.help')))
     }
     return items
-  }, [allowedSlugs])
+  }, [allowedSlugs, t])
 
   const recommended = useMemo(() => sideNav.slice(0, 4), [sideNav])
 
   return (
     <SectorLayout
-      title="Company overview"
-      subtitle="Quick access to enabled modules and your main business metrics."
+      title={t('defaultDashboard.title')}
+      subtitle={t('defaultDashboard.subtitle')}
       topNav={sideNav.slice(0, 3)}
       sideNav={sideNav}
       kpis={kpis}
@@ -73,16 +75,15 @@ const DefaultPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
       <div className="grid gap-6 xl:grid-cols-[2fr,1fr]">
         <section className="gc-card space-y-6">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Welcome{slug ? ` · ${slug}` : ''}</h2>
-            <p className="mt-2 text-sm text-slate-500">
-              Use the side navigation to open each module or start with the suggested quick links. Everything is synced
-              with your tenant, so access and data depend on your profile.
-            </p>
+            <h2 className="text-lg font-semibold text-slate-900">
+              {t('defaultDashboard.welcome')}{slug ? ` · ${slug}` : ''}
+            </h2>
+            <p className="mt-2 text-sm text-slate-500">{t('defaultDashboard.welcomeHelp')}</p>
           </div>
 
           {quickAccess.length > 0 && (
             <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Quick access</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('defaultDashboard.quickAccess')}</h3>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 {quickAccess.map((item) => (
                   <Link
@@ -91,7 +92,7 @@ const DefaultPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
                     className="group flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-blue-200 hover:bg-blue-50"
                   >
                     <span>{item.label}</span>
-                    <span className="text-xs text-slate-400 transition group-hover:text-blue-600">Open module</span>
+                    <span className="text-xs text-slate-400 transition group-hover:text-blue-600">{t('defaultDashboard.openModule')}</span>
                   </Link>
                 ))}
               </div>
@@ -99,24 +100,22 @@ const DefaultPlantilla: React.FC<{ slug?: string }> = ({ slug }) => {
           )}
 
           <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-4">
-            <h3 className="text-sm font-semibold text-slate-700">Personalize your dashboard</h3>
-            <p className="mt-2 text-sm text-slate-500">
-              In Settings you can define which KPIs are visible to your team, assign templates by role, and control module access.
-            </p>
+            <h3 className="text-sm font-semibold text-slate-700">{t('defaultDashboard.personalizeTitle')}</h3>
+            <p className="mt-2 text-sm text-slate-500">{t('defaultDashboard.personalizeHelp')}</p>
           </div>
         </section>
 
         <aside className="gc-card-muted space-y-4">
-          <h3 className="text-sm font-semibold text-slate-700">Recommended next steps</h3>
+          <h3 className="text-sm font-semibold text-slate-700">{t('defaultDashboard.nextSteps')}</h3>
           <ul className="space-y-3 text-sm text-slate-500">
-            <li>Configure your company profile to show branding across the app.</li>
-            <li>Connect bank accounts or upload statements to automate reconciliations.</li>
-            <li>Assign module owners to receive alerts and pending tasks.</li>
+            <li>{t('defaultDashboard.nextStepsItems.branding')}</li>
+            <li>{t('defaultDashboard.nextStepsItems.banking')}</li>
+            <li>{t('defaultDashboard.nextStepsItems.owners')}</li>
           </ul>
 
           {recommended.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Highlighted modules</h4>
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('defaultDashboard.highlightedModules')}</h4>
               <div className="mt-3 space-y-2">
                 {recommended.map((item) => (
                   <Link

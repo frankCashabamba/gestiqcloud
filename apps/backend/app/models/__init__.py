@@ -76,10 +76,23 @@ from app.models.printing.printer_label_configuration import PrinterLabelConfigur
 from app.models.production import ProductionOrder, ProductionOrderLine
 from app.models.purchases import Purchase, PurchaseLine
 from app.models.recipes import Recipe, RecipeIngredient
-from app.models.sales import Sale
+from app.models.sales.delivery import Delivery
+from app.models.sales.order import SalesOrder, SalesOrderItem
 from app.models.security.auth_audit import AuthAudit
 from app.models.suppliers import Supplier, SupplierAddress, SupplierContact
 from app.models.tenant import Tenant
+
+# UI Configuration (Sistema Sin Hardcodes)
+from app.models.core.ui_config import (
+    UiSection,
+    UiWidget,
+    UiTable,
+    UiColumn,
+    UiFilter,
+    UiForm,
+    UiFormField,
+    UiDashboard,
+)
 
 __all__ = [
     # Core Facturación
@@ -137,7 +150,9 @@ __all__ = [
     "AuthAudit",
     "Tenant",
     # Professional modules
-    "Sale",
+    "SalesOrder",
+    "SalesOrderItem",
+    "Delivery",
     "Supplier",
     "SupplierContact",
     "SupplierAddress",
@@ -176,4 +191,13 @@ __all__ = [
     # Production
     "ProductionOrder",
     "ProductionOrderLine",
+    # UI Configuration
+    "UiSection",
+    "UiWidget",
+    "UiTable",
+    "UiColumn",
+    "UiFilter",
+    "UiForm",
+    "UiFormField",
+    "UiDashboard",
 ]

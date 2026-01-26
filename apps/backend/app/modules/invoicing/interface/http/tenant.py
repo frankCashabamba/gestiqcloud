@@ -26,7 +26,7 @@ def _tenant_uuid(request: Request) -> UUID:
 
 
 router = APIRouter(
-    prefix="/facturacion",
+    prefix="/invoicing",
     tags=["Facturacion"],
     dependencies=[
         Depends(with_access_claims),
@@ -92,11 +92,19 @@ def actualizar_factura(
     db: Session = Depends(get_db),
 ):
     """Actualizar factura en borrador"""
+    from sqlalchemy.orm import joinedload
+    
     tenant_id = _tenant_uuid(request)
 
     factura_uuid = factura_id
     invoice = (
-        db.query(Invoice).filter(Invoice.id == factura_uuid, Invoice.tenant_id == tenant_id).first()
+        db.query(Invoice)
+        .options(
+            joinedload(Invoice.lines),
+            joinedload(Invoice.customer),
+        )
+        .filter(Invoice.id == factura_uuid, Invoice.tenant_id == tenant_id)
+        .first()
     )
 
     if not invoice:
@@ -112,7 +120,7 @@ def actualizar_factura(
             setattr(invoice, field, value)
 
     db.commit()
-    db.refresh(invoice)
+    db.refresh(invoice, ["lines", "customer"])
     try:
         claims = getattr(request.state, "access_claims", None)
         user_id = claims.get("user_id") if isinstance(claims, dict) else None
@@ -182,8 +190,20 @@ def emitir_factura(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    from sqlalchemy.orm import joinedload
+    
     tenant_id = _tenant_uuid(request)
     issued = factura_crud.emitir_factura(db, tenant_id, factura_id)
+    # Reload with relations
+    issued = (
+        db.query(Invoice)
+        .options(
+            joinedload(Invoice.lines),
+            joinedload(Invoice.customer),
+        )
+        .filter_by(id=issued.id)
+        .first()
+    )
     try:
         claims = getattr(request.state, "access_claims", None)
         user_id = claims.get("user_id") if isinstance(claims, dict) else None
@@ -210,9 +230,19 @@ def obtener_factura_por_id(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    from sqlalchemy.orm import joinedload
+    
     tenant_id = _tenant_uuid(request)
-    factura = db.query(Invoice).filter_by(id=factura_id).first()
-    if not factura or factura.tenant_id != tenant_id:
+    factura = (
+        db.query(Invoice)
+        .options(
+            joinedload(Invoice.lines),
+            joinedload(Invoice.customer),
+        )
+        .filter_by(id=factura_id, tenant_id=tenant_id)
+        .first()
+    )
+    if not factura:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
     return factura
 

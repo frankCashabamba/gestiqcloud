@@ -3,6 +3,7 @@
  */
 import React, { useState, useEffect, ReactNode } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useMisModulos } from '../../hooks/useMisModulos'
 import { fetchCompanyTheme, type ThemeResponse } from '../../services/theme'
 
@@ -45,6 +46,7 @@ const DashboardPro: React.FC<DashboardProProps> = ({
   customLinks = [],
   darkModeDefault = true,
 }) => {
+  const { t } = useTranslation()
   const { empresa } = useParams()
   const [theme, setTheme] = useState<ThemeResponse | null>(null)
   const [darkMode, setDarkMode] = useState(darkModeDefault)
@@ -84,20 +86,20 @@ const DashboardPro: React.FC<DashboardProProps> = ({
           </span>
         </div>
         <div className="search">
-          <input placeholder="Search (/) tickets, customers, SKUs" />
+          <input placeholder={t('dashboardPro.searchPlaceholder')} />
           <span>/</span>
         </div>
         <select>
-          <option>Main store</option>
-          <option>Branch 1</option>
-          <option>Branch 2</option>
+          <option>{t('dashboardPro.stores.main')}</option>
+          <option>{t('dashboardPro.stores.branch', { n: 1 })}</option>
+          <option>{t('dashboardPro.stores.branch', { n: 2 })}</option>
         </select>
         <input type="date" defaultValue={new Date().toISOString().split('T')[0]} />
         <button className="btn" onClick={toggleTheme}>
-          {darkMode ? 'Light mode' : 'Dark mode'}
+          {darkMode ? t('dashboardPro.lightMode') : t('dashboardPro.darkMode')}
         </button>
         <a className="btn btn--primary" href="#close-day">
-          Close day
+          {t('dashboardPro.closeDay')}
         </a>
       </header>
 
@@ -106,12 +108,12 @@ const DashboardPro: React.FC<DashboardProProps> = ({
           <ul>
             <li>
               <Link to={`/${empresa}`} className="active">
-                Dashboard
+                {t('nav.dashboard')}
               </Link>
             </li>
 
             {modulosLoading ? (
-              <li className="sidebar-loading">Loading modules...</li>
+              <li className="sidebar-loading">{t('dashboardPro.loadingModules')}</li>
             ) : (
               modules
                 .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
@@ -131,7 +133,7 @@ const DashboardPro: React.FC<DashboardProProps> = ({
 
             {customLinks.length > 0 && (
               <>
-                <li className="sidebar-divider">Sector tools</li>
+                <li className="sidebar-divider">{t('dashboardPro.sectorTools')}</li>
                 {customLinks.map((link, i) => (
                   <li key={i}>
                     <a href={link.href}>
@@ -140,10 +142,10 @@ const DashboardPro: React.FC<DashboardProProps> = ({
                   </li>
                 ))}
               </>
-            )}
+          )}
           </ul>
         </nav>
-        <small>Shortcuts: / search, Cmd+K commands</small>
+        <small>{t('dashboardPro.shortcuts')}</small>
       </aside>
 
       <main className="main-content">{children}</main>

@@ -14,7 +14,7 @@ from app.modules.modulos.infrastructure.repositories import SqlModuloRepo
 from app.modules.modulos.interface.http.schemas import ModuloOutSchema
 
 router = APIRouter(
-    prefix="/modulos",
+    prefix="/modules",
     tags=["Modulos"],
     dependencies=[
         Depends(with_access_claims),

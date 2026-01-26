@@ -27,25 +27,25 @@ const buildPayload = (payload: MonedaPayload) => ({
 })
 
 export async function listMonedas(): Promise<Moneda[]> {
-  const { data } = await api.get<Partial<Moneda>[]>(`${ADMIN_CONFIG.monedas.base}`)
+  const { data } = await api.get<Partial<Moneda>[]>(`${ADMIN_CONFIG.currencies.base}`)
   return (data || []).map(normalizeMoneda)
 }
 
 export async function getMoneda(id: number | string): Promise<Moneda> {
-  const { data } = await api.get<Partial<Moneda>>(ADMIN_CONFIG.monedas.byId(id))
+  const { data } = await api.get<Partial<Moneda>>(ADMIN_CONFIG.currencies.byId(id))
   return normalizeMoneda(data || {})
 }
 
 export async function createMoneda(payload: MonedaPayload): Promise<Moneda> {
-  const { data } = await api.post<Partial<Moneda>>(`${ADMIN_CONFIG.monedas.base}`, buildPayload(payload))
+  const { data } = await api.post<Partial<Moneda>>(`${ADMIN_CONFIG.currencies.base}`, buildPayload(payload))
   return normalizeMoneda(data || payload)
 }
 
 export async function updateMoneda(id: number | string, payload: MonedaPayload): Promise<Moneda> {
-  const { data } = await api.put<Partial<Moneda>>(ADMIN_CONFIG.monedas.byId(id), buildPayload(payload))
+  const { data } = await api.put<Partial<Moneda>>(ADMIN_CONFIG.currencies.byId(id), buildPayload(payload))
   return normalizeMoneda(data || payload)
 }
 
 export async function removeMoneda(id: number | string): Promise<void> {
-  await api.delete(ADMIN_CONFIG.monedas.byId(id))
+  await api.delete(ADMIN_CONFIG.currencies.byId(id))
 }

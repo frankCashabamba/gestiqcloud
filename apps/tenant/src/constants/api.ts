@@ -32,9 +32,9 @@ export const API_PATHS = {
     RECEIPTS: `/api/${API_VERSION}/tenant/pos/receipts`,
   },
 
-  // Inventario
-  INVENTARIO: {
-    WAREHOUSES: `/api/${API_VERSION}/tenant/inventario/warehouses`,
-    PRODUCTOS: `/api/${API_VERSION}/tenant/inventario/productos`,
+  // Inventory
+  INVENTORY: {
+    WAREHOUSES: `/api/${API_VERSION}/tenant/inventory/warehouses`,
+    PRODUCTS: `/api/${API_VERSION}/tenant/inventory/products`,
   },
 } as const

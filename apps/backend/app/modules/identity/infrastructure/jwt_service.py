@@ -77,9 +77,19 @@ class JwtSettings:
             )
 
         if not secret:
-            # Safe default for tests/dev only
-            secret = "devsecretdevsecretdevsecret"
-            logger.debug("JWT secret using default devsecret")
+            environment = os.environ.get("ENVIRONMENT", "development").lower()
+            if environment == "production":
+                raise RuntimeError(
+                    "JWT_SECRET_KEY (or SECRET_KEY) is not configured. "
+                    "This is required in production. "
+                    "Set JWT_SECRET_KEY environment variable with a secure 32+ character secret."
+                )
+            import secrets
+            secret = secrets.token_hex(32)
+            logger.warning(
+                "JWT_SECRET_KEY not set. Using randomly generated secret for development. "
+                "Sessions will not persist across restarts. Set JWT_SECRET_KEY in production."
+            )
 
         return cls(
             secret=secret,

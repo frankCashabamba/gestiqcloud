@@ -1,4 +1,4 @@
-﻿/**
+/**
  * WeightInput - Input manual de peso para productos a granel
  */
 import React, { useState } from 'react'
@@ -113,7 +113,7 @@ export default function WeightInput({
                         onClick={onCancel}
                         className="px-6 py-3 bg-gray-300 rounded-lg hover:bg-gray-400"
                     >
-                        Cancelar
+                        Cancel
                     </button>
                 </div>
 

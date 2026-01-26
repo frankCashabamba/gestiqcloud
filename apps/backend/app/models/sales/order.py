@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Numeric, String, Text, func
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -20,6 +20,12 @@ class SalesOrder(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
     number: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     customer_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    pos_receipt_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("pos_receipts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     order_date: Mapped[date] = mapped_column(Date, nullable=False)
     required_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     subtotal: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)

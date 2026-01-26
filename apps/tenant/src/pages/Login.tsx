@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch } from '../lib/http'
 import { useEnv } from '@ui/env'
+import { resolveTenantPath } from '../lib/tenantNavigation'
 
 export default function Login() {
   const { login } = useAuth()
@@ -46,7 +47,8 @@ export default function Login() {
     setSubmitting(true)
     try {
       await login({ identificador, password })
-      navigate('/')
+      const target = await resolveTenantPath()
+      navigate(target)
     } catch (err: any) {
       if (err?.status && err.status !== 401) {
         setError(err?.message || 'Server error')

@@ -102,7 +102,7 @@ class Opportunity(Base):
     description: Mapped[str | None] = mapped_column(Text)
 
     value: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="EUR")
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
     probability: Mapped[int] = mapped_column(nullable=False, default=50)
 
     stage: Mapped[OpportunityStage] = mapped_column(

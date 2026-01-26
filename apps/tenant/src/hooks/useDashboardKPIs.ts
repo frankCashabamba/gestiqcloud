@@ -5,11 +5,29 @@
 
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
+import { apiFetch } from '../lib/http'
 
 export interface DashboardKPIs {
   periodo: string
   fecha_inicio: string | null
   fecha_fin: string
+  ventas_dia?: {
+    total?: number
+    tickets?: number
+    ticket_medio?: number
+    currency?: string | null
+  }
+  stock_rotacion?: {
+    productos_alta_rotacion?: number
+    productos_baja_rotacion?: number
+    reposicion_necesaria?: number
+  }
+  comparativa_semana?: {
+    actual?: number
+    anterior?: number
+    variacion?: number
+    currency?: string | null
+  }
   ventas: {
     total: number
     count: number
@@ -58,6 +76,46 @@ interface UseDashboardKPIsOptions {
   enabled?: boolean
 }
 
+const normalizeKPIs = (payload: any) => {
+  if (!payload || typeof payload !== 'object') return payload
+
+  const normalized = { ...payload }
+
+  // Retail / todoa100 backend payload -> UI expected keys
+  if (payload.daily_sales && !payload.ventas_dia) {
+    normalized.ventas_dia = {
+      total: payload.daily_sales.total ?? 0,
+      tickets: payload.daily_sales.tickets ?? 0,
+      ticket_medio: payload.daily_sales.average_ticket ?? 0,
+      currency: payload.daily_sales.currency,
+    }
+  }
+
+  if (payload.stock_rotation && !payload.stock_rotacion) {
+    normalized.stock_rotacion = {
+      productos_alta_rotacion: payload.stock_rotation.high_rotation_products ?? 0,
+      productos_baja_rotacion: payload.stock_rotation.low_rotation_products ?? 0,
+      reposicion_necesaria: payload.stock_rotation.replenishment_needed ?? 0,
+    }
+  }
+
+  if (payload.weekly_comparison && !payload.comparativa_semana) {
+    const actual = payload.weekly_comparison.current ?? 0
+    const anterior = payload.weekly_comparison.previous ?? 0
+    const variacion =
+      payload.weekly_comparison.variation ?? (anterior > 0 ? ((actual - anterior) / anterior) * 100 : 0)
+
+    normalized.comparativa_semana = {
+      actual,
+      anterior,
+      variacion,
+      currency: payload.weekly_comparison.currency,
+    }
+  }
+
+  return normalized
+}
+
 export function useDashboardKPIs(options: UseDashboardKPIsOptions = {}) {
   const { periodo = 'today', autoRefresh = false, refreshInterval = 60000, enabled = true } = options
   const { token } = useAuth()
@@ -74,22 +132,17 @@ export function useDashboardKPIs(options: UseDashboardKPIsOptions = {}) {
 
     try {
       setError(null)
-      const response = await fetch(`/api/v1/dashboard/kpis`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`)
-      }
-
-      const result = await response.json()
-      setData(result)
+      const result = await apiFetch<DashboardKPIs>('/api/v1/dashboard/kpis', { authToken: token })
+      setData(normalizeKPIs(result))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar KPIs')
-      console.error('Error fetching dashboard KPIs:', err)
+      if ((err as any)?.status === 404) {
+        // Endpoint podría no estar implementado en algunas instalaciones
+        setData(null)
+        setError(null)
+      } else {
+        setError(err instanceof Error ? err.message : 'Error al cargar KPIs')
+      }
+      console.debug('Error fetching dashboard KPIs:', err)
     } finally {
       setLoading(false)
     }
@@ -130,18 +183,9 @@ export function useTallerKPIs(options: { enabled?: boolean } = {}) {
 
     const fetchTallerKPIs = async () => {
       try {
-        const response = await fetch('/api/v1/dashboard/kpis?sector=taller', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
+        const result = await apiFetch<TallerKPIs>('/api/v1/dashboard/kpis?sector=taller', {
+          authToken: token,
         })
-
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}`)
-        }
-
-        const result = await response.json()
         setData(result)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error al cargar KPIs de taller')
@@ -174,18 +218,9 @@ export function usePanaderiaKPIs(options: { enabled?: boolean } = {}) {
 
     const fetchPanaderiaKPIs = async () => {
       try {
-        const response = await fetch('/api/v1/dashboard/kpis?sector=panaderia', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
+        const result = await apiFetch<PanaderiaKPIs>('/api/v1/dashboard/kpis?sector=panaderia', {
+          authToken: token,
         })
-
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}`)
-        }
-
-        const result = await response.json()
         setData(result)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error al cargar KPIs de panadería')
@@ -203,13 +238,30 @@ export function usePanaderiaKPIs(options: { enabled?: boolean } = {}) {
 /**
  * Formateador de moneda profesional
  */
-export function formatCurrency(value: number, currency: string = 'EUR'): string {
-  return new Intl.NumberFormat('es-ES', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)
+export function formatCurrency(value: number, currency?: string | null): string {
+  const curr = (currency || '').trim().toUpperCase()
+  
+  if (!curr || curr.length !== 3) {
+    return new Intl.NumberFormat('es-ES', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value)
+  }
+  
+  try {
+    return new Intl.NumberFormat('es-ES', {
+      style: 'currency',
+      currency: curr,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value)
+  } catch (error) {
+    console.warn(`Invalid currency code: ${curr}`)
+    return new Intl.NumberFormat('es-ES', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value)
+  }
 }
 
 /**

@@ -66,6 +66,58 @@ class Invoice(Base):
     customer: Mapped[Client] = relationship(Client, foreign_keys=[customer_id])
     lines: Mapped[list[LineaFactura]] = relationship(LineaFactura, cascade="all, delete-orphan")
 
+    # ---------------------------------------------------------------------
+    # Spanish compatibility aliases (used by tenant UI / older modules)
+    # ---------------------------------------------------------------------
+
+    @property
+    def numero(self) -> str:
+        return str(self.number)
+
+    @numero.setter
+    def numero(self, value: str) -> None:
+        self.number = value
+
+    @property
+    def fecha(self) -> str | date:
+        return self.issue_date
+
+    @fecha.setter
+    def fecha(self, value: str | date) -> None:
+        self.issue_date = value
+
+    @property
+    def fecha_emision(self) -> str | date:
+        return self.issue_date
+
+    @fecha_emision.setter
+    def fecha_emision(self, value: str | date) -> None:
+        self.issue_date = value
+
+    @property
+    def estado(self) -> str:
+        return str(self.status)
+
+    @estado.setter
+    def estado(self, value: str) -> None:
+        self.status = value
+
+    @property
+    def cliente_id(self) -> uuid.UUID:
+        return self.customer_id
+
+    @cliente_id.setter
+    def cliente_id(self, value: uuid.UUID) -> None:
+        self.customer_id = value
+
+    @property
+    def iva(self) -> float:
+        return float(self.vat or 0)
+
+    @iva.setter
+    def iva(self, value: float) -> None:
+        self.vat = value
+
 
 class BankAccount(Base):
     """Bank account model."""
@@ -79,7 +131,7 @@ class BankAccount(Base):
     name: Mapped[str] = mapped_column("name", String, nullable=False)
     iban: Mapped[str] = mapped_column("iban", String, index=True, unique=True)
     bank: Mapped[str] = mapped_column("bank", String, nullable=True)
-    currency: Mapped[str] = mapped_column("currency", String, default="EUR")
+    currency: Mapped[str] = mapped_column("currency", String)
     customer_id: Mapped[uuid.UUID] = mapped_column(
         "customer_id", UUID(as_uuid=True), ForeignKey("clients.id")
     )
@@ -120,7 +172,7 @@ class BankTransaction(Base):
     )
     date: Mapped[date] = mapped_column(Date(), index=True)
     amount: Mapped[float] = mapped_column("amount", nullable=False)
-    currency: Mapped[str] = mapped_column("currency", String, default="EUR")
+    currency: Mapped[str] = mapped_column("currency", String)
     type: Mapped[TransactionType] = mapped_column("type", SAEnum(TransactionType))
     status: Mapped[TransactionStatus] = mapped_column(
         "status", SAEnum(TransactionStatus), default=TransactionStatus.PENDING

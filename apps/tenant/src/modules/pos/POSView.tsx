@@ -4,6 +4,7 @@
  */
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import ShiftManager, { type ShiftManagerHandle } from './components/ShiftManager'
 import PaymentModal from './components/PaymentModal'
 import ConvertToInvoiceModal from './components/ConvertToInvoiceModal'
@@ -12,10 +13,10 @@ import { useCurrency } from '../../hooks/useCurrency'
 import { useAuth } from '../../auth/AuthContext'
 import { POS_DRAFT_KEY } from '../../constants/storage'
 import { POS_DEFAULTS } from '../../constants/defaults'
-import { listWarehouses, adjustStock, type Warehouse } from '../inventario/services'
+import { listWarehouses, adjustStock, type Warehouse } from '../inventory/services'
 import { listUsuarios } from '../usuarios/services'
 import type { Usuario } from '../usuarios/types'
-import { listClientes, type Cliente } from '../clientes/services'
+import { createCliente, listClientes, type Cliente } from '../customers/services'
 import {
     listRegisters,
     createRegister,
@@ -24,12 +25,12 @@ import {
     addToOutbox,
     calculateReceiptTotals,
     issueDocument,
-    renderDocument,
+    renderDocumentWithFormat,
     type ReceiptTotals,
     type SaleDraft,
 } from './services'
-import { createProducto, listProductos, searchProductos, type Producto } from '../productos/services'
-import { getCompanySettings, getDefaultReorderPoint, getDefaultTaxRate } from '../../services/companySettings'
+import { createProducto, listProductos, searchProductos, type Producto } from '../products/services'
+import { getCompanySettings, getDefaultReorderPoint, getDefaultTaxRate, shouldCreateInvoice } from '../../services/companySettings'
 import './pos-styles.css'
 import PendingReceiptsModal from './components/PendingReceiptsModal'
 import type { POSPayment } from '../../types/pos'
@@ -55,6 +56,10 @@ type HeldTicket = {
     ticketNotes?: string
 }
 
+type LastPrintJob =
+    | { kind: 'document'; documentId: string; format: 'THERMAL_80MM' | 'A4_PDF' }
+    | { kind: 'receipt'; receiptId: string; width: '58mm' | '80mm' }
+
 type PosDraftState = {
     cart: CartItem[]
     globalDiscountPct: number
@@ -73,6 +78,7 @@ const DEFAULT_ID_TYPES = ['CEDULA', 'RUC', 'PASSPORT']
 
 export default function POSView() {
     const navigate = useNavigate()
+    const { t } = useTranslation()
     const { symbol: currencySymbol } = useCurrency()
     const { profile } = useAuth()
     const esAdminEmpresa = !!(profile?.es_admin_empresa || (profile as any)?.is_company_admin)
@@ -97,10 +103,12 @@ export default function POSView() {
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [showBuyerModal, setShowBuyerModal] = useState(false)
     const [showInvoiceModal, setShowInvoiceModal] = useState(false)
+    const [autoCreateInvoice, setAutoCreateInvoice] = useState(false)
     const [showCreateProductModal, setShowCreateProductModal] = useState(false)
     const [loading, setLoading] = useState(false)
     const [creatingProduct, setCreatingProduct] = useState(false)
     const [heldTickets, setHeldTickets] = useState<HeldTicket[]>([])
+    const [lastPrintJob, setLastPrintJob] = useState<LastPrintJob | null>(null)
     const [showPendingModal, setShowPendingModal] = useState(false)
     const [showPrintPreview, setShowPrintPreview] = useState(false)
     const [printHtml, setPrintHtml] = useState('')
@@ -119,8 +127,12 @@ export default function POSView() {
     const [isWholesaleCustomer, setIsWholesaleCustomer] = useState(false)
     const [clients, setClients] = useState<Cliente[]>([])
     const [clientsLoading, setClientsLoading] = useState(false)
+    const [clientsLoadError, setClientsLoadError] = useState<string | null>(null)
+    const clientsLoadAttemptedRef = useRef(false)
     const [clientQuery, setClientQuery] = useState('')
     const [selectedClient, setSelectedClient] = useState<Cliente | null>(null)
+    const [saveBuyerAsClient, setSaveBuyerAsClient] = useState(true)
+    const [docPrintFormat, setDocPrintFormat] = useState<'THERMAL_80MM' | 'A4_PDF'>('THERMAL_80MM')
     const [createProductForm, setCreateProductForm] = useState({
         sku: '',
         name: '',
@@ -135,6 +147,29 @@ export default function POSView() {
     const shiftManagerRef = useRef<ShiftManagerHandle | null>(null)
     const barcodeBufferRef = useRef('')
     const barcodeTimerRef = useRef<number | null>(null)
+    const [skipPrint, setSkipPrint] = useState(false)
+
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem('POS_LAST_PRINT_JOB')
+            if (!raw) return
+            const parsed = JSON.parse(raw)
+            if (!parsed || typeof parsed !== 'object') return
+            if (parsed.kind === 'document' && parsed.documentId && parsed.format) {
+                setLastPrintJob(parsed)
+            } else if (parsed.kind === 'receipt' && parsed.receiptId && parsed.width) {
+                setLastPrintJob(parsed)
+            }
+        } catch { }
+    }, [])
+
+    const setAndPersistLastPrintJob = (job: LastPrintJob | null) => {
+        setLastPrintJob(job)
+        try {
+            if (!job) localStorage.removeItem('POS_LAST_PRINT_JOB')
+            else localStorage.setItem('POS_LAST_PRINT_JOB', JSON.stringify(job))
+        } catch { }
+    }
 
     const userLabel = useMemo(() => {
         if (!profile) return ''
@@ -362,12 +397,20 @@ export default function POSView() {
     }
 
     const loadClients = async () => {
+        if (clientsLoading) return
         try {
             setClientsLoading(true)
+            setClientsLoadError(null)
             const data = await listClientes()
             setClients(data)
         } catch (error) {
             console.error('Error loading clients:', error)
+            const status = (error as any)?.response?.status
+            if (status === 429) {
+                setClientsLoadError('Demasiadas solicitudes (429). Espera unos segundos y reintenta.')
+            } else {
+                setClientsLoadError('No se pudieron cargar los clientes. Reintenta.')
+            }
         } finally {
             setClientsLoading(false)
         }
@@ -440,8 +483,18 @@ export default function POSView() {
     useEffect(() => {
         if (!showBuyerModal || buyerMode !== 'IDENTIFIED') return
         if (clients.length > 0 || clientsLoading) return
+        if (clientsLoadAttemptedRef.current) return
+        clientsLoadAttemptedRef.current = true
         loadClients()
     }, [showBuyerModal, buyerMode, clients.length, clientsLoading])
+
+    useEffect(() => {
+        if (showBuyerModal) return
+        setClientQuery('')
+        setSelectedClient(null)
+        setClientsLoadError(null)
+        clientsLoadAttemptedRef.current = false
+    }, [showBuyerModal])
 
     const filteredClients = useMemo(() => {
         if (!clientQuery.trim()) return clients.slice(0, 8)
@@ -555,15 +608,28 @@ export default function POSView() {
     }
 
     const addToCart = (product: Producto, opts?: { ignoreReorder?: boolean }) => {
+        let basePrice = Number(product.price ?? 0)
+        if (!Number.isFinite(basePrice) || basePrice <= 0) {
+            const fallbackName = product.name || t('posView.prompts.unnamedProduct')
+            const input = prompt(t('posView.prompts.enterPrice', { name: fallbackName })) || ''
+            const normalized = input.replace(',', '.').trim()
+            const parsed = Number(normalized)
+            if (!normalized || !Number.isFinite(parsed) || parsed <= 0) {
+                alert(t('posView.errors.invalidPrice'))
+                return
+            }
+            basePrice = parsed
+        }
+        const productWithPrice = { ...product, price: basePrice }
         const existing = cart.find((item) => item.product_id === product.id)
         const nextQty = existing ? existing.qty + 1 : 1
-        if (violatesStockPolicy(product, nextQty, opts)) return
+        if (violatesStockPolicy(productWithPrice, nextQty, opts)) return
 
         if (existing) {
             setCart(
                 cart.map((item) =>
                     item.product_id === product.id
-                        ? applyPricingToCartItem(item, product, nextQty)
+                        ? applyPricingToCartItem(item, productWithPrice, nextQty)
                         : item
                 )
             )
@@ -572,14 +638,14 @@ export default function POSView() {
                 product_id: product.id,
                 sku: product.sku || '',
                 name: product.name,
-                price: product.price || 0,
+                price: basePrice,
                 // Preservar 0% si el producto lo tiene; solo usar fallback de configuracion cuando viene null/undefined
-                iva_tasa: (product as any).iva_tasa ?? defaultTaxPct,
+                iva_tasa: (productWithPrice as any).iva_tasa ?? defaultTaxPct,
                 qty: 1,
                 discount_pct: 0,
-                categoria: product.categoria || (product.product_metadata?.categoria as any),
+                categoria: productWithPrice.categoria || (productWithPrice.product_metadata?.categoria as any),
             }
-            const priced = applyPricingToCartItem(baseItem, product, 1)
+            const priced = applyPricingToCartItem(baseItem, productWithPrice, 1)
             setCart([...cart, priced])
         }
     }
@@ -605,12 +671,53 @@ export default function POSView() {
         const doc = (client.identificacion || client.tax_id || '').toString()
         if (doc) setBuyerIdNumber(doc)
         if (client.email) setBuyerEmail(client.email)
+        if ((client as any).identificacion_tipo) setBuyerIdType(String((client as any).identificacion_tipo))
     }
 
     const clearSelectedClient = () => {
         setSelectedClient(null)
         setClientQuery('')
         setIsWholesaleCustomer(false)
+    }
+
+    const maybeSaveBuyerAsClient = async () => {
+        if (buyerMode !== 'IDENTIFIED') return
+        if (!saveBuyerAsClient) return
+        if (selectedClient) return
+
+        const idNumber = buyerIdNumber.trim()
+        const name = buyerName.trim()
+        if (!idNumber || !name) return
+
+        const normalize = (v: string) =>
+            (v || '')
+                .toString()
+                .replace(/[^A-Za-z0-9]+/g, '')
+                .trim()
+                .toUpperCase()
+
+        const existing = clients.find((c) => {
+            const doc = String(c.identificacion || c.tax_id || '')
+            return normalize(doc) && normalize(doc) === normalize(idNumber)
+        })
+        if (existing) {
+            setSelectedClient(existing)
+            return
+        }
+
+        try {
+            const created = await createCliente({
+                name,
+                identificacion: idNumber,
+                identificacion_tipo: normalizeIdType(buyerIdType, allowedIdTypes) || buyerIdType || undefined,
+                email: buyerEmail.trim() || undefined,
+                is_wholesale: isWholesaleCustomer || undefined,
+            } as any)
+            setClients((prev) => [created, ...prev])
+            setSelectedClient(created)
+        } catch (err) {
+            console.error('No se pudo guardar cliente:', err)
+        }
     }
 
     const removeItem = (index: number) => {
@@ -734,7 +841,7 @@ export default function POSView() {
             input
                 .normalize('NFD')
                 .replace(/[\u0300-\u036f]/g, '')
-                .replace(/\s+/g, ' ')
+                .replace(/[^A-Za-z0-9]+/g, '') // ignore punctuation/spaces so "C.I." matches "CI"
                 .trim()
                 .toUpperCase()
         const target = normalize(value || '')
@@ -754,6 +861,12 @@ export default function POSView() {
             setBuyerIdType(normalized)
         }
     }, [buyerIdType, allowedIdTypes])
+
+    useEffect(() => {
+        const raw = (documentConfig as any)?.render_format_default || (documentConfig as any)?.renderFormatDefault
+        if (raw === 'A4_PDF') setDocPrintFormat('A4_PDF')
+        else if (raw === 'THERMAL_80MM') setDocPrintFormat('THERMAL_80MM')
+    }, [documentConfig])
 
     useEffect(() => {
         const resetBuffer = () => {
@@ -911,6 +1024,16 @@ export default function POSView() {
 
     const round2 = (value: number) => Math.round(value * 100) / 100
 
+    const normalizeCurrencyCode = (raw?: string): string => {
+        const code = (raw || '').trim().toUpperCase()
+        if (!code) return ''
+        const aliases: Record<string, string> = {
+            US: 'USD',
+            USA: 'USD',
+        }
+        return aliases[code] || code
+    }
+
     const mapPaymentMethod = (
         method: POSPayment['method']
     ): SaleDraft['payments'][number]['method'] => {
@@ -933,8 +1056,18 @@ export default function POSView() {
             (companySettings?.settings as any)?.pais ||
             (companySettings as any)?.settings?.country ||
             'EC'
-        const currency = companySettings?.currency || 'USD'
+        const currency = normalizeCurrencyCode(
+            companySettings?.currency || (companySettings as any)?.settings?.currency
+        )
         const posId = selectedRegister?.id ? String(selectedRegister.id) : 'pos'
+        if (!currency) {
+            console.warn('[POS] currency missing in company settings', {
+                currency: companySettings?.currency,
+                legacyCurrency: (companySettings as any)?.settings?.currency,
+                raw: companySettings,
+            })
+            throw new Error('currency_not_configured')
+        }
 
         const buyer =
             buyerMode === 'CONSUMER_FINAL'
@@ -1011,7 +1144,12 @@ export default function POSView() {
             setShowPaymentModal(true)
         } catch (e) {
             console.error('Error creating receipt:', e)
-            alert('Error al preparar el pago')
+            const msg = String((e as any)?.message || '')
+            if (msg.includes('currency_not_configured')) {
+                alert(t('pos.errors.currencyNotConfigured'))
+            } else {
+                alert(t('pos.errors.preparePaymentFailed'))
+            }
         } finally {
             setLoading(false)
         }
@@ -1037,12 +1175,15 @@ export default function POSView() {
                 return
             }
         }
+        if (mode == 'IDENTIFIED') {
+            await maybeSaveBuyerAsClient()
+        }
         setShowBuyerModal(false)
         await startCheckout()
     }
 
 
-    const handleCheckout = () => {
+    const beginCheckout = (opts?: { skipPrint?: boolean }) => {
         if (cart.length === 0) {
             alert('No hay l?neas en el carrito')
             return
@@ -1051,8 +1192,12 @@ export default function POSView() {
             alert('Abre un turno primero')
             return
         }
+        setSkipPrint(!!opts?.skipPrint)
         setShowBuyerModal(true)
     }
+
+    const handleCheckout = () => beginCheckout({ skipPrint: false })
+    const handleCheckoutWithoutTicket = () => beginCheckout({ skipPrint: true })
 
 
     const handlePaymentSuccess = async (payments: POSPayment[]) => {
@@ -1078,27 +1223,36 @@ export default function POSView() {
                 try {
                     const issued = await issueDocument(saleDraft)
                     const docId = issued?.document?.id
-                    if (docId) {
-                        const html = await renderDocument(docId)
+                    if (docId && !skipPrint) {
+                        const html = await renderDocumentWithFormat(docId, docPrintFormat)
                         setPrintHtml(html)
                         setShowPrintPreview(true)
                         docPrinted = true
+                        setAndPersistLastPrintJob({ kind: 'document', documentId: docId, format: docPrintFormat })
                     }
                 } catch (err) {
-                    console.error('Error emitiendo documento:', err)
+                    const detail = (err as any)?.response?.data
+                    console.error('Error emitiendo documento:', err, 'Detalle:', detail)
                     if (buyerMode === 'IDENTIFIED') {
-                        alert('No se pudo emitir documento con datos. Se imprimira ticket simple.')
+                        const msgDetail = detail?.detail ?? detail
+                        const msg = msgDetail ? `\n\nDetalle:\n${typeof msgDetail === 'string' ? msgDetail : JSON.stringify(msgDetail, null, 2)}` : ''
+                        alert(`No se pudo emitir documento con datos. Se imprimira ticket simple.${msg}`)
                     }
                 }
             }
 
-            if (!docPrinted) {
+            if (!docPrinted && !skipPrint) {
                 const html = await printReceipt(currentReceiptId, '58mm')
                 setPrintHtml(html)
                 setShowPrintPreview(true)
+                setAndPersistLastPrintJob({ kind: 'receipt', receiptId: currentReceiptId, width: '58mm' })
             }
 
-            // Reset
+            // Calcular totales para verificar si se debe crear factura automáticamente
+            // Usamos el estado actual de totals para evitar llamadas 422 a calculate_totals con payload vacío
+            const needsInvoice = shouldCreateInvoice(totals.total, isWholesaleCustomer, companySettings)
+            
+            // Reset carrito
             setCart([])
             setGlobalDiscountPct(0)
             setTicketNotes('')
@@ -1107,11 +1261,19 @@ export default function POSView() {
             setBuyerIdNumber('')
             setBuyerName('')
             setBuyerEmail('')
+            setSkipPrint(false)
             localStorage.removeItem(POS_DRAFT_KEY)
             setShowPaymentModal(false)
             pendingSaleRef.current = null
 
-            alert('Venta completada ✓')
+            // Si se debe crear factura automáticamente, abrir modal
+            if (needsInvoice && currentReceiptId) {
+                setAutoCreateInvoice(true)
+                setShowInvoiceModal(true)
+                alert('💰 Venta supera mínimo de facturación. Crear factura...')
+            } else {
+                alert('Venta completada ✓')
+            }
         } catch (error: any) {
             if (!isOnline) {
                 await addToOutbox({ type: 'receipt', data: { cart, totals } })
@@ -1149,7 +1311,7 @@ export default function POSView() {
         setGlobalDiscountPct(0)
         setTicketNotes('')
         setCurrentReceiptId(null)
-        alert(`Ticket en espera: ${id}\nUsa Reimprimir para recuperar.`)
+        alert(`Ticket en espera: ${id}\nUsa Recuperar para continuar.`)
     }
 
     const handleResumeTicket = () => {
@@ -1173,6 +1335,30 @@ export default function POSView() {
         setTicketNotes(ticket.ticketNotes || '')
         setCurrentReceiptId(null)
         alert(`Ticket recuperado: ${trimmed}`)
+    }
+
+    const handleReprintLast = async () => {
+        if (!lastPrintJob) {
+            alert('No hay nada para reimprimir todavía.')
+            return
+        }
+        try {
+            setLoading(true)
+            if (lastPrintJob.kind === 'document') {
+                const html = await renderDocumentWithFormat(lastPrintJob.documentId, lastPrintJob.format)
+                setPrintHtml(html)
+                setShowPrintPreview(true)
+            } else {
+                const html = await printReceipt(lastPrintJob.receiptId, lastPrintJob.width)
+                setPrintHtml(html)
+                setShowPrintPreview(true)
+            }
+        } catch (err) {
+            console.error('Error reimprimiendo:', err)
+            alert('No se pudo reimprimir.')
+        } finally {
+            setLoading(false)
+        }
     }
 
     const handlePayPending = async () => {
@@ -1333,6 +1519,9 @@ export default function POSView() {
                         Ticket en espera
                     </button>
                     <button className="btn sm" onClick={handleResumeTicket}>
+                        Recuperar
+                    </button>
+                    <button className="btn sm" onClick={handleReprintLast} title="Reimprime el último ticket/factura">
                         Reimprimir
                     </button>
                     {canManagePending && (
@@ -1628,7 +1817,14 @@ export default function POSView() {
                     </div>
                     <div className="actions">
                         <button className="btn primary" onClick={handleCheckout} disabled={cart.length === 0 || !currentShift}>
-                            {cart.length > 0 ? `Cobrar ${totals.total.toFixed(2)}${currencySymbol}` : 'Cobrar'}
+                            {cart.length > 0
+                                ? t('posView.actions.chargeWithTotal', { amount: totals.total.toFixed(2), currency: currencySymbol })
+                                : t('posView.actions.charge')}
+                        </button>
+                        <button className="btn" onClick={handleCheckoutWithoutTicket} disabled={cart.length === 0 || !currentShift}>
+                            {cart.length > 0
+                                ? t('posView.actions.chargeNoReceiptWithTotal', { amount: totals.total.toFixed(2), currency: currencySymbol })
+                                : t('posView.actions.chargeNoReceipt')}
                         </button>
                     </div>
                 </footer>
@@ -1699,7 +1895,22 @@ export default function POSView() {
                                         onChange={(e) => setClientQuery(e.target.value)}
                                     />
                                     {clientsLoading && (
-                                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>Cargando clientes...</div>
+                                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>Loading clients...</div>
+                                    )}
+                                    {!clientsLoading && clientsLoadError && (
+                                        <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+                                            <div style={{ fontSize: 12, color: '#b91c1c' }}>{clientsLoadError}</div>
+                                            <button
+                                                type="button"
+                                                className="btn ghost"
+                                                onClick={() => {
+                                                    clientsLoadAttemptedRef.current = false
+                                                    loadClients()
+                                                }}
+                                            >
+                                                Reintentar
+                                            </button>
+                                        </div>
                                     )}
                                     {!clientsLoading && filteredClients.length > 0 && (
                                         <div style={{ display: 'grid', gap: 4, marginTop: 6, maxHeight: 160, overflow: 'auto' }}>
@@ -1737,6 +1948,28 @@ export default function POSView() {
                                         </div>
                                     )}
                                 </div>
+                                {!selectedClient && (
+                                    <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={saveBuyerAsClient}
+                                            onChange={(e) => setSaveBuyerAsClient(e.target.checked)}
+                                        />
+                                        Guardar este cliente para futuras ventas
+                                    </label>
+                                )}
+                                <div style={{ display: 'grid', gap: 6 }}>
+                                    <div style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>Formato de impresión</div>
+                                    <select
+                                        value={docPrintFormat}
+                                        onChange={(e) => setDocPrintFormat(e.target.value as any)}
+                                        className="badge"
+                                        style={{ cursor: 'pointer', padding: '6px 8px' }}
+                                    >
+                                        <option value="THERMAL_80MM">Recibo (80mm)</option>
+                                        <option value="A4_PDF">Papel A4</option>
+                                    </select>
+                                </div>
                                 <select
                                     value={buyerIdType}
                                     onChange={(e) => setBuyerIdType(e.target.value)}
@@ -1771,10 +2004,10 @@ export default function POSView() {
                         )}
                         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                             <button className="btn ghost" onClick={() => setShowBuyerModal(false)}>
-                                Cancelar
+                                Cancel
                             </button>
                             <button className="btn primary" onClick={() => handleBuyerContinue()}>
-                                Continuar
+                                Continue
                             </button>
                         </div>
                     </div>
@@ -1797,9 +2030,13 @@ export default function POSView() {
                     onSuccess={() => {
                         setShowInvoiceModal(false)
                         setCurrentReceiptId(null)
+                        setAutoCreateInvoice(false)
                         alert('Factura generada correctamente')
                     }}
-                    onCancel={() => setShowInvoiceModal(false)}
+                    onCancel={() => {
+                        setShowInvoiceModal(false)
+                        setAutoCreateInvoice(false)
+                    }}
                 />
             )}
 
@@ -1947,7 +2184,7 @@ export default function POSView() {
                                 onClick={() => setShowCreateProductModal(false)}
                                 disabled={creatingProduct}
                             >
-                                Cancelar
+                                Cancel
                             </button>
                             <button
                                 className="btn primary"
@@ -2032,7 +2269,7 @@ export default function POSView() {
                                     }
                                 }}
                             >
-                                Guardar y agregar
+                                Save and add
                             </button>
                         </div>
                     </div>

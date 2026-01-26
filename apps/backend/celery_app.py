@@ -29,9 +29,19 @@ def _redis_url() -> str:
             print(f"❌ CRITICAL: {error_msg}", file=sys.stderr)
             raise RuntimeError(error_msg)
         
-        # In development, use default localhost
-        print("⚠️  REDIS_URL not set, using development default: redis://localhost:6379/0", file=sys.stderr)
-        url = "redis://localhost:6379/0"
+        # In development, require explicit DEV_REDIS_URL or fail
+        dev_redis_url = os.getenv("DEV_REDIS_URL")
+        if dev_redis_url:
+            print("⚠️  REDIS_URL not set, using DEV_REDIS_URL fallback", file=sys.stderr)
+            url = dev_redis_url
+        else:
+            error_msg = (
+                "REDIS_URL is not configured. "
+                "For development, set DEV_REDIS_URL or REDIS_URL. "
+                "Example: REDIS_URL=redis://localhost:6379/0"
+            )
+            print(f"❌ ERROR: {error_msg}", file=sys.stderr)
+            raise RuntimeError(error_msg)
     
     # Validate no localhost in production
     if environment == "production" and ("localhost" in url or "127.0.0.1" in url):

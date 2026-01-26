@@ -26,7 +26,7 @@ class CashMovementBase(BaseModel):
         description="SALE, PURCHASE, EXPENSE, PAYROLL, BANK, CHANGE, ADJUSTMENT, OTHER",
     )
     amount: Decimal = Field(..., alias="importe", description="Movement amount (>0)")
-    currency: str = Field(default="EUR", alias="moneda", max_length=3, description="Currency code")
+    currency: str | None = Field(default=None, alias="moneda", max_length=3, description="Currency code")
     description: str = Field(
         ...,
         alias="description",
@@ -144,7 +144,7 @@ class CashClosingBase(BaseModel):
 
     date: dt.date = Field(..., alias="fecha", description="Closing date")
     cash_box_id: UUID | None = Field(None, alias="caja_id", description="Cash box ID")
-    currency: str = Field(default="EUR", alias="moneda", max_length=3)
+    currency: str | None = Field(default=None, alias="moneda", max_length=3)
     opening_balance: Decimal = Field(
         default=Decimal("0"), alias="saldo_inicial", description="Opening balance"
     )

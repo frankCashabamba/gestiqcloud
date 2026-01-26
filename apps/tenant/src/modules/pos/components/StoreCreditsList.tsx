@@ -95,7 +95,7 @@ export default function StoreCreditsList() {
 
       {/* Tabla */}
       {loading ? (
-        <p className="text-center py-8 text-gray-500">Cargando...</p>
+        <p className="text-center py-8 text-gray-500">Loading...</p>
       ) : (
         <div className="overflow-x-auto shadow rounded-lg">
           <table className="w-full border-collapse bg-white">

@@ -43,7 +43,7 @@ export default function SettingsLayout() {
       </div>
 
       {limitsLoading ? (
-        <div className="text-sm text-slate-500">Cargando permisos...</div>
+        <div className="text-sm text-slate-500">Loading permissions...</div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6">
           <aside className="border rounded-lg bg-white">

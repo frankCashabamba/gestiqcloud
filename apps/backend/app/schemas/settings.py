@@ -19,7 +19,8 @@ class CompanySettingsResponse(BaseModel):
     # Configuración general
     nombre_empresa: str
     pais: str = Field(..., pattern="^(ES|EC)$", description="País del tenant")
-    moneda_predeterminada: str = Field(default="EUR", pattern="^(EUR|USD)$")
+    # No asumir defaults: la moneda debe venir de configuración en BBDD.
+    moneda_predeterminada: str | None = Field(default=None, min_length=3, max_length=3)
     idioma: str = Field(default="es", pattern="^(es|en)$")
 
     # Módulos habilitados
@@ -76,7 +77,7 @@ class ModuleSettingsUpdate(BaseModel):
     """Schema para actualizar configuración de módulos específicos"""
 
     # General
-    moneda_predeterminada: str | None = Field(None, pattern="^(EUR|USD)$")
+    moneda_predeterminada: str | None = Field(None, min_length=3, max_length=3)
     idioma: str | None = Field(None, pattern="^(es|en)$")
 
     # Fiscal

@@ -1,0 +1,83 @@
+/* Webhooks Panel Page Styles */
+
+.webhooks-panel {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.webhooks-panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  gap: 2rem;
+}
+
+.webhooks-panel__title {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.webhooks-panel__create-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.webhooks-panel__create-btn:hover {
+  background-color: #2563eb;
+  box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
+}
+
+.webhooks-panel__icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.webhooks-panel__content {
+  display: grid;
+  gap: 2rem;
+}
+
+.webhooks-panel__logs {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* ============ Responsive ============ */
+
+@media (max-width: 768px) {
+  .webhooks-panel {
+    padding: 1rem;
+  }
+
+  .webhooks-panel__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .webhooks-panel__create-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .webhooks-panel__title {
+    font-size: 1.5rem;
+  }
+}

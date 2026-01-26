@@ -10,7 +10,7 @@ def test_admin_empresas_crud(client: TestClient, db, superuser_factory, admin_lo
     csrf = client.get("/api/v1/admin/auth/csrf").json().get("csrfToken")
     # create
     r = client.post(
-        "/api/v1/admin/empresas/full-json",
+        "/api/v1/admin/companies/full-json",
         headers={
             "Authorization": f"Bearer {tok}",
             "X-CSRF-Token": csrf or client.cookies.get("csrf_token", ""),
@@ -23,7 +23,7 @@ def test_admin_empresas_crud(client: TestClient, db, superuser_factory, admin_lo
 
     # list
     r = client.get(
-        "/api/v1/admin/empresas/full-json",
+        "/api/v1/admin/companies/full-json",
         headers={"Authorization": f"Bearer {tok}"},
     )
     assert r.status_code == 200
@@ -31,7 +31,7 @@ def test_admin_empresas_crud(client: TestClient, db, superuser_factory, admin_lo
 
     # update
     r = client.put(
-        f"/api/v1/admin/empresas/{emp_id}",
+        f"/api/v1/admin/companies/{emp_id}",
         headers={
             "Authorization": f"Bearer {tok}",
             "X-CSRF-Token": csrf or client.cookies.get("csrf_token", ""),
@@ -43,7 +43,7 @@ def test_admin_empresas_crud(client: TestClient, db, superuser_factory, admin_lo
 
     # delete
     r = client.delete(
-        f"/api/v1/admin/empresas/{emp_id}",
+        f"/api/v1/admin/companies/{emp_id}",
         headers={
             "Authorization": f"Bearer {tok}",
             "X-CSRF-Token": csrf or client.cookies.get("csrf_token", ""),

@@ -63,3 +63,18 @@ class WorkshopLine(InvoiceLine):
     rate: Mapped[float] = mapped_column("rate")
 
     __mapper_args__ = {"polymorphic_identity": "workshop"}
+
+
+class POSLine(InvoiceLine):
+    """POS-generated line item model."""
+
+    __tablename__ = "pos_invoice_lines"
+
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("invoice_lines.id"), primary_key=True
+    )
+    pos_receipt_line_id: Mapped[UUID | None] = mapped_column(
+        "pos_receipt_line_id", PGUUID(as_uuid=True), nullable=True
+    )
+
+    __mapper_args__ = {"polymorphic_identity": "pos"}

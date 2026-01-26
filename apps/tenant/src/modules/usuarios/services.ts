@@ -1,5 +1,5 @@
-﻿import tenantApi from '../../shared/api/client'
-import { TENANT_USUARIOS, TENANT_ROLES } from '@shared/endpoints'
+import tenantApi from '../../shared/api/client'
+import { TENANT_USERS, TENANT_ROLES } from '@shared/endpoints'
 import type {
   Usuario,
   UsuarioCreatePayload,
@@ -35,46 +35,46 @@ let permissionsPromise: Promise<GlobalPermission[]> | null = null
 const PERMISSIONS_TTL_MS = 5 * 60 * 1000
 
 export async function listUsuarios(): Promise<Usuario[]> {
-  const { data } = await tenantApi.get<Usuario[]>(TENANT_USUARIOS.base)
+  const { data } = await tenantApi.get<Usuario[]>(TENANT_USERS.base)
   return Array.isArray(data) ? data : []
 }
 
 export async function getUsuario(id: number | string): Promise<Usuario> {
-  const { data } = await tenantApi.get<Usuario>(TENANT_USUARIOS.byId(id))
+  const { data } = await tenantApi.get<Usuario>(TENANT_USERS.byId(id))
   return data
 }
 
 export async function createUsuario(payload: UsuarioCreatePayload): Promise<Usuario> {
-  const { data } = await tenantApi.post<Usuario>(TENANT_USUARIOS.base, payload)
+  const { data } = await tenantApi.post<Usuario>(TENANT_USERS.base, payload)
   return data
 }
 
 export async function updateUsuario(id: number | string, payload: UsuarioUpdatePayload): Promise<Usuario> {
-  const { data } = await tenantApi.patch<Usuario>(TENANT_USUARIOS.byId(id), payload)
+  const { data } = await tenantApi.patch<Usuario>(TENANT_USERS.byId(id), payload)
   return data
 }
 
 export async function removeUsuario(id: number | string): Promise<void> {
-  await tenantApi.delete(TENANT_USUARIOS.byId(id))
+  await tenantApi.delete(TENANT_USERS.byId(id))
 }
 
 export async function listModuloOptions(): Promise<ModuloOption[]> {
-  const { data } = await tenantApi.get<ModuloOption[]>(TENANT_USUARIOS.modules)
+  const { data } = await tenantApi.get<ModuloOption[]>(TENANT_USERS.modules)
   return data ?? []
 }
 
 export async function listRolOptions(): Promise<RolOption[]> {
-  const { data } = await tenantApi.get<RolOption[]>(TENANT_USUARIOS.roles)
+  const { data } = await tenantApi.get<RolOption[]>(TENANT_USERS.roles)
   return data ?? []
 }
 
 export async function checkUsernameAvailability(username: string): Promise<boolean> {
-  const { data } = await tenantApi.get<{ available: boolean }>(TENANT_USUARIOS.checkUsername(username))
+  const { data } = await tenantApi.get<{ available: boolean }>(TENANT_USERS.checkUsername(username))
   return Boolean(data?.available)
 }
 
 export async function setUsuarioPassword(id: number | string, password: string): Promise<void> {
-  await tenantApi.post(TENANT_USUARIOS.setPassword(id), { password })
+  await tenantApi.post(TENANT_USERS.setPassword(id), { password })
 }
 
 // Gestión de Roles

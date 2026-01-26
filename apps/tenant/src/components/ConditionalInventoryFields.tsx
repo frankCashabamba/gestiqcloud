@@ -1,12 +1,12 @@
 /**
  * ConditionalInventoryFields
  *
- * Campos de movimiento de inventario que aparecen según configuración del sector
- * Similar a ConditionalProductFields pero para stock movements
+ * Inventory movement fields that appear based on sector configuration
+ * Similar to ConditionalProductFields but for stock movements
  *
- * FASE 4 PASO 4: Placeholders dinámicos desde BD
- * - Reemplaza hardcoded placeholders con valores desde template_config
- * - Usa useSectorPlaceholders para cargar dinámicamente
+ * PHASE 4 STEP 4: Dynamic placeholders from DB
+ * - Replaces hardcoded placeholders with values from template_config
+ * - Uses useSectorPlaceholders to load dynamically
  */
 import React from 'react'
 import { useCompanyFeatures, useCompanySector } from '../contexts/CompanyConfigContext'
@@ -32,15 +32,15 @@ export function ConditionalInventoryFields({
   return (
     <>
       {/* ============================================ */}
-      {/* FECHA DE CADUCIDAD (Panadería, Alimentos) */}
+      {/* EXPIRATION DATE (Bakery, Food) */}
       {/* ============================================ */}
 
       {features.inventory_expiry_tracking && isIncoming && (
         <div className="inventory-field">
           <label htmlFor="expires_at" className="field-label">
-            Fecha de Caducidad {features.inventory_expiry_tracking && '*'}
+            Expiration Date {features.inventory_expiry_tracking && '*'}
             <span className="label-badge expiry">
-              {features.inventory_expiry_tracking ? '🥐 Requerido' : 'Opcional'}
+              {features.inventory_expiry_tracking ? '🥐 Required' : 'Optional'}
             </span>
           </label>
           <input
@@ -52,24 +52,24 @@ export function ConditionalInventoryFields({
             min={new Date().toISOString().split('T')[0]}
             required={features.inventory_expiry_tracking}
             className="field-input"
-            aria-label="Fecha de caducidad del producto"
+            aria-label="Product expiration date"
           />
           {features.inventory_expiry_tracking && (
             <small className="field-help warning">
-              ⚠️ Productos perecederos requieren fecha de caducidad obligatoria
+              ⚠️ Perishable products require a mandatory expiration date
             </small>
           )}
         </div>
       )}
 
       {/* ============================================ */}
-      {/* LOTE / HORNADA */}
+      {/* LOT / BATCH */}
       {/* ============================================ */}
 
       {features.inventory_lot_tracking && isIncoming && (
         <div className="inventory-field">
           <label htmlFor="lot" className="field-label">
-            📦 Número de Lote
+            📦 Lot Number
           </label>
           <input
             type="text"
@@ -77,24 +77,24 @@ export function ConditionalInventoryFields({
             name="lot"
             value={formData.lot || ''}
             onChange={onChange}
-            placeholder={getFieldPlaceholder(placeholders, 'lote', 'Número de lote')}
+            placeholder={getFieldPlaceholder(placeholders, 'lote', 'Lot number')}
             className="field-input"
-            aria-label="Número de lote o hornada"
+            aria-label="Lot or batch number"
           />
           <small className="field-help">
-            Identifica el lote de producción para trazabilidad
+            Identifies the production lot for traceability
           </small>
         </div>
       )}
 
       {/* ============================================ */}
-      {/* NÚMERO DE SERIE (Taller, Retail Electrónicos) */}
+      {/* SERIAL NUMBER (Workshop, Electronics Retail) */}
       {/* ============================================ */}
 
       {features.inventory_serial_tracking && (
         <div className="inventory-field">
           <label htmlFor="serial_number" className="field-label">
-            📱 Número de Serie
+            📱 Serial Number
           </label>
           <input
             type="text"
@@ -102,24 +102,24 @@ export function ConditionalInventoryFields({
             name="serial_number"
             value={formData.serial_number || ''}
             onChange={onChange}
-            placeholder={getFieldPlaceholder(placeholders, 'numero_serie', 'Ej: SN-123456789')}
+            placeholder={getFieldPlaceholder(placeholders, 'numero_serie', 'E.g.: SN-123456789')}
             className="field-input"
-            aria-label="Número de serie para tracking individual"
+            aria-label="Serial number for individual tracking"
           />
           <small className="field-help">
-            Para seguimiento individual del producto
+            For individual product tracking
           </small>
         </div>
       )}
 
       {/* ============================================ */}
-      {/* UBICACIÓN EN ALMACÉN */}
+      {/* WAREHOUSE LOCATION */}
       {/* ============================================ */}
 
       <div className="inventory-field">
         <label htmlFor="location" className="field-label">
-          Ubicación en Almacén
-          <span className="label-badge location">Opcional</span>
+          Warehouse Location
+          <span className="label-badge location">Optional</span>
         </label>
         <input
           type="text"
@@ -127,22 +127,22 @@ export function ConditionalInventoryFields({
           name="location"
           value={formData.location || ''}
           onChange={onChange}
-          placeholder={getFieldPlaceholder(placeholders, 'ubicacion', 'Ej: Pasillo-A-Estante-3')}
+          placeholder={getFieldPlaceholder(placeholders, 'ubicacion', 'E.g.: Aisle-A-Shelf-3')}
           className="field-input"
-          aria-label="Ubicación física en el almacén"
+          aria-label="Physical location in the warehouse"
         />
         <small className="field-help">
-          Facilita la localización rápida del producto
+          Facilitates quick product location
         </small>
       </div>
 
       {/* ============================================ */}
-      {/* NOTAS / OBSERVACIONES */}
+      {/* NOTES / OBSERVATIONS */}
       {/* ============================================ */}
 
       <div className="inventory-field">
         <label htmlFor="notes" className="field-label">
-          Notas / Observaciones
+          Notes / Observations
         </label>
         <textarea
           id="notes"
@@ -151,28 +151,28 @@ export function ConditionalInventoryFields({
           onChange={onChange}
           placeholder={
             moveType === 'adjustment'
-              ? 'Razón del ajuste: merma, rotura, corrección...'
-              : 'Observaciones adicionales sobre este movimiento'
+              ? 'Reason for adjustment: shrinkage, breakage, correction...'
+              : 'Additional observations about this movement'
           }
           rows={3}
           className="field-textarea"
-          aria-label="Notas adicionales del movimiento"
+          aria-label="Additional movement notes"
         />
         {moveType === 'adjustment' && (
           <small className="field-help warning">
-            ⚠️ Los ajustes de inventario requieren justificación
+            ⚠️ Inventory adjustments require justification
           </small>
         )}
       </div>
 
       {/* ============================================ */}
-      {/* CAMPOS ESPECÍFICOS POR TIPO DE MOVIMIENTO */}
+      {/* FIELDS SPECIFIC TO MOVEMENT TYPE */}
       {/* ============================================ */}
 
       {moveType === 'transfer' && (
         <div className="inventory-field">
           <label htmlFor="destination_warehouse" className="field-label">
-            Almacén de Destino *
+            Destination Warehouse *
           </label>
           <select
             id="destination_warehouse"
@@ -181,11 +181,11 @@ export function ConditionalInventoryFields({
             onChange={onChange}
             required
             className="field-input"
-            aria-label="Seleccionar almacén de destino"
+            aria-label="Select destination warehouse"
           >
-            <option value="">-- Seleccionar almacén --</option>
-            <option value="main">Almacén Principal</option>
-            <option value="retail">Tienda/Punto de Venta</option>
+            <option value="">-- Select warehouse --</option>
+            <option value="main">Main Warehouse</option>
+            <option value="retail">Store/Point of Sale</option>
           </select>
         </div>
       )}

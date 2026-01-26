@@ -32,6 +32,7 @@ import React, {
 } from 'react'
 import { apiFetch } from '../lib/http'
 import { useCompanySectorFullConfig as useCompanySectorFullConfigHook, SectorFullConfig, FeaturesConfig as SectorFeaturesConfig } from '../hooks/useCompanySectorFullConfig'
+import i18n, { normalizeLang } from '../i18n'
 
 interface CompanyInfo {
   id: string
@@ -145,6 +146,16 @@ export function CompanyConfigProvider({ children }: { children: ReactNode }) {
         ...response,
         company: response?.tenant,
       }
+
+      const lang = normalizeLang(mapped?.settings?.locale)
+      if (i18n.resolvedLanguage !== lang) {
+        try {
+          await i18n.changeLanguage(lang)
+        } catch {}
+      }
+      try {
+        localStorage.setItem('i18nextLng', lang)
+      } catch {}
       setConfig(mapped)
     } catch (err: any) {
       console.error('Error loading company config:', err)

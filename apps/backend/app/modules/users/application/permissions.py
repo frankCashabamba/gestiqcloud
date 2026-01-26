@@ -51,11 +51,11 @@ def _has_perm(db: Session, user: AuthenticatedUser, perm_key: str) -> bool:
     role_ids = [
         rid
         for (rid,) in (
-            db.query(CompanyUserRole.rol_id)
+            db.query(CompanyUserRole.role_id)
             .filter(
                 CompanyUserRole.tenant_id == tenant_id,
-                CompanyUserRole.usuario_id == int(user_id),
-                CompanyUserRole.activo.is_(True),
+                CompanyUserRole.user_id == int(user_id),
+                CompanyUserRole.is_active.is_(True),
             )
             .all()
         )

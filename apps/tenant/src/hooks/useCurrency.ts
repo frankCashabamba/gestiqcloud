@@ -7,25 +7,39 @@ type CompanyInfo = {
   country_code?: string
 }
 
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  'EUR': '€',
-  'USD': '$',
-  'COP': '$',
-  'PEN': 'S/',
-  'MXN': '$'
+type CompanySettings = {
+  currency?: string
+  settings?: {
+    currency?: string
+  }
 }
 
-const CURRENCY_LOCALE: Record<string, string> = {
-  'EUR': 'es-ES',
-  'USD': 'en-US',
-  'COP': 'es-CO',
-  'PEN': 'es-PE',
-  'MXN': 'es-MX'
+const normalizeCurrency = (raw?: string): string => {
+  const code = (raw || '').trim().toUpperCase()
+  if (!code) return ''
+  const aliases: Record<string, string> = { US: 'USD', USA: 'USD' }
+  return aliases[code] || code
+}
+
+const extractSymbol = (currencyCode: string, locale?: string): string => {
+  try {
+    const parts = new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: currencyCode,
+      currencyDisplay: 'narrowSymbol',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).formatToParts(0)
+    const currencyPart = parts.find((p) => p.type === 'currency')
+    return currencyPart?.value || currencyCode
+  } catch {
+    return currencyCode
+  }
 }
 
 export function useCurrency() {
-  const [currency, setCurrency] = useState<string>('USD')
-  const [symbol, setSymbol] = useState<string>('$')
+  const [currency, setCurrency] = useState<string>('')
+  const [symbol, setSymbol] = useState<string>('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -33,18 +47,23 @@ export function useCurrency() {
     ;(async () => {
       try {
         const tenant = await apiFetch<CompanyInfo>('/api/v1/me/tenant')
-        const rawCurr = (tenant?.base_currency || 'USD').toUpperCase()
-        const normalized = CURRENCY_LOCALE[rawCurr] ? rawCurr : 'USD'
-        const sym = CURRENCY_SYMBOLS[normalized] || '$'
+        let normalized = normalizeCurrency(tenant?.base_currency)
 
-        console.log('[useCurrency] Company currency:', rawCurr, 'Normalized:', normalized, 'Symbol:', sym)
+        if (!normalized) {
+          const settings = await apiFetch<CompanySettings>('/api/v1/company/settings')
+          normalized = normalizeCurrency(settings?.currency || settings?.settings?.currency)
+        }
+
+        const sym = normalized ? extractSymbol(normalized) : ''
+
+        console.log('[useCurrency] Company currency:', tenant?.base_currency, 'Normalized:', normalized, 'Symbol:', sym)
 
         setCurrency(normalized)
         setSymbol(sym)
       } catch (e) {
         console.error('Error cargando moneda del tenant:', e)
-        setCurrency('USD')
-        setSymbol('$')
+        setCurrency('')
+        setSymbol('')
       } finally {
         setLoading(false)
       }
@@ -52,8 +71,13 @@ export function useCurrency() {
   }, [])
 
   const formatCurrency = (amount: number): string => {
-    const locale = CURRENCY_LOCALE[currency] || 'en-US'
-    return new Intl.NumberFormat(locale, {
+    if (!currency) {
+      return new Intl.NumberFormat(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(amount)
+    }
+    return new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: currency,
       minimumFractionDigits: 2,

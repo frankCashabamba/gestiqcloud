@@ -1,0 +1,60 @@
+{
+  "errors": {
+    "notFound": "Not found",
+    "unauthorized": "Unauthorized",
+    "forbidden": "Forbidden",
+    "tokenExpired": "Token expired",
+    "tokenInvalid": "Invalid token",
+    "itemNotFound": "{item} not found",
+    "batchNotFound": "Batch not found",
+    "jobNotFound": "Job not found",
+    "ingredientNotFound": "Ingredient not found",
+    "closureNotFound": "Closure not found",
+    "receiptNotFound": "POS receipt not found",
+    "customerNotFound": "Customer not found",
+    "shiftNotFound": "Shift not found",
+    "alertNotFound": "Alert not found",
+    "channelNotFound": "Channel not found",
+    "roleNotFound": "Role not found",
+    "tenantNotFound": "Tenant not found",
+    "missingTenantId": "Missing tenant_id in token"
+  },
+  "validation": {
+    "required": "{field} is required",
+    "mustBePositive": "{field} must be greater than 0",
+    "mustBeNonNegative": "{field} must be >= 0",
+    "invalidFormat": "{field} invalid. Expected: {expected}",
+    "invalidType": "{field} invalid",
+    "invalidUuid": "{field} invalid: must be a valid UUID"
+  },
+  "pos": {
+    "openingAmountNonNegative": "Opening amount must be >= 0",
+    "quantityPositive": "Quantity must be > 0",
+    "amountPositive": "Amount must be > 0",
+    "pricePositive": "Price must be greater than 0"
+  },
+  "notifications": {
+    "channelTypes": "Type must be: email, whatsapp, or telegram",
+    "emailConfigIncomplete": "Email config incomplete. Missing: {fields}",
+    "whatsappProviderInvalid": "WhatsApp provider must be 'twilio' or 'generic'",
+    "whatsappConfigIncomplete": "WhatsApp config incomplete. Missing: {fields}",
+    "telegramConfigIncomplete": "Telegram config requires 'bot_token'",
+    "unsupportedType": "Unsupported type: {type}",
+    "celeryUnavailable": "Celery is not installed or cannot be imported; enable celery and run workers to use notifications.",
+    "channelIdOrConfigRequired": "Must provide channel_id or config_override"
+  },
+  "invoice": {
+    "lineTypePos": "Point of Sale",
+    "lineTypeBakery": "Bakery",
+    "lineTypeWorkshop": "Workshop"
+  },
+  "invoicing": {
+    "createInvoiceFromReceiptError": "Error creating invoice from POS receipt",
+    "createSaleFromReceiptError": "Error creating sales order from POS receipt",
+    "createExpenseFromReceiptError": "Error creating expense from POS receipt",
+    "transactionRollbackFailed": "Failed to rollback database transaction",
+    "receiptNotPaid": "Receipt must be in paid status to create sales order",
+    "noPosReceiptLine": "No line items found in POS receipt",
+    "tenantCurrencyNotConfigured": "Tenant currency is not configured"
+  }
+}

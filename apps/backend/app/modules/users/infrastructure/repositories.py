@@ -57,6 +57,8 @@ def insert_company_user(
         password_hash=hashed_password,
         is_active=data.active,
         is_company_admin=data.is_company_admin,
+        is_verified=False,
+        failed_login_count=0,
     )
     db.add(model)
     db.flush()

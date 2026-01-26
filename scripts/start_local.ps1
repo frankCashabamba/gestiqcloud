@@ -65,6 +65,7 @@ $backendPath = Join-Path $repoRoot "apps/backend"
 $adminPath = Join-Path $repoRoot "apps/admin"
 $tenantPath = Join-Path $repoRoot "apps/tenant"
 $venvActivate = Join-Path $repoRoot ".venv/Scripts/Activate.ps1"
+$backendLog = Join-Path $repoRoot "backend.log"
 
 $defaultApiUrl = "http://localhost:8000/api"
 $frontendUrl = Get-EnvValue -lines $rootEnvLines -key "FRONTEND_URL" -default "http://localhost:8081"
@@ -98,6 +99,7 @@ $backendEnvVars = @{
     "REDIS_RESULT_URL"     = "redis://localhost:6379/1"
     "CELERY_RESULT_EXPIRES" = "3600"
     "CELERY_IGNORE_RESULT"  = "false"
+    "ENV_FILE"              = $rootEnvPath
 }
 
 Write-Host "[4/7] Aplicando migraciones..." -ForegroundColor Yellow
@@ -125,14 +127,14 @@ Set-Location $repoRoot
 
 Write-Host "[5/7] Iniciando backend..." -ForegroundColor Green
 $backendJob = Start-Job -ScriptBlock {
-    param($envVars)
+    param($envVars, $logPath)
     foreach ($entry in $envVars.GetEnumerator()) {
         [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, "Process")
     }
     & $using:venvActivate
     Set-Location $using:backendPath
-    uvicorn app.main:app --host 0.0.0.0 --port 8000
-} -Name backend -ArgumentList $backendEnvVars
+    uvicorn app.main:app --host 0.0.0.0 --port 8000 *>> $logPath
+} -Name backend -ArgumentList $backendEnvVars, $backendLog
 
 Write-Host "[6/7] Iniciando frontends..." -ForegroundColor Green
 $adminJob = Start-Job -ScriptBlock {

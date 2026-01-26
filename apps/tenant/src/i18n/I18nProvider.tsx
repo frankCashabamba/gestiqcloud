@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import i18n, { normalizeLang } from './index'
 
 type Dict = Record<string, any>
 
@@ -19,9 +20,17 @@ function getNsAndKey(key: string): [string, string] {
   return [key.slice(0, i), key.slice(i + 1)]
 }
 
-export const I18nProvider: React.FC<{ defaultLang?: string; children: React.ReactNode }>= ({ defaultLang = 'es', children }) => {
-  const [lang, setLang] = useState(defaultLang)
+export const I18nProvider: React.FC<{ defaultLang?: string; children: React.ReactNode }>= ({ defaultLang = 'en', children }) => {
+  const [lang, setLangState] = useState(() => normalizeLang(i18n.resolvedLanguage || i18n.language || defaultLang))
   const [dicts, setDicts] = useState<Record<string, Dict>>({})
+
+  useEffect(() => {
+    const handler = (lng: string) => setLangState(normalizeLang(lng))
+    i18n.on('languageChanged', handler)
+    return () => {
+      i18n.off('languageChanged', handler)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -44,6 +53,11 @@ export const I18nProvider: React.FC<{ defaultLang?: string; children: React.Reac
     return () => { cancelled = true }
   }, [lang])
 
+  const setLang = useCallback((lng: string) => {
+    const normalized = normalizeLang(lng)
+    i18n.changeLanguage(normalized)
+  }, [])
+
   const t = useCallback((key: string, vars?: Record<string, string | number>) => {
     const [ns, k] = getNsAndKey(key)
     const d = dicts[ns] || {}
@@ -57,7 +71,7 @@ export const I18nProvider: React.FC<{ defaultLang?: string; children: React.Reac
     return str
   }, [dicts])
 
-  const value = useMemo<I18nContextType>(() => ({ lang, setLang, t }), [lang, t])
+  const value = useMemo<I18nContextType>(() => ({ lang, setLang, t }), [lang, setLang, t])
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
 }
 

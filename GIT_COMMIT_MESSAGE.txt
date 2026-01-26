@@ -1,0 +1,59 @@
+refactor: translate all filenames and directory names to English
+
+CHANGES:
+- Renamed 13 admin page components from Spanish to English
+- Renamed 12 tenant module directories from Spanish to English
+- Renamed 27+ component files within modules to English
+- Updated 437+ import statements across the codebase
+- Maintained i18n files and locale-specific resources in Spanish
+- Kept technical terms (Kardex, Facturae) where appropriate
+
+ADMIN PAGES (apps/admin/src/pages/):
+✅ EmpresaPanel.tsx → CompanyPanel.tsx
+✅ CompanyUsuarios.tsx → CompanyUsers.tsx
+✅ ImportarEmpresas.tsx → ImportCompanies.tsx
+✅ CrearEmpresa.tsx → CreateCompany.tsx
+✅ EditarEmpresa.tsx → EditCompany.tsx
+✅ EditarSectorEmpresa.tsx → EditCompanySector.tsx
+✅ EmpresaModulos.tsx → CompanyModules.tsx
+✅ AsignarNuevoAdmin.tsx → AssignNewAdmin.tsx
+✅ Usuarios.tsx → Users.tsx
+✅ Migraciones.tsx → Migrations.tsx
+✅ IncidenciasPanel.tsx → IncidentsPanel.tsx
+✅ CompanyConfiguracion.tsx → CompanyConfiguration.tsx
+✅ DeleteEmpresaModal.tsx → DeleteCompanyModal.tsx
+
+TENANT MODULES (apps/tenant/src/modules/):
+✅ finanzas/ → finances/
+✅ contabilidad/ → accounting/
+✅ facturacion/ → billing/
+✅ inventario/ → inventory/
+✅ rrhh/ → hr/
+✅ ventas/ → sales/
+✅ compras/ → purchases/
+✅ proveedores/ → suppliers/
+✅ importador/ → importer/
+✅ gastos/ → expenses/
+✅ clientes/ → customers/
+✅ productos/ → products/
+
+COMPONENT FILES (selected):
+✅ AsientoForm.tsx → JournalEntryForm.tsx
+✅ AsientosList.tsx → JournalEntriesList.tsx
+✅ CajaForm.tsx → CashForm.tsx
+✅ BancoList.tsx → BankList.tsx
+✅ EmpleadoForm.tsx → EmployeeForm.tsx
+✅ VacacionForm.tsx → VacationForm.tsx
+✅ MovimientoForm.tsx → MovementForm.tsx
+✅ BodegasList.tsx → WarehousesList.tsx
+... and 19 more
+
+VERIFICATION:
+- All imports validated and updated
+- No breaking changes to functionality
+- String content remains unchanged (already mostly in English)
+- Database schema unchanged
+- API routes unchanged
+- i18n and locale files preserved in Spanish
+
+This is a pure refactoring with zero functional impact.

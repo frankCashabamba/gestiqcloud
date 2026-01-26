@@ -741,17 +741,27 @@ def cancel_batch_import(batch_id: UUID, request: Request):
         raise HTTPException(status_code=400, detail=f"cancel_failed: {e}") from e
 
 
+# Primary English route
 @router.post(
-    "/documento/procesar",
+    "/process",
     status_code=status.HTTP_202_ACCEPTED,
     response_model=OCRJobEnqueuedResponse,
 )
+# DEPRECATED: legacy Spanish route - use /process instead
 @router.post(
     "/procesar",
     status_code=status.HTTP_202_ACCEPTED,
     response_model=OCRJobEnqueuedResponse,
+    deprecated=True,
 )
-async def procesar_documento_api(
+# DEPRECATED: legacy Spanish route - use /process instead
+@router.post(
+    "/documento/procesar",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=OCRJobEnqueuedResponse,
+    deprecated=True,
+)
+async def process_document_api(
     request: Request,
     file: UploadFile = File(...),
 ):

@@ -14,12 +14,12 @@ function titleCase(s: string) {
 }
 
 const NAME_MAP: Record<string, string> = {
-  rrhh: 'RR. HH.',
-  recursos_humanos: 'RR. HH.',
-  importador: 'Importador',
-  finanzas: 'Finanzas',
-  proveedores: 'Proveedores',
-  gastos: 'Gastos',
+  rrhh: 'HR',
+  recursos_humanos: 'HR',
+  importador: 'Importer',
+  finanzas: 'Finance',
+  proveedores: 'Suppliers',
+  gastos: 'Expenses',
   inventario: 'Inventory',
 }
 

@@ -1,4 +1,4 @@
-import api from './api';
+import api from '../shared/api/client';
 
 export interface CompanySettings {
   locale?: string;
@@ -61,22 +61,22 @@ export type CompanyLimits = {
 };
 
 export async function getCompanySettings(tenantId: string): Promise<CompanySettings> {
-  const response = await api.get(`/v1/admin/empresas/${tenantId}/company/settings`);
+  const response = await api.get(`/v1/admin/companies/${tenantId}/company/settings`);
   return response.data;
 }
 
 export async function updateCompanySettings(tenantId: string, settings: Partial<CompanySettings>) {
-  const response = await api.put(`/v1/admin/empresas/${tenantId}/company/settings`, settings);
+  const response = await api.put(`/v1/admin/companies/${tenantId}/company/settings`, settings);
   return response.data;
 }
 
 export async function getCompanyLimits(tenantId: string): Promise<CompanyLimits> {
-  const response = await api.get(`/v1/admin/empresas/${tenantId}/company/settings/limites`);
+  const response = await api.get(`/v1/admin/companies/${tenantId}/company/settings/limits`);
   return response.data;
 }
 
 export async function updateCompanyLimits(tenantId: string, limits: CompanyLimits) {
-  const response = await api.put(`/v1/admin/empresas/${tenantId}/company/settings/limites`, limits);
+  const response = await api.put(`/v1/admin/companies/${tenantId}/company/settings/limits`, limits);
   return response.data;
 }
 
@@ -86,7 +86,7 @@ export async function updateModuleSettings(
   config: any
 ) {
   const response = await api.put(
-    `/v1/admin/empresas/${tenantId}/settings/${module}`,
+    `/v1/admin/companies/${tenantId}/settings/${module}`,
     config
   );
   return response.data;
@@ -103,7 +103,7 @@ export async function uploadCertificate(
   formData.append('password', password);
 
   const response = await api.post(
-    `/v1/admin/empresas/${tenantId}/einvoicing/${type}/certificate`,
+    `/v1/admin/companies/${tenantId}/einvoicing/${type}/certificate`,
     formData,
     {
       headers: {
@@ -115,14 +115,14 @@ export async function uploadCertificate(
 }
 
 export async function exportSettings(tenantId: string): Promise<Blob> {
-  const response = await api.get(`/v1/admin/empresas/${tenantId}/settings/export`, {
+  const response = await api.get(`/v1/admin/companies/${tenantId}/settings/export`, {
     responseType: 'blob',
   });
   return response.data;
 }
 
 export async function restoreDefaults(tenantId: string) {
-  const response = await api.post(`/v1/admin/empresas/${tenantId}/settings/restore-defaults`);
+  const response = await api.post(`/v1/admin/companies/${tenantId}/settings/restore-defaults`);
   return response.data;
 }
 

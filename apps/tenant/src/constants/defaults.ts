@@ -34,7 +34,7 @@ export const NUMBERING_DEFAULTS = {
         doc_type: 'R',
         name: 'R001',
         current_no: 0,
-        reset_policy: 'yearly' as const,
+        reset_policy: 'yearly' as 'yearly' | 'never',
         active: true,
     },
 

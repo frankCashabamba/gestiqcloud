@@ -156,6 +156,7 @@ def include_router_safe(
 
 def _mount_empresas(r: APIRouter) -> None:
     include_router_safe(r, ("app.modules.company.interface.http.admin", "router"))
+    include_router_safe(r, ("app.modules.company.interface.http.purge", "router"))
     include_router_safe(r, ("app.modules.company.interface.http.tenant", "router"))
 
 
@@ -182,6 +183,8 @@ def build_api_router() -> APIRouter:
     include_router_safe(r, ("app.api.v1.auth", "router"))
     include_router_safe(r, ("app.api.v1.me", "router"))
     include_router_safe(r, ("app.api.v1.telemetry", "router"))
+    # Prometheus metrics
+    include_router_safe(r, ("app.api.v1.metrics", "router"))
     include_router_safe(r, ("app.api.v1.einvoicing", "router"))
     # Email health
     include_router_safe(r, ("app.api.v1.email_health", "router"))
@@ -195,6 +198,10 @@ def build_api_router() -> APIRouter:
     include_router_safe(r, ("app.modules.products.interface.http.public", "router"))
     include_router_safe(
         r, ("app.modules.products.interface.http.tenant", "router"), prefix="/tenant"
+    )
+    # DEPRECATED: legacy Spanish route /productos for backward compatibility
+    include_router_safe(
+        r, ("app.modules.products.interface.http.tenant", "legacy_router"), prefix="/tenant"
     )
     include_router_safe(r, ("app.modules.products.interface.http.admin", "router"))
 
@@ -215,6 +222,7 @@ def build_api_router() -> APIRouter:
     )
 
     # Módulos
+    include_router_safe(r, ("app.modules.modulos.interface.http.admin_alias", "router"))
     include_router_safe(r, ("app.modules.modulos.interface.http.admin", "router"))
     include_router_safe(r, ("app.modules.modulos.interface.http.tenant", "router"))
     include_router_safe(r, ("app.modules.modulos.interface.http.public", "router"))
@@ -264,6 +272,12 @@ def build_api_router() -> APIRouter:
     )
     include_router_safe(
         r,
+        ("app.modules.documents.interface.http.tenant", "legacy_router"),
+        prefix="/tenant",
+        mark_deprecated=True,
+    )
+    include_router_safe(
+        r,
         ("app.modules.documents.interface.http.tenant", "documents_router"),
         prefix="/tenant",
     )
@@ -310,6 +324,11 @@ def build_api_router() -> APIRouter:
         r, ("app.modules.imports.interface.http.confirm", "router"), prefix="/imports"
     )
 
+    # OCR Metrics endpoint
+    include_router_safe(
+        r, ("app.modules.imports.interface.http.metrics", "router"), prefix=""
+    )
+
     # Imports public (health) router
     if os.getenv("IMPORTS_ENABLED", "0") in ("1", "true", "True"):
         _mounted_public = include_router_safe(
@@ -343,8 +362,8 @@ def build_api_router() -> APIRouter:
         prefix="/tenant",
     )
 
-    # RRHH (Human Resources)
-    include_router_safe(r, ("app.modules.rrhh.interface.http.tenant", "router"), prefix="/tenant")
+    # RRHH (Human Resources) - TODO: Create module
+    # include_router_safe(r, ("app.modules.rrhh.interface.http.tenant", "router"), prefix="/tenant")
 
     # Finance
     include_router_safe(
@@ -397,10 +416,14 @@ def build_api_router() -> APIRouter:
     # (removed) Tenant onboarding/configuración inicial router (legacy)
 
     # Admin usuarios (router histórico): mantener mientras exista el panel actual
-    include_router_safe(r, ("app.routers.admin.usuarios", "router"), prefix="/admin/usuarios")
+    include_router_safe(r, ("app.routers.admin.usuarios", "router"), prefix="/admin/users")
 
-    # Roles base (histórico para admin actual): CRUD de roles
-    include_router_safe(r, ("app.routers.roles", "router"))
+    # Roles base: CRUD for roles and global permissions
+    include_router_safe(
+        r,
+        ("app.modules.identity.interface.http.roles", "router"),
+        fallback=("app.routers.roles", "router"),
+    )
 
     # Legacy endpoints: removed (modern routers in use)
 
@@ -453,6 +476,11 @@ def build_api_router() -> APIRouter:
     # Webhooks per tenant
     include_router_safe(
         r, ("app.modules.webhooks.interface.http.tenant", "router"), prefix="/tenant"
+    )
+
+    # Notifications
+    include_router_safe(
+        r, ("app.modules.notifications.interface.http.tenant", "router"), prefix="/tenant"
     )
 
     # Final safeguard: ensure imports router is mounted in non-production envs

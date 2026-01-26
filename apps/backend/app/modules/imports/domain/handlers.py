@@ -723,8 +723,8 @@ class ProductHandler:
                     try:
                         db.execute(
                             text(
-                                "INSERT INTO stock_moves (tenant_id, product_id, warehouse_id, qty, kind, tentative, posted, unit_cost, total_cost) "
-                                "VALUES (:tid, :pid, :wid, :qty, :kind, :tentative, :posted, :uc, :tc)"
+                                "INSERT INTO stock_moves (tenant_id, product_id, warehouse_id, qty, kind, tentative, posted, unit_cost, total_cost, occurred_at) "
+                                "VALUES (:tid, :pid, :wid, :qty, :kind, :tentative, :posted, :uc, :tc, NOW())"
                             ),
                             {
                                 "tid": str(tenant_id),
@@ -847,8 +847,8 @@ class ProductHandler:
                     try:
                         db.execute(
                             text(
-                                "INSERT INTO stock_moves (tenant_id, product_id, warehouse_id, qty, kind, tentative, posted, unit_cost, total_cost) "
-                                "VALUES (:tid, :pid, :wid, :qty, :kind, :tentative, :posted, :uc, :tc)"
+                                "INSERT INTO stock_moves (tenant_id, product_id, warehouse_id, qty, kind, tentative, posted, unit_cost, total_cost, occurred_at) "
+                                "VALUES (:tid, :pid, :wid, :qty, :kind, :tentative, :posted, :uc, :tc, NOW())"
                             ),
                             {
                                 "tid": str(tenant_id),

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Factura {{ document.sequential or document.id }}</title>
+  <style>
+    @page { size: A4; margin: 14mm; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:#0f172a; }
+    .muted { color:#64748b; }
+    .h { font-weight:900; font-size:22px; margin:0; }
+    .sub { font-weight:700; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:#334155; }
+    .row { display:flex; justify-content:space-between; gap:16px; }
+    .card { border:1px solid #e2e8f0; border-radius:14px; padding:12px; }
+    table { width:100%; border-collapse:collapse; font-size:12.5px; margin-top:14px; }
+    th, td { border-bottom:1px solid #e2e8f0; padding:10px 8px; text-align:left; vertical-align:top; }
+    th { background:#f8fafc; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#334155; }
+    .right { text-align:right; }
+    .totals { margin-top:14px; display:flex; justify-content:flex-end; }
+    .totals .card { min-width:280px; }
+    .totals .row { padding:4px 0; }
+    .totals .grand { font-weight:900; font-size:14px; }
+    .footer { margin-top:18px; font-size:12px; }
+    @media print { .no-print { display:none; } }
+  </style>
+</head>
+<body>
+  <div class="row" style="align-items:flex-start;">
+    <div style="flex:1;">
+      <div class="sub">Factura</div>
+      <p class="h">{{ seller.tradeName }}</p>
+      <div class="muted">RUC: {{ seller.taxId }}</div>
+      {% if seller.address %}<div class="muted">{{ seller.address }}</div>{% endif %}
+      {% if seller.email %}<div class="muted">Email: {{ seller.email }}</div>{% endif %}
+      {% if seller.website %}<div class="muted">Web: {{ seller.website }}</div>{% endif %}
+    </div>
+    <div class="card" style="min-width:280px;">
+      <div class="row"><span class="muted">Nº</span><strong>{{ (document.series or "") ~ ((" " if document.series else "")) ~ (document.sequential or document.id) }}</strong></div>
+      <div class="row"><span class="muted">Fecha</span><span>{{ document.issuedAt or "" }}</span></div>
+      <div class="row"><span class="muted">Moneda</span><span>{{ document.currency }}</span></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:12px;">
+    <div class="sub">Cliente</div>
+    <div style="margin-top:6px;">
+      <div><strong>{{ buyer.name or "" }}</strong></div>
+      {% if buyer.idType and buyer.idNumber %}
+      <div class="muted">{{ buyer.idType }}: {{ buyer.idNumber }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Descripción</th>
+        <th class="right">Cant</th>
+        <th class="right">Precio</th>
+        <th class="right">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+      <tr>
+        <td>{{ line.name }}</td>
+        <td class="right">{{ "%.2f"|format(line.qty) }}</td>
+        <td class="right">{{ "%.2f"|format(line.unitPrice) }}</td>
+        <td class="right">{{ "%.2f"|format(line.lineTotal) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div class="card">
+      <div class="row"><span class="muted">Subtotal</span><span>{{ "%.2f"|format(totals.subtotal) }}</span></div>
+      <div class="row"><span class="muted">IVA</span><span>{{ "%.2f"|format(totals.taxTotal) }}</span></div>
+      <div class="row grand"><span>Total</span><span>{{ "%.2f"|format(totals.grandTotal) }} {{ document.currency }}</span></div>
+    </div>
+  </div>
+
+  <div class="footer muted">
+    {% if seller.footerMessage %}{{ seller.footerMessage }}{% else %}Gracias por su compra{% endif %}
+  </div>
+
+</body>
+</html>

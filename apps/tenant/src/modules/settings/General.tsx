@@ -52,7 +52,7 @@ export default function GeneralSettings() {
             }
           }}
         >
-          Guardar
+          Save
         </button>
       </div>
     </div>

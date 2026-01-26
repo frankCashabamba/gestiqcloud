@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ticket {{ document.sequential or document.id }}</title>
+  <style>
+    @page { size: A4; margin: 14mm; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:#0f172a; }
+    .muted { color:#64748b; }
+    .row { display:flex; justify-content:space-between; gap:16px; }
+    .h { font-weight:800; font-size:18px; margin:0; }
+    .card { border:1px solid #e2e8f0; border-radius:12px; padding:12px; }
+    table { width:100%; border-collapse:collapse; font-size:12px; margin-top:10px; }
+    th, td { border-bottom:1px solid #e2e8f0; padding:8px 6px; text-align:left; }
+    th { background:#f8fafc; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#334155; }
+    .right { text-align:right; }
+    .footer { margin-top:14px; font-size:12px; }
+    @media print { .no-print { display:none; } }
+  </style>
+</head>
+<body>
+  <div class="row" style="align-items:flex-start;">
+    <div>
+      <p class="h">{{ seller.tradeName }}</p>
+      <div class="muted">RUC/NIF: {{ seller.taxId }}</div>
+      {% if seller.address %}<div class="muted">{{ seller.address }}</div>{% endif %}
+    </div>
+    <div class="card" style="min-width:240px;">
+      <div class="row"><span class="muted">Documento</span><strong>{{ document.sequential or document.id }}</strong></div>
+      <div class="row"><span class="muted">Fecha</span><span>{{ document.issuedAt or "" }}</span></div>
+      <div class="row"><span class="muted">Cliente</span><span>{{ buyer.name or "CONSUMIDOR FINAL" }}</span></div>
+      {% if buyer.idType and buyer.idType != "NONE" and buyer.idNumber %}
+      <div class="row"><span class="muted">{{ buyer.idType }}</span><span>{{ buyer.idNumber }}</span></div>
+      {% endif %}
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th class="right">Cant</th>
+        <th class="right">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+      <tr>
+        <td>{{ line.name }}</td>
+        <td class="right">{{ "%.2f"|format(line.qty) }}</td>
+        <td class="right">{{ "%.2f"|format(line.lineTotal) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="row" style="margin-top:12px;">
+    <div class="muted">Documento no válido como factura</div>
+    <div style="min-width:240px;">
+      <div class="row"><span class="muted">Subtotal</span><span>{{ "%.2f"|format(totals.subtotal) }}</span></div>
+      <div class="row"><span class="muted">IVA</span><span>{{ "%.2f"|format(totals.taxTotal) }}</span></div>
+      <div class="row" style="font-weight:800;"><span>Total</span><span>{{ "%.2f"|format(totals.grandTotal) }} {{ document.currency }}</span></div>
+    </div>
+  </div>
+
+  <div class="footer muted">
+    {% if seller.footerMessage %}{{ seller.footerMessage }}{% else %}Gracias por su compra{% endif %}
+  </div>
+
+</body>
+</html>

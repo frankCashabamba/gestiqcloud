@@ -53,8 +53,8 @@ class EndpointRateLimiter(BaseHTTPMiddleware):
             "/api/v1/auth/login": (10, 60),
             "/api/v1/tenant/auth/password-reset": (5, 300),  # 5 req/5min
             "/api/v1/tenant/auth/password-reset-confirm": (5, 300),
-            "/api/v1/admin/usuarios": (30, 60),  # 30 req/min
-            "/api/v1/admin/empresas": (20, 60),
+            "/api/v1/admin/users": (30, 60),  # 30 req/min
+            "/api/v1/admin/companies": (20, 60),
         }
 
     @staticmethod

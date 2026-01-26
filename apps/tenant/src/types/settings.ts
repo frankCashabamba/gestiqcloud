@@ -15,7 +15,7 @@ export interface GeneralSettings {
   logo_url?: string
   idioma: 'es' | 'en'
   timezone: string
-  moneda: 'EUR' | 'USD'
+  moneda: string | null
   formato_fecha: string
   formato_hora: string
 }

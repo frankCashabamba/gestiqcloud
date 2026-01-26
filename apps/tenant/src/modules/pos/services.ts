@@ -134,16 +134,52 @@ export async function listReceipts(params?: { shift_id?: string; status?: string
     return Array.isArray(items) ? items : []
 }
 
+export type CheckoutResponse = {
+    ok: boolean
+    receipt_id: string
+    status: string
+    totals: {
+        subtotal: number
+        tax: number
+        total: number
+        paid: number
+        change: number
+    }
+    documents_created?: {
+        invoice?: {
+            invoice_id: string
+            invoice_number: string
+            status: string
+            subtotal: number
+            tax: number
+            total: number
+        }
+        sale?: {
+            sale_id: string
+            sale_type: string
+            status: string
+            total: number
+        }
+        expense?: {
+            expense_id: string
+            expense_type: string
+            amount: number
+            status: string
+        }
+    }
+}
+
 export async function payReceipt(
     receiptId: string,
     payments: any[],
     opts?: { warehouse_id?: string }
-): Promise<POSReceipt> {
-    // Checkout unificado: pagos + descuento de stock por backend
+): Promise<CheckoutResponse> {
+    // Checkout unificado: pagos + descuento de stock + documentos por backend
     const payload: any = { payments }
     if (opts?.warehouse_id) payload.warehouse_id = opts.warehouse_id
     try {
-        await tenantApi.post(`${BASE_URL}/receipts/${receiptId}/checkout`, payload, { headers: authHeaders() })
+        const { data } = await tenantApi.post<CheckoutResponse>(`${BASE_URL}/receipts/${receiptId}/checkout`, payload, { headers: authHeaders() })
+        return data
     } catch (err: any) {
         // Fallback para entornos donde /checkout aún no está disponible
         const status = err?.response?.status
@@ -163,12 +199,96 @@ export async function payReceipt(
         }
     }
     const { data } = await tenantApi.get<POSReceipt>(`${BASE_URL}/receipts/${receiptId}`, { headers: authHeaders() })
-    return data
+    return {
+        ok: true,
+        receipt_id: data.id,
+        status: data.status,
+        totals: {
+            subtotal: data.subtotal || 0,
+            tax: data.tax_total || 0,
+            total: data.gross_total || 0,
+            paid: data.gross_total || 0,
+            change: 0
+        }
+    }
 }
 
 export async function convertToInvoice(receiptId: string, payload: ReceiptToInvoiceRequest): Promise<any> {
     const { data } = await tenantApi.post(`${BASE_URL}/receipts/${receiptId}/to_invoice`, payload, { headers: authHeaders() })
     return data
+}
+
+/**
+ * Create an invoice in the invoicing module from a POS receipt
+ * Syncs with the Billing module
+ */
+export async function createInvoiceFromReceipt(receiptId: string, receipt: POSReceipt, payload: ReceiptToInvoiceRequest): Promise<any> {
+    // Get current receipt if not provided
+    const currentReceipt = receipt || (await getReceipt(receiptId))
+    const r = currentReceipt as any
+
+    // Map lines from the POS receipt with explicit totals and taxes
+    const lineas = Array.isArray(r?.lines)
+        ? r.lines.map((line: any) => {
+              const qty = Number(line.qty) || 0
+              const unitPrice = Number(line.unit_price) || 0
+              const discountPct = Number(line.discount_pct || 0)
+              const taxRate = Number(line.tax_rate || 0)
+
+              const netBeforeTax = +(qty * unitPrice * (1 - discountPct / 100)).toFixed(2)
+              const taxAmount = +(netBeforeTax * taxRate).toFixed(2)
+
+              return {
+                  sector: 'pos',
+                  description: line?.product?.name || line?.product_name || `Producto ${line.product_id}`,
+                  cantidad: qty,
+                  precio_unitario: unitPrice,
+                  iva: taxAmount,
+                  sku: line?.product?.code || line?.product_code || line?.product?.sku,
+              }
+          })
+        : []
+
+    // Totales seguros (usa receipt si por alguna razon no hay lineas)
+    const subtotalFromLines = lineas.reduce((sum, l: any) => sum + (l.precio_unitario || 0) * (l.cantidad || 0), 0)
+    const taxFromLines = lineas.reduce((sum, l: any) => sum + (l.iva || 0), 0)
+    const totalFromLines = subtotalFromLines + taxFromLines
+
+    const subtotal = lineas.length ? subtotalFromLines : Math.max(0, Number(r?.gross_total || 0) - Number(r?.tax_total || 0))
+    const iva = lineas.length ? taxFromLines : Number(r?.tax_total || 0)
+    const total = lineas.length ? totalFromLines : Number(r?.gross_total || 0)
+
+    // Dejar que el backend numere si no se pasa serie
+    const invoiceData = {
+        numero: payload.series ? `${payload.series}-001` : r?.number || `INV-${Date.now()}`,
+        fecha: new Date().toISOString().split('T')[0],
+        cliente_id: r?.customer_id ? String(r.customer_id) : undefined,
+        supplier: payload.customer.name,
+        lineas: lineas.length > 0 ? lineas : [
+            {
+                sector: 'pos',
+                description: 'POS Sale',
+                cantidad: 1,
+                precio_unitario: subtotal || total,
+                iva,
+            },
+        ],
+        subtotal: +subtotal.toFixed(2),
+        iva: +iva.toFixed(2),
+        total: +total.toFixed(2),
+        estado: 'emitida',
+        meta: { pos_receipt_id: receiptId },
+    }
+
+    // Create invoice via invoicing endpoint using the correct API client
+    try {
+        // Use the invoicing endpoint
+        const { data } = await tenantApi.post('/api/v1/tenant/invoicing', invoiceData)
+        return data
+    } catch (error: any) {
+        console.error('Error creating invoice from receipt:', error.response?.data || error.message)
+        throw error
+    }
 }
 
 export async function refundReceipt(receiptId: string, payload: RefundRequest): Promise<any> {
@@ -219,7 +339,7 @@ export type DocumentModel = {
     document: { id: string }
 }
 
-const DOCUMENTS_SALES_URL = '/api/v1/tenant/sales'
+const DOCUMENTS_SALES_URL = '/api/v1/tenant/documents/sales'
 const DOCUMENTS_URL = '/api/v1/tenant/documents'
 
 export async function createDocumentDraft(payload: SaleDraft): Promise<DocumentModel> {
@@ -239,8 +359,17 @@ export async function renderDocument(documentId: string): Promise<string> {
     return data
 }
 
-export async function printDocument(documentId: string): Promise<string> {
+export async function renderDocumentWithFormat(documentId: string, format: 'THERMAL_80MM' | 'A4_PDF'): Promise<string> {
+    const { data } = await tenantApi.get<string>(`${DOCUMENTS_URL}/${documentId}/render`, {
+        params: { format },
+        headers: authHeaders(),
+    })
+    return data
+}
+
+export async function printDocument(documentId: string, format?: 'THERMAL_80MM' | 'A4_PDF'): Promise<string> {
     const { data } = await tenantApi.get<string>(`${DOCUMENTS_URL}/${documentId}/print`, {
+        params: format ? { format } : undefined,
         headers: authHeaders(),
     })
     return data

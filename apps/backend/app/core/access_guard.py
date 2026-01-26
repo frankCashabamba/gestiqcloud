@@ -127,3 +127,11 @@ def with_access_claims(request: Request) -> dict[str, Any]:
 
     request.state.access_claims = claims
     return claims
+
+
+async def get_current_user_context(request: Request) -> dict[str, Any]:
+    """
+    Dependency function to get current user context from request.
+    Can be used with FastAPI Depends().
+    """
+    return with_access_claims(request)

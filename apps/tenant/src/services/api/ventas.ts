@@ -1,5 +1,5 @@
 import api from '../../shared/api/client'
-import { TENANT_VENTAS } from '@shared/endpoints'
+import { TENANT_SALES } from '@shared/endpoints'
 
 export async function listVentas(params?: {
   page?: number
@@ -8,31 +8,31 @@ export async function listVentas(params?: {
   status?: string
   [key: string]: any
 }) {
-  const response = await api.get(TENANT_VENTAS.base, { params })
+  const response = await api.get(TENANT_SALES.base, { params })
   return response.data
 }
 
 export async function getVenta(id: string) {
-  const response = await api.get(TENANT_VENTAS.byId(id))
+  const response = await api.get(TENANT_SALES.byId(id))
   return response.data
 }
 
 export async function createVenta(data: any) {
-  const response = await api.post(TENANT_VENTAS.base, data)
+  const response = await api.post(TENANT_SALES.base, data)
   return response.data
 }
 
 export async function updateVenta(id: string, data: any) {
-  const response = await api.put(TENANT_VENTAS.byId(id), data)
+  const response = await api.put(TENANT_SALES.byId(id), data)
   return response.data
 }
 
 export async function deleteVenta(id: string) {
-  await api.delete(TENANT_VENTAS.byId(id))
+  await api.delete(TENANT_SALES.byId(id))
 }
 
 export async function convertToInvoice(id: string, data: any) {
-  const response = await api.post(`${TENANT_VENTAS.byId(id)}/invoice`, data)
+  const response = await api.post(`${TENANT_SALES.byId(id)}/invoice`, data)
   return response.data
 }
 
@@ -41,6 +41,6 @@ export async function getVentasStats(params?: {
   endDate?: string
   groupBy?: string
 }) {
-  const response = await api.get(`${TENANT_VENTAS.base}/stats`, { params })
+  const response = await api.get(`${TENANT_SALES.base}/stats`, { params })
   return response.data
 }

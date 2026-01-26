@@ -5,11 +5,14 @@ Handles reconciliation of conflicting changes during sync operations.
 Implements business logic for resolving data conflicts in multi-tenant environment.
 """
 
+import logging
 from datetime import datetime
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger("app.sync.conflicts")
 
 
 class ConflictResolver:
@@ -194,47 +197,54 @@ def log_conflict_resolution(
 ):
     """
     Log conflict resolution for audit purposes.
+    
+    Uses the sync_conflict_log table created by migration:
+    ops/migrations/2026-01-17_001_sync_conflict_log/
     """
+    import json
+    
     try:
-        # Insert into conflict log table (would need to create this table)
+        conflict_data_json = json.dumps(original_conflict, default=str)
+        
         db.execute(
             text(
                 """
-            INSERT INTO sync_conflict_log (
-                tenant_id, entity_type, entity_id,
-                conflict_data, resolution, resolved_at
-            ) VALUES (
-                :tenant_id, :entity_type, :entity_id,
-                :conflict_data, :resolution, NOW()
-            )
-        """
+                INSERT INTO sync_conflict_log (
+                    tenant_id, entity_type, entity_id,
+                    conflict_data, resolution
+                ) VALUES (
+                    :tenant_id, :entity_type, :entity_id,
+                    :conflict_data::jsonb, :resolution
+                )
+                """
             ),
             {
                 "tenant_id": tenant_id,
                 "entity_type": original_conflict.get("table"),
-                "entity_id": original_conflict.get("id"),
-                "conflict_data": original_conflict,
+                "entity_id": str(original_conflict.get("id", "")),
+                "conflict_data": conflict_data_json,
                 "resolution": resolution.get("resolution", "unknown"),
             },
         )
         db.commit()
-    except Exception as e:
-        # Log error but don't fail sync
-        print(f"Failed to log conflict resolution: {e}")
-
-
-# Migration to create conflict log table
-CONFLICT_LOG_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS sync_conflict_log (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id),
-    entity_type TEXT NOT NULL,
-    entity_id TEXT NOT NULL,
-    conflict_data JSONB,
-    resolution TEXT,
-    resolved_at TIMESTAMPTZ DEFAULT NOW(),
-
-    INDEX idx_sync_conflicts_tenant (tenant_id),
-    INDEX idx_sync_conflicts_entity (entity_type, entity_id)
-);
-"""
+        
+        logger.debug(
+            "Conflict resolution logged",
+            extra={
+                "tenant_id": tenant_id,
+                "entity_type": original_conflict.get("table"),
+                "entity_id": original_conflict.get("id"),
+                "resolution": resolution.get("resolution"),
+            },
+        )
+    except Exception:
+        logger.warning(
+            "Failed to log conflict resolution",
+            extra={
+                "tenant_id": tenant_id,
+                "entity_type": original_conflict.get("table"),
+                "entity_id": original_conflict.get("id"),
+                "resolution": resolution.get("resolution", "unknown"),
+            },
+            exc_info=True,
+        )

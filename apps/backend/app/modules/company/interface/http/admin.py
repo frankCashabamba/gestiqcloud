@@ -3,11 +3,13 @@ from __future__ import annotations
 import logging
 import os
 import uuid
+from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import func, text
+from sqlalchemy import bindparam, func, text
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Session
 
 from app.api.email.email_utils import enviar_correo_bienvenida
@@ -27,13 +29,63 @@ from app.modules.identity.infrastructure.jwt_tokens import PyJWTTokenService
 from app.shared.utils import slugify
 
 router = APIRouter(
-    # Spanish-friendly prefix expected by frontend/endpoints (`/v1/admin/empresas`)
-    prefix="/admin/empresas",
+    prefix="/admin/companies",
     tags=["Admin Companies"],
     dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))],
 )
 
 logger = logging.getLogger("app.company.admin")
+
+
+def _collect_fk_tables(db: Session, referenced_table: str, schema: str = "public") -> list[tuple[str, str]]:
+    rows = db.execute(
+        text(
+            """
+            SELECT kcu.table_name, kcu.column_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+              ON tc.constraint_name = kcu.constraint_name
+             AND tc.table_schema = kcu.table_schema
+            JOIN information_schema.constraint_column_usage ccu
+              ON ccu.constraint_name = tc.constraint_name
+             AND ccu.table_schema = tc.table_schema
+            WHERE tc.constraint_type = 'FOREIGN KEY'
+              AND ccu.table_name = :ref_table
+              AND tc.table_schema = :schema
+            """
+        ),
+        {"ref_table": referenced_table, "schema": schema},
+    ).all()
+    return [(row[0], row[1]) for row in rows]
+
+
+def _delete_company_data_postgres(
+    db: Session, tenant_id: uuid.UUID, excluded_tables: set[str]
+) -> None:
+    schema = "public"
+    user_fk_tables = _collect_fk_tables(db, "company_users", schema=schema)
+    tenant_fk_tables = _collect_fk_tables(db, "tenants", schema=schema)
+
+    # Delete rows that depend on company_users first to avoid FK violations.
+    for table, column in user_fk_tables:
+        if table in excluded_tables or table == "company_users":
+            continue
+        db.execute(
+            text(
+                f'DELETE FROM "{schema}"."{table}" '
+                f'WHERE "{column}" IN (SELECT id FROM "{schema}"."company_users" WHERE tenant_id = :tenant_id)'
+            ),
+            {"tenant_id": tenant_id},
+        )
+
+    # Delete rows by tenant FK (skip tenants/company_users themselves).
+    for table, column in tenant_fk_tables:
+        if table in excluded_tables or table in ("tenants", "company_users"):
+            continue
+        db.execute(
+            text(f'DELETE FROM "{schema}"."{table}" WHERE "{column}" = :tenant_id'),
+            {"tenant_id": tenant_id},
+        )
 
 
 def _module_names(db: Session, tenant_id: uuid.UUID) -> list[str]:
@@ -71,6 +123,237 @@ def _pick_default_currency(db: Session) -> str:
     if currency and currency.code:
         return currency.code
     raise HTTPException(status_code=400, detail="currency_required")
+
+
+@router.get("/{tenant_id}/pos/receipts/backfill_candidates", response_model=dict)
+def admin_list_pos_backfill_candidates(
+    tenant_id: str,
+    request: Request,
+    missing: str = "any",
+    since: datetime | None = None,
+    until: datetime | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+):
+    """Lista receipts pagados que están incompletos (sin invoice y/o sin sales_order).
+
+    `missing`:
+      - any: falta invoice o sale
+      - invoice: falta invoice
+      - sale: falta sales_order
+    """
+    try:
+        tenant_uuid = uuid.UUID(str(tenant_id))
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid_tenant_id")
+
+    missing_norm = (missing or "any").strip().lower()
+    if missing_norm not in ("any", "invoice", "sale"):
+        raise HTTPException(status_code=400, detail="invalid_missing_filter")
+
+    if limit < 1:
+        limit = 1
+    if limit > 200:
+        limit = 200
+    if offset < 0:
+        offset = 0
+
+    from app.db.rls import set_tenant_guc
+
+    set_tenant_guc(db, str(tenant_uuid), persist=True)
+    claims = getattr(request.state, "access_claims", {}) or {}
+    if isinstance(claims, dict) and claims.get("user_id"):
+        try:
+            db.execute(text("SET app.user_id = :uid"), {"uid": str(claims["user_id"])})
+        except Exception:
+            pass
+
+    tenant_currency_row = db.execute(
+        text(
+            """
+            SELECT cs.currency, t.base_currency
+            FROM tenants t
+            LEFT JOIN company_settings cs ON cs.tenant_id = t.id
+            WHERE t.id = :tid
+            LIMIT 1
+            """
+        ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+        {"tid": tenant_uuid},
+    ).first()
+    tenant_currency: str | None = None
+    if tenant_currency_row:
+        cs_cur, base_cur = tenant_currency_row
+        for val in (cs_cur, base_cur):
+            if val:
+                tenant_currency = str(val).strip().upper() or None
+                if tenant_currency:
+                    break
+
+    where_parts: list[str] = ["r.status = 'paid'"]
+    params: dict = {"tid": tenant_uuid, "limit": limit, "offset": offset}
+
+    if since is not None:
+        where_parts.append("r.paid_at >= :since")
+        params["since"] = since
+    if until is not None:
+        where_parts.append("r.paid_at <= :until")
+        params["until"] = until
+
+    if missing_norm == "invoice":
+        where_parts.append("r.invoice_id IS NULL")
+    elif missing_norm == "sale":
+        where_parts.append("so.id IS NULL")
+    else:
+        where_parts.append("(r.invoice_id IS NULL OR so.id IS NULL)")
+
+    rows = db.execute(
+        text(
+            f"""
+            SELECT
+              r.id,
+              r.number,
+              r.paid_at,
+              r.gross_total,
+              r.tax_total,
+              r.currency,
+              r.invoice_id,
+              so.id AS sales_order_id
+            FROM pos_receipts r
+            LEFT JOIN sales_orders so
+              ON so.tenant_id = :tid
+             AND so.pos_receipt_id = r.id
+            WHERE {" AND ".join(where_parts)}
+            ORDER BY r.paid_at DESC NULLS LAST, r.created_at DESC
+            LIMIT :limit OFFSET :offset
+            """
+        ).bindparams(
+            bindparam("tid", type_=PGUUID(as_uuid=True)),
+        ),
+        params,
+    ).fetchall()
+
+    items: list[dict] = []
+    for (
+        receipt_id,
+        number,
+        paid_at,
+        gross_total,
+        tax_total,
+        currency,
+        invoice_id,
+        sales_order_id,
+    ) in rows:
+        receipt_currency = str(currency).strip().upper() if currency else None
+        currency_mismatch = bool(
+            tenant_currency and receipt_currency and receipt_currency != tenant_currency
+        )
+        items.append(
+            {
+                "receipt_id": str(receipt_id),
+                "number": number,
+                "paid_at": paid_at.isoformat() if hasattr(paid_at, "isoformat") and paid_at else None,
+                "gross_total": float(gross_total or 0),
+                "tax_total": float(tax_total or 0),
+                # Nunca mostramos una moneda distinta a la configurada del tenant.
+                "currency": None if currency_mismatch else receipt_currency,
+                "tenant_currency": tenant_currency,
+                "currency_mismatch": currency_mismatch,
+                "invoice_id": str(invoice_id) if invoice_id else None,
+                "sales_order_id": str(sales_order_id) if sales_order_id else None,
+                "missing_invoice": invoice_id is None,
+                "missing_sale": sales_order_id is None,
+            }
+        )
+
+    return {
+        "ok": True,
+        "tenant_id": str(tenant_uuid),
+        "tenant_currency": tenant_currency,
+        "missing": missing_norm,
+        "limit": limit,
+        "offset": offset,
+        "items": items,
+    }
+
+
+@router.post("/{tenant_id}/pos/receipts/{receipt_id}/backfill_documents", response_model=dict)
+def admin_backfill_pos_receipt_documents(
+    tenant_id: str,
+    receipt_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Rescate/backfill POS (admin): reintenta crear invoice + sales_order desde un receipt paid.
+
+    - Idempotente: si ya existen, no duplica.
+    - Asegura tenant scope via Postgres GUC + RLS.
+    """
+    try:
+        tenant_uuid = uuid.UUID(str(tenant_id))
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid_tenant_id")
+
+    try:
+        receipt_uuid = uuid.UUID(str(receipt_id))
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid_receipt_id")
+
+    from app.db.rls import set_tenant_guc
+
+    set_tenant_guc(db, str(tenant_uuid), persist=True)
+    claims = getattr(request.state, "access_claims", {}) or {}
+    if isinstance(claims, dict) and claims.get("user_id"):
+        try:
+            db.execute(text("SET app.user_id = :uid"), {"uid": str(claims["user_id"])})
+        except Exception:
+            pass
+
+    receipt = db.execute(
+        text(
+            """
+            SELECT status
+            FROM pos_receipts
+            WHERE id = :id
+            FOR UPDATE
+            """
+        ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
+        {"id": receipt_uuid},
+    ).first()
+    if not receipt:
+        raise HTTPException(status_code=404, detail="receipt_not_found")
+    if receipt[0] != "paid":
+        raise HTTPException(status_code=400, detail="invalid_status")
+
+    documents_created: dict = {}
+    try:
+        from app.modules.pos.application.invoice_integration import POSInvoicingService
+
+        service = POSInvoicingService(db, tenant_uuid)
+
+        # Try to create invoice
+        try:
+            invoice_result = service.create_invoice_from_receipt(receipt_uuid, customer_id=None)
+            if invoice_result:
+                documents_created["invoice"] = invoice_result
+        except Exception as e:
+            logger.warning("Failed to create invoice for receipt %s: %s", receipt_uuid, e)
+            # Reset transaction state before trying next operation
+            db.rollback()
+
+        # Try to create sale order
+        try:
+            sale_result = service.create_sale_from_receipt(receipt_uuid)
+            if sale_result:
+                documents_created["sale"] = sale_result
+        except Exception as e:
+            logger.warning("Failed to create sale for receipt %s: %s", receipt_uuid, e)
+            db.rollback()
+    except Exception as e:
+        logger.exception("Unexpected error in POS backfill: %s", e)
+        db.rollback()
+
+    return {"ok": True, "receipt_id": str(receipt_uuid), "documents_created": documents_created}
 
 
 @router.get("", response_model=list[CompanyOutSchema])
@@ -270,36 +553,54 @@ def delete_company(
 
     # Now proceed with cascade deletion
     try:
-        # Temporarily disable the trigger that blocks deleting the last admin
-        db.execute(text("SET session_replication_role = replica;"))
+        dialect = getattr(db.get_bind().dialect, "name", "")
+        if dialect == "postgresql":
+            # Temporarily disable triggers that can block admin deletion.
+            db.execute(text("SET session_replication_role = replica;"))
 
-        # Remove child records
-        db.execute(
-            text("DELETE FROM company_user_roles WHERE tenant_id::text = :tid"),
-            {"tid": tenant_uuid},
-        )
-        db.execute(
-            text("DELETE FROM assigned_modules WHERE tenant_id::text = :tid"),
-            {"tid": tenant_uuid},
-        )
-        db.execute(
-            text("DELETE FROM company_modules WHERE tenant_id::text = :tid"),
-            {"tid": tenant_uuid},
-        )
-        db.execute(
-            text("DELETE FROM company_users WHERE tenant_id::text = :tid"),
-            {"tid": tenant_uuid},
-        )
-        db.execute(
-            text("DELETE FROM company_roles WHERE tenant_id::text = :tid"),
-            {"tid": tenant_uuid},
-        )
+        excluded_tables = {"audit_events", "auth_audit"}
 
-        # Delete tenant (cascade via FK for other tables)
-        db.execute(text("DELETE FROM tenants WHERE id::text = :tid"), {"tid": tenant_uuid})
+        if dialect == "postgresql":
+            _delete_company_data_postgres(db, uuid.UUID(tenant_uuid), excluded_tables)
+            db.execute(
+                text('DELETE FROM "public"."company_users" WHERE tenant_id = :tenant_id'),
+                {"tenant_id": uuid.UUID(tenant_uuid)},
+            )
+            db.execute(
+                text('DELETE FROM "public"."tenants" WHERE id = :tenant_id'),
+                {"tenant_id": uuid.UUID(tenant_uuid)},
+            )
+        else:
+            # Fallback for non-Postgres: explicit deletes for core tables.
+            db.execute(
+                text("DELETE FROM company_user_roles WHERE tenant_id::text = :tid"),
+                {"tid": tenant_uuid},
+            )
+            db.execute(
+                text("DELETE FROM assigned_modules WHERE tenant_id::text = :tid"),
+                {"tid": tenant_uuid},
+            )
+            db.execute(
+                text("DELETE FROM company_modules WHERE tenant_id::text = :tid"),
+                {"tid": tenant_uuid},
+            )
+            db.execute(
+                text("DELETE FROM user_profiles WHERE tenant_id::text = :tid"),
+                {"tid": tenant_uuid},
+            )
+            db.execute(
+                text("DELETE FROM company_users WHERE tenant_id::text = :tid"),
+                {"tid": tenant_uuid},
+            )
+            db.execute(
+                text("DELETE FROM company_roles WHERE tenant_id::text = :tid"),
+                {"tid": tenant_uuid},
+            )
+            db.execute(text("DELETE FROM tenants WHERE id::text = :tid"), {"tid": tenant_uuid})
 
-        # Re-enable triggers
-        db.execute(text("SET session_replication_role = DEFAULT;"))
+        if dialect == "postgresql":
+            # Re-enable triggers
+            db.execute(text("SET session_replication_role = DEFAULT;"))
 
         db.commit()
 
@@ -315,7 +616,8 @@ def delete_company(
     except Exception as e:
         # Re-enable triggers before rollback
         try:
-            db.execute(text("SET session_replication_role = DEFAULT;"))
+            if getattr(db.get_bind().dialect, "name", "") == "postgresql":
+                db.execute(text("SET session_replication_role = DEFAULT;"))
         except Exception:
             pass
         db.rollback()

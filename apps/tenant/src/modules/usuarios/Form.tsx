@@ -38,9 +38,9 @@ export default function UsuarioForm() {
   if (!isAdmin) {
     return (
       <div className="p-6">
-        <h2 className="text-lg font-semibold text-slate-900">Acceso restringido</h2>
-        <p className="mt-2 text-sm text-slate-600">No tienes permisos para gestionar usuarios.</p>
-        <button className="gc-button gc-button--ghost mt-4" onClick={() => nav('..')}>Volver</button>
+        <h2 className="text-lg font-semibold text-slate-900">Access restricted</h2>
+        <p className="mt-2 text-sm text-slate-600">You do not have permission to manage users.</p>
+        <button className="gc-button gc-button--ghost mt-4" onClick={() => nav('..')}>Back</button>
       </div>
     )
   }
@@ -126,13 +126,13 @@ export default function UsuarioForm() {
     event.preventDefault()
     try {
       if (!form.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-        throw new Error('Email inválido')
+        throw new Error('Invalid email')
       }
       if (!form.first_name?.trim()) {
         throw new Error('Name is required')
       }
       if (!editMode && !form.password) {
-        throw new Error('La contraseña es obligatoria para nuevos usuarios')
+        throw new Error('Password is required for new users')
       }
 
       if (editMode && id) {
@@ -148,7 +148,7 @@ export default function UsuarioForm() {
           roles: canEditModulos ? form.roles : undefined,
         }
         await updateUsuario(id, payload)
-        success('Usuario actualizado')
+        success('User updated')
       } else {
         const payload: UsuarioCreatePayload = {
           ...form,
@@ -156,7 +156,7 @@ export default function UsuarioForm() {
           roles: canEditModulos ? form.roles : [],
         }
         await createUsuario(payload)
-        success('Usuario creado')
+        success('User created')
       }
       nav('..')
     } catch (e: any) {
@@ -171,7 +171,7 @@ export default function UsuarioForm() {
       setCheckingUsername(true)
       const available = await checkUsernameAvailability(value)
       if (!available) {
-        errorRef.current('Ese nombre de usuario ya esta en uso')
+        errorRef.current('That username is already in use')
       }
     } catch (e: any) {
       errorRef.current(getErrorMessage(e))
@@ -183,12 +183,12 @@ export default function UsuarioForm() {
   return (
     <div className="p-4 max-w-3xl">
       <h3 className="text-xl font-semibold text-slate-900 mb-4">
-        {editMode ? 'Editar usuario' : 'Nuevo usuario'}
+        {editMode ? 'Edit user' : 'New user'}
       </h3>
       <form onSubmit={onSubmit} className="space-y-5">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-600">Nombre</span>
+            <span className="font-medium text-slate-600">First name</span>
             <input
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
               value={form.first_name ?? ''}
@@ -197,7 +197,7 @@ export default function UsuarioForm() {
             />
           </label>
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-600">Apellido</span>
+            <span className="font-medium text-slate-600">Last name</span>
             <input
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
               value={form.last_name ?? ''}
@@ -207,7 +207,7 @@ export default function UsuarioForm() {
         </div>
 
         <label className="space-y-1 text-sm">
-          <span className="font-medium text-slate-600">Correo electrónico</span>
+          <span className="font-medium text-slate-600">Email</span>
           <input
             type="email"
             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
@@ -219,21 +219,21 @@ export default function UsuarioForm() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-600">Nombre de usuario</span>
+            <span className="font-medium text-slate-600">Username</span>
             <input
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
               value={form.username ?? ''}
               onChange={(e) => setForm({ ...form, username: e.target.value })}
               onBlur={handleUsernameBlur}
             />
-            {checkingUsername && <span className="text-xs text-slate-400">Verificando…</span>}
+            {checkingUsername && <span className="text-xs text-slate-400">Checking...</span>}
           </label>
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-600">contraseña {editMode && '(opcional)'}</span>
+            <span className="font-medium text-slate-600">Password {editMode && '(optional)'}</span>
             <input
               type="text"
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              placeholder={editMode ? 'Dejar en blanco para mantener la actual' : ''}
+              placeholder={editMode ? 'Leave blank to keep current' : ''}
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
             />
@@ -246,13 +246,13 @@ export default function UsuarioForm() {
             checked={form.is_company_admin}
             onChange={(e) => setForm({ ...form, is_company_admin: e.target.checked })}
           />
-          Administrador de la empresa (acceso total)
+          Company administrator (full access)
         </label>
 
         {canEditModulos && (
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <h4 className="text-sm font-semibold text-slate-700">Módulos habilitados</h4>
-            <p className="text-xs text-slate-500 mb-2">Selecciona los Módulos a los que tendrá acceso este usuario.</p>
+            <h4 className="text-sm font-semibold text-slate-700">Enabled modules</h4>
+            <p className="text-xs text-slate-500 mb-2">Select the modules this user will have access to.</p>
             <div className="grid gap-2 sm:grid-cols-2">
               {modules.map((mod) => (
                 <label key={mod.id} className="flex items-center gap-2 text-sm text-slate-600">
@@ -264,7 +264,7 @@ export default function UsuarioForm() {
                   <span>{mod.name || `Módulo #${mod.id}`}</span>
                 </label>
               ))}
-              {!modules.length && <p className="text-xs text-slate-400">No hay Módulos contratados.</p>}
+              {!modules.length && <p className="text-xs text-slate-400">No modules contracted.</p>}
             </div>
           </div>
         )}
@@ -272,7 +272,7 @@ export default function UsuarioForm() {
         {canEditModulos && (
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
             <h4 className="text-sm font-semibold text-slate-700">Roles</h4>
-            <p className="text-xs text-slate-500 mb-2">Puedes asignar uno o varios roles definidos para la empresa.</p>
+            <p className="text-xs text-slate-500 mb-2">You can assign one or more roles defined for the company.</p>
             <div className="grid gap-2 sm:grid-cols-2">
               {roles.map((rol) => (
                 <label key={rol.id} className="flex items-center gap-2 text-sm text-slate-600">
@@ -284,7 +284,7 @@ export default function UsuarioForm() {
                   <span>{rol.name}</span>
                 </label>
               ))}
-              {!roles.length && <p className="text-xs text-slate-400">No hay roles definidos. Puedes crearlos desde Configuración.</p>}
+              {!roles.length && <p className="text-xs text-slate-400">No roles defined. You can create them from Settings.</p>}
             </div>
           </div>
         )}
@@ -295,7 +295,7 @@ export default function UsuarioForm() {
             checked={form.active}
             onChange={(e) => setForm({ ...form, active: e.target.checked })}
           />
-          Usuario activo
+          Active user
         </label>
 
         <div className="flex items-center gap-3">
@@ -304,14 +304,14 @@ export default function UsuarioForm() {
             className="gc-button gc-button--primary"
             disabled={busy}
           >
-            {editMode ? 'Guardar cambios' : 'Crear usuario'}
+            {editMode ? 'Save changes' : 'Create user'}
           </button>
           <button
             type="button"
             className="gc-button gc-button--ghost"
             onClick={() => nav('..')}
           >
-            Cancelar
+            Cancel
           </button>
         </div>
       </form>

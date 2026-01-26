@@ -1,8 +1,8 @@
 /**
  * ExpiryWarnings
  *
- * Componente que muestra alertas de productos próximos a caducar
- * Solo visible si features.inventory_expiry_tracking === true
+ * Component that displays alerts for products nearing expiration
+ * Only visible if features.inventory_expiry_tracking === true
  */
 import React, { useEffect, useState } from 'react'
 import { useCompanyFeatures, useCompanySector } from '../contexts/CompanyConfigContext'
@@ -19,11 +19,11 @@ interface ExpiringProduct {
 }
 
 interface ExpiryWarningsProps {
-  /** Días de anticipación para la alerta (default: 3) */
+  /** Days in advance for the alert (default: 3) */
   warningDays?: number
-  /** Máximo de productos a mostrar (default: 5) */
+  /** Maximum products to display (default: 5) */
   maxItems?: number
-  /** Callback cuando se hace click en un producto */
+  /** Callback when a product is clicked */
   onProductClick?: (productId: string) => void
 }
 
@@ -40,7 +40,7 @@ export function ExpiryWarnings({
   const [error, setError] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState(false)
 
-  // Solo cargar si el feature está habilitado
+  // Only load if feature is enabled
   if (!features.inventory_expiry_tracking) {
     return null
   }
@@ -61,7 +61,7 @@ export function ExpiryWarnings({
       setProducts(response.items || [])
     } catch (err: any) {
       console.error('Error loading expiring products:', err)
-      setError(err.message || 'Error cargando productos próximos a caducar')
+      setError(err.message || 'Error loading expiring products')
     } finally {
       setLoading(false)
     }
@@ -74,16 +74,16 @@ export function ExpiryWarnings({
   }
 
   const getUrgencyLabel = (days: number): string => {
-    if (days === 0) return '¡HOY!'
-    if (days === 1) return 'Mañana'
-    return `${days} días`
+    if (days === 0) return 'TODAY!'
+    if (days === 1) return 'Tomorrow'
+    return `${days} days`
   }
 
   if (loading) {
     return (
-      <div className="expiry-warnings loading" role="status" aria-label="Cargando alertas de caducidad">
+      <div className="expiry-warnings loading" role="status" aria-label="Loading expiry alerts">
         <div className="loading-spinner"></div>
-        <span>Verificando fechas de caducidad...</span>
+        <span>Checking expiration dates...</span>
       </div>
     )
   }
@@ -96,20 +96,20 @@ export function ExpiryWarnings({
         <button
           onClick={loadExpiringProducts}
           className="retry-btn"
-          aria-label="Reintentar carga"
+          aria-label="Retry loading"
         >
-          Reintentar
+          Retry
         </button>
       </div>
     )
   }
 
   if (products.length === 0) {
-    return null // No mostrar nada si no hay productos próximos a caducar
+    return null // Don't show anything if no products are nearing expiration
   }
 
   return (
-    <div className="expiry-warnings" role="region" aria-label="Productos próximos a caducar">
+    <div className="expiry-warnings" role="region" aria-label="Products nearing expiration">
       {/* Header */}
       <div className="warnings-header" onClick={() => setCollapsed(!collapsed)}>
         <div className="header-left">
@@ -117,22 +117,22 @@ export function ExpiryWarnings({
             📦
           </span>
           <h3 className="title">
-            Productos Próximos a Caducar
-            <span className="count-badge" aria-label={`${products.length} productos`}>
+            Products Nearing Expiration
+            <span className="count-badge" aria-label={`${products.length} products`}>
               {products.length}
             </span>
           </h3>
         </div>
         <button
           className="collapse-btn"
-          aria-label={collapsed ? 'Expandir' : 'Contraer'}
+          aria-label={collapsed ? 'Expand' : 'Collapse'}
           aria-expanded={!collapsed}
         >
           {collapsed ? '▼' : '▲'}
         </button>
       </div>
 
-      {/* Lista de productos */}
+      {/* Product list */}
       {!collapsed && (
         <div className="warnings-list">
           {products.map((product) => {
@@ -146,10 +146,10 @@ export function ExpiryWarnings({
                 onClick={() => onProductClick?.(product.id)}
                 role="button"
                 tabIndex={0}
-                aria-label={`${product.name} - Caduca en ${urgencyLabel}`}
+                aria-label={`${product.name} - Expires in ${urgencyLabel}`}
               >
                 <div className="item-left">
-                  <div className="urgency-badge" aria-label={`Urgencia: ${urgency}`}>
+                  <div className="urgency-badge" aria-label={`Urgency: ${urgency}`}>
                     {urgencyLabel}
                   </div>
                   <div className="item-info">
@@ -167,8 +167,8 @@ export function ExpiryWarnings({
                 </div>
 
                 <div className="item-right">
-                   <div className="qty-badge" aria-label={`Cantidad: ${product.qty_on_hand}`}>
-                     {product.qty_on_hand} unidades
+                   <div className="qty-badge" aria-label={`Quantity: ${product.qty_on_hand}`}>
+                     {product.qty_on_hand} units
                    </div>
                   <div className="expiry-date">
                     {new Date(product.expires_at).toLocaleDateString('es-ES', {
@@ -181,14 +181,14 @@ export function ExpiryWarnings({
             )
           })}
 
-          {/* Botón ver todos */}
+          {/* View all button */}
           {products.length === maxItems && (
             <button
               className="view-all-btn"
               onClick={() => window.location.href = '/inventory/expiring'}
-              aria-label="Ver todos los productos próximos a caducar"
+              aria-label="View all products nearing expiration"
             >
-              Ver todos los productos próximos a caducar →
+              View all products nearing expiration →
             </button>
           )}
         </div>

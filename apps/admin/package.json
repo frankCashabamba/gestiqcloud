@@ -9,7 +9,12 @@
     "postbuild": "node -e \"const fs=require('fs'); ['200.html','404.html'].forEach(f=>fs.copyFileSync('dist/index.html', 'dist/'+f)); console.log('Copied 200.html and 404.html');\"",
     "preview": "vite preview --port 4173",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.json --noEmit",
-    "check": "npm run typecheck"
+    "lint": "eslint src --ext .ts,.tsx --max-warnings 50",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix",
+    "check": "npm run typecheck && npm run lint",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -17,20 +22,35 @@
     "@mui/icons-material": "^7.3.5",
     "@mui/material": "^7.3.5",
     "axios": "^1.11.0",
+    "i18next": "^25.7.4",
+    "i18next-browser-languagedetector": "^8.2.0",
     "idb-keyval": "^6.2.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-i18next": "^16.5.3",
     "react-router-dom": "^6.23.0",
     "react-toastify": "^11.0.5"
   },
   "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
     "@types/node": "^20.19.11",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
     "@vite-pwa/assets-generator": "^0.2.6",
     "@vitejs/plugin-react": "^4.2.0",
+    "eslint": "^9.17.0",
+    "eslint-import-resolver-typescript": "^3.7.0",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "jsdom": "^26.1.0",
     "typescript": "^5.9.2",
+    "typescript-eslint": "^8.18.2",
     "vite": "^5.2.0",
-    "vite-plugin-pwa": "^0.20.0"
+    "vite-plugin-pwa": "^0.20.0",
+    "vitest": "^3.2.4"
   }
 }

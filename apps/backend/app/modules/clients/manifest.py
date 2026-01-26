@@ -10,8 +10,8 @@ MANIFEST = ModuleManifest(
     permissions=["clientes.read", "clientes.write"],
     plan_flags=["basic", "pro"],
     routes=[
-        Route(path="/api/v1/clientes", method="GET", scope="tenant"),
-        Route(path="/api/v1/clientes", method="POST", scope="tenant"),
+        Route(path="/api/v1/clients", method="GET", scope="tenant"),
+        Route(path="/api/v1/clients", method="POST", scope="tenant"),
     ],
-    ui=UiMenu(title="Clientes", icon="users", route="/clientes", order=20),
+    ui=UiMenu(title="Clientes", icon="users", route="/clients", order=20),
 )

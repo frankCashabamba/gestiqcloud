@@ -208,7 +208,7 @@ def _map_tipo_to_account_type(tipo: str) -> str:
     return type_map.get(tipo.upper(), tipo.upper())
 
 
-@router.get("/plan-cuentas", response_model=PlanCuentasList)
+@router.get("/chart-of-accounts", response_model=PlanCuentasList)
 async def list_cuentas(
     nivel: int | None = Query(None, ge=1, le=4),
     tipo: str | None = Query(None, pattern="^(ACTIVO|PASIVO|PATRIMONIO|INGRESO|GASTO)$"),
@@ -242,7 +242,7 @@ async def list_cuentas(
 
 
 @router.post(
-    "/plan-cuentas", response_model=PlanCuentasResponse, status_code=status.HTTP_201_CREATED
+    "/chart-of-accounts", response_model=PlanCuentasResponse, status_code=status.HTTP_201_CREATED
 )
 async def create_cuenta(
     data: PlanCuentasCreate,
@@ -290,7 +290,7 @@ async def create_cuenta(
     return _serialize_cuenta(cuenta)
 
 
-@router.get("/plan-cuentas/{cuenta_id}", response_model=PlanCuentasResponse)
+@router.get("/chart-of-accounts/{cuenta_id}", response_model=PlanCuentasResponse)
 async def get_cuenta(
     cuenta_id: UUID,
     db: Session = Depends(get_db),
@@ -306,7 +306,7 @@ async def get_cuenta(
     return _serialize_cuenta(cuenta)
 
 
-@router.put("/plan-cuentas/{cuenta_id}", response_model=PlanCuentasResponse)
+@router.put("/chart-of-accounts/{cuenta_id}", response_model=PlanCuentasResponse)
 async def update_cuenta(
     cuenta_id: UUID,
     data: PlanCuentasUpdate,
@@ -342,7 +342,7 @@ async def update_cuenta(
     return _serialize_cuenta(cuenta)
 
 
-@router.delete("/plan-cuentas/{cuenta_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/chart-of-accounts/{cuenta_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_cuenta(
     cuenta_id: UUID,
     db: Session = Depends(get_db),
@@ -540,7 +540,7 @@ async def delete_payment_method(
 # ============================================================================
 
 
-@router.get("/asientos", response_model=AsientoContableList)
+@router.get("/journal-entries", response_model=AsientoContableList)
 async def list_asientos(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
@@ -588,7 +588,7 @@ async def list_asientos(
 
 
 @router.post(
-    "/asientos", response_model=AsientoContableResponse, status_code=status.HTTP_201_CREATED
+    "/journal-entries", response_model=AsientoContableResponse, status_code=status.HTTP_201_CREATED
 )
 async def create_asiento(
     data: AsientoContableCreate,
@@ -645,7 +645,7 @@ async def create_asiento(
     return _asiento_to_response(asiento)
 
 
-@router.get("/asientos/{asiento_id}", response_model=AsientoContableResponse)
+@router.get("/journal-entries/{asiento_id}", response_model=AsientoContableResponse)
 async def get_asiento(
     asiento_id: UUID,
     db: Session = Depends(get_db),
@@ -668,7 +668,7 @@ async def get_asiento(
     return _asiento_to_response(asiento)
 
 
-@router.put("/asientos/{asiento_id}", response_model=AsientoContableResponse)
+@router.put("/journal-entries/{asiento_id}", response_model=AsientoContableResponse)
 async def update_asiento(
     asiento_id: UUID,
     data: AsientoContableUpdate,
@@ -704,7 +704,7 @@ async def update_asiento(
     return _asiento_to_response(asiento)
 
 
-@router.post("/asientos/{asiento_id}/contabilizar", response_model=AsientoContableResponse)
+@router.post("/journal-entries/{asiento_id}/post", response_model=AsientoContableResponse)
 async def contabilizar_asiento(
     asiento_id: UUID,
     db: Session = Depends(get_db),
@@ -750,7 +750,7 @@ async def contabilizar_asiento(
 
 
 # Alias for frontend compatibility
-@router.get("/movimientos", response_model=AsientoContableList)
+@router.get("/transactions", response_model=AsientoContableList)
 async def list_movimientos(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),

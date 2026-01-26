@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.empresa_crud import EmpresaCRUD
 from app.models.core.clients import Cliente
 from app.models.core.facturacion import Invoice, InvoiceTemp
-from app.models.core.invoiceLine import BakeryLine, WorkshopLine
+from app.models.core.invoiceLine import BakeryLine, WorkshopLine, POSLine
+from app.models.tenant import Tenant
 from app.modules.invoicing import schemas
 
 # asegúrate de tener esta función creada
@@ -35,6 +36,12 @@ def _tenant_uuid(value: Any) -> UUID:
     return UUID(str(value))
 
 
+def _get_sector_template(db: Session, tenant_id: UUID) -> str | None:
+    """Get the sector template name for a tenant."""
+    tenant = db.query(Tenant).filter_by(id=tenant_id).first()
+    return tenant.sector_template_name if tenant else None
+
+
 class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpdate]):
     """Class FacturaCRUD - auto-generated docstring."""
 
@@ -43,43 +50,62 @@ class FacturaCRUD(EmpresaCRUD[Invoice, schemas.InvoiceCreate, schemas.InvoiceUpd
     ) -> Invoice:
         """Function create_with_lineas - auto-generated docstring."""
 
+        if not factura_in.lineas or len(factura_in.lineas) == 0:
+            raise HTTPException(status_code=400, detail="lineas_requeridas")
+
         factura_data = factura_in.copy(exclude={"lineas"})
 
         if factura_data.supplier is None:
             factura_data = factura_data.copy(update={"supplier": "N/A"})
 
-        factura = self.create(db, factura_data, extra_fields={"tenant_id": tenant_id})
+        try:
+            # Crear factura sin cometer hasta validar líneas
+            factura = Invoice(**factura_data.model_dump(exclude_none=True), tenant_id=tenant_id)
+            db.add(factura)
+            db.flush()  # asegura factura.id disponible
 
-        for linea in factura_in.lineas:
-            if isinstance(linea, schemas.BakeryLine):
-                nueva_linea = BakeryLine(
-                    factura_id=factura.id,
-                    descripcion=linea.description,
-                    cantidad=linea.cantidad,
-                    precio_unitario=linea.precio_unitario,
-                    iva=linea.iva,
-                    bread_type=linea.bread_type,
-                    grams=linea.grams,
-                )
-            elif isinstance(linea, schemas.WorkshopLine):
-                nueva_linea = WorkshopLine(
-                    factura_id=factura.id,
-                    descripcion=linea.description,
-                    cantidad=linea.cantidad,
-                    precio_unitario=linea.precio_unitario,
-                    iva=linea.iva,
-                    repuesto=linea.repuesto,
-                    horas_mano_obra=linea.horas_mano_obra,
-                    tarifa=linea.tarifa,
-                )
-            else:
-                raise ValueError("Tipo de línea desconocido")
+            for linea in factura_in.lineas:
+                if isinstance(linea, schemas.BakeryLine):
+                    nueva_linea = BakeryLine(
+                        factura_id=factura.id,
+                        descripcion=linea.description,
+                        cantidad=linea.cantidad,
+                        precio_unitario=linea.precio_unitario,
+                        iva=linea.iva,
+                        bread_type=linea.bread_type,
+                        grams=linea.grams,
+                    )
+                elif isinstance(linea, schemas.WorkshopLine):
+                    nueva_linea = WorkshopLine(
+                        factura_id=factura.id,
+                        descripcion=linea.description,
+                        cantidad=linea.cantidad,
+                        precio_unitario=linea.precio_unitario,
+                        iva=linea.iva,
+                        repuesto=linea.repuesto,
+                        horas_mano_obra=linea.horas_mano_obra,
+                        tarifa=linea.tarifa,
+                    )
+                elif isinstance(linea, schemas.POSLine):
+                    nueva_linea = POSLine(
+                        factura_id=factura.id,
+                        descripcion=linea.description,
+                        cantidad=linea.cantidad,
+                        precio_unitario=linea.precio_unitario,
+                        iva=linea.iva or 0,
+                        pos_receipt_line_id=getattr(linea, "pos_receipt_line_id", None),
+                    )
+                else:
+                    raise HTTPException(status_code=400, detail="tipo_linea_desconocido")
 
-            db.add(nueva_linea)
+                db.add(nueva_linea)
 
-        db.commit()
-        db.refresh(factura)
-        return factura
+            db.commit()
+            db.refresh(factura, ["lines", "customer"])
+            return factura
+        except Exception:
+            db.rollback()
+            raise
 
     def delete_factura(self, db: Session, tenant_id: str, factura_id) -> dict:
         """Function delete_factura - auto-generated docstring."""

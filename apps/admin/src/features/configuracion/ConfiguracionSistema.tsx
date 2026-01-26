@@ -125,7 +125,7 @@ function Index() {
             iconSize="sm"
           />
           <AdminCard
-            href="/admin/modulos"
+            href="/admin/modules"
             iconSrc="/icons/configuracion.jpeg"
             title="Módulos"
             description="Alta, edición y configuración de módulos del sistema."

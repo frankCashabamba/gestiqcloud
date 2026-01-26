@@ -41,17 +41,17 @@ export async function saveFiscal(payload: SettingsFiscal) {
 }
 
 export async function getHorarios(): Promise<SettingsHorarios> {
-  const { data } = await tenantApi.get<SettingsHorarios>(TENANT_SETTINGS.horarios)
+  const { data } = await tenantApi.get<SettingsHorarios>(TENANT_SETTINGS.schedules)
   return data || {}
 }
 export async function saveHorarios(payload: SettingsHorarios) {
-  await tenantApi.put(TENANT_SETTINGS.horarios, payload)
+  await tenantApi.put(TENANT_SETTINGS.schedules, payload)
 }
 
 export async function getLimites(): Promise<SettingsLimites> {
-  const { data } = await tenantApi.get<SettingsLimites>(TENANT_SETTINGS.limites)
+  const { data } = await tenantApi.get<SettingsLimites>(TENANT_SETTINGS.limits)
   return data || {}
 }
 export async function saveLimites(payload: SettingsLimites) {
-  await tenantApi.put(TENANT_SETTINGS.limites, payload)
+  await tenantApi.put(TENANT_SETTINGS.limits, payload)
 }

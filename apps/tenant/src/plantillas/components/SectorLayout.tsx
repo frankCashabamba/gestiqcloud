@@ -1,5 +1,6 @@
 import React, { Children } from 'react'
 import { NavLink, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 type NavItem = { label: string; to: string }
 
@@ -13,6 +14,7 @@ type Props = {
 }
 
 export default function SectorLayout({ title, subtitle, topNav = [], sideNav = [], kpis, children }: Props) {
+  const { t } = useTranslation()
   const { empresa } = useParams()
   const prefix = empresa ? `/${empresa}` : ''
   const kpiItems = kpis ? Children.toArray(kpis) : []
@@ -23,14 +25,14 @@ export default function SectorLayout({ title, subtitle, topNav = [], sideNav = [
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-6 focus:top-6 focus:z-50 focus:rounded-md focus:bg-blue-600 focus:px-4 focus:py-2 focus:text-sm focus:text-white"
       >
-        Skip to content
+        {t('layout.skipToContent')}
       </a>
 
       <div className="gc-container pt-10">
         <header className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-3">
             <span className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700">
-              Workspace
+              {t('layout.workspace')}
             </span>
             <div>
               <h1 className="text-3xl font-semibold text-slate-900">{title}</h1>
@@ -82,7 +84,7 @@ export default function SectorLayout({ title, subtitle, topNav = [], sideNav = [
                   ))}
                 </nav>
               ) : (
-                <p className="text-xs text-slate-400">No modules assigned to this workspace yet.</p>
+                <p className="text-xs text-slate-400">{t('layout.noModulesAssigned')}</p>
               )}
             </div>
           </aside>

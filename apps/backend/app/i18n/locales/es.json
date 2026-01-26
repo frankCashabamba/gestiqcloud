@@ -1,0 +1,60 @@
+{
+  "errors": {
+    "notFound": "No encontrado",
+    "unauthorized": "No autorizado",
+    "forbidden": "Prohibido",
+    "tokenExpired": "Token expirado",
+    "tokenInvalid": "Token inválido",
+    "itemNotFound": "{item} no encontrado",
+    "batchNotFound": "Batch no encontrado",
+    "jobNotFound": "Job no encontrado",
+    "ingredientNotFound": "Ingrediente no encontrado",
+    "closureNotFound": "Cierre no encontrado",
+    "receiptNotFound": "Recibo POS no encontrado",
+    "customerNotFound": "Cliente no encontrado",
+    "shiftNotFound": "Turno no encontrado",
+    "alertNotFound": "Alerta no encontrada",
+    "channelNotFound": "Canal no encontrado",
+    "roleNotFound": "Rol no encontrado",
+    "tenantNotFound": "Tenant no encontrado",
+    "missingTenantId": "Falta tenant_id en el token"
+  },
+  "validation": {
+    "required": "{field} es obligatorio",
+    "mustBePositive": "{field} debe ser mayor a 0",
+    "mustBeNonNegative": "{field} debe ser >= 0",
+    "invalidFormat": "{field} no válido. Formato esperado: {expected}",
+    "invalidType": "{field} no válido",
+    "invalidUuid": "{field} inválido: debe ser un UUID válido"
+  },
+  "pos": {
+    "openingAmountNonNegative": "Monto inicial debe ser >= 0",
+    "quantityPositive": "Cantidad debe ser > 0",
+    "amountPositive": "Monto debe ser > 0",
+    "pricePositive": "El precio debe ser mayor a 0"
+  },
+  "notifications": {
+    "channelTypes": "Tipo debe ser: email, whatsapp o telegram",
+    "emailConfigIncomplete": "Config email incompleto. Faltan: {fields}",
+    "whatsappProviderInvalid": "WhatsApp provider debe ser 'twilio' o 'generic'",
+    "whatsappConfigIncomplete": "Config WhatsApp incompleto. Faltan: {fields}",
+    "telegramConfigIncomplete": "Config telegram requiere 'bot_token'",
+    "unsupportedType": "Tipo no soportado: {type}",
+    "celeryUnavailable": "Celery no está instalado o no puede importarse; habilita celery y ejecuta los workers para usar notificaciones.",
+    "channelIdOrConfigRequired": "Debe proporcionar channel_id o config_override"
+  },
+  "invoice": {
+    "lineTypePos": "Punto de Venta",
+    "lineTypeBakery": "Panadería",
+    "lineTypeWorkshop": "Taller"
+  },
+  "invoicing": {
+    "createInvoiceFromReceiptError": "Error al crear factura desde recibo POS",
+    "createSaleFromReceiptError": "Error al crear orden de venta desde recibo POS",
+    "createExpenseFromReceiptError": "Error al crear gasto desde recibo POS",
+    "transactionRollbackFailed": "Falló al deshacer transacción de base de datos",
+    "receiptNotPaid": "El recibo debe estar en estado pagado para crear una orden de venta",
+    "noPosReceiptLine": "No se encontraron ítems en el recibo POS",
+    "tenantCurrencyNotConfigured": "La moneda del tenant no está configurada"
+  }
+}

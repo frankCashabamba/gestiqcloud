@@ -10,122 +10,24 @@ from typing import Literal
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# UNIFIED env loading (replaces _load_env and _load_env_all)
+from app.config.env_loader import get_env_file_path, load_env_file, inject_env_variables
 
-# Carga el .env correcto de forma explícita (sin depender del CWD)
-def _load_env():
-    base_dir = Path(__file__).resolve().parents[2]  # apps/backend
-    env_name = os.getenv("ENV", "development").lower()
-    override = os.getenv("ENV_FILE")
-    env_path = (
-        Path(override)
-        if override
-        else base_dir / (".env.production" if env_name == "production" else ".env")
-    )
-    try:
-        if env_path.exists():
-            for raw in env_path.read_text(encoding="utf-8").splitlines():
-                line = raw.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if "=" not in line:
-                    continue
-                key, value = line.split("=", 1)
-                key = key.strip()
-                value = value.strip().strip("'").strip('"')
-                if key and key not in os.environ:
-                    os.environ[key] = value
-    except Exception:
-        # No bloquear arranque si falla lectura; Pydantic intentará con su env_file
-        pass
-
-
-def _load_env_all():
-    env_name = os.getenv("ENV", "development").lower()
-    override = os.getenv("ENV_FILE")
-
-    filenames = (
-        [".env.production", ".env"] if env_name == "production" else [".env", ".env.production"]
-    )
-
-    here = Path(__file__).resolve().parent
-    app_dir = here.parent
-    repo_dir = app_dir.parent
-    cwd_dir = Path.cwd()
-
-    dirs = []
-    if override:
-        p = Path(override)
-        if p.is_file():
-            try:
-                for raw in p.read_text(encoding="utf-8").splitlines():
-                    line = raw.strip()
-                    if not line or line.startswith("#"):
-                        continue
-                    if line.startswith("export "):
-                        line = line[len("export ") :].strip()
-                    if "=" not in line:
-                        continue
-                    key, value = line.split("=", 1)
-                    key = key.strip()
-                    value = value.strip().strip("'").strip('"')
-                    if key and key not in os.environ:
-                        os.environ[key] = value
-                os.environ.setdefault("ENV_FILE_USED", str(p))
-                return
-            except Exception:
-                pass
-        if p.is_dir():
-            dirs.append(p)
-
-    dirs.extend([here, app_dir, repo_dir, cwd_dir])
-
-    for d in dirs:
-        for fname in filenames:
-            candidate = (d / fname).resolve()
-            if candidate.is_file():
-                try:
-                    for raw in candidate.read_text(encoding="utf-8").splitlines():
-                        line = raw.strip()
-                        if not line or line.startswith("#"):
-                            continue
-                        if line.startswith("export "):
-                            line = line[len("export ") :].strip()
-                        if "=" not in line:
-                            continue
-                        key, value = line.split("=", 1)
-                        key = key.strip()
-                        value = value.strip().strip("'").strip('"')
-                        if key and key not in os.environ:
-                            os.environ[key] = value
-                    os.environ.setdefault("ENV_FILE_USED", str(candidate))
-                    return
-                except Exception:
-                    pass
-
-
-_load_env_all()
+# Load unified .env file (single source of truth)
+_ENV_FILE = get_env_file_path()
+_ENV_VARS = load_env_file(_ENV_FILE)
+inject_env_variables(_ENV_VARS)
+os.environ.setdefault("ENV_FILE_USED", str(_ENV_FILE.resolve()))
 
 
 def _log_env_info():
+    """Log environment info for debugging"""
     try:
-        env = os.getenv("ENV", "development")
+        env = os.getenv("ENVIRONMENT", "development")
         used = os.getenv("ENV_FILE_USED")
         has_secret = bool(os.getenv("SECRET_KEY"))
-        # Reconstruye rutas de búsqueda para diagnosticar
-        here = Path(__file__).resolve().parent
-        app_dir = here.parent
-        repo_dir = app_dir.parent
-        cwd_dir = Path.cwd()
-        search_dirs = [str(here), str(app_dir), str(repo_dir), str(cwd_dir)]
         print(
-            "[settings] ENV=",
-            env,
-            "ENV_FILE_USED=",
-            (used or "<none>"),
-            "SECRET_KEY_PRESENT=",
-            has_secret,
-            "SEARCH_DIRS=",
-            search_dirs,
+            f"[settings] ENVIRONMENT={env} ENV_FILE={used} SECRET_KEY_PRESENT={has_secret}"
         )
     except Exception:
         pass
@@ -173,7 +75,10 @@ class Settings(BaseSettings):
     # General
     app_name: str = "GestiqCloud"
     debug: bool = False
-    ENV: Literal["development", "production"] = "development"
+    ENVIRONMENT: Literal["development", "staging", "production"] = Field(
+        default="development",
+        description="Environment: development, staging, or production"
+    )
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     APP_VERSION: str = "0.1.0"
 
@@ -348,7 +253,6 @@ class Settings(BaseSettings):
             origins = v if isinstance(v, list) else []
         
         # Production validation
-        import os
         environment = os.getenv("ENVIRONMENT", "development").lower()
         if environment == "production":
             if not origins:
@@ -430,11 +334,24 @@ class Settings(BaseSettings):
 
     @property
     def is_prod(self) -> bool:
-        return self.ENV == "production"
+        return self.ENVIRONMENT == "production"
+    
+    @property
+    def is_staging(self) -> bool:
+        return self.ENVIRONMENT == "staging"
+    
+    @property
+    def ENV(self) -> str:
+        """Alias for ENVIRONMENT for backward compatibility."""
+        return self.ENVIRONMENT
+
+    @ENV.setter
+    def ENV(self, value: str) -> None:
+        self.ENVIRONMENT = value
 
     def assert_required_for_production(self):
         """Verifica que todas las variables críticas estén definidas en producción."""
-        if self.ENV != "production":
+        if self.ENVIRONMENT != "production":
             return  # No verificar en desarrollo
 
         required_vars = [

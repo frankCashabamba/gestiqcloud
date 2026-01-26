@@ -31,6 +31,11 @@ export interface CompanySettings {
       width_mm?: number
       print_mode?: string
     }
+    invoice?: {
+      minimum_amount?: number
+      require_buyer_data?: boolean
+      auto_create_wholesale?: boolean
+    }
   }
   invoice_config?: {
     serie_factura?: string
@@ -69,20 +74,39 @@ export function clearCompanySettingsCache() {
 
 // Helper para formatear moneda
 export function formatCurrency(amount: number, settings?: CompanySettings): string {
-  const currency = settings?.currency || 'USD'
-  const locale = settings?.locale || 'es-EC'
+  const currency = (settings?.currency || '').trim().toUpperCase()
+  const locale = (settings?.locale || '').trim()
 
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(amount)
+  // Nunca asumir una moneda distinta a la configurada en BBDD.
+  // Si no hay moneda, mostramos número plano.
+  if (!currency || currency.length !== 3) {
+    return new Intl.NumberFormat(locale || undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount)
+  }
+
+  try {
+    return new Intl.NumberFormat(locale || undefined, {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount)
+  } catch (error) {
+    // If invalid currency code, format as plain number
+    console.warn(`Invalid currency code: ${currency}`, error)
+    return new Intl.NumberFormat(locale || undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount)
+  }
 }
 
 // Helper para obtener símbolo de moneda
 export function getCurrencySymbol(settings?: CompanySettings): string {
-  const currency = settings?.currency || 'USD'
+  const currency = (settings?.currency || '').trim().toUpperCase()
+  if (!currency) return ''
 
   const symbols: Record<string, string> = {
     'USD': '$',
@@ -109,4 +133,38 @@ export function getDefaultReorderPoint(settings?: CompanySettings): number {
     (settings?.settings as any)?.inventory?.reorder_point_default
   const num = Number(inv)
   return Number.isFinite(num) ? num : 0
+}
+
+// Helper para obtener configuración de facturación automática
+export function getInvoiceConfig(settings?: CompanySettings) {
+  return {
+    minimumAmount: settings?.pos_config?.invoice?.minimum_amount ?? 0,
+    requireBuyerData: settings?.pos_config?.invoice?.require_buyer_data ?? false,
+    autoCreateWholesale: settings?.pos_config?.invoice?.auto_create_wholesale ?? false,
+  }
+}
+
+/**
+ * Determina si se debe requerir factura basado en:
+ * 1. Monto superior al mínimo configurado
+ * 2. Cliente mayorista (opcional)
+ */
+export function shouldCreateInvoice(
+  totalAmount: number,
+  isWholesale: boolean,
+  settings?: CompanySettings
+): boolean {
+  const config = getInvoiceConfig(settings)
+  
+  // Si es mayorista y está configurado auto-crear para mayoristas
+  if (isWholesale && config.autoCreateWholesale) {
+    return true
+  }
+  
+  // Si supera el mínimo configurado
+  if (config.minimumAmount > 0 && totalAmount >= config.minimumAmount) {
+    return true
+  }
+  
+  return false
 }

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * RecetasPanel - Panel principal de gestión de recetas
  */
 
@@ -132,9 +132,9 @@ export default function RecetasPanel() {
       {/* Lista de recetas */}
       <TabPanel value={currentTab} index={currentTab}>
         {loading ? (
-          <Typography>Cargando...</Typography>
+          <Typography>Loading...</Typography>
         ) : recipes.length === 0 ? (
-          <Alert severity="info">No hay recetas</Alert>
+          <Alert severity="info">No recipes found</Alert>
         ) : (
           <Grid container spacing={2}>
             {recipes.map((recipe) => (

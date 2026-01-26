@@ -1,6 +1,24 @@
 #!/usr/bin/env python3
 """
 Script to normalize model naming from Spanish to English.
+
+WARNING: DEPRECATED/LEGACY CODE
+===============================
+This is a ONE-TIME migration script that was executed in 2025 to normalize
+model naming conventions from Spanish to English throughout the codebase.
+
+This script:
+- Renamed folders (empresa -> company)
+- Renamed files (venta.py -> sale.py, compra.py -> purchase.py, etc.)
+- Updated import statements across the entire codebase
+- Prepared enum and field renames
+
+DO NOT EXECUTE THIS SCRIPT without manual review of the current codebase state.
+Running it again may cause unintended side effects or data corruption.
+
+If you need to run this script, use the --force flag:
+    python normalize_models.py --force
+
 Handles:
 1. Folder renaming: empresa -> company
 2. File renaming: venta.py -> sale.py, compra.py -> purchase.py, proveedor.py -> supplier.py
@@ -9,6 +27,7 @@ Handles:
 5. Enum renaming in finance models
 """
 
+import sys
 import re
 import shutil
 from pathlib import Path
@@ -108,6 +127,19 @@ def update_file_imports(file_path: Path, mappings: list[tuple[str, str]]) -> boo
 
 
 def main():
+    if "--force" not in sys.argv:
+        print("=" * 70)
+        print("WARNING: DEPRECATED MIGRATION SCRIPT")
+        print("=" * 70)
+        print()
+        print("This is a ONE-TIME migration script that was already executed in 2025.")
+        print("Running it again may cause unintended side effects or data corruption.")
+        print()
+        print("If you really need to run this script, use:")
+        print("    python normalize_models.py --force")
+        print()
+        sys.exit(1)
+
     print("=" * 70)
     print("NORMALIZING MODEL NAMING: Spanish -> English")
     print("=" * 70)

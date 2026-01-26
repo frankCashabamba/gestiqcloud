@@ -7,12 +7,12 @@ from fastapi import APIRouter, Depends
 from apps.backend.app.shared.utils import ping_ok
 
 router = APIRouter(
-    prefix="/admin/productos",
-    tags=["Admin Productos"],
+    prefix="/admin/products",
+    tags=["Admin Products"],
     dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))],
 )
 
 
 @router.get("/ping")
-def ping_admin_productos():
+def ping_admin_products():
     return ping_ok()

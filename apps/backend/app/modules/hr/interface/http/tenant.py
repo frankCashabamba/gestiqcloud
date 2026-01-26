@@ -34,6 +34,7 @@ from app.db.rls import ensure_rls
 from app.models.hr import Empleado, Vacacion
 from app.models.hr.payroll import Payroll as Payroll
 from app.models.hr.payroll import PayrollConcept as PayrollConcept
+from app.models.tenant import Tenant
 
 # Schemas - Empleados y Vacaciones
 from app.schemas.hr import (
@@ -74,6 +75,23 @@ router = APIRouter(
 # ============================================================================
 # HELPERS - Funciones auxiliares de nóminas
 # ============================================================================
+
+
+def _get_tenant_country(db: Session, tenant_id: UUID) -> str:
+    """
+    Obtiene el país del tenant desde la base de datos.
+    
+    Retorna el country_code del tenant o "ES" como fallback.
+    Los valores válidos son códigos ISO 3166-1 alpha-2 (ES, EC, AR, etc.)
+    """
+    stmt = select(Tenant).where(Tenant.id == tenant_id)
+    tenant = db.execute(stmt).scalar_one_or_none()
+    
+    if tenant and tenant.country_code:
+        return tenant.country_code.upper()
+    
+    # Fallback a España si no está configurado
+    return "ES"
 
 
 def _generate_numero_nomina(db: Session, tenant_id: UUID, mes: int, ano: int) -> str:
@@ -219,7 +237,7 @@ def _calculate_totals(
 
 
 @router.get(
-    "/empleados",
+    "/employees",
     response_model=EmpleadoList,
     summary="Listar empleados",
     description="Lista paginada de empleados con filtros opcionales",
@@ -271,7 +289,7 @@ def list_empleados(
 
 
 @router.post(
-    "/empleados",
+    "/employees",
     response_model=EmpleadoResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Crear empleado",
@@ -322,7 +340,7 @@ def create_empleado(
 
 
 @router.get(
-    "/empleados/{id}",
+    "/employees/{id}",
     response_model=EmpleadoResponse,
     summary="Obtener empleado",
 )
@@ -345,7 +363,7 @@ def get_empleado(
 
 
 @router.put(
-    "/empleados/{id}",
+    "/employees/{id}",
     response_model=EmpleadoResponse,
     summary="Actualizar empleado",
 )
@@ -378,7 +396,7 @@ def update_empleado(
 
 
 @router.delete(
-    "/empleados/{id}",
+    "/employees/{id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Eliminar empleado",
 )
@@ -411,7 +429,7 @@ def delete_empleado(
 
 
 @router.get(
-    "/vacaciones",
+    "/vacations",
     response_model=VacacionList,
     summary="Listar vacaciones",
 )
@@ -446,7 +464,7 @@ def list_vacaciones(
 
 
 @router.post(
-    "/vacaciones",
+    "/vacations",
     response_model=VacacionResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Crear solicitud de vacaciones",
@@ -496,7 +514,7 @@ def create_vacacion(
 
 
 @router.get(
-    "/vacaciones/{id}",
+    "/vacations/{id}",
     response_model=VacacionResponse,
     summary="Obtener vacación",
 )
@@ -522,7 +540,7 @@ def get_vacacion(
 
 
 @router.put(
-    "/vacaciones/{id}/aprobar",
+    "/vacations/{id}/approve",
     response_model=VacacionResponse,
     summary="Aprobar vacación",
 )
@@ -564,7 +582,7 @@ def aprobar_vacacion(
 
 
 @router.put(
-    "/vacaciones/{id}/rechazar",
+    "/vacations/{id}/reject",
     response_model=VacacionResponse,
     summary="Rechazar vacación",
 )
@@ -606,7 +624,7 @@ def rechazar_vacacion(
 
 
 @router.delete(
-    "/vacaciones/{id}",
+    "/vacations/{id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Eliminar vacación",
 )
@@ -644,7 +662,7 @@ def delete_vacacion(
 
 
 @router.get(
-    "/nominas",
+    "/payroll",
     response_model=PayrollList,
     summary="Listar nóminas",
 )
@@ -708,7 +726,7 @@ async def list_nominas(
 
 
 @router.post(
-    "/nominas",
+    "/payroll",
     response_model=PayrollResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Crear nómina",
@@ -758,8 +776,8 @@ async def create_nomina(
 
     numero = _generate_numero_nomina(db, tenant_id, data.period_month, data.period_year)
 
-    # TODO: Obtener país del tenant
-    country = "ES"
+    # Obtener país del tenant
+    country = _get_tenant_country(db, tenant_id)
 
     nomina_dict = data.dict(exclude={"concepts", "auto_calculate"})
     # Map schema fields to model fields
@@ -812,7 +830,7 @@ async def create_nomina(
 
 
 @router.get(
-    "/nominas/{nomina_id}",
+    "/payroll/{nomina_id}",
     response_model=PayrollResponse,
     summary="Obtener nómina",
 )
@@ -834,7 +852,7 @@ async def get_nomina(
 
 
 @router.put(
-    "/nominas/{nomina_id}",
+    "/payroll/{nomina_id}",
     response_model=PayrollResponse,
     summary="Actualizar nómina",
 )
@@ -878,7 +896,7 @@ async def update_nomina(
 
 
 @router.delete(
-    "/nominas/{nomina_id}",
+    "/payroll/{nomina_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Eliminar nómina",
 )
@@ -907,7 +925,7 @@ async def delete_nomina(
 
 
 @router.post(
-    "/nominas/{nomina_id}/approve",
+    "/payroll/{nomina_id}/approve",
     response_model=PayrollResponse,
     summary="Aprobar nómina",
 )
@@ -947,7 +965,7 @@ async def approve_nomina(
 
 
 @router.post(
-    "/nominas/{nomina_id}/pay",
+    "/payroll/{nomina_id}/pay",
     response_model=PayrollResponse,
     summary="Pagar nómina",
 )
@@ -986,7 +1004,7 @@ async def pay_nomina(
 
 
 @router.post(
-    "/nominas/calculate",
+    "/payroll/calculate",
     response_model=PayrollCalculateResponse,
     summary="Calcular nómina",
 )
@@ -1022,7 +1040,8 @@ async def calculate_nomina(
         "other_deductions": Decimal("0"),
     }
 
-    country = "ES"  # TODO: obtener del tenant
+    # Obtener país del tenant
+    country = _get_tenant_country(db, tenant_id)
     calcs = _calculate_totals(nomina_dict, data.concepts or [], country)
 
     return PayrollCalculateResponse(
@@ -1051,7 +1070,7 @@ async def calculate_nomina(
 
 
 @router.get(
-    "/nominas/stats",
+    "/payroll/stats",
     response_model=PayrollStats,
     summary="Estadísticas de nóminas",
 )

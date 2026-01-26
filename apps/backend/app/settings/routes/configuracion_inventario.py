@@ -15,7 +15,7 @@ router = APIRouter()
 
 
 @router.get(
-    "/api/configuracion-inventario/{tenant_id}",
+    "/api/inventory-config/{tenant_id}",
     response_model=schemas.ConfiguracionInventarioOut,
 )
 def obtener_config(tenant_id: int, db: Session = Depends(get_db)):
@@ -26,14 +26,14 @@ def obtener_config(tenant_id: int, db: Session = Depends(get_db)):
     return config
 
 
-@router.post("/api/configuracion-inventario", response_model=schemas.ConfiguracionInventarioOut)
+@router.post("/api/inventory-config", response_model=schemas.ConfiguracionInventarioOut)
 def crear_config(config_in: schemas.ConfiguracionInventarioCreate, db: Session = Depends(get_db)):
     """Function crear_config - auto-generated docstring."""
     return crud.create(db, config_in)
 
 
 @router.put(
-    "/api/configuracion-inventario/{tenant_id}",
+    "/api/inventory-config/{tenant_id}",
     response_model=schemas.ConfiguracionInventarioOut,
 )
 def actualizar_config(

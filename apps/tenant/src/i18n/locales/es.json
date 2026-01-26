@@ -1,0 +1,518 @@
+{
+  "accounting": {
+    "accountTypes": {
+      "ACTIVO": "Activo",
+      "GASTO": "Gasto",
+      "INGRESO": "Ingreso",
+      "PASIVO": "Pasivo",
+      "PATRIMONIO": "Patrimonio"
+    },
+    "chartOfAccounts": {
+      "columns": {
+        "code": "Código",
+        "level": "Nivel"
+      },
+      "createFirst": "Crear la primera",
+      "deleteConfirm": "¿Eliminar la cuenta \"{{name}}\"?",
+      "deleted": "Cuenta eliminada",
+      "empty": "No hay cuentas.",
+      "form": {
+        "code": "Código *",
+        "codePlaceholder": "Ej.: 1000, 2000",
+        "editTitle": "Editar cuenta",
+        "errors": {
+          "codeNameRequired": "Código y nombre son obligatorios"
+        },
+        "level": "Nivel",
+        "newTitle": "Nueva cuenta",
+        "noParent": "Sin padre (cuenta raíz)",
+        "parentOptional": "Cuenta padre (opcional)"
+      },
+      "new": "+ Nueva cuenta",
+      "placeholder": "Catálogo del plan de cuentas. (Vista en construcción)",
+      "saved": "Cuenta guardada",
+      "searchPlaceholder": "Buscar por código o nombre...",
+      "title": "Plan de cuentas"
+    },
+    "dashboard": {
+      "result": "Resultado",
+      "totalExpenses": "Gastos totales",
+      "totalIncome": "Ingresos totales"
+    },
+    "errors": {
+      "loadTransactions": "No se pudieron cargar los movimientos"
+    },
+    "generalLedger": {
+      "columns": {
+        "balance": "Saldo"
+      },
+      "loading": "Cargando...",
+      "title": "Libro mayor"
+    },
+    "journalEntries": {
+      "actions": {
+        "post": "Contabilizar",
+        "posted": "Contabilizado"
+      },
+      "columns": {
+        "credit": "Haber",
+        "debit": "Debe",
+        "number": "Número"
+      },
+      "createFirst": "Crear el primero",
+      "deleteConfirm": "¿Eliminar el asiento \"{{number}}\"?",
+      "deleted": "Asiento eliminado",
+      "empty": "No hay asientos.",
+      "new": "+ Nuevo asiento",
+      "postConfirm": "¿Contabilizar el asiento \"{{number}}\"? Esta acción no se puede deshacer.",
+      "posted": "Asiento contabilizado",
+      "searchPlaceholder": "Buscar por número o descripción...",
+      "status": {
+        "DRAFT": "Borrador",
+        "POSTED": "Contabilizado",
+        "VOIDED": "Anulado"
+      },
+      "title": "Asientos contables"
+    },
+    "loadingTransactions": "Cargando movimientos...",
+    "movimientos": "Movimientos contables",
+    "nav": {
+      "bankReconciliation": "Conciliación bancaria",
+      "chartOfAccounts": "Plan de cuentas",
+      "dashboard": "Dashboard",
+      "generalLedger": "Libro mayor",
+      "journal": "Libro diario",
+      "paymentMethods": "Métodos de pago",
+      "posConfig": "Config. POS",
+      "profitLoss": "Pérdidas y ganancias",
+      "transactions": "Movimientos"
+    },
+    "paymentMethods": {
+      "account": "Cuenta contable",
+      "deleteConfirm": "¿Eliminar este método de pago?",
+      "empty": "No hay métodos de pago configurados.",
+      "errors": {
+        "delete": "No se pudo eliminar",
+        "load": "No se pudieron cargar los métodos de pago",
+        "nameAccountRequired": "Nombre y cuenta son obligatorios",
+        "save": "No se pudo guardar"
+      },
+      "help": "Asocia cada método de pago con una cuenta contable. Sin esta asignación, no se pueden crear asientos contables.",
+      "namePlaceholder": "EFECTIVO, TARJETA, LINK...",
+      "selectAccount": "Seleccionar...",
+      "title": "Métodos de pago POS"
+    },
+    "pl": {
+      "expenses": "Gastos",
+      "income": "Ingresos",
+      "loading": "Calculando PyG...",
+      "netResult": "Resultado neto",
+      "title": "Estado de resultados"
+    },
+    "posConfig": {
+      "errors": {
+        "generate": "No se pudo generar el asiento.",
+        "load": "No se pudo cargar la configuración",
+        "missingConfig": "Falta configuración: {{fields}}",
+        "save": "Error al guardar",
+        "shiftRequired": "Ingresa un turno válido para generar el asiento."
+      },
+      "fields": {
+        "bankAccount": "Cuenta de banco / tarjeta",
+        "cashAccount": "Cuenta de efectivo POS",
+        "lossAccountOptional": "Cuenta de pérdidas / mermas (opcional)",
+        "vatOutputAccount": "Cuenta de IVA repercutido"
+      },
+      "generate": {
+        "createJournalEntry": "Crear asiento",
+        "generating": "Generando...",
+        "help": "Usa este botón si ya cerraste la caja y necesitas crear/forzar el asiento para ese turno.",
+        "shiftId": "ID de turno",
+        "shiftIdPlaceholder": "UUID del turno cerrado",
+        "title": "Generar asiento para un cierre completado"
+      },
+      "help": "Define las cuentas contables para efectivo, bancos, ventas, IVA y pérdidas/mermas. Sin valores fijos: se usa tu plan de cuentas.",
+      "messages": {
+        "generated": "Asiento generado/actualizado para el turno.",
+        "saved": "Configuración guardada"
+      },
+      "recent": {
+        "dateLabel": "Fecha",
+        "generateEntry": "Generar asiento",
+        "hint": "Usa el botón para recrear el asiento",
+        "salesLabel": "Ventas",
+        "shiftLabel": "Turno",
+        "title": "Cierres recientes"
+      },
+      "salesAccount": "Cuenta de ventas",
+      "salesAccountWithSector": "Cuenta de ventas ({{sector}})",
+      "sectorFallback": "sector",
+      "selectAccount": "Seleccionar cuenta...",
+      "title": "Configuración contable POS"
+    }
+  },
+  "auth": {
+    "email": "Correo electrónico",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "login": "Iniciar sesión",
+    "logout": "Cerrar sesión",
+    "password": "Contraseña",
+    "rememberMe": "Recordarme",
+    "username": "Usuario"
+  },
+  "billing": {
+    "bySectors": {
+      "bakery": "Panadería",
+      "help": "Elige un sector para crear facturas con campos específicos.",
+      "title": "Facturación por sectores",
+      "workshop": "Taller"
+    },
+    "deleteConfirm": "¿Eliminar factura?",
+    "deleted": "Factura eliminada",
+    "editTitle": "Editar factura",
+    "einvoice": "Factura electrónica",
+    "einvoiceStatus": {
+      "errorLoading": "Error al cargar estado",
+      "errorSending": "Error al enviar factura electrónica",
+      "notSent": "No enviada",
+      "receipt": "Comprobante",
+      "ref": "Ref",
+      "refresh": "Actualizar estado",
+      "send": "Enviar {{provider}}",
+      "sending": "Enviando..."
+    },
+    "errors": {
+      "dateRequired": "La fecha es obligatoria",
+      "lineasRequired": "Debe incluir al menos una l�nea de factura",
+      "totalNonNegative": "El total debe ser >= 0"
+    },
+    "facturae": {
+      "downloadXml": "Descargar XML",
+      "errors": {
+        "idRequired": "Se requiere el id"
+      },
+      "exported": "Facturae exportado",
+      "title": "Facturae"
+    },
+    "fromPOS": "Factura desde POS",
+    "invoiceNumber": "Nº de factura",
+    "newTitle": "Nueva factura",
+    "notesPlaceholder": "Términos de pago, condiciones especiales, etc.",
+    "numberPlaceholder": "FAC-001",
+    "posReceipt": "Recibo POS",
+    "posSale": "Venta POS",
+    "retailOnly": "Solo retail",
+    "saved": "Factura guardada",
+    "searchPlaceholder": "ID o estado",
+    "sectorInvoice": {
+      "addLine": "+ Agregar línea",
+      "bakeryTitle": "Factura del sector panadería",
+      "createdBakery": "Factura creada (panadería)",
+      "createdWorkshop": "Factura creada (taller)",
+      "errors": {
+        "atLeastOneLine": "Agrega al menos una línea"
+      },
+      "fields": {
+        "description": "Descripción",
+        "hours": "Horas",
+        "labor": "Mano de obra",
+        "licensePlate": "Matrícula",
+        "notes": "Notas",
+        "part": "Repuesto",
+        "quantity": "Cantidad",
+        "rate": "Tarifa",
+        "sparePart": "Repuesto",
+        "type": "Tipo",
+        "unitPrice": "Precio unitario",
+        "vatPercent": "IVA %"
+      },
+      "lines": "Líneas",
+      "remove": "Quitar",
+      "subtotal": "Subtotal",
+      "total": "Total",
+      "vat": "IVA",
+      "workshopTitle": "Factura del sector taller"
+    },
+    "sectors": "Sectores",
+    "sectorsInfo": "Disponible para {{sectors}}",
+    "status": {
+      "draft": "Borrador",
+      "issued": "Emitida",
+      "voided": "Anulada"
+    }
+  },
+  "common": {
+    "account": "Cuenta",
+    "actions": "Acciones",
+    "active": "Activo",
+    "add": "Agregar",
+    "all": "Todos",
+    "amount": "Monto",
+    "back": "Volver",
+    "cancel": "Cancelar",
+    "category": "Categoría",
+    "close": "Cerrar",
+    "confirm": "Confirmar",
+    "create": "Crear",
+    "date": "Fecha",
+    "delete": "Eliminar",
+    "description": "Descripción",
+    "disabled": "Deshabilitado",
+    "download": "Descargar",
+    "edit": "Editar",
+    "enabled": "Habilitado",
+    "error": "Error",
+    "export": "Exportar",
+    "filter": "Filtrar",
+    "from": "Desde",
+    "import": "Importar",
+    "inactive": "Inactivo",
+    "info": "Información",
+    "loading": "Cargando...",
+    "loadingModule": "Cargando módulo...",
+    "name": "Nombre",
+    "new": "Nuevo",
+    "next": "Siguiente",
+    "no": "No",
+    "noRecords": "Sin registros",
+    "notes": "Notas",
+    "notesPlaceholder": "Observaciones internas",
+    "open": "Abrir",
+    "optional": "Opcional",
+    "price": "Precio",
+    "print": "Imprimir",
+    "quantity": "Cantidad",
+    "refresh": "Actualizar",
+    "remove": "Quitar",
+    "save": "Guardar",
+    "saving": "Guardando...",
+    "search": "Buscar",
+    "select": "Seleccionar...",
+    "sort": "Ordenar",
+    "status": "Estado",
+    "success": "Éxito",
+    "to": "Hasta",
+    "total": "Total",
+    "type": "Tipo",
+    "update": "Actualizar",
+    "upload": "Cargar",
+    "view": "Ver",
+    "warning": "Advertencia",
+    "yes": "Sí"
+  },
+  "dashboardPro": {
+    "closeDay": "Cerrar día",
+    "darkMode": "Modo oscuro",
+    "lightMode": "Modo claro",
+    "loadingModules": "Cargando módulos...",
+    "searchPlaceholder": "Buscar (/) tickets, clientes, SKUs",
+    "sectorTools": "Herramientas del sector",
+    "shortcuts": "Atajos: / buscar, Cmd+K comandos",
+    "stores": {
+      "branch": "Sucursal {{n}}",
+      "main": "Sucursal principal"
+    }
+  },
+  "defaultDashboard": {
+    "highlightedModules": "Módulos destacados",
+    "kpis": {
+      "expenses": {
+        "help": "Sube comprobantes para monitorear costos operativos.",
+        "title": "Gastos de hoy"
+      },
+      "invoices": {
+        "help": "Revisa cuentas por cobrar y planifica el flujo de caja.",
+        "title": "Facturas por cobrar"
+      },
+      "placeholder": {
+        "help": "Habilita métricas en Configuración > Dashboards.",
+        "title": "KPIs pendientes"
+      },
+      "sales": {
+        "help": "Conecta facturación para ver datos en tiempo real.",
+        "title": "Ventas de hoy"
+      }
+    },
+    "nextSteps": "Siguientes pasos recomendados",
+    "nextStepsItems": {
+      "banking": "Conecta cuentas bancarias o sube extractos para automatizar conciliaciones.",
+      "branding": "Configura el perfil de la empresa para aplicar el branding en toda la app.",
+      "owners": "Asigna responsables de módulo para recibir alertas y tareas pendientes."
+    },
+    "openModule": "Abrir módulo",
+    "personalizeHelp": "En Configuración puedes definir qué KPIs se muestran a tu equipo, asignar plantillas por rol y controlar el acceso a módulos.",
+    "personalizeTitle": "Personaliza tu panel",
+    "quickAccess": "Accesos rápidos",
+    "subtitle": "Acceso rápido a módulos habilitados y a tus métricas principales.",
+    "title": "Resumen de la empresa",
+    "welcome": "Bienvenido",
+    "welcomeHelp": "Usa la navegación lateral para abrir cada módulo o empieza con los accesos sugeridos. Todo se sincroniza con tu tenant, así que el acceso y los datos dependen de tu perfil."
+  },
+  "errors": {
+    "forbidden": "Prohibido",
+    "invalidFormat": "Formato inválido",
+    "loadingFailed": "Error al cargar datos",
+    "moduleLoadError": "Error al cargar módulo.",
+    "moduleNotAvailableForSector": "El módulo no está disponible para el sector {{sector}}. Disponible en: {{availableSectors}}",
+    "moduleNotFound": "Módulo no encontrado.",
+    "networkError": "Error de red",
+    "notFound": "No encontrado",
+    "required": "Este campo es obligatorio",
+    "sectorNotDefined": "Sector no definido para este espacio de trabajo",
+    "serverError": "Error del servidor",
+    "unauthorized": "No autorizado",
+    "validationError": "Error de validación"
+  },
+  "layout": {
+    "noModulesAssigned": "Aún no hay módulos asignados a este espacio de trabajo.",
+    "skipToContent": "Saltar al contenido",
+    "workspace": "Espacio de trabajo"
+  },
+  "modules": {
+    "accounting": "Contabilidad",
+    "customers": "Clientes",
+    "einvoicing": "Factura electrónica",
+    "expenses": "Gastos",
+    "finances": "Finanzas",
+    "hr": "RRHH",
+    "importer": "Importaciones",
+    "pos": "POS",
+    "production": "Producción",
+    "purchases": "Compras",
+    "reconciliation": "Conciliación",
+    "reports": "Reportes",
+    "settings": "Configuración",
+    "suppliers": "Proveedores",
+    "templates": "Plantillas",
+    "users": "Usuarios",
+    "webhooks": "Webhooks"
+  },
+  "nav": {
+    "clients": "Clientes",
+    "dashboard": "Panel",
+    "inventory": "Inventario",
+    "invoicing": "Facturación",
+    "pos": "Punto de Venta",
+    "products": "Productos",
+    "reports": "Reportes",
+    "sales": "Ventas",
+    "settings": "Configuración",
+    "suppliers": "Proveedores",
+    "users": "Usuarios"
+  },
+  "posView": {
+    "actions": {
+      "charge": "Cobrar",
+      "chargeNoReceipt": "Cobrar sin ticket",
+      "chargeNoReceiptWithTotal": "Cobrar {{amount}}{{currency}} sin ticket",
+      "chargeWithTotal": "Cobrar {{amount}}{{currency}}"
+    },
+    "errors": {
+      "invalidPrice": "Ingresa un precio válido mayor a 0.",
+      "productPriceRequired": "Este producto no tiene precio de venta configurado."
+    },
+    "prompts": {
+      "enterPrice": "Ingresa un precio de venta para \"{{name}}\"",
+      "unnamedProduct": "el producto"
+    }
+  },
+  "sales": {
+    "addLine": "Agregar Línea",
+    "customer": "Cliente",
+    "customerId": "ID del cliente",
+    "date": "Fecha",
+    "deleteConfirm": "¿Eliminar esta venta permanentemente?",
+    "draft": "Borrador",
+    "editSale": "Editar Venta",
+    "errors": {
+      "dateRequired": "La fecha es obligatoria",
+      "totalNonNegative": "El total debe ser mayor o igual a 0"
+    },
+    "exportCsv": "Exportar CSV",
+    "fields": {
+      "discountPercent": "% Descuento",
+      "productId": "ID del producto",
+      "taxPercent": "% Impuesto",
+      "unitPrice": "Precio unitario"
+    },
+    "integrateCustomerSelector": "Integrar con selector de clientes",
+    "invoice": "Facturar",
+    "issued": "Emitida",
+    "lineTotal": "Total de línea",
+    "lines": "Líneas de Venta",
+    "newSale": "Nueva Venta",
+    "noLines": "Sin líneas. Haz clic en \"Agregar línea\"",
+    "numberPlaceholder": "Se autogenera si está vacío",
+    "saleNumber": "Venta #",
+    "saved": "Venta guardada",
+    "searchPlaceholder": "Buscar ventas...",
+    "status": "Estado",
+    "subtotal": "Subtotal",
+    "taxes": "Impuestos",
+    "title": "Ventas",
+    "voided": "Anulada"
+  },
+  "sectors": {
+    "bakery": "Panadería",
+    "panaderia": "Panadería",
+    "retail": "Retail",
+    "taller": "Taller",
+    "workshop": "Taller"
+  },
+  "settings": {
+    "advanced": "Avanzado",
+    "general": "General",
+    "loadingConfig": "Cargando configuración...",
+    "loadingPermissions": "Cargando permisos...",
+    "moduleDependencies": "Algunos módulos requieren que otros estén activos (dependencias)",
+    "modules": "Módulos",
+    "modulesActive": "{{active}} de {{total}} módulos activos",
+    "noCounters": "Sin contadores",
+    "noSeries": "Sin series",
+    "notifications": "Notificaciones",
+    "regional": {
+      "currency": "Moneda",
+      "locale": "Idioma",
+      "timezone": "Zona horaria"
+    },
+    "title": "Configuración"
+  },
+  "users": {
+    "activeUser": "Usuario Activo",
+    "created": "Usuario creado",
+    "editUser": "Editar Usuario",
+    "errors": {
+      "passwordRequired": "La contraseña es obligatoria para nuevos usuarios"
+    },
+    "firstName": "Nombre",
+    "lastName": "Apellido",
+    "modules": "Módulos",
+    "newUser": "Nuevo Usuario",
+    "roles": "Roles",
+    "title": "Usuarios",
+    "updated": "Usuario actualizado"
+  },
+  "webhooks": {
+    "created": "Webhook creado",
+    "creating": "Creando...",
+    "deleteConfirm": "¿Eliminar esta suscripción?",
+    "deleted": "Webhook eliminado",
+    "errors": {
+      "creating": "Error creando webhook",
+      "deleting": "Error eliminando webhook",
+      "eventUrlRequired": "Evento y URL son requeridos",
+      "loading": "Error cargando webhooks",
+      "required": "Evento y URL son requeridos",
+      "sendingTest": "Error enviando evento de prueba",
+      "testing": "Error enviando evento de prueba"
+    },
+    "event": "Evento",
+    "newWebhook": "Nuevo Webhook",
+    "noWebhooks": "No hay webhooks configurados",
+    "secret": "Secret (opcional)",
+    "test": "Probar",
+    "testSent": "Enviados {{count}} eventos de prueba",
+    "title": "Webhooks",
+    "url": "URL"
+  }
+}

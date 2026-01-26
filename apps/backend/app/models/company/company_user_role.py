@@ -59,3 +59,28 @@ class CompanyUserRole(Base):
     @active.setter
     def active(self, value: bool) -> None:
         self.is_active = value
+
+    # Backward-compatible aliases (legacy field names)
+    @property
+    def rol_id(self):
+        return self.role_id
+
+    @rol_id.setter
+    def rol_id(self, value):
+        self.role_id = value
+
+    @property
+    def usuario_id(self):
+        return self.user_id
+
+    @usuario_id.setter
+    def usuario_id(self, value):
+        self.user_id = value
+
+    @property
+    def activo(self):
+        return self.is_active
+
+    @activo.setter
+    def activo(self, value):
+        self.is_active = value

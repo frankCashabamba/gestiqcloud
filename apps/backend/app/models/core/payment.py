@@ -45,9 +45,7 @@ class PaymentBase:
 
     amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, comment="Payment amount")
 
-    currency: Mapped[str] = mapped_column(
-        String(3), nullable=False, default="EUR", comment="Currency (ISO 4217)"
-    )
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, comment="Currency (ISO 4217)")
 
     method: Mapped[str] = mapped_column(
         String(50), nullable=False, comment="Payment method (cash, card, transfer, etc.)"

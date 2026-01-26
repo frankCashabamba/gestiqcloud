@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
@@ -24,15 +25,22 @@ router = APIRouter(
 )
 
 
-def _tenant_id(request: Request) -> int:
+def _tenant_id(request: Request) -> UUID:
     claims = getattr(request.state, "access_claims", {})
     tenant = claims.get("tenant_id") or claims.get("tenant_id")
     if tenant is None:
         raise HTTPException(status_code=400, detail="Tenant not found in token")
     try:
-        return int(tenant)
+        return UUID(str(tenant))
     except (TypeError, ValueError):
         raise HTTPException(status_code=400, detail="Invalid tenant identifier")
+
+
+def _supplier_id(value: str) -> UUID:
+    try:
+        return UUID(str(value))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid supplier identifier")
 
 
 def _user_id(request: Request) -> str | None:
@@ -74,9 +82,9 @@ def list_suppliers(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/{pid}", response_model=SupplierOut)
-def get_supplier(pid: int, request: Request, db: Session = Depends(get_db)):
+def get_supplier(pid: str, request: Request, db: Session = Depends(get_db)):
     tenant_id = _tenant_id(request)
-    obj = SupplierRepo(db).get(tenant_id, pid)
+    obj = SupplierRepo(db).get(tenant_id, _supplier_id(pid))
     if not obj:
         raise HTTPException(status_code=404, detail="Supplier not found")
     return obj
@@ -100,26 +108,26 @@ def create_supplier(
 
 @router.put("/{pid}", response_model=SupplierOut)
 def update_supplier(
-    pid: int,
+    pid: str,
     payload: SupplierUpdate,
     request: Request,
     db: Session = Depends(get_db),
 ):
     tenant_id = _tenant_id(request)
     repo = SupplierRepo(db)
-    existing = repo.get(tenant_id, pid)
+    existing = repo.get(tenant_id, _supplier_id(pid))
     if not existing:
         raise HTTPException(status_code=404, detail="Supplier not found")
     data = _prepare_payload(payload, request=request, current_iban=existing.iban)
-    supplier = repo.update(tenant_id, pid, **data)
+    supplier = repo.update(tenant_id, _supplier_id(pid), **data)
     return supplier
 
 
 @router.delete("/{pid}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_supplier(pid: int, request: Request, db: Session = Depends(get_db)):
+def delete_supplier(pid: str, request: Request, db: Session = Depends(get_db)):
     tenant_id = _tenant_id(request)
     try:
-        SupplierRepo(db).delete(tenant_id, pid)
+        SupplierRepo(db).delete(tenant_id, _supplier_id(pid))
     except ValueError:
         raise HTTPException(status_code=404, detail="Supplier not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)

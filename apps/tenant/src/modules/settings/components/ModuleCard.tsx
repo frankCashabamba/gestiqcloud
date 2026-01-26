@@ -42,7 +42,7 @@ export default function ModuleCard({ module, onToggle, onClick }: ModuleCardProp
             }
           `}
         >
-          {module.enabled ? '✓ ACTIVO' : '⊗ INACTIVO'}
+          {module.enabled ? '✓ ACTIVE' : '⊗ INACTIVE'}
         </span>
       </div>
 
@@ -71,7 +71,7 @@ export default function ModuleCard({ module, onToggle, onClick }: ModuleCardProp
       {/* Toggle Switch */}
       <div className="flex items-center justify-between pt-3 border-t border-gray-200">
         <span className="text-sm font-medium text-gray-700">
-          {module.enabled ? 'Desactivar' : 'Activar'}
+          {module.enabled ? 'Deactivate' : 'Activate'}
         </span>
         <button
           onClick={handleToggle}

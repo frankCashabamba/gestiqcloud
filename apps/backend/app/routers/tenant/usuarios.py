@@ -1,10 +1,4 @@
-from fastapi import APIRouter
+"""Compatibility shim: re-export router from modular location."""
+from app.modules.users.interface.http.tenant_usuarios import router
 
-router = APIRouter()
-
-USUARIOS: list[dict] = []
-
-
-@router.get("")
-def list_usuarios():
-    return USUARIOS
+__all__ = ["router"]

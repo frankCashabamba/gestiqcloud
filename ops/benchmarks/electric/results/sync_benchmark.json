@@ -1,0 +1,41 @@
+{
+  "timestamp": "2026-01-17T13:17:20.351017",
+  "config": {
+    "electric_url": "ws://localhost:5133",
+    "tenant_id": "bench_tenant_001",
+    "iterations": 10
+  },
+  "benchmarks": [
+    {
+      "name": "initial_sync",
+      "target_ms": 5000,
+      "mean_ms": 3530.53,
+      "p95_ms": 3552.78,
+      "p99_ms": 3552.78,
+      "min_ms": 3509.53,
+      "max_ms": 3552.78,
+      "passed": true,
+      "iterations": 10
+    },
+    {
+      "name": "incremental_sync",
+      "target_ms": 500,
+      "mean_ms": 113.36,
+      "p95_ms": 120.71,
+      "p99_ms": 120.71,
+      "min_ms": 102.34,
+      "max_ms": 120.71,
+      "passed": true,
+      "iterations": 10
+    }
+  ],
+  "throughput": {
+    "name": "offline_throughput",
+    "total_operations": 1000,
+    "total_time_ms": 14211.63,
+    "ops_per_second": 70.36,
+    "latency_mean_ms": 14.2,
+    "latency_p95_ms": 16.41
+  },
+  "all_passed": true
+}

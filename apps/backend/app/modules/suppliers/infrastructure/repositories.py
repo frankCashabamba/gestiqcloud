@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -14,7 +15,7 @@ class SupplierRepo:
         self.db = db
 
     # Supplier -----------------------------------------------------------------
-    def list(self, tenant_id: int) -> list[Supplier]:
+    def list(self, tenant_id: UUID) -> list[Supplier]:
         return (
             self.db.query(Supplier)
             .filter(Supplier.tenant_id == tenant_id)
@@ -22,14 +23,14 @@ class SupplierRepo:
             .all()
         )
 
-    def get(self, tenant_id: int, supplier_id: int) -> Supplier | None:
+    def get(self, tenant_id: UUID, supplier_id: UUID) -> Supplier | None:
         return (
             self.db.query(Supplier)
             .filter(Supplier.tenant_id == tenant_id, Supplier.id == supplier_id)
             .first()
         )
 
-    def create(self, tenant_id: int, **payload) -> Supplier:
+    def create(self, tenant_id: UUID, **payload) -> Supplier:
         contacts_data = payload.pop("contacts", []) or []
         addresses_data = payload.pop("addresses", []) or []
 
@@ -41,7 +42,7 @@ class SupplierRepo:
         self.db.refresh(supplier)
         return supplier
 
-    def update(self, tenant_id: int, supplier_id: int, **payload) -> Supplier:
+    def update(self, tenant_id: UUID, supplier_id: UUID, **payload) -> Supplier:
         contacts_data = payload.pop("contacts", None)
         addresses_data = payload.pop("addresses", None)
 
@@ -61,7 +62,7 @@ class SupplierRepo:
         self.db.refresh(supplier)
         return supplier
 
-    def delete(self, tenant_id: int, supplier_id: int) -> None:
+    def delete(self, tenant_id: UUID, supplier_id: UUID) -> None:
         supplier = self.get(tenant_id, supplier_id)
         if not supplier:
             raise ValueError("Supplier not found")

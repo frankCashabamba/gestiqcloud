@@ -1,11 +1,11 @@
 /**
  * ConditionalProductFields
  *
- * Campos de producto que aparecen/desaparecen según la configuración del sector
+ * Product fields that appear/disappear based on sector configuration
  *
- * FASE 4 PASO 4: Placeholders dinámicos desde BD
- * - Reemplaza hardcoded placeholders con valores desde template_config
- * - Usa useSectorPlaceholders para cargar dinámicamente
+ * PHASE 4 STEP 4: Dynamic placeholders from DB
+ * - Replaces hardcoded placeholders with values from template_config
+ * - Uses useSectorPlaceholders to load dynamically
  */
 import React from 'react'
 import { useCompanyFeatures, useCompanySector } from '../contexts/CompanyConfigContext'
@@ -29,14 +29,14 @@ export function ConditionalProductFields({
   return (
     <>
       {/* ============================================ */}
-      {/* CAMPOS DE INVENTARIO CONDICIONALES */}
+      {/* CONDITIONAL INVENTORY FIELDS */}
       {/* ============================================ */}
 
-      {/* Fecha de Caducidad (solo panadería, alimentos) */}
+      {/* Expiration Date (bakery, food only) */}
       {features.inventory_expiry_tracking && (
         <div className="form-field">
           <label htmlFor="expires_at" className="form-label">
-            Fecha de Caducidad {features.inventory_expiry_tracking && '*'}
+            Expiration Date {features.inventory_expiry_tracking && '*'}
           </label>
           <input
             type="date"
@@ -50,17 +50,17 @@ export function ConditionalProductFields({
           />
           {features.inventory_expiry_tracking && (
             <small className="form-help">
-              Productos perecederos requieren fecha de caducidad
+              Perishable products require expiration date
             </small>
           )}
         </div>
       )}
 
-      {/* Lote/Hornada (panadería, taller) */}
+      {/* Lot/Batch (bakery, workshop) */}
       {features.inventory_lot_tracking && (
         <div className="form-field">
           <label htmlFor="lot" className="form-label">
-            Número de Lote
+            Lot Number
           </label>
           <input
             type="text"
@@ -68,20 +68,20 @@ export function ConditionalProductFields({
             name="lot"
             value={formData.lot || ''}
             onChange={onChange}
-            placeholder={getFieldPlaceholder(placeholders, 'lote', 'Número de lote')}
+            placeholder={getFieldPlaceholder(placeholders, 'lote', 'Lot number')}
             className="form-input"
           />
           <small className="form-help">
-            Identifica el lote de producción
+            Identifies the production lot
           </small>
         </div>
       )}
 
-      {/* Número de Serie (taller, retail electrónicos) */}
+      {/* Serial Number (workshop, electronics retail) */}
       {features.inventory_serial_tracking && (
         <div className="form-field">
           <label htmlFor="serial_number" className="form-label">
-            Número de Serie
+            Serial Number
           </label>
           <input
             type="text"
@@ -89,20 +89,20 @@ export function ConditionalProductFields({
             name="serial_number"
             value={formData.serial_number || ''}
             onChange={onChange}
-            placeholder={getFieldPlaceholder(placeholders, 'numero_serie', 'Ej: SN-123456789')}
+            placeholder={getFieldPlaceholder(placeholders, 'numero_serie', 'E.g.: SN-123456789')}
             className="form-input"
           />
           <small className="form-help">
-            Para tracking individual de repuestos/productos
+            For individual parts/product tracking
           </small>
         </div>
       )}
 
       {/* ============================================ */}
-      {/* CAMPOS DE POS CONDICIONALES */}
+      {/* CONDITIONAL POS FIELDS */}
       {/* ============================================ */}
 
-      {/* Venta por Peso (panadería) */}
+      {/* Sell by Weight (bakery) */}
       {features.pos_enable_weights && (
         <>
           <div className="form-field">
@@ -113,14 +113,14 @@ export function ConditionalProductFields({
                 checked={formData.sold_by_weight || false}
                 onChange={(e) => onCheckboxChange?.('sold_by_weight', e.target.checked)}
               />
-              <span>Se vende por peso</span>
+              <span>Sold by weight</span>
             </label>
           </div>
 
           {formData.sold_by_weight && (
             <div className="form-field">
               <label htmlFor="weight_unit" className="form-label">
-                Unidad de Peso *
+                Weight Unit *
               </label>
               <select
                 id="weight_unit"
@@ -130,9 +130,9 @@ export function ConditionalProductFields({
                 required
                 className="form-input"
               >
-                <option value="kg">Kilogramos (kg)</option>
-                <option value="g">Gramos (g)</option>
-                <option value="lb">Libras (lb)</option>
+                <option value="kg">Kilograms (kg)</option>
+                <option value="g">Grams (g)</option>
+                <option value="lb">Pounds (lb)</option>
               </select>
             </div>
           )}
@@ -140,7 +140,7 @@ export function ConditionalProductFields({
       )}
 
       {/* ============================================ */}
-      {/* CAMPOS ESPECÍFICOS POR SECTOR */}
+      {/* SECTOR-SPECIFIC FIELDS */}
       {/* ============================================ */}
 
 

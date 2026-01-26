@@ -1,0 +1,7 @@
+{
+  "name": "suppliers",
+  "url": "/suppliers",
+  "icon": "\ud83d\udcdd",
+  "category": "master-data",
+  "description": "Manage supplier records, contacts and commercial terms"
+}

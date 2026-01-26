@@ -2,15 +2,16 @@
  * ConvertToInvoiceModal - Convertir ticket a factura
  */
 import React, { useState } from 'react'
-import { convertToInvoice } from '../services'
+import { convertToInvoice, createInvoiceFromReceipt, type POSReceipt } from '../services'
 
 interface ConvertToInvoiceModalProps {
   receiptId: string
+  receipt?: POSReceipt
   onSuccess: (invoice: any) => void
   onCancel: () => void
 }
 
-export default function ConvertToInvoiceModal({ receiptId, onSuccess, onCancel }: ConvertToInvoiceModalProps) {
+export default function ConvertToInvoiceModal({ receiptId, receipt, onSuccess, onCancel }: ConvertToInvoiceModalProps) {
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
@@ -31,7 +32,7 @@ export default function ConvertToInvoiceModal({ receiptId, onSuccess, onCancel }
 
     setLoading(true)
     try {
-      const result = await convertToInvoice(receiptId, {
+      const payload = {
         customer: {
           name: formData.name,
           tax_id: formData.tax_id,
@@ -40,10 +41,22 @@ export default function ConvertToInvoiceModal({ receiptId, onSuccess, onCancel }
           email: formData.email || undefined
         },
         series: formData.series || undefined
-      })
+      }
 
-      alert(`Factura generada: ${result.invoice_number}`)
-      onSuccess(result)
+      // Intentar crear en ambos sistemas para garantizar sincronización
+      // Primero en invoicing (sistema principal de Billing)
+      const invoiceResult = await createInvoiceFromReceipt(receiptId, receipt as any, payload)
+      
+      // Luego en documents (para e-invoicing)
+      try {
+        await convertToInvoice(receiptId, payload)
+      } catch (docError) {
+        console.warn('Error creando documento electrónico:', docError)
+        // No fallar si hay error en documents
+      }
+
+      alert(`✅ Factura generada: ${invoiceResult.id || invoiceResult.numero || 'Sin número'}`)
+      onSuccess(invoiceResult)
     } catch (error: any) {
       alert(error.response?.data?.detail || 'Error al generar factura')
     } finally {

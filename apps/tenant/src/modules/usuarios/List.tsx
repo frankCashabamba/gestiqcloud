@@ -13,7 +13,7 @@ import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import type { Usuario, ModuloOption, RolOption, Rol } from './types'
 import { useAuth } from '../../auth/AuthContext'
-import RolModal from './RolModal'
+import RolModal from './RoleModal'
 
 function formatNombre(usuario: Usuario): string {
   const parts = [usuario.first_name, usuario.last_name].filter(Boolean)
@@ -88,11 +88,11 @@ export default function UsuariosList() {
   const { page, setPage, totalPages, view } = usePagination(filtered, 10)
 
   const handleRemove = async (id: string) => {
-    if (!confirm('¿Desactivar este usuario?')) return
+    if (!confirm('Deactivate this user?')) return
     try {
       await removeUsuario(id)
       setItems((prev) => prev.filter((u) => u.id !== id))
-      success('Usuario desactivado')
+      success('User deactivated')
     } catch (e: any) {
       toastError(getErrorMessage(e))
     }
@@ -100,7 +100,7 @@ export default function UsuariosList() {
 
   const loadRoles = async () => {
     if (authLoading || !token) {
-      toastError('Sesión no autenticada. Inicia sesión nuevamente.')
+      toastError('Not authenticated. Please sign in again.')
       return
     }
     try {
@@ -112,11 +112,11 @@ export default function UsuariosList() {
   }
 
   const handleDeleteRol = async (id: string) => {
-    if (!confirm('¿Eliminar este rol?')) return
+    if (!confirm('Delete this role?')) return
     try {
       await deleteRol(id)
       setRolesCompletos(prev => prev.filter(r => r.id !== id))
-      success('Rol eliminado')
+      success('Role deleted')
     } catch (e: any) {
       toastError(getErrorMessage(e))
     }
@@ -126,8 +126,8 @@ export default function UsuariosList() {
     <div className="p-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Usuarios de la empresa</h2>
-          <p className="text-sm text-slate-500">Gestiona accesos, módulos y roles asignados.</p>
+          <h2 className="text-lg font-semibold text-slate-900">Company Users</h2>
+          <p className="text-sm text-slate-500">Manage access, modules, and assigned roles.</p>
         </div>
         {isAdminEmpresa && (
           <div className="flex gap-2">
@@ -138,10 +138,10 @@ export default function UsuariosList() {
                 setShowRolesModal(true)
               }}
             >
-              Gestionar Roles
+              Manage Roles
             </button>
             <button className="gc-button gc-button--primary" onClick={() => nav('nuevo')}>
-              Nuevo usuario
+              New user
             </button>
           </div>
         )}
@@ -151,23 +151,23 @@ export default function UsuariosList() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar por nombre, email o usuario"
+          placeholder="Search by name, email or username"
           className="w-full max-w-md rounded-xl border border-slate-200 px-4 py-2 text-sm"
         />
       </div>
 
-      {loading && <div className="text-sm text-slate-500">Cargando usuarios…</div>}
+      {loading && <div className="text-sm text-slate-500">Loading users...</div>}
       {errMsg && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{errMsg}</div>}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-3">Nombre</th>
-              <th className="px-4 py-3">Email / Usuario</th>
+              <th className="px-4 py-3">Name</th>
+              <th className="px-4 py-3">Email / Username</th>
               <th className="px-4 py-3">Roles</th>
-              <th className="px-4 py-3">Módulos</th>
-              <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3">Modules</th>
+              <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -188,10 +188,10 @@ export default function UsuariosList() {
                     {u.username && <div className="text-xs text-slate-400">{u.username}</div>}
                   </td>
                   <td className="px-4 py-3 text-slate-600">{rolesLabels.length ? rolesLabels.join(', ') : '—'}</td>
-                  <td className="px-4 py-3 text-slate-600">{u.is_company_admin ? 'Todos los módulos' : modLabels.join(', ') || '—'}</td>
+                  <td className="px-4 py-3 text-slate-600">{u.is_company_admin ? 'All modules' : modLabels.join(', ') || '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${u.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                      {u.active ? 'Activo' : 'Inactivo'}
+                      {u.active ? 'Active' : 'Inactive'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -199,19 +199,19 @@ export default function UsuariosList() {
                       {isAdminEmpresa && (
                         <>
                           <Link to={`${u.id}/editar`} className="text-sm font-medium text-blue-600 hover:text-blue-500">
-                            Editar
+                            Edit
                           </Link>
                           <button
                             className="text-sm font-medium text-slate-600 hover:text-slate-900"
                             onClick={() => { setSetPwdUserId(u.id); setNewPwd('') }}
                           >
-                            Establecer contraseña
+                            Set password
                           </button>
                           <button
                             className="text-sm font-medium text-rose-600 hover:text-rose-500"
                             onClick={() => handleRemove(u.id)}
                           >
-                            Desactivar
+                            Deactivate
                           </button>
                         </>
                       )}
@@ -223,7 +223,7 @@ export default function UsuariosList() {
             {!loading && view.length === 0 && (
               <tr>
                 <td className="px-4 py-6 text-center text-sm text-slate-500" colSpan={6}>
-                  No se encontraron usuarios con ese filtro.
+                  No users found matching that filter.
                 </td>
               </tr>
             )}
@@ -236,25 +236,25 @@ export default function UsuariosList() {
       {setPwdUserId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-sm space-y-4 rounded-xl bg-white p-6 shadow-lg">
-            <h3 className="text-lg font-semibold text-slate-900">Establecer contraseña</h3>
-            <p className="text-sm text-slate-600">Define una contraseña temporal para este usuario.</p>
+            <h3 className="text-lg font-semibold text-slate-900">Set password</h3>
+            <p className="text-sm text-slate-600">Define a temporary password for this user.</p>
             <input
               type="password"
               value={newPwd}
               onChange={(e) => setNewPwd(e.target.value)}
-              placeholder="Nueva contraseña (mínimo 8)"
+              placeholder="New password (min 8 chars)"
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
             />
             <div className="flex items-center justify-end gap-2 pt-2">
               <button onClick={() => { setSetPwdUserId(null); setNewPwd('') }} className="text-sm text-slate-600 hover:text-slate-900">
-                Cancelar
+                Cancel
               </button>
               <button
                 onClick={async () => {
-                  if ((newPwd || '').length < 8) { toastError('La contraseña debe tener al menos 8 caracteres'); return }
+                  if ((newPwd || '').length < 8) { toastError('Password must be at least 8 characters'); return }
                   try {
                     await setUsuarioPassword(setPwdUserId!, newPwd)
-                    success('Contraseña actualizada')
+                    success('Password updated')
                     setSetPwdUserId(null)
                     setNewPwd('')
                   } catch (e: any) {
@@ -263,7 +263,7 @@ export default function UsuariosList() {
                 }}
                 className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
               >
-                Guardar
+                Save
               </button>
             </div>
           </div>
@@ -278,19 +278,19 @@ export default function UsuariosList() {
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-slate-900">Gestión de Roles</h2>
+              <h2 className="text-xl font-semibold text-slate-900">Role Management</h2>
               <button
                 className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
                 onClick={() => setSelectedRol({} as Rol)}
               >
-                + Crear Rol
+                + Create Role
               </button>
             </div>
 
             <div className="space-y-3">
               {rolesCompletos.length === 0 && (
                 <p className="text-center text-sm text-slate-500 py-8">
-                  No hay roles creados. Crea el primer rol para tu empresa.
+                  No roles created. Create the first role for your company.
                 </p>
               )}
               {rolesCompletos.map(rol => (
@@ -320,13 +320,13 @@ export default function UsuariosList() {
                         className="text-sm text-blue-600 hover:text-blue-500"
                         onClick={() => setSelectedRol(rol)}
                       >
-                        Editar
+                        Edit
                       </button>
                       <button
                         className="text-sm text-rose-600 hover:text-rose-500"
                         onClick={() => handleDeleteRol(rol.id)}
                       >
-                        Eliminar
+                        Delete
                       </button>
                     </div>
                   </div>
@@ -339,7 +339,7 @@ export default function UsuariosList() {
                 className="px-4 py-2 text-sm text-slate-600 hover:text-slate-900"
                 onClick={() => setShowRolesModal(false)}
               >
-                Cerrar
+                Close
               </button>
             </div>
           </div>

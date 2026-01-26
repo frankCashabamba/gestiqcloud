@@ -7,6 +7,21 @@ on:
     branches: [ main, master ]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Run pre-commit hooks
+        run: pre-commit run --all-files
+
   changes:
     runs-on: ubuntu-latest
     outputs:
@@ -167,3 +182,85 @@ jobs:
           path: |
             apps/admin/dist
             apps/tenant/dist
+
+  deploy-staging:
+    needs: [backend, frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        run: |
+          echo "🚀 Deploy to staging would happen here"
+          echo "Branch: ${{ github.ref }}"
+          echo "Commit: ${{ github.sha }}"
+          # TODO: Conectar con Render usando deploy hooks:
+          #   curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+          # O usar la GitHub Action oficial de Render:
+          #   - uses: render-oss/render-deploy-action@v0.0.1
+          #     with:
+          #       service-id: ${{ secrets.RENDER_SERVICE_ID }}
+          #       api-key: ${{ secrets.RENDER_API_KEY }}
+
+  # ============================================================================
+  # DEPLOY A PRODUCCIÓN CON APROBACIÓN MANUAL
+  # ============================================================================
+  # Este job requiere aprobación manual antes de ejecutarse.
+  #
+  # CONFIGURACIÓN REQUERIDA EN GITHUB:
+  # 1. Ve a Settings > Environments > New environment
+  # 2. Crea un environment llamado "production"
+  # 3. Activa "Required reviewers" y agrega los usuarios autorizados
+  # 4. Opcionalmente configura "Wait timer" (ej: 5 minutos de espera)
+  # 5. Opcionalmente limita a branches específicos (ej: solo main)
+  #
+  # SECRETS NECESARIOS (configurar en el environment "production"):
+  # - RENDER_DEPLOY_HOOK_PROD: URL del deploy hook de Render para producción
+  #   (Render Dashboard > Service > Settings > Deploy Hook)
+  # ============================================================================
+  deploy-production:
+    needs: [deploy-staging]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://api.gestiqcloud.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to production
+        id: deploy
+        run: |
+          echo "🚀 Deploying to PRODUCTION..."
+          echo "Branch: ${{ github.ref }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Approved by: ${{ github.actor }}"
+          
+          # Ejecutar deploy hook de Render
+          if [ -n "${{ secrets.RENDER_DEPLOY_HOOK_PROD }}" ]; then
+            response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_PROD }}")
+            if [ "$response" -eq 200 ] || [ "$response" -eq 201 ]; then
+              echo "✅ Deploy hook ejecutado exitosamente (HTTP $response)"
+              echo "deploy_status=success" >> $GITHUB_OUTPUT
+            else
+              echo "❌ Error al ejecutar deploy hook (HTTP $response)"
+              echo "deploy_status=failed" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+          else
+            echo "⚠️ RENDER_DEPLOY_HOOK_PROD no configurado"
+            echo "deploy_status=skipped" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Notify deployment result
+        if: always()
+        run: |
+          if [ "${{ steps.deploy.outputs.deploy_status }}" == "success" ]; then
+            echo "🎉 Production deployment completed successfully!"
+            echo "📍 URL: https://api.gestiqcloud.com"
+          elif [ "${{ steps.deploy.outputs.deploy_status }}" == "skipped" ]; then
+            echo "⚠️ Deployment skipped - configure RENDER_DEPLOY_HOOK_PROD secret"
+          else
+            echo "❌ Production deployment failed"
+          fi

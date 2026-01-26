@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from uuid import UUID
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, EmailStr, Field, StringConstraints
@@ -81,16 +82,16 @@ class SupplierUpdate(SupplierBase):
 
 
 class SupplierContactOut(SupplierContactIn):
-    id: int
+    id: UUID
 
 
 class SupplierAddressOut(SupplierAddressIn):
-    id: int
+    id: UUID
 
 
 class SupplierOut(SupplierBase):
-    id: int
-    tenant_id: int
+    id: UUID
+    tenant_id: UUID
     iban_updated_by: str | None = None
     iban_updated_at: datetime | None = None
     contacts: list[SupplierContactOut] = Field(default_factory=list)
@@ -100,7 +101,7 @@ class SupplierOut(SupplierBase):
 
 
 class SupplierListOut(BaseModel):
-    id: int
+    id: UUID
     name: str
     trade_name: str | None = None
     email: EmailStr | None = None

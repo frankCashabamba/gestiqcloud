@@ -83,6 +83,15 @@ class ECValidator(CountryValidator):
                 }
             )
 
+        # Validate checksum (modulo 11)
+        if not self._validate_ruc_checksum(tax_id):
+            errors.append(
+                {
+                    "code": "INVALID_CHECKSUM",
+                    "message": "Invalid RUC checksum",
+                }
+            )
+
         return errors
 
     def validate_clave_acceso(self, clave: str) -> list[dict[str, Any]]:
@@ -195,33 +204,26 @@ class ECValidator(CountryValidator):
         Validate RUC checksum using modulo 11.
 
         Algorithm based on Ecuador SRI (Servicio de Rentas Internas).
+        
+        The check digit is always calculated the same way regardless of type.
         """
         if len(ruc) != 13:
             return False
 
-        # Position-based weights for natural persons (positions 1-9)
+        # Position-based weights for digits 1-9 (0-indexed: 0-8)
         weights = [3, 2, 7, 6, 5, 4, 3, 2, 7]
 
-        # Extract the code digit (position 10)
-        code_digit = int(ruc[8])  # 9th digit (0-indexed)
-
-        # Calculate checksum
+        # Calculate checksum for first 9 digits
         total = sum(int(digit) * weight for digit, weight in zip(ruc[:9], weights))
         remainder = total % 11
 
-        # Check digit calculation
-        if code_digit in (0, 1):
-            # Natural person or government entity
-            check_digit = (11 - remainder) % 11
-            if check_digit == 11:
-                check_digit = 0
-        else:
-            # Juridical entity
-            check_digit = (11 - remainder) % 11
-            if check_digit == 11:
-                check_digit = 0
+        # Calculate check digit (same algorithm for all RUC types)
+        check_digit = 0 if remainder == 0 else 11 - remainder
+        if check_digit == 11:
+            check_digit = 0
 
-        return int(ruc[9]) == check_digit  # Position 10 (0-indexed: 9)
+        # Verify against position 10 (0-indexed: 9)
+        return int(ruc[9]) == check_digit
 
     @staticmethod
     def _validate_clave_checksum(clave: str) -> bool:

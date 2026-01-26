@@ -53,25 +53,25 @@ export const DEFAULT_TEMPLATE_CONFIG: SectorTemplateConfig = {
 }
 
 export async function listSectores(): Promise<Sector[]> {
-  const { data } = await api.get<Sector[]>(ADMIN_CONFIG.sectores.base)
+  const { data } = await api.get<Sector[]>(ADMIN_CONFIG.sectors.base)
   return data || []
 }
 
 export async function getSector(id: number | string): Promise<Sector> {
-  const { data } = await api.get<Sector>(ADMIN_CONFIG.sectores.byId(id))
+  const { data } = await api.get<Sector>(ADMIN_CONFIG.sectors.byId(id))
   return data
 }
 
 export async function createSector(payload: SectorPayload): Promise<Sector> {
-  const { data } = await api.post<Sector>(ADMIN_CONFIG.sectores.base, payload)
+  const { data } = await api.post<Sector>(ADMIN_CONFIG.sectors.base, payload)
   return data
 }
 
 export async function updateSector(id: number | string, payload: SectorPayload): Promise<Sector> {
-  const { data } = await api.put<Sector>(ADMIN_CONFIG.sectores.byId(id), payload)
+  const { data } = await api.put<Sector>(ADMIN_CONFIG.sectors.byId(id), payload)
   return data
 }
 
 export async function removeSector(id: number | string): Promise<void> {
-  await api.delete(ADMIN_CONFIG.sectores.byId(id))
+  await api.delete(ADMIN_CONFIG.sectors.byId(id))
 }

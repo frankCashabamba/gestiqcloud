@@ -92,19 +92,21 @@ def build_seller_info(db: Session, tenant_id: str, branding: dict | None) -> dic
         or (tenant.name if tenant else "")
     )
     legal_name = (branding or {}).get("legalName") or trade_name
-    tax_id = (branding or {}).get("taxId") or (settings.tax_id if settings else None) or (
-        tenant.tax_id if tenant else ""
+    tax_id = (
+        (branding or {}).get("taxId")
+        or (settings.tax_id if settings else None)
+        or ((tenant.tax_id if tenant else None) or "")
     )
-    address = (branding or {}).get("address") or (tenant.address if tenant else "")
+    address = (branding or {}).get("address") or ((tenant.address if tenant else None) or "")
     logo = (branding or {}).get("logo") or (settings.company_logo if settings else None)
     email = (branding or {}).get("email")
     website = (branding or {}).get("website") or (tenant.website if tenant else None)
     footer = (branding or {}).get("footer") or (branding or {}).get("footerMessage")
     return {
         "tenantId": tenant_id,
-        "tradeName": trade_name,
-        "legalName": legal_name,
-        "taxId": tax_id,
+        "tradeName": trade_name or "",
+        "legalName": legal_name or (trade_name or ""),
+        "taxId": tax_id or "",
         "address": address or "",
         "logo": logo,
         "email": email,

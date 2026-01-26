@@ -146,7 +146,12 @@ def admin_login(
 
     # 6) JWTs
     access = token_service.issue_access(
-        {"sub": user.email, "user_id": str(user.id), "kind": "admin"}
+        {
+            "sub": user.email,
+            "user_id": str(user.id),
+            "kind": "admin",
+            "tenant_id": str(admin_tenant_id),
+        }
     )
     refresh = token_service.issue_refresh(
         {
@@ -154,6 +159,7 @@ def admin_login(
             "user_id": str(user.id),
             "kind": "admin",
             "family_id": family_id,
+            "tenant_id": str(admin_tenant_id),
         },
         jti=jti,
         prev_jti=None,

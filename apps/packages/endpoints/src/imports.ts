@@ -50,6 +50,6 @@ export const IMPORTS = {
   },
   parsersRegistry: `${BASE}/parsers/registry`,
   analyzeFile: `${BASE}/analyze-file`,
-  processDocument: `${BASE}/procesar`,
+  processDocument: `${BASE}/process`,
   ocrJob: (jobId: string) => `${BASE}/jobs/${jobId}`,
 }

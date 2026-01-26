@@ -4,6 +4,7 @@ import tenantApi from '../shared/api/client'
 import { TENANT_AUTH } from '@shared/endpoints'
 import { useToast, getErrorMessage } from '../shared/toast'
 import { useAuth } from '../auth/AuthContext'
+import { resolveTenantPath } from '../lib/tenantNavigation'
 
 export default function SetPassword() {
   const [sp] = useSearchParams()
@@ -27,7 +28,8 @@ export default function SetPassword() {
       if (!ident) throw new Error('No se pudo iniciar sesión con la nueva contraseña')
       await login({ identificador: ident, password: pwd })
       success('Contraseña actualizada')
-      nav('/onboarding')
+      const target = await resolveTenantPath()
+      nav(target)
     } catch (e:any) {
       error(getErrorMessage(e))
     } finally { setSaving(false) }

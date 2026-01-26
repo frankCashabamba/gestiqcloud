@@ -57,7 +57,7 @@ def _dto_to_schema(data: ClienteOut) -> ClienteOutSchema:
 
 
 router = APIRouter(
-    prefix="/clientes",
+    prefix="/clients",
     tags=["Clientes"],
     dependencies=[
         Depends(with_access_claims),

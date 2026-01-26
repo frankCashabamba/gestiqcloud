@@ -109,7 +109,7 @@ def _calcular_totales_dia(
 
 
 @router.get(
-    "/caja/movimientos", response_model=CajaMovimientoList, summary="Listar movimientos de caja"
+    "/cash-register/movements", response_model=CajaMovimientoList, summary="Listar movimientos de caja"
 )
 async def list_movimientos(
     skip: int = Query(0, ge=0),
@@ -168,7 +168,7 @@ async def list_movimientos(
 
 
 @router.post(
-    "/caja/movimientos",
+    "/cash-register/movements",
     response_model=CajaMovimientoResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Crear movimiento de caja",
@@ -209,11 +209,11 @@ async def create_movimiento(
     return CajaMovimientoResponse.from_orm(movimiento)
 
 
-@router.get("/caja/saldo", response_model=CajaSaldoResponse, summary="Obtener saldo actual de caja")
+@router.get("/cash-register/balance", response_model=CajaSaldoResponse, summary="Obtener saldo actual de caja")
 async def get_saldo_actual(
     fecha: date | None = Query(None, description="Fecha (por defecto hoy)"),
     caja_id: UUID | None = None,
-    moneda: str = Query("EUR", description="Moneda"),
+    moneda: str | None = Query(None, description="Moneda"),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
@@ -278,7 +278,7 @@ async def get_saldo_actual(
 
 
 @router.get(
-    "/caja/cierre-diario", response_model=CierreCajaResponse, summary="Obtener cierre diario"
+    "/cash-register/daily-close", response_model=CierreCajaResponse, summary="Obtener cierre diario"
 )
 async def get_cierre_diario(
     fecha: date | None = Query(None, description="Fecha (por defecto hoy)"),
@@ -307,14 +307,14 @@ async def get_cierre_diario(
     if not cierre:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No existe cierre para la fecha {fecha_consulta}. Use POST /caja/cierre para crear uno.",
+            detail=f"No existe cierre para la fecha {fecha_consulta}. Use POST /cash-register/close para crear uno.",
         )
 
     return CierreCajaResponse.from_orm(cierre)
 
 
 @router.post(
-    "/caja/cierre",
+    "/cash-register/close",
     response_model=CierreCajaResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Abrir caja",
@@ -374,10 +374,10 @@ async def abrir_caja(
 
 
 @router.post(
-    "/caja/cierre/{cierre_id}/cerrar", response_model=CierreCajaResponse, summary="Cerrar caja"
+    "/cash-register/close/{close_id}/finalize", response_model=CierreCajaResponse, summary="Cerrar caja"
 )
 async def cerrar_caja(
-    cierre_id: UUID,
+    close_id: UUID,
     data: CierreCajaClose,
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
@@ -386,7 +386,7 @@ async def cerrar_caja(
     tenant_id = claims["tenant_id"]
     user_id = claims["user_id"]
 
-    stmt = select(CierreCaja).where(CierreCaja.id == cierre_id, CierreCaja.tenant_id == tenant_id)
+    stmt = select(CierreCaja).where(CierreCaja.id == close_id, CierreCaja.tenant_id == tenant_id)
     cierre = db.execute(stmt).scalar_one_or_none()
 
     if not cierre:
@@ -429,7 +429,7 @@ async def cerrar_caja(
     return CierreCajaResponse.from_orm(cierre)
 
 
-@router.get("/caja/cierres", response_model=CierreCajaList, summary="Listar cierres de caja")
+@router.get("/cash-register/closes", response_model=CierreCajaList, summary="Listar cierres de caja")
 async def list_cierres(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -471,12 +471,12 @@ async def list_cierres(
     )
 
 
-@router.get("/caja/stats", response_model=CajaStats, summary="Estadísticas de caja")
+@router.get("/cash-register/stats", response_model=CajaStats, summary="Estadísticas de caja")
 async def get_caja_stats(
     fecha_desde: date = Query(..., description="Fecha inicio"),
     fecha_hasta: date = Query(..., description="Fecha fin"),
     caja_id: UUID | None = None,
-    moneda: str = Query("EUR", description="Moneda"),
+    moneda: str | None = Query(None, description="Moneda"),
     db: Session = Depends(get_db),
     claims: dict = Depends(with_access_claims),
 ):
@@ -585,7 +585,7 @@ async def get_caja_stats(
 # ============================================================================
 
 
-@router.get("/banco/movimientos", response_model=dict, summary="List bank transactions")
+@router.get("/bank/transactions", response_model=dict, summary="List bank transactions")
 def list_bank_transactions(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
@@ -636,7 +636,7 @@ def list_bank_transactions(
     }
 
 
-@router.post("/banco/{id}/conciliar", response_model=dict, summary="Reconcile bank transaction")
+@router.post("/bank/{id}/reconcile", response_model=dict, summary="Reconcile bank transaction")
 def reconcile_transaction(
     id: UUID,
     db: Session = Depends(get_db),
@@ -673,7 +673,7 @@ def reconcile_transaction(
     }
 
 
-@router.get("/banco/saldos", response_model=dict, summary="Resumen de saldos (caja + bancos)")
+@router.get("/bank/balances", response_model=dict, summary="Resumen de saldos (caja + bancos)")
 def get_bank_balances(
     date_filter: str | None = None,
     db: Session = Depends(get_db),

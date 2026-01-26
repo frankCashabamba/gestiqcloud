@@ -63,7 +63,8 @@ class OpportunityBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=300)
     description: str | None = None
     value: float = Field(..., ge=0)
-    currency: str = Field(default="EUR", min_length=3, max_length=3)
+    # No asumir defaults: la moneda debe venir de la configuración del tenant en BBDD.
+    currency: str | None = Field(default=None, min_length=3, max_length=3)
     probability: int = Field(default=50, ge=0, le=100)
     stage: OpportunityStage = OpportunityStage.QUALIFICATION
     expected_close_date: datetime | None = None

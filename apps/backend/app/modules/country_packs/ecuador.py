@@ -14,18 +14,28 @@ class EcuadorPack:
     version = "1.0.0"
 
     def decide_document_type(self, input: SaleDraft, cfg: TenantDocConfig) -> str:
-        return cfg.document_mode_default or "TICKET_NO_FISCAL"
+        allowed = {"TICKET_NO_FISCAL", "FACTURA", "NOTA_VENTA"}
+        desired = (cfg.document_mode_default or "").strip().upper()
+        if desired not in allowed:
+            desired = ""
+        # Default behavior: identified buyer → FACTURA; consumer final → ticket
+        if input.buyer.mode == "IDENTIFIED":
+            return desired or "FACTURA"
+        return desired or "TICKET_NO_FISCAL"
 
     def validate(self, input: SaleDraft, cfg: TenantDocConfig) -> list[ValidationError]:
         errs: list[ValidationError] = []
         policy = cfg.buyer_policy or {}
         if cfg.id_types and input.buyer.mode == "IDENTIFIED":
             def normalize(value: str) -> str:
-                return "".join(
+                cleaned = "".join(
                     ch
                     for ch in unicodedata.normalize("NFD", value or "")
                     if not unicodedata.combining(ch)
-                ).strip().upper()
+                )
+                # Remove whitespace/punctuation so "C.I." and "CI" match.
+                cleaned = "".join(ch for ch in cleaned if ch.isalnum())
+                return cleaned.strip().upper()
 
             allowed = {normalize(t) for t in cfg.id_types if t}
             if normalize(input.buyer.idType) not in allowed:

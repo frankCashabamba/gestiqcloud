@@ -11,25 +11,25 @@ export type TipoNegocio = {
 type TipoNegocioPayload = Omit<TipoNegocio, 'id'>
 
 export async function listTipoNegocio(): Promise<TipoNegocio[]> {
-  const { data } = await api.get<TipoNegocio[]>(ADMIN_CONFIG.tipoNegocio.base)
+  const { data } = await api.get<TipoNegocio[]>(ADMIN_CONFIG.businessType.base)
   return data || []
 }
 
 export async function getTipoNegocio(id: number | string): Promise<TipoNegocio> {
-  const { data } = await api.get<TipoNegocio>(ADMIN_CONFIG.tipoNegocio.byId(id))
+  const { data } = await api.get<TipoNegocio>(ADMIN_CONFIG.businessType.byId(id))
   return data
 }
 
 export async function createTipoNegocio(payload: TipoNegocioPayload): Promise<TipoNegocio> {
-  const { data } = await api.post<TipoNegocio>(ADMIN_CONFIG.tipoNegocio.base, payload)
+  const { data } = await api.post<TipoNegocio>(ADMIN_CONFIG.businessType.base, payload)
   return data
 }
 
 export async function updateTipoNegocio(id: number | string, payload: TipoNegocioPayload): Promise<TipoNegocio> {
-  const { data } = await api.put<TipoNegocio>(ADMIN_CONFIG.tipoNegocio.byId(id), payload)
+  const { data } = await api.put<TipoNegocio>(ADMIN_CONFIG.businessType.byId(id), payload)
   return data
 }
 
 export async function removeTipoNegocio(id: number | string): Promise<void> {
-  await api.delete(ADMIN_CONFIG.tipoNegocio.byId(id))
+  await api.delete(ADMIN_CONFIG.businessType.byId(id))
 }

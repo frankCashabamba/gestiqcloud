@@ -14,7 +14,7 @@
     "proveedores": {
       "title": "Proveedores",
       "description": "Gestiona fichas, contactos y condiciones comerciales de tus proveedores",
-      "path": "/proveedores"
+      "path": "/suppliers"
     }
   }
 }

@@ -1,0 +1,68 @@
+{
+  "timestamp": "2026-01-17T13:17:51.754121",
+  "config": {
+    "electric_url": "ws://localhost:5133",
+    "api_base_url": "http://localhost:8000",
+    "tenant_id": "bench_tenant_001",
+    "iterations": 20,
+    "target_ms": 200
+  },
+  "benchmarks": [
+    {
+      "name": "tenant_filter",
+      "filter_type": "tenant_id = ?",
+      "data_size": 10000,
+      "target_ms": 200,
+      "mean_ms": 166.16,
+      "p95_ms": 174.33,
+      "p99_ms": 174.33,
+      "passed": true,
+      "iterations": 20
+    },
+    {
+      "name": "date_range_filter",
+      "filter_type": "created_at BETWEEN ? AND ?",
+      "data_size": 20000,
+      "target_ms": 200,
+      "mean_ms": 142.85,
+      "p95_ms": 158.01,
+      "p99_ms": 158.01,
+      "passed": true,
+      "iterations": 20
+    },
+    {
+      "name": "category_filter",
+      "filter_type": "category IN (?)",
+      "data_size": 10000,
+      "target_ms": 200,
+      "mean_ms": 111.09,
+      "p95_ms": 120.01,
+      "p99_ms": 120.01,
+      "passed": true,
+      "iterations": 20
+    },
+    {
+      "name": "combined_filter",
+      "filter_type": "tenant_id = ? AND category = ? AND is_active = ?",
+      "data_size": 10000,
+      "target_ms": 200,
+      "mean_ms": 82.5,
+      "p95_ms": 94.69,
+      "p99_ms": 94.69,
+      "passed": true,
+      "iterations": 20
+    },
+    {
+      "name": "large_result_set",
+      "filter_type": "status = 'completed' (large result)",
+      "data_size": 20000,
+      "target_ms": 400,
+      "mean_ms": 271.89,
+      "p95_ms": 286.2,
+      "p99_ms": 286.2,
+      "passed": true,
+      "iterations": 20
+    }
+  ],
+  "all_passed": true
+}

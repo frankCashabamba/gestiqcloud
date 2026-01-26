@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+import os
 from contextlib import asynccontextmanager, contextmanager
 
 from fastapi import Request
@@ -20,7 +21,7 @@ def make_db_url() -> str:
     o deja esta lÃ³gica activa en prod. Ajusta a tu polÃ­tica.
     """
     url = settings.database_url
-    if settings.ENV == "production" and "sslmode" not in url:
+    if settings.ENVIRONMENT == "production" and "sslmode" not in url:
         sep = "&" if "?" in url else "?"
         url = f"{url}{sep}sslmode=require"
     return url
@@ -33,10 +34,28 @@ STATEMENT_TIMEOUT_MS = max(1000, settings.DB_STATEMENT_TIMEOUT_MS)  # mÃ­nimo 
 
 CONNECT_ARGS = {
     # Requiere driver psycopg (postgresql+psycopg://) para respetar options
-    "options": f"-c statement_timeout={STATEMENT_TIMEOUT_MS}"
+    "options": f"-c statement_timeout={STATEMENT_TIMEOUT_MS}",
+    "client_encoding": "UTF8"
 }
 
+_env_db_url = os.getenv("DATABASE_URL")
+_env_db_dsn = os.getenv("DB_DSN")
 _db_url = make_db_url()
+print(
+    "[database] ENV DATABASE_URL type="
+    f"{type(_env_db_url).__name__} repr={_env_db_url!r}"
+)
+print(
+    "[database] ENV DB_DSN type="
+    f"{type(_env_db_dsn).__name__} repr={_env_db_dsn!r}"
+)
+print(
+    "[database] ENV PGHOST="
+    f"{os.getenv('PGHOST')!r} PGPORT={os.getenv('PGPORT')!r} "
+    f"PGUSER={os.getenv('PGUSER')!r} PGPASSWORD={os.getenv('PGPASSWORD')!r} "
+    f"PGSERVICE={os.getenv('PGSERVICE')!r}"
+)
+print(f"[database] DATABASE_URL type={type(_db_url).__name__} repr={_db_url!r}")
 
 IS_SQLITE = _db_url.startswith("sqlite")
 PG_SCHEMA_NAME = "public"

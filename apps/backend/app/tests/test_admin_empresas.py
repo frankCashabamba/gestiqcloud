@@ -31,7 +31,7 @@ def test_admin_empresas_list_empty(client: TestClient, db, superuser_factory):
     db.commit()
 
     tok = _admin_token(client, superuser_factory)
-    r = client.get("/api/v1/admin/empresas", headers={"Authorization": f"Bearer {tok}"})
+    r = client.get("/api/v1/admin/companies", headers={"Authorization": f"Bearer {tok}"})
     assert r.status_code == 200
     assert isinstance(r.json(), list)
     assert r.json() == []
@@ -46,7 +46,7 @@ def test_admin_empresas_list_with_data(client: TestClient, db, superuser_factory
     db.commit()
 
     try:
-        r = client.get("/api/v1/admin/empresas", headers={"Authorization": f"Bearer {tok}"})
+        r = client.get("/api/v1/admin/companies", headers={"Authorization": f"Bearer {tok}"})
         assert r.status_code == 200
         data = r.json()
         assert isinstance(data, list)

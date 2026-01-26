@@ -4,7 +4,7 @@
  */
 
 import type { LogEntry, LogFilters, LogStats } from '../types/logs'
-import { API_ENDPOINTS } from '../constants/api'
+import { API_ENDPOINTS, API_BASE } from '../constants/api'
 
 const AUTH_HEADER = () => ({
   'Authorization': `Bearer ${localStorage.getItem('access_token')}`,

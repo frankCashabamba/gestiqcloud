@@ -70,9 +70,13 @@ backend/scripts/
 *.db-shm
 *.db-wal
 
-67 Y 68 CATALOGO.xlsx
+# Excel files
+CATALOGO.xlsx
 importacion/
 apps/backend/uploads/
 *.xlsx
 uploads/
 **/uploads/
+
+# --- documentación deprecada (local only) ---
+_deprecated_docs/

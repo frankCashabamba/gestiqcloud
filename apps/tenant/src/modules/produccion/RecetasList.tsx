@@ -51,7 +51,7 @@ export default function RecetasList() {
           } catch {}
         }
       } catch (e: any) {
-        if (!cancelled) setError(e?.message || 'Error cargando recetas')
+        if (!cancelled) setError(e?.message || 'Error loading recipes')
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -121,7 +121,7 @@ export default function RecetasList() {
     return amount * (1 + (isFinite(rate) ? rate : defaultTaxRate))
   }
 
-  if (loading) return <div className="p-6 text-gray-500">Cargando recetas…</div>
+  if (loading) return <div className="p-6 text-gray-500">Loading recipes...</div>
   if (error) return <div className="p-6 text-red-600">{error}</div>
 
   return (
@@ -131,20 +131,20 @@ export default function RecetasList() {
           <input
             type="search"
             className="border rounded px-3 py-2 w-full md:w-80"
-            placeholder="Buscar receta o producto…"
+            placeholder="Search recipe or product…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Categoría</label>
+            <label className="text-sm text-gray-600">Category</label>
             <select
               className="border rounded px-3 py-2"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
             >
-              <option value="all">Todas</option>
+              <option value="all">All</option>
               {[...new Set(products.map(p => p.category).filter(Boolean))].map((c) => (
                 <option key={String(c)} value={String(c)}>{String(c)}</option>
               ))}
@@ -205,24 +205,24 @@ export default function RecetasList() {
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
             onClick={() => navigate(`${basePath}/recetas/nueva`)}
           >
-            Nueva receta
+            New recipe
           </button>
           <button
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded"
-            title="Guardar margen como ajuste del tenant"
+            title="Save margin as tenant setting"
             onClick={async () => {
               try {
                 const { data: current } = await tenantApi.get<any>('/api/v1/company/settings/fiscal')
                 const merged = { ...(current || {}), produccion_margin_multiplier: multiplier }
                 await tenantApi.put('/api/v1/company/settings/fiscal', merged)
-                alert('Margen guardado en ajustes del tenant')
+                alert('Margin saved to tenant settings')
               } catch (e: any) {
-                console.error('Error guardando margen:', e)
-                alert('No se pudo guardar el margen (requiere permisos de administrador)')
+                console.error('Error saving margin:', e)
+                alert('Could not save margin (requires admin permissions)')
               }
             }}
           >
-            Guardar margen
+            Save margin
           </button>
         </div>
       </div>
