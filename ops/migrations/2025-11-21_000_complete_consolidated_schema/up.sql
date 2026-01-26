@@ -1303,7 +1303,6 @@ CREATE INDEX IF NOT EXISTS idx_stock_alerts_tenant_id ON stock_alerts(tenant_id)
 CREATE INDEX IF NOT EXISTS idx_employees_tenant_id ON employees(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_suppliers_tenant_id ON suppliers(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_purchases_tenant_id ON purchases(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_sales_tenant_id ON sales(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_expenses_tenant_id ON expenses(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_recipes_tenant_id ON recipes(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_production_orders_tenant_id ON production_orders(tenant_id);
@@ -1328,7 +1327,6 @@ CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
 CREATE INDEX IF NOT EXISTS idx_clients_name ON clients(name);
 CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name);
 CREATE INDEX IF NOT EXISTS idx_invoices_created_at ON invoices(created_at);
-CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales(created_at);
 CREATE INDEX IF NOT EXISTS idx_purchases_created_at ON purchases(created_at);
 
 COMMIT;

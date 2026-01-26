@@ -181,6 +181,16 @@ def main():
         print("ERROR: No migrations found in ops/migrations/")
         sys.exit(1)
 
+    # Run consolidated schema first to satisfy later dependencies
+    migrations.sort(
+        key=lambda m: (
+            0
+            if "complete_consolidated_schema" in m[0].name
+            else 1,
+            m[0].name,
+        )
+    )
+
     print(f"Found {len(migrations)} migration(s)")
     for migration_dir, _ in migrations:
         print(f"  - {migration_dir.name}")
@@ -241,6 +251,14 @@ def main():
     for migration_dir, _ in migrations:
         try:
             sql_content = read_sql_file(migration_dir / "up.sql")
+
+            # Skip empty migrations gracefully and still record them
+            if not sql_content.strip():
+                print(f"\n> {migration_dir.name}")
+                print("  [SKIP] Empty migration file")
+                record_migration(conn, migration_dir.name, get_file_hash(sql_content))
+                continue
+
             success = apply_migration(
                 conn, migration_dir, sql_content, dry_run=args.dry_run
             )
