@@ -42,7 +42,28 @@ SET subtotal = COALESCE(subtotal, 0),
     updated_at = COALESCE(updated_at, now());
 
 -- Tenant currency fallback to avoid currency_not_configured
-ALTER TABLE IF EXISTS public.tenants ALTER COLUMN currency SET DEFAULT 'USD';
-UPDATE public.tenants SET currency = COALESCE(currency, 'USD');
+DO $$
+BEGIN
+    -- Prefer new base_currency column if present
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'tenants'
+          AND column_name = 'base_currency'
+    ) THEN
+        EXECUTE 'ALTER TABLE public.tenants ALTER COLUMN base_currency SET DEFAULT ''USD''';
+        EXECUTE 'UPDATE public.tenants SET base_currency = COALESCE(base_currency, ''USD'')';
+    ELSIF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'tenants'
+          AND column_name = 'currency'
+    ) THEN
+        EXECUTE 'ALTER TABLE public.tenants ALTER COLUMN currency SET DEFAULT ''USD''';
+        EXECUTE 'UPDATE public.tenants SET currency = COALESCE(currency, ''USD'')';
+    END IF;
+END $$;
 
 COMMIT;

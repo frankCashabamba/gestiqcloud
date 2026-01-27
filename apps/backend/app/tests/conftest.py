@@ -1,6 +1,14 @@
 import importlib
 import os
+import sys
 import uuid
+from pathlib import Path
+
+# Ensure repository root is on sys.path so `apps.*` imports always resolve,
+# regardless of PYTHONPATH overrides when running tests individually.
+REPO_ROOT = Path(__file__).resolve().parents[4]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 import pytest
 from fastapi.testclient import TestClient
@@ -252,6 +260,8 @@ def db():
         # Create tables in dependency order to avoid FK violations
         _create_tables_in_order(engine, Base.metadata)
         _ensure_sqlite_stub_tables(engine)
+    else:
+        _ensure_pg_defaults(engine)
 
     # Ensure at least one tenant exists (for both SQLite and PostgreSQL)
     _ensure_default_tenant(engine)
@@ -863,6 +873,7 @@ def tenant_minimal(db):
         id=tid,
         name="Smoke Test Tenant",
         slug=f"smoke-{tid.hex[:8]}",
+        base_currency="USD",
     )
     db.add(tenant)
     db.commit()
@@ -871,3 +882,36 @@ def tenant_minimal(db):
         "tenant_id": tid,
         "tenant_id_str": str(tid),
     }
+
+
+def _ensure_pg_defaults(engine):
+    """Patch missing DEFAULTs in Postgres test DB to align with models."""
+    from sqlalchemy import text
+
+    if engine.dialect.name != "postgresql":
+        return
+
+    statements = [
+        "ALTER TABLE IF EXISTS auth_user ALTER COLUMN is_active SET DEFAULT true",
+        "ALTER TABLE IF EXISTS auth_user ALTER COLUMN is_superadmin SET DEFAULT false",
+        "ALTER TABLE IF EXISTS auth_user ALTER COLUMN is_staff SET DEFAULT false",
+        "ALTER TABLE IF EXISTS auth_user ALTER COLUMN is_verified SET DEFAULT false",
+        "ALTER TABLE IF EXISTS auth_user ALTER COLUMN failed_login_count SET DEFAULT 0",
+        "ALTER TABLE IF EXISTS company_user_roles ALTER COLUMN assigned_at SET DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE IF EXISTS company_user_roles ALTER COLUMN is_active SET DEFAULT true",
+        "ALTER TABLE IF EXISTS sales_orders ALTER COLUMN subtotal SET DEFAULT 0",
+        "ALTER TABLE IF EXISTS sales_orders ALTER COLUMN tax SET DEFAULT 0",
+        "ALTER TABLE IF EXISTS sales_orders ALTER COLUMN total SET DEFAULT 0",
+        "ALTER TABLE IF EXISTS sales_orders ALTER COLUMN currency SET DEFAULT 'USD'",
+        "ALTER TABLE IF EXISTS sales_order_items ALTER COLUMN tax_rate SET DEFAULT 0.21",
+        "ALTER TABLE IF EXISTS sales_order_items ALTER COLUMN discount_percent SET DEFAULT 0",
+    ]
+
+    with engine.connect() as conn:
+        for stmt in statements:
+            try:
+                conn.execute(text(stmt))
+            except Exception:
+                # Best-effort; ignore if column/table missing in test env
+                pass
+        conn.commit()
