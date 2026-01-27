@@ -538,6 +538,20 @@ def superuser_factory(db):
             if tenant_id:
                 from app.models.company.company_user import CompanyUser
 
+                # Remove conflicting company_user with same tenant/email before reusing
+                conflict = (
+                    db.query(CompanyUser)
+                    .filter(
+                        CompanyUser.tenant_id == tenant_id,
+                        CompanyUser.email == email,
+                        CompanyUser.id != existing.id,
+                    )
+                    .first()
+                )
+                if conflict:
+                    db.delete(conflict)
+                    db.flush()
+
                 existing_company_user = db.get(CompanyUser, existing.id)
                 if not existing_company_user:
                     company_user = CompanyUser(
@@ -570,6 +584,20 @@ def superuser_factory(db):
         # Create corresponding company user for tenant-based tests
         if tenant_id:
             from app.models.company.company_user import CompanyUser
+
+            # Remove conflicting company_user with same tenant/email before insert
+            conflict = (
+                db.query(CompanyUser)
+                .filter(
+                    CompanyUser.tenant_id == tenant_id,
+                    CompanyUser.email == email,
+                    CompanyUser.id != su.id,
+                )
+                .first()
+            )
+            if conflict:
+                db.delete(conflict)
+                db.flush()
 
             existing_company_user = db.get(CompanyUser, su.id)
             if not existing_company_user:

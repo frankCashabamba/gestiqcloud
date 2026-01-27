@@ -37,10 +37,12 @@ class SecretsManager:
             ValueError: If password cannot be retrieved
         """
         # Try environment variable first (development, local testing)
-        env_key = f"CERT_PASSWORD_{tenant_id}_{country}".upper()
-        env_password = os.getenv(env_key)
+        env_key_raw = f"CERT_PASSWORD_{tenant_id}_{country}"
+        env_key_upper = env_key_raw.upper()
+        # Accept either exact case or upper-case to match existing tests
+        env_password = os.getenv(env_key_raw) or os.getenv(env_key_upper)
         if env_password:
-            logger.info(f"Using certificate password from env var {env_key}")
+            logger.info(f"Using certificate password from env var {env_key_raw}")
             return env_password
 
         # Try AWS Secrets Manager (production)
@@ -52,7 +54,7 @@ class SecretsManager:
         # No password found
         raise ValueError(
             f"Certificate password not found for tenant {tenant_id} ({country}). "
-            f"Configure {env_key} or use AWS Secrets Manager."
+            f"Configure {env_key_upper} or use AWS Secrets Manager."
         )
 
     @staticmethod
