@@ -4,15 +4,15 @@ import sys
 import uuid
 from pathlib import Path
 
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import event
+
 # Ensure repository root is on sys.path so `apps.*` imports always resolve,
 # regardless of PYTHONPATH overrides when running tests individually.
 REPO_ROOT = Path(__file__).resolve().parents[4]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
-
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import event
 
 
 # MUST run this before any other imports that might load settings
