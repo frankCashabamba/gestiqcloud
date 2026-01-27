@@ -679,41 +679,44 @@ if not has_imports:
         except Exception:
             pass
 
-# Preview router (standalone)
-try:
-    from app.modules.imports.interface.http.preview import router as preview_router
+if os.getenv("IMPORTS_ENABLED", "0").lower() in ("1", "true"):
+    # Preview router (standalone)
+    try:
+        from app.modules.imports.interface.http.preview import router as preview_router
 
-    app.include_router(preview_router, prefix="/api/v1/imports")
-    print("[INFO] Preview router mounted at /api/v1/imports/preview")
-except Exception as e:
-    print(f"[DEBUG] Preview router mount failed: {e}")
+        app.include_router(preview_router, prefix="/api/v1/imports")
+        print("[INFO] Preview router mounted at /api/v1/imports/preview")
+    except Exception as e:
+        print(f"[DEBUG] Preview router mount failed: {e}")
 
-# IA Classification router (Fase D)
-try:
-    from app.modules.imports.ai.http_endpoints import router as ai_router
+    # IA Classification router (Fase D)
+    try:
+        from app.modules.imports.ai.http_endpoints import router as ai_router
 
-    app.include_router(ai_router, prefix="/api/v1/imports")
-    _router_logger.info("IA Classification router mounted at /api/v1/imports/ai")
-except Exception as e:
-    _router_logger.warning(f"IA Classification router mount failed: {e}")
+        app.include_router(ai_router, prefix="/api/v1/imports")
+        _router_logger.info("IA Classification router mounted at /api/v1/imports/ai")
+    except Exception as e:
+        _router_logger.warning(f"IA Classification router mount failed: {e}")
 
-# Feedback router for classification improvement
-try:
-    from app.modules.imports.interface.http.feedback import router as feedback_router
+    # Feedback router for classification improvement
+    try:
+        from app.modules.imports.interface.http.feedback import router as feedback_router
 
-    app.include_router(feedback_router, prefix="/api/v2/imports")
-    _router_logger.info("Feedback router mounted at /api/v2/imports/feedback")
-except Exception as e:
-    _router_logger.warning(f"Feedback router mount failed: {e}")
+        app.include_router(feedback_router, prefix="/api/v2/imports")
+        _router_logger.info("Feedback router mounted at /api/v2/imports/feedback")
+    except Exception as e:
+        _router_logger.warning(f"Feedback router mount failed: {e}")
 
-# OCR router for PDF/image text extraction
-try:
-    from app.modules.imports.interface.http.ocr import router as ocr_router
+    # OCR router for PDF/image text extraction
+    try:
+        from app.modules.imports.interface.http.ocr import router as ocr_router
 
-    app.include_router(ocr_router, prefix="/api/v1/imports")
-    _router_logger.info("OCR router mounted at /api/v1/imports/ocr")
-except Exception as e:
-    _router_logger.warning(f"OCR router mount failed: {e}")
+        app.include_router(ocr_router, prefix="/api/v1/imports")
+        _router_logger.info("OCR router mounted at /api/v1/imports/ocr")
+    except Exception as e:
+        _router_logger.warning(f"OCR router mount failed: {e}")
+else:
+    _router_logger.info("Imports/OCR routers skipped (IMPORTS_ENABLED=0)")
 
 # Ensure admin routes
 try:

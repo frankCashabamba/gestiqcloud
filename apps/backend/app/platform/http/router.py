@@ -294,41 +294,38 @@ def build_api_router() -> APIRouter:
 
     # (deduplicated) Inventario router is already mounted above
 
-    # Imports (opcional: controlado por IMPORTS_ENABLED)
-    if os.getenv("IMPORTS_ENABLED", "0") in (
-        "1",
-        "true",
-        "True",
-    ):  # habilita solo si está ON
+    # Imports (controlado por IMPORTS_ENABLED)
+    if os.getenv("IMPORTS_ENABLED", "0").lower() in ("1", "true"):
         include_router_safe(
             r, ("app.modules.imports.interface.http.tenant", "router"), prefix="/tenant"
         )
 
-    # Smart Preview endpoints
-    include_router_safe(
-        r, ("app.modules.imports.interface.http.preview", "router"), prefix="/imports"
-    )
+        # Smart Preview endpoints
+        include_router_safe(
+            r, ("app.modules.imports.interface.http.preview", "router"), prefix="/imports"
+        )
 
-    # Import Files endpoints (classification, etc.)
-    include_router_safe(
-        r, ("app.modules.imports.interface.http.preview", "files_router"), prefix="/imports"
-    )
+        # Import Files endpoints (classification, etc.)
+        include_router_safe(
+            r, ("app.modules.imports.interface.http.preview", "files_router"), prefix="/imports"
+        )
 
-    # Smart Router analyze endpoint
-    include_router_safe(
-        r, ("app.modules.imports.interface.http.analyze", "router"), prefix="/imports"
-    )
+        # Smart Router analyze endpoint
+        include_router_safe(
+            r, ("app.modules.imports.interface.http.analyze", "router"), prefix="/imports"
+        )
 
-    # Batch confirmation endpoint
-    include_router_safe(
-        r, ("app.modules.imports.interface.http.confirm", "router"), prefix="/imports"
-    )
+        # Batch confirmation endpoint
+        include_router_safe(
+            r, ("app.modules.imports.interface.http.confirm", "router"), prefix="/imports"
+        )
 
-    # OCR Metrics endpoint
-    include_router_safe(r, ("app.modules.imports.interface.http.metrics", "router"), prefix="")
+        # OCR Metrics endpoint
+        include_router_safe(
+            r, ("app.modules.imports.interface.http.metrics", "router"), prefix=""
+        )
 
-    # Imports public (health) router
-    if os.getenv("IMPORTS_ENABLED", "0") in ("1", "true", "True"):
+        # Imports public (health) router
         _mounted_public = include_router_safe(
             r, ("app.modules.imports.interface.http.tenant", "public_router")
         )
@@ -336,22 +333,8 @@ def build_api_router() -> APIRouter:
             "imports.public_router mounted=%s via IMPORTS_ENABLED",
             bool(_mounted_public),
         )
-
-    # Auto-enable imports router in SQLite-based test envs even if IMPORTS_ENABLED is off
-    # This keeps CI/dev tests stable without affecting production (Postgres).
-    if os.getenv("IMPORTS_ENABLED", "0") not in ("1", "true", "True"):
-        db_url = os.getenv("DATABASE_URL", "")
-        if db_url.startswith("sqlite"):
-            logger.debug("Auto-enabling imports router (SQLite test env detected)")
-            include_router_safe(
-                r,
-                ("app.modules.imports.interface.http.tenant", "router"),
-                prefix="/tenant",
-            )
-            include_router_safe(
-                r, ("app.modules.imports.interface.http.preview", "router"), prefix="/imports"
-            )
-            include_router_safe(r, ("app.modules.imports.interface.http.tenant", "public_router"))
+    else:
+        logger.debug("Imports routers skipped (IMPORTS_ENABLED=0)")
 
     # Accounting
     include_router_safe(
@@ -374,9 +357,12 @@ def build_api_router() -> APIRouter:
     )
 
     # Importador Excel
-    include_router_safe(
-        r, ("app.modules.imports.interface.http.tenant", "router"), prefix="/tenant"
-    )
+    if os.getenv("IMPORTS_ENABLED", "0").lower() in ("1", "true"):
+        include_router_safe(
+            r, ("app.modules.imports.interface.http.tenant", "router"), prefix="/tenant"
+        )
+    else:
+        logger.debug("Importador Excel skipped (IMPORTS_ENABLED=0)")
 
     include_router_safe(
         r, ("app.modules.printing.interface.http.tenant", "router"), prefix="/tenant"
