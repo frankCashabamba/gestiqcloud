@@ -21,9 +21,9 @@ class TemplateEngine:
         template = self.env.get_template(template_path)
         data = doc.model_dump()
         html = template.render(**data)
-        if not html.endswith("\n"):
-            html += "\n"
-        return html
+        # Normalize trailing whitespace so snapshots are stable across Jinja/formatter changes.
+        lines = [line.rstrip() for line in html.splitlines()]
+        return "\n".join(lines) + "\n"
 
     def _select_template(self, doc: DocumentModel) -> str:
         doc_type = doc.document.type.lower()
