@@ -321,9 +321,7 @@ def build_api_router() -> APIRouter:
         )
 
         # OCR Metrics endpoint
-        include_router_safe(
-            r, ("app.modules.imports.interface.http.metrics", "router"), prefix=""
-        )
+        include_router_safe(r, ("app.modules.imports.interface.http.metrics", "router"), prefix="")
 
         # Imports public (health) router
         _mounted_public = include_router_safe(
