@@ -2,9 +2,7 @@
 
 import pytest
 
-from app.modules.imports.ai.mapping_suggester import (
-    MappingSuggester,
-)
+from app.modules.imports.ai.mapping_suggester import MappingSuggester
 
 
 class TestMappingSuggesterProducts:

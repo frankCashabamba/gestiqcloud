@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Helper script for the P1_4E7D label printer (TSPL / CPCL) to print a single product label.
+Helper script for the P1_4E7D label printer (TSPL / CPCL) to print a single product
+label, optionally reused by the frontend via `POST /tenant/printing/labels`.
 
 Install dependencies with:
 
@@ -20,10 +21,6 @@ from pairing wizard) and streams plain TSPL commands to draw the name, barcode a
 on a 50x40mm label for the P1_4E7D printer.
 """
 
-"""
-CLI helper for printing a TSPL label via the backend module so the action can be
-reused by the frontend calling `POST /tenant/printing/labels`.
-"""
 import argparse
 import logging
 

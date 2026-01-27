@@ -22,9 +22,9 @@ from math import ceil
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims

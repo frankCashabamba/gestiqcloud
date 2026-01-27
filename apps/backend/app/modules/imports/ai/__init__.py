@@ -81,7 +81,6 @@ def reset_ai_provider():
     _ai_provider_instance = None
 
 
-
 __all__ = [
     "AIProvider",
     "LocalAIProvider",

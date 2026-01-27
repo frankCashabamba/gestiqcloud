@@ -539,6 +539,7 @@ def superuser_factory(db):
                 existing.password_hash = hasher.hash(password)
             if tenant_id:
                 from app.models.company.company_user import CompanyUser
+
                 # Hard delete any conflicting row (may be invisible via RLS)
                 db.execute(
                     text(

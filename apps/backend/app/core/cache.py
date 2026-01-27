@@ -14,9 +14,9 @@ import functools
 import hashlib
 import json
 import logging
+from collections.abc import Callable
 from enum import IntEnum
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar
-from collections.abc import Callable
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -111,7 +111,7 @@ def hash_params(**params: Any) -> str:
     """Genera un hash de los parámetros para usar en claves de cache."""
     sorted_params = sorted(params.items())
     param_str = json.dumps(sorted_params, sort_keys=True, default=str)
-    return hashlib.md5(param_str.encode()).hexdigest()[:12]
+    return hashlib.md5(param_str.encode(), usedforsecurity=False).hexdigest()[:12]
 
 
 async def cache_get(key: str) -> Any | None:

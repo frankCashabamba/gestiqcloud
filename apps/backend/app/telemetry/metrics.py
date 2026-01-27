@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 # Lazy imports to avoid breaking if prometheus_client not installed
 _client = None
 _REQUEST_COUNT = None

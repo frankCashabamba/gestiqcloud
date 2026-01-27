@@ -5,13 +5,7 @@ from uuid import UUID
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
-from app.models.core.ui_config import (
-    UiDashboard,
-    UiForm,
-    UiSection,
-    UiTable,
-    UiWidget,
-)
+from app.models.core.ui_config import UiDashboard, UiForm, UiSection, UiTable, UiWidget
 
 
 class UiSectionRepository:

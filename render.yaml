@@ -120,17 +120,17 @@ services:
         sync: false
 
   # ------------ FRONTEND TENANT (Vite) ------------
-   - type: web
-     name: gestiqcloud-tenant
-     runtime: static
-     branch: main
-     rootDir: apps/tenant
-     buildCommand: |
-       npm ci
-       npm run build
-     staticPublishPath: dist     # relativo a rootDir
-     # Domains configured via Render Dashboard (Environment → Custom Domains)
-     # Set environment variable VITE_TENANT_ORIGIN to match the deployed domain
+  - type: web
+    name: gestiqcloud-tenant
+    runtime: static
+    branch: main
+    rootDir: apps/tenant
+    buildCommand: |
+      npm ci
+      npm run build
+    staticPublishPath: dist     # relativo a rootDir
+    # Domains configured via Render Dashboard (Environment → Custom Domains)
+    # Set environment variable VITE_TENANT_ORIGIN to match the deployed domain
     routes:
       - type: rewrite
         source: /*

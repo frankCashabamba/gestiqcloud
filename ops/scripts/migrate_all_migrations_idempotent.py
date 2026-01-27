@@ -184,9 +184,7 @@ def main():
     # Run consolidated schema first to satisfy later dependencies
     migrations.sort(
         key=lambda m: (
-            0
-            if "complete_consolidated_schema" in m[0].name
-            else 1,
+            0 if "complete_consolidated_schema" in m[0].name else 1,
             m[0].name,
         )
     )

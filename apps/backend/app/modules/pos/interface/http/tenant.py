@@ -2493,16 +2493,16 @@ def get_receipt(receipt_id: str, request: Request, db: Session = Depends(get_db)
             ),
             "lines": [
                 {
-                "id": str(line_data[0]) if line_data[0] else None,
-                "product_id": str(line_data[1]) if line_data[1] else None,
-                "product_name": line_data[2],
-                "product_code": line_data[3],
-                "qty": float(line_data[4] or 0),
-                "uom": line_data[5],
-                "unit_price": float(line_data[6] or 0),
-                "tax_rate": float(line_data[7] or 0),
-                "discount_pct": float(line_data[8] or 0),
-                "line_total": float(line_data[9] or 0),
+                    "id": str(line_data[0]) if line_data[0] else None,
+                    "product_id": str(line_data[1]) if line_data[1] else None,
+                    "product_name": line_data[2],
+                    "product_code": line_data[3],
+                    "qty": float(line_data[4] or 0),
+                    "uom": line_data[5],
+                    "unit_price": float(line_data[6] or 0),
+                    "tax_rate": float(line_data[7] or 0),
+                    "discount_pct": float(line_data[8] or 0),
+                    "line_total": float(line_data[9] or 0),
                 }
                 for line_data in lines
             ],
