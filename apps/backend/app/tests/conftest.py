@@ -517,6 +517,8 @@ def superuser_factory(db):
         password: str = "admin123",
         tenant_id: uuid.UUID | None = None,
     ):
+        from sqlalchemy import text
+
         from app.models.auth.useradmis import SuperUser
         from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
 
@@ -537,20 +539,15 @@ def superuser_factory(db):
                 existing.password_hash = hasher.hash(password)
             if tenant_id:
                 from app.models.company.company_user import CompanyUser
-
-                # Remove conflicting company_user with same tenant/email before reusing
-                conflict = (
-                    db.query(CompanyUser)
-                    .filter(
-                        CompanyUser.tenant_id == tenant_id,
-                        CompanyUser.email == email,
-                        CompanyUser.id != existing.id,
-                    )
-                    .first()
+                # Hard delete any conflicting row (may be invisible via RLS)
+                db.execute(
+                    text(
+                        "DELETE FROM company_users "
+                        "WHERE tenant_id = :tid AND email = :email AND id <> :uid"
+                    ),
+                    {"tid": tenant_id, "email": email, "uid": existing.id},
                 )
-                if conflict:
-                    db.delete(conflict)
-                    db.flush()
+                db.flush()
 
                 existing_company_user = db.get(CompanyUser, existing.id)
                 if not existing_company_user:
@@ -585,19 +582,15 @@ def superuser_factory(db):
         if tenant_id:
             from app.models.company.company_user import CompanyUser
 
-            # Remove conflicting company_user with same tenant/email before insert
-            conflict = (
-                db.query(CompanyUser)
-                .filter(
-                    CompanyUser.tenant_id == tenant_id,
-                    CompanyUser.email == email,
-                    CompanyUser.id != su.id,
-                )
-                .first()
+            # Hard delete any conflicting row (may be invisible via RLS)
+            db.execute(
+                text(
+                    "DELETE FROM company_users "
+                    "WHERE tenant_id = :tid AND email = :email AND id <> :uid"
+                ),
+                {"tid": tenant_id, "email": email, "uid": su.id},
             )
-            if conflict:
-                db.delete(conflict)
-                db.flush()
+            db.flush()
 
             existing_company_user = db.get(CompanyUser, su.id)
             if not existing_company_user:
