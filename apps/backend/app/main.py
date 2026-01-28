@@ -163,8 +163,16 @@ async def lifespan(app: FastAPI):
     # Initialize error tracking
     init_sentry()
 
+    # Evitar que la descarga de assets bloquee el bind del puerto en plataformas con timeouts estrictos
+    skip_docs_assets = str(os.getenv("DOCS_ASSETS_SKIP", "0")).lower() in ("1", "true", "yes")
     try:
-        await _ensure_docs_assets()
+        if not skip_docs_assets:
+            if settings.ENV == "production":
+                # No bloquear startup; se espera que el contenedor ya tenga los assets copiados
+                asyncio.create_task(_ensure_docs_assets())
+            else:
+                # En dev permitimos esperar pero con límite corto
+                await asyncio.wait_for(_ensure_docs_assets(), timeout=8)
     except Exception as exc:
         logging.getLogger("app.docs").warning("Could not prepare Swagger/ReDoc assets: %s", exc)
 
