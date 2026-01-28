@@ -49,7 +49,7 @@ class OCRService:
         self.logger = logger
         self._fitz_available = False
         self._tesseract_available = False
-        self._check_dependencies()
+        self._deps_checked = False
 
     def _check_dependencies(self) -> None:
         """Verifica que las dependencias estén instaladas."""
@@ -68,8 +68,14 @@ class OCRService:
         except Exception:
             self.logger.warning("Tesseract not available. OCR disabled.")
 
+    def _ensure_dependencies(self) -> None:
+        if not self._deps_checked:
+            self._check_dependencies()
+            self._deps_checked = True
+
     def is_available(self) -> bool:
         """Retorna True si al menos un método de extracción está disponible."""
+        self._ensure_dependencies()
         return self._fitz_available or self._tesseract_available
 
     def supports_extension(self, file_path: str) -> bool:
@@ -103,6 +109,7 @@ class OCRService:
 
     async def _process_pdf(self, file_path: str) -> OCRResult:
         """Procesa PDF (texto embebido o escaneado)."""
+        self._ensure_dependencies()
         if not self._fitz_available:
             raise RuntimeError("PyMuPDF not available for PDF processing")
 
@@ -152,6 +159,7 @@ class OCRService:
 
     async def _ocr_pdf(self, file_path: str) -> OCRResult:
         """OCR para PDF escaneado."""
+        self._ensure_dependencies()
         if not self._fitz_available:
             raise RuntimeError("PyMuPDF not available for PDF processing")
         if not self._tesseract_available:
@@ -207,6 +215,7 @@ class OCRService:
 
     async def _process_image(self, file_path: str) -> OCRResult:
         """Procesa imagen con OCR."""
+        self._ensure_dependencies()
         if not self._tesseract_available:
             raise RuntimeError("Tesseract not available for OCR")
 
