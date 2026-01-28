@@ -353,4 +353,18 @@ class OCRService:
         return regions
 
 
-ocr_service = OCRService()
+class _LazyOCRService:
+    """Lazy proxy to avoid importing heavy OCR deps at module import time."""
+
+    _instance: OCRService | None = None
+
+    def _get(self) -> OCRService:
+        if self._instance is None:
+            self._instance = OCRService()
+        return self._instance
+
+    def __getattr__(self, name: str):
+        return getattr(self._get(), name)
+
+
+ocr_service = _LazyOCRService()
