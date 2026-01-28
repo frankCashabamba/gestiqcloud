@@ -765,7 +765,7 @@ except Exception:
 if __name__ == "__main__":
     import uvicorn
 
-    host = os.getenv("HOST", "0.0.0.0")
+    host = os.getenv("HOST", "127.0.0.1")
     port = int(os.getenv("PORT", "8000"))
     log_level = os.getenv("UVICORN_LOG_LEVEL", "info").lower()
     uvicorn.run("app.main:app", host=host, port=port, log_level=log_level)
