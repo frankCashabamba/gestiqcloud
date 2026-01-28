@@ -518,6 +518,8 @@ except Exception as e:
 # LEGACY ROUTERS ELIMINADOS (2025-11-06)
 # ============================================================================
 # Todos los routers han sido migrados a módulos modernos en app/modules/
+
+
 # Ver: app/platform/http/router.py para el montaje moderno
 #
 # Routers eliminados:
@@ -758,3 +760,12 @@ try:
     app.include_router(tenant_roles_router.router, prefix="/api/v1")
 except Exception:
     _router_logger.debug("Tenant auth router not available", exc_info=True)
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    host = os.getenv("HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", "8000"))
+    log_level = os.getenv("UVICORN_LOG_LEVEL", "info").lower()
+    uvicorn.run("app.main:app", host=host, port=port, log_level=log_level)

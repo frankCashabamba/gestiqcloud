@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -234,6 +235,29 @@ class Settings(BaseSettings):
         description="Confidence threshold below which user confirmation is required before processing",
     )
 
+    @staticmethod
+    def _parse_list_env(value: str) -> list[str]:
+        raw = value.strip()
+        if not raw:
+            return []
+
+        if (raw[0] == raw[-1]) and raw[0] in ("'", '"'):
+            raw = raw[1:-1].strip()
+
+        if raw.startswith("[") and raw.endswith("]"):
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, list):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+
+        return [
+            item.strip().strip("'").strip('"')
+            for item in raw.split(",")
+            if item.strip().strip("'").strip('"')
+        ]
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def split_cors_origins(cls, v: str | list[str]) -> list[str]:
@@ -245,7 +269,7 @@ class Settings(BaseSettings):
         - No localhost/127.0.0.1 allowed
         """
         if isinstance(v, str):
-            origins = [o.strip() for o in v.split(",") if o.strip()]
+            origins = cls._parse_list_env(v)
         else:
             origins = v if isinstance(v, list) else []
 
@@ -272,7 +296,7 @@ class Settings(BaseSettings):
     @classmethod
     def split_hosts(cls, v):
         if isinstance(v, str):
-            return [h.strip() for h in v.split(",") if h.strip()]
+            return cls._parse_list_env(v)
         return v
 
     @field_validator("FRONTEND_URL")
