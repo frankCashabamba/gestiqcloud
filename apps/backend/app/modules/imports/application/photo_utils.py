@@ -36,22 +36,11 @@ except ImportError:
     PYMUPDF_AVAILABLE = False
     logger.warning("PyMuPDF not available - PDF native text extraction disabled")
 
-try:
-    import pytesseract
-    from PIL import Image
-
-    TESSERACT_AVAILABLE = True
-except ImportError:
-    TESSERACT_AVAILABLE = False
-    logger.warning("Tesseract not available - will try EasyOCR fallback")
-
-try:
-    import easyocr
-
-    EASYOCR_AVAILABLE = True
-except ImportError:
-    EASYOCR_AVAILABLE = False
-    logger.warning("EasyOCR not available")
+TESSERACT_AVAILABLE: bool | None = None
+EASYOCR_AVAILABLE: bool | None = None
+pytesseract = None
+Image = None
+easyocr = None
 
 try:
     from pyzbar import pyzbar
@@ -66,6 +55,44 @@ except Exception:
 _OCR_CACHE: dict[str, str] = {}
 _QR_CACHE: dict[str, list[str]] = {}
 _EASYOCR_READERS: dict[str, Any] = {}
+
+
+def _ensure_tesseract() -> bool:
+    global TESSERACT_AVAILABLE, pytesseract, Image
+    if TESSERACT_AVAILABLE is not None:
+        return TESSERACT_AVAILABLE
+    if os.getenv("IMPORTS_TESSERACT_ENABLED", "1").lower() not in ("1", "true", "yes"):
+        TESSERACT_AVAILABLE = False
+        return False
+    try:
+        import pytesseract as _pytesseract
+        from PIL import Image as _Image
+
+        pytesseract = _pytesseract
+        Image = _Image
+        TESSERACT_AVAILABLE = True
+    except ImportError:
+        TESSERACT_AVAILABLE = False
+        logger.warning("Tesseract not available - will try EasyOCR fallback")
+    return TESSERACT_AVAILABLE
+
+
+def _ensure_easyocr() -> bool:
+    global EASYOCR_AVAILABLE, easyocr
+    if EASYOCR_AVAILABLE is not None:
+        return EASYOCR_AVAILABLE
+    if os.getenv("IMPORTS_EASYOCR_ENABLED", "1").lower() not in ("1", "true", "yes"):
+        EASYOCR_AVAILABLE = False
+        return False
+    try:
+        import easyocr as _easyocr
+
+        easyocr = _easyocr
+        EASYOCR_AVAILABLE = True
+    except ImportError:
+        EASYOCR_AVAILABLE = False
+        logger.warning("EasyOCR not available")
+    return EASYOCR_AVAILABLE
 
 
 def exif_auto_orienta(content: bytes) -> bytes:
@@ -263,7 +290,7 @@ def extract_text_from_image(content: bytes, file_sha: str | None = None) -> str:
 
         if img is None:
             # Fallback to PIL
-            if TESSERACT_AVAILABLE:
+            if _ensure_tesseract():
                 from io import BytesIO
 
                 img = Image.open(BytesIO(content))
@@ -280,7 +307,7 @@ def extract_text_from_image(content: bytes, file_sha: str | None = None) -> str:
             img = preprocess_image(img)
 
         # Tesseract (preferred)
-        if TESSERACT_AVAILABLE:
+        if _ensure_tesseract():
             try:
                 if OPENCV_AVAILABLE:
                     # Convert opencv image to PIL
@@ -297,9 +324,9 @@ def extract_text_from_image(content: bytes, file_sha: str | None = None) -> str:
                 logger.info(f"Tesseract OCR completed: {len(text)} chars")
             except Exception as e:
                 logger.warning(f"Tesseract OCR failed: {e}, trying EasyOCR fallback")
-                if EASYOCR_AVAILABLE:
+                if _ensure_easyocr():
                     text = _easyocr_fallback(content)
-        elif EASYOCR_AVAILABLE:
+        elif _ensure_easyocr():
             text = _easyocr_fallback(content)
         else:
             logger.error("No OCR engine available")
