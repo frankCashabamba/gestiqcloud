@@ -83,7 +83,7 @@ def seeded_modulos(db, usuario_empresa_factory):
 
 def test_public_modulos_por_empresa_returns_array(client: TestClient, seeded_modulos):
     _, tenant, _ = seeded_modulos
-    r = client.get(f"/api/v1/modules/empresa/{tenant.slug}/seleccionables")
+    r = client.get(f"/api/v1/modules/company/{tenant.slug}/selectable")
     assert r.status_code == 200, r.text
     data = r.json()
     assert isinstance(data, list)
