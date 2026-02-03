@@ -43,5 +43,8 @@ export const listMisModulos = (authToken?: string) =>
 
 export const listModulosSeleccionablesPorEmpresa = (empresaSlug: string) => {
   const key = `empresa-${empresaSlug}`
-  return fetchWithCache(key, () => apiFetch<Modulo[]>(`/api/v1/modules/company/${encodeURIComponent(empresaSlug)}/seleccionables`))
+  return fetchWithCache(
+    key,
+    () => apiFetch<Modulo[]>(`/api/v1/modules/company/${encodeURIComponent(empresaSlug)}/selectable`)
+  )
 }

@@ -10,19 +10,19 @@ from app.modules.modulos.interface.http.schemas import ModuloOutSchema
 
 router = APIRouter(
     prefix="/modules",
-    tags=["Modulos Public"],
+    tags=["Modules Public"],
 )
 
 
-@router.get("/empresa/{empresa_slug}/seleccionables", response_model=list[ModuloOutSchema])
-def listar_modulos_activos_por_slug(
-    empresa_slug: str | None = None,
+@router.get("/company/{company_slug}/selectable", response_model=list[ModuloOutSchema])
+def list_active_modules_by_slug(
+    company_slug: str | None = None,
     db: Session = Depends(get_db),
 ):
-    empresa = db.query(Empresa).filter(Empresa.slug == empresa_slug).first()
-    if not empresa:
-        raise HTTPException(status_code=404, detail="Empresa no encontrada")
-    registros = mod_crud.obtener_modulos_de_empresa(db, empresa.id)
+    company = db.query(Empresa).filter(Empresa.slug == company_slug).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    registros = mod_crud.obtener_modulos_de_empresa(db, company.id)
     items: list[ModuloOutSchema] = []
     for r in registros:
         m = getattr(r, "module", None)
@@ -31,12 +31,10 @@ def listar_modulos_activos_por_slug(
         dto = {
             "id": m.id,
             "name": m.name,
-            "nombre": m.name,  # Legacy compatibility
             "url": m.url,
-            "icono": m.icon or "",
-            "categoria": m.category or "",
+            "icon": m.icon or "",
+            "category": m.category or "",
             "active": m.active,
-            "activo": m.active,  # Legacy compatibility
         }
         items.append(ModuloOutSchema.model_construct(**dto))
     return items

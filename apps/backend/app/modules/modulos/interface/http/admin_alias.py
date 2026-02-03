@@ -11,6 +11,7 @@ from app.models.core.modulo import CompanyModule, Module
 from app.modules import crud as mod_crud
 from app.modules import schemas as mod_schemas
 from app.modules import services as mod_services
+from app.modules.modulos.interface.http.admin import registrar_modulos as registrar_modulos_es
 from app.modules.modulos.interface.http.schemas import ModuloOutSchema
 
 router = APIRouter(
@@ -52,6 +53,13 @@ def listar_modulos_admin(db: Session = Depends(get_db)):
 def obtener_modulos_publicos(db: Session = Depends(get_db)):
     modules = mod_crud.listar_modulos_publicos(db)
     return [ModuloOutSchema.model_validate(_module_to_response(m)) for m in modules]
+
+
+@router.post("/register-modules")
+def register_modules(payload: dict | None = None, db: Session = Depends(get_db)):
+    """English alias for registering modules from filesystem."""
+
+    return registrar_modulos_es(payload=payload, db=db)
 
 
 @router.get("/company/{tenant_id}", response_model=list[mod_schemas.EmpresaModuloOut])

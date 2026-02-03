@@ -12,15 +12,15 @@ from app.config.database import get_db
 from app.config.settings import settings
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.models.core.modulo import CompanyModule, Module
+from app.models.core.module import CompanyModule, Module
 from app.modules import crud as mod_crud
 from app.modules import schemas as mod_schemas
 from app.modules import services as mod_services
-from app.modules.modulos.interface.http.schemas import ModuloOutSchema
+from app.modules.modules.interface.http.schemas import ModuloOutSchema
 
 router = APIRouter(
-    prefix="/admin/modulos",
-    tags=["Admin Modulos"],
+    prefix="/admin/modules",
+    tags=["Admin Modules"],
     dependencies=[Depends(with_access_claims), Depends(require_scope("admin"))],
 )
 
@@ -102,10 +102,10 @@ def _resolve_modules_dir() -> str:
     raise HTTPException(
         status_code=500,
         detail=(
-            "No se pudo resolver FRONTEND_MODULES_PATH. "
-            "Configura apps/backend/.env (FRONTEND_MODULES_PATH) al directorio de m├│dulos del frontend "
-            "(p.ej. apps/tenant/src/modules) y aseg├║rate que el backend tenga acceso (monta un volumen en compose si corre en contenedor). "
-            f"Detalles: {'; '.join(details)}"
+            "Could not resolve FRONTEND_MODULES_PATH. "
+            "Set apps/backend/.env (FRONTEND_MODULES_PATH) to the frontend modules directory "
+            "(e.g. apps/tenant/src/modules) and ensure the backend can read it (mount a volume if running in Docker). "
+            f"Details: {'; '.join(details)}"
         ),
     )
 
@@ -123,59 +123,58 @@ def _guess_defaults(_slug: str) -> tuple[str | None, str | None]:
 
 
 @router.get("/ping")
-def ping_admin_modulos():
+def ping_admin_modules():
     return ping_ok()
 
 
 @router.post(
-    "/empresa/{tenant_id}/usuarios/{usuario_id}",
+    "/company/{tenant_id}/users/{user_id}",
     response_model=mod_schemas.ModuloAsignadoOut,
 )
-def asignar_modulo_a_usuario(
+def assign_module_to_user(
     tenant_id: int,
-    usuario_id: int,
-    modulo_in: mod_schemas.ModuloAsignadoCreate,
+    user_id: int,
+    module_in: mod_schemas.ModuloAsignadoCreate,
     db: Session = Depends(get_db),
 ):
     return mod_services.asignar_modulo_a_usuario_si_empresa_lo_tiene(
-        db, tenant_id, usuario_id, modulo_in.modulo_id
+        db, tenant_id, user_id, module_in.module_id
     )
 
 
 @router.get(
-    "/empresa/{tenant_id}/usuarios/{usuario_id}",
+    "/company/{tenant_id}/users/{user_id}",
     response_model=list[mod_schemas.ModuloAsignadoOut],
 )
-def listar_modulos_de_usuario(
+def list_user_modules(
     tenant_id: int,
-    usuario_id: int,
+    user_id: int,
     db: Session = Depends(get_db),
 ):
-    return mod_crud.obtener_modulos_de_usuario(db, tenant_id, usuario_id)
+    return mod_crud.obtener_modulos_de_usuario(db, tenant_id, user_id)
 
 
 @router.get("/", response_model=list[ModuloOutSchema])
-def listar_modulos_admin(db: Session = Depends(get_db)):
+def list_admin_modules(db: Session = Depends(get_db)):
     modules = db.query(Module).filter(Module.active).order_by(Module.id.asc()).all()  # noqa: E712
 
     return [ModuloOutSchema.model_validate(_module_to_response(m)) for m in modules]
 
 
-# Evitar redirecci├│n 307 por barra final: expone tambi├®n la ruta sin barra
 
 
 @router.get("", response_model=list[ModuloOutSchema])
-def listar_modulos_admin_no_slash(db: Session = Depends(get_db)):
-    return listar_modulos_admin(db)
+def list_admin_modules_no_slash(db: Session = Depends(get_db)):
+    return list_admin_modules(db)
 
 
 @router.post("/", response_model=mod_schemas.ModuloOut)
-def crear_modulo(modulo_in: mod_schemas.ModuloCreate, db: Session = Depends(get_db)):
-    return mod_crud.crear_modulo(db, modulo_in)
+def create_module(module_in: mod_schemas.ModuloCreate, db: Session = Depends(get_db)):
+    return mod_crud.crear_modulo(db, module_in)
 
 
-@router.get("/publicos", response_model=list[ModuloOutSchema])
-def obtener_modulos_publicos(db: Session = Depends(get_db)):
+@router.get("/public", response_model=list[ModuloOutSchema])
+def get_public_modules(db: Session = Depends(get_db)):
     """
 
     Devuelve m├│dulos p├║blicos en formato ligero que espera el panel admin.
@@ -184,29 +183,22 @@ def obtener_modulos_publicos(db: Session = Depends(get_db)):
 
     El modelo `Module` usa campos en ingl├®s (`initial_template`, `target_model`, etc.)
 
-    mientras que los schemas legacy esperan nombres en espa├▒ol. Para evitar errores de
+    mientras que los schemas legacy esperan nombres en espa├▒ol. Para evitar errors de
 
     validaci├│n, mapeamos manualmente solo los campos expuestos en `ModuloOutSchema`.
 
     """
 
-    modules = mod_crud.listar_modulos_publicos(db)
+    modules = mod_crud.listar_modules_publicos(db)
 
     return [ModuloOutSchema.model_validate(_module_to_response(m)) for m in modules]
 
 
-@router.post("/registrar-modulos")
-def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)):
-    """Registra m├│dulos a partir del filesystem.
+@router.post("/register-modules")
+def register_modules(payload: dict | None = None, db: Session = Depends(get_db)):
+    """Register modules from the filesystem.
 
-
-
-    Opcionalmente acepta body JSON { "dir": "/ruta/a/modules" } para forzar
-
-    un directorio espec├¡fico durante desarrollo. Si no se pasa, intenta
-
-    resolverlo autom├íticamente con _resolve_modules_dir().
-
+    Optionally accepts JSON body { "dir": "/path/to/modules" } to force a specific directory during development. If missing, it resolves automatically with _resolve_modules_dir().
     """
 
     try:
@@ -232,7 +224,7 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
         return {
             "status": "skipped",
             "reason": str(e.detail),
-            "hint": "Define FRONTEND_MODULES_PATH en apps/backend/.env (p.ej. apps/tenant/src/modules)",
+            "hint": "Set FRONTEND_MODULES_PATH in apps/backend/.env (e.g. apps/tenant/src/modules)",
         }
 
     # Graceful fallback: evitar 500 si no est├í configurado
@@ -250,7 +242,7 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
         return {
             "status": "skipped",
             "reason": f"Invalid modules_dir: {modules_dir}",
-            "hint": "Asegura que el backend tiene acceso al path (monta volumen en Docker)",
+            "hint": "Ensure the backend can access the path (mount a volume in Docker)",
         }
 
     try:
@@ -260,23 +252,23 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
             if os.path.isdir(os.path.join(modules_dir, name))
         ]
 
-        registrados: list[str] = []
+        registered: list[str] = []
 
-        ya_existentes: list[str] = []
+        already_existing: list[str] = []
 
-        reactivados: list[str] = []
+        reactivated: list[str] = []
 
-        actualizados: list[str] = []
+        updated: list[str] = []
 
-        ignorados: list[str] = []
+        ignored: list[str] = []
 
-        errores: list[dict] = []
+        errors: list[dict] = []
 
         for carpeta in carpetas:
             # ignorar carpetas especiales
 
             if carpeta.startswith(".") or carpeta.startswith("_"):
-                ignorados.append(carpeta)
+                ignored.append(carpeta)
 
                 continue
 
@@ -296,7 +288,7 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
                     for fn in os.listdir(os.path.join(modules_dir, carpeta))
                 )
             ):
-                ignorados.append(carpeta)
+                ignored.append(carpeta)
 
                 continue
 
@@ -318,7 +310,7 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
                                 manifest = json.load(fh)
 
                         except Exception as me:
-                            errores.append({"modulo": name, "error": f"manifest invalido: {me}"})
+                            errors.append({"module": name, "error": f"invalid manifest: {me}"})
 
                     # Defaults v2
 
@@ -371,19 +363,19 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
 
                         db.commit()
 
-                        actualizados.append(name)
+                        updated.append(name)
 
-                        reactivados.append(name)
+                        reactivated.append(name)
 
                     except Exception as ue:
                         db.rollback()
 
-                        errores.append({"modulo": name, "error": f"no se pudo actualizar: {ue}"})
+                        errors.append({"module": name, "error": f"could not update: {ue}"})
 
                     continue
 
                 else:
-                    ya_existentes.append(name)
+                    already_existing.append(name)
 
                     continue
 
@@ -399,7 +391,7 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
                         manifest = json.load(fh)
 
                 except Exception as me:
-                    errores.append({"modulo": name, "error": f"manifest invalido: {me}"})
+                    errors.append({"module": name, "error": f"invalid manifest: {me}"})
 
             # Construir payload combinando defaults + manifest
 
@@ -439,24 +431,24 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
             }
 
             try:
-                modulo = mod_schemas.ModuloCreate(**payload)  # type: ignore[arg-type]
+                module = mod_schemas.ModuloCreate(**payload)  # type: ignore[arg-type]
 
                 # Solo crear en BD; no crear archivos/estructura desde detecci├│n FS
 
-                mod_crud.crear_modulo_db_only(db, modulo)
+                mod_crud.crear_modulo_db_only(db, module)
 
-                registrados.append(name)
+                registered.append(name)
 
             except Exception as ce:
-                errores.append({"modulo": name, "error": str(ce)})
+                errors.append({"module": name, "error": str(ce)})
 
         return {
-            "registrados": registrados,
-            "ya_existentes": ya_existentes,
-            "reactivados": reactivados,
-            "actualizados": actualizados,
-            "ignorados": ignorados,
-            "errores": errores,
+            "registered": registered,
+            "already_existing": already_existing,
+            "reactivated": reactivated,
+            "updated": updated,
+            "ignored": ignored,
+            "errors": errors,
         }
 
     except Exception as e:
@@ -465,43 +457,43 @@ def registrar_modulos(payload: dict | None = None, db: Session = Depends(get_db)
         raise HTTPException(status_code=500, detail=f"Error al registrar m├│dulos: {e}")
 
 
-@router.post("/empresa/{tenant_id}", response_model=mod_schemas.EmpresaModuloOut)
-def asignar_modulo_a_empresa(
+@router.post("/company/{tenant_id}", response_model=mod_schemas.EmpresaModuloOut)
+def assign_module_to_company(
     tenant_id: str,
-    modulo_in: mod_schemas.EmpresaModuloCreate,
+    module_in: mod_schemas.EmpresaModuloCreate,
     db: Session = Depends(get_db),
 ):
-    asignacion = mod_services.asignar_modulo_a_empresa_si_no_existe(db, tenant_id, modulo_in)
+    assignment = mod_services.asignar_modulo_a_empresa_si_no_existe(db, tenant_id, module_in)
 
-    db.refresh(asignacion)
+    db.refresh(assignment)
 
-    _ = asignacion.tenant
+    _ = assignment.tenant
 
-    _ = asignacion.module
+    _ = assignment.module
 
     return {
-        "id": asignacion.id,
-        "tenant_id": asignacion.tenant_id,
-        "company_slug": getattr(asignacion.tenant, "slug", None),
-        "active": asignacion.active,
-        "activation_date": getattr(asignacion, "activation_date", None),
-        "expiration_date": getattr(asignacion, "expiration_date", None),
-        "initial_template": getattr(asignacion, "initial_template", None),
-        "module_id": asignacion.module_id,
-        "module": _module_to_response(asignacion.module) if asignacion.module else None,
+        "id": assignment.id,
+        "tenant_id": assignment.tenant_id,
+        "company_slug": getattr(assignment.tenant, "slug", None),
+        "active": assignment.active,
+        "activation_date": getattr(assignment, "activation_date", None),
+        "expiration_date": getattr(assignment, "expiration_date", None),
+        "initial_template": getattr(assignment, "initial_template", None),
+        "module_id": assignment.module_id,
+        "module": _module_to_response(assignment.module) if assignment.module else None,
     }
 
 
-@router.get("/empresa/{tenant_id}", response_model=list[mod_schemas.EmpresaModuloOut])
-def listar_modulos_de_empresa(tenant_id: str, db: Session = Depends(get_db)):
-    registros = mod_crud.obtener_modulos_de_empresa(db, tenant_id)
+@router.get("/company/{tenant_id}", response_model=list[mod_schemas.EmpresaModuloOut])
+def list_company_modules(tenant_id: str, db: Session = Depends(get_db)):
+    rows = mod_crud.obtener_modulos_de_empresa(db, tenant_id)
 
-    resultado = []
+    result = []
 
-    for r in registros:
-        modulo_payload = _module_to_response(r.module) if r.module else None
+    for r in rows:
+        module_payload = _module_to_response(r.module) if r.module else None
 
-        resultado.append(
+        result.append(
             {
                 "id": r.id,
                 "tenant_id": r.tenant_id,
@@ -509,35 +501,38 @@ def listar_modulos_de_empresa(tenant_id: str, db: Session = Depends(get_db)):
                 "active": getattr(r, "active", None),
                 "activation_date": getattr(r, "activation_date", None),
                 "module_id": r.module_id,
-                "module": modulo_payload,
+                "module": module_payload,
                 "expiration_date": getattr(r, "expiration_date", None),
                 "initial_template": getattr(r, "initial_template", None),
             }
         )
 
-    return resultado
+    return result
 
 
-@router.post("/empresa/{tenant_id}/upsert", response_model=mod_schemas.EmpresaModuloOutAdmin)
-def upsert_modulo_empresa(
+@router.post("/company/{tenant_id}/upsert", response_model=mod_schemas.EmpresaModuloOutAdmin)
+def upsert_company_module(
     tenant_id: str,
-    modulo_in: mod_schemas.EmpresaModuloCreate,
+    module_in: mod_schemas.EmpresaModuloCreate,
     db: Session = Depends(get_db),
 ):
-    return mod_services.upsert_modulo_a_empresa(db, tenant_id, modulo_in)
+    return mod_services.upsert_modulo_a_empresa(db, tenant_id, module_in)
 
 
-@router.delete("/empresa/{tenant_id}/modulo/{modulo_id}")
-def eliminar_modulo_de_empresa(tenant_id: str, modulo_id: str, db: Session = Depends(get_db)):
-    empresa_modulo = (
-        db.query(CompanyModule).filter_by(tenant_id=tenant_id, module_id=modulo_id).first()
+@router.delete("/company/{tenant_id}/module/{module_id}")
+def delete_company_module(tenant_id: str, module_id: str, db: Session = Depends(get_db)):
+    company_module = (
+        db.query(CompanyModule).filter_by(tenant_id=tenant_id, module_id=module_id).first()
     )
 
-    if not empresa_modulo:
-        raise HTTPException(status_code=404, detail="Asignaci├│n no encontrada")
+    if not company_module:
+        raise HTTPException(status_code=404, detail="Assignment not found")
 
-    db.delete(empresa_modulo)
+    db.delete(company_module)
 
     db.commit()
 
     return {"ok": True}
+
+
+

@@ -15,7 +15,7 @@ from app.modules.modulos.interface.http.schemas import ModuloOutSchema
 
 router = APIRouter(
     prefix="/modules",
-    tags=["Modulos"],
+    tags=["Modules"],
     dependencies=[
         Depends(with_access_claims),
         Depends(require_scope("tenant")),
@@ -25,7 +25,7 @@ router = APIRouter(
 
 
 @router.get("", response_model=list[ModuloOutSchema])
-def listar_modulos_asignados(request: Request, db: Session = Depends(get_db)):
+def list_assigned_modules(request: Request, db: Session = Depends(get_db)):
     claims = request.state.access_claims
     tenant_id = claims.get("tenant_id")
     raw_uid = claims.get("tenant_user_id") or claims.get("user_id")

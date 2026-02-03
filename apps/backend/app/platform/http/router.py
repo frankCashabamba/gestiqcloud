@@ -222,7 +222,6 @@ def build_api_router() -> APIRouter:
     )
 
     # Módulos
-    include_router_safe(r, ("app.modules.modulos.interface.http.admin_alias", "router"))
     include_router_safe(r, ("app.modules.modulos.interface.http.admin", "router"))
     include_router_safe(r, ("app.modules.modulos.interface.http.tenant", "router"))
     include_router_safe(r, ("app.modules.modulos.interface.http.public", "router"))
