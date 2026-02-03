@@ -161,8 +161,6 @@ def list_admin_modules(db: Session = Depends(get_db)):
     return [ModuloOutSchema.model_validate(_module_to_response(m)) for m in modules]
 
 
-
-
 @router.get("", response_model=list[ModuloOutSchema])
 def list_admin_modules_no_slash(db: Session = Depends(get_db)):
     return list_admin_modules(db)
@@ -533,6 +531,3 @@ def delete_company_module(tenant_id: str, module_id: str, db: Session = Depends(
     db.commit()
 
     return {"ok": True}
-
-
-
