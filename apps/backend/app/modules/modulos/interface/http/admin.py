@@ -16,7 +16,7 @@ from app.models.core.module import CompanyModule, Module
 from app.modules import crud as mod_crud
 from app.modules import schemas as mod_schemas
 from app.modules import services as mod_services
-from app.modules.modules.interface.http.schemas import ModuloOutSchema
+from app.modules.modulos.interface.http.schemas import ModuloOutSchema
 
 router = APIRouter(
     prefix="/admin/modules",

@@ -20,6 +20,28 @@ ALTER TABLE IF EXISTS public.sales_orders ALTER COLUMN status DROP DEFAULT;
 ALTER TABLE IF EXISTS public.sales_orders ALTER COLUMN created_at DROP DEFAULT;
 ALTER TABLE IF EXISTS public.sales_orders ALTER COLUMN updated_at DROP DEFAULT;
 
-ALTER TABLE IF EXISTS public.tenants ALTER COLUMN currency DROP DEFAULT;
+ALTER TABLE IF EXISTS public.company_settings ALTER COLUMN currency DROP DEFAULT;
+
+-- Prefer base_currency column if present, otherwise legacy currency
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'tenants'
+          AND column_name = 'base_currency'
+    ) THEN
+        EXECUTE 'ALTER TABLE public.tenants ALTER COLUMN base_currency DROP DEFAULT';
+    ELSIF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'tenants'
+          AND column_name = 'currency'
+    ) THEN
+        EXECUTE 'ALTER TABLE public.tenants ALTER COLUMN currency DROP DEFAULT';
+    END IF;
+END $$;
 
 COMMIT;

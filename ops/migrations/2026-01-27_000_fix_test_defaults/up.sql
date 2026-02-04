@@ -3,6 +3,45 @@
 
 BEGIN;
 
+-- Ensure tenant/company currencies are present before triggers run
+DO $$
+BEGIN
+    -- company_settings.currency fallback
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'company_settings'
+          AND column_name = 'currency'
+    ) THEN
+        EXECUTE 'ALTER TABLE public.company_settings ALTER COLUMN currency SET DEFAULT ''USD''';
+        EXECUTE 'UPDATE public.company_settings
+                 SET currency = COALESCE(NULLIF(TRIM(currency), ''''), ''USD'')';
+    END IF;
+
+    -- Prefer new base_currency column if present; otherwise use legacy currency
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'tenants'
+          AND column_name = 'base_currency'
+    ) THEN
+        EXECUTE 'ALTER TABLE public.tenants ALTER COLUMN base_currency SET DEFAULT ''USD''';
+        EXECUTE 'UPDATE public.tenants
+                 SET base_currency = COALESCE(NULLIF(TRIM(base_currency), ''''), ''USD'')';
+    ELSIF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'tenants'
+          AND column_name = 'currency'
+    ) THEN
+        EXECUTE 'ALTER TABLE public.tenants ALTER COLUMN currency SET DEFAULT ''USD''';
+        EXECUTE 'UPDATE public.tenants
+                 SET currency = COALESCE(NULLIF(TRIM(currency), ''''), ''USD'')';
+    END IF;
+END $$;
+
 -- Ensure auth_user booleans have server defaults and fix existing nulls
 ALTER TABLE IF EXISTS public.auth_user ALTER COLUMN is_active SET DEFAULT true;
 ALTER TABLE IF EXISTS public.auth_user ALTER COLUMN is_superadmin SET DEFAULT false;
@@ -31,7 +70,16 @@ ALTER TABLE IF EXISTS public.sales_orders ALTER COLUMN currency SET DEFAULT 'USD
 ALTER TABLE IF EXISTS public.sales_orders ALTER COLUMN status SET DEFAULT 'draft';
 ALTER TABLE IF EXISTS public.sales_orders ALTER COLUMN created_at SET DEFAULT now();
 ALTER TABLE IF EXISTS public.sales_orders ALTER COLUMN updated_at SET DEFAULT now();
-UPDATE public.sales_orders
+
+-- Avoid trigger failures while backfilling currency
+DO $$
+DECLARE
+  prev_role text;
+BEGIN
+  SELECT current_setting('session_replication_role', true) INTO prev_role;
+  PERFORM set_config('session_replication_role', 'replica', true);
+
+  UPDATE public.sales_orders
 SET subtotal = COALESCE(subtotal, 0),
     tax = COALESCE(tax, 0),
     total = COALESCE(total, 0),
@@ -41,29 +89,7 @@ SET subtotal = COALESCE(subtotal, 0),
     created_at = COALESCE(created_at, now()),
     updated_at = COALESCE(updated_at, now());
 
--- Tenant currency fallback to avoid currency_not_configured
-DO $$
-BEGIN
-    -- Prefer new base_currency column if present
-    IF EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-          AND table_name = 'tenants'
-          AND column_name = 'base_currency'
-    ) THEN
-        EXECUTE 'ALTER TABLE public.tenants ALTER COLUMN base_currency SET DEFAULT ''USD''';
-        EXECUTE 'UPDATE public.tenants SET base_currency = COALESCE(base_currency, ''USD'')';
-    ELSIF EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-          AND table_name = 'tenants'
-          AND column_name = 'currency'
-    ) THEN
-        EXECUTE 'ALTER TABLE public.tenants ALTER COLUMN currency SET DEFAULT ''USD''';
-        EXECUTE 'UPDATE public.tenants SET currency = COALESCE(currency, ''USD'')';
-    END IF;
+  PERFORM set_config('session_replication_role', COALESCE(prev_role, 'origin'), true);
 END $$;
 
 COMMIT;
