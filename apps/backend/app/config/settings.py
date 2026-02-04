@@ -18,7 +18,12 @@ from app.config.env_loader import get_env_file_path, inject_env_variables, load_
 _ENV_FILE = get_env_file_path()
 _ENV_VARS = load_env_file(_ENV_FILE)
 inject_env_variables(_ENV_VARS)
-os.environ.setdefault("ENV_FILE_USED", str(_ENV_FILE.resolve()))
+# In production _ENV_FILE is None; avoid calling .resolve() on None
+if _ENV_FILE is not None:
+    os.environ.setdefault("ENV_FILE_USED", str(_ENV_FILE.resolve()))
+else:
+    # Leave unset to signal "system env only"
+    os.environ.setdefault("ENV_FILE_USED", "")
 
 
 def _log_env_info():
@@ -33,7 +38,8 @@ def _log_env_info():
 
 
 _log_env_info()
-_ENV_FILE_PATH = Path(os.getenv("ENV_FILE_USED")).resolve() if os.getenv("ENV_FILE_USED") else None
+_env_file_used = os.getenv("ENV_FILE_USED")
+_ENV_FILE_PATH = Path(_env_file_used).resolve() if _env_file_used else None
 
 
 def _ensure_dev_secret():
