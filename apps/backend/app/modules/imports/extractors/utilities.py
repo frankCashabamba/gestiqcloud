@@ -235,14 +235,6 @@ def search_tax_id(text: str) -> str | None:
     return search_multiple(TAX_ID_PATTERNS, text, group=-1)
 
 
-def find_tax_id(text: str) -> str | None:
-    """
-    Convenience wrapper used by OCR extractors to obtain CIF/NIF/VAT IDs.
-    Prefer this English name; kept separate from search_tax_id for clarity.
-    """
-    return search_tax_id(text)
-
-
 def search_concept(text: str) -> str | None:
     match = re.search(r"(?i)concepto[:\-]?\s*(.+?)(?=\s+[A-Z][a-z]+\s*:|$)", text)
     return match.group(1).strip() if match else None

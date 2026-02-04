@@ -26,7 +26,7 @@ from app.models.company.company import (
 )
 from app.models.company.company_settings import CompanySettings
 from app.models.company.company_user import CompanyUser
-from app.models.core.modulo import CompanyModule, Module
+from app.models.core.module import CompanyModule, Module
 from app.models.tenant import Tenant
 from app.modules.company.application.use_cases import ListCompaniesAdmin, create_company_admin_user
 from app.modules.company.infrastructure.repositories import SqlCompanyRepo

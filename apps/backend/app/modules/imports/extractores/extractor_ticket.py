@@ -4,7 +4,7 @@ import re
 from typing import Any
 
 from app.modules.imports.domain.canonical_schema import CanonicalDocument, build_routing_proposal
-from app.modules.imports.extractores.utilidades import buscar_multiple
+from app.modules.imports.extractores.utilidades import search_multiple
 from app.modules.imports.schemas import DocumentoProcesado
 
 
@@ -57,7 +57,7 @@ def extraer_ticket(texto: str, country: str = "EC") -> list[dict[str, Any]]:
     texto_limpio = texto.replace("€", "EUR").replace("$", " ")
     texto_limpio = re.sub(r"[^\x00-\x7F]+", " ", texto_limpio)
 
-    numero_ticket = buscar_multiple(
+    numero_ticket = search_multiple(
         [
             r"N[ºo°]?\s*R[-\s]*(\d+)",
             r"Ticket\s*(?:N[ºo°]?)?\s*[:\-]?\s*(\w+)",
@@ -66,7 +66,7 @@ def extraer_ticket(texto: str, country: str = "EC") -> list[dict[str, Any]]:
         texto,
     )
 
-    fecha_hora = buscar_multiple(
+    fecha_hora = search_multiple(
         [
             r"(\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2})",
             r"(\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2})",
@@ -86,7 +86,7 @@ def extraer_ticket(texto: str, country: str = "EC") -> list[dict[str, Any]]:
 
     lineas_productos = _extraer_lineas_productos(texto)
 
-    total_str = buscar_multiple(
+    total_str = search_multiple(
         [
             r"Total[:\s]*\$?\s*([\d.,]+)",
             r"TOTAL[:\s]*\$?\s*([\d.,]+)",

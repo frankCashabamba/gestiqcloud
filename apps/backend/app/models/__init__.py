@@ -46,7 +46,7 @@ from app.models.core.facturacion import (
 )
 from app.models.core.import_audit import ImportAudit
 from app.models.core.invoiceLine import BakeryLine, InvoiceLine, LineaFactura, WorkshopLine
-from app.models.core.modulo import AssignedModule, CompanyModule, Module
+from app.models.core.module import AssignedModule, CompanyModule, Module
 from app.models.core.product_category import ProductCategory
 from app.models.core.products import Product
 

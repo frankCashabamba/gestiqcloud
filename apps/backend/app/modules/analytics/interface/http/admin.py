@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.models.company.company_user import CompanyUser
-from app.models.core.modulo import CompanyModule
+from app.models.core.module import CompanyModule
 from app.models.tenant import Tenant
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])

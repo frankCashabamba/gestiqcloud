@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from app.models.core.modulo import AssignedModule, CompanyModule, Module
+from app.models.core.module import AssignedModule, CompanyModule, Module
 from app.modules.shared.infrastructure.sqlalchemy_repo import SqlAlchemyRepo
 
 

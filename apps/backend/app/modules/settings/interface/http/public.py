@@ -16,7 +16,7 @@ from app.config.database import get_db
 from app.middleware.tenant import get_current_user
 from app.models.company.company import SectorTemplate
 from app.models.company.company_settings import CompanySettings
-from app.models.core.modulo import CompanyModule, Module
+from app.models.core.module import CompanyModule, Module
 from app.models.core.product_category import ProductCategory
 from app.models.tenant import Tenant
 

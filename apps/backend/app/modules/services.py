@@ -10,7 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.db.rls import set_tenant_guc
-from app.models.core.modulo import AssignedModule, CompanyModule
+from app.models.core.module import AssignedModule, CompanyModule
 from app.modules import crud, schemas
 
 

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.models.company.company_role import CompanyRole
 from app.models.company.company_user import CompanyUser
 from app.models.company.company_user_role import CompanyUserRole
-from app.models.core.modulo import AssignedModule, Module
+from app.models.core.module import AssignedModule, Module
 from app.models.tenant import Tenant
 
 

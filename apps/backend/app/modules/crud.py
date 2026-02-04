@@ -9,7 +9,7 @@ import shutil
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.core.modulo import AssignedModule, CompanyModule, Module
+from app.models.core.module import AssignedModule, CompanyModule, Module
 from app.models.tenant import Tenant
 from app.modules import schemas
 

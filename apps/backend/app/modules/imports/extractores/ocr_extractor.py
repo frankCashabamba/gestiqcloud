@@ -8,16 +8,16 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.modules.imports.extractores.utilidades import (
-    buscar_cif,
-    buscar_cliente,
-    buscar_concepto,
-    buscar_descripcion,
-    buscar_emisor,
-    buscar_fecha,
-    buscar_importe,
-    buscar_numero_factura,
-    buscar_subtotal,
-    corregir_errores_ocr,
+    correct_ocr_errors,
+    find_tax_id,
+    search_amount,
+    search_client,
+    search_concept,
+    search_date,
+    search_description,
+    search_invoice_number,
+    search_issuer,
+    search_subtotal,
 )
 from app.modules.imports.services.ocr_service import DocumentLayout, OCRResult
 
@@ -98,7 +98,7 @@ class OCRExtractor:
         Returns:
             Diccionario con datos extraídos según el tipo de documento
         """
-        text = corregir_errores_ocr(ocr_result.text)
+        text = correct_ocr_errors(ocr_result.text)
 
         if ocr_result.layout == DocumentLayout.INVOICE:
             invoice = self._extract_invoice(text, ocr_result)
@@ -155,21 +155,21 @@ class OCRExtractor:
         """Extrae datos de factura."""
         invoice = ExtractedInvoice()
 
-        invoice.invoice_number = buscar_numero_factura(text)
-        invoice.date = buscar_fecha(text)
-        invoice.vendor = buscar_emisor(text)
-        invoice.vendor_tax_id = buscar_cif(text)
-        invoice.customer = buscar_cliente(text)
-        invoice.concept = buscar_concepto(text) or buscar_descripcion(text)
+        invoice.invoice_number = search_invoice_number(text)
+        invoice.date = search_date(text)
+        invoice.vendor = search_issuer(text)
+        invoice.vendor_tax_id = find_tax_id(text)
+        invoice.customer = search_client(text)
+        invoice.concept = search_concept(text) or search_description(text)
 
-        total_str = buscar_importe(text)
+        total_str = search_amount(text)
         if total_str:
             try:
                 invoice.total = float(total_str.replace(",", "."))
             except ValueError:
                 pass
 
-        subtotal_str = buscar_subtotal(text)
+        subtotal_str = search_subtotal(text)
         if subtotal_str:
             try:
                 invoice.subtotal = float(subtotal_str.replace(",", "."))
@@ -203,16 +203,16 @@ class OCRExtractor:
         """Extrae datos de recibo."""
         receipt = ExtractedReceipt()
 
-        receipt.date = buscar_fecha(text)
+        receipt.date = search_date(text)
 
-        total_str = buscar_importe(text)
+        total_str = search_amount(text)
         if total_str:
             try:
                 receipt.total = float(total_str.replace(",", "."))
             except ValueError:
                 pass
 
-        receipt.merchant = buscar_emisor(text)
+        receipt.merchant = search_issuer(text)
         receipt.payment_method = self._detect_payment_method(text)
         receipt.items = self._extract_receipt_items(text)
 

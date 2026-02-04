@@ -56,7 +56,7 @@ def seed_tenant_context(db, usuario_empresa_factory):
     from app.models.company.company_role import CompanyRole
     from app.models.company.company_user import CompanyUser
     from app.models.company.company_user_role import CompanyUserRole
-    from app.models.core.modulo import CompanyModule, Module
+    from app.models.core.module import CompanyModule, Module
 
     usuario, tenant = usuario_empresa_factory(
         email="tenant_admin@example.com", username="tenantadmin"

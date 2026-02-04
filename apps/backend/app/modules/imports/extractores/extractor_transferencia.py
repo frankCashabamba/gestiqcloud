@@ -1,10 +1,10 @@
 import re
 
 from app.modules.imports.extractores.utilidades import (
-    corregir_errores_ocr,
-    dividir_bloques_transferencias,
-    es_concepto_valido,
-    limpiar_valor,
+    clean_value,
+    correct_ocr_errors,
+    is_valid_concept,
+    split_transfer_blocks,
 )
 from app.modules.imports.schemas import DocumentoProcesado
 
@@ -15,15 +15,15 @@ def _extraer_fecha_envio(bloque: str) -> str:
         r"Fecha\s+de\s+env[ií]o:\s*(\d{2}[-/ ]\d{2}[-/ ]\d{4})", bloque, re.IGNORECASE
     )
     if match:
-        return limpiar_valor(match.group(1))
+        return clean_value(match.group(1))
     match = re.search(r"\b(\d{2}[-/ ]\d{2}[-/ ]\d{4})\b", bloque)
-    return limpiar_valor(match.group(1)) if match else "desconocida"
+    return clean_value(match.group(1)) if match else "desconocida"
 
 
 def _extraer_fecha_valor(bloque: str) -> str | None:
     """Extrae la fecha valor del bloque."""
     match = re.search(r"Fecha\s+valor[:\s]+(\d{2}[-/ ]\d{2}[-/ ]\d{4})", bloque, re.IGNORECASE)
-    return limpiar_valor(match.group(1)) if match else None
+    return clean_value(match.group(1)) if match else None
 
 
 def _extraer_importe(bloque: str) -> float:
@@ -66,7 +66,7 @@ def _extraer_iban_ordenante(bloque: str) -> str:
     """Extrae el IBAN del ordenante (Cuenta:)."""
     match = re.search(r"Cuenta:\s*(ES\d{2}[\d\s*]{16,24})", bloque, re.IGNORECASE)
     if match:
-        return limpiar_valor(match.group(1).replace(" ", "").replace("*", ""))
+        return clean_value(match.group(1).replace(" ", "").replace("*", ""))
     return "desconocida"
 
 
@@ -74,7 +74,7 @@ def _extraer_iban_beneficiario(bloque: str) -> str:
     """Extrae el IBAN del beneficiario."""
     match = re.search(r"IBAN[:\s]*(ES\d{2}[\d\s]{16,24})", bloque, re.IGNORECASE)
     if match:
-        return limpiar_valor(match.group(1).replace(" ", ""))
+        return clean_value(match.group(1).replace(" ", ""))
     return "desconocida"
 
 
@@ -86,12 +86,12 @@ def _extraer_ordenante(bloque: str) -> str:
         # Limpiar si contiene IMPORTE u otros campos
         nombre = re.split(r"\s+(IMPORTE|BENEFICIARIO|\d)", nombre)[0]
         if len(nombre) > 3:
-            return limpiar_valor(nombre)
+            return clean_value(nombre)
 
     # Alternativa: buscar "Titular:"
     match = re.search(r"Titular[:\s]+([A-Z\s]+?)(?:\s+Importe|\s+Tipo|\n)", bloque, re.IGNORECASE)
     if match:
-        return limpiar_valor(match.group(1))
+        return clean_value(match.group(1))
 
     return "desconocido"
 
@@ -109,7 +109,7 @@ def _extraer_beneficiario(bloque: str) -> str:
         # Limpiar si capturó texto extra
         nombre = re.split(r"\s+(CONCEPTO|Contravalor|Tipo|GASTOS)", nombre, flags=re.IGNORECASE)[0]
         if len(nombre) > 2:
-            return limpiar_valor(nombre)
+            return clean_value(nombre)
 
     # Patrón 2: Después de "BENEFICIARIO" en el encabezado
     match = re.search(r"BENEFICIARIO\s*\n?\s*(.+?)\s*\n", bloque, re.IGNORECASE)
@@ -117,7 +117,7 @@ def _extraer_beneficiario(bloque: str) -> str:
         nombre = match.group(1).strip()
         nombre = re.split(r"\s+(\d|POR CUENTA|Importe)", nombre)[0]
         if len(nombre) > 3:
-            return limpiar_valor(nombre)
+            return clean_value(nombre)
 
     return "desconocido"
 
@@ -139,8 +139,8 @@ def _extraer_concepto(bloque: str) -> str:
             r"(Nuestra|Fecha operaci|referencia:|Oficina)", concepto, flags=re.IGNORECASE
         )[0]
         concepto = concepto.strip()
-        if es_concepto_valido(concepto):
-            return limpiar_valor(concepto)
+        if is_valid_concept(concepto):
+            return clean_value(concepto)
 
     return "Documento sin concepto"
 
@@ -151,9 +151,9 @@ def _extraer_referencia(bloque: str) -> str | None:
     return match.group(1) if match else None
 
 
-def extraer_transferencias(texto: str) -> list[DocumentoProcesado]:
-    texto = corregir_errores_ocr(texto)
-    bloques = dividir_bloques_transferencias(texto)
+def extract_transfers(text: str) -> list[DocumentoProcesado]:
+    text = correct_ocr_errors(text)
+    bloques = split_transfer_blocks(text)
     print(f"[INFO] TOTAL BLOQUES DETECTADOS: {len(bloques)}")
 
     resultados: list[DocumentoProcesado] = []

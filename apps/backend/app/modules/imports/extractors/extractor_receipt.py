@@ -2,7 +2,7 @@ import re
 from typing import Any
 
 from app.modules.imports.domain.canonical_schema import CanonicalDocument, build_routing_proposal
-from app.modules.imports.extractores.utilidades import is_valid_concept, search_multiple
+from app.modules.imports.extractors.utilities import search_multiple, is_valid_concept
 
 
 def extract_receipt(text: str, country: str = "EC") -> list[dict[str, Any]]:

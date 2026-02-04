@@ -10,7 +10,7 @@ def seeded_modulos(db, usuario_empresa_factory):
 
     Devuelve tuple: (usuario, empresa, [mod1, mod2])
     """
-    from app.models.core.modulo import AssignedModule, CompanyModule, Module
+    from app.models.core.module import AssignedModule, CompanyModule, Module
 
     usuario, tenant_from_factory = usuario_empresa_factory(
         empresa_name="Empresa Test Mods",
