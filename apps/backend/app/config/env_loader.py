@@ -15,11 +15,17 @@ def get_env_file_path() -> Path:
     Return the path to the single .env file to use.
 
     Strategy:
-    1. If ENV_FILE is set -> use that file
-    2. If ENVIRONMENT=production -> try .env.production then .env
+    1. If ENVIRONMENT=production -> return None (use only system env vars)
+    2. If ENV_FILE is set -> use that file
     3. If ENVIRONMENT=staging -> try .env.staging then .env
     4. If ENVIRONMENT=development -> try .env.local then .env
     """
+    env = os.getenv("ENVIRONMENT", "development").lower()
+
+    # In production, rely only on system environment variables
+    if env == "production":
+        return None
+
     # Explicit override
     if override := os.getenv("ENV_FILE"):
         p = Path(override)
@@ -32,10 +38,7 @@ def get_env_file_path() -> Path:
     app_dir = Path(__file__).resolve().parents[2]  # apps/backend
     repo_root = app_dir.parent.parent  # repo root (gestiqcloud/)
 
-    env = os.getenv("ENVIRONMENT", "development").lower()
-    if env == "production":
-        candidates = [".env.production", ".env"]
-    elif env == "staging":
+    if env == "staging":
         candidates = [".env.staging", ".env"]
     else:
         candidates = [".env.local", ".env"]
@@ -58,9 +61,14 @@ def get_env_file_path() -> Path:
 def load_env_file(env_path: Path | None = None) -> dict[str, str]:
     """
     Read a .env file and return variables.
+    In production, skips file loading and uses only system environment variables.
     """
     if env_path is None:
         env_path = get_env_file_path()
+
+    # In production, skip file loading
+    if env_path is None:
+        return {}
 
     if not env_path.exists():
         print(
@@ -109,7 +117,11 @@ _ENV_FILE = get_env_file_path()
 _LOADED = load_env_file(_ENV_FILE)
 inject_env_variables(_LOADED)
 
-print(
-    f"[env_loader] ENVIRONMENT={os.getenv('ENVIRONMENT', 'development')} "
-    f"ENV_FILE={_ENV_FILE.resolve()}"
-)
+# Log only in non-production environments
+if os.getenv("ENVIRONMENT", "development").lower() != "production":
+    print(
+        f"[env_loader] ENVIRONMENT={os.getenv('ENVIRONMENT', 'development')} "
+        f"ENV_FILE={_ENV_FILE.resolve() if _ENV_FILE else 'None (using system env vars only)'}"
+    )
+else:
+    print("[env_loader] ENVIRONMENT=production (using system environment variables only)")

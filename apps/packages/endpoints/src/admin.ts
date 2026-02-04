@@ -11,7 +11,7 @@ export const ADMIN_MODULES = {
   byId: (id: number | string) => `/v1/admin/modules/${id}`,
   activate: (id: number | string) => `/v1/admin/modules/${id}/activate`,
   deactivate: (id: number | string) => `/v1/admin/modules/${id}/deactivate`,
-  register: '/v1/admin/modules/registrar-modulos',
+  register: '/v1/admin/modules/register-modules',
 }
 
 export const ADMIN_COMPANIES = {
