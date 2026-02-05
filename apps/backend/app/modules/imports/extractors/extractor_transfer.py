@@ -1,19 +1,17 @@
 import re
 
 from app.modules.imports.extractors.utilities import (
-    correct_ocr_errors,
-    split_transfer_blocks,
-    is_valid_concept,
     clean_value,
+    correct_ocr_errors,
+    is_valid_concept,
+    split_transfer_blocks,
 )
 from app.modules.imports.schemas import DocumentoProcesado
 
 
 def _extract_send_date(block: str) -> str:
     """Extracts the send date from the block."""
-    match = re.search(
-        r"Fecha\s+de\s+env[ií]o:\s*(\d{2}[-/ ]\d{2}[-/ ]\d{4})", block, re.IGNORECASE
-    )
+    match = re.search(r"Fecha\s+de\s+env[ií]o:\s*(\d{2}[-/ ]\d{2}[-/ ]\d{4})", block, re.IGNORECASE)
     if match:
         return clean_value(match.group(1))
     match = re.search(r"\b(\d{2}[-/ ]\d{2}[-/ ]\d{4})\b", block)

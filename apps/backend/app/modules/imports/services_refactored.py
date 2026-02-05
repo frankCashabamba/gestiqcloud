@@ -12,10 +12,10 @@ from collections.abc import Callable
 from pathlib import Path
 
 from app.config.settings import settings
-from app.modules.imports.extractors.extractor_unknown import extract_by_combined_types
 from app.modules.imports.extractors.extractor_invoice import extract_invoice
 from app.modules.imports.extractors.extractor_receipt import extract_receipt
 from app.modules.imports.extractors.extractor_transfer import extract_transfers
+from app.modules.imports.extractors.extractor_unknown import extract_by_combined_types
 from app.modules.imports.extractors.utilities import detect_document_type
 from app.modules.imports.schemas import DocumentoProcesado
 

@@ -2,17 +2,17 @@ from typing import Any
 
 from app.modules.imports.domain.canonical_schema import CanonicalDocument, build_routing_proposal
 from app.modules.imports.extractors.utilities import (
-    search_tax_id,
+    is_valid_concept,
+    search_amount,
     search_client,
     search_concept,
-    search_description,
-    search_issuer,
     search_date,
-    search_amount,
+    search_description,
     search_invoice_number,
+    search_issuer,
     search_largest_number,
     search_subtotal,
-    is_valid_concept,
+    search_tax_id,
 )
 
 

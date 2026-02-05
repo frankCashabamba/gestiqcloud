@@ -3,7 +3,7 @@ import asyncio
 from app.modules.imports.extractors.extractor_invoice import extract_invoice
 from app.modules.imports.extractors.extractor_receipt import extract_receipt
 from app.modules.imports.extractors.extractor_transfer import extract_transfers
-from app.modules.imports.extractors.utilities import search_multiple, is_valid_concept
+from app.modules.imports.extractors.utilities import is_valid_concept, search_multiple
 from app.modules.imports.schemas import DocumentoProcesado
 
 try:
@@ -149,9 +149,7 @@ def _extract_with_ai(text: str) -> DocumentoProcesado | None:
     try:
         provider = asyncio.run(get_ai_provider_singleton())  # type: ignore
         expected_fields = ["fecha", "importe", "cliente", "concepto", "categoria", "tipo"]
-        extracted = asyncio.run(
-            provider.extract_fields(text[:4000], "unknown", expected_fields)
-        )
+        extracted = asyncio.run(provider.extract_fields(text[:4000], "unknown", expected_fields))
         if not extracted:
             return None
         doc_ai = DocumentoProcesado(
