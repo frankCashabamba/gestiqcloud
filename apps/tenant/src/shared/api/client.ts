@@ -4,7 +4,8 @@ import { env } from '../../env'
 import { TOKEN_KEY } from '../../constants/storage'
 
 const normalizedBase = (env.apiUrl || '').replace(/\/+$/g, '')
-const baseWithoutApiSuffix = normalizedBase.replace(/\/api$/i, '')
+// Quita sufijos /api o /api/v1 para evitar duplicar el prefijo en las rutas TENANT_AUTH.*
+const baseWithoutApiSuffix = normalizedBase.replace(/\/api(?:\/v1)?$/i, '')
 
 const api = createSharedClient({
   // Usa el host del backend provisto por la app y evita duplicar el prefijo /api

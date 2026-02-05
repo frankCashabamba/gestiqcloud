@@ -565,9 +565,16 @@ def delete_company(
     # Now proceed with cascade deletion
     try:
         dialect = getattr(db.get_bind().dialect, "name", "")
+        role_changed = False
         if dialect == "postgresql":
             # Temporarily disable triggers that can block admin deletion.
-            db.execute(text("SET session_replication_role = replica;"))
+            # En entornos gestionados (Render, RDS, etc.) la credencial app no es superuser
+            # y SET session_replication_role falla; continuamos sin abortar el borrado.
+            try:
+                db.execute(text("SET session_replication_role = replica;"))
+                role_changed = True
+            except Exception as e:
+                logger.warning("No se pudo desactivar triggers (continuando): %s", e)
 
         excluded_tables = {"audit_events", "auth_audit"}
 
@@ -609,8 +616,8 @@ def delete_company(
             )
             db.execute(text("DELETE FROM tenants WHERE id::text = :tid"), {"tid": tenant_uuid})
 
-        if dialect == "postgresql":
-            # Re-enable triggers
+        if dialect == "postgresql" and role_changed:
+            # Re-enable triggers solo si logramos cambiarlas
             db.execute(text("SET session_replication_role = DEFAULT;"))
 
         db.commit()
@@ -627,7 +634,7 @@ def delete_company(
     except Exception as e:
         # Re-enable triggers before rollback
         try:
-            if getattr(db.get_bind().dialect, "name", "") == "postgresql":
+            if getattr(db.get_bind().dialect, "name", "") == "postgresql" and role_changed:
                 db.execute(text("SET session_replication_role = DEFAULT;"))
         except Exception:
             pass

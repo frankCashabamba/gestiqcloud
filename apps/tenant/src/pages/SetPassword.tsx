@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import tenantApi from '../shared/api/client'
 import { TENANT_AUTH } from '@shared/endpoints'
@@ -15,6 +15,11 @@ export default function SetPassword() {
   const { success, error } = useToast()
   const { login } = useAuth()
   const nav = useNavigate()
+
+  // Precarga CSRF cookie para que /set-password pase el middleware CSRF del backend
+  useEffect(() => {
+    tenantApi.get(TENANT_AUTH.csrf).catch(() => {})
+  }, [])
 
   const onSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault()
