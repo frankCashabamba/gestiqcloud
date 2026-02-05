@@ -187,7 +187,7 @@ def get_public_modules(db: Session = Depends(get_db)):
 
     """
 
-    modules = mod_crud.listar_modules_publicos(db)
+    modules = mod_crud.list_public_modules(db)
 
     return [ModuloOutSchema.model_validate(_module_to_response(m)) for m in modules]
 

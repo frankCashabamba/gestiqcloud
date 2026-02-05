@@ -212,8 +212,8 @@ def obtener_modulos_de_usuario(db: Session, tenant_id: int, usuario_id: int):
     )
 
 
-def listar_modulos_publicos(db: Session) -> list[Module]:
-    """Function listar_modulos_publicos - auto-generated docstring."""
+def list_public_modules(db: Session) -> list[Module]:
+    """Return active public modules."""
     return db.query(Module).filter(Module.active).all()
 
 
