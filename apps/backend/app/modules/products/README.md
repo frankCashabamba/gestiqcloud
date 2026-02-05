@@ -4,7 +4,7 @@ Propósito: catálogo de productos, categorías y precios.
 
 ## Endpoints
 - Tenant: `interface/http/tenant.py` prefix `/products`.
-- Admin: `interface/http/admin.py` prefix `/admin/productos` (montado bajo `/api/v1`).
+- Admin: `interface/http/admin.py` prefix `/admin/products` (montado bajo `/api/v1`).
 - Público: `interface/http/public.py` prefix `/products`.
 
 ## Componentes clave

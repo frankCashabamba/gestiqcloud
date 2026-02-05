@@ -199,12 +199,6 @@ def build_api_router() -> APIRouter:
     include_router_safe(
         r, ("app.modules.products.interface.http.tenant", "router"), prefix="/tenant"
     )
-    # DEPRECATED: legacy Spanish route /productos for backward compatibility
-    include_router_safe(
-        r, ("app.modules.products.interface.http.tenant", "legacy_router"), prefix="/tenant"
-    )
-    include_router_safe(r, ("app.modules.products.interface.http.admin", "router"))
-
     # Empresas
     _mount_empresas(r)
     # Onboarding initialization
@@ -222,9 +216,9 @@ def build_api_router() -> APIRouter:
     )
 
     # Módulos
-    include_router_safe(r, ("app.modules.modulos.interface.http.admin", "router"))
-    include_router_safe(r, ("app.modules.modulos.interface.http.tenant", "router"))
-    include_router_safe(r, ("app.modules.modulos.interface.http.public", "router"))
+    include_router_safe(r, ("app.modules.modules_catalog.interface.http.admin", "router"))
+    include_router_safe(r, ("app.modules.modules_catalog.interface.http.tenant", "router"))
+    include_router_safe(r, ("app.modules.modules_catalog.interface.http.public", "router"))
 
     # Users (tenant) and admin
     include_router_safe(r, ("app.modules.users.interface.http.tenant", "router"))
@@ -254,7 +248,7 @@ def build_api_router() -> APIRouter:
     )
     # Inventario
     include_router_safe(
-        r, ("app.modules.inventario.interface.http.tenant", "router"), prefix="/tenant"
+        r, ("app.modules.inventory.interface.http.tenant", "router"), prefix="/tenant"
     )
     # Sales
     include_router_safe(r, ("app.modules.sales.interface.http.tenant", "router"), prefix="/tenant")
@@ -345,7 +339,7 @@ def build_api_router() -> APIRouter:
 
     # Finance
     include_router_safe(
-        r, ("app.modules.finanzas.interface.http.tenant", "router"), prefix="/tenant"
+        r, ("app.modules.finance.interface.http.tenant", "router"), prefix="/tenant"
     )
 
     # Production
@@ -397,7 +391,9 @@ def build_api_router() -> APIRouter:
     # (removed) Tenant onboarding/configuración inicial router (legacy)
 
     # Admin usuarios (router histórico): mantener mientras exista el panel actual
-    include_router_safe(r, ("app.routers.admin.usuarios", "router"), prefix="/admin/users")
+    include_router_safe(
+        r, ("app.modules.users.interface.http.admin_users", "router"), prefix="/admin/users"
+    )
 
     # Roles base: CRUD for roles and global permissions
     include_router_safe(

@@ -1,4 +1,4 @@
-// apps/tenant/src/modules/productos/actions/PurgeAll.tsx
+// apps/tenant/src/modules/products/actions/PurgeAll.tsx
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { purgeProductosConfirm, purgeProductosDryRun } from '../services'

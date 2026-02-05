@@ -1,14 +1,14 @@
-"""Module: configuracion_inventario.py
+"""Module: inventory_config.py
 
 Auto-generated module docstring."""
 
-# routers/configuracion_inventario.py
+# routers/inventory_config.py
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-import app.settings.crud.configuracion_inventario as crud
-import app.settings.schemas.configuracion_inventario as schemas
+import app.settings.crud.inventory_config as crud
+import app.settings.schemas.inventory_config as schemas
 from app.config.database import get_db
 
 router = APIRouter()

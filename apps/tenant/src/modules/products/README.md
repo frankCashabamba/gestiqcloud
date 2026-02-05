@@ -7,7 +7,7 @@ Módulo profesional de gestión de productos con configuración dinámica de cam
 ## 🏗️ Arquitectura
 
 ```
-apps/tenant/src/modules/productos/
+apps/tenant/src/modules/products/
 ├── List.tsx                    ✅ Lista con filtros, paginación, ordenamiento, export CSV
 ├── Form.tsx                    ✅ Formulario dinámico con config por sector
 ├── Routes.tsx                  ✅ Rutas configuradas (lista, nuevo, editar)
@@ -55,11 +55,11 @@ apps/tenant/src/modules/productos/
 ### **services.ts** - API Client
 - ✅ Tipos TypeScript completos con 30+ campos
 - ✅ CRUD completo:
-  - `listProductos()`: GET /api/v1/tenant/productos
-  - `getProducto(id)`: GET /api/v1/tenant/productos/:id
-  - `createProducto(data)`: POST /api/v1/tenant/productos
-  - `updateProducto(id, data)`: PUT /api/v1/tenant/productos/:id
-  - `removeProducto(id)`: DELETE /api/v1/tenant/productos/:id
+  - `listProductos()`: GET /api/v1/tenant/products
+  - `getProducto(id)`: GET /api/v1/tenant/products/:id
+  - `createProducto(data)`: POST /api/v1/tenant/products
+  - `updateProducto(id, data)`: PUT /api/v1/tenant/products/:id
+  - `removeProducto(id)`: DELETE /api/v1/tenant/products/:id
 - ✅ **Función de importación Excel**:
   - `importProductosExcel(file)`: POST /api/v1/imports/upload
   - Retorna batch_id e items_count
@@ -219,10 +219,10 @@ PAN-NE-L | 8412345678902 | Pantalón negro   | H&M   | L     | Negro | 15.00    
 
 ```bash
 # 1. Listar productos
-curl http://localhost:8000/api/v1/tenant/productos
+curl http://localhost:8000/api/v1/tenant/products
 
 # 2. Crear producto panadería
-curl -X POST http://localhost:8000/api/v1/tenant/productos \
+curl -X POST http://localhost:8000/api/v1/tenant/products \
   -H "Content-Type: application/json" \
   -d '{
     "codigo": "PAN001",
@@ -235,7 +235,7 @@ curl -X POST http://localhost:8000/api/v1/tenant/productos \
   }'
 
 # 3. Crear producto retail
-curl -X POST http://localhost:8000/api/v1/tenant/productos \
+curl -X POST http://localhost:8000/api/v1/tenant/products \
   -H "Content-Type: application/json" \
   -d '{
     "codigo": "CAM-AZ-M",
@@ -254,12 +254,12 @@ curl -X POST http://localhost:8000/api/v1/tenant/productos \
 curl "http://localhost:8000/api/v1/company/settings/fields?module=productos&empresa=kusi-panaderia"
 
 # 5. Actualizar producto
-curl -X PUT http://localhost:8000/api/v1/tenant/productos/{id} \
+curl -X PUT http://localhost:8000/api/v1/tenant/products/{id} \
   -H "Content-Type: application/json" \
   -d '{"precio": 3.00}'
 
 # 6. Eliminar producto
-curl -X DELETE http://localhost:8000/api/v1/tenant/productos/{id}
+curl -X DELETE http://localhost:8000/api/v1/tenant/products/{id}
 ```
 
 ### Casos de prueba por sector
@@ -378,7 +378,7 @@ if (producto.receta_id) {
 
 ## 📞 Endpoints del Backend
 
-### Base URL: `/api/v1/tenant/productos`
+### Base URL: `/api/v1/tenant/products`
 
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|

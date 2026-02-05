@@ -315,7 +315,7 @@ modulos | apps/backend/app/modules/modulos | apps/backend/app/modules/modulos/in
 pos | apps/backend/app/modules/pos | apps/backend/app/modules/pos/interface/http | PENDIENTE | apps/tenant/src/modules/pos | Parcial
 printing | apps/backend/app/modules/printing | apps/backend/app/modules/printing/interface/http | PENDIENTE | PENDIENTE | Pendiente
 production | apps/backend/app/modules/production | apps/backend/app/modules/production/interface/http | PENDIENTE | apps/tenant/src/modules/produccion | Parcial
-products | apps/backend/app/modules/products | apps/backend/app/modules/products/interface/http | PENDIENTE | apps/tenant/src/modules/productos | Parcial
+products | apps/backend/app/modules/products | apps/backend/app/modules/products/interface/http | PENDIENTE | apps/tenant/src/modules/products | Parcial
 purchases | apps/backend/app/modules/purchases | apps/backend/app/modules/purchases/interface/http | PENDIENTE | apps/tenant/src/modules/compras | Parcial
 reconciliation | apps/backend/app/modules/reconciliation | apps/backend/app/modules/reconciliation/interface/http | PENDIENTE | PENDIENTE | Pendiente
 registry | apps/backend/app/modules/registry | apps/backend/app/modules/registry/interface/http | PENDIENTE | PENDIENTE | Pendiente

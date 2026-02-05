@@ -1,13 +1,13 @@
-"""Module: crud_configuracion_empresa.py
+"""Module: company_config.py
 
 Auto-generated module docstring."""
 
-# crud/configuracion_empresa.py
+# crud/company_config.py
 
 from sqlalchemy.orm import Session
 
 from app.models import ConfiguracionEmpresa
-from app.settings.schemas.configuracion_empresa import (
+from app.settings.schemas.company_config import (
     ConfiguracionEmpresaCreate,
     ConfiguracionEmpresaUpdate,
 )

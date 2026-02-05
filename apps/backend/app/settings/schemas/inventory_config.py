@@ -1,8 +1,8 @@
-"""Module: configuracion_inventario.py
+"""Module: inventory_config.py
 
 Auto-generated module docstring."""
 
-# schemas/configuracion_inventario.py
+# schemas/inventory_config.py
 
 from pydantic import BaseModel, ConfigDict
 

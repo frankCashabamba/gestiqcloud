@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from app.modules.modulos.infrastructure.repositories import SqlModuloRepo
+from app.modules.modules_catalog.infrastructure.repositories import SqlModuloRepo
 from app.modules.shared.application.base import BaseUseCase
 
 

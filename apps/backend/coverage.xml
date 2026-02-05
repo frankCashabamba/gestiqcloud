@@ -1279,7 +1279,7 @@
 						<line number="358" hits="0"/>
 					</lines>
 				</class>
-				<class name="productos.py" filename="api/v1/tenant/productos.py" complexity="0" line-rate="0" branch-rate="0">
+				<class name="productos.py" filename="api/v1/tenant/products.py" complexity="0" line-rate="0" branch-rate="0">
 					<methods/>
 					<lines>
 						<line number="1" hits="0"/>

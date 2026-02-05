@@ -68,15 +68,15 @@ describe('Ventas manifest', () => {
 })
 
 describe('Productos manifest', () => {
-  it('should export productosManifest', async () => {
-    const { productosManifest } = await import('../modules/productos/manifest')
-    expect(productosManifest).toBeDefined()
+  it('should export productsManifest', async () => {
+    const { productsManifest } = await import('../modules/products/manifest')
+    expect(productsManifest).toBeDefined()
   })
 
   it('should have required properties', async () => {
-    const { productosManifest } = await import('../modules/productos/manifest')
-    expect(productosManifest).toHaveProperty('id')
-    expect(productosManifest).toHaveProperty('name')
+    const { productsManifest } = await import('../modules/products/manifest')
+    expect(productsManifest).toHaveProperty('id')
+    expect(productsManifest).toHaveProperty('name')
   })
 })
 

@@ -262,7 +262,7 @@ http://localhost:8082/kusi-panaderia/inventario
 
 ```bash
 # 1. Crear producto en módulo Productos
-curl -X POST http://localhost:8000/api/v1/tenant/productos \
+curl -X POST http://localhost:8000/api/v1/tenant/products \
   -H "Content-Type: application/json" \
   -d '{"codigo":"TEST001","nombre":"Producto Test","precio":10,"stock_minimo":10,"activo":true}'
 

@@ -524,10 +524,10 @@ except Exception as e:
 #
 # Routers eliminados:
 # - POS → app/modules/pos/interface/http/tenant.py
-# - Products → app/modules/productos/interface/http/tenant.py
+# - Products → app/modules/products/interface/http/tenant.py
 # - Payments → app/modules/reconciliation/interface/http/tenant.py (pendiente)
 # - E-invoicing → app/modules/einvoicing/interface/http/tenant.py
-# - Finance → app/modules/finanzas/interface/http/tenant.py
+# - Finance → app/modules/finance/interface/http/tenant.py
 # - HR → app/modules/rrhh/interface/http/tenant.py
 # - Production → app/modules/produccion/interface/http/tenant.py
 # - Accounting → app/modules/contabilidad/interface/http/tenant.py
@@ -545,9 +545,9 @@ _router_logger.info("Company Settings routers mounted via build_api_router()")
 
 # Sector Templates (Plantillas de Sector)
 try:
-    from app.routers.sector_plantillas import router as sector_plantillas_router
+    from app.routers.sector_templates import router as sector_templates_router
 
-    app.include_router(sector_plantillas_router)  # Prefix="/api/v1/sectores"
+    app.include_router(sector_templates_router)  # Prefix="/api/v1/sectores"
     _router_logger.info("Sector Templates router mounted")
 except Exception as e:
     _router_logger.error(f"Error mounting Sector Templates router: {e}")

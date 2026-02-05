@@ -28,7 +28,7 @@ try:
 except Exception:
     pass
 try:
-    import app.modules.finanzas.infrastructure.models  # noqa: F401
+    import app.modules.finance.infrastructure.models  # noqa: F401
 except Exception:
     pass
 try:

@@ -9,9 +9,9 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
-from app.modules.modulos.application.use_cases import ListarModulosAsignadosTenant
-from app.modules.modulos.infrastructure.repositories import SqlModuloRepo
-from app.modules.modulos.interface.http.schemas import ModuloOutSchema
+from app.modules.modules_catalog.application.use_cases import ListarModulosAsignadosTenant
+from app.modules.modules_catalog.infrastructure.repositories import SqlModuloRepo
+from app.modules.modules_catalog.interface.http.schemas import ModuloOutSchema
 
 router = APIRouter(
     prefix="/modules",

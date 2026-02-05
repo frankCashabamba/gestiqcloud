@@ -42,14 +42,14 @@ timeout 0
 
 ## Endpoints que Usan Cache
 
-### Productos (`/api/v1/productos`)
+### Productos (`/api/v1/products`)
 
 ```python
-# GET /api/v1/productos - Lista de productos
+# GET /api/v1/products - Lista de productos
 # Key: cache:tenant:{tenant_id}:productos:list:{hash_params}
 # TTL: 300 segundos
 
-# GET /api/v1/productos/{id} - Producto individual
+# GET /api/v1/products/{id} - Producto individual
 # Key: cache:tenant:{tenant_id}:productos:detail:{id}
 # TTL: 300 segundos
 ```
@@ -131,7 +131,7 @@ cache:tenant:550e8400-e29b-41d4-a716-446655440000:empresa:config
 ```python
 from app.core.cache import cached, CacheTTL
 
-@router.get("/productos")
+@router.get("/products")
 @cached(ttl=CacheTTL.PRODUCTOS, key_builder=lambda tenant_id, **kwargs: f"productos:list:{hash(frozenset(kwargs.items()))}")
 async def listar_productos(
     tenant_id: UUID = Depends(get_current_tenant),

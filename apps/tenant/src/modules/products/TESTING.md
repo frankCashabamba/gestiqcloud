@@ -16,7 +16,7 @@
 
 ```bash
 # 1. Listar productos (debería estar vacío inicialmente)
-curl http://localhost:8000/api/v1/tenant/productos \
+curl http://localhost:8000/api/v1/tenant/products \
   -H "Cookie: session_id=TU_SESSION_ID"
 
 # Resultado esperado: []
@@ -52,7 +52,7 @@ curl "http://localhost:8000/api/v1/company/settings/fields?module=productos&empr
 
 **Producto Panadería:**
 ```bash
-curl -X POST http://localhost:8000/api/v1/tenant/productos \
+curl -X POST http://localhost:8000/api/v1/tenant/products \
   -H "Content-Type: application/json" \
   -H "Cookie: session_id=TU_SESSION_ID" \
   -d '{
@@ -72,7 +72,7 @@ curl -X POST http://localhost:8000/api/v1/tenant/productos \
 
 **Producto Retail:**
 ```bash
-curl -X POST http://localhost:8000/api/v1/tenant/productos \
+curl -X POST http://localhost:8000/api/v1/tenant/products \
   -H "Content-Type: application/json" \
   -H "Cookie: session_id=TU_SESSION_ID" \
   -d '{

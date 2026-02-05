@@ -1,4 +1,4 @@
-// apps/tenant/src/modules/productos/productsApi.ts
+// apps/tenant/src/modules/products/productsApi.ts
 // Centralized API client for products and categories
 import { apiFetch } from '../../lib/http'
 

@@ -1,4 +1,4 @@
-// apps/tenant/src/modules/productos/Routes.tsx
+// apps/tenant/src/modules/products/Routes.tsx
 import React from 'react'
 import { Route, Routes as RouterRoutes } from 'react-router-dom'
 import ProductosList from './List'

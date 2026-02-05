@@ -60,7 +60,7 @@ result = parser_info["handler"]("path/to/products.csv")
     <sku>LAP-001</sku>
     <categoria>Electrónica</categoria>
   </producto>
-</productos>
+</products>
 ```
 
 ---

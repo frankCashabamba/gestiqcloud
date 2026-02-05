@@ -1,4 +1,4 @@
-"""Module: rolesempresas.py
+"""Module: company_roles.py
 
 Auto-generated module docstring."""
 
@@ -11,7 +11,12 @@ from app.config.database import get_db
 from app.models import CompanyRole
 from app.routers.protected import get_current_user
 from app.schemas.configuracion import AuthenticatedUser
-from app.settings.schemas.roles.roleempresas import RolCreate, RolEmpresaOut, RolResponse, RolUpdate
+from app.settings.schemas.roles.company_roles import (
+    RolCreate,
+    RolEmpresaOut,
+    RolResponse,
+    RolUpdate,
+)
 
 router = APIRouter(prefix="/api/roles", tags=["Roles"])
 

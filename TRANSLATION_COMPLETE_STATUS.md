@@ -97,7 +97,7 @@ Los siguientes archivos no fueron encontrados o tienen nombres que requieren val
 ## Backend (Python) - Estado
 
 Los directorios backend ya están organizados principalmente en inglés:
-- `/api/v1/tenant/productos` → productos.py (necesita mapeo en rutas)
+- `/api/v1/tenant/products` → productos.py (necesita mapeo en rutas)
 - `/api/v1/tenant/accounting/movimientos` → tenant.py
 - `/api/v1/imports/*` → services.ts (necesita revisar nombramiento)
 

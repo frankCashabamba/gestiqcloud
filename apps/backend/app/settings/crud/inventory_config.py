@@ -1,13 +1,13 @@
-"""Module: configuracion_inventario.py
+"""Module: inventory_config.py
 
 Auto-generated module docstring."""
 
-# crud/configuracion_inventario.py
+# crud/inventory_config.py
 
 from sqlalchemy.orm import Session
 
 from app.models import ConfiguracionInventarioEmpresa
-from app.settings.schemas.configuracion_inventario import (
+from app.settings.schemas.inventory_config import (
     ConfiguracionInventarioCreate,
     ConfiguracionInventarioUpdate,
 )

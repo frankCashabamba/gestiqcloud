@@ -1,4 +1,4 @@
-// apps/tenant/src/modules/productos/CategoriasModal.tsx
+// apps/tenant/src/modules/products/CategoriasModal.tsx
 import React, { useEffect, useState } from 'react'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { listCategorias, createCategoria, deleteCategoria, type Categoria } from './productsApi'

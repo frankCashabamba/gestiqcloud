@@ -66,7 +66,7 @@ export const API_ENDPOINTS = {
     health: '/health',
     status: '/api/v1/status',
     login: '/api/v1/auth/login',
-    productos: '/api/v1/productos',
+    productos: '/api/v1/products',
     ventas: '/api/v1/ventas',
     clientes: '/api/v1/clientes',
 };

@@ -117,9 +117,7 @@ class ProductOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ============================================================================
 # CATEGORÍAS - DEBEN IR ANTES DE LAS RUTAS DINÁMICAS /{product_id}
-# ============================================================================
 
 
 class CategoryIn(BaseModel):
@@ -241,9 +239,7 @@ def delete_category(category_id: str, request: Request, db: Session = Depends(ge
     return
 
 
-# ============================================================================
 # PRODUCTOS - RUTAS GENERALES
-# ============================================================================
 
 
 @router.get("", response_model=list[ProductOut])
@@ -442,9 +438,7 @@ def update_product(
     return obj
 
 
-# ============================================================================
 # OPERACIONES INDIVIDUALES DE PRODUCTOS
-# ============================================================================
 
 
 @router.delete("/{product_id}", status_code=204, dependencies=protected)
@@ -726,21 +720,3 @@ def bulk_assign_category(payload: BulkCategoryIn, request: Request, db: Session 
         "category_created": category_created,
         "category_name": payload.category_name,
     }
-
-
-# ============================================================================
-# DEPRECATED: Legacy Spanish router /productos for backward compatibility
-# ============================================================================
-# This router mirrors /products routes under /productos prefix
-# Clients should migrate to /products - this alias will be removed in Q2 2026
-
-legacy_router = APIRouter(
-    prefix="/productos",
-    tags=["Products"],
-    deprecated=True,
-)
-
-# Re-export all routes from main router with deprecated flag
-for route in router.routes:
-    if hasattr(route, "methods"):
-        legacy_router.routes.append(route)

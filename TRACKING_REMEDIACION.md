@@ -164,7 +164,7 @@
   - [ ] Desglose: ingredientes + labor + overhead
 
 - [ ] Frontend: Hook para preview
-  - [ ] `apps/tenant/src/modules/productos/hooks/useRecipeCostCalculator.ts`
+  - [ ] `apps/tenant/src/modules/products/hooks/useRecipeCostCalculator.ts`
   - [ ] Componente `RecipeCostPreview`
   - [ ] Mostrar margen/rentabilidad
 
@@ -173,9 +173,9 @@
 ### Archivos a Modificar
 ```
 ✏️ NEW  apps/packages/shared/src/calculations/recipeEngine.ts
-✏️ NEW  apps/tenant/src/modules/productos/hooks/useRecipeCostCalculator.ts
-✏️ NEW  apps/tenant/src/modules/productos/components/RecipeCostPreview.tsx
-✏️ MOD  apps/tenant/src/modules/productos/Form.tsx
+✏️ NEW  apps/tenant/src/modules/products/hooks/useRecipeCostCalculator.ts
+✏️ NEW  apps/tenant/src/modules/products/components/RecipeCostPreview.tsx
+✏️ MOD  apps/tenant/src/modules/products/Form.tsx
 ```
 
 ---

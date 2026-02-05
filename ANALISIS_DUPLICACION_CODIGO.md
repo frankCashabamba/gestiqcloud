@@ -137,7 +137,7 @@ El análisis identificó y solucionó **3 puntos críticos** en la arquitectura 
 
 #### Frontend
 - **Ubicación**: NO EXISTE código equivalente en frontend
-- **Cálculos relacionados**: `apps/tenant/src/modules/productos/Form.tsx` (L240)
+- **Cálculos relacionados**: `apps/tenant/src/modules/products/Form.tsx` (L240)
   - Simple margin: `((price - cost) / cost) * 100`
   - Solo cálculo superficial, sin detalles de ingredientes
 

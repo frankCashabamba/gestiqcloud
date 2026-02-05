@@ -1,4 +1,4 @@
-// apps/tenant/src/modules/productos/manifest.ts
+// apps/tenant/src/modules/products/manifest.ts
 export const productosManifest = {
   id: 'products',
   name: 'Productos',

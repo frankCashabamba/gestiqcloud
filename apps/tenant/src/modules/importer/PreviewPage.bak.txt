@@ -299,7 +299,7 @@ export default function PreviewPage() {
       })
       if (!res.ok) throw new Error('Error al promover')
       alert('Lote promovido exitosamente')
-      navigate('../productos')
+      navigate('../products')
     } catch (err: any) {
       alert(`Error: ${err.message}`)
     } finally {

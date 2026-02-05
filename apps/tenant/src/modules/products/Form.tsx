@@ -1,4 +1,4 @@
-// apps/tenant/src/modules/productos/Form.tsx
+// apps/tenant/src/modules/products/Form.tsx
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { createProducto, getProducto, updateProducto, listCategorias, type Producto, type Categoria } from './productsApi'
