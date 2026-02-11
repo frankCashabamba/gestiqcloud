@@ -332,17 +332,47 @@ def _sector_kpis_payload(
             or 0.0
         )
 
-        # STOCK ROTATION (best selling vs least selling products)
-        _rotation = (
+        # STOCK ROTATION (ventas últimas 4 semanas + stock disponible)
+        rotation_counts = db.execute(
+            text(
+                f"""
+        WITH sales AS (
+            SELECT prl.product_id, SUM(prl.qty) AS units
+            FROM pos_receipt_lines prl
+            JOIN pos_receipts pr ON pr.id = prl.receipt_id
+            WHERE {tenant_clause('pr.tenant_id::text')}
+              AND pr.status IN ('paid', 'invoiced')
+              AND DATE(pr.created_at) >= :month_start
+            GROUP BY prl.product_id
+        ),
+        buckets AS (
+            SELECT
+              SUM(CASE WHEN units >= :high_threshold THEN 1 ELSE 0 END) AS high_rotation,
+              SUM(CASE WHEN units > 0 AND units < :high_threshold THEN 1 ELSE 0 END) AS low_rotation
+            FROM sales
+        )
+        SELECT COALESCE(high_rotation, 0) AS high_rotation,
+               COALESCE(low_rotation, 0) AS low_rotation
+        FROM buckets
+        """
+            ),
+            tenant_params(month_start=month_start, high_threshold=20),
+        ).first()
+
+        replenish_needed = (
             db.execute(
                 text(
                     f"""
-            SELECT COUNT(DISTINCT p.id) as total
-            FROM products p
-            WHERE {tenant_clause('p.tenant_id::text')}
+            SELECT COUNT(*) FROM (
+              SELECT product_id, COALESCE(SUM(qty), 0) AS qty
+              FROM stock_items
+              WHERE {tenant_clause('tenant_id::text')}
+              GROUP BY product_id
+            ) s
+            WHERE qty < :min_stock
         """
                 ),
-                tenant_params(),
+                tenant_params(min_stock=5),
             ).scalar()
             or 0
         )
@@ -355,9 +385,9 @@ def _sector_kpis_payload(
                 "currency": currency,
             },
             "stock_rotation": {
-                "high_rotation_products": 0,
-                "low_rotation_products": 0,
-                "replenishment_needed": 0,
+                "high_rotation_products": int(rotation_counts[0] if rotation_counts else 0),
+                "low_rotation_products": int(rotation_counts[1] if rotation_counts else 0),
+                "replenishment_needed": int(replenish_needed),
             },
             "weekly_comparison": {
                 "current": float(weekly_sales),

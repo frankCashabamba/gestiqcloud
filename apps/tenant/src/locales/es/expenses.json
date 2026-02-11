@@ -1,0 +1,23 @@
+{
+  "title": "Gastos",
+  "new": "Nuevo Gasto",
+  "empty": "Sin registros",
+  "stats": {
+    "total": "Total",
+    "pending": "Pendiente"
+  },
+  "filters": {
+    "from": "Desde",
+    "to": "Hasta",
+    "conceptPlaceholder": "Concepto..."
+  },
+  "table": {
+    "date": "Fecha",
+    "concept": "Concepto",
+    "amount": "Monto"
+  },
+  "messages": {
+    "deleted": "Gasto eliminado"
+  },
+  "confirmDelete": "¿Eliminar gasto?"
+}

@@ -78,11 +78,7 @@ def get_tenant_config(
             template_inventory = template_config.get("inventory", {}) or {}
             sector_features = template_config.get("features", {})
 
-    currency = (
-        settings_row.currency
-        if settings_row and settings_row.currency
-        else (tenant.base_currency if tenant else None)
-    )
+    currency = settings_row.currency if settings_row and settings_row.currency else None
     locale = (
         settings_row.default_language if settings_row and settings_row.default_language else None
     )
@@ -216,7 +212,7 @@ def get_tenant_config(
             "name": tenant.name if tenant else "",
             "color_primario": (tenant.primary_color if tenant else None),
             "plantilla_inicio": (tenant.default_template if tenant else None),
-            "currency": (currency or (tenant.base_currency if tenant else None)),
+            "currency": currency,
             "country": (tenant.country_code or tenant.country) if tenant else None,
             "config_json": (
                 settings_obj.get("template_config") if isinstance(settings_obj, dict) else {}

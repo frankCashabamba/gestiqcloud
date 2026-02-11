@@ -7,6 +7,7 @@ export default function ModuleManagement() {
   const [modulos, setModulos] = useState<Module[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set())
 
   const { success, error: toastError } = useToast()
   useEffect(() => {
@@ -70,6 +71,7 @@ export default function ModuleManagement() {
               <td className="py-2 px-3">{m.name}</td>
               <td className="py-2 px-3">{m.icon || '-'}</td>
               <td className="py-2 px-3">
+                {blockedIds.has(String(m.id)) && <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded mr-2">Asignado</span>}
                 <Link to={`editar/${m.id}`} className="text-blue-600 hover:underline mr-3">Editar</Link>
                 {m.active ? (
                   <button className="text-yellow-700 mr-3" onClick={async () => {
@@ -93,8 +95,44 @@ export default function ModuleManagement() {
                   try {
                     await removeModulo(m.id)
                     setModulos((prev) => prev.filter(x => x.id !== m.id))
+                    setBlockedIds((prev) => {
+                      const next = new Set(prev)
+                      next.delete(String(m.id))
+                      return next
+                    })
                     success('Módulo eliminado')
-                  } catch(e:any) { toastError(getErrorMessage(e)) }
+                  } catch(e:any) {
+                    const status = e?.response?.status
+                    if (status === 404) {
+                      // El backend ya no tiene el módulo; limpiamos el UI.
+                      setModulos((prev) => prev.filter(x => x.id !== m.id))
+                      toastError('El módulo ya no existe; se removió del listado')
+                    } else if (status === 409) {
+                      const confirmForce = confirm('El módulo está asignado a uno o más tenants. ¿Desasignar de todos y eliminar?')
+                      if (!confirmForce) {
+                        setBlockedIds((prev) => {
+                          const next = new Set(prev)
+                          next.add(String(m.id))
+                          return next
+                        })
+                        return
+                      }
+                      try {
+                        await removeModulo(m.id, { force: true })
+                        setModulos((prev) => prev.filter(x => x.id !== m.id))
+                        setBlockedIds((prev) => {
+                          const next = new Set(prev)
+                          next.delete(String(m.id))
+                          return next
+                        })
+                        success('Desasignado de todos los tenants y eliminado')
+                      } catch(inner:any) {
+                        toastError(getErrorMessage(inner))
+                      }
+                    } else {
+                      toastError(getErrorMessage(e))
+                    }
+                  }
                 }}>Eliminar</button>
               </td>
             </tr>

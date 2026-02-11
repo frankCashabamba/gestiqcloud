@@ -6,7 +6,7 @@ const FichajesView = React.lazy(() => import('./FichajesView'))
 const NominaView = React.lazy(() => import('./NominaView'))
 
 export const manifest = {
-  id: 'rrhh',
+  id: 'hr',
   name: 'HR',
   version: '1.0.0',
   permissions: ['rrhh.read', 'rrhh.write'],

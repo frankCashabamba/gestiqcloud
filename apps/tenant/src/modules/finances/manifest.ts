@@ -4,7 +4,7 @@ const CajaList = React.lazy(() => import('./CajaList'))
 const BancoList = React.lazy(() => import('./BancoList'))
 
 export const manifest = {
-  id: 'finanzas',
+  id: 'finances',
   name: 'Finance',
   version: '1.0.0',
   permissions: ['finanzas.read', 'finanzas.write'],

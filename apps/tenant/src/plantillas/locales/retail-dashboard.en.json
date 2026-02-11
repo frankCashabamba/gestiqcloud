@@ -1,0 +1,64 @@
+{
+  "retailDashboard": {
+    "title": "Retail dashboard",
+    "welcome": {
+      "title": "Welcome to your ERP",
+      "description": "Start by adding your customers. Other modules will unlock as you progress.",
+      "button": "Go to Customers"
+    },
+    "todayOverview": {
+      "title": "Today overview",
+      "storeOpen": "Store open",
+      "storeClosed": "Store closed",
+      "tickets": "{{count}} tickets",
+      "avgTicket": "Avg ticket: {{symbol}}{{value}}"
+    },
+    "quickActions": {
+      "title": "Quick actions",
+      "newSale": "New sale",
+      "createPromotion": "Create promotion",
+      "newCustomer": "New customer"
+    },
+    "quickActionsTitles": {
+      "newSale": "Create a new sale",
+      "createPromotion": "Create a new promotion",
+      "newCustomer": "Add a new customer",
+      "cashClose": "Close the cash register",
+      "inventory": "View inventory",
+      "replenishment": "Manage stock replenishment"
+    },
+    "cardActions": {
+      "cashClose": "Cash close",
+      "inventory": "Inventory",
+      "replenishment": "Replenishment",
+      "customers": "Customers"
+    },
+    "cardHeaders": {
+      "salesToday": "Sales today",
+      "weeklyComparison": "Weekly comparison",
+      "stockRotation": "Stock rotation"
+    },
+    "kpiLabels": {
+      "total": "Total",
+      "tickets": "Tickets",
+      "avgTicket": "Avg ticket",
+      "thisWeek": "This week",
+      "lastWeek": "Last week"
+    },
+    "stockLabels": {
+      "highRotation": "High rotation",
+      "lowRotation": "Low rotation",
+      "replenishNow": "Replenish now",
+      "products": "products",
+      "openInventory": "Open inventory"
+    },
+    "customLinks": {
+      "stockReplenishment": "Stock replenishment",
+      "promotions": "Promotions",
+      "salesAnalysis": "Sales analysis"
+    },
+    "moduleRequired": "{{module}} module required",
+    "notAvailable": "This action is not available",
+    "sectorName": "Retail ERP"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "title": "Clientes",
+  "new": "Nuevo Cliente",
+  "empty": "Sin registros",
+  "searchPlaceholder": "Buscar por nombre o email...",
+  "table": {
+    "name": "Nombre",
+    "email": "Email",
+    "phone": "Teléfono",
+    "wholesale": "Mayorista"
+  },
+  "messages": {
+    "deleted": "Cliente eliminado"
+  },
+  "confirmDelete": "¿Eliminar cliente?"
+}

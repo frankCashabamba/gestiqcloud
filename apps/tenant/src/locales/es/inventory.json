@@ -1,0 +1,96 @@
+{
+  "title": "Inventario",
+  "subtitle": "Existencias por almacén",
+  "warehouse": "Almacén",
+  "code": "Código",
+  "product": "Producto",
+  "stock": "Stock",
+  "location": "Ubicación",
+  "batch": "Lote",
+  "expiry": "Vencimiento",
+  "status": "Estado",
+  "min": "Stock mínimo",
+  "max": "Stock máximo",
+  "ok": "OK",
+  "low": "Stock bajo",
+  "over": "Stock alto",
+  "table": {
+    "warehouse": "Almacén",
+    "code": "Código",
+    "product": "Producto",
+    "stock": "Stock",
+    "location": "Ubicación",
+    "batch": "Lote",
+    "expiry": "Vencimiento",
+    "status": "Estado"
+  },
+  "status": {
+    "lowStock": "Stock bajo",
+    "overstock": "Sobrestok",
+    "ok": "OK"
+  },
+  "kpi": {
+    "totalProducts": "Total de productos",
+    "totalValue": "Valor total del stock",
+    "lowStock": "Alertas de stock bajo",
+    "overstock": "Sobrestok"
+  },
+  "empty": {
+    "noStock": "No hay stock registrado",
+    "createFirst": "Crear primer movimiento",
+    "noFound": "No se encontraron productos con esos filtros"
+  },
+  "filters": {
+    "search": "Buscar",
+    "warehouse": "Almacén",
+    "alert": "Alerta",
+    "all": "Todos",
+    "low": "Bajo",
+    "over": "Sobre",
+    "perPage": "Por página"
+  },
+  "quickAdjust": {
+    "missingWarehouse": "Crea un almacén primero",
+    "productPrompt": "ID de producto (UUID)",
+    "qtyPrompt": "Cantidad a ajustar (ej. 10 o -5)"
+  },
+  "form": {
+    "title": "Nuevo movimiento de stock",
+    "movementType": "Tipo de movimiento",
+    "selectProduct": "Selecciona un producto...",
+    "selectWarehouse": "Selecciona un almacén...",
+    "quantity": "Cantidad",
+    "inbound": "entrada",
+    "outbound": "salida",
+    "placeholderInbound": "Ej: 100 (se añadirá)",
+    "placeholderOutbound": "Ej: 10 (se restará)",
+    "batch": "Lote (opcional)",
+    "expiry": "Vencimiento (opcional)",
+    "notes": "Notas (opcional)",
+    "notesPlaceholder": "Descripción adicional del movimiento...",
+    "registerMovement": "Registrar movimiento",
+    "warehouseEmpty": "Este almacén está vacío. Puedes inicializarlo con todos los productos.",
+    "applyAll": "Aplicar a todos los productos (solo si el almacén está vacío)",
+    "appliedAll": "Se aplicará a todos los productos",
+    "initWarehouse": "Inicializar almacén"
+  },
+  "movements": {
+    "purchase": "Entrada de compra",
+    "production": "Entrada de producción",
+    "return": "Devolución de cliente",
+    "sale": "Salida de venta",
+    "loss": "Pérdida/Merma",
+    "adjustment": "Ajuste manual"
+  },
+  "messages": {
+    "movementCreated": "Movimiento registrado",
+    "warehouseInit": "Almacén inicializado: {{ok}} productos{{ko}}",
+    "withErrors": "con errores"
+  },
+  "errors": {
+    "selectProduct": "Selecciona un producto",
+    "selectWarehouse": "Selecciona un almacén",
+    "quantityNonZero": "La cantidad debe ser diferente de 0",
+    "invalidQty": "Cantidad inválida"
+  }
+}

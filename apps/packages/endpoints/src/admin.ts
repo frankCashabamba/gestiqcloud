@@ -9,6 +9,7 @@ export const ADMIN_MODULES = {
   public: '/v1/admin/modules/public',
   base: '/v1/admin/modules',
   byId: (id: number | string) => `/v1/admin/modules/${id}`,
+  byIdForce: (id: number | string) => `/v1/admin/modules/${id}?force=true`,
   activate: (id: number | string) => `/v1/admin/modules/${id}/activate`,
   deactivate: (id: number | string) => `/v1/admin/modules/${id}/deactivate`,
   register: '/v1/admin/modules/register-modules',

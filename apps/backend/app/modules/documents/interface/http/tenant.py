@@ -29,22 +29,24 @@ def _resolve_tenant_currency(db: Session, tenant_id: str) -> str:
     row = db.execute(
         text(
             """
-            SELECT cs.currency, t.base_currency
-            FROM tenants t
-            LEFT JOIN company_settings cs ON cs.tenant_id = t.id
-            WHERE t.id = :tid
+            SELECT COALESCE(
+                NULLIF(UPPER(TRIM(cs.currency)), ''),
+                NULLIF(UPPER(TRIM(cur.code)), '')
+            )
+            FROM company_settings cs
+            LEFT JOIN currencies cur ON cur.id = cs.currency_id
+            WHERE cs.tenant_id = :tid
             LIMIT 1
             """
         ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
         {"tid": tenant_uuid},
     ).first()
     if row:
-        cs_cur, base_cur = row
-        for val in (cs_cur, base_cur):
-            if val:
-                cur = str(val).strip().upper()
-                if cur and len(cur) == 3 and cur.isalpha():
-                    return cur
+        cur = row[0]
+        if cur:
+            cur = str(cur).strip().upper()
+            if cur and len(cur) == 3 and cur.isalpha():
+                return cur
     raise HTTPException(status_code=400, detail="currency_not_configured")
 
 

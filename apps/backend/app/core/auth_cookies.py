@@ -21,7 +21,7 @@ class TokenCookieConfig(BaseModel):
     REFRESH_TOKEN_COOKIE: str = "refresh_token"
 
     # Tiempos de expiración
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
     # Flags de seguridad
@@ -41,7 +41,7 @@ def set_access_token_cookie(
     Args:
         response: FastAPI Response object
         token: JWT token string
-        expires_delta: Tiempo de expiración (default: 15 min)
+        expires_delta: Tiempo de expiración (default: 60 min)
     """
     config = TokenCookieConfig()
 

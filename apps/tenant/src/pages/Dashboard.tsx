@@ -26,7 +26,11 @@ export default function Dashboard() {
           <div style={{ color: 'var(--color-muted)' }}>No hay módulos contratados para esta empresa.</div>
         )}
         {!loading && modules.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: 12
+          }}>
           {[...modules].sort((a,b) => (a.name || '').localeCompare(b.name || '')).map((m) => {
             const to = prefix + (m.url || `/${(m.name || '').toLowerCase()}`)
             return (

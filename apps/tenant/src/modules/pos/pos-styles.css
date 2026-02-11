@@ -20,7 +20,8 @@
 .tpv {
   display: grid;
   grid-template-columns: minmax(520px, 2.2fr) minmax(320px, 1fr);
-  grid-template-rows: 64px 1fr 64px;
+  /* let the header grow when buttons wrap instead of overlapping content */
+  grid-template-rows: minmax(64px, auto) 1fr 64px;
   grid-template-areas:
     "top top"
     "left right"
@@ -47,7 +48,7 @@
 @media (max-width: 1100px) {
   .tpv {
     grid-template-columns: 1fr;
-    grid-template-rows: 64px auto auto 64px;
+    grid-template-rows: minmax(64px, auto) auto auto 64px;
     grid-template-areas:
       "top"
       "left"
@@ -62,12 +63,14 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 12px;
+  row-gap: 10px;
+  padding: 10px 12px;
   background: var(--pos-surface);
   border-bottom: 1px solid var(--pos-border);
   position: sticky;
   top: 0;
   z-index: 10;
+  flex-wrap: wrap;
 }
 
 .tpv .brand {
@@ -75,6 +78,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 220px;
 }
 
 .tpv .shift-pill {
@@ -121,6 +125,9 @@
   color: var(--pos-muted);
   white-space: nowrap;
   background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .tpv .badge.ok {
@@ -187,14 +194,31 @@
 
 .tpv .top-actions {
   display: flex;
-  gap: 6px;
+  gap: 10px;
+  row-gap: 12px;
   flex-wrap: wrap;
+  width: 100%;
+  justify-content: flex-start;
+  padding-top: 4px;
+  border-top: 1px dashed var(--pos-border);
+  border-bottom: 1px dashed var(--pos-border);
 }
 
 .tpv .top-actions .btn.sm {
   height: 34px;
-  padding: 0 10px;
+  padding: 0 12px;
   font-size: 13px;
+  min-width: 110px;
+  justify-content: center;
+}
+
+.tpv .top-meta {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 /* Left Column (Catalog) */

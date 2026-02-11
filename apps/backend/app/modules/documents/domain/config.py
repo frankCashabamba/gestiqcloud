@@ -5,7 +5,8 @@ from pydantic import BaseModel
 
 class TenantDocConfig(BaseModel):
     country: str = "EC"
-    document_mode_default: str = "TICKET_NO_FISCAL"
+    # Dejar vacío: IDENTIFIED => FACTURA; CONSUMER_FINAL => ticket (lo decide el pack)
+    document_mode_default: str = ""
     render_format_default: str = "THERMAL_80MM"
     buyer_policy: dict = {}
     tax_profile: dict = {}

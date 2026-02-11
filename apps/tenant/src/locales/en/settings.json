@@ -1,0 +1,66 @@
+{
+  "title": "Settings",
+  "subtitle": "Configure your application",
+  "new": "New Setting",
+  "search": "Search settings",
+  "empty": "No settings found",
+  "edit": "Edit",
+  "delete": "Delete",
+  "confirmDelete": "Are you sure you want to delete this setting?",
+  "actions": "Actions",
+  "messages": {
+    "created": "Setting created successfully",
+    "updated": "Setting updated successfully",
+    "deleted": "Setting deleted successfully"
+  },
+  "groups": {
+    "company": "Company",
+    "operation": "Operation",
+    "communications": "Communications",
+    "planControl": "Plan & Control"
+  },
+  "sections": {
+    "general": "General",
+    "branding": "Branding",
+    "fiscal": "Fiscal",
+    "operativo": "Operational",
+    "horarios": "Hours",
+    "notificaciones": "Notifications",
+    "modulos": "Modules",
+    "avanzado": "Advanced"
+  },
+  "cards": {
+    "general": {
+      "label": "General",
+      "desc": "Basic business information"
+    },
+    "branding": {
+      "label": "Branding",
+      "desc": "Logo and colors"
+    },
+    "fiscal": {
+      "label": "Fiscal",
+      "desc": "Tax ID and regime"
+    },
+    "operativo": {
+      "label": "Operational",
+      "desc": "POS and inventory"
+    },
+    "horarios": {
+      "label": "Hours",
+      "desc": "Opening and closing times"
+    },
+    "notificaciones": {
+      "label": "Notifications",
+      "desc": "Email, WhatsApp, Telegram"
+    },
+    "modulos": {
+      "label": "Modules",
+      "desc": "Enable or disable features"
+    },
+    "avanzado": {
+      "label": "Advanced",
+      "desc": "JSON and integrations"
+    }
+  }
+}

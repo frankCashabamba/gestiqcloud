@@ -1,5 +1,7 @@
 import React from 'react'
 import { Navigate, Route, Routes as RouterRoutes } from 'react-router-dom'
+import ProtectedRoute from '../../auth/ProtectedRoute'
+import PermissionDenied from '../../components/PermissionDenied'
 import Panel, { MovimientosPage } from './Panel'
 import ChartOfAccountsList from './ChartOfAccountsList'
 import ChartOfAccountsForm from './ChartOfAccountsForm'
@@ -15,6 +17,10 @@ import PaymentMethods from './components/PaymentMethods'
 
 export default function ContabilidadRoutes() {
     return (
+        <ProtectedRoute
+            permission="accounting:read"
+            fallback={<PermissionDenied permission="accounting:read" />}
+        >
         <RouterRoutes>
             <Route element={<Panel />}>
                 <Route index element={<Navigate to="dashboard" replace />} />
@@ -37,5 +43,6 @@ export default function ContabilidadRoutes() {
                 <Route path="*" element={<Navigate to="dashboard" replace />} />
             </Route>
         </RouterRoutes>
+        </ProtectedRoute>
     )
 }

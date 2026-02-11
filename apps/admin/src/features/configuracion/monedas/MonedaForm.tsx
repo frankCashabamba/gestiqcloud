@@ -10,10 +10,15 @@ export default function MonedaForm() {
   const nav = useNavigate()
   const [form, setForm] = useState<FormT>({ code: '', name: '', symbol: '', active: true })
   const { success, error } = useToast()
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (id) {
-      getMoneda(id).then((m) => setForm({ code: m.code, name: m.name, symbol: m.symbol, active: m.active })).catch(() => {})
+      setLoading(true)
+      getMoneda(id)
+        .then((m) => setForm({ code: m.code, name: m.name, symbol: m.symbol, active: m.active }))
+        .catch((e) => error(getErrorMessage(e)))
+        .finally(() => setLoading(false))
     }
   }, [id])
 
@@ -33,6 +38,7 @@ export default function MonedaForm() {
   return (
     <div style={{ padding: 16 }}>
       <h3 className="text-xl font-semibold mb-3">{id ? 'Editar Moneda' : 'Nueva Moneda'}</h3>
+      {loading && <div className="text-sm text-gray-500 mb-2">Cargando...</div>}
       <form onSubmit={onSubmit} className="space-y-4" style={{ maxWidth: 520 }}>
         <div>
           <label className="block mb-1">Código</label>

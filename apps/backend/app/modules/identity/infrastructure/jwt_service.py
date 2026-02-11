@@ -18,7 +18,8 @@ except Exception:  # pragma: no cover - allow import outside app context
 class JwtSettings:
     secret: str
     algorithm: str = "HS256"
-    access_ttl_minutes: int = 15
+    # Default access TTL: keep users active longer by default
+    access_ttl_minutes: int = 60
     refresh_ttl_days: int = 7
 
     @classmethod
@@ -30,7 +31,7 @@ class JwtSettings:
 
         secret: str | None = None
         algo: str = "HS256"
-        access_min: int = 15
+        access_min: int = 60
         refresh_days: int = 7
 
         # First try environment variables directly (highest priority)

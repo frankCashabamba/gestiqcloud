@@ -424,6 +424,16 @@ def create_currency(data: MonedaCreate, db: Session = Depends(get_db)):
     return _currency_schema(created)
 
 
+@router.get("/currency/{id}", response_model=MonedaRead)
+def get_currency(id: int, db: Session = Depends(get_db)):
+    repo = _currency_repo(db)
+    try:
+        currency = GetCurrency(repo).execute(id)
+        return _currency_schema(currency)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Currency not found")
+
+
 @router.put("/currency/{id}", response_model=MonedaRead)
 def update_currency(id: int, data: MonedaUpdate, db: Session = Depends(get_db)):
     repo = _currency_repo(db)

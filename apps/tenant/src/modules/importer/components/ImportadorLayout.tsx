@@ -1,13 +1,7 @@
 
 import React from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-
-const navItems = [
-  { to: '.', label: 'Import' },
-  { to: 'preview', label: 'Preview' },
-  { to: 'batches', label: 'Batches' },
-  { to: 'products', label: 'Products' },
-]
+import { useTranslation } from 'react-i18next'
 
 type ImportadorLayoutProps = {
   title?: string
@@ -17,9 +11,11 @@ type ImportadorLayoutProps = {
 }
 
 function buildBasePath(pathname: string) {
-  // Buscar /importador o /imports en la ruta (puede ser /:empresa/importador o /mod/imports)
-  const match = pathname.match(/^(.*?\/(?:importador|imports))/)
+  // Buscar prefijo del módulo: /importador, /imports o /importer (alias en EN)
+  // Puede venir como /:empresa/importer/preview/products, etc.
+  const match = pathname.match(/^(.*?\/(?:importador|imports|importer))(?:\/|$)/)
   if (match && match[1]) return match[1]
+  // Fallback: quita trailing slash
   return pathname.replace(/\/$/, '')
 }
 
@@ -38,6 +34,14 @@ export default function ImportadorLayout({
 }: ImportadorLayoutProps) {
   const location = useLocation()
   const basePath = buildBasePath(location.pathname)
+  const { t } = useTranslation()
+
+  const navItems = React.useMemo(() => ([
+    { to: '.', label: t('importerNav.import') },
+    { to: 'preview', label: t('importerNav.preview') },
+    { to: 'batches', label: t('importerNav.batches') },
+    { to: 'products', label: t('importerNav.products') },
+  ]), [t])
 
   return (
     <div className="gc-container gc-stack pb-12">

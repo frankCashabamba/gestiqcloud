@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Vista CRM/ERP Retail/Bazar (Modular)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Fallback si Tailwind no carga (muy básico) */
+    body{font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;}
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <div class="mx-auto max-w-[1400px] p-4">
+    <div class="flex gap-4">
+      <!-- Sidebar -->
+      <aside class="hidden w-72 shrink-0 lg:block">
+        <div class="sticky top-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-xs font-medium text-slate-500">CRM/ERP</div>
+              <div class="text-base font-semibold">Retail / Bazar</div>
+              <div class="mt-1 text-xs text-slate-500">Tenant: tienda-demo • Plan: Pro</div>
+            </div>
+            <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200">SaaS</span>
+          </div>
+
+          <div id="nav" class="mt-4 space-y-3"></div>
+
+          <div id="locked" class="mt-4 hidden"></div>
+
+          <div class="mt-4 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
+            <div class="text-xs font-medium text-slate-600">Acciones rápidas</div>
+            <div class="mt-2 grid grid-cols-1 gap-2">
+              <button class="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-slate-200 hover:bg-slate-50">
+                <span>Crear venta</span><span class="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600 ring-1 ring-slate-200">V</span>
+              </button>
+              <button class="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-slate-200 hover:bg-slate-50">
+                <span>Nueva orden de compra</span><span class="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600 ring-1 ring-slate-200">O</span>
+              </button>
+              <button class="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-slate-200 hover:bg-slate-50">
+                <span>Ajuste de inventario</span><span class="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600 ring-1 ring-slate-200">A</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Panel demo: módulos contratados -->
+          <div class="mt-4 rounded-xl bg-white p-3 ring-1 ring-slate-200">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-xs font-medium text-slate-600">Módulos contratados (demo)</div>
+                <div class="mt-1 text-xs text-slate-500">Activa/desactiva para ver cómo “encajan”.</div>
+              </div>
+              <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200">Feature flags</span>
+            </div>
+
+            <div id="toggles" class="mt-3 space-y-2"></div>
+
+            <div class="mt-3 text-xs text-slate-500">
+              Producción: <span class="font-medium">GET /me/features</span> (tenant/plan) → menú + rutas + permisos.
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main -->
+      <main class="flex-1">
+        <div id="content"></div>
+      </main>
+    </div>
+  </div>
+
+<script>
+  const MODULES = [
+    { id:"dashboard", label:"Dashboard", group:"Operación", route:"dashboard", core:true,
+      description:"KPIs, alertas, ventas y stock crítico." },
+    { id:"pos", label:"Punto de venta (POS)", group:"Operación", route:"pos", addon:true,
+      description:"Carrito, cobro, tickets y caja." },
+    { id:"facturas", label:"Facturas", group:"Comercial", route:"facturas", addon:true,
+      description:"Facturación, notas crédito, estados y cobranza." },
+    { id:"ajustes", label:"Ajustes de inventario", group:"Backoffice", route:"ajustes", addon:true,
+      description:"Mermas/daños, conteos, auditoría de stock." },
+    { id:"ventas", label:"Ventas", group:"Comercial", route:"ventas", core:true,
+      description:"Pedidos, cotizaciones, devoluciones." },
+    { id:"inventario", label:"Inventario", group:"Backoffice", route:"inventario", core:true,
+      description:"Stock por sucursal, movimientos, transferencias." },
+    { id:"clientes", label:"Clientes (CRM)", group:"Comercial", route:"clientes", core:true,
+      description:"Ficha 360°, segmentación y recompra." },
+    { id:"compras", label:"Compras", group:"Backoffice", route:"compras", core:true,
+      description:"Órdenes de compra, recepciones y costeo." },
+    { id:"proveedores", label:"Proveedores", group:"Backoffice", route:"proveedores", core:true,
+      description:"Condiciones, lead time, desempeño." },
+    { id:"reportes", label:"Reportes", group:"Backoffice", route:"reportes", core:true,
+      description:"Ventas, margen, rotación, quiebres." },
+    { id:"admin", label:"Administración", group:"Administración", route:"admin", core:true,
+      description:"Usuarios, roles, permisos, parámetros." },
+  ];
+
+  // Feature flags demo (en prod: backend)
+  const enabled = {
+    dashboard:true, ventas:true, inventario:true, clientes:true, compras:true, proveedores:true, reportes:true, admin:true,
+    pos:true, facturas:true, ajustes:false
+  };
+
+  const alerts = [
+    { title:"Stock crítico en 14 SKUs", desc:"Productos bajo mínimo (riesgo de quiebre en 3-5 días).", tag:"Inventario", severity:"alta" },
+    { title:"3 órdenes de compra atrasadas", desc:"Proveedor: Distribuidora Centro — atraso promedio 4 días.", tag:"Compras", severity:"media" },
+    { title:"5 clientes con facturas vencidas", desc:"Monto total vencido: $1,240.00", tag:"Cartera", severity:"media" },
+    { title:"7 productos con margen negativo", desc:"Revisar costo/promos y lista de precios.", tag:"Precios", severity:"alta" },
+  ];
+
+  const demoInvoices = [
+    { no:"F-000124", cliente:"María R.", fecha:"2026-02-05", total:128.3, estado:"Pagada" },
+    { no:"F-000125", cliente:"Carlos P.", fecha:"2026-02-05", total:46.9, estado:"Pendiente" },
+    { no:"F-000126", cliente:"Bazar La Esquina", fecha:"2026-02-04", total:812.0, estado:"Vencida" },
+    { no:"F-000127", cliente:"Ana S.", fecha:"2026-02-03", total:67.2, estado:"Pendiente" },
+  ];
+
+  const demoAdjustments = [
+    { id:"AJ-00102", fecha:"2026-02-05", motivo:"Merma", items:4, sucursal:"Centro" },
+    { id:"AJ-00103", fecha:"2026-02-04", motivo:"Conteo cíclico", items:12, sucursal:"Norte" },
+    { id:"AJ-00104", fecha:"2026-02-03", motivo:"Daño", items:2, sucursal:"Centro" },
+  ];
+
+  const sampleMix = [
+    { name:"Hogar", value:32 },
+    { name:"Papelería", value:18 },
+    { name:"Fiesta", value:14 },
+    { name:"Cocina", value:21 },
+    { name:"Otros", value:15 },
+  ];
+
+  const elNav = document.getElementById("nav");
+  const elLocked = document.getElementById("locked");
+  const elToggles = document.getElementById("toggles");
+  const elContent = document.getElementById("content");
+
+  const groupsOrder = ["Operación","Comercial","Backoffice","Administración"];
+
+  function pill(text, tone="slate") {
+    const map = {
+      slate: "bg-slate-100 text-slate-700 ring-slate-200",
+      sky: "bg-sky-50 text-sky-800 ring-sky-200",
+      amber:"bg-amber-50 text-amber-800 ring-amber-200",
+      red:  "bg-red-50 text-red-700 ring-red-200",
+      emerald:"bg-emerald-50 text-emerald-800 ring-emerald-200",
+    };
+    return `<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${map[tone]||map.slate}">${text}</span>`;
+  }
+
+  function isEnabled(mod) { return mod.core ? true : !!enabled[mod.id]; }
+  function hrefOf(mod) { return "#/" + mod.route; }
+
+  function currentRoute() {
+    const h = (location.hash || "#/dashboard").replace(/^#\/?/, "");
+    return h.split("/")[0] || "dashboard";
+  }
+
+  function setRoute(route) {
+    location.hash = "#/" + route;
+  }
+
+  function renderNav() {
+    const navGroups = {};
+    for (const g of groupsOrder) navGroups[g] = [];
+    const locked = [];
+
+    for (const m of MODULES) {
+      if (m.addon && !enabled[m.id]) locked.push(m);
+      if (isEnabled(m)) navGroups[m.group].push(m);
+    }
+
+    elNav.innerHTML = groupsOrder.map(g => {
+      const items = navGroups[g];
+      if (!items.length) return "";
+      return `
+        <div>
+          <div class="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">${g}</div>
+          <div class="space-y-1">
+            ${items.map(m => navItem(m, false)).join("")}
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    if (locked.length) {
+      elLocked.classList.remove("hidden");
+      elLocked.innerHTML = `
+        <div class="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Add-ons disponibles</div>
+        <div class="space-y-1">
+          ${locked.map(m => navItem(m, true)).join("")}
+        </div>
+      `;
+    } else {
+      elLocked.classList.add("hidden");
+      elLocked.innerHTML = "";
+    }
+
+    document.querySelectorAll("[data-nav]").forEach(btn => {
+      btn.addEventListener("click", () => setRoute(btn.getAttribute("data-nav")));
+    });
+  }
+
+  function navItem(m, locked) {
+    const active = currentRoute() === m.route;
+    const base = "w-full rounded-xl px-3 py-2 text-left text-sm transition";
+    const cls = active && !locked
+      ? "bg-slate-900 text-white"
+      : "text-slate-700 hover:bg-slate-100 hover:text-slate-900";
+
+    const badge = locked ? pill("Bloqueado","amber") : (m.addon ? pill("Add-on","sky") : pill("Core","slate"));
+    return `
+      <button class="${base} ${cls}" data-nav="${m.route}">
+        <span class="flex items-center justify-between gap-2">
+          <span class="truncate">${m.label}</span>
+          ${badge}
+        </span>
+      </button>
+    `;
+  }
+
+  function renderToggles() {
+    const addons = MODULES.filter(m => m.addon);
+    elToggles.innerHTML = addons.map(m => `
+      <label class="flex cursor-pointer items-start justify-between gap-3 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
+        <div>
+          <div class="text-sm font-semibold text-slate-900">${m.label}</div>
+          <div class="mt-1 text-xs text-slate-600">${m.description}</div>
+        </div>
+        <input type="checkbox" class="mt-1 h-4 w-4" data-toggle="${m.id}" ${enabled[m.id] ? "checked" : ""}/>
+      </label>
+    `).join("");
+
+    document.querySelectorAll("[data-toggle]").forEach(chk => {
+      chk.addEventListener("change", (e) => {
+        const id = e.target.getAttribute("data-toggle");
+        enabled[id] = !!e.target.checked;
+
+        const route = currentRoute();
+        const mod = MODULES.find(x => x.route === route);
+        if (mod && mod.addon && !enabled[mod.id]) setRoute("dashboard");
+
+        renderNav();
+        renderContent();
+      });
+    });
+  }
+
+  function header(title, subtitle, rightHtml="") {
+    return `
+      <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 class="text-xl font-semibold">${title}</h1>
+            ${subtitle ? `<div class="mt-1 text-sm text-slate-500">${subtitle}</div>` : ""}
+          </div>
+          ${rightHtml ? `<div class="flex items-center gap-2">${rightHtml}</div>` : ""}
+        </div>
+      </div>
+    `;
+  }
+
+  function section(title, right, body) {
+    return `
+      <div class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+        <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+          <h3 class="text-sm font-semibold text-slate-900">${title}</h3>
+          ${right ? `<div class="flex items-center gap-2">${right}</div>` : ""}
+        </div>
+        <div class="p-4">${body}</div>
+      </div>
+    `;
+  }
+
+  function emptyState(title, desc, rightHtml="") {
+    return `
+      <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div class="max-w-2xl">
+            <div class="text-base font-semibold text-slate-900">${title}</div>
+            <div class="mt-2 text-sm text-slate-600">${desc}</div>
+            <div class="mt-4 text-xs text-slate-500">(Recuerda: en producción se valida también en backend.)</div>
+          </div>
+          ${rightHtml ? `<div class="shrink-0">${rightHtml}</div>` : ""}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderContent() {
+    const route = currentRoute();
+    const mod = MODULES.find(m => m.route === route);
+
+    if (!mod) {
+      elContent.innerHTML = header("404","Ruta no encontrada") + `<div class="mt-4">${emptyState("No existe","La página que buscas no está definida.")}</div>`;
+      return;
+    }
+
+    if (mod.addon && !enabled[mod.id]) {
+      elContent.innerHTML = `
+        <div class="space-y-4">
+          ${header(mod.label, "Este módulo requiere contratación/activación.", pill("Add-on","sky"))}
+          ${emptyState("Módulo no contratado", mod.description + " Actívalo (demo) o simula un upgrade desde el backend.",
+            `<button id="activate" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Activar (demo)</button>`
+          )}
+        </div>
+      `;
+      document.getElementById("activate")?.addEventListener("click", () => {
+        enabled[mod.id] = true;
+        renderToggles();
+        renderNav();
+        renderContent();
+      });
+      return;
+    }
+
+    if (route === "dashboard") {
+      const kpis = [
+        ["Ventas", "$ 11,950.70", "+6.9%", "vs 7d previos"],
+        ["Transacciones", "508", "+4.2%", ""],
+        ["Ticket promedio", "$ 23.53", "+2.6%", ""],
+        ["Margen bruto", "31.1%", "+0.2pp", ""],
+        ["Stock crítico", "14", "+3", ""],
+        ["CxC", "$ 3,410.00", "-1.8%", ""],
+      ];
+
+      const kpiCards = `
+        <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          ${kpis.map(([label,value,delta,hint]) => `
+            <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+              <div class="flex items-start justify-between">
+                <div>
+                  <div class="text-sm font-medium text-slate-600">${label}</div>
+                  <div class="mt-1 text-2xl font-semibold text-slate-900">${value}</div>
+                  ${hint ? `<div class="mt-1 text-xs text-slate-500">${hint}</div>` : ""}
+                </div>
+                ${pill(delta, (delta.trim().startsWith("-") ? "red" : "emerald"))}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+
+      const topRows = [
+        ["Globos metálicos","184","$ 612.50"],
+        ["Platos descartables","162","$ 488.20"],
+        ["Cinta embalaje","131","$ 356.00"],
+        ["Velas cumpleaños","124","$ 271.90"],
+        ["Vasos plásticos","119","$ 249.70"],
+      ].map(r => `
+        <tr class="border-t border-slate-200">
+          <td class="px-3 py-2 font-medium text-slate-900">${r[0]}</td>
+          <td class="px-3 py-2 text-slate-700">${r[1]}</td>
+          <td class="px-3 py-2 text-slate-700">${r[2]}</td>
+        </tr>
+      `).join("");
+
+      const stockRows = [
+        ["BZ-10231","Vaso plástico 12oz","Centro","6","20"],
+        ["BZ-88410","Cinta adhesiva 2\"","Centro","3","12"],
+        ["BZ-33109","Velas #0 (paquete)","Norte","4","15"],
+        ["BZ-59011","Tupper 1L","Centro","2","10"],
+        ["BZ-77102","Servilletas (x50)","Norte","8","25"],
+      ].map(r => `
+        <tr class="border-t border-slate-200">
+          <td class="px-3 py-2 font-mono text-xs text-slate-700">${r[0]}</td>
+          <td class="px-3 py-2 font-medium text-slate-900">${r[1]}</td>
+          <td class="px-3 py-2 text-slate-700">${r[2]}</td>
+          <td class="px-3 py-2">${pill(r[3],"red")}</td>
+          <td class="px-3 py-2 text-slate-700">${r[4]}</td>
+        </tr>
+      `).join("");
+
+      const alertsHtml = `
+        <div class="space-y-3">
+          ${alerts.map(a => `
+            <div class="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <div class="text-sm font-semibold text-slate-900">${a.title}</div>
+                  <div class="mt-1 text-sm text-slate-600">${a.desc}</div>
+                  <div class="mt-2 flex items-center gap-2">
+                    ${pill(a.severity, a.severity === "alta" ? "red" : "amber")}
+                    ${pill(a.tag,"slate")}
+                  </div>
+                </div>
+                <button class="shrink-0 rounded-xl bg-white px-3 py-2 text-sm font-medium shadow-sm ring-1 ring-slate-200 hover:bg-slate-100">Ver</button>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+
+      elContent.innerHTML = `
+        ${header("Dashboard operativo","Vista ejecutiva + acciones para ventas, inventario y compras.",
+          `<input class="w-full rounded-xl bg-slate-50 px-3 py-2 text-sm ring-1 ring-slate-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-400 sm:w-72" placeholder="Buscar (productos / clientes / docs)" />
+           ${pill("7 días","slate")}`
+        )}
+        ${kpiCards}
+        <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
+          ${section("Alertas", pill(String(alerts.length),"amber"), alertsHtml)}
+          ${section("Mix por categoría", pill("% ventas","slate"),
+            `<div class="grid grid-cols-2 gap-2 text-sm text-slate-700">
+              ${sampleMix.map(m => `<div class="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200"><span>${m.name}</span><span class="text-slate-500">${m.value}%</span></div>`).join("")}
+            </div>`
+          )}
+          ${section("Ventas", pill("Tendencia","slate"),
+            `<div class="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200 text-sm text-slate-700">
+              (Aquí normalmente iría un gráfico. En esta vista HTML es un placeholder.)
+             </div>`
+          )}
+        </div>
+        <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+          ${section("Top productos (por unidades)","",
+            `<div class="overflow-hidden rounded-xl ring-1 ring-slate-200">
+              <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 text-slate-600">
+                  <tr>
+                    <th class="px-3 py-2 font-medium">Producto</th>
+                    <th class="px-3 py-2 font-medium">Unidades</th>
+                    <th class="px-3 py-2 font-medium">Ingresos</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white">${topRows}</tbody>
+              </table>
+            </div>`
+          )}
+          ${section("Stock crítico","",
+            `<div class="overflow-hidden rounded-xl ring-1 ring-slate-200">
+              <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 text-slate-600">
+                  <tr>
+                    <th class="px-3 py-2 font-medium">SKU</th>
+                    <th class="px-3 py-2 font-medium">Producto</th>
+                    <th class="px-3 py-2 font-medium">Sucursal</th>
+                    <th class="px-3 py-2 font-medium">Stock</th>
+                    <th class="px-3 py-2 font-medium">Mín</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white">${stockRows}</tbody>
+              </table>
+            </div>`
+          )}
+        </div>
+      `;
+      return;
+    }
+
+    if (route === "facturas") {
+      const rows = demoInvoices.map(f => `
+        <tr class="border-t border-slate-200">
+          <td class="px-3 py-2 font-mono text-xs text-slate-700">${f.no}</td>
+          <td class="px-3 py-2 font-medium text-slate-900">${f.cliente}</td>
+          <td class="px-3 py-2 text-slate-700">${f.fecha}</td>
+          <td class="px-3 py-2 text-slate-700">$ ${f.total.toFixed(2)}</td>
+          <td class="px-3 py-2">
+            ${pill(f.estado, f.estado === "Pagada" ? "emerald" : (f.estado === "Vencida" ? "red" : "amber"))}
+          </td>
+        </tr>
+      `).join("");
+
+      elContent.innerHTML = `
+        ${header("Facturas","Listado, estados, notas de crédito y seguimiento de cobros.",
+          `<button class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Nueva factura</button>`
+        )}
+        <div class="mt-4">
+          ${section("Últimas facturas","",
+            `<div class="overflow-hidden rounded-xl ring-1 ring-slate-200">
+              <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 text-slate-600">
+                  <tr>
+                    <th class="px-3 py-2 font-medium">No</th>
+                    <th class="px-3 py-2 font-medium">Cliente</th>
+                    <th class="px-3 py-2 font-medium">Fecha</th>
+                    <th class="px-3 py-2 font-medium">Total</th>
+                    <th class="px-3 py-2 font-medium">Estado</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white">${rows}</tbody>
+              </table>
+            </div>`
+          )}
+        </div>
+      `;
+      return;
+    }
+
+    if (route === "ajustes") {
+      const rows = demoAdjustments.map(a => `
+        <tr class="border-t border-slate-200">
+          <td class="px-3 py-2 font-mono text-xs text-slate-700">${a.id}</td>
+          <td class="px-3 py-2 text-slate-700">${a.fecha}</td>
+          <td class="px-3 py-2 font-medium text-slate-900">${a.motivo}</td>
+          <td class="px-3 py-2 text-slate-700">${a.items}</td>
+          <td class="px-3 py-2 text-slate-700">${a.sucursal}</td>
+        </tr>
+      `).join("");
+
+      elContent.innerHTML = `
+        ${header("Ajustes de inventario","Registra mermas/daños, conteos y correcciones con auditoría.",
+          `<button class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Nuevo ajuste</button>`
+        )}
+        <div class="mt-4">
+          ${section("Últimos ajustes","",
+            `<div class="overflow-hidden rounded-xl ring-1 ring-slate-200">
+              <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 text-slate-600">
+                  <tr>
+                    <th class="px-3 py-2 font-medium">ID</th>
+                    <th class="px-3 py-2 font-medium">Fecha</th>
+                    <th class="px-3 py-2 font-medium">Motivo</th>
+                    <th class="px-3 py-2 font-medium">Items</th>
+                    <th class="px-3 py-2 font-medium">Sucursal</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white">${rows}</tbody>
+              </table>
+            </div>`
+          )}
+        </div>
+      `;
+      return;
+    }
+
+    if (route === "pos") {
+      elContent.innerHTML = `
+        ${header("Punto de venta (POS)","Búsqueda rápida, carrito, cobro y emisión de ticket/factura.", pill("Caja #1","slate"))}
+        <div class="mt-4">
+          ${emptyState("Vista HTML (demo)","Para POS real conviene React por performance (teclado, lector, foco, offline). Aquí queda como placeholder.")}
+        </div>
+      `;
+      return;
+    }
+
+    elContent.innerHTML = `
+      ${header(mod.label, mod.description)}
+      <div class="mt-4">
+        ${emptyState("Pantalla en construcción (demo)","Aquí irían tablas server-side, filtros guardables, exportación y acciones masivas.")}
+      </div>
+    `;
+  }
+
+  window.addEventListener("hashchange", () => {
+    renderNav();
+    renderContent();
+  });
+
+  if (!location.hash) setRoute("dashboard");
+
+  renderToggles();
+  renderNav();
+  renderContent();
+</script>
+</body>
+</html>

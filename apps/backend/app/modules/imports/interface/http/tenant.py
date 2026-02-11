@@ -59,6 +59,8 @@ from app.modules.imports.schemas import (
 from app.services.excel_analyzer import analyze_excel_stream, detect_header_row, extract_headers
 from app.services.inventory_costing import InventoryCostingService
 
+logger = logging.getLogger("imports")
+
 
 def _get_claims(request: Request) -> dict:
     """Helper to extract and validate access claims from request."""
@@ -3460,6 +3462,54 @@ def _load_aliases() -> dict:
             # Ignore and keep defaults
             pass
     return default_aliases
+
+
+@router.post("/batches/cleanup/stuck", response_model=OkResponse)
+def cleanup_stuck_batches(
+    request: Request,
+    hours: int = Query(default=2, ge=1, le=24),
+    db: Session = Depends(get_db),
+):
+    """Limpia batches atascados en estado PENDING/PARSING desde hace más de X horas.
+
+    Parámetros:
+    - hours: cuántas horas de inactividad requieren para eliminar (default: 2)
+    """
+    from datetime import datetime, timedelta
+
+    claims = _get_claims(request)
+    tenant_id = claims.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="tenant_id_missing")
+
+    ensure_rls(request, db)
+
+    # Batches que llevan más de X horas sin cambios y están en estado processing
+    cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+
+    stuck_batches = (
+        db.query(ImportBatch)
+        .filter(
+            ImportBatch.tenant_id == tenant_id,
+            ImportBatch.status.in_(["PENDING", "PARSING"]),
+            ImportBatch.created_at < cutoff_time,
+        )
+        .all()
+    )
+
+    deleted_count = 0
+    for batch in stuck_batches:
+        try:
+            db.delete(batch)
+            deleted_count += 1
+        except Exception as e:
+            logger.error(f"Error deleting batch {batch.id}: {e}")
+
+    db.commit()
+
+    return OkResponse(
+        ok=True, detail=f"Deleted {deleted_count} stuck batches (older than {hours} hours)"
+    )
 
 
 _ALIASES = _load_aliases()

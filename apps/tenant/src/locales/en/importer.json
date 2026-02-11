@@ -1,0 +1,50 @@
+{
+  "title": "Universal Importer",
+  "description": "Upload Excel, CSV, PDF or image files to process them automatically",
+  "dragFilesHere": "Drag files here or click to select",
+  "acceptedFormats": "Excel (.xlsx, .xls), CSV, PDF or images",
+  "selectFiles": "Select files",
+  "filesInQueue": "Files in queue ({{count}})",
+  "clearing": "Cleaning...",
+  "clearStuckProcessing": "Clear stuck processing",
+  "clearCompleted": "Clear completed",
+  "viewResults": "View results",
+  "removeFromQueue": "Remove from queue",
+  "pendingImports": "Pending imports",
+  "reviewContinueBatches": "Review and continue with created batches",
+  "preview": "Preview",
+  "openDetailScreen": "Open the detail screen by passing ?batch_id=...",
+  "new": "New Import",
+  "search": "Search imports",
+  "empty": "No imports found",
+  "edit": "Edit",
+  "delete": "Delete",
+  "confirmDelete": "Are you sure you want to delete this import?",
+  "actions": "Actions",
+  "messages": {
+    "created": "Import created successfully",
+    "updated": "Import updated successfully",
+    "deleted": "Import deleted successfully"
+  },
+  "table": {
+    "date": "Date",
+    "file": "File",
+    "status": "Status",
+    "records": "Records"
+  },
+  "filters": {
+    "from": "From",
+    "to": "To",
+    "search": "Search",
+    "placeholder": "Search by file name"
+  },
+  "statuses": {
+    "pending": "Pending",
+    "processing": "Processing...",
+    "ready": "Ready",
+    "saving": "Saving...",
+    "saved": "Saved",
+    "error": "Error"
+  }
+}
+

@@ -32,8 +32,19 @@ export async function listMonedas(): Promise<Moneda[]> {
 }
 
 export async function getMoneda(id: number | string): Promise<Moneda> {
-  const { data } = await api.get<Partial<Moneda>>(ADMIN_CONFIG.currencies.byId(id))
-  return normalizeMoneda(data || {})
+  try {
+    const { data } = await api.get<Partial<Moneda>>(ADMIN_CONFIG.currencies.byId(id))
+    return normalizeMoneda(data || {})
+  } catch (err: any) {
+    const status = err?.response?.status
+    // Algunos despliegues no exponen GET /currency/{id}; usar fallback a la lista
+    if (status === 404 || status === 405) {
+      const list = await listMonedas()
+      const found = list.find((m) => String(m.id) === String(id))
+      if (found) return found
+    }
+    throw err
+  }
 }
 
 export async function createMoneda(payload: MonedaPayload): Promise<Moneda> {

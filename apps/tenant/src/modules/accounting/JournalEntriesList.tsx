@@ -3,9 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { listAsientos, removeAsiento, postAsiento, type AsientoContable } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
+import { usePermission } from '../../hooks/usePermission'
+import PermissionDenied from '../../components/PermissionDenied'
 
 export default function AsientosList() {
     const { t } = useTranslation()
+    const can = usePermission()
     const nav = useNavigate()
     const [items, setItems] = useState<AsientoContable[]>([])
     const [loading, setLoading] = useState(false)
@@ -65,16 +68,22 @@ export default function AsientosList() {
         return colors[status as keyof typeof colors] || colors.DRAFT
     }
 
+    if (!can('accounting:read')) {
+        return <PermissionDenied permission="accounting:read" />
+    }
+
     return (
         <div className="p-4">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-2xl font-semibold">{t('accounting.journalEntries.title')}</h3>
-                <button
-                    onClick={() => nav('asientos/nuevo')}
-                    className="bg-blue-600 text-white px-3 py-2 rounded"
-                >
-                    {t('accounting.journalEntries.new')}
-                </button>
+                {can('accounting:create') && (
+                    <button
+                        onClick={() => nav('asientos/nuevo')}
+                        className="bg-blue-600 text-white px-3 py-2 rounded"
+                    >
+                        {t('accounting.journalEntries.new')}
+                    </button>
+                )}
             </div>
 
             <div className="mb-4">
@@ -124,24 +133,30 @@ export default function AsientosList() {
                                 <td className="border px-3 py-2 text-center">
                                     {a.status === 'DRAFT' && (
                                         <>
-                                            <button
-                                                onClick={() => nav(`asientos/${a.id}/editar`)}
-                                                className="text-blue-600 hover:underline mr-2"
-                                            >
-                                                {t('common.edit')}
-                                            </button>
-                                            <button
-                                                onClick={() => onPost(a.id, a.numero)}
-                                                className="text-green-600 hover:underline mr-2"
-                                            >
-                                                {t('accounting.journalEntries.actions.post')}
-                                            </button>
-                                            <button
-                                                onClick={() => onDelete(a.id, a.numero)}
-                                                className="text-red-600 hover:underline"
-                                            >
-                                                {t('common.delete')}
-                                            </button>
+                                            {can('accounting:update') && (
+                                                <button
+                                                    onClick={() => nav(`asientos/${a.id}/editar`)}
+                                                    className="text-blue-600 hover:underline mr-2"
+                                                >
+                                                    {t('common.edit')}
+                                                </button>
+                                            )}
+                                            {can('accounting:update') && (
+                                                <button
+                                                    onClick={() => onPost(a.id, a.numero)}
+                                                    className="text-green-600 hover:underline mr-2"
+                                                >
+                                                    {t('accounting.journalEntries.actions.post')}
+                                                </button>
+                                            )}
+                                            {can('accounting:delete') && (
+                                                <button
+                                                    onClick={() => onDelete(a.id, a.numero)}
+                                                    className="text-red-600 hover:underline"
+                                                >
+                                                    {t('common.delete')}
+                                                </button>
+                                            )}
                                         </>
                                     )}
                                     {a.status === 'POSTED' && (

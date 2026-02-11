@@ -1,0 +1,64 @@
+{
+  "retailDashboard": {
+    "title": "Dashboard retail",
+    "welcome": {
+      "title": "Bienvenido a tu ERP",
+      "description": "Comienza agregando tus clientes. Otros módulos se desbloquearán a medida que avances.",
+      "button": "Ir a Clientes"
+    },
+    "todayOverview": {
+      "title": "Resumen del día",
+      "storeOpen": "Tienda abierta",
+      "storeClosed": "Tienda cerrada",
+      "tickets": "{{count}} tickets",
+      "avgTicket": "Ticket promedio: {{symbol}}{{value}}"
+    },
+    "quickActions": {
+      "title": "Acciones rápidas",
+      "newSale": "Nueva venta",
+      "createPromotion": "Crear promoción",
+      "newCustomer": "Nuevo cliente"
+    },
+    "quickActionsTitles": {
+      "newSale": "Crear una nueva venta",
+      "createPromotion": "Crear una nueva promoción",
+      "newCustomer": "Agregar un nuevo cliente",
+      "cashClose": "Cerrar caja",
+      "inventory": "Ver inventario",
+      "replenishment": "Gestionar reposición de stock"
+    },
+    "cardActions": {
+      "cashClose": "Cerrar caja",
+      "inventory": "Inventario",
+      "replenishment": "Reposición",
+      "customers": "Clientes"
+    },
+    "cardHeaders": {
+      "salesToday": "Ventas hoy",
+      "weeklyComparison": "Comparativa semanal",
+      "stockRotation": "Rotación de stock"
+    },
+    "kpiLabels": {
+      "total": "Total",
+      "tickets": "Tickets",
+      "avgTicket": "Ticket promedio",
+      "thisWeek": "Esta semana",
+      "lastWeek": "Semana pasada"
+    },
+    "stockLabels": {
+      "highRotation": "Alta rotación",
+      "lowRotation": "Baja rotación",
+      "replenishNow": "Reabastecer ahora",
+      "products": "productos",
+      "openInventory": "Abrir inventario"
+    },
+    "customLinks": {
+      "stockReplenishment": "Reposición de stock",
+      "promotions": "Promociones",
+      "salesAnalysis": "Análisis de ventas"
+    },
+    "moduleRequired": "Módulo {{module}} requerido",
+    "notAvailable": "Esta acción no está disponible",
+    "sectorName": "Retail ERP"
+  }
+}

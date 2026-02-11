@@ -31,6 +31,7 @@ const MODULE_NAME_KEYS: Record<string, string> = {
   inventory: 'nav.inventory',
   facturacion: 'nav.invoicing',
   invoicing: 'nav.invoicing',
+  billing: 'nav.invoicing',
   reportes: 'nav.reports',
   reports: 'nav.reports',
   configuracion: 'nav.settings',

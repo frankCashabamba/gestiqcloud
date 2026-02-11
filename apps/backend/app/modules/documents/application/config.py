@@ -71,6 +71,9 @@ def load_tenant_doc_config(db: Session, tenant_id: str) -> TenantDocConfig:
             "consumerFinalMaxTotal": 0,
             "requireBuyerAboveAmount": False,
         }
+    # Si no vino en settings ni invoice_config, no caigas a ticket
+    if not cfg.document_mode_default:
+        cfg.document_mode_default = ""
 
     return cfg
 

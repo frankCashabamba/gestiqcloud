@@ -4,7 +4,7 @@ const ImportadorPanel = React.lazy(() => import('./Panel'))
 const Wizard = React.lazy(() => import('./Wizard'))
 
 export const manifest = {
-  id: 'imports',
+  id: 'importer',
   name: 'Imports',
   version: '1.0.0',
   permissions: ['imports.read', 'imports.write'],

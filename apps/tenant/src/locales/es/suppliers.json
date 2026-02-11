@@ -1,0 +1,27 @@
+{
+  "title": "Proveedores",
+  "subtitle": "Gestiona tu red de proveedores, contactos y direcciones de envío.",
+  "new": "Nuevo Proveedor",
+  "empty": "No se encontraron proveedores con ese filtro.",
+  "loading": "Cargando proveedores…",
+  "searchPlaceholder": "Buscar por nombre, NIF, email...",
+  "confirmDelete": "¿Desactivar este proveedor?",
+  "status": {
+    "active": "Activo",
+    "inactive": "Inactivo"
+  },
+  "table": {
+    "code": "Código",
+    "name": "Nombre / Razón Social",
+    "nif": "NIF / Impuesto",
+    "email": "Email",
+    "phone": "Teléfono",
+    "country": "País"
+  },
+  "actions": {
+    "deactivate": "Desactivar"
+  },
+  "messages": {
+    "deactivated": "Proveedor desactivado"
+  }
+}

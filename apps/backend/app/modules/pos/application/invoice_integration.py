@@ -170,7 +170,11 @@ class POSInvoicingService:
         if not self.check_module_enabled("invoicing"):
             return None
 
+        savepoint = None
         try:
+            # Create a savepoint to allow rollback without aborting the outer transaction
+            savepoint = self.db.begin_nested()
+
             receipt = self.db.execute(
                 text(
                     """
@@ -387,7 +391,10 @@ class POSInvoicingService:
                 {"iid": invoice_id, "rid": receipt_uuid},
             )
 
-            self.db.commit()
+            if savepoint:
+                savepoint.commit()
+            else:
+                self.db.commit()
 
             return {
                 "invoice_id": str(invoice_id),
@@ -399,7 +406,10 @@ class POSInvoicingService:
             }
         except Exception as e:
             try:
-                self.db.rollback()
+                if savepoint:
+                    savepoint.rollback()
+                else:
+                    self.db.rollback()
             except Exception as rollback_error:
                 logger.error("Failed to rollback transaction: %s", rollback_error)
             logger.exception("Error creating invoice from receipt: %s", e)
@@ -420,7 +430,11 @@ class POSInvoicingService:
 
         # Use a savepoint to isolate this operation from the outer transaction.
         # If it fails, we can rollback without affecting other concurrent operations.
+        savepoint = None
         try:
+            # Create a savepoint to allow rollback without aborting the outer transaction
+            savepoint = self.db.begin_nested()
+
             # Note: SQLAlchemy session may already be in a transaction.
             # The savepoint pattern allows nested transaction semantics.
             receipt = self.db.execute(
@@ -480,13 +494,18 @@ class POSInvoicingService:
                     "total": float(so_total or 0),
                 }
 
-            # Fetch tenant's configured currency instead of using receipt's currency
+            # Fetch tenant currency from operational settings (company_settings / currencies)
             tenant_currency = self.db.execute(
                 text(
                     """
-                    SELECT base_currency
-                    FROM tenants
-                    WHERE id = :tid
+                    SELECT COALESCE(
+                        NULLIF(UPPER(TRIM(cs.currency)), ''),
+                        NULLIF(UPPER(TRIM(cur.code)), '')
+                    ) AS currency
+                    FROM tenants t
+                    LEFT JOIN company_settings cs ON cs.tenant_id = t.id
+                    LEFT JOIN currencies cur ON cur.id = cs.currency_id
+                    WHERE t.id = :tid
                     """
                 ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
                 {"tid": self.tenant_id},
@@ -590,7 +609,10 @@ class POSInvoicingService:
                     },
                 )
 
-            self.db.commit()
+            if savepoint:
+                savepoint.commit()
+            else:
+                self.db.commit()
             return {
                 "sale_id": str(sales_order_id),
                 "sale_type": "sales_order",
@@ -599,7 +621,10 @@ class POSInvoicingService:
             }
         except Exception as e:
             try:
-                self.db.rollback()
+                if savepoint:
+                    savepoint.rollback()
+                else:
+                    self.db.rollback()
             except Exception as rollback_error:
                 logger.error("Failed to rollback transaction: %s", rollback_error)
             logger.exception("Error creating sale from receipt: %s", e)
@@ -622,7 +647,11 @@ class POSInvoicingService:
         if not self.check_module_enabled("expenses"):
             return None
 
+        savepoint = None
         try:
+            # Create a savepoint to allow rollback without aborting the outer transaction
+            savepoint = self.db.begin_nested()
+
             receipt = self.db.execute(
                 text("SELECT id, number, cashier_id FROM pos_receipts WHERE id = :rid").bindparams(
                     bindparam("rid", type_=PGUUID(as_uuid=True))
@@ -694,7 +723,10 @@ class POSInvoicingService:
                 },
             )
 
-            self.db.commit()
+            if savepoint:
+                savepoint.commit()
+            else:
+                self.db.commit()
             return {
                 "expense_id": str(expense_id),
                 "expense_type": expense_type,
@@ -702,6 +734,12 @@ class POSInvoicingService:
                 "status": "pending",
             }
         except Exception as e:
-            self.db.rollback()
+            try:
+                if savepoint:
+                    savepoint.rollback()
+                else:
+                    self.db.rollback()
+            except Exception as rollback_error:
+                logger.error("Failed to rollback transaction: %s", rollback_error)
             logger.exception("Error creating expense from receipt: %s", e)
             return None

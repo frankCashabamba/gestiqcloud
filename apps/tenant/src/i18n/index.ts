@@ -4,6 +4,10 @@ import LanguageDetector from 'i18next-browser-languagedetector'
 
 import en from './locales/en.json'
 import es from './locales/es.json'
+import posEn from '../locales/en/pos.json'
+import posEs from '../locales/es/pos.json'
+import commonEn from '../locales/en/common.json'
+import commonEs from '../locales/es/common.json'
 
 export const SUPPORTED_LANGS = ['en', 'es'] as const
 export type SupportedLang = (typeof SUPPORTED_LANGS)[number]
@@ -16,8 +20,16 @@ export function normalizeLang(value?: string | null): SupportedLang {
 }
 
 const resources = {
-  en: { translation: en },
-  es: { translation: es },
+  en: {
+    translation: en,
+    pos: posEn,
+    common: commonEn,
+  },
+  es: {
+    translation: es,
+    pos: posEs,
+    common: commonEs,
+  },
 }
 
 i18n
@@ -25,6 +37,9 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
+    ns: ['translation', 'pos', 'common'],
+    defaultNS: 'translation',
+    fallbackNS: ['common'],
     supportedLngs: [...SUPPORTED_LANGS],
     nonExplicitSupportedLngs: true,
     fallbackLng: 'en',

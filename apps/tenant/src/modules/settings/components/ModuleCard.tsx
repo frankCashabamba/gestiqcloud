@@ -8,14 +8,17 @@ interface ModuleCardProps {
     enabled: boolean
     description?: string
     category?: string
+    required?: boolean
   }
   onToggle: (moduleId: string, enabled: boolean) => void
   onClick: (moduleId: string) => void
+  disabled?: boolean
 }
 
-export default function ModuleCard({ module, onToggle, onClick }: ModuleCardProps) {
+export default function ModuleCard({ module, onToggle, onClick, disabled = false }: ModuleCardProps) {
   const handleToggle = (e: React.MouseEvent) => {
     e.stopPropagation()
+    if (disabled) return
     onToggle(module.id, !module.enabled)
   }
 
@@ -78,12 +81,14 @@ export default function ModuleCard({ module, onToggle, onClick }: ModuleCardProp
           className={`
             relative inline-flex h-6 w-11 items-center rounded-full
             transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2
+            ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
             ${module.enabled
               ? 'bg-green-600 focus:ring-green-500'
               : 'bg-gray-300 focus:ring-gray-400'
             }
           `}
           aria-label={`Toggle ${module.name}`}
+          disabled={disabled || module.required}
         >
           <span
             className={`

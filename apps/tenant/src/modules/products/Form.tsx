@@ -1,11 +1,15 @@
 // apps/tenant/src/modules/products/Form.tsx
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { createProducto, getProducto, updateProducto, listCategorias, type Producto, type Categoria } from './productsApi'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { apiFetch } from '../../lib/http'
 import { useCurrency } from '../../hooks/useCurrency'
 import { getCompanySettings, getDefaultReorderPoint } from '../../services/companySettings'
+import { usePermission } from '../../hooks/usePermission'
+import PermissionDenied from '../../components/PermissionDenied'
+import ProtectedButton from '../../components/ProtectedButton'
 
 type FieldCfg = {
   field: string
@@ -20,8 +24,11 @@ type FieldCfg = {
 
 export default function ProductoForm() {
   const { id, empresa } = useParams()
+  const { t } = useTranslation(['products', 'common'])
   const nav = useNavigate()
   const { symbol: currencySymbol } = useCurrency()
+  const can = usePermission()
+  const requiredPerm = id ? 'products:update' : 'products:create'
   const [form, setForm] = useState<Partial<Producto>>({
     sku: '',
     name: '',
@@ -92,14 +99,14 @@ export default function ProductoForm() {
 
   const fieldList = useMemo(() => {
     const base: FieldCfg[] = [
-      { field: 'sku', visible: true, required: false, ord: 10, label: 'Code', type: 'text', help: 'Dejar vacío para generar automáticamente' },
-      { field: 'name', visible: true, required: true, ord: 20, label: 'Nombre', type: 'text' },
-      { field: 'categoria', visible: true, required: false, ord: 22, label: 'Categoría', type: 'select' },
-      { field: 'descripcion', visible: true, required: false, ord: 25, label: 'Description', type: 'textarea' },
-      { field: 'price', visible: true, required: true, ord: 30, label: `Precio de venta (${currencySymbol})`, type: 'number' },
-      { field: 'stock', visible: true, required: false, ord: 35, label: 'Stock inicial', type: 'number' },
-      { field: 'iva_tasa', visible: true, required: false, ord: 40, label: 'IVA (%)', type: 'number' },
-      { field: 'activo', visible: true, required: false, ord: 50, label: 'Activo', type: 'boolean' },
+      { field: 'sku', visible: true, required: false, ord: 10, label: t('products:form.sku'), type: 'text', help: t('products:form.skuHelp') },
+      { field: 'name', visible: true, required: true, ord: 20, label: t('products:form.name'), type: 'text' },
+      { field: 'categoria', visible: true, required: false, ord: 22, label: t('products:form.category'), type: 'select' },
+      { field: 'descripcion', visible: true, required: false, ord: 25, label: t('products:form.description'), type: 'textarea' },
+      { field: 'price', visible: true, required: true, ord: 30, label: `${t('products:form.price')} (${currencySymbol})`, type: 'number' },
+      { field: 'stock', visible: true, required: false, ord: 35, label: t('products:form.stock'), type: 'number' },
+      { field: 'iva_tasa', visible: true, required: false, ord: 40, label: t('products:form.tax'), type: 'number' },
+      { field: 'activo', visible: true, required: false, ord: 50, label: t('products:form.active'), type: 'boolean' },
     ]
 
     const map = new Map(base.map((cfg) => [cfg.field, cfg]))
@@ -137,6 +144,10 @@ export default function ProductoForm() {
     return Object.entries(map)
       .map(([key, value]) => `${key}=${value}`)
       .join(', ')
+  }
+
+  if (!can(requiredPerm)) {
+    return <PermissionDenied permission={requiredPerm} />
   }
 
   const updateMetadata = (updater: (meta: Record<string, unknown>) => Record<string, unknown>) => {
@@ -423,13 +434,13 @@ export default function ProductoForm() {
         </div>
 
         <div className="border-t pt-4">
-          <h2 className="text-lg font-semibold text-gray-900">Precio mayorista</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t('products:form.wholesaleTitle')}</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Configura condiciones por producto: cliente mayorista o minimos por cantidad.
+            {t('products:form.wholesaleHint')}
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
             <div>
-              <label className="block mb-2 font-medium text-gray-700 text-sm">Habilitar mayorista</label>
+              <label className="block mb-2 font-medium text-gray-700 text-sm">{t('products:form.wholesaleEnable')}</label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -438,32 +449,32 @@ export default function ProductoForm() {
                   disabled={stockBelowGlobalMin && !wholesaleEnabled}
                   className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-600">Aplicar reglas de mayorista</span>
+                <span className="text-sm text-gray-600">{t('products:form.wholesaleApply')}</span>
               </label>
               {minStockGlobal > 0 && (
                 <p className="text-xs text-gray-500 mt-2">
-                  Minimo global de stock: {minStockGlobal}
+                  {t('products:form.stockGlobal', { value: minStockGlobal })}
                 </p>
               )}
               {stockBelowGlobalMin && (
                 <p className="text-xs text-amber-600 mt-2">
-                  El stock inicial ({stockValue}) esta por debajo del minimo de stock ({minStockGlobal}). No se permite activar mayorista.
+                  {t('products:form.stockBelowMin', { stock: stockValue, min: minStockGlobal })}
                 </p>
               )}
             </div>
             <div>
-              <label className="block mb-2 font-medium text-gray-700 text-sm">Precio mayorista</label>
+              <label className="block mb-2 font-medium text-gray-700 text-sm">{t('products:form.wholesalePrice')}</label>
               <input
                 type="number"
                 step="0.01"
                 value={wholesalePrice}
                 onChange={(e) => updateWholesale({ price: Number(e.target.value) || 0 })}
                 className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder={`Ej: ${currencySymbol}8.50`}
+                placeholder={t('products:form.wholesalePricePlaceholder', { currency: currencySymbol })}
               />
             </div>
             <div>
-              <label className="block mb-2 font-medium text-gray-700 text-sm">Minimo (unidades)</label>
+              <label className="block mb-2 font-medium text-gray-700 text-sm">{t('products:form.wholesaleMinUnits')}</label>
               <input
                 type="number"
                 step="1"
@@ -471,62 +482,63 @@ export default function ProductoForm() {
                 value={wholesaleMinUnits}
                 onChange={(e) => updateWholesale({ min_qty_units: Number(e.target.value) || 0 })}
                 className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Ej: 12"
+                placeholder={t('products:form.wholesaleMinUnitsPlaceholder')}
               />
             </div>
             <div>
-              <label className="block mb-2 font-medium text-gray-700 text-sm">Aplicacion del precio</label>
+              <label className="block mb-2 font-medium text-gray-700 text-sm">{t('products:form.wholesaleApplyMode')}</label>
               <select
                 value={wholesaleApplyMode}
                 onChange={(e) => updateWholesale({ apply_mode: e.target.value })}
                 className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="all">Todo el pedido</option>
-                <option value="excess">Solo excedente</option>
+                <option value="all">{t('products:form.wholesaleModeAll')}</option>
+                <option value="excess">{t('products:form.wholesaleModeExcess')}</option>
               </select>
             </div>
             <div className="md:col-span-2">
-              <label className="block mb-2 font-medium text-gray-700 text-sm">Presentaciones (opcional)</label>
+              <label className="block mb-2 font-medium text-gray-700 text-sm">{t('products:form.packs')}</label>
               <input
                 type="text"
                 value={packsInput}
                 onChange={(e) => updatePacks(parseKeyValueNumberMap(e.target.value))}
                 className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Formato: caja=12, bulto=24"
+                placeholder={t('products:form.packsPlaceholder')}
               />
               <p className="text-xs text-gray-500 mt-1">
-                Define equivalencias por presentacion para futuros calculos.
+                {t('products:form.packsHelp')}
               </p>
             </div>
             <div className="md:col-span-2">
-              <label className="block mb-2 font-medium text-gray-700 text-sm">Minimo por presentacion</label>
+              <label className="block mb-2 font-medium text-gray-700 text-sm">{t('products:form.minByPack')}</label>
               <input
                 type="text"
                 value={wholesaleMinByPackInput}
                 onChange={(e) => updateWholesaleMinByPack(parseKeyValueNumberMap(e.target.value))}
                 className="border px-3 py-2 w-full rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Formato: caja=1, bulto=1"
+                placeholder={t('products:form.minByPackPlaceholder')}
               />
               <p className="text-xs text-gray-500 mt-1">
-                Si la venta se maneja por presentacion, aplica estos minimos.
+                {t('products:form.minByPackHelp')}
               </p>
             </div>
           </div>
         </div>
 
         <div className="pt-4 flex gap-3 border-t">
-          <button
+          <ProtectedButton
+            permission={requiredPerm}
             type="submit"
             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors font-medium"
           >
-            {id ? 'Save changes' : 'Create product'}
-          </button>
+            {t('products:form.save')}
+          </ProtectedButton>
           <button
             type="button"
             className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium text-gray-700"
             onClick={() => nav('..')}
           >
-            Cancel
+            {t('products:form.cancel')}
           </button>
         </div>
       </form>

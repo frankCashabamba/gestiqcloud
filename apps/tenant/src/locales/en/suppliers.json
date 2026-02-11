@@ -1,0 +1,27 @@
+{
+  "title": "Suppliers",
+  "subtitle": "Manage your supplier network, contacts and shipping addresses.",
+  "new": "New Supplier",
+  "empty": "No suppliers found with that filter.",
+  "loading": "Loading suppliers…",
+  "searchPlaceholder": "Search by name, NIF, email...",
+  "confirmDelete": "Deactivate this supplier?",
+  "status": {
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "table": {
+    "code": "Code",
+    "name": "Name / Legal Name",
+    "nif": "NIF / Tax ID",
+    "email": "Email",
+    "phone": "Phone",
+    "country": "Country"
+  },
+  "actions": {
+    "deactivate": "Deactivate"
+  },
+  "messages": {
+    "deactivated": "Supplier deactivated"
+  }
+}

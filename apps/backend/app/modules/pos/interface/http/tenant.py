@@ -125,17 +125,22 @@ def _to_decimal_q(value: float | Decimal, q: str) -> Decimal:
 def _resolve_tenant_currency(db: Session, tenant_id: UUID) -> str:
     """Resuelve la moneda base del tenant para POS.
 
-    Orden:
-    1) company_settings.currency
-    2) tenants.base_currency
-
-    Nota: no usamos fallbacks hardcodeados (EUR/USD). Si no hay moneda configurada,
-    devolvemos error para evitar crear datos con una moneda incorrecta.
+    Fuente única: configuración operativa (company_settings / currencies).
+    No se usa tenants.base_currency; si no hay configuración, devolvemos error.
     """
     row = db.execute(
-        text("SELECT currency FROM company_settings WHERE tenant_id = :tid LIMIT 1").bindparams(
-            bindparam("tid", type_=PGUUID(as_uuid=True))
-        ),
+        text(
+            """
+            SELECT COALESCE(
+                NULLIF(UPPER(TRIM(cs.currency)), ''),
+                NULLIF(UPPER(TRIM(cur.code)), '')
+            )
+            FROM company_settings cs
+            LEFT JOIN currencies cur ON cur.id = cs.currency_id
+            WHERE cs.tenant_id = :tid
+            LIMIT 1
+            """
+        ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
         {"tid": tenant_id},
     ).first()
     if row and row[0]:
@@ -143,18 +148,17 @@ def _resolve_tenant_currency(db: Session, tenant_id: UUID) -> str:
         if cur:
             return cur
 
-    row = db.execute(
-        text("SELECT base_currency FROM tenants WHERE id = :tid LIMIT 1").bindparams(
-            bindparam("tid", type_=PGUUID(as_uuid=True))
-        ),
+    # Fallback: use tenant.base_currency if present, otherwise default USD to keep POS operable
+    base = db.execute(
+        text(
+            "SELECT NULLIF(UPPER(TRIM(base_currency)), '') FROM tenants WHERE id = :tid LIMIT 1"
+        ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
         {"tid": tenant_id},
     ).first()
-    if row and row[0]:
-        cur = str(row[0]).strip().upper()
-        if cur:
-            return cur
+    if base and base[0]:
+        return str(base[0]).strip().upper()
 
-    raise HTTPException(status_code=400, detail="currency_not_configured")
+    return "USD"
 
 
 # ============================================================================

@@ -72,9 +72,12 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
     if (saved) {
       try {
         const parsed = JSON.parse(saved)
-        // Solo restaurar items que no estén completados
+        // Solo restaurar items que:
+        // - NO estén en 'saved' o 'duplicate' (completados)
+        // - NO estén en 'processing' (pueden estar atascados en localStorage)
+        // - NO estén en 'saving' (pueden estar atascados)
         const toRestore = parsed.filter((item: QueueItem) =>
-          item.status !== 'saved' && item.status !== 'duplicate'
+          !['saved', 'duplicate', 'processing', 'saving'].includes(item.status)
         )
         if (toRestore.length > 0) {
           setQueue(toRestore)

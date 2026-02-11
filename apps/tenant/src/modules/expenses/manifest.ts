@@ -1,7 +1,7 @@
 import { lazy } from 'react'
 
 export const manifest = {
-  id: 'gastos',
+  id: 'expenses',
   name: 'Gastos',
   icon: '💵',
   color: '#EF4444',

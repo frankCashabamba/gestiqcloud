@@ -5,6 +5,9 @@ import { fileURLToPath } from 'node:url';
 var rawBase = process.env.VITE_BASE_PATH || '/';
 var basePath = rawBase.endsWith('/') ? rawBase : "".concat(rawBase, "/");
 var buildId = process.env.VITE_BUILD_ID || new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
+var rawApiTarget = process.env.VITE_API_URL || 'http://localhost:8000';
+var apiTarget = rawApiTarget.replace(/\/+$/, '');
+var targetHasApiSuffix = apiTarget.endsWith('/api');
 function pkgPath(p) {
     return fileURLToPath(new URL(p, import.meta.url));
 }
@@ -30,6 +33,9 @@ var alias = {
     'react-router-dom': pkgPath('./node_modules/react-router-dom'),
     'axios': pkgPath('./node_modules/axios'),
     'idb-keyval': pkgPath('./node_modules/idb-keyval'),
+    // Workbox deps used by shared service worker outside project root
+    'workbox-precaching': pkgPath('./node_modules/workbox-precaching'),
+    'workbox-core': pkgPath('./node_modules/workbox-core'),
 };
 export default defineConfig({
     base: basePath,
@@ -43,11 +49,16 @@ export default defineConfig({
         strictPort: false,
         proxy: {
             '/api': {
-                target: process.env.VITE_API_URL || 'http://localhost:8000',
+                target: apiTarget,
                 changeOrigin: true,
                 secure: false,
-                // Preserve path as-is so /api/v1/* maps directly
-                rewrite: function (path) { return path; },
+                // Si el target ya trae '/api', eliminamos el prefijo duplicado para evitar /api/api/*
+                rewrite: function (path) {
+                    if (!targetHasApiSuffix)
+                        return path;
+                    var rewritten = path.replace(/^\/api/, '');
+                    return rewritten ? rewritten : '/';
+                },
             },
         },
     },

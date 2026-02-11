@@ -1,0 +1,40 @@
+{
+  "title": "CRM",
+  "subtitle": "Gestión de Relaciones con Clientes",
+  "new": "Nuevo Contacto",
+  "search": "Buscar contactos",
+  "empty": "No hay contactos encontrados",
+  "edit": "Editar",
+  "delete": "Eliminar",
+  "confirmDelete": "¿Está seguro de que desea eliminar este contacto?",
+  "actions": "Acciones",
+  "messages": {
+    "created": "Contacto creado exitosamente",
+    "updated": "Contacto actualizado exitosamente",
+    "deleted": "Contacto eliminado exitosamente"
+  },
+  "dashboard": {
+    "title": "Dashboard CRM",
+    "totalLeads": "Total de Leads",
+    "opportunities": "Oportunidades",
+    "pipelineValue": "Valor del Pipeline",
+    "conversionRate": "Tasa de Conversión",
+    "leadsByStatus": "Leads por Estado",
+    "opportunitiesByStage": "Oportunidades por Etapa",
+    "won": "Ganadas",
+    "lost": "Perdidas"
+  },
+  "table": {
+    "name": "Nombre",
+    "email": "Correo",
+    "phone": "Teléfono",
+    "status": "Estado",
+    "value": "Valor"
+  },
+  "filters": {
+    "search": "Buscar",
+    "status": "Estado",
+    "stage": "Etapa"
+  },
+  "noData": "No hay datos disponibles"
+  }

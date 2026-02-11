@@ -1,5 +1,5 @@
 export const contabilidadManifest = {
-    id: 'contabilidad',
+    id: 'accounting',
     name: 'Accounting',
     icon: '📊',
     path: '/accounting',

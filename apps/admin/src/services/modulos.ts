@@ -52,8 +52,10 @@ export async function updateModulo(id: number | string, payload: Partial<Module>
   return normalizeModule(data)
 }
 
-export async function removeModulo(id: number | string): Promise<void> {
-  await api.delete(ADMIN_MODULES.byId(id))
+export async function removeModulo(id: number | string, opts?: { force?: boolean }): Promise<void> {
+  const force = opts?.force
+  const url = force ? ADMIN_MODULES.byIdForce(id) : ADMIN_MODULES.byId(id)
+  await api.delete(url)
 }
 
 export async function toggleModulo(id: number | string, activar: boolean): Promise<Module> {

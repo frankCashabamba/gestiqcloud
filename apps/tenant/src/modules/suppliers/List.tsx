@@ -1,10 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { listProveedores, removeProveedor, type Proveedor } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
+import { usePermission } from '../../hooks/usePermission'
+import PermissionDenied from '../../components/PermissionDenied'
 
 export default function ProveedoresList() {
+  const { t } = useTranslation(['suppliers', 'common'])
+  const can = usePermission()
   const [items, setItems] = useState<Proveedor[]>([])
   const [loading, setLoading] = useState(false)
   const [errMsg, setErrMsg] = useState<string | null>(null)
@@ -68,35 +73,41 @@ export default function ProveedoresList() {
   const { page, setPage, totalPages, view } = usePagination(filtered, 15)
 
   const handleRemove = async (id: number | string) => {
-    if (!confirm('Deactivate this supplier?')) return
+    if (!confirm(t('suppliers:confirmDelete'))) return
     try {
       await removeProveedor(id)
       setItems((prev) => prev.filter((p) => p.id !== id))
-      success('Supplier deactivated')
+      success(t('suppliers:messages.deactivated'))
     } catch (e: any) {
       toastError(getErrorMessage(e))
     }
+  }
+
+  if (!can('suppliers:read')) {
+    return <PermissionDenied permission="suppliers:read" />
   }
 
   return (
     <div className="p-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Suppliers</h2>
+          <h2 className="text-lg font-semibold text-slate-900">{t('suppliers:title')}</h2>
           <p className="text-sm text-slate-500">
-            Manage your supplier network, contacts and shipping addresses.
+            {t('suppliers:subtitle')}
           </p>
         </div>
-        <button className="gc-button gc-button--primary" onClick={() => nav('nuevo')}>
-          + New Supplier
-        </button>
+        {can('suppliers:create') && (
+          <button className="gc-button gc-button--primary" onClick={() => nav('nuevo')}>
+            + {t('suppliers:new')}
+          </button>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search by name, NIF, email..."
+          placeholder={t('suppliers:searchPlaceholder')}
           className="w-full max-w-md rounded-xl border border-slate-200 px-4 py-2 text-sm"
         />
         <select
@@ -104,13 +115,13 @@ export default function ProveedoresList() {
           onChange={(e) => setFilterActivo(e.target.value as any)}
           className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
         >
-          <option value="all">All</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
+          <option value="all">{t('common.all')}</option>
+          <option value="active">{t('suppliers:status.active')}</option>
+          <option value="inactive">{t('suppliers:status.inactive')}</option>
         </select>
       </div>
 
-      {loading && <div className="text-sm text-slate-500">Loading suppliers…</div>}
+      {loading && <div className="text-sm text-slate-500">{t('suppliers:loading')}</div>}
       {errMsg && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">
           {errMsg}
@@ -121,13 +132,13 @@ export default function ProveedoresList() {
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-3">Code</th>
-              <th className="px-4 py-3">Name / Legal Name</th>
-              <th className="px-4 py-3">NIF / Tax ID</th>
-              <th className="px-4 py-3">Email</th>
-              <th className="px-4 py-3">Phone</th>
-              <th className="px-4 py-3">Country</th>
-              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">{t('suppliers:table.code')}</th>
+              <th className="px-4 py-3">{t('suppliers:table.name')}</th>
+              <th className="px-4 py-3">{t('suppliers:table.nif')}</th>
+              <th className="px-4 py-3">{t('suppliers:table.email')}</th>
+              <th className="px-4 py-3">{t('suppliers:table.phone')}</th>
+              <th className="px-4 py-3">{t('suppliers:table.country')}</th>
+              <th className="px-4 py-3">{t('common.status')}</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -160,23 +171,27 @@ export default function ProveedoresList() {
                         : 'bg-slate-100 text-slate-500'
                     }`}
                   >
-                    {p.active !== false ? 'Active' : 'Inactive'}
+                    {p.active !== false ? t('suppliers:status.active') : t('suppliers:status.inactive')}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex flex-wrap items-center justify-end gap-3">
-                    <Link
-                      to={`${p.id}/editar`}
-                      className="text-sm font-medium text-blue-600 hover:text-blue-500"
-                    >
-                      Edit
-                    </Link>
-                    <button
-                      className="text-sm font-medium text-rose-600 hover:text-rose-500"
-                      onClick={() => handleRemove(p.id)}
-                    >
-                      Deactivate
-                    </button>
+                    {can('suppliers:update') && (
+                      <Link
+                        to={`${p.id}/editar`}
+                        className="text-sm font-medium text-blue-600 hover:text-blue-500"
+                      >
+                        {t('common.edit')}
+                      </Link>
+                    )}
+                    {can('suppliers:delete') && (
+                      <button
+                        className="text-sm font-medium text-rose-600 hover:text-rose-500"
+                        onClick={() => handleRemove(p.id)}
+                      >
+                        {t('suppliers:actions.deactivate')}
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -184,7 +199,7 @@ export default function ProveedoresList() {
             {!loading && view.length === 0 && (
               <tr>
                 <td className="px-4 py-6 text-center text-sm text-slate-500" colSpan={8}>
-                  No suppliers found with that filter.
+                  {t('suppliers:empty')}
                 </td>
               </tr>
             )}

@@ -11,6 +11,7 @@ import {
   type Producto,
 } from './productsApi'
 import { useToast, getErrorMessage } from '../../shared/toast'
+import { useTranslation } from 'react-i18next'
 import { usePagination, Pagination } from '../../shared/pagination'
 import CategoriasModal from './CategoriesModal'
 import { useCurrency } from '../../hooks/useCurrency'
@@ -27,6 +28,9 @@ import {
   type SavedPrinterConfig,
 } from '../importer/components/PrintBarcodeLabels'
 import { apiFetch } from '../../lib/http'
+import { usePermission } from '../../hooks/usePermission'
+import ProtectedButton from '../../components/ProtectedButton'
+import PermissionDenied from '../../components/PermissionDenied'
 
 type RawPrinterLabelConfig = {
   id: string
@@ -53,6 +57,7 @@ type RawPrinterLabelConfig = {
 const clampValue = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 
 export default function ProductosList() {
+  const { t } = useTranslation(['products', 'common'])
   const [items, setItems] = useState<Producto[]>([])
   const [loading, setLoading] = useState(false)
   const [errMsg, setErrMsg] = useState<string | null>(null)
@@ -93,6 +98,7 @@ export default function ProductosList() {
   const [selectedSavedConfigId, setSelectedSavedConfigId] = useState<string | null>(null)
   const [configsLoading, setConfigsLoading] = useState(false)
   const selectedSavedConfigIdRef = useRef<string | null>(null)
+  const can = usePermission()
   const fetchPrinters = useCallback(async (): Promise<PrinterInfo[]> => {
     try {
       const data = await apiFetch<PrinterInfo[]>('v1/tenant/printing/printers')
@@ -541,14 +547,14 @@ export default function ProductosList() {
   }
 
   const exportCSV = () => {
-    const headers = ['Code', 'Nombre', 'Precio', 'IVA', 'Status']
+    const headers = [t('products:code'), t('products:name'), t('products:price'), t('products:tax'), t('products:status')]
     const rows = sorted.map((p) => [p.sku || '', p.name, p.price?.toFixed(2) || '0', `${p.iva_tasa || 0}%`, p.active ? 'Activo' : 'Inactivo'])
 
     const csv = [headers, ...rows].map((row) => row.join(';')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
-    link.download = `productos-${new Date().toISOString().split('T')[0]}.csv`
+    link.download = `products-${new Date().toISOString().split('T')[0]}.csv`
     link.click()
   }
 
@@ -556,54 +562,70 @@ export default function ProductosList() {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Productos</h1>
-          <p className="mt-1 text-sm text-gray-500">Catálogo de productos y servicios</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('products:title')}</h1>
+          <p className="mt-1 text-sm text-gray-500">{t('products:subtitle')}</p>
         </div>
         <div className="flex gap-2">
-          <button
-            className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-            onClick={() => setShowCategoriesModal(true)}
-            title="Gestionar categorías"
-          >
-            🏷️ categorías
-          </button>
-          <button
-            className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-            onClick={exportCSV}
-            title="Exportar a CSV"
-          >
-            📥 Exportar
-          </button>
-          <button
-            className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-            onClick={handlePrintLabels}
-            title="Imprimir etiquetas (c?digo y precio)"
-          >
-            Imprimir etiquetas
-          </button>
-                    {items.length > 0 && (<button
-                      className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors font-medium"
-                                  onClick={async () => {
-                                    if (prompt('Para confirmar la eliminación de todos los productos, escriba PURGE') === 'PURGE') {
-                                      try {
-                                        await purgeProductos();
-                                        setItems([]);
-                                        success('Todos los productos han sido eliminados.');
-                                      } catch (e) {
-                                        toastError(getErrorMessage(e));
-                                      }
-                                    }
-                                  }}                      title="Eliminar todos los productos"
-                    >
-                      🗑️ Eliminar todo
-                    </button>)}
+          {can('products:update') && (
+            <ProtectedButton
+              permission="products:update"
+              className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              onClick={() => setShowCategoriesModal(true)}
+              title={t('products:categories')}
+            >
+              🏷️ {t('products:categories')}
+            </ProtectedButton>
+          )}
+          {can('products:read') && (
+            <ProtectedButton
+              permission="products:read"
+              className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              onClick={exportCSV}
+              title={t('products:export')}
+            >
+              📥 {t('products:export')}
+            </ProtectedButton>
+          )}
+          {can('products:read') && (
+            <ProtectedButton
+              permission="products:read"
+              className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              onClick={handlePrintLabels}
+              title={t('products:printLabelsTitle')}
+            >
+              {t('products:printLabels')}
+            </ProtectedButton>
+          )}
+          {items.length > 0 && can('products:delete') && (
+            <ProtectedButton
+              permission="products:delete"
+              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors font-medium"
+              onClick={async () => {
+                if (prompt(t('products:deleteAllConfirm')) === 'PURGE') {
+                  try {
+                    await purgeProductos();
+                    setItems([]);
+                    success(t('products:deleteAll'));
+                  } catch (e) {
+                    toastError(getErrorMessage(e));
+                  }
+                }
+              }}
+              title={t('products:deleteAll')}
+            >
+              🗑️ {t('products:deleteAll')}
+            </ProtectedButton>
+          )}
 
-                    <button
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
-            onClick={() => nav('nuevo')}
-          >
-            <span className="text-lg">➕</span> Nuevo producto
-          </button>
+                    {can('products:create') && (
+                      <ProtectedButton
+                        permission="products:create"
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
+                        onClick={() => nav('nuevo')}
+                      >
+            <span className="text-lg">➕</span> {t('products:new')}
+          </ProtectedButton>
+        )}
         </div>
       </div>
 
@@ -611,69 +633,73 @@ export default function ProductosList() {
       {selectedIds.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <span className="font-medium text-blue-900">{selectedIds.length} producto(s) seleccionado(s)</span>
+            <span className="font-medium text-blue-900">{t('products:bulkSelected', { count: selectedIds.length })}</span>
             <button
               onClick={() => setSelectedIds([])}
               className="text-sm text-blue-600 hover:underline"
             >
-              Deseleccionar todos
+              {t('products:bulkClear')}
             </button>
           </div>
           <div className="flex gap-2">
-            <button
-              className="bg-white border border-purple-300 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-50 transition-colors font-medium text-sm"
-              onClick={async () => {
-                const categoryName = prompt('Nombre de la categoría para asignar:')
-                if (!categoryName || !categoryName.trim()) return
+            {can('products:update') && (
+              <ProtectedButton
+                permission="products:update"
+                className="bg-white border border-purple-300 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-50 transition-colors font-medium text-sm"
+                onClick={async () => {
+                  const categoryName = prompt(t('products:bulkAssignCategoryPrompt'))
+                  if (!categoryName || !categoryName.trim()) return
 
-                try {
-                  const result = await bulkAssignCategory(selectedIds, categoryName.trim())
-                  await (async () => {
+                  try {
+                    const result = await bulkAssignCategory(selectedIds, categoryName.trim())
                     setItems(await listProductos())
-                  })()
-                  setSelectedIds([])
-                  success(`${result.updated} productos actualizados${result.category_created ? ' (categoría creada)' : ''}`)
-                } catch (e: any) {
-                  toastError(getErrorMessage(e))
-                }
-              }}
-            >
-              🏷️ Asignar categoría
-            </button>
-            <button
-              className="bg-white border border-green-300 text-green-700 px-4 py-2 rounded-lg hover:bg-green-50 transition-colors font-medium text-sm"
-              onClick={async () => {
-                try {
-                  await bulkSetActive(selectedIds, true)
-                  await (async () => {
+                    setSelectedIds([])
+                    const created = result.category_created ? t('products:bulkAssignCategoryCreated') : ''
+                    success(t('products:bulkAssignCategoryResult', { updated: result.updated, created }))
+                  } catch (e: any) {
+                    toastError(getErrorMessage(e))
+                  }
+                }}
+              >
+                🏷️ {t('products:bulkAssignCategory')}
+              </ProtectedButton>
+            )}
+            {can('products:update') && (
+              <ProtectedButton
+                permission="products:update"
+                className="bg-white border border-green-300 text-green-700 px-4 py-2 rounded-lg hover:bg-green-50 transition-colors font-medium text-sm"
+                onClick={async () => {
+                  try {
+                    await bulkSetActive(selectedIds, true)
                     setItems(await listProductos())
-                  })()
-                  setSelectedIds([])
-                  success('Productos activados')
-                } catch (e: any) {
-                  toastError(getErrorMessage(e))
-                }
-              }}
-            >
-              ✓ Activar
-            </button>
-            <button
-              className="bg-white border border-yellow-300 text-yellow-700 px-4 py-2 rounded-lg hover:bg-yellow-50 transition-colors font-medium text-sm"
-              onClick={async () => {
-                try {
-                  await bulkSetActive(selectedIds, false)
-                  await (async () => {
+                    setSelectedIds([])
+                    success(t('products:bulkActivated'))
+                  } catch (e: any) {
+                    toastError(getErrorMessage(e))
+                  }
+                }}
+              >
+                ✓ {t('products:bulkActivate')}
+              </ProtectedButton>
+            )}
+            {can('products:update') && (
+              <ProtectedButton
+                permission="products:update"
+                className="bg-white border border-yellow-300 text-yellow-700 px-4 py-2 rounded-lg hover:bg-yellow-50 transition-colors font-medium text-sm"
+                onClick={async () => {
+                  try {
+                    await bulkSetActive(selectedIds, false)
                     setItems(await listProductos())
-                  })()
-                  setSelectedIds([])
-                  success('Productos desactivados')
-                } catch (e: any) {
-                  toastError(getErrorMessage(e))
-                }
-              }}
-            >
-              ✗ Desactivar
-            </button>
+                    setSelectedIds([])
+                    success(t('products:bulkDeactivated'))
+                  } catch (e: any) {
+                    toastError(getErrorMessage(e))
+                  }
+                }}
+              >
+                ✗ {t('products:bulkDeactivate')}
+              </ProtectedButton>
+            )}
           </div>
         </div>
       )}
@@ -683,16 +709,16 @@ export default function ProductosList() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Buscar por nombre, Código, EAN o marca..."
+            placeholder={t('products:searchPlaceholder')}
             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            aria-label="Buscar productos"
+            aria-label={t('products:searchPlaceholder')}
           />
           <select
             value={filterCategoria}
             onChange={(e) => setFilterCategoria(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value="all">Todas las categorías</option>
+            <option value="all">{t('products:category')} ({t('common.all')})</option>
             {categorias.map((cat) => (
               <option key={cat.id} value={cat.name}>
                 {cat.name}
@@ -704,15 +730,15 @@ export default function ProductosList() {
             onChange={(e) => setFilterActivo(e.target.value as any)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value="all">Todos los estados</option>
-            <option value="activo">Solo activos</option>
-            <option value="inactivo">Solo inactivos</option>
+            <option value="all">{t('common.all')}</option>
+            <option value="activo">{t('products:active')}</option>
+            <option value="inactivo">{t('products:inactive')}</option>
           </select>
         </div>
 
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center gap-3">
-            <label className="text-gray-600">Por página:</label>
+            <label className="text-gray-600">{t('products:perPage')}:</label>
             <select value={per} onChange={(e) => setPer(Number(e.target.value))} className="border border-gray-300 px-3 py-1 rounded">
               <option value={10}>10</option>
               <option value={25}>25</option>
@@ -721,7 +747,7 @@ export default function ProductosList() {
             </select>
           </div>
           <div className="text-gray-600">
-            <span className="font-medium">{filtered.length}</span> productos encontrados
+            <span className="font-medium">{filtered.length}</span> {t('products:found', { count: filtered.length })}
           </div>
         </div>
       </div>
@@ -769,7 +795,7 @@ export default function ProductosList() {
                         setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
                       }}
                     >
-                      Código {sortKey === 'sku' && (sortDir === 'asc' ? '▲' : '▼')}
+                      {t('products:code')} {sortKey === 'sku' && (sortDir === 'asc' ? '▲' : '▼')}
                     </button>
                   </th>
                   <th className="px-4 py-3 text-left">
@@ -780,11 +806,11 @@ export default function ProductosList() {
                         setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
                       }}
                     >
-                      Nombre {sortKey === 'name' && (sortDir === 'asc' ? '▲' : '▼')}
+                      {t('products:name')} {sortKey === 'name' && (sortDir === 'asc' ? '▲' : '▼')}
                     </button>
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Categoría</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">EAN</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('products:category')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('products:ean')}</th>
                   <th className="px-4 py-3 text-left">
                     <button
                       className="text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900 flex items-center gap-1"
@@ -793,12 +819,12 @@ export default function ProductosList() {
                         setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
                       }}
                     >
-                      Precio {sortKey === 'price' && (sortDir === 'asc' ? '▲' : '▼')}
+                      {t('products:price')} {sortKey === 'price' && (sortDir === 'asc' ? '▲' : '▼')}
                     </button>
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">IVA</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Estado</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Acciones</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('products:tax')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('products:status')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('products:actions')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -849,13 +875,15 @@ export default function ProductosList() {
                           p.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
                         }`}
                       >
-                        {p.active ? '✓ Activo' : '✗ Inactivo'}
+                        {p.active ? `✓ ${t('products:active')}` : `✗ ${t('products:inactive')}`}
                       </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
-                      <Link to={`${p.id}/editar`} className="text-blue-600 hover:text-blue-900 mr-4">
-                        Editar
-                      </Link>
+                      {can('products:update') && (
+                        <Link to={`${p.id}/editar`} className="text-blue-600 hover:text-blue-900 mr-4">
+                          {t('common.edit')}
+                        </Link>
+                      )}
                       {(sectorFeatures?.recipes ||
                         sector.features?.recipes ||
                         sector.plantilla?.toLowerCase().includes('panaderia') ||
@@ -871,24 +899,27 @@ export default function ProductosList() {
                             )
                           }
                         >
-                          Crear receta
+                          {t('products:makeRecipe')}
                         </button>
                       )}
-                      <button
-                        className="text-red-600 hover:text-red-900"
-                        onClick={async () => {
-                          if (!confirm(`¿Eliminar "${p.name}"?`)) return
-                          try {
-                            await removeProducto(p.id)
-                            setItems((prev) => prev.filter((x) => x.id !== p.id))
-                            success('Producto eliminado')
-                          } catch (e: any) {
-                            toastError(getErrorMessage(e))
-                          }
-                        }}
-                      >
-                        Eliminar
-                      </button>
+                      {can('products:delete') && (
+                        <ProtectedButton
+                          permission="products:delete"
+                          variant="ghost"
+                          onClick={async () => {
+                            if (!confirm(t('products:deleteOneConfirm', { name: p.name }))) return
+                            try {
+                              await removeProducto(p.id)
+                              setItems((prev) => prev.filter((x) => x.id !== p.id))
+                              success(t('products:deleteOne'))
+                            } catch (e: any) {
+                              toastError(getErrorMessage(e))
+                            }
+                          }}
+                        >
+                          {t('products:deleteOne')}
+                        </ProtectedButton>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -896,17 +927,24 @@ export default function ProductosList() {
                   <tr>
                     <td colSpan={8} className="px-4 py-12 text-center">
                       <div className="text-gray-400 text-4xl mb-3">📦</div>
-                      <p className="text-gray-500 mb-2">No hay productos registrados</p>
-                      <button className="text-blue-600 hover:underline font-medium" onClick={() => nav('nuevo')}>
-                        Crear el primer producto
-                      </button>
+                      <p className="text-gray-500 mb-2">{t('products:emptyTitle')}</p>
+                      {can('products:create') && (
+                        <ProtectedButton
+                          permission="products:create"
+                          className="text-blue-600 hover:underline font-medium"
+                          onClick={() => nav('nuevo')}
+                          variant="secondary"
+                        >
+                          {t('products:emptyCta')}
+                        </ProtectedButton>
+                      )}
                     </td>
                   </tr>
                 )}
                 {!loading && items.length > 0 && view.length === 0 && (
                   <tr>
                     <td colSpan={8} className="px-4 py-12 text-center">
-                      <p className="text-gray-500">No se encontraron productos con esos filtros</p>
+                      <p className="text-gray-500">{t('products:noResults')}</p>
                     </td>
                   </tr>
                 )}

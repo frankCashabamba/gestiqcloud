@@ -96,7 +96,8 @@ class Settings(BaseSettings):
     JWT_AUDIENCE: str | None = None
     JWT_LEEWAY_SECONDS: int = 30
 
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    # Default access token lifetime (can be overridden via env)
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     SECRET_KEY: SecretStr = Field(..., json_schema_extra={"env": "SECRET_KEY"})
 

@@ -4,6 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { createFactura, getFactura, updateFactura, clearInvoicesCache, type InvoiceLine } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { useCompanyConfig } from '../../contexts/CompanyConfigContext'
+import { usePermission } from '../../hooks/usePermission'
+import PermissionDenied from '../../components/PermissionDenied'
+import ProtectedButton from '../../components/ProtectedButton'
 
 interface FormT {
   numero?: string
@@ -26,9 +29,11 @@ export default function FacturaForm() {
   const nav = useNavigate()
   const { success, error } = useToast()
   const { config } = useCompanyConfig()
+  const can = usePermission()
   const currency = config?.settings?.currency || '€'
   const today = new Date().toISOString().slice(0, 10)
   const isNew = !id
+  const requiredPermission = isNew ? 'billing:create' : 'billing:update'
 
   const [form, setForm] = useState<FormT>({
     numero: '',
@@ -152,13 +157,17 @@ export default function FacturaForm() {
     }
   }
 
+  if (!can(requiredPermission)) {
+    return <PermissionDenied permission={requiredPermission} />
+  }
+
   return (
     <div className="p-4">
       <h3 className="text-xl font-semibold mb-4">{id ? t('billing.editTitle') : t('billing.newTitle')}</h3>
 
       {isLocked && (
         <div className="mb-4 rounded border border-amber-300 bg-amber-50 text-amber-800 px-3 py-2 text-sm">
-          {t('billing.status.issued')} · {t('common.readonly') || 'Solo lectura'}
+          {t('billing.status.issued')} · {t('common.readonly') || 'Read-only'}
         </div>
       )}
 
@@ -387,13 +396,14 @@ export default function FacturaForm() {
 
           {/* Form Actions */}
           <div className="flex gap-3 pt-4">
-            <button
+            <ProtectedButton
+              permission={requiredPermission}
               type="submit"
-              className={`px-4 py-2 rounded ${isLocked ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+              variant={isLocked ? 'secondary' : 'primary'}
               disabled={isLocked}
             >
-              {isLocked ? t('common.readonly') || 'Solo lectura' : t('common.save')}
-            </button>
+              {isLocked ? t('common.readonly') || 'Read-only' : t('common.save')}
+            </ProtectedButton>
             <button
               type="button"
               onClick={() => nav('..')}

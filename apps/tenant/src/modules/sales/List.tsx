@@ -7,9 +7,12 @@ import { usePagination, Pagination } from '../../shared/pagination'
 import StatusBadge from './components/StatusBadge'
 import { PAGINATION_DEFAULTS } from '../../constants/defaults'
 import { getCompanySettings, formatCurrency, type CompanySettings } from '../../services/companySettings'
+import { usePermission } from '../../hooks/usePermission'
+import ProtectedButton from '../../components/ProtectedButton'
 
 export default function VentasList() {
     const { t } = useTranslation()
+    const can = usePermission()
     const [items, setItems] = useState<Venta[]>([])
     const [loading, setLoading] = useState(false)
     const [errMsg, setErrMsg] = useState<string | null>(null)
@@ -93,8 +96,24 @@ export default function VentasList() {
             <div className="flex justify-between items-center mb-3">
                 <h2 className="font-semibold text-lg">{t('sales.title')}</h2>
                 <div className="flex gap-2">
-                    <button className="bg-gray-200 px-3 py-1 rounded" onClick={() => exportCSV(view)}>{t('sales.exportCsv')}</button>
-                    <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={() => nav('nueva')}>{t('common.new')}</button>
+                    {can('sales:read') && (
+                        <ProtectedButton
+                            permission="sales:read"
+                            variant="secondary"
+                            onClick={() => exportCSV(view)}
+                        >
+                            {t('sales.exportCsv')}
+                        </ProtectedButton>
+                    )}
+                    {can('sales:create') && (
+                        <ProtectedButton
+                            permission="sales:create"
+                            variant="primary"
+                            onClick={() => nav('new')}
+                        >
+                            {t('common.new')}
+                        </ProtectedButton>
+                    )}
                 </div>
             </div>
             <div className="mb-3 flex flex-wrap items-end gap-3">
@@ -154,12 +173,42 @@ export default function VentasList() {
                             </td>
                             <td className="py-2"><StatusBadge estado={v.estado} /></td>
                             <td className="py-2">
-                                <Link to={`${v.id}`} className="text-blue-600 hover:underline mr-3">{t('common.view')}</Link>
-                                <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline mr-3">{t('common.edit')}</Link>
-                                {v.estado === 'borrador' && (
-                                    <button className="text-green-700 hover:underline mr-3" onClick={() => nav(`${v.id}/facturar`)}>{t('sales.invoice')}</button>
+                                {can('sales:read') && (
+                                    <Link to={`${v.id}`} className="text-blue-600 hover:underline mr-3">
+                                        {t('common.view')}
+                                    </Link>
                                 )}
-                                <button className="text-red-700 hover:underline" onClick={async () => { if (!confirm(t('sales.deleteConfirm'))) return; try { await removeVenta(v.id); setItems((p) => p.filter(x => x.id !== v.id)); success(t('sales.deleted')) } catch (e: any) { toastError(getErrorMessage(e)) } }}>{t('common.delete')}</button>
+                                {can('sales:update') && (
+                                    <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline mr-3">
+                                        {t('common.edit')}
+                                    </Link>
+                                )}
+                                {v.estado === 'borrador' && can('sales:update') && (
+                                    <button
+                                        className="text-green-700 hover:underline mr-3"
+                                        onClick={() => nav(`${v.id}/facturar`)}
+                                    >
+                                        {t('sales.invoice')}
+                                    </button>
+                                )}
+                                {can('sales:delete') && (
+                                    <ProtectedButton
+                                        permission="sales:delete"
+                                        variant="ghost"
+                                        onClick={async () => {
+                                            if (!confirm(t('sales.deleteConfirm'))) return
+                                            try {
+                                                await removeVenta(v.id)
+                                                setItems((p) => p.filter(x => x.id !== v.id))
+                                                success(t('sales.deleted'))
+                                            } catch (e: any) {
+                                                toastError(getErrorMessage(e))
+                                            }
+                                        }}
+                                    >
+                                        {t('common.delete')}
+                                    </ProtectedButton>
+                                )}
                             </td>
                         </tr>
                     ))}

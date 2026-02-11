@@ -1,0 +1,31 @@
+{
+  "bankTransactions": "Transacciones Bancarias",
+  "pending": "Pendiente de Conciliación",
+  "reconciled": "Conciliado",
+  "empty": "Sin registros",
+  "filters": {
+    "type": "Tipo",
+    "reconciled": "Conciliado",
+    "from": "Desde",
+    "to": "Hasta",
+    "searchPlaceholder": "concepto, banco..."
+  },
+  "type": {
+    "income": "Ingreso",
+    "expenses": "Egreso"
+  },
+  "table": {
+    "date": "Fecha",
+    "bank": "Banco",
+    "concept": "Concepto",
+    "type": "Tipo",
+    "amount": "Monto",
+    "reconciled": "Conciliado"
+  },
+  "actions": {
+    "reconcile": "Conciliar"
+  },
+  "messages": {
+    "reconciled": "Transacción conciliada"
+  }
+}

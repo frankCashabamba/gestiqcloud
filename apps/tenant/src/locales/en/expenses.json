@@ -1,0 +1,23 @@
+{
+  "title": "Expenses",
+  "new": "New Expense",
+  "empty": "No records",
+  "stats": {
+    "total": "Total",
+    "pending": "Pending"
+  },
+  "filters": {
+    "from": "From",
+    "to": "To",
+    "conceptPlaceholder": "Concept..."
+  },
+  "table": {
+    "date": "Date",
+    "concept": "Concept",
+    "amount": "Amount"
+  },
+  "messages": {
+    "deleted": "Expense deleted"
+  },
+  "confirmDelete": "Delete expense?"
+}

@@ -1,8 +1,15 @@
-import React, { useState, useEffect } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ModuleCard from './components/ModuleCard'
 import ModuleConfigForm from './components/ModuleConfigForm'
 import { useToast, getErrorMessage } from '../../shared/toast'
+import {
+  listAvailableModules,
+  enableModule,
+  disableModule,
+  getModuleSettings,
+  updateModuleSettings
+} from '../../services/api/settings'
 
 interface Module {
   id: string
@@ -11,47 +18,70 @@ interface Module {
   description: string
   category: string
   enabled: boolean
+  required?: boolean
   config?: any
   dependencies?: string[]
 }
 
-// Definición de módulos disponibles
-const AVAILABLE_MODULES: Module[] = [
-  // VENTAS
-  { id: 'pos', name: 'Punto de Venta (TPV)', icon: '🛒', description: 'Sistema de caja y ventas al mostrador', category: 'Ventas', enabled: true },
-  { id: 'invoicing', name: 'Facturación', icon: '📄', description: 'Gestión de facturas, presupuestos y albaranes', category: 'Ventas', enabled: true },
-  { id: 'einvoicing', name: 'Factura Electrónica', icon: '⚡', description: 'Envío automático a SRI/AEAT', category: 'Ventas', enabled: false, dependencies: ['invoicing'] },
-  { id: 'crm', name: 'CRM', icon: '👥', description: 'Gestión de clientes y oportunidades', category: 'Ventas', enabled: true },
-
-  // COMPRAS
-  { id: 'purchases', name: 'Compras', icon: '📦', description: 'Órdenes de compra y proveedores', category: 'Compras', enabled: true },
-  { id: 'expenses', name: 'Gastos', icon: '💳', description: 'Control de gastos y justificantes', category: 'Compras', enabled: true },
-
-  // OPERACIONES
-  { id: 'inventory', name: 'Inventory', icon: '📊', description: 'Control de stock, lotes y almacenes', category: 'Operaciones', enabled: true },
-  { id: 'imports', name: 'Importaciones', icon: '📥', description: 'Carga masiva de productos y catálogos', category: 'Operaciones', enabled: true },
-  { id: 'warehouse', name: 'Almacenes', icon: '🏭', description: 'Gestión multi-almacén', category: 'Operaciones', enabled: false, dependencies: ['inventory'] },
-
-  // FINANZAS
-  { id: 'accounting', name: 'Contabilidad', icon: '💰', description: 'Libro mayor y balance', category: 'Finanzas', enabled: false },
-  { id: 'payments', name: 'Pagos Online', icon: '💳', description: 'Stripe, Kushki, PayPhone', category: 'Finanzas', enabled: true },
-  { id: 'banking', name: 'Conciliación Bancaria', icon: '🏦', description: 'Sincronización con bancos', category: 'Finanzas', enabled: false },
-
-  // RRHH
-  { id: 'hr', name: 'Recursos Humanos', icon: '👔', description: 'Empleados, nóminas, vacaciones', category: 'RRHH', enabled: false },
-  { id: 'attendance', name: 'Control Horario', icon: '⏰', description: 'Fichajes y turnos', category: 'RRHH', enabled: false },
-
-  // MARKETING
-  { id: 'campaigns', name: 'Campañas', icon: '📧', description: 'Email marketing y promociones', category: 'Marketing', enabled: false },
-  { id: 'loyalty', name: 'Fidelización', icon: '🎁', description: 'Programas de puntos y descuentos', category: 'Marketing', enabled: false },
-]
+const CATEGORY_LABELS: Record<string, string> = {
+  sales: 'Ventas',
+  operations: 'Operaciones',
+  finance: 'Finanzas',
+  people: 'RRHH',
+  analytics: 'Analítica',
+  config: 'Configuración',
+  core: 'Core'
+}
 
 export default function ModulosPanel() {
   const { t } = useTranslation()
-  const [modules, setModules] = useState<Module[]>(AVAILABLE_MODULES)
+  const [modules, setModules] = useState<Module[]>([])
   const [selectedModule, setSelectedModule] = useState<Module | null>(null)
   const [activeTab, setActiveTab] = useState<string>('Todos')
+  const [loading, setLoading] = useState<boolean>(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [savingModuleId, setSavingModuleId] = useState<string | null>(null)
   const { success, error, warning } = useToast()
+
+  // Cargar módulos desde la BBDD para reflejar el estado real del cliente
+  const loadModules = useCallback(async () => {
+    setLoading(true)
+    setFetchError(null)
+    try {
+      const response = await listAvailableModules()
+      const apiModules: any[] = Array.isArray(response?.modules)
+        ? response.modules
+        : Array.isArray(response)
+          ? response
+          : []
+
+      const normalized = apiModules.map((m: any): Module => ({
+        id: m.id || m.code,
+        name: m.name,
+        icon: m.icon || '📦',
+        description: m.description,
+        category: CATEGORY_LABELS[m.category] || m.category || 'Otros',
+        enabled: Boolean(m.is_enabled ?? m.enabled ?? m.default_enabled),
+        required: Boolean(m.required),
+        dependencies: m.dependencies || [],
+        config: m.config || {}
+      }))
+
+      // Respeta la configuración guardada en la base: no mostrar módulos marcados como inactivos
+      setModules(normalized.filter(m => m.enabled || normalized.length === 0))
+    } catch (e: any) {
+      const message = getErrorMessage(e)
+      setFetchError(message)
+      error(message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadModules()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Categorías únicas
   const categories = ['Todos', ...Array.from(new Set(modules.map(m => m.category)))]
@@ -61,91 +91,62 @@ export default function ModulosPanel() {
     ? modules
     : modules.filter(m => m.category === activeTab)
 
-  // Cargar estado de módulos desde localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('tenant_modules_config')
-    if (saved) {
-      try {
-        const config = JSON.parse(saved)
-        setModules(prev => prev.map(m => ({
-          ...m,
-          enabled: config[m.id]?.enabled ?? m.enabled,
-          config: config[m.id]?.config ?? m.config
-        })))
-      } catch (e) {
-        console.error('Error loading modules config', e)
-      }
-    }
-  }, [])
-
-  // Guardar configuración
-  const saveModulesConfig = (updatedModules: Module[]) => {
-    const config: any = {}
-    updatedModules.forEach(m => {
-      config[m.id] = { enabled: m.enabled, config: m.config }
-    })
-    localStorage.setItem('tenant_modules_config', JSON.stringify(config))
-  }
-
-  // Toggle módulo
+  // Toggle módulo con persistencia en BBDD
   const handleToggle = async (moduleId: string, enabled: boolean) => {
     const module = modules.find(m => m.id === moduleId)
     if (!module) return
 
-    // Verificar dependencias si se está desactivando
-    if (!enabled && module.enabled) {
-      const dependents = modules.filter(m =>
-        m.enabled && m.dependencies?.includes(moduleId)
-      )
-      if (dependents.length > 0) {
-        warning(`No se puede desactivar. Los siguientes módulos dependen de él: ${dependents.map(d => d.name).join(', ')}`)
-        return
-      }
-
-      // Confirmación antes de desactivar
-      if (!confirm(`¿Desactivar módulo ${module.name}?`)) {
-        return
-      }
+    if (module.required && module.enabled && !enabled) {
+      warning('Este módulo es obligatorio y no puede desactivarse')
+      return
     }
 
-    // Verificar dependencias si se está activando
-    if (enabled && !module.enabled && module.dependencies) {
-      const missingDeps = module.dependencies.filter(depId => {
-        const dep = modules.find(m => m.id === depId)
-        return !dep?.enabled
-      })
-      if (missingDeps.length > 0) {
-        const depNames = missingDeps
-          .map(depId => modules.find(m => m.id === depId)?.name)
-          .filter(Boolean)
-        warning(`Primero debes activar: ${depNames.join(', ')}`)
-        return
+    setSavingModuleId(moduleId)
+    try {
+      if (enabled) {
+        await enableModule(moduleId)
+      } else {
+        await disableModule(moduleId)
       }
-    }
 
-    const updated = modules.map(m =>
-      m.id === moduleId ? { ...m, enabled } : m
-    )
-    setModules(updated)
-    saveModulesConfig(updated)
-    success(`Módulo ${module.name} ${enabled ? 'activado' : 'desactivado'}`)
+      setModules(prev => prev.map(m =>
+        m.id === moduleId ? { ...m, enabled } : m
+      ))
+
+      success(`Módulo ${module.name} ${enabled ? 'activado' : 'desactivado'}`)
+    } catch (e: any) {
+      error(getErrorMessage(e))
+    } finally {
+      setSavingModuleId(null)
+    }
   }
 
-  // Abrir configuración
-  const handleClickModule = (moduleId: string) => {
+  // Abrir configuración: se lee del backend en tiempo real
+  const handleClickModule = async (moduleId: string) => {
     const module = modules.find(m => m.id === moduleId)
-    if (module) {
-      setSelectedModule(module)
+    if (!module) return
+
+    try {
+      const configResponse = await getModuleSettings(moduleId)
+      const config =
+        (configResponse && (configResponse.config || configResponse.module_config)) || {}
+      setSelectedModule({ ...module, config })
+    } catch (e: any) {
+      error(getErrorMessage(e))
     }
   }
 
   // Guardar configuración de módulo
   const handleSaveConfig = async (moduleId: string, config: any) => {
-    const updated = modules.map(m =>
-      m.id === moduleId ? { ...m, config } : m
-    )
-    setModules(updated)
-    saveModulesConfig(updated)
+    try {
+      await updateModuleSettings(moduleId, config)
+      setModules(prev => prev.map(m =>
+        m.id === moduleId ? { ...m, config } : m
+      ))
+    } catch (e: any) {
+      error(getErrorMessage(e))
+      throw e
+    }
   }
 
   const activeCount = modules.filter(m => m.enabled).length
@@ -153,6 +154,18 @@ export default function ModulosPanel() {
 
   return (
     <div className="p-6">
+      {loading && (
+        <div className="text-center text-gray-500 py-6">
+          Cargando módulos activos desde la configuración...
+        </div>
+      )}
+
+      {fetchError && (
+        <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">
+          No se pudo cargar la configuración de módulos: {fetchError}
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">
@@ -199,6 +212,7 @@ export default function ModulosPanel() {
           <ModuleCard
             key={module.id}
             module={module}
+            disabled={savingModuleId === module.id}
             onToggle={handleToggle}
             onClick={handleClickModule}
           />

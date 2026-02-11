@@ -1,5 +1,7 @@
 import React from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import ProtectedRoute from '../../auth/ProtectedRoute'
+import PermissionDenied from '../../components/PermissionDenied'
 import GeneralSettings from './General'
 import BrandingSettings from './Branding'
 import FiscalSettings from './Fiscal'
@@ -21,8 +23,12 @@ function Guard({ section, children }: { section: SettingsSection; children: Reac
 
 export default function SettingsRoutes() {
   return (
-    <Routes>
-      <Route element={<SettingsLayout />}>
+    <ProtectedRoute
+      permission="settings:read"
+      fallback={<PermissionDenied permission="settings:read" />}
+    >
+      <Routes>
+        <Route element={<SettingsLayout />}>
         <Route index element={<SettingsHome />} />
         <Route
           path="general"
@@ -89,7 +95,8 @@ export default function SettingsRoutes() {
           }
         />
         <Route path="*" element={<Navigate to="." replace />} />
-      </Route>
-    </Routes>
+        </Route>
+      </Routes>
+    </ProtectedRoute>
   )
 }

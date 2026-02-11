@@ -1,0 +1,66 @@
+{
+  "title": "Configuración",
+  "subtitle": "Configura tu aplicación",
+  "new": "Nueva Configuración",
+  "search": "Buscar configuración",
+  "empty": "No hay configuración encontrada",
+  "edit": "Editar",
+  "delete": "Eliminar",
+  "confirmDelete": "¿Está seguro de que desea eliminar esta configuración?",
+  "actions": "Acciones",
+  "messages": {
+    "created": "Configuración creada exitosamente",
+    "updated": "Configuración actualizada exitosamente",
+    "deleted": "Configuración eliminada exitosamente"
+  },
+  "groups": {
+    "company": "Empresa",
+    "operation": "Operación",
+    "communications": "Comunicaciones",
+    "planControl": "Plan y Control"
+  },
+  "sections": {
+    "general": "General",
+    "branding": "Marca",
+    "fiscal": "Fiscal",
+    "operativo": "Operativo",
+    "horarios": "Horarios",
+    "notificaciones": "Notificaciones",
+    "modulos": "Módulos",
+    "avanzado": "Avanzado"
+  },
+  "cards": {
+    "general": {
+      "label": "General",
+      "desc": "Datos básicos del negocio"
+    },
+    "branding": {
+      "label": "Branding",
+      "desc": "Logo y colores"
+    },
+    "fiscal": {
+      "label": "Fiscal",
+      "desc": "RUC y régimen"
+    },
+    "operativo": {
+      "label": "Operativo",
+      "desc": "POS e inventario"
+    },
+    "horarios": {
+      "label": "Horarios",
+      "desc": "Apertura y cierre"
+    },
+    "notificaciones": {
+      "label": "Notificaciones",
+      "desc": "Email, WhatsApp, Telegram"
+    },
+    "modulos": {
+      "label": "Módulos",
+      "desc": "Activar o desactivar"
+    },
+    "avanzado": {
+      "label": "Avanzado",
+      "desc": "JSON e integraciones"
+    }
+  }
+}

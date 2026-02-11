@@ -1,0 +1,16 @@
+{
+  "title": "Customers",
+  "new": "New Customer",
+  "empty": "No records",
+  "searchPlaceholder": "Search by name or email...",
+  "table": {
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone",
+    "wholesale": "Wholesale"
+  },
+  "messages": {
+    "deleted": "Customer deleted"
+  },
+  "confirmDelete": "Delete customer?"
+}

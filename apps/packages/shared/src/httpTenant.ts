@@ -38,16 +38,27 @@ function getCookie(name: string): string | null {
   return match ? decodeURIComponent(match[1]) : null
 }
 
+function sanitizeToken(token: string | null | undefined): string | null {
+  if (!token) return null
+  const trimmed = String(token).trim()
+  // JWTs have three segments separated by dots; reject obviously bad values
+  if (!trimmed || trimmed.split('.').length < 3) return null
+  return trimmed
+}
+
 function getStoredToken(): string | null {
   try {
-    const sess = sessionStorage.getItem('access_token_tenant')
+    const sess = sanitizeToken(sessionStorage.getItem('access_token_tenant'))
     if (sess) return sess
   } catch {}
   try {
-    return localStorage.getItem('authToken')
-  } catch {
-    return null
-  }
+    const local = sanitizeToken(localStorage.getItem('authToken'))
+    if (local) return local
+  } catch {}
+  // Fallback: cookies are allowed on mobile even when storage is blocked
+  const cookieTok = sanitizeToken(getCookie('access_token'))
+  if (cookieTok) return cookieTok
+  return null
 }
 
 function persistToken(token: string | null) {

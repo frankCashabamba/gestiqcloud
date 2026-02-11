@@ -28,7 +28,15 @@ export default function ModuloForm({ mode }: { mode: 'create' | 'edit' }) {
             description: m.description ?? '',
           }),
         )
-        .catch(() => {})
+        .catch((e: any) => {
+          const status = e?.response?.status
+          if (status === 404) {
+            error('El módulo ya no existe; regresando al listado')
+            navigate('..')
+          } else {
+            error(getErrorMessage(e))
+          }
+        })
     }
   }, [mode, id])
 

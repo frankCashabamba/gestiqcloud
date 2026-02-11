@@ -1,0 +1,56 @@
+{
+  "title": "Reports",
+  "subtitle": "View analytics and reports",
+  "all": "All",
+  "topProfit": "Top profit",
+  "worstMargin": "Worst margin",
+  "alerts": "Alerts",
+  "lowMargin": "Low margin",
+  "negativeProfit": "Negative profit",
+  "select": "Select",
+  "qty": "Qty",
+  "net": "Net",
+  "noCustomer": "No customer",
+  "noLinesSelected": "No lines for the selected range",
+  "new": "New Report",
+  "search": "Search reports",
+  "empty": "No reports found",
+  "edit": "Edit",
+  "delete": "Delete",
+  "confirmDelete": "Are you sure you want to delete this report?",
+  "actions": "Actions",
+  "messages": {
+    "created": "Report created successfully",
+    "updated": "Report updated successfully",
+    "deleted": "Report deleted successfully"
+  },
+  "margins": {
+    "title": "Margins and Profitability",
+    "subtitle": "Net sales, COGS, and gross margin filtered by date and warehouse",
+    "filters": {
+      "from": "From",
+      "to": "To",
+      "warehouse": "Warehouse",
+      "threshold": "Margin Threshold"
+    },
+    "cards": {
+      "netSales": "Net Sales",
+      "cogs": "COGS",
+      "grossProfit": "Gross Profit",
+      "grossMargin": "Gross Margin"
+    },
+    "tabs": {
+      "products": "Products",
+      "customers": "Customers",
+      "detail": "Detail"
+    },
+    "table": {
+      "product": "Product",
+      "customer": "Customer",
+      "netSales": "Net Sales",
+      "cogs": "COGS",
+      "profit": "Profit",
+      "margin": "Margin"
+    }
+  }
+}

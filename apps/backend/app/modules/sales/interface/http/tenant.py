@@ -4,7 +4,7 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -128,14 +128,23 @@ def list_orders(
 
 
 @router.get("/{order_id}", response_model=OrderOut)
-def get_order(order_id: str, request: Request, db: Session = Depends(get_db)):
+def get_order(
+    request: Request,
+    order_id: str = Path(
+        ..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    ),
+    db: Session = Depends(get_db),
+):
     """Obtener orden de venta por ID"""
     tid = _tenant_id_str(request)
     tenant_uuid = UUID(str(tid)) if tid else None
     if not tenant_uuid:
         raise HTTPException(status_code=401, detail="tenant_id invalido")
 
-    order_uuid = UUID(str(order_id))
+    try:
+        order_uuid = UUID(str(order_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid UUID format")
     row = (
         db.query(SalesOrder, Client.name)
         .outerjoin(Client, Client.id == SalesOrder.customer_id)
@@ -220,14 +229,25 @@ class ConfirmIn(BaseModel):
 
 @router.post("/{order_id}/confirm", response_model=OrderOut)
 def confirm_order(
-    order_id: str, payload: ConfirmIn, request: Request, db: Session = Depends(get_db)
+    order_id: str = Path(
+        ..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    ),
+    payload: ConfirmIn | None = None,
+    request: Request = None,
+    db: Session = Depends(get_db),
 ):
+    if request is None:
+        raise HTTPException(status_code=401, detail="tenant_id invalido")
+
     tid = _tenant_id_str(request)
     tenant_uuid = UUID(str(tid)) if tid else None
     if not tenant_uuid:
         raise HTTPException(status_code=401, detail="tenant_id invalido")
 
-    so_id = UUID(str(order_id))
+    try:
+        so_id = UUID(str(order_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid UUID format")
     so = (
         db.query(SalesOrder)
         .filter(SalesOrder.id == so_id, SalesOrder.tenant_id == tenant_uuid)

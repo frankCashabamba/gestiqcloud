@@ -11,8 +11,9 @@ type I18nContextType = {
 
 const I18nContext = createContext<I18nContextType | null>(null)
 
-// Load all JSON dictionaries for a language lazily
+// Load JSON dictionaries lazily
 const localeModules = import.meta.glob('../locales/*/*.json')
+const plantillaModules = import.meta.glob('../plantillas/locales/*.json')
 
 function getNsAndKey(key: string): [string, string] {
   const i = key.indexOf(':')
@@ -35,17 +36,33 @@ export const I18nProvider: React.FC<{ defaultLang?: string; children: React.Reac
   useEffect(() => {
     let cancelled = false
     async function loadAll() {
-      // Load all namespaces for current lang
-      const entries = Object.entries(localeModules)
-        .filter(([path]) => path.includes(`/${lang}/`))
       const loaded: Record<string, Dict> = {}
+
+      // Namespaces bajo /i18n/locales/{lang}/ns.json  => ns
+      const entries = Object.entries(localeModules).filter(([path]) => path.includes(`/${lang}/`))
       for (const [path, importer] of entries) {
         try {
           const mod: any = await (importer as any)()
           const ns = path.split('/').slice(-1)[0].replace('.json', '')
-          loaded[ns] = mod?.default || mod
+          loaded[ns] = mod?.default?.[ns] ?? mod?.default ?? mod
         } catch {}
       }
+
+      // Plantillas: archivos tipo retail-dashboard.es.json => ns retailDashboard, lang es
+      for (const [path, importer] of Object.entries(plantillaModules)) {
+        const filename = path.split('/').slice(-1)[0] // retail-dashboard.es.json
+        const parts = filename.split('.')
+        if (parts.length < 3) continue
+        const [, langCode] = [parts.slice(0, -2).join('.'), parts.slice(-2, -1)[0]]
+        if (normalizeLang(langCode) !== lang) continue
+        const nsRaw = parts.slice(0, -2).join('.')
+        const ns = nsRaw.replace(/-([a-z])/g, (_, c) => c.toUpperCase())
+        try {
+          const mod: any = await (importer as any)()
+          loaded[ns] = mod?.default?.[ns] ?? mod?.default ?? mod
+        } catch {}
+      }
+
       if (!cancelled) setDicts(loaded)
       try { document.documentElement.lang = lang } catch {}
     }

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 import os
+import uuid
 from pathlib import Path
 
 from apps.backend.app.shared.utils import ping_ok
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -531,3 +532,129 @@ def delete_company_module(tenant_id: str, module_id: str, db: Session = Depends(
     db.commit()
 
     return {"ok": True}
+
+
+# ============================================================================
+# RUTAS DINÁMICAS PARA MÓDULOS (deben estar al FINAL para evitar conflictos)
+# ============================================================================
+
+
+@router.get("/{module_id}", response_model=ModuloOutSchema)
+def get_module(module_id: str, db: Session = Depends(get_db)):
+    try:
+        module_uuid = uuid.UUID(module_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid module ID format")
+
+    module = db.query(Module).filter_by(id=module_uuid).first()
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+    return ModuloOutSchema.model_validate(_module_to_response(module))
+
+
+@router.put("/{module_id}", response_model=ModuloOutSchema)
+def update_module(
+    module_id: str, module_in: mod_schemas.ModuloCreate, db: Session = Depends(get_db)
+):
+    try:
+        module_uuid = uuid.UUID(module_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid module ID format")
+
+    module = db.query(Module).filter_by(id=module_uuid).first()
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    module.name = module_in.name
+    module.description = getattr(module_in, "description", module.description)
+    module.url = getattr(module_in, "url", module.url)
+    module.icon = getattr(module_in, "icon", module.icon)
+    module.category = getattr(module_in, "category", module.category)
+    module.active = getattr(module_in, "active", module.active)
+    module.initial_template = getattr(
+        module_in, "initial_template", getattr(module, "initial_template", None)
+    )
+    module.context_type = getattr(module_in, "context_type", getattr(module, "context_type", None))
+    module.target_model = getattr(module_in, "target_model", getattr(module, "target_model", None))
+    module.context_filters = getattr(
+        module_in, "context_filters", getattr(module, "context_filters", None)
+    )
+
+    db.add(module)
+    db.commit()
+    db.refresh(module)
+
+    return ModuloOutSchema.model_validate(_module_to_response(module))
+
+
+@router.delete("/{module_id}")
+def delete_module(
+    module_id: str,
+    force: bool = Query(False, description="If true, unassigns from tenants before deleting"),
+    db: Session = Depends(get_db),
+):
+    try:
+        module_uuid = uuid.UUID(module_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid module ID format")
+
+    module = db.query(Module).filter_by(id=module_uuid).first()
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    # Si el módulo está asignado a uno o más tenants, bloquear o forzar desasignación
+    assignments = (
+        db.query(CompanyModule.id).filter(CompanyModule.module_id == module_uuid).limit(1).all()
+    )
+    if assignments and not force:
+        raise HTTPException(
+            status_code=409,
+            detail="Module is assigned to one or more tenants; unassign before deleting",
+        )
+    if assignments and force:
+        db.query(CompanyModule).filter(CompanyModule.module_id == module_uuid).delete(
+            synchronize_session=False
+        )
+
+    db.delete(module)
+    db.commit()
+
+    return {"ok": True}
+
+
+@router.post("/{module_id}/activate", response_model=ModuloOutSchema)
+def activate_module(module_id: str, db: Session = Depends(get_db)):
+    try:
+        module_uuid = uuid.UUID(module_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid module ID format")
+
+    module = db.query(Module).filter_by(id=module_uuid).first()
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    module.active = True  # type: ignore[assignment]
+    db.add(module)
+    db.commit()
+    db.refresh(module)
+
+    return ModuloOutSchema.model_validate(_module_to_response(module))
+
+
+@router.post("/{module_id}/deactivate", response_model=ModuloOutSchema)
+def deactivate_module(module_id: str, db: Session = Depends(get_db)):
+    try:
+        module_uuid = uuid.UUID(module_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid module ID format")
+
+    module = db.query(Module).filter_by(id=module_uuid).first()
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    module.active = False  # type: ignore[assignment]
+    db.add(module)
+    db.commit()
+    db.refresh(module)
+
+    return ModuloOutSchema.model_validate(_module_to_response(module))

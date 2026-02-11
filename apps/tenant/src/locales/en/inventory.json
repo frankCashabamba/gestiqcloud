@@ -1,0 +1,96 @@
+{
+  "title": "Inventory",
+  "subtitle": "Stock levels by warehouse",
+  "warehouse": "Warehouse",
+  "code": "Code",
+  "product": "Product",
+  "stock": "Stock",
+  "location": "Location",
+  "batch": "Batch",
+  "expiry": "Expiry",
+  "status": "Status",
+  "min": "Min stock",
+  "max": "Max stock",
+  "ok": "OK",
+  "low": "Low stock",
+  "over": "Over stock",
+  "table": {
+    "warehouse": "Warehouse",
+    "code": "Code",
+    "product": "Product",
+    "stock": "Stock",
+    "location": "Location",
+    "batch": "Batch",
+    "expiry": "Expiry",
+    "status": "Status"
+  },
+  "status": {
+    "lowStock": "Low stock",
+    "overstock": "Overstock",
+    "ok": "OK"
+  },
+  "kpi": {
+    "totalProducts": "Total products",
+    "totalValue": "Total stock value",
+    "lowStock": "Low stock alerts",
+    "overstock": "Overstock"
+  },
+  "empty": {
+    "noStock": "No stock registered",
+    "createFirst": "Create first movement",
+    "noFound": "No products found with those filters"
+  },
+  "filters": {
+    "search": "Search",
+    "warehouse": "Warehouse",
+    "alert": "Alert",
+    "all": "All",
+    "low": "Low",
+    "over": "Over",
+    "perPage": "Per page"
+  },
+  "quickAdjust": {
+    "missingWarehouse": "Create a warehouse first",
+    "productPrompt": "Product ID (UUID)",
+    "qtyPrompt": "Quantity to adjust (e.g. 10 or -5)"
+  },
+  "form": {
+    "title": "New Stock Movement",
+    "movementType": "Movement type",
+    "selectProduct": "Select product...",
+    "selectWarehouse": "Select warehouse...",
+    "quantity": "Quantity",
+    "inbound": "inbound",
+    "outbound": "outbound",
+    "placeholderInbound": "E.g.: 100 (will be added)",
+    "placeholderOutbound": "E.g.: 10 (will be subtracted)",
+    "batch": "Batch (optional)",
+    "expiry": "Expiry (optional)",
+    "notes": "Notes (optional)",
+    "notesPlaceholder": "Additional description of the movement...",
+    "registerMovement": "Register movement",
+    "warehouseEmpty": "This warehouse is empty. You can initialize it with all products.",
+    "applyAll": "Apply to all products (only if warehouse is empty)",
+    "appliedAll": "Will be applied to all products",
+    "initWarehouse": "Initialize warehouse"
+  },
+  "movements": {
+    "purchase": "Purchase entry",
+    "production": "Production entry",
+    "return": "Customer return",
+    "sale": "Sale exit",
+    "loss": "Loss/Shrinkage",
+    "adjustment": "Manual adjustment"
+  },
+  "messages": {
+    "movementCreated": "Movement registered",
+    "warehouseInit": "Warehouse initialized: {{ok}} products{{ko}}",
+    "withErrors": "with errors"
+  },
+  "errors": {
+    "selectProduct": "Select a product",
+    "selectWarehouse": "Select a warehouse",
+    "quantityNonZero": "Quantity must be different from 0",
+    "invalidQty": "Invalid quantity"
+  }
+}

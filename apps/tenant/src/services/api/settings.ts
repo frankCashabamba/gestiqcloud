@@ -6,22 +6,22 @@ export async function getAllSettings() {
 }
 
 export async function getModuleSettings(moduleKey: string) {
-  const response = await api.get(`/api/v1/settings/${moduleKey}`)
+  const response = await api.get(`/api/v1/settings/modules/${moduleKey}`)
   return response.data
 }
 
 export async function updateModuleSettings(moduleKey: string, data: any) {
-  const response = await api.put(`/api/v1/settings/${moduleKey}`, data)
+  const response = await api.put(`/api/v1/settings/modules/${moduleKey}`, data)
   return response.data
 }
 
 export async function enableModule(moduleKey: string) {
-  const response = await api.post(`/api/v1/settings/${moduleKey}/enable`)
+  const response = await api.post(`/api/v1/settings/modules/${moduleKey}/enable`)
   return response.data
 }
 
 export async function disableModule(moduleKey: string) {
-  const response = await api.post(`/api/v1/settings/${moduleKey}/disable`)
+  const response = await api.post(`/api/v1/settings/modules/${moduleKey}/disable`)
   return response.data
 }
 

@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { listProductMargins, listCustomerMargins, listProductLines, type ProductMargin, type CustomerMargin, type ProductLineMargin } from '../../services/api/margins'
 import { listProducts } from '../../services/api/products'
 import { fetchBodegas } from '../inventory/services/inventory'
 import { getCompanySettings, formatCurrency as formatCurrencyWithSettings, type CompanySettings } from '../../services/companySettings'
+import { usePermission } from '../../hooks/usePermission'
+import PermissionDenied from '../../components/PermissionDenied'
 import './reportes.css'
 
 type Warehouse = { id: string; name: string }
@@ -19,6 +22,8 @@ const formatPct = (v: number) => `${(v * 100).toFixed(2)}%`
 
 export default function MarginsDashboard() {
   const { empresa } = useParams()
+  const { t } = useTranslation(['reportes', 'common'])
+  const can = usePermission()
   const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null)
   const [fromDate, setFromDate] = useState(() => toISO(addDays(new Date(), -30)))
   const [toDate, setToDate] = useState(() => toISO(new Date()))
@@ -125,33 +130,37 @@ export default function MarginsDashboard() {
     return { low, negative }
   }, [productRows, threshold])
 
+  if (!can('reportes:read')) {
+    return <PermissionDenied permission="reportes:read" />
+  }
+
   return (
     <div className="reports-shell">
       <div className="reports-hero">
         <div>
-          <h1>Margins and Profitability</h1>
-          <p>Net sales, COGS, and gross margin filtered by date and warehouse.</p>
+          <h1>{t('reportes:margins.title')}</h1>
+          <p>{t('reportes:margins.subtitle')}</p>
         </div>
         <div className="reports-filters">
           <div className="field">
-            <label>From</label>
+            <label>{t('reportes:margins.filters.from')}</label>
             <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
           </div>
           <div className="field">
-            <label>To</label>
+            <label>{t('reportes:margins.filters.to')}</label>
             <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
           </div>
           <div className="field">
-            <label>Warehouse</label>
+            <label>{t('reportes:margins.filters.warehouse')}</label>
             <select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-              <option value="">All</option>
+              <option value="">{t('reportes:all')}</option>
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>{w.name}</option>
               ))}
             </select>
           </div>
           <div className="field">
-            <label>Margin threshold</label>
+            <label>{t('reportes:margins.filters.threshold')}</label>
             <input
               type="number"
               min={0}
@@ -166,56 +175,56 @@ export default function MarginsDashboard() {
 
       <div className="reports-cards">
         <div className="card">
-          <span>Net sales</span>
+          <span>{t('reportes:margins.cards.netSales')}</span>
           <strong>{formatMoney(totals.sales, companySettings)}</strong>
         </div>
         <div className="card">
-          <span>COGS</span>
+          <span>{t('reportes:margins.cards.cogs')}</span>
           <strong>{formatMoney(totals.cogs, companySettings)}</strong>
         </div>
         <div className="card highlight">
-          <span>Gross profit</span>
+          <span>{t('reportes:margins.cards.grossProfit')}</span>
           <strong>{formatMoney(totals.profit, companySettings)}</strong>
         </div>
         <div className="card">
-          <span>Gross margin</span>
+          <span>{t('reportes:margins.cards.grossMargin')}</span>
           <strong>{formatPct(totals.margin)}</strong>
         </div>
       </div>
 
       <div className="reports-grid">
-        <div className="panel">
-          <h3>Top profit</h3>
-          {topByProfit.map((r) => (
-            <div key={r.product_id} className="row">
-              <span>{productNameById(r.product_id)}</span>
-              <strong>{formatMoney(r.gross_profit, companySettings)}</strong>
-            </div>
-          ))}
-        </div>
-        <div className="panel">
-          <h3>Worst margin</h3>
-          {worstByMargin.map((r) => (
-            <div key={r.product_id} className="row">
-              <span>{productNameById(r.product_id)}</span>
-              <strong>{formatPct(r.margin_pct)}</strong>
-            </div>
-          ))}
-        </div>
-        <div className="panel">
-          <h3>Alerts</h3>
-          <p>Low margin: {alerts.low.length}</p>
-          <p>Negative profit: {alerts.negative.length}</p>
-        </div>
-      </div>
+         <div className="panel">
+           <h3>{t('reportes:topProfit')}</h3>
+           {topByProfit.map((r) => (
+             <div key={r.product_id} className="row">
+               <span>{productNameById(r.product_id)}</span>
+               <strong>{formatMoney(r.gross_profit, companySettings)}</strong>
+             </div>
+           ))}
+         </div>
+         <div className="panel">
+           <h3>{t('reportes:worstMargin')}</h3>
+           {worstByMargin.map((r) => (
+             <div key={r.product_id} className="row">
+               <span>{productNameById(r.product_id)}</span>
+               <strong>{formatPct(r.margin_pct)}</strong>
+             </div>
+           ))}
+         </div>
+         <div className="panel">
+           <h3>{t('reportes:alerts')}</h3>
+           <p>{t('reportes:lowMargin')}: {alerts.low.length}</p>
+           <p>{t('reportes:negativeProfit')}: {alerts.negative.length}</p>
+         </div>
+       </div>
 
-      <div className="tabs">
-        <button className={activeTab === 'productos' ? 'active' : ''} onClick={() => setActiveTab('productos')}>Products</button>
-        <button className={activeTab === 'clientes' ? 'active' : ''} onClick={() => setActiveTab('clientes')}>Customers</button>
-        <button className={activeTab === 'detalle' ? 'active' : ''} onClick={() => setActiveTab('detalle')}>Detail</button>
-      </div>
+       <div className="tabs">
+         <button className={activeTab === 'productos' ? 'active' : ''} onClick={() => setActiveTab('productos')}>{t('reportes:margins.tabs.products')}</button>
+         <button className={activeTab === 'clientes' ? 'active' : ''} onClick={() => setActiveTab('clientes')}>{t('reportes:margins.tabs.customers')}</button>
+         <button className={activeTab === 'detalle' ? 'active' : ''} onClick={() => setActiveTab('detalle')}>{t('reportes:margins.tabs.detail')}</button>
+       </div>
 
-      {loading ? <div className="panel">Loading...</div> : null}
+       {loading ? <div className="panel">{t('common:loading')}</div> : null}
       {error ? <div className="panel error">{error}</div> : null}
 
       {!loading && !error && activeTab === 'productos' ? (
@@ -223,11 +232,11 @@ export default function MarginsDashboard() {
           <table>
             <thead>
               <tr>
-                <th>Product</th>
-                <th>Net sales</th>
-                <th>COGS</th>
-                <th>Profit</th>
-                <th>Margin</th>
+                <th>{t('reportes:margins.table.product')}</th>
+                <th>{t('reportes:margins.table.netSales')}</th>
+                <th>{t('reportes:margins.table.cogs')}</th>
+                <th>{t('reportes:margins.table.profit')}</th>
+                <th>{t('reportes:margins.table.margin')}</th>
               </tr>
             </thead>
             <tbody>
@@ -254,17 +263,17 @@ export default function MarginsDashboard() {
           <table>
             <thead>
               <tr>
-                <th>Customer</th>
-                <th>Net sales</th>
-                <th>COGS</th>
-                <th>Profit</th>
-                <th>Margin</th>
+                <th>{t('reportes:margins.table.customer')}</th>
+                <th>{t('reportes:margins.table.netSales')}</th>
+                <th>{t('reportes:margins.table.cogs')}</th>
+                <th>{t('reportes:margins.table.profit')}</th>
+                <th>{t('reportes:margins.table.margin')}</th>
               </tr>
             </thead>
             <tbody>
               {customerRows.map((r, idx) => (
                 <tr key={r.customer_id || `c-${idx}`}>
-                  <td>{r.customer_id || 'No customer'}</td>
+                  <td>{r.customer_id || t('reportes:noCustomer')}</td>
                   <td>{formatMoney(r.sales_net, companySettings)}</td>
                   <td>{formatMoney(r.cogs, companySettings)}</td>
                   <td>{formatMoney(r.gross_profit, companySettings)}</td>
@@ -280,9 +289,9 @@ export default function MarginsDashboard() {
         <div className="panel">
           <div className="detail-header">
             <div className="field">
-              <label>Product</label>
+              <label>{t('reportes:margins.table.product')}</label>
               <select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
-                <option value="">Select</option>
+                <option value="">{t('reportes:select')}</option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
@@ -293,12 +302,12 @@ export default function MarginsDashboard() {
             <table>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Qty</th>
-                  <th>Net</th>
-                  <th>COGS</th>
-                  <th>Profit</th>
-                  <th>Margin</th>
+                  <th>{t('common:date')}</th>
+                  <th>{t('reportes:qty')}</th>
+                  <th>{t('reportes:net')}</th>
+                  <th>{t('reportes:margins.table.cogs')}</th>
+                  <th>{t('reportes:margins.table.profit')}</th>
+                  <th>{t('reportes:margins.table.margin')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -314,7 +323,7 @@ export default function MarginsDashboard() {
                 ))}
                 {!lines.length ? (
                   <tr>
-                    <td colSpan={6} className="muted">No lines for the selected range.</td>
+                    <td colSpan={6} className="muted">{t('reportes:noLinesSelected')}</td>
                   </tr>
                 ) : null}
               </tbody>

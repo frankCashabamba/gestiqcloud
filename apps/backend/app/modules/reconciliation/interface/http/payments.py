@@ -10,12 +10,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.middleware.tenant import ensure_tenant, get_current_user
-from app.models.tenant import Tenant
 from app.services.payments import get_provider
 
 logger = logging.getLogger(__name__)
@@ -150,8 +150,22 @@ def create_payment_link(
 
     provider = get_provider(data.provider, config)
 
-    tenant = db.get(Tenant, tenant_id) if tenant_id else None
-    payment_currency = tenant.base_currency if tenant and tenant.base_currency else "USD"
+    tenant_currency = db.execute(
+        text(
+            """
+            SELECT COALESCE(
+                NULLIF(UPPER(TRIM(cs.currency)), ''),
+                NULLIF(UPPER(TRIM(cur.code)), '')
+            )
+            FROM company_settings cs
+            LEFT JOIN currencies cur ON cur.id = cs.currency_id
+            WHERE cs.tenant_id = :tid
+            LIMIT 1
+            """
+        ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+        {"tid": tenant_id},
+    ).scalar()
+    payment_currency = tenant_currency or "USD"
 
     base_url = str(request.base_url).rstrip("/") if request else ""
     success_url = data.success_url or f"{base_url}/payments/success?invoice_id={invoice['id']}"

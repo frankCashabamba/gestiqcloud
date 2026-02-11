@@ -1,0 +1,167 @@
+{
+    "title": "Point of Sale",
+    "new": "New Sale",
+    "search": {
+        "button": "Search",
+        "placeholder": "Search products or scan code (F2)",
+        "barcodeInput": "Barcode"
+    },
+    "empty": "No sales found",
+    "edit": "Edit",
+    "delete": "Delete",
+    "confirmDelete": "Are you sure you want to delete this sale?",
+    "messages": {
+        "heldTicket": "Ticket on hold",
+        "ticketRecovered": "Ticket {{ticketId}} recovered",
+        "stockWarning": "Stock below minimum",
+        "saleSupervisor": "Sale completed",
+        "invoiceCreation": "Sale exceeds minimum for invoicing. Create invoice...",
+        "heldTicketInfo": "Held ticket: {{id}}. Use Resume to continue.",
+        "heldTicketPick": "Held tickets:\n{{list}}\nEnter ID to resume"
+    },
+    "table": {
+        "date": "Date",
+        "product": "Product",
+        "amount": "Amount",
+        "status": "Status"
+    },
+    "filters": {
+        "from": "From",
+        "to": "To",
+        "search": "Search",
+        "placeholder": "Search by product or ID"
+    },
+    "header": {
+        "shiftOpen": "Shift open",
+        "closingShift": "Close shift",
+        "notes": "Notes",
+        "discount": "Discount",
+        "dailyReports": "Daily reports",
+        "holdTicket": "Hold ticket",
+        "resume": "Resume",
+        "reprint": "Reprint",
+        "reprintTooltip": "Reprint last receipt",
+        "pendingPayments": "Collect pending",
+        "online": "Online",
+        "offline": "Offline",
+        "cashierLabel": "Cashier",
+        "warehouseLabel": "Warehouse",
+        "syncing": "Sync"
+    },
+    "view": {
+        "byCategories": "By categories",
+        "all": "All"
+    },
+    "catalog": {
+        "title": "Catalog",
+        "empty": "No products found"
+    },
+    "totals": {
+        "subtotal": "Subtotal",
+        "discount": "Discount",
+        "tax": "Tax",
+        "total": "Total"
+    },
+    "shift": {
+        "opening": "Opening float",
+        "minimumStock": "Minimum stock"
+    },
+    "cart": {
+        "lineDiscount": "Line discount",
+        "lineNotes": "Notes",
+        "discount": "Discount",
+        "ticketNotes": "Ticket notes",
+        "clearAll": "Clear all",
+        "confirmClear": "Clear cart?"
+    },
+    "prompts": {
+        "enterPrice": "Enter price for {{name}}",
+        "lineDiscountPercent": "Line discount (%)",
+        "lineNotes": "Line notes"
+    },
+    "actions": {
+        "charge": "Charge",
+        "chargeWithTotal": "Charge {{amount}} {{currency}}",
+        "chargeNoReceipt": "Charge without receipt",
+        "chargeNoReceiptWithTotal": "Charge without receipt {{amount}} {{currency}}",
+        "increment": "Increase quantity",
+        "decrement": "Decrease quantity"
+    },
+    "buyer": {
+        "search": "Search customer (name, RUC, email)",
+        "identification": "Identification",
+        "name": "Name",
+        "email": "Email (optional)",
+        "documentType": "Document type",
+        "requiresInvoiceAbove": "From {{amount}} invoice with data is required",
+        "consumerFinal": "Final consumer",
+        "invoiceWithData": "Invoice / With data",
+        "excedsLimit": "Total exceeds limit allowed for final consumer",
+        "selected": "Selected",
+        "wholesale": "Wholesale",
+        "existingClient": "Existing customer",
+        "saveForFuture": "Save this customer for future sales"
+    },
+    "createProduct": {
+        "title": "Create product quickly",
+        "sku": "Code (SKU)",
+        "name": "Name",
+        "nameRequired": "Enter a name to continue.",
+        "price": "Price",
+        "priceMinimum": "Price must be greater than 0.",
+        "stock": "Stock",
+        "tax": "Tax (%)",
+        "category": "Category (optional)",
+        "existingAdded": "Existing product added to cart.",
+        "creationFailed": "Could not create product"
+    },
+    "print": {
+        "format": "Print format",
+        "preview": "Receipt preview"
+    },
+    "register": {
+        "noRegisters": "No registers found",
+        "createDefault": "Create a default register to start selling. We will use your only active warehouse if available.",
+        "adminOnly": "Only an administrator can create registers. Request access or create the register from Admin.",
+        "nameLabel": "Register name",
+        "nameDefault": "Main Register",
+        "codeLabel": "CODE (optional)",
+        "codeDefault": "REGISTER-1",
+        "warehouseLabel": "Select default warehouse",
+        "choose": "— Choose —",
+        "buttonLabel": "Create register",
+        "creating": "Creating…",
+        "createdSuccess": "Register created",
+        "createdError": "Could not create register. Check permissions or try from Admin."
+    },
+    "errors": {
+        "insufficientStock": "Insufficient stock. Available",
+        "insufficientStockAmount": "Insufficient stock. Available: {{stock}}",
+        "lowStockMinimum": "Stock below minimum stock",
+        "lowStockMinimumAmount": "Stock below minimum stock ({{minimum}})",
+        "noCanSell": "Cannot sell.",
+        "invalidPrice": "Invalid price",
+        "productNotFound": "Product not found",
+        "confirmCreate": "Do you want to create it?",
+        "totalExceedsLimit": "Total exceeds limit for final consumer. Data is required.",
+        "selectIdentificationType": "Select the customer's identification type.",
+        "completeIdentification": "Complete customer name and identification.",
+        "emptyCart": "No items in cart",
+        "noShiftOpen": "Open a shift first",
+        "requiresBuyerData": "Total requires customer data.",
+        "emptyCartCheckout": "No items in cart",
+        "noShiftCheckout": "Open a shift first",
+        "heldTickets": "No held tickets",
+        "idNotFound": "ID not found",
+        "nothingToReprint": "Nothing to reprint yet.",
+        "reprintFailed": "Could not reprint.",
+        "documentIssueFailed": "Could not issue document with data. Simple ticket will be printed.",
+        "printingFinished": "Printing finished",
+        "invoiceGeneratedSuccess": "Invoice generated successfully",
+        "offlineSync": "Ticket saved offline. Will sync when connection is available.",
+        "currencyNotConfigured": "Currency not configured in company",
+        "createTicketFailed": "Could not create ticket",
+        "preparePaymentFailed": "Payment preparation failed",
+        "tooManyRequests": "Too many requests (429). Please wait a few seconds and retry."
+    }
+}

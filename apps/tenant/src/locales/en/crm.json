@@ -1,0 +1,40 @@
+{
+  "title": "CRM",
+  "subtitle": "Customer Relationship Management",
+  "new": "New Contact",
+  "search": "Search contacts",
+  "empty": "No contacts found",
+  "edit": "Edit",
+  "delete": "Delete",
+  "confirmDelete": "Are you sure you want to delete this contact?",
+  "actions": "Actions",
+  "messages": {
+    "created": "Contact created successfully",
+    "updated": "Contact updated successfully",
+    "deleted": "Contact deleted successfully"
+  },
+  "dashboard": {
+    "title": "CRM Dashboard",
+    "totalLeads": "Total Leads",
+    "opportunities": "Opportunities",
+    "pipelineValue": "Pipeline Value",
+    "conversionRate": "Conversion Rate",
+    "leadsByStatus": "Leads by Status",
+    "opportunitiesByStage": "Opportunities by Stage",
+    "won": "Won",
+    "lost": "Lost"
+  },
+  "table": {
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone",
+    "status": "Status",
+    "value": "Value"
+  },
+  "filters": {
+    "search": "Search",
+    "status": "Status",
+    "stage": "Stage"
+  },
+  "noData": "No data available"
+  }

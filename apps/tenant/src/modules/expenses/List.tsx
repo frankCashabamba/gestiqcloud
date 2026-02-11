@@ -1,12 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { listGastos, removeGasto, getGastoStats, type Gasto, type GastoStats } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
+import { usePermission } from '../../hooks/usePermission'
+import PermissionDenied from '../../components/PermissionDenied'
 import StatusBadge from '../sales/components/StatusBadge'
 import StatsCard from './components/StatsCard'
 
 export default function GastosList() {
+  const { t } = useTranslation(['expenses', 'common'])
+  const can = usePermission()
   const [items, setItems] = useState<Gasto[]>([])
   const [stats, setStats] = useState<GastoStats | null>(null)
   const [loading, setLoading] = useState(false)
@@ -103,35 +108,43 @@ export default function GastosList() {
     URL.revokeObjectURL(url)
   }
 
+  if (!can('expenses:read')) {
+    return <PermissionDenied permission="expenses:read" />
+  }
+
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
-         <h2 className="font-semibold text-lg">Expenses</h2>
+         <h2 className="font-semibold text-lg">{t('expenses:title')}</h2>
          <div className="flex gap-2">
-           <button
-             className="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
-             onClick={() => exportCSV(view)}
-           >
-             Export CSV
-           </button>
-           <button
-             className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-             onClick={() => nav('nuevo')}
-           >
-             New Expense
-           </button>
+           {can('expenses:read') && (
+             <button
+               className="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
+               onClick={() => exportCSV(view)}
+             >
+               {t('common.exportCsv')}
+             </button>
+           )}
+           {can('expenses:create') && (
+             <button
+               className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+               onClick={() => nav('nuevo')}
+             >
+               {t('expenses:new')}
+             </button>
+           )}
          </div>
        </div>
 
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <StatsCard
-            title="Total"
+            title={t('expenses:stats.total')}
             value={`$${stats.total.toFixed(2)}`}
             color="blue"
           />
           <StatsCard
-            title="Pending"
+            title={t('expenses:stats.pending')}
             value={`$${stats.pending.toFixed(2)}`}
             color="red"
           />
@@ -140,7 +153,7 @@ export default function GastosList() {
 
       <div className="mb-3 flex flex-wrap items-end gap-3">
         <div>
-          <label className="text-sm mr-2">From</label>
+          <label className="text-sm mr-2">{t('expenses:filters.from')}</label>
           <input
             type="date"
             value={desde}
@@ -149,7 +162,7 @@ export default function GastosList() {
           />
         </div>
         <div>
-          <label className="text-sm mr-2">To</label>
+          <label className="text-sm mr-2">{t('expenses:filters.to')}</label>
           <input
             type="date"
             value={hasta}
@@ -158,9 +171,9 @@ export default function GastosList() {
           />
         </div>
         <div>
-          <label className="text-sm mr-2">Search</label>
+          <label className="text-sm mr-2">{t('common.search')}</label>
           <input
-            placeholder="Concept..."
+            placeholder={t('expenses:filters.conceptPlaceholder')}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             className="border px-2 py-1 rounded text-sm"
@@ -168,11 +181,11 @@ export default function GastosList() {
         </div>
       </div>
 
-      {loading && <div className="text-sm text-gray-500">Loading…</div>}
+      {loading && <div className="text-sm text-gray-500">{t('common.loading')}</div>}
       {errMsg && <div className="bg-red-100 text-red-700 px-3 py-2 rounded mb-3">{errMsg}</div>}
 
       <div className="flex items-center gap-3 mb-2 text-sm">
-        <label>Per page</label>
+        <label>{t('common.perPage')}</label>
         <select
           value={per}
           onChange={(e) => setPer(Number(e.target.value))}
@@ -190,16 +203,16 @@ export default function GastosList() {
             <tr className="text-left border-b">
               <th className="py-2 px-2">
                 <button className="underline" onClick={() => toggleSort('date')}>
-                  Date {sortKey === 'date' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                  {t('expenses:table.date')} {sortKey === 'date' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
-              <th className="py-2 px-2">Concept</th>
+              <th className="py-2 px-2">{t('expenses:table.concept')}</th>
               <th className="py-2 px-2">
                 <button className="underline" onClick={() => toggleSort('amount')}>
-                  Amount {sortKey === 'amount' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                  {t('expenses:table.amount')} {sortKey === 'amount' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
-              <th className="py-2 px-2">Actions</th>
+              <th className="py-2 px-2">{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -209,31 +222,35 @@ export default function GastosList() {
                 <td className="py-2 px-2">{v.concept || '-'}</td>
                 <td className="py-2 px-2 font-medium">${v.amount.toFixed(2)}</td>
                 <td className="py-2 px-2">
-                  <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline mr-3">
-                    Edit
-                  </Link>
-                  <button
-                    className="text-red-700 hover:underline"
-                    onClick={async () => {
-                      if (!confirm('Delete expense?')) return
-                      try {
-                        await removeGasto(v.id)
-                        setItems((p) => p.filter(x => x.id !== v.id))
-                        success('Expense deleted')
-                      } catch (e: any) {
-                        toastError(getErrorMessage(e))
-                      }
-                    }}
-                  >
-                    Delete
-                  </button>
+                  {can('expenses:update') && (
+                    <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline mr-3">
+                      {t('common.edit')}
+                    </Link>
+                  )}
+                  {can('expenses:delete') && (
+                    <button
+                      className="text-red-700 hover:underline"
+                      onClick={async () => {
+                        if (!confirm(t('expenses:confirmDelete'))) return
+                        try {
+                          await removeGasto(v.id)
+                          setItems((p) => p.filter(x => x.id !== v.id))
+                          success(t('expenses:messages.deleted'))
+                        } catch (e: any) {
+                          toastError(getErrorMessage(e))
+                        }
+                      }}
+                    >
+                      {t('common.delete')}
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
             {!loading && view.length === 0 && (
               <tr>
                 <td className="py-3 px-3 text-center text-gray-500" colSpan={4}>
-                  No records
+                  {t('expenses:empty')}
                 </td>
               </tr>
             )}

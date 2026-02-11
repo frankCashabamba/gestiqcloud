@@ -1,0 +1,167 @@
+{
+    "title": "Punto de Venta",
+    "new": "Nueva Venta",
+    "search": {
+        "button": "Buscar",
+        "placeholder": "Buscar productos o escanear código (F2)",
+        "barcodeInput": "Código de barras"
+    },
+    "empty": "No hay ventas encontradas",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "confirmDelete": "¿Está seguro de que desea eliminar esta venta?",
+    "messages": {
+        "heldTicket": "Ticket en espera",
+        "ticketRecovered": "Ticket {{ticketId}} recuperado",
+        "stockWarning": "Stock bajo del minimo de stock",
+        "saleSupervisor": "Venta completada",
+        "invoiceCreation": "Venta supera mínimo de facturación. Crear factura...",
+        "heldTicketInfo": "Ticket en espera: {{id}}. Usa Recuperar para continuar.",
+        "heldTicketPick": "Tickets en espera:\n{{list}}\nEscribe ID para recuperar"
+    },
+    "table": {
+        "date": "Fecha",
+        "product": "Producto",
+        "amount": "Monto",
+        "status": "Estado"
+    },
+    "filters": {
+        "from": "Desde",
+        "to": "Hasta",
+        "search": "Buscar",
+        "placeholder": "Buscar por producto o ID"
+    },
+    "header": {
+        "shiftOpen": "Turno abierto",
+        "closingShift": "Cerrar turno",
+        "notes": "Notas",
+        "discount": "Descuento",
+        "dailyReports": "Reportes diarios",
+        "holdTicket": "Ticket en espera",
+        "resume": "Recuperar",
+        "reprint": "Reimprimir",
+        "reprintTooltip": "Reimprimir último recibo",
+        "pendingPayments": "Cobrar pendientes",
+        "online": "Online",
+        "offline": "Offline",
+        "cashierLabel": "Cajero",
+        "warehouseLabel": "Almacén",
+        "syncing": "Sincronizar"
+    },
+    "view": {
+        "byCategories": "Por categorías",
+        "all": "Todos"
+    },
+    "catalog": {
+        "title": "Catálogo",
+        "empty": "No se encontraron productos"
+    },
+    "totals": {
+        "subtotal": "Subtotal",
+        "discount": "Descuento",
+        "tax": "IVA",
+        "total": "Total"
+    },
+    "shift": {
+        "opening": "Fondo",
+        "minimumStock": "Minimo stock"
+    },
+    "cart": {
+        "lineDiscount": "Descuento línea",
+        "lineNotes": "Notas",
+        "discount": "Descuento",
+        "ticketNotes": "Notas del ticket",
+        "clearAll": "Borrar todo",
+        "confirmClear": "¿Vaciar carrito?"
+    },
+    "prompts": {
+        "enterPrice": "Ingresa precio para {{name}}",
+        "lineDiscountPercent": "Descuento línea (%)",
+        "lineNotes": "Notas de línea"
+    },
+    "actions": {
+        "charge": "Cobrar",
+        "chargeWithTotal": "Cobrar {{amount}} {{currency}}",
+        "chargeNoReceipt": "Cobrar sin recibo",
+        "chargeNoReceiptWithTotal": "Cobrar sin recibo {{amount}} {{currency}}",
+        "increment": "Aumentar cantidad",
+        "decrement": "Disminuir cantidad"
+    },
+    "buyer": {
+        "search": "Buscar cliente (nombre, RUC, email)",
+        "identification": "Identificacion",
+        "name": "Nombre",
+        "email": "Email (opcional)",
+        "documentType": "Tipo de documento",
+        "requiresInvoiceAbove": "Desde {{amount}} se requiere factura con datos",
+        "consumerFinal": "Consumidor final",
+        "invoiceWithData": "Factura / Con datos",
+        "excedsLimit": "Total supera el límite permitido para consumidor final",
+        "selected": "Seleccionado",
+        "wholesale": "Mayorista",
+        "existingClient": "Cliente existente",
+        "saveForFuture": "Guardar este cliente para futuras ventas"
+    },
+    "createProduct": {
+        "title": "Crear producto rápido",
+        "sku": "Código (SKU)",
+        "name": "Nombre",
+        "nameRequired": "Ingresa un nombre para continuar.",
+        "price": "Precio",
+        "priceMinimum": "El precio debe ser mayor a 0.",
+        "stock": "Stock",
+        "tax": "IVA (%)",
+        "category": "Categoría (opcional)",
+        "existingAdded": "Producto existente agregado al carrito.",
+        "creationFailed": "No se pudo crear el producto"
+    },
+    "print": {
+        "format": "Formato de impresión",
+        "preview": "Vista previa del ticket"
+    },
+    "register": {
+        "noRegisters": "No hay cajas registradas",
+        "createDefault": "Crea una caja por defecto para comenzar a vender. Usaremos tu único almacén activo si está disponible.",
+        "adminOnly": "Solo un administrador puede crear cajas. Solicita acceso o crea la caja desde Admin.",
+        "nameLabel": "Nombre de la caja",
+        "nameDefault": "Caja Principal",
+        "codeLabel": "CODIGO (opcional)",
+        "codeDefault": "CAJA-1",
+        "warehouseLabel": "Selecciona almacén por defecto",
+        "choose": "— Elegir —",
+        "buttonLabel": "Crear caja",
+        "creating": "Creando…",
+        "createdSuccess": "Caja creada",
+        "createdError": "No se pudo crear la caja. Revisa permisos o intenta desde Admin."
+    },
+    "errors": {
+        "insufficientStock": "Stock insuficiente. Disponible",
+        "insufficientStockAmount": "Stock insuficiente. Disponible: {{stock}}",
+        "lowStockMinimum": "Stock bajo del mínimo de stock",
+        "lowStockMinimumAmount": "Stock bajo del mínimo de stock ({{minimum}})",
+        "noCanSell": "No se puede vender.",
+        "invalidPrice": "Precio inválido",
+        "productNotFound": "Producto no encontrado",
+        "confirmCreate": "¿Deseas crearlo?",
+        "totalExceedsLimit": "El total supera el límite para consumidor final. Se requieren datos.",
+        "selectIdentificationType": "Selecciona el tipo de identificación del comprador.",
+        "completeIdentification": "Completa nombre e identificación del comprador.",
+        "emptyCart": "No hay líneas en el carrito",
+        "noShiftOpen": "Abre un turno primero",
+        "requiresBuyerData": "El total requiere datos del comprador.",
+        "emptyCartCheckout": "No hay líneas en el carrito",
+        "noShiftCheckout": "Abre un turno primero",
+        "heldTickets": "No hay tickets en espera",
+        "idNotFound": "ID no encontrado",
+        "nothingToReprint": "No hay nada para reimprimir todavía.",
+        "reprintFailed": "No se pudo reimprimir.",
+        "documentIssueFailed": "No se pudo emitir documento con datos. Se imprimirá ticket simple.",
+        "printingFinished": "Impresion finalizada",
+        "invoiceGeneratedSuccess": "Factura generada correctamente",
+        "offlineSync": "Ticket guardado offline. Se sincronizará cuando haya conexión.",
+        "currencyNotConfigured": "Moneda no configurada en empresa",
+        "createTicketFailed": "No se pudo crear el ticket",
+        "preparePaymentFailed": "No se pudo preparar el cobro",
+        "tooManyRequests": "Demasiadas solicitudes (429). Espera unos segundos y reintenta."
+    }
+}

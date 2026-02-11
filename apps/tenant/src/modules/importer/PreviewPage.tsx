@@ -820,6 +820,7 @@ export default function PreviewPage() {
                                     <tbody className="divide-y divide-slate-100 bg-white">
                                         {visibleProductos.map((p, i) => {
                                             const precio = typeof p.price === 'number' ? p.price : parseFloat(p.precio as string) || 0
+                                            const costo = Number(p.costo ?? 0)
                                             return (
                                                 <React.Fragment key={p.id}>
                                                     <tr key={p.id} className="hover:bg-slate-50">
@@ -860,7 +861,7 @@ export default function PreviewPage() {
                                                                 onBlur={(e) => patchField(p.id, 'precio', parseFloat(e.target.value || '0'))}
                                                             />
                                                         </td>
-                                                        <td className="px-3 py-2 text-slate-600">${(p.costo || 0).toFixed(2)}</td>
+                                                        <td className="px-3 py-2 text-slate-600">${costo.toFixed(2)}</td>
                                                         <td className="px-3 py-2">
                                                             {p.categoria ? (
                                                                 <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">

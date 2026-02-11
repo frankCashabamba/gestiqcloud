@@ -4,8 +4,12 @@ import { listCompras, removeCompra, type Compra } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import StatusBadge from '../sales/components/StatusBadge'
+import { usePermission } from '../../hooks/usePermission'
+import ProtectedButton from '../../components/ProtectedButton'
+import PermissionDenied from '../../components/PermissionDenied'
 
 export default function ComprasList() {
+  const can = usePermission()
   const [items, setItems] = useState<Compra[]>([])
   const [loading, setLoading] = useState(false)
   const [errMsg, setErrMsg] = useState<string | null>(null)
@@ -98,18 +102,24 @@ export default function ComprasList() {
       <div className="flex justify-between items-center mb-3">
         <h2 className="font-semibold text-lg">Purchases</h2>
         <div className="flex gap-2">
-          <button
-            className="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
-            onClick={() => exportCSV(view)}
-          >
-            Export CSV
-          </button>
-          <button
-            className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-            onClick={() => nav('new')}
-          >
-            New Purchase
-          </button>
+          {can('purchases:read') && (
+            <ProtectedButton
+              permission="purchases:read"
+              variant="secondary"
+              onClick={() => exportCSV(view)}
+            >
+              Export CSV
+            </ProtectedButton>
+          )}
+          {can('purchases:create') && (
+            <ProtectedButton
+              permission="purchases:create"
+              variant="primary"
+              onClick={() => nav('new')}
+            >
+              New Purchase
+            </ProtectedButton>
+          )}
         </div>
       </div>
 
@@ -212,17 +222,20 @@ export default function ComprasList() {
                   <StatusBadge estado={v.estado} />
                 </td>
                 <td className="py-2 px-2">
-                  <Link to={`${v.id}`} className="text-blue-600 hover:underline mr-3">
-                    View
-                  </Link>
-                  {v.estado === 'draft' && (
+                  {can('purchases:read') && (
+                    <Link to={`${v.id}`} className="text-blue-600 hover:underline mr-3">
+                      View
+                    </Link>
+                  )}
+                  {v.estado === 'draft' && can('purchases:update') && (
                     <Link to={`${v.id}/edit`} className="text-blue-600 hover:underline mr-3">
                       Edit
                     </Link>
                   )}
-                  {v.estado === 'draft' && (
-                    <button
-                      className="text-red-700 hover:underline"
+                  {v.estado === 'draft' && can('purchases:delete') && (
+                    <ProtectedButton
+                      permission="purchases:delete"
+                      variant="ghost"
                       onClick={async () => {
                         if (!confirm('Delete purchase?')) return
                         try {
@@ -235,7 +248,7 @@ export default function ComprasList() {
                       }}
                     >
                       Delete
-                    </button>
+                    </ProtectedButton>
                   )}
                 </td>
               </tr>

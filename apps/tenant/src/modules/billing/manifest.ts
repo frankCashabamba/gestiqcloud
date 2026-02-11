@@ -4,7 +4,7 @@ const FacturasList = React.lazy(() => import('./List'))
 const FacturasForm = React.lazy(() => import('./Form'))
 
 export const manifest = {
-  id: 'facturacion',
+  id: 'billing',
   name: 'Invoicing',
   version: '1.0.0',
   permissions: ['facturacion.read', 'facturacion.write', 'facturacion.einvoice'],

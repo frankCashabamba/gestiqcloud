@@ -13,4 +13,12 @@ const api = createClient({
   authExemptSuffixes: [ADMIN_AUTH.login, ADMIN_AUTH.refresh, ADMIN_AUTH.logout, '/v1/auth/login', '/v1/auth/refresh', '/v1/auth/logout'],
 })
 
+// Evita rutas con '/api/api/*' cuando baseURL ya incluye '/api'
+api.interceptors.request.use((config) => {
+  if (config.url?.startsWith('/api/v1/admin')) {
+    config.url = config.url.replace(/^\/api\/v1\//, '/v1/')
+  }
+  return config
+})
+
 export default api

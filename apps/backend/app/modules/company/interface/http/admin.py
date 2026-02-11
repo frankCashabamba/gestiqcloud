@@ -181,10 +181,13 @@ def admin_list_pos_backfill_candidates(
     tenant_currency_row = db.execute(
         text(
             """
-            SELECT cs.currency, t.base_currency
-            FROM tenants t
-            LEFT JOIN company_settings cs ON cs.tenant_id = t.id
-            WHERE t.id = :tid
+            SELECT COALESCE(
+                NULLIF(UPPER(TRIM(cs.currency)), ''),
+                NULLIF(UPPER(TRIM(cur.code)), '')
+            )
+            FROM company_settings cs
+            LEFT JOIN currencies cur ON cur.id = cs.currency_id
+            WHERE cs.tenant_id = :tid
             LIMIT 1
             """
         ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
@@ -192,12 +195,9 @@ def admin_list_pos_backfill_candidates(
     ).first()
     tenant_currency: str | None = None
     if tenant_currency_row:
-        cs_cur, base_cur = tenant_currency_row
-        for val in (cs_cur, base_cur):
-            if val:
-                tenant_currency = str(val).strip().upper() or None
-                if tenant_currency:
-                    break
+        val = tenant_currency_row[0]
+        if val:
+            tenant_currency = str(val).strip().upper() or None
 
     where_parts: list[str] = ["r.status = 'paid'"]
     params: dict = {"tid": tenant_uuid, "limit": limit, "offset": offset}

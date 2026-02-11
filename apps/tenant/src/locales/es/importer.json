@@ -1,0 +1,49 @@
+{
+  "title": "Importador Universal",
+  "description": "Carga archivos Excel, CSV, PDF o imágenes para procesarlos automáticamente",
+  "dragFilesHere": "Arrastra archivos aquí o haz clic para seleccionar",
+  "acceptedFormats": "Excel (.xlsx, .xls), CSV, PDF o imágenes",
+  "selectFiles": "Seleccionar archivos",
+  "filesInQueue": "Archivos en cola ({{count}})",
+  "clearing": "Limpiando...",
+  "clearStuckProcessing": "Limpiar procesamiento atascado",
+  "clearCompleted": "Limpiar completados",
+  "viewResults": "Ver resultados",
+  "removeFromQueue": "Eliminar de la cola",
+  "pendingImports": "Importaciones pendientes",
+  "reviewContinueBatches": "Revisar y continuar con lotes creados",
+  "preview": "Vista previa",
+  "openDetailScreen": "Abre la pantalla de detalle pasando ?batch_id=...",
+  "new": "Nueva Importación",
+  "search": "Buscar importaciones",
+  "empty": "No hay importaciones encontradas",
+  "edit": "Editar",
+  "delete": "Eliminar",
+  "confirmDelete": "¿Está seguro de que desea eliminar esta importación?",
+  "actions": "Acciones",
+  "messages": {
+    "created": "Importación creada exitosamente",
+    "updated": "Importación actualizada exitosamente",
+    "deleted": "Importación eliminada exitosamente"
+  },
+  "table": {
+    "date": "Fecha",
+    "file": "Archivo",
+    "status": "Estado",
+    "records": "Registros"
+  },
+  "filters": {
+    "from": "Desde",
+    "to": "Hasta",
+    "search": "Buscar",
+    "placeholder": "Buscar por nombre de archivo"
+  },
+  "statuses": {
+    "pending": "Pendiente",
+    "processing": "Procesando...",
+    "ready": "Listo",
+    "saving": "Guardando...",
+    "saved": "Guardado",
+    "error": "Error"
+  }
+}

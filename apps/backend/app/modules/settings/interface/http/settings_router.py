@@ -9,31 +9,26 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.middleware.tenant import get_current_user
+from app.middleware.tenant import ensure_tenant
 from app.models.company.company_settings import CompanySettings
-from app.schemas.settings import ModuleInfo, ModuleListResponse, ModuleSettingsUpdate
+from app.modules.settings.application.modules_catalog import (
+    AVAILABLE_MODULES,
+    get_available_modules,
+)
+from app.schemas.settings import ModuleSettingsUpdate
 
-router = APIRouter(prefix="/api/v1/settings", tags=["Settings"])
-
-AVAILABLE_MODULES = {
-    "inventory": {"name": "Inventory", "description": "Stock and warehouse management"},
-    "sales": {"name": "Sales", "description": "Sales and customer management"},
-    "purchases": {"name": "Purchases", "description": "Purchase and supplier management"},
-    "pos": {"name": "Point of Sale", "description": "POS and cash register"},
-    "finance": {"name": "Finance", "description": "Cash, bank, and accounting"},
-    "hr": {"name": "Human Resources", "description": "Human resources and payroll"},
-    "expenses": {"name": "Expenses", "description": "Operational expense control"},
-    "einvoicing": {"name": "E-Invoicing", "description": "SRI/AEAT"},
-}
+# NOTE: main.py already mounts this router with prefix="/api/v1".
+# Using only "/settings" here avoids a double "/api/v1/api/v1" prefix that causes 404s.
+router = APIRouter(prefix="/settings", tags=["Settings"])
 
 
 @router.get("", response_model=dict, status_code=status.HTTP_200_OK)
 def get_all_settings(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    tenant_id: str = Depends(ensure_tenant),
 ):
     """Get all tenant settings"""
-    tenant_id = UUID(current_user["tenant_id"])
+    tenant_id = UUID(tenant_id)
     settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
     base = settings.settings if settings and isinstance(settings.settings, dict) else {}
     config = base.get("config", {}) if isinstance(base, dict) else {}
@@ -48,14 +43,14 @@ def get_all_settings(
     }
 
 
-@router.get("/{module}", response_model=dict[str, Any], status_code=status.HTTP_200_OK)
+@router.get("/modules/{module}", response_model=dict[str, Any], status_code=status.HTTP_200_OK)
 def get_module_settings(
     module: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    tenant_id: str = Depends(ensure_tenant),
 ):
     """Get configuration for a specific module"""
-    tenant_id = UUID(current_user["tenant_id"])
+    tenant_id = UUID(tenant_id)
 
     if module not in AVAILABLE_MODULES:
         raise HTTPException(
@@ -79,15 +74,15 @@ def get_module_settings(
     }
 
 
-@router.put("/{module}", response_model=dict[str, Any], status_code=status.HTTP_200_OK)
+@router.put("/modules/{module}", response_model=dict[str, Any], status_code=status.HTTP_200_OK)
 def update_module_settings(
     module: str,
     settings_in: ModuleSettingsUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    tenant_id: str = Depends(ensure_tenant),
 ):
     """Update module configuration"""
-    tenant_id = UUID(current_user["tenant_id"])
+    tenant_id = UUID(tenant_id)
 
     if module not in AVAILABLE_MODULES:
         raise HTTPException(
@@ -118,14 +113,16 @@ def update_module_settings(
     }
 
 
-@router.post("/{module}/enable", response_model=dict[str, Any], status_code=status.HTTP_200_OK)
+@router.post(
+    "/modules/{module}/enable", response_model=dict[str, Any], status_code=status.HTTP_200_OK
+)
 def enable_module(
     module: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    tenant_id: str = Depends(ensure_tenant),
 ):
     """Enable a module"""
-    tenant_id = UUID(current_user["tenant_id"])
+    tenant_id = UUID(tenant_id)
 
     if module not in AVAILABLE_MODULES:
         raise HTTPException(
@@ -154,14 +151,16 @@ def enable_module(
     }
 
 
-@router.post("/{module}/disable", response_model=dict[str, Any], status_code=status.HTTP_200_OK)
+@router.post(
+    "/modules/{module}/disable", response_model=dict[str, Any], status_code=status.HTTP_200_OK
+)
 def disable_module(
     module: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    tenant_id: str = Depends(ensure_tenant),
 ):
     """Disable a module"""
-    tenant_id = UUID(current_user["tenant_id"])
+    tenant_id = UUID(tenant_id)
 
     if module not in AVAILABLE_MODULES:
         raise HTTPException(
@@ -194,26 +193,43 @@ def disable_module(
     }
 
 
-@router.get("/modules", response_model=ModuleListResponse, status_code=status.HTTP_200_OK)
+@router.get("/modules", response_model=dict, status_code=status.HTTP_200_OK)
 def list_modules(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    tenant_id: str = Depends(ensure_tenant),
 ):
-    """List all available modules"""
-    tenant_id = UUID(current_user["tenant_id"])
+    """
+    List all available modules for the tenant, marking which ones are enabled.
 
-    settings = db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+    Uses ensure_tenant to work in development even without explicit token (falls back to first tenant).
+    """
+    settings = (
+        db.query(CompanySettings).filter(CompanySettings.tenant_id == UUID(tenant_id)).first()
+    )
     base = settings.settings if settings and isinstance(settings.settings, dict) else {}
-    enabled_modules = base.get("enabled_modules", []) if isinstance(base, dict) else []
+    enabled_modules = set(base.get("enabled_modules", []) if isinstance(base, dict) else [])
 
+    # Use the official catalog to keep names/icons/deps aligned
+    modules_catalog = get_available_modules()
+
+    def map_module(m: dict) -> dict:
+        mid = m.get("id") or m.get("code")
+        return {
+            "id": mid,
+            "code": m.get("code") or mid,
+            "name": m.get("name"),
+            "description": m.get("description"),
+            "category": m.get("category"),
+            "icon": m.get("icon"),
+            "required": bool(m.get("required")),
+            "default_enabled": bool(m.get("default_enabled")),
+            "dependencies": m.get("dependencies") or [],
+            "is_enabled": mid in enabled_modules,
+        }
+
+    # Solo devolver módulos contratados/habilitados para el tenant
     modules = [
-        ModuleInfo(
-            key=key,
-            name=info["name"],
-            description=info["description"],
-            enabled=key in (enabled_modules or []),
-        )
-        for key, info in AVAILABLE_MODULES.items()
+        map_module(m) for m in modules_catalog if (m.get("id") or m.get("code")) in enabled_modules
     ]
 
-    return ModuleListResponse(modules=modules)
+    return {"modules": modules, "total": len(modules)}

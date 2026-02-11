@@ -1,10 +1,13 @@
 /**
- * POSView - Terminal Punto de Venta Profesional
- * Diseño basado en tpv_pro.html con integración completa backend
+ * POSView - Professional Point of Sale terminal
+ * Layout based on tpv_pro.html with full backend integration
  */
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { usePermission } from '../../hooks/usePermission'
+import PermissionDenied from '../../components/PermissionDenied'
+import ProtectedButton from '../../components/ProtectedButton'
 import ShiftManager, { type ShiftManagerHandle } from './components/ShiftManager'
 import PaymentModal from './components/PaymentModal'
 import ConvertToInvoiceModal from './components/ConvertToInvoiceModal'
@@ -78,7 +81,8 @@ const DEFAULT_ID_TYPES = ['CEDULA', 'RUC', 'PASSPORT']
 
 export default function POSView() {
     const navigate = useNavigate()
-    const { t } = useTranslation()
+    const can = usePermission()
+    const { t } = useTranslation(['pos', 'common'])
     const { symbol: currencySymbol } = useCurrency()
     const { profile } = useAuth()
     const esAdminEmpresa = !!(profile?.es_admin_empresa || (profile as any)?.is_company_admin)
@@ -144,6 +148,10 @@ export default function POSView() {
     const pendingSaleRef = useRef<SaleDraft | null>(null)
     const buyerAlertRef = useRef(false)
     const buyerContinueRef = useRef(false)
+
+    if (!can('pos:read')) {
+        return <PermissionDenied permission="pos:read" />
+    }
     const shiftManagerRef = useRef<ShiftManagerHandle | null>(null)
     const barcodeBufferRef = useRef('')
     const barcodeTimerRef = useRef<number | null>(null)
@@ -209,7 +217,7 @@ export default function POSView() {
                     setWarehouses(actives)
                     if (actives.length === 1) setHeaderWarehouseId(String(actives[0].id))
                 } catch (e) {
-                    // silencioso: si inventario no está disponible, POS sigue funcionando
+                    // silent fallback: if inventory is unavailable, POS keeps working
                 }
             })()
     }, [])
@@ -365,7 +373,7 @@ export default function POSView() {
     const loadSettings = async () => {
         try {
             const settings = await getCompanySettings()
-            // Para POS, si no hay configuración explícita, preferimos 0 (no forzar 15% por defecto)
+            // For POS, if there is no explicit setting, prefer 0 (avoid forcing 15% by default)
             const defaultTaxRate = getDefaultTaxRate(settings, 0)
             setCompanySettings(settings)
             setDocumentConfig(extractDocumentConfig(settings))
@@ -407,7 +415,7 @@ export default function POSView() {
             console.error('Error loading clients:', error)
             const status = (error as any)?.response?.status
             if (status === 429) {
-                setClientsLoadError('Demasiadas solicitudes (429). Espera unos segundos y reintenta.')
+                setClientsLoadError(t('pos:errors.tooManyRequests'))
             } else {
                 setClientsLoadError('No se pudieron cargar los clientes. Reintenta.')
             }
@@ -450,7 +458,7 @@ export default function POSView() {
         let result = products
         const globalReorderPoint = Number(inventoryConfig.reorderPoint || 0)
 
-        // En modo categorías, filtrar por categoría seleccionada
+        // In categories view, filter by selected category
         if (viewMode === 'categories' && selectedCategory !== '*') {
             result = result.filter(
                 (p) => p.categoria === selectedCategory || (p.product_metadata?.categoria || '') === selectedCategory
@@ -466,7 +474,7 @@ export default function POSView() {
             return true
         })
 
-        // Búsqueda por texto siempre activa
+        // Text search always active
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase()
             result = result.filter(
@@ -523,14 +531,14 @@ export default function POSView() {
         const remaining = stock - desiredQty
 
         if (!inventoryConfig.allowNegative && remaining < 0) {
-            alert(`Stock insuficiente. Disponible: ${stock}`)
+            alert(t('pos:errors.insufficientStockAmount', { stock: String(stock) }))
             return true
         }
 
         if (!opts?.ignoreReorder) {
             const reorderPoint = getReorderPoint(product)
             if (reorderPoint > 0 && remaining < reorderPoint) {
-                alert(`Stock bajo del minimo de stock (${reorderPoint}). No se puede vender.`)
+                alert(t('pos:errors.lowStockMinimumAmount', { minimum: String(reorderPoint) }))
                 return true
             }
         }
@@ -611,11 +619,11 @@ export default function POSView() {
         let basePrice = Number(product.price ?? 0)
         if (!Number.isFinite(basePrice) || basePrice <= 0) {
             const fallbackName = product.name || t('posView.prompts.unnamedProduct')
-            const input = prompt(t('posView.prompts.enterPrice', { name: fallbackName })) || ''
+            const input = prompt(t('pos:prompts.enterPrice', { name: fallbackName })) || ''
             const normalized = input.replace(',', '.').trim()
             const parsed = Number(normalized)
             if (!normalized || !Number.isFinite(parsed) || parsed <= 0) {
-                alert(t('posView.errors.invalidPrice'))
+                alert(t('pos:errors.invalidPrice'))
                 return
             }
             basePrice = parsed
@@ -725,14 +733,14 @@ export default function POSView() {
     }
 
     const setLineDiscount = (index: number) => {
-        const value = prompt('Descuento línea (%)', String(cart[index].discount_pct))
+        const value = prompt(t('pos:prompts.lineDiscountPercent'), String(cart[index].discount_pct))
         if (value === null) return
         const pct = Math.min(100, Math.max(0, parseFloat(value) || 0))
         setCart(cart.map((item, i) => (i === index ? { ...item, discount_pct: pct } : item)))
     }
 
     const setLineNote = (index: number) => {
-        const value = prompt('Notas de línea', cart[index].notes || '')
+        const value = prompt(t('pos:prompts.lineNotes'), cart[index].notes || '')
         if (value === null) return
         setCart(cart.map((item, i) => (i === index ? { ...item, notes: value } : item)))
     }
@@ -767,7 +775,7 @@ export default function POSView() {
         } else {
             const code = normalizeCode(barcodeInput)
             if (code) {
-                const shouldCreate = confirm(`Producto no encontrado: ${code}\n¿Deseas crearlo?`)
+                const shouldCreate = confirm(`${t('pos:errors.productNotFound')}: ${code}\n${t('pos:errors.confirmCreate')}`)
                 if (shouldCreate) {
                     setCreateProductForm({
                         sku: code,
@@ -792,7 +800,7 @@ export default function POSView() {
         }
     }
 
-    // Totales calculados por el backend (fuente única de verdad)
+    // Totals calculated by backend (single source of truth)
     const [totals, setTotals] = useState<ReceiptTotals>({
         subtotal: 0,
         line_discounts: 0,
@@ -894,7 +902,7 @@ export default function POSView() {
                     if (product) {
                         addToCart(product)
                     } else {
-                        const shouldCreate = confirm(`Producto no encontrado: ${code}\n¿Deseas crearlo?`)
+                        const shouldCreate = confirm(`${t('pos:errors.productNotFound')}: ${code}\n${t('pos:errors.confirmCreate')}`)
                         if (shouldCreate) {
                             setCreateProductForm({
                                 sku: code,
@@ -950,7 +958,7 @@ export default function POSView() {
         }
         if (!canUseConsumerFinal && !buyerAlertRef.current) {
             buyerAlertRef.current = true
-            alert('El total supera el limite para consumidor final. Se requieren datos.')
+            alert(t('pos:errors.totalExceedsLimit'))
             setBuyerMode('IDENTIFIED')
         }
         if (canUseConsumerFinal) buyerAlertRef.current = false
@@ -993,7 +1001,7 @@ export default function POSView() {
                 setTotals(calculated)
             } catch (error) {
                 console.error('Error calculando totales:', error)
-                // Fallback a cálculo local en caso de error de red
+                // Fallback to local calculation on network error
                 const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0)
                 const lineDiscounts = cart.reduce(
                     (sum, item) => sum + item.price * item.qty * (item.discount_pct / 100),
@@ -1146,9 +1154,9 @@ export default function POSView() {
             console.error('Error creating receipt:', e)
             const msg = String((e as any)?.message || '')
             if (msg.includes('currency_not_configured')) {
-                alert(t('pos.errors.currencyNotConfigured'))
+                alert(t('pos:errors.currencyNotConfigured'))
             } else {
-                alert(t('pos.errors.preparePaymentFailed'))
+                alert(t('pos:errors.preparePaymentFailed'))
             }
         } finally {
             setLoading(false)
@@ -1161,17 +1169,17 @@ export default function POSView() {
             setBuyerMode(nextMode)
         }
         if (mode == 'CONSUMER_FINAL' && !canUseConsumerFinal) {
-            alert('El total requiere datos del comprador.')
+            alert(t('pos:errors.requiresBuyerData'))
             return
         }
         if (mode == 'IDENTIFIED') {
             const normalized = normalizeIdType(buyerIdType, allowedIdTypes)
             if (!normalized) {
-                alert('Selecciona el tipo de identificacion del comprador.')
+                alert(t('pos:errors.selectIdentificationType'))
                 return
             }
             if (!buyerIdNumber.trim() || !buyerName.trim()) {
-                alert('Completa nombre e identificacion del comprador.')
+                alert(t('pos:errors.completeIdentification'))
                 return
             }
         }
@@ -1185,11 +1193,11 @@ export default function POSView() {
 
     const beginCheckout = (opts?: { skipPrint?: boolean }) => {
         if (cart.length === 0) {
-            alert('No hay l?neas en el carrito')
+            alert(t('pos:errors.emptyCart'))
             return
         }
         if (!currentShift) {
-            alert('Abre un turno primero')
+            alert(t('pos:errors.noShiftOpen'))
             return
         }
         setSkipPrint(!!opts?.skipPrint)
@@ -1236,7 +1244,7 @@ export default function POSView() {
                     if (buyerMode === 'IDENTIFIED') {
                         const msgDetail = detail?.detail ?? detail
                         const msg = msgDetail ? `\n\nDetalle:\n${typeof msgDetail === 'string' ? msgDetail : JSON.stringify(msgDetail, null, 2)}` : ''
-                        alert(`No se pudo emitir documento con datos. Se imprimira ticket simple.${msg}`)
+                        alert(`${t('pos:errors.documentIssueFailed')} ${msg}`)
                     }
                 }
             }
@@ -1248,8 +1256,8 @@ export default function POSView() {
                 setAndPersistLastPrintJob({ kind: 'receipt', receiptId: currentReceiptId, width: '58mm' })
             }
 
-            // Calcular totales para verificar si se debe crear factura automáticamente
-            // Usamos el estado actual de totals para evitar llamadas 422 a calculate_totals con payload vacío
+            // Calculate totals to check if invoice must be created automatically
+            // Use current totals state to avoid 422 responses to calculate_totals with empty payload
             const needsInvoice = shouldCreateInvoice(totals.total, isWholesaleCustomer, companySettings)
 
             // Reset carrito
@@ -1266,22 +1274,22 @@ export default function POSView() {
             setShowPaymentModal(false)
             pendingSaleRef.current = null
 
-            // Si se debe crear factura automáticamente, abrir modal
+            // If invoice must be created automatically, open modal
             if (needsInvoice && currentReceiptId) {
                 setAutoCreateInvoice(true)
                 setShowInvoiceModal(true)
-                alert('💰 Venta supera mínimo de facturación. Crear factura...')
+            alert(t('pos:messages.invoiceCreation'))
             } else {
-                alert('Venta completada ✓')
+                alert(t('pos:messages.saleSupervisor'))
             }
         } catch (error: any) {
             if (!isOnline) {
                 await addToOutbox({ type: 'receipt', data: { cart, totals } })
-                alert('Ticket guardado offline. Se sincronizará cuando haya conexión.')
+            alert(t('pos:errors.offlineSync'))
                 setCart([])
                 setShowPaymentModal(false)
             } else {
-                alert(error.response?.data?.detail || 'Error al crear ticket')
+                alert(error.response?.data?.detail || t('pos:errors.createTicketFailed'))
             }
         } finally {
             setLoading(false)
@@ -1296,7 +1304,7 @@ export default function POSView() {
 
     const handleHoldTicket = () => {
         if (cart.length === 0) {
-            alert('No hay líneas en el carrito')
+            alert(t('pos:errors.emptyCart'))
             return
         }
         const id = `T${String(Date.now()).slice(-6)}`
@@ -1311,21 +1319,21 @@ export default function POSView() {
         setGlobalDiscountPct(0)
         setTicketNotes('')
         setCurrentReceiptId(null)
-        alert(`Ticket en espera: ${id}\nUsa Recuperar para continuar.`)
+        alert(t('pos:messages.heldTicketInfo', { id }))
     }
 
     const handleResumeTicket = () => {
         if (heldTickets.length === 0) {
-            alert('No hay tickets en espera')
+            alert(t('pos:errors.heldTickets'))
             return
         }
         const list = heldTickets.map((t) => t.id).join(', ')
-        const pick = prompt(`Tickets en espera:\n${list}\nEscribe ID para recuperar`)
+        const pick = prompt(t('pos:messages.heldTicketPick', { list }))
         if (!pick) return
         const trimmed = pick.trim()
         const idx = heldTickets.findIndex((t) => t.id === trimmed)
         if (idx < 0) {
-            alert('ID no encontrado')
+            alert(t('pos:errors.idNotFound'))
             return
         }
         const ticket = heldTickets[idx]
@@ -1334,12 +1342,12 @@ export default function POSView() {
         setGlobalDiscountPct(ticket.globalDiscountPct || 0)
         setTicketNotes(ticket.ticketNotes || '')
         setCurrentReceiptId(null)
-        alert(`Ticket recuperado: ${trimmed}`)
+        alert(t('pos:messages.ticketRecovered', { ticketId: trimmed }))
     }
 
     const handleReprintLast = async () => {
         if (!lastPrintJob) {
-            alert('No hay nada para reimprimir todavía.')
+            alert(t('pos:errors.nothingToReprint'))
             return
         }
         try {
@@ -1355,7 +1363,7 @@ export default function POSView() {
             }
         } catch (err) {
             console.error('Error reimprimiendo:', err)
-            alert('No se pudo reimprimir.')
+            alert(t('pos:errors.reprintFailed'))
         } finally {
             setLoading(false)
         }
@@ -1363,7 +1371,7 @@ export default function POSView() {
 
     const handlePayPending = async () => {
         if (!currentShift) {
-            alert('Abre un turno primero')
+            alert(t('pos:errors.noShiftOpen'))
             return
         }
         setShowPendingModal(true)
@@ -1386,16 +1394,16 @@ export default function POSView() {
                     code: (newRegisterCode || '').trim() || undefined,
                     name: (newRegisterName || '').trim(),
                 }
-                // Si hay más de un almacén y el usuario eligió uno, respétalo
+                // If there is more than one warehouse and user chose one, respect it
                 const chosenId = headerWarehouseId || (ws && ws.length === 1 ? wh?.id : null)
                 if (chosenId) payload.default_warehouse_id = chosenId
                 const reg = await createRegister(payload)
                 await loadRegisters()
                 setSelectedRegister(reg)
-                alert(`Caja creada: ${payload.name}`)
+                alert(t('pos:register.createdSuccess') + `: ${payload.name}`)
             } catch (e) {
                 console.error('No se pudo crear la caja', e)
-                alert('No se pudo crear la caja. Revisa permisos o intenta desde Admin.')
+                alert(t('pos:register.createdError'))
             } finally {
                 setLoading(false)
             }
@@ -1404,18 +1412,18 @@ export default function POSView() {
         return (
             <div className="p-6">
                 <div className="bg-white rounded-lg shadow p-6">
-                    <h2 className="text-xl font-bold mb-2">No hay cajas registradas</h2>
+                    <h2 className="text-xl font-bold mb-2">{t('pos:register.noRegisters')}</h2>
                     <p className="text-sm text-gray-600 mb-4">
-                        Crea una caja por defecto para comenzar a vender. Usaremos tu único almacén activo si está disponible.
+                        {t('pos:register.createDefault')}
                     </p>
                     {!esAdminEmpresa && (
                         <p className="text-sm text-amber-700 mb-4">
-                            Solo un administrador puede crear cajas. Solicita acceso o crea la caja desde Admin.
+                            {t('pos:register.adminOnly')}
                         </p>
                     )}
                     <div className="mb-4 grid gap-3">
                         <div>
-                            <label className="block text-sm font-medium mb-1">Nombre de la caja</label>
+                            <label className="block text-sm font-medium mb-1">{t('pos:register.nameLabel')}</label>
                             <input
                                 value={newRegisterName}
                                 onChange={(e) => setNewRegisterName(e.target.value)}
@@ -1426,12 +1434,12 @@ export default function POSView() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium mb-1">CODIGO (opcional)</label>
+                            <label className="block text-sm font-medium mb-1">{t('pos:register.codeLabel')}</label>
                             <input
                                 value={newRegisterCode}
                                 onChange={(e) => setNewRegisterCode(e.target.value)}
                                 className="border rounded px-3 py-2 w-full"
-                                placeholder="CAJA-1"
+                                placeholder={t('pos:register.codeDefault')}
                                 disabled={!esAdminEmpresa}
                             />
                         </div>
@@ -1439,13 +1447,13 @@ export default function POSView() {
 
                     {warehouses.length > 1 && (
                         <div className="mb-4">
-                            <label className="block text-sm font-medium mb-1">Selecciona almacén por defecto</label>
+                            <label className="block text-sm font-medium mb-1">{t('pos:register.warehouseLabel')}</label>
                             <select
                                 value={headerWarehouseId || ''}
                                 onChange={(e) => setHeaderWarehouseId(e.target.value || null)}
                                 className="border rounded px-3 py-2"
                             >
-                                <option value="">— Elegir —</option>
+                                <option value="">{t('pos:register.choose')}</option>
                                 {warehouses.map((w) => (
                                     <option key={w.id} value={w.id}>
                                         {w.code} - {w.name}
@@ -1454,13 +1462,14 @@ export default function POSView() {
                             </select>
                         </div>
                     )}
-                    <button
+                    <ProtectedButton
+                        permission="pos:create"
                         onClick={crearCajaRapida}
-                        disabled={!esAdminEmpresa || loading || !newRegisterName.trim() || (warehouses.length > 1 && !headerWarehouseId)}
+                        disabled={loading || !newRegisterName.trim() || (warehouses.length > 1 && !headerWarehouseId)}
                         className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-60"
                     >
-                        {loading ? 'Creando…' : 'Crear caja'}
-                    </button>
+                        {loading ? t('pos:register.creating') : t('pos:register.buttonLabel')}
+                    </ProtectedButton>
                 </div>
             </div>
         )
@@ -1480,64 +1489,69 @@ export default function POSView() {
                     )}
                 </div>
                 {currentShift && (
-                    <div className="shift-pill" title="Turno abierto">
-                        <span className="shift-title">Turno abierto</span>
+                    <div className="shift-pill" title={t('pos:header.shiftOpen')}>
+                        <span className="shift-title">{t('pos:header.shiftOpen')}</span>
                         <span className="shift-meta">
-                            Fondo {currencySymbol}{(Number(currentShift.opening_float) || 0).toFixed(2)}
+                            {t('pos:shift.opening')} {currencySymbol}{(Number(currentShift.opening_float) || 0).toFixed(2)}
                         </span>
                         {inventoryConfig.reorderPoint > 0 && (
                             <span className="shift-meta">
-                                Minimo stock: {inventoryConfig.reorderPoint}
+                                {t('pos:shift.minimumStock')}: {inventoryConfig.reorderPoint}
                             </span>
                         )}
-                        <button
+                        <ProtectedButton
+                            permission="pos:update"
                             className="btn sm danger"
                             onClick={() => shiftManagerRef.current?.openCloseModal()}
                         >
-                            Cerrar turno
-                        </button>
+                            {t('pos:header.closingShift')}
+                        </ProtectedButton>
                     </div>
                 )}
                 <div className="actions top-actions">
-                    <button className="btn sm" onClick={() => setTicketNotes(prompt('Notas del ticket', ticketNotes) || ticketNotes)}>
-                        Notas
-                    </button>
+                    <ProtectedButton permission="pos:update" className="btn sm" onClick={() => setTicketNotes(prompt(t('pos:cart.ticketNotes'), ticketNotes) || ticketNotes)}>
+                        {t('pos:header.notes')}
+                    </ProtectedButton>
                     {canDiscount && (
-                        <button className="btn sm" onClick={() => setGlobalDiscountPct(parseFloat(prompt('Descuento global (%)', String(globalDiscountPct)) || String(globalDiscountPct)))}>
-                            Descuento
-                        </button>
+                        <ProtectedButton permission="pos:update" className="btn sm" onClick={() => setGlobalDiscountPct(parseFloat(prompt(t('pos:header.discount') + ' (%)', String(globalDiscountPct)) || String(globalDiscountPct)))}>
+                            {t('pos:header.discount')}
+                        </ProtectedButton>
                     )}
                     {canViewReports && (
-                        <button className="btn sm" onClick={() => {
-                            const url = selectedRegister ? `daily-counts?register_id=${selectedRegister.id}` : 'daily-counts'
-                            navigate(url)
-                        }}>
-                            Reportes diarios
-                        </button>
+                        <ProtectedButton
+                            permission="pos:read"
+                            className="btn sm"
+                            onClick={() => {
+                                const url = selectedRegister ? `daily-counts?register_id=${selectedRegister.id}` : 'daily-counts'
+                                navigate(url)
+                            }}
+                        >
+                            {t('pos:header.dailyReports')}
+                        </ProtectedButton>
                     )}
-                    <button className="btn sm" onClick={handleHoldTicket}>
-                        Ticket en espera
-                    </button>
-                    <button className="btn sm" onClick={handleResumeTicket}>
-                        Recuperar
-                    </button>
-                    <button className="btn sm" onClick={handleReprintLast} title="Reimprime el último ticket/factura">
-                        Reimprimir
-                    </button>
+                    <ProtectedButton permission="pos:read" className="btn sm" onClick={handleHoldTicket}>
+                        {t('pos:header.holdTicket')}
+                    </ProtectedButton>
+                    <ProtectedButton permission="pos:read" className="btn sm" onClick={handleResumeTicket}>
+                        {t('pos:header.resume')}
+                    </ProtectedButton>
+                    <ProtectedButton permission="pos:read" className="btn sm" onClick={handleReprintLast} title={t("pos:header.reprintTooltip")}>
+                        {t('pos:header.reprint')}
+                    </ProtectedButton>
                     {canManagePending && (
-                        <button className="btn sm" onClick={handlePayPending}>
-                            Cobrar pendientes
-                        </button>
+                        <ProtectedButton permission="pos:update" className="btn sm" onClick={handlePayPending}>
+                            {t('pos:header.pendingPayments')}
+                        </ProtectedButton>
                     )}
                 </div>
-                <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div className="top-meta">
                     <span className={`badge ${isOnline ? 'ok' : 'off'}`}>
-                        {isOnline ? 'Online' : 'Offline'}
+                        {isOnline ? t('pos:header.online') : t('pos:header.offline')}
                     </span>
                     {pendingCount > 0 && (
-                        <button className="badge" onClick={syncNow} title="Sincronizar">
-                            ⟳ {pendingCount} pendientes
-                        </button>
+                        <ProtectedButton permission="pos:read" className="badge" onClick={syncNow} title={t('pos:header.syncing')}>
+                            ⟳ {pendingCount} {t('pos:header.syncing')}
+                        </ProtectedButton>
                     )}
                     {esAdminEmpresa && cashiers.length > 0 && (
                         <select
@@ -1545,9 +1559,9 @@ export default function POSView() {
                             onChange={(e) => setSelectedCashierId(e.target.value || null)}
                             className="badge"
                             style={{ cursor: 'pointer' }}
-                            title="Cajero activo"
+                            title={t('pos:header.cashierLabel')}
                         >
-                            {!selectedCashierId && <option value="">Cajero…</option>}
+                            {!selectedCashierId && <option value="">{t('pos:header.cashierLabel')}…</option>}
                             {cashiers.map((u) => (
                                 <option key={u.id} value={u.id}>
                                     {formatCashierLabel(u)}
@@ -1576,9 +1590,9 @@ export default function POSView() {
                             onChange={(e) => setHeaderWarehouseId(e.target.value || null)}
                             className="badge"
                             style={{ cursor: 'pointer' }}
-                            title="Almacén"
+                            title={t('pos:header.warehouseLabel')}
                         >
-                            <option value="">Almacén…</option>
+                            <option value="">{t('pos:header.warehouseLabel')}…</option>
                             {warehouses.map((w) => (
                                 <option key={w.id} value={w.id}>
                                     {w.code} — {w.name}
@@ -1599,17 +1613,18 @@ export default function POSView() {
                     className={`search ${searchExpanded ? 'search--expanded' : 'search--collapsed'}`}
                     role="search"
                 >
-                    <button
+                    <ProtectedButton
+                        permission="pos:read"
                         className="btn sm ghost search-toggle"
                         onClick={() => setSearchExpanded((prev) => !prev)}
                         type="button"
                     >
-                        Buscar
-                    </button>
+                        {t('pos:search.button')}
+                    </ProtectedButton>
                     <input
                         id="search"
-                        placeholder="Buscar productos o escanear c??digo (F2)"
-                        aria-label="Buscar productos"
+                        placeholder={t('pos:search.placeholder')}
+                        aria-label={t('pos:search.placeholder')}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         onFocus={() => setSearchExpanded(true)}
@@ -1626,53 +1641,57 @@ export default function POSView() {
                     />
                     <input
                         id="barcode"
-                        placeholder="Codigo de barras"
-                        aria-label="Codigo de barras"
+                        placeholder={t('pos:search.barcodeInput')}
+                        aria-label={t('pos:search.barcodeInput')}
                         style={{ width: 180, borderLeft: '1px solid var(--border)', paddingLeft: 10 }}
                         value={barcodeInput}
                         onChange={(e) => setBarcodeInput(e.target.value)}
                         onKeyDown={handleBarcodeEnter}
                     />
-                    <button className="btn sm" onClick={() => setSearchQuery('')}>
-                        Limpiar
-                    </button>
+                    <ProtectedButton permission="pos:read" className="btn sm" onClick={() => setSearchQuery('')}>
+                        {t('common:clear')}
+                    </ProtectedButton>
                 </div>
 
                 {/* View Mode Toggle */}
                 <div className="view-toggle">
-                    <button
+                    <ProtectedButton
+                        permission="pos:read"
                         className={`btn sm ${viewMode === 'categories' ? 'primary' : ''}`}
                         onClick={() => setViewMode('categories')}
                     >
-                        Por categorias
-                    </button>
-                    <button
+                        {t('pos:view.byCategories')}
+                    </ProtectedButton>
+                    <ProtectedButton
+                        permission="pos:read"
                         className={`btn sm ${viewMode === 'all' ? 'primary' : ''}`}
                         onClick={() => setViewMode('all')}
                     >
-                        Todos
-                    </button>
+                        {t('pos:view.all')}
+                    </ProtectedButton>
                 </div>
 
-                {/* Categories - solo visible en modo categorias */}
+                {/* Categories - only visible in categories mode */}
                 {viewMode === 'categories' && (
-                    <div className="cats" role="tablist" aria-label="Categorias">
+                    <div className="cats" role="tablist" aria-label={t('pos:catalog.title')}>
                         {categories.map((cat) => (
-                            <button
+                            <ProtectedButton
+                                permission="pos:read"
                                 key={cat}
                                 className={`cat ${selectedCategory === cat ? 'active' : ''}`}
                                 onClick={() => setSelectedCategory(cat)}
                             >
-                                {cat === '*' ? 'Todo' : cat}
-                            </button>
+                                {cat === '*' ? t('pos:view.all') : cat}
+                            </ProtectedButton>
                         ))}
                     </div>
                 )}
 
                 {/* Product Grid */}
-                <div id="catalog" className="catalog" role="list" aria-label="Catálogo">
+                <div id="catalog" className="catalog" role="list" aria-label={t('pos:catalog.title')}>
                     {filteredProducts.map((p) => (
-                        <button
+                        <ProtectedButton
+                            permission="pos:create"
                             key={p.id}
                             className="tile"
                             role="listitem"
@@ -1690,11 +1709,11 @@ export default function POSView() {
                                     ))}
                                 </div>
                             )}
-                        </button>
+                        </ProtectedButton>
                     ))}
                     {filteredProducts.length === 0 && (
                         <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
-                            No se encontraron productos
+                            {t('pos:catalog.empty')}
                         </div>
                     )}
                 </div>
@@ -1711,13 +1730,13 @@ export default function POSView() {
                                     <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'space-between' }}>
                                         <strong>{item.name}</strong>
                                         <div className="line-tools">
-                                            <button className="btn ghost" title="Descuento línea" onClick={() => setLineDiscount(idx)}>
-                                                -%
-                                            </button>
-                                            <button className="btn ghost" title="Notas" onClick={() => setLineNote(idx)}>
-                                                📝
-                                            </button>
-                                        </div>
+                                             <ProtectedButton permission="pos:update" className="btn ghost" title={t('pos:cart.lineDiscount')} onClick={() => setLineDiscount(idx)}>
+                                                 -%
+                                             </ProtectedButton>
+                                             <ProtectedButton permission="pos:update" className="btn ghost" title={t('pos:cart.lineNotes')} onClick={() => setLineNote(idx)}>
+                                                 📝
+                                             </ProtectedButton>
+                                         </div>
                                     </div>
                                     <small style={{ color: 'var(--muted)' }}>
                                         {item.price.toFixed(2)}{currencySymbol}
@@ -1727,9 +1746,9 @@ export default function POSView() {
                                     </small>
                                 </div>
                                 <div className="qty">
-                                    <button aria-label="menos" onClick={() => updateQty(idx, -1)}>
+                                    <ProtectedButton permission="pos:update" aria-label="menos" onClick={() => updateQty(idx, -1)}>
                                         –
-                                    </button>
+                                    </ProtectedButton>
                                     <input
                                         type="number"
                                         min="0.01"
@@ -1751,14 +1770,14 @@ export default function POSView() {
                                         }}
                                         style={{ textAlign: 'center' }}
                                     />
-                                    <button aria-label="más" onClick={() => updateQty(idx, 1)}>
+                                    <ProtectedButton permission="pos:update" aria-label={t('pos:actions.increment')} onClick={() => updateQty(idx, 1)}>
                                         +
-                                    </button>
+                                    </ProtectedButton>
                                 </div>
                                 <div className="sum">{lineTotal.toFixed(2)}{currencySymbol}</div>
-                                <button className="del" aria-label="Delete" onClick={() => removeItem(idx)}>
+                                <ProtectedButton permission="pos:update" className="del" aria-label="Delete" onClick={() => removeItem(idx)}>
                                     ✕
-                                </button>
+                                </ProtectedButton>
                             </div>
                         )
                     })}
@@ -1767,13 +1786,13 @@ export default function POSView() {
                 {cart.length > 0 && (
                     <div className="pay">
                         <div className="totals">
-                            <div>Subtotal</div>
+                            <div>{t('pos:totals.subtotal')}</div>
                             <div className="sum">{totals.subtotal.toFixed(2)}{currencySymbol}</div>
-                            <div>Descuento</div>
+                            <div>{t('pos:totals.discount')}</div>
                             <div className="sum">-{(totals.line_discounts + totals.global_discount).toFixed(2)}{currencySymbol}</div>
-                            <div>IVA</div>
+                            <div>{t('pos:totals.tax')}</div>
                             <div className="sum">{totals.tax.toFixed(2)}{currencySymbol}</div>
-                            <div className="big">Total</div>
+                            <div className="big">{t('pos:totals.total')}</div>
                             <div className="sum big">{totals.total.toFixed(2)}{currencySymbol}</div>
                         </div>
                     </div>
@@ -1799,33 +1818,34 @@ export default function POSView() {
                     }}
                 >
                     <div className="actions">
-                        <button
+                        <ProtectedButton
+                            permission="pos:update"
                             className="btn"
                             onClick={() => {
-                                if (confirm('¿Vaciar carrito?')) {
+                                if (confirm(t('pos:cart.confirmClear'))) {
                                     setCart([])
                                     setGlobalDiscountPct(0)
                                     setTicketNotes('')
                                 }
                             }}
                         >
-                            Borrar todo
-                        </button>
-                        <button className="btn" onClick={() => setTicketNotes(prompt('Notas del ticket', ticketNotes) || ticketNotes)}>
-                            Notas
-                        </button>
+                            {t('pos:cart.clearAll')}
+                        </ProtectedButton>
+                        <ProtectedButton permission="pos:update" className="btn" onClick={() => setTicketNotes(prompt(t('pos:cart.ticketNotes'), ticketNotes) || ticketNotes)}>
+                            {t('pos:header.notes')}
+                        </ProtectedButton>
                     </div>
                     <div className="actions">
-                        <button className="btn primary" onClick={handleCheckout} disabled={cart.length === 0 || !currentShift}>
+                        <ProtectedButton permission="pos:create" className="btn primary" onClick={handleCheckout} disabled={cart.length === 0 || !currentShift}>
                             {cart.length > 0
-                                ? t('posView.actions.chargeWithTotal', { amount: totals.total.toFixed(2), currency: currencySymbol })
-                                : t('posView.actions.charge')}
-                        </button>
-                        <button className="btn" onClick={handleCheckoutWithoutTicket} disabled={cart.length === 0 || !currentShift}>
+                                ? t('pos:actions.chargeWithTotal', { amount: totals.total.toFixed(2), currency: currencySymbol })
+                                : t('pos:actions.charge')}
+                        </ProtectedButton>
+                        <ProtectedButton permission="pos:create" className="btn" onClick={handleCheckoutWithoutTicket} disabled={cart.length === 0 || !currentShift}>
                             {cart.length > 0
-                                ? t('posView.actions.chargeNoReceiptWithTotal', { amount: totals.total.toFixed(2), currency: currencySymbol })
-                                : t('posView.actions.chargeNoReceipt')}
-                        </button>
+                                ? t('pos:actions.chargeNoReceiptWithTotal', { amount: totals.total.toFixed(2), currency: currencySymbol })
+                                : t('pos:actions.chargeNoReceipt')}
+                        </ProtectedButton>
                     </div>
                 </footer>
             )}
@@ -1856,51 +1876,54 @@ export default function POSView() {
                             gap: 12,
                         }}
                     >
-                        <div style={{ fontWeight: 700 }}>Tipo de documento</div>
+                        <div style={{ fontWeight: 700 }}>{t('pos:buyer.documentType')}</div>
                         {buyerPolicy.requireBuyerAboveAmount && buyerPolicy.consumerFinalMaxTotal > 0 && (
                             <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                                Desde {currencySymbol}{buyerPolicy.consumerFinalMaxTotal.toFixed(2)} se requiere factura con datos.
+                                {t('pos:buyer.requiresInvoiceAbove', { amount: currencySymbol + buyerPolicy.consumerFinalMaxTotal.toFixed(2) })}
                             </div>
                         )}
                         <div style={{ display: 'flex', gap: 8 }}>
-                            <button
+                            <ProtectedButton
+                                permission="pos:create"
                                 className={`btn sm ${buyerMode === 'CONSUMER_FINAL' ? 'primary' : ''}`}
                                 onClick={() => handleBuyerContinue('CONSUMER_FINAL')}
                                 disabled={buyerPolicy.consumerFinalEnabled === false}
                             >
-                                Consumidor final
-                            </button>
-                            <button
+                                {t('pos:buyer.consumerFinal')}
+                            </ProtectedButton>
+                            <ProtectedButton
+                                permission="pos:create"
                                 className={`btn sm ${buyerMode === 'IDENTIFIED' ? 'primary' : ''}`}
                                 onClick={() => setBuyerMode('IDENTIFIED')}
                             >
-                                Factura / Con datos
-                            </button>
+                                {t('pos:buyer.invoiceWithData')}
+                            </ProtectedButton>
                         </div>
                         {buyerMode === 'CONSUMER_FINAL' && !canUseConsumerFinal && (
                             <div style={{ color: '#b91c1c', fontSize: 12 }}>
-                                Total supera el limite permitido para consumidor final.
+                                {t('pos:buyer.excedsLimit')}
                             </div>
                         )}
                         {buyerMode === 'IDENTIFIED' && (
                             <div style={{ display: 'grid', gap: 8 }}>
                                 <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 8 }}>
                                     <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', marginBottom: 6 }}>
-                                        Cliente existente
+                                        {t('pos:buyer.existingClient')}
                                     </div>
                                     <input
                                         type="text"
-                                        placeholder="Buscar cliente (nombre, RUC, email)"
+                                        placeholder={t('pos:buyer.search')}
                                         value={clientQuery}
                                         onChange={(e) => setClientQuery(e.target.value)}
                                     />
                                     {clientsLoading && (
-                                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>Loading clients...</div>
+                                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>{t('common:loading')}</div>
                                     )}
                                     {!clientsLoading && clientsLoadError && (
                                         <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
                                             <div style={{ fontSize: 12, color: '#b91c1c' }}>{clientsLoadError}</div>
-                                            <button
+                                            <ProtectedButton
+                                                permission="pos:read"
                                                 type="button"
                                                 className="btn ghost"
                                                 onClick={() => {
@@ -1908,14 +1931,15 @@ export default function POSView() {
                                                     loadClients()
                                                 }}
                                             >
-                                                Reintentar
-                                            </button>
+                                                {t('common:retry')}
+                                            </ProtectedButton>
                                         </div>
                                     )}
                                     {!clientsLoading && filteredClients.length > 0 && (
                                         <div style={{ display: 'grid', gap: 4, marginTop: 6, maxHeight: 160, overflow: 'auto' }}>
                                             {filteredClients.map((c) => (
-                                                <button
+                                                <ProtectedButton
+                                                    permission="pos:read"
                                                     key={String(c.id)}
                                                     type="button"
                                                     className="btn ghost"
@@ -1926,25 +1950,26 @@ export default function POSView() {
                                                     <span style={{ fontSize: 11, color: '#6b7280' }}>
                                                         {(c.identificacion || c.tax_id || '').toString()}
                                                     </span>
-                                                </button>
+                                                </ProtectedButton>
                                             ))}
                                         </div>
                                     )}
                                     {!clientsLoading && clientQuery && filteredClients.length === 0 && (
-                                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>Sin resultados.</div>
+                                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>{t('common:noResults')}</div>
                                     )}
                                     {selectedClient && (
                                         <div style={{ marginTop: 8, fontSize: 12, color: '#111827' }}>
-                                            Seleccionado: <strong>{selectedClient.name}</strong>
-                                            {selectedClient.is_wholesale ? ' (Mayorista)' : ''}
-                                            <button
+                                            {t('pos:buyer.selected')}: <strong>{selectedClient.name}</strong>
+                                            {selectedClient.is_wholesale ? ` (${t('pos:buyer.wholesale')})` : ''}
+                                            <ProtectedButton
+                                                permission="pos:read"
                                                 type="button"
                                                 className="btn ghost"
                                                 style={{ marginLeft: 8 }}
                                                 onClick={clearSelectedClient}
                                             >
-                                                Quitar
-                                            </button>
+                                                {t('common:remove')}
+                                            </ProtectedButton>
                                         </div>
                                     )}
                                 </div>
@@ -1955,11 +1980,11 @@ export default function POSView() {
                                             checked={saveBuyerAsClient}
                                             onChange={(e) => setSaveBuyerAsClient(e.target.checked)}
                                         />
-                                        Guardar este cliente para futuras ventas
+                                        {t('pos:buyer.saveForFuture')}
                                     </label>
                                 )}
                                 <div style={{ display: 'grid', gap: 6 }}>
-                                    <div style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>Formato de impresión</div>
+                                    <div style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{t('pos:print.format')}</div>
                                     <select
                                         value={docPrintFormat}
                                         onChange={(e) => setDocPrintFormat(e.target.value as any)}
@@ -2003,12 +2028,12 @@ export default function POSView() {
                             </div>
                         )}
                         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                            <button className="btn ghost" onClick={() => setShowBuyerModal(false)}>
-                                Cancel
-                            </button>
-                            <button className="btn primary" onClick={() => handleBuyerContinue()}>
-                                Continue
-                            </button>
+                            <ProtectedButton permission="pos:read" className="btn ghost" onClick={() => setShowBuyerModal(false)}>
+                                {t('common:cancel')}
+                            </ProtectedButton>
+                            <ProtectedButton permission="pos:update" className="btn primary" onClick={() => handleBuyerContinue()}>
+                                {t('common:continue')}
+                            </ProtectedButton>
                         </div>
                     </div>
                 </div>
@@ -2031,7 +2056,7 @@ export default function POSView() {
                         setShowInvoiceModal(false)
                         setCurrentReceiptId(null)
                         setAutoCreateInvoice(false)
-                        alert('Factura generada correctamente')
+                        alert(t('pos:errors.invoiceGeneratedSuccess'))
                     }}
                     onCancel={() => {
                         setShowInvoiceModal(false)
@@ -2064,10 +2089,10 @@ export default function POSView() {
                             gap: 12,
                         }}
                     >
-                        <div style={{ fontWeight: 700 }}>Crear producto rapido</div>
+                        <div style={{ fontWeight: 700 }}>{t('pos:createProduct.title')}</div>
                         <div style={{ display: 'grid', gap: 10 }}>
                             <label style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>
-                                Codigo (SKU)
+                                {t('pos:createProduct.sku')}
                             </label>
                             <input
                                 type="text"
@@ -2083,7 +2108,7 @@ export default function POSView() {
                                 }
                             />
                             <label style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>
-                                Nombre <span style={{ color: '#ef4444' }}>*</span>
+                                {t('pos:createProduct.name')} <span style={{ color: '#ef4444' }}>*</span>
                             </label>
                             <input
                                 type="text"
@@ -2101,11 +2126,11 @@ export default function POSView() {
                             />
                             {!createProductForm.name.trim() && (
                                 <div style={{ fontSize: 11, color: '#b91c1c' }}>
-                                    Ingresa un nombre para continuar.
+                                    {t('pos:createProduct.nameRequired')}
                                 </div>
                             )}
                             <label style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>
-                                Precio <span style={{ color: '#ef4444' }}>*</span>
+                                {t('pos:createProduct.price')} <span style={{ color: '#ef4444' }}>*</span>
                             </label>
                             <input
                                 type="number"
@@ -2128,11 +2153,11 @@ export default function POSView() {
                             />
                             {Number(createProductForm.price) <= 0 && (
                                 <div style={{ fontSize: 11, color: '#b91c1c' }}>
-                                    El precio debe ser mayor a 0.
+                                    {t('pos:createProduct.priceMinimum')}
                                 </div>
                             )}
                             <label style={{ fontSize: 12, fontWeight: 600, color: '#1f2937' }}>
-                                Stock
+                                {t('pos:createProduct.stock')}
                             </label>
                             <input
                                 type="number"
@@ -2148,7 +2173,7 @@ export default function POSView() {
                                 step="0.01"
                             />
                             <label style={{ fontSize: 12, fontWeight: 600, color: '#1f2937' }}>
-                                IVA (%)
+                                {t('pos:createProduct.tax')}
                             </label>
                             <input
                                 type="number"
@@ -2164,7 +2189,7 @@ export default function POSView() {
                                 step="0.01"
                             />
                             <label style={{ fontSize: 12, fontWeight: 600, color: '#1f2937' }}>
-                                Categoria (opcional)
+                                {t('pos:createProduct.category')}
                             </label>
                             <input
                                 type="text"
@@ -2179,14 +2204,16 @@ export default function POSView() {
                             />
                         </div>
                         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                            <button
+                            <ProtectedButton
+                                permission="pos:read"
                                 className="btn ghost"
                                 onClick={() => setShowCreateProductModal(false)}
                                 disabled={creatingProduct}
                             >
-                                Cancel
-                            </button>
-                            <button
+                                {t('common:cancel')}
+                            </ProtectedButton>
+                            <ProtectedButton
+                                permission="pos:create"
                                 className="btn primary"
                                 disabled={
                                     creatingProduct ||
@@ -2204,7 +2231,7 @@ export default function POSView() {
                                                 addToCart(existing)
                                                 setBarcodeInput('')
                                                 setShowCreateProductModal(false)
-                                                alert('Producto existente agregado al carrito.')
+                                                alert(t('pos:createProduct.existingAdded'))
                                                 return
                                             }
                                             const remoteMatches = await searchProductos(skuValue)
@@ -2222,7 +2249,7 @@ export default function POSView() {
                                                 addToCart(remoteProduct)
                                                 setBarcodeInput('')
                                                 setShowCreateProductModal(false)
-                                                alert('Producto existente agregado al carrito.')
+                                                alert(t('pos:createProduct.existingAdded'))
                                                 return
                                             }
                                         }
@@ -2263,14 +2290,14 @@ export default function POSView() {
                                         setBarcodeInput('')
                                         setShowCreateProductModal(false)
                                     } catch (err) {
-                                        alert('No se pudo crear el producto')
+                                        alert(t('pos:createProduct.creationFailed'))
                                     } finally {
                                         setCreatingProduct(false)
                                     }
                                 }}
                             >
-                                Save and add
-                            </button>
+                                {t('common:saveAndAdd')}
+                            </ProtectedButton>
                         </div>
                     </div>
                 </div>
@@ -2302,9 +2329,10 @@ export default function POSView() {
                         }}
                     >
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <div style={{ fontWeight: 700 }}>Vista previa del ticket</div>
+                            <div style={{ fontWeight: 700 }}>{t('pos:print.preview')}</div>
                             <div style={{ display: 'flex', gap: 8 }}>
-                                <button
+                                <ProtectedButton
+                                    permission="pos:read"
                                     className="btn"
                                     onClick={() => {
                                         const win = printFrameRef.current?.contentWindow
@@ -2313,7 +2341,7 @@ export default function POSView() {
                                                 win.removeEventListener('afterprint', handleAfterPrint)
                                                 setShowPrintPreview(false)
                                                 setPrintHtml('')
-                                                alert('Impresion finalizada')
+                                                alert(t('pos:errors.printingFinished'))
                                             }
                                             win.addEventListener('afterprint', handleAfterPrint)
                                             win.focus()
@@ -2321,17 +2349,18 @@ export default function POSView() {
                                         }
                                     }}
                                 >
-                                    Imprimir
-                                </button>
-                                <button
+                                    {t('common:print')}
+                                </ProtectedButton>
+                                <ProtectedButton
+                                    permission="pos:read"
                                     className="btn ghost"
                                     onClick={() => {
                                         setShowPrintPreview(false)
                                         setPrintHtml('')
                                     }}
                                 >
-                                    Cerrar
-                                </button>
+                                    {t('common:close')}
+                                </ProtectedButton>
                             </div>
                         </div>
                         <iframe

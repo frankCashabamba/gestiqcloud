@@ -5,6 +5,9 @@ import { useToast, getErrorMessage } from '../../shared/toast'
 import CompraLineasEditor from './components/CompraLineasEditor'
 import { getCompanySettings, getDefaultTaxRate } from '../../services/companySettings'
 import { PURCHASING_DEFAULTS } from '../../constants/defaults'
+import { usePermission } from '../../hooks/usePermission'
+import PermissionDenied from '../../components/PermissionDenied'
+import ProtectedButton from '../../components/ProtectedButton'
 
 type FormT = Omit<Compra, 'id' | 'created_at' | 'updated_at'>
 
@@ -12,6 +15,8 @@ export default function CompraForm() {
     const { id } = useParams()
     const nav = useNavigate()
     const { success, error } = useToast()
+    const can = usePermission()
+    const requiredPerm = id ? 'purchases:update' : 'purchases:create'
 
     const [form, setForm] = useState<FormT>({
         fecha: new Date().toISOString().slice(0, 10),
@@ -110,6 +115,10 @@ export default function CompraForm() {
         } finally {
             setLoading(false)
         }
+    }
+
+    if (!can(requiredPerm)) {
+        return <PermissionDenied permission={requiredPerm} />
     }
 
     return (
@@ -218,13 +227,15 @@ export default function CompraForm() {
                 </div>
 
                 <div className="pt-2 flex gap-3">
-                    <button
+                    <ProtectedButton
+                        permission={requiredPerm}
                         type="submit"
-                        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+                        variant="primary"
+                        className="px-4 py-2 font-medium"
                         disabled={loading}
                     >
                         {loading ? 'Saving...' : 'Save'}
-                    </button>
+                    </ProtectedButton>
                     <button
                         type="button"
                         className="px-4 py-2 border rounded hover:bg-gray-50"

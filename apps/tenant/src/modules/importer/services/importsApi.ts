@@ -525,3 +525,13 @@ export async function listCategories(authToken?: string) {
     return apiFetch<{ id?: string | number; name?: string }[]>('/api/v1/categories', { authToken })
   }
 }
+
+export async function cleanupStuckBatches(hours: number = 2, authToken?: string) {
+  return apiFetch<{ ok: boolean; detail: string }>(
+    `${IMPORTS.batches.base}/cleanup/stuck?hours=${hours}`,
+    {
+      method: 'POST',
+      authToken,
+    }
+  )
+}

@@ -8,6 +8,8 @@ import FacturaStatusBadge from './components/FacturaStatusBadge'
 import EinvoiceStatus from './components/EinvoiceStatus'
 import { useCompanyConfig } from '../../contexts/CompanyConfigContext'
 import { useCurrency } from '../../hooks/useCurrency'
+import { usePermission } from '../../hooks/usePermission'
+import ProtectedButton from '../../components/ProtectedButton'
 
 function sortInvoices(arr: Factura[]): Factura[] {
   // Extrae la última secuencia numérica de un string (ej: "A-2026-000037" -> 37)
@@ -45,6 +47,7 @@ export default function FacturasList() {
   const { t } = useTranslation()
   const { config } = useCompanyConfig()
   const { formatCurrency } = useCurrency()
+  const can = usePermission()
   const [items, setItems] = useState<Factura[]>([])
   const [loading, setLoading] = useState(false)
   const [errMsg, setErrMsg] = useState<string | null>(null)
@@ -95,7 +98,15 @@ export default function FacturasList() {
         <h2 className="font-semibold text-lg">{t('nav.invoicing')}</h2>
         <div className="flex gap-2">
           <button className="bg-gray-200 px-3 py-1 rounded" onClick={()=> nav('sectores')}>{t('billing.sectors')}</button>
-          <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={()=> nav('nueva')}>{t('common.new')}</button>
+          {can('billing:create') && (
+            <ProtectedButton
+              permission="billing:create"
+              variant="primary"
+              onClick={()=> nav('nueva')}
+            >
+              {t('common.new')}
+            </ProtectedButton>
+          )}
         </div>
       </div>
 
@@ -146,18 +157,42 @@ export default function FacturasList() {
             enabled={['posted','issued','emitida'].includes((v.estado||'').toLowerCase())}
             />
           </td>
-            <td>
+            <td className="flex gap-2">
               {['emitida','issued','posted','confirmed'].includes((v.estado||'').toLowerCase()) ? (
                 <>
-                  <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline mr-3">
-                    {t('common.view') || 'Ver'}
-                  </Link>
-                  <span className="text-gray-500 mr-3 text-sm">{t('common.readonly') || 'Solo lectura'}</span>
+                  {can('billing:read') && (
+                    <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline">
+                      {t('common.view') || 'View'}
+                    </Link>
+                  )}
+                  <span className="text-gray-500 text-sm">{t('common.readonly') || 'Read-only'}</span>
                 </>
               ) : (
-                <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline mr-3">{t('common.edit')}</Link>
+                <>
+                  {can('billing:update') && (
+                    <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline">{t('common.edit')}</Link>
+                  )}
+                </>
               )}
-              <button className="text-red-700" onClick={async ()=> { if(!confirm(t('billing.deleteConfirm'))) return; try { await removeFactura(v.id); clearInvoicesCache(); setItems((p)=>p.filter(x=>x.id!==v.id)); success(t('billing.deleted')) } catch(e:any){ toastError(getErrorMessage(e)) } }}>{t('common.delete')}</button>
+              {can('billing:delete') && (
+                <ProtectedButton
+                  permission="billing:delete"
+                  variant="ghost"
+                  onClick={async ()=> {
+                    if(!confirm(t('billing.deleteConfirm'))) return
+                    try {
+                      await removeFactura(v.id)
+                      clearInvoicesCache()
+                      setItems((p)=>p.filter(x=>x.id!==v.id))
+                      success(t('billing.deleted'))
+                    } catch(e:any){
+                      toastError(getErrorMessage(e))
+                    }
+                  }}
+                >
+                  {t('common.delete')}
+                </ProtectedButton>
+              )}
             </td>
             </tr>
           ))}

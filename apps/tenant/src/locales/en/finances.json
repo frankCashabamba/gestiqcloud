@@ -1,0 +1,31 @@
+{
+  "bankTransactions": "Bank Transactions",
+  "pending": "Pending Reconciliation",
+  "reconciled": "Reconciled",
+  "empty": "No records",
+  "filters": {
+    "type": "Type",
+    "reconciled": "Reconciled",
+    "from": "From",
+    "to": "To",
+    "searchPlaceholder": "concept, bank..."
+  },
+  "type": {
+    "income": "Income",
+    "expenses": "Expenses"
+  },
+  "table": {
+    "date": "Date",
+    "bank": "Bank",
+    "concept": "Concept",
+    "type": "Type",
+    "amount": "Amount",
+    "reconciled": "Reconciled"
+  },
+  "actions": {
+    "reconcile": "Reconcile"
+  },
+  "messages": {
+    "reconciled": "Transaction reconciled"
+  }
+}

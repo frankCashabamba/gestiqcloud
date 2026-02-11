@@ -1,0 +1,56 @@
+{
+  "title": "Reportes",
+  "subtitle": "Ver análisis y reportes",
+  "all": "Todos",
+  "topProfit": "Mayor ganancia",
+  "worstMargin": "Peor margen",
+  "alerts": "Alertas",
+  "lowMargin": "Margen bajo",
+  "negativeProfit": "Ganancia negativa",
+  "select": "Seleccionar",
+  "qty": "Cantidad",
+  "net": "Neto",
+  "noCustomer": "Sin cliente",
+  "noLinesSelected": "Sin líneas para el rango seleccionado",
+  "new": "Nuevo Reporte",
+  "search": "Buscar reportes",
+  "empty": "No hay reportes encontrados",
+  "edit": "Editar",
+  "delete": "Eliminar",
+  "confirmDelete": "¿Está seguro de que desea eliminar este reporte?",
+  "actions": "Acciones",
+  "messages": {
+    "created": "Reporte creado exitosamente",
+    "updated": "Reporte actualizado exitosamente",
+    "deleted": "Reporte eliminado exitosamente"
+  },
+  "margins": {
+    "title": "Márgenes y Rentabilidad",
+    "subtitle": "Ventas netas, COGS y margen bruto filtrados por fecha y almacén",
+    "filters": {
+      "from": "Desde",
+      "to": "Hasta",
+      "warehouse": "Almacén",
+      "threshold": "Umbral de Margen"
+    },
+    "cards": {
+      "netSales": "Ventas Netas",
+      "cogs": "COGS",
+      "grossProfit": "Ganancia Bruta",
+      "grossMargin": "Margen Bruto"
+    },
+    "tabs": {
+      "products": "Productos",
+      "customers": "Clientes",
+      "detail": "Detalle"
+    },
+    "table": {
+      "product": "Producto",
+      "customer": "Cliente",
+      "netSales": "Ventas Netas",
+      "cogs": "COGS",
+      "profit": "Ganancia",
+      "margin": "Margen"
+    }
+  }
+}

@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '../lib/http'
 import { initElectric, setupOnlineSync } from '../lib/electric'
 import { TOKEN_KEY } from '../constants/storage'
+import { PermissionsProvider } from '../contexts/PermissionsContext'
 
 type LoginBody = { identificador: string; password: string }
 type LoginResponse = { access_token: string; token_type: 'bearer'; scope?: string }
@@ -18,12 +19,26 @@ type AuthContextType = {
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
+const EXP_SKEW_MS = 60_000 // renew/expire 1 min before JWT exp
 
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [token, setToken] = useState<string | null>(() => sessionStorage.getItem(TOKEN_KEY))
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<MeCompany | null>(null)
+  const expiryTimer = useRef<number | null>(null)
   const isUnauthorized = (e: any) => e?.status === 401 || e?.response?.status === 401
+
+  const getTokenExpiryMs = (tok: string | null): number | null => {
+    if (!tok) return null
+    const [, payload] = tok.split('.')
+    if (!payload) return null
+    try {
+      const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
+      return typeof json?.exp === 'number' ? json.exp * 1000 : null
+    } catch {
+      return null
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -123,6 +138,19 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     setProfile(null)
     sessionStorage.removeItem(TOKEN_KEY)
     try { localStorage.removeItem('authToken') } catch {}
+    if (expiryTimer.current) window.clearTimeout(expiryTimer.current)
+  }
+
+  const scheduleExpiryWatch = (tok: string | null) => {
+    if (expiryTimer.current) window.clearTimeout(expiryTimer.current)
+    const expMs = getTokenExpiryMs(tok)
+    if (!expMs) return
+    const now = Date.now()
+    const delay = Math.max(expMs - now - EXP_SKEW_MS, 0)
+    expiryTimer.current = window.setTimeout(async () => {
+      const ok = await refresh()
+      if (!ok) clear()
+    }, delay)
   }
 
   const login = async (body: LoginBody) => {
@@ -131,6 +159,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     sessionStorage.setItem(TOKEN_KEY, data.access_token)
     try { localStorage.setItem('authToken', data.access_token) } catch {}
     await loadMe(data.access_token)
+    scheduleExpiryWatch(data.access_token)
   }
 
   const logout = async () => {
@@ -144,13 +173,25 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       setToken(t)
       sessionStorage.setItem(TOKEN_KEY, t)
       try { localStorage.setItem('authToken', t) } catch {}
+      scheduleExpiryWatch(t)
       return true
     }
     return false
   }
 
+  useEffect(() => {
+    scheduleExpiryWatch(token)
+    return () => {
+      if (expiryTimer.current) window.clearTimeout(expiryTimer.current)
+    }
+  }, [token])
+
   const value = useMemo(() => ({ token, loading, profile, login, logout, brand: 'Empresa', refresh }), [token, loading, profile])
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={value}>
+      <PermissionsProvider>{children}</PermissionsProvider>
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {

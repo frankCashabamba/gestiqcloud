@@ -33,22 +33,24 @@ class CRMService:
         row = self.db.execute(
             text(
                 """
-                SELECT cs.currency, t.base_currency
-                FROM tenants t
-                LEFT JOIN company_settings cs ON cs.tenant_id = t.id
-                WHERE t.id = :tid
+                SELECT COALESCE(
+                    NULLIF(UPPER(TRIM(cs.currency)), ''),
+                    NULLIF(UPPER(TRIM(cur.code)), '')
+                )
+                FROM company_settings cs
+                LEFT JOIN currencies cur ON cur.id = cs.currency_id
+                WHERE cs.tenant_id = :tid
                 LIMIT 1
                 """
             ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
             {"tid": tenant_id},
         ).first()
         if row:
-            cs_cur, base_cur = row
-            for val in (cs_cur, base_cur):
-                if val:
-                    cur = str(val).strip().upper()
-                    if cur:
-                        return cur
+            cur = row[0]
+            if cur:
+                cur = str(cur).strip().upper()
+                if cur:
+                    return cur
         raise ValueError("currency_not_configured")
 
     def list_leads(

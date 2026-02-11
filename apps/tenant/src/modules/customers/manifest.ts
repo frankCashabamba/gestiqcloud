@@ -4,7 +4,7 @@ const ClientesList = React.lazy(() => import('./List'))
 const ClientesForm = React.lazy(() => import('./Form'))
 
 export const manifest = {
-  id: 'clientes',
+  id: 'customers',
   name: 'Clientes',
   version: '1.0.0',
   permissions: ['clientes.read', 'clientes.write'],

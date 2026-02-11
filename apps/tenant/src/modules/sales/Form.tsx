@@ -3,6 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { createVenta, getVenta, updateVenta, type Venta as V, type VentaLinea } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { useTranslation } from 'react-i18next'
+import { usePermission } from '../../hooks/usePermission'
+import PermissionDenied from '../../components/PermissionDenied'
+import ProtectedButton from '../../components/ProtectedButton'
 
 type FormT = Omit<V, 'id' | 'cliente_nombre'>
 
@@ -10,6 +13,8 @@ export default function VentaForm() {
     const { id } = useParams()
     const nav = useNavigate()
     const { t } = useTranslation()
+    const can = usePermission()
+    const requiredPerm = id ? 'sales:update' : 'sales:create'
     const [form, setForm] = useState<FormT>({
         numero: '',
         fecha: new Date().toISOString().slice(0, 10),
@@ -94,6 +99,10 @@ export default function VentaForm() {
         }
     }
 
+    if (!can(requiredPerm)) {
+        return <PermissionDenied permission={requiredPerm} />
+    }
+
     if (loading) return <div className="p-4">{t('common.loading')}</div>
 
     return (
@@ -164,13 +173,16 @@ export default function VentaForm() {
                 <div className="border-t pt-4">
                     <div className="flex justify-between items-center mb-3">
                         <h4 className="font-semibold">{t('sales.lines')}</h4>
-                        <button
-                            type="button"
-                            onClick={addLinea}
-                            className="bg-green-600 text-white px-3 py-1 rounded text-sm"
-                        >
-                            + {t('sales.addLine')}
-                        </button>
+                        {can(requiredPerm) && (
+                            <ProtectedButton
+                                permission={requiredPerm}
+                                type="button"
+                                variant="primary"
+                                onClick={addLinea}
+                            >
+                                + {t('sales.addLine')}
+                            </ProtectedButton>
+                        )}
                     </div>
 
                     {lineas.length === 0 && (
@@ -233,13 +245,17 @@ export default function VentaForm() {
                                 <span className="text-sm">
                                     {t('sales.lineTotal')}: <strong>${((linea.cantidad * linea.precio_unitario * (1 - (linea.descuento || 0) / 100)) + (linea.cantidad * linea.precio_unitario * (1 - (linea.descuento || 0) / 100) * (linea.impuesto_tasa || 0) / 100)).toFixed(2)}</strong>
                                 </span>
-                                <button
-                                    type="button"
-                                    onClick={() => removeLinea(idx)}
-                                    className="text-red-700 text-sm hover:underline"
-                                >
-                                    {t('common.delete')}
-                                </button>
+                                {can(requiredPerm) && (
+                                    <ProtectedButton
+                                        permission={requiredPerm}
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={() => removeLinea(idx)}
+                                        className="text-red-700 text-sm hover:underline"
+                                    >
+                                        {t('common.delete')}
+                                    </ProtectedButton>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -261,9 +277,16 @@ export default function VentaForm() {
                 </div>
 
                 <div className="pt-2 flex gap-3">
-                    <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded font-medium">
-                        {t('common.save')}
-                    </button>
+                    {can(requiredPerm) && (
+                        <ProtectedButton
+                            permission={requiredPerm}
+                            type="submit"
+                            variant="primary"
+                            className="px-4 py-2 font-medium"
+                        >
+                            {t('common.save')}
+                        </ProtectedButton>
+                    )}
                     <button type="button" className="bg-gray-200 px-4 py-2 rounded" onClick={() => nav('..')}>
                         {t('common.cancel')}
                     </button>
