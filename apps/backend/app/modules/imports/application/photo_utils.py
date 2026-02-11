@@ -70,6 +70,14 @@ def _ensure_tesseract() -> bool:
 
         pytesseract = _pytesseract
         Image = _Image
+        # Optional HEIC/HEIF support (common on iPhone). If the extra
+        # dependency is missing we keep operating for other formats.
+        try:  # pragma: no cover - optional dependency
+            import pillow_heif  # type: ignore
+
+            pillow_heif.register_heif_opener()
+        except Exception as e:  # pragma: no cover - log and continue
+            logger.debug("HEIF opener not registered: %s", e)
         TESSERACT_AVAILABLE = True
     except ImportError:
         TESSERACT_AVAILABLE = False

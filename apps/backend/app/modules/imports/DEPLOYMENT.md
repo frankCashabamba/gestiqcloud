@@ -69,7 +69,8 @@ pip install \
   pdf2image \
   openpyxl \
   python-magic \
-  pillow
+  pillow \
+  pillow-heif  # soporte HEIC/HEIF (fotos de iPhone)
 ```
 
 ---
