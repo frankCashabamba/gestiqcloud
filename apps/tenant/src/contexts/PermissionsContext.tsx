@@ -67,7 +67,7 @@ export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({ childre
       // Intenta traer permisos frescos del API
       // (si el token está actualizado, el API devuelve permisos en la respuesta)
       const meData = (await apiFetch('/api/v1/me/tenant', { retryOn401: false })) as Record<string, any>
-      
+
       if (meData?.permisos && typeof meData.permisos === 'object') {
         setPermisos(meData.permisos as PermissionDict)
       } else {
@@ -95,11 +95,11 @@ export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({ childre
   // Refetch automático cada 10 minutos (cuando hay cambios de rol)
   useEffect(() => {
     if (!token) return
-    
+
     if (refetchTimeoutRef.current) {
       clearTimeout(refetchTimeoutRef.current)
     }
-    
+
     refetchTimeoutRef.current = window.setTimeout(() => {
       loadPermisos()
     }, 10 * 60 * 1000)

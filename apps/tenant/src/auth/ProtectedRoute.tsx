@@ -12,8 +12,8 @@ import { usePermission } from '../hooks/usePermission'
  *     <BillingForm />
  *   </ProtectedRoute>
  *
- *   <ProtectedRoute 
- *     permission="pos:write" 
+ *   <ProtectedRoute
+ *     permission="pos:write"
  *     fallback={<CustomAccessDenied />}
  *   >
  *     <POSManager />

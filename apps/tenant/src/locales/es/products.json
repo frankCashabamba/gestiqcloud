@@ -71,7 +71,7 @@
     "wholesaleApplyMode": "Aplicación del precio",
     "wholesaleModeAll": "Todo el pedido",
     "wholesaleModeExcess": "Solo excedente",
-    "packs": "Presentaciones (opcional)",
+    "packsOptional": "Presentaciones (opcional)",
     "packsPlaceholder": "Formato: caja=12, bulto=24",
     "packsHelp": "Define equivalencias por presentación para cálculos posteriores.",
     "minByPackPlaceholder": "Formato: caja=1, bulto=1",

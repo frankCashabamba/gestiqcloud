@@ -71,7 +71,7 @@
     "wholesaleApplyMode": "Price application",
     "wholesaleModeAll": "Entire order",
     "wholesaleModeExcess": "Excess only",
-    "packs": "Packs (optional)",
+    "packsOptional": "Packs (optional)",
     "packsPlaceholder": "Format: box=12, bundle=24",
     "packsHelp": "Define pack equivalences for later calculations.",
     "minByPackPlaceholder": "Format: box=1, bundle=1",

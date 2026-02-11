@@ -54,7 +54,7 @@ import PermissionDenied from '@/components/PermissionDenied'
 
 export default function BillingPage() {
   return (
-    <ProtectedRoute 
+    <ProtectedRoute
       permission="billing:read"
       fallback={<PermissionDenied permission="billing:read" />}
     >
@@ -68,7 +68,7 @@ O anidado:
 ```typescript
 <ProtectedRoute permission="billing:read">
   <div>Contenido visible solo si tiene billing:read</div>
-  
+
   <ProtectedRoute permission="billing:create">
     <button>Crear factura (solo si tiene billing:create)</button>
   </ProtectedRoute>
@@ -88,16 +88,16 @@ export default function BillingActions() {
 
   return (
     <>
-      <ProtectedButton 
-        permission="billing:create" 
+      <ProtectedButton
+        permission="billing:create"
         variant="primary"
         onClick={handleCreate}
       >
         Crear factura
       </ProtectedButton>
 
-      <ProtectedButton 
-        permission="billing:delete" 
+      <ProtectedButton
+        permission="billing:delete"
         variant="danger"
         onClick={handleDelete}
       >
@@ -125,7 +125,7 @@ export default function ProtectedFeature() {
 
   if (!can('einvoicing:send')) {
     return (
-      <PermissionDenied 
+      <PermissionDenied
         permission="einvoicing:send"
         severity="error"
         footer={<p>Contacta al admin para activar e-facturación</p>}
@@ -154,7 +154,7 @@ export default function RoleForm() {
   const getLabel = usePermissionLabel()
 
   const permissions = ['billing:create', 'billing:read', 'usuarios:delete']
-  
+
   return (
     <ul>
       {permissions.map(p => (
@@ -225,13 +225,13 @@ export default function InvoiceWizard() {
   return (
     <>
       <Step1 />
-      
+
       {can('billing:create') && (
         <>
           <Step2 />
-          
+
           {can('billing:send') && <Step3 />}
-          
+
           {can('einvoicing:send') && <Step4 />}
         </>
       )}
@@ -391,7 +391,7 @@ import { usePermissions } from '@/contexts/PermissionsContext'
 
 export default function DebugPermisos() {
   const { permisos, loading, error } = usePermissions()
-  
+
   return (
     <pre>
       {JSON.stringify({ permisos, loading, error }, null, 2)}

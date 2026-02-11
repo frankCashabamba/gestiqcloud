@@ -36,7 +36,7 @@ import './dashboard_pro.css'
 const useRetailI18n = () => {
   const { t } = useI18n()
   return {
-    t: (key: string, vars?: Record<string, string | number>) => 
+    t: (key: string, vars?: Record<string, string | number>) =>
       t(`retailDashboard:${key}`, vars),
   }
 }

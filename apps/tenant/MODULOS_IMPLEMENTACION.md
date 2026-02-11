@@ -45,7 +45,7 @@ touch apps/tenant/src/locales/es/MODULE.json
 
 ## 📋 Checklist por Módulo
 
-### 1. **Finances** 
+### 1. **Finances**
 **Archivos:** `List.tsx`, `Routes.tsx`
 **Permisos:** `finances:read`, `finances:create`, `finances:update`, `finances:delete`
 **Locales a crear:** `en/finances.json`, `es/finances.json`
@@ -229,6 +229,6 @@ Para cada módulo, antes de commitear:
 ## 🔗 Referencias Completadas
 
 - ✅ Inventory: `StockList.tsx`, `MovementForm.tsx`, `MovementFormBulk.tsx`
-- ✅ Expenses: `List.tsx` 
+- ✅ Expenses: `List.tsx`
 - ✅ Customers: `List.tsx`
 - ✅ Suppliers: `List.tsx`

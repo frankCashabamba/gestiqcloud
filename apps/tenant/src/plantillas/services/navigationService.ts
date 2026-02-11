@@ -50,7 +50,7 @@ const ROUTE_MAP: Record<RetailRoute, string> = {
 export function buildRoute(config: NavigationConfig): string {
   const basePath = `/${config.empresa}`
   const routePath = ROUTE_MAP[config.route]
-  
+
   if (!routePath) {
     console.warn(`Unknown route: ${config.route}`)
     return basePath

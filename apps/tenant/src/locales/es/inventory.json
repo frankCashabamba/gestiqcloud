@@ -8,7 +8,7 @@
   "location": "Ubicación",
   "batch": "Lote",
   "expiry": "Vencimiento",
-  "status": "Estado",
+  "statusLabel": "Estado",
   "min": "Stock mínimo",
   "max": "Stock máximo",
   "ok": "OK",

@@ -8,7 +8,7 @@
   "location": "Location",
   "batch": "Batch",
   "expiry": "Expiry",
-  "status": "Status",
+  "statusLabel": "Status",
   "min": "Min stock",
   "max": "Max stock",
   "ok": "OK",

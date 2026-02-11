@@ -50,8 +50,8 @@ type PermissionsContextType = {
 
 ```typescript
 // apps/tenant/src/auth/ProtectedRoute.tsx (NUEVO)
-<ProtectedRoute 
-  requiredPermission="billing:create_invoice" 
+<ProtectedRoute
+  requiredPermission="billing:create_invoice"
   fallback={<Unauthorized />}
 >
   <BillingForm />
@@ -217,12 +217,12 @@ request.state.access_claims = {
 // apps/tenant/src/modules/billing/BillingForm.tsx
 export default function BillingForm() {
   const { profile } = useAuth()
-  
+
   // Hardcoded: solo admin?
   if (!profile?.es_admin_empresa) {
     return <p>No tienes acceso</p>
   }
-  
+
   // Crear factura sin validación granular
   const handleCreate = async () => {
     await api.post('/invoices', data)  // Backend chequea permisos; si falla → 403
@@ -236,11 +236,11 @@ export default function BillingForm() {
 export default function BillingForm() {
   const { hasPermission } = usePermission()
   const { t } = useTranslation()
-  
+
   if (!hasPermission('billing', 'create')) {
     return <PermissionDenied permission="billing:create" />
   }
-  
+
   const handleCreate = async () => {
     if (!hasPermission('billing', 'create')) {
       toastError(t('permissions.denied', {action: t('permissions.billing:create')}))

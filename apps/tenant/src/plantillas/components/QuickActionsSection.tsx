@@ -1,7 +1,7 @@
 /**
  * QuickActionsSection
  * Componente reutilizable para acciones rápidas en dashboards
- * 
+ *
  * Características:
  * - Estados disabled con tooltip
  * - Handlers validados

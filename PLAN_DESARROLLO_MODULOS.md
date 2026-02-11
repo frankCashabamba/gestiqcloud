@@ -129,7 +129,7 @@ Para cada módulo: Sales, Purchases, Inventory, Expenses, Customers, Suppliers, 
 - [ ] **Tests:** 2 E2E por módulo (flujo crear/editar/eliminar)
 
 **Subprioridad:**
-1. **Sales** (→ facturación) 
+1. **Sales** (→ facturación)
 2. **Purchases** (→ pagos)
 3. **Inventory** (gestión stock)
 4. **Customers/Suppliers** (catálogos)
@@ -143,11 +143,11 @@ Para cada módulo: Sales, Purchases, Inventory, Expenses, Customers, Suppliers, 
   - Alertas: tareas fallidas > 3 intentos
   - Dashboard: cola, latencia, errores/min
   - Dead letter queue: tareas no procesables
-  
+
 - [ ] **Cobertura tests:**
   - Meta: 70% unitarios, 100% flujos críticos E2E
   - Report: `npm run test:coverage`
-  
+
 - [ ] **Performance budgets:**
   - Lazy load modules (Vite dynamic imports)
   - Code splitting por módulo
@@ -165,16 +165,16 @@ Para cada módulo: Sales, Purchases, Inventory, Expenses, Customers, Suppliers, 
 - [ ] **Feature flags** por tier (Free/Pro/Enterprise)
   - `useFeature('einvoicing')` en componentes
   - Backend: checks en endpoints
-  
+
 - [ ] **Documentación:**
   - Manual usuario: screenshots, flows
   - Runbooks ops: backups, SSL, scaling
   - Go-live checklist: permisos, datos, webhooks, alertas
-  
+
 - [ ] **Branding:**
   - Logos/colores configurable por tenant
   - White label: remover "GestiqCloud" si es B2B reseller
-  
+
 - [ ] **Planes y facturación:**
   - Mapear features → tiers
   - Usage billing (API calls, storage)

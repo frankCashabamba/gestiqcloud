@@ -4,13 +4,13 @@
 BEGIN;
 
 -- Update any currency records with code 'US' to 'USD'
-UPDATE currencies 
-SET code = 'USD' 
+UPDATE currencies
+SET code = 'USD'
 WHERE code = 'US';
 
 -- Update any tenant records with base_currency 'US' to 'USD'
-UPDATE tenants 
-SET base_currency = 'USD' 
+UPDATE tenants
+SET base_currency = 'USD'
 WHERE base_currency = 'US';
 
 COMMIT;

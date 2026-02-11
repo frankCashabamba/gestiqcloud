@@ -53,7 +53,7 @@ cat apps/tenant/src/modules/billing/manifest.ts | grep permissions
 import ProtectedRoute from '@/auth/ProtectedRoute'
 import PermissionDenied from '@/components/PermissionDenied'
 
-<ProtectedRoute 
+<ProtectedRoute
   permission="billing:read"
   fallback={<PermissionDenied permission="billing:read" />}
 >

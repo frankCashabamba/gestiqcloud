@@ -35,7 +35,7 @@ Full permission control system implemented in frontend with zero backend changes
 1. `apps/tenant/src/auth/AuthContext.tsx` - Added PermissionsProvider wrapper (minimal)
 
 ### Modules (Routes.tsx Protected)
-2. `apps/tenant/src/modules/billing/Routes.tsx` - Protected all routes + Form.tsx + List.tsx 
+2. `apps/tenant/src/modules/billing/Routes.tsx` - Protected all routes + Form.tsx + List.tsx
 3. `apps/tenant/src/modules/sales/Routes.tsx` - Protected: read, create, update
 4. `apps/tenant/src/modules/purchases/Routes.tsx` - Protected: read, create, update
 5. `apps/tenant/src/modules/inventory/Routes.tsx` - Protected: read, adjust
@@ -67,7 +67,7 @@ Full permission control system implemented in frontend with zero backend changes
   - Form: Permission check before rendering
   - List: "New" button → ProtectedButton with `billing:create`
   - Actions: Edit/Delete buttons → ProtectedButton with proper permissions
-  
+
 - **Form Components (all modules):**
   - Submit button: `<ProtectedButton permission={requiredPermission}>`
 

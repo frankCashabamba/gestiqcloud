@@ -61,8 +61,8 @@ import { BillingPanel, BillingForm, BillingDetail } from '.'
 
 export default function BillingRoutes() {
   return (
-    <ProtectedRoute 
-      permission="billing:read" 
+    <ProtectedRoute
+      permission="billing:read"
       fallback={<PermissionDenied permission="billing:read" />}
     >
       <Routes>
@@ -104,7 +104,7 @@ export default function BillingList() {
   const handleDelete = async (id: string) => {
     if (!can('billing:delete')) return
     if (!window.confirm('¿Eliminar factura?')) return
-    
+
     try {
       await api.delete(`/invoices/${id}`)
       setInvoices(inv => inv.filter(i => i.id !== id))
@@ -119,7 +119,7 @@ export default function BillingList() {
       <div className="header">
         <h1>Facturas</h1>
         {can('billing:create') && (
-          <ProtectedButton 
+          <ProtectedButton
             permission="billing:create"
             variant="primary"
             onClick={() => navigate('/billing/create')}
@@ -156,9 +156,9 @@ export default function BillingList() {
                     Ver
                   </button>
                 )}
-                
+
                 {can('billing:update') && (
-                  <ProtectedButton 
+                  <ProtectedButton
                     permission="billing:update"
                     variant="secondary"
                     onClick={() => navigate(`/billing/${inv.id}/edit`)}
@@ -168,7 +168,7 @@ export default function BillingList() {
                 )}
 
                 {can('billing:send') && inv.status === 'draft' && (
-                  <ProtectedButton 
+                  <ProtectedButton
                     permission="billing:send"
                     variant="secondary"
                     onClick={() => sendInvoice(inv.id)}
@@ -178,7 +178,7 @@ export default function BillingList() {
                 )}
 
                 {can('billing:pay') && inv.status === 'sent' && (
-                  <ProtectedButton 
+                  <ProtectedButton
                     permission="billing:pay"
                     variant="secondary"
                     onClick={() => recordPayment(inv.id)}
@@ -188,7 +188,7 @@ export default function BillingList() {
                 )}
 
                 {can('billing:delete') && (
-                  <ProtectedButton 
+                  <ProtectedButton
                     permission="billing:delete"
                     variant="danger"
                     onClick={() => handleDelete(inv.id)}
@@ -225,7 +225,7 @@ export default function BillingForm({ invoiceId }: { invoiceId?: string }) {
   const requiredPerm = isEdit ? 'billing:update' : 'billing:create'
   if (!can(requiredPerm)) {
     return (
-      <PermissionDenied 
+      <PermissionDenied
         permission={requiredPerm}
         footer={<p>Contacta al administrador para {
           isEdit ? 'editar facturas' : 'crear facturas'
@@ -259,7 +259,7 @@ export default function BillingForm({ invoiceId }: { invoiceId?: string }) {
 
       <div className="form-group">
         <label>Cliente *</label>
-        <select 
+        <select
           value={form.customer_id || ''}
           onChange={(e) => setForm({...form, customer_id: e.target.value})}
         >
@@ -271,7 +271,7 @@ export default function BillingForm({ invoiceId }: { invoiceId?: string }) {
 
       <div className="form-group">
         <label>Fecha *</label>
-        <input 
+        <input
           type="date"
           value={form.date}
           onChange={(e) => setForm({...form, date: e.target.value})}
@@ -281,7 +281,7 @@ export default function BillingForm({ invoiceId }: { invoiceId?: string }) {
       {/* Más campos ... */}
 
       <div className="form-actions">
-        <ProtectedButton 
+        <ProtectedButton
           permission={requiredPerm}
           variant="primary"
           onClick={handleSave}
@@ -289,7 +289,7 @@ export default function BillingForm({ invoiceId }: { invoiceId?: string }) {
           {isEdit ? 'Guardar' : 'Crear'}
         </ProtectedButton>
 
-        <button 
+        <button
           type="button"
           onClick={() => window.history.back()}
         >
@@ -349,7 +349,7 @@ export default function BillingDetail() {
     <div className="invoice-detail">
       <div className="header">
         <h1>Factura {invoice.number}</h1>
-        
+
         <div className="actions">
           {can('billing:update') && (
             <ProtectedButton permission="billing:update">
@@ -358,7 +358,7 @@ export default function BillingDetail() {
           )}
 
           {can('billing:send') && invoice.status === 'draft' && (
-            <ProtectedButton 
+            <ProtectedButton
               permission="billing:send"
               onClick={handleSend}
             >
@@ -367,7 +367,7 @@ export default function BillingDetail() {
           )}
 
           {can('billing:pay') && invoice.pending_amount > 0 && (
-            <ProtectedButton 
+            <ProtectedButton
               permission="billing:pay"
               onClick={() => {/* modal de pago */}}
             >
@@ -376,7 +376,7 @@ export default function BillingDetail() {
           )}
 
           {can('billing:delete') && (
-            <ProtectedButton 
+            <ProtectedButton
               permission="billing:delete"
               variant="danger"
             >
@@ -415,12 +415,12 @@ test.describe('Billing Module', () => {
   test('user with billing:read but no billing:create should not see create button', async ({ page }) => {
     // Login como usuario con billing:read pero sin billing:create
     await loginAs(page, 'user_billing_read_only')
-    
+
     await page.goto('/billing')
-    
+
     // Ver lista
     await expect(page.locator('text=Facturas')).toBeVisible()
-    
+
     // No ver botón crear
     const createBtn = page.locator('button:has-text("Nueva Factura")')
     await expect(createBtn).not.toBeVisible()
@@ -429,17 +429,17 @@ test.describe('Billing Module', () => {
   test('user with billing:create should see and use create button', async ({ page }) => {
     // Login como usuario con todos los permisos
     await loginAs(page, 'admin')
-    
+
     await page.goto('/billing')
-    
+
     // Ver botón crear
     const createBtn = page.locator('button:has-text("Nueva Factura")')
     await expect(createBtn).toBeVisible()
     await expect(createBtn).toBeEnabled()
-    
+
     // Click
     await createBtn.click()
-    
+
     // Ver formulario
     await expect(page.locator('h1:has-text("Crear Factura")')).toBeVisible()
   })
@@ -447,7 +447,7 @@ test.describe('Billing Module', () => {
   test('user with billing:delete should see delete button', async ({ page }) => {
     await loginAs(page, 'admin')
     await page.goto('/billing')
-    
+
     // Buscar primer fila con delete button
     const firstDeleteBtn = page.locator('button:has-text("Eliminar")').first()
     await expect(firstDeleteBtn).toBeVisible()

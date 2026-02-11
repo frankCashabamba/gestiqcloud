@@ -44,7 +44,7 @@ Comprehensive scan performed on all locale files:
 **StockList.tsx:**
 - ✓ Wrapped navigation button at line 446 with `<ProtectedButton permission="inventory:create">`
   - "Create first movement" button now permission-guarded
-- ✓ Sort header buttons (lines 356, 368, 379) left as plain `<button>` 
+- ✓ Sort header buttons (lines 356, 368, 379) left as plain `<button>`
   - These are UI state toggles, not permission-sensitive actions
 
 **Result:** Zero plain `<button>` elements for permission-sensitive operations.
