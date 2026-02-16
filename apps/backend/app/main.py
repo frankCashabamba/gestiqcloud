@@ -770,6 +770,55 @@ try:
 except Exception as e:
     _router_logger.warning(f"Document Storage router mount failed: {e}")
 
+# ============================================================================
+# SPRINT 1: NEW ROUTERS (Identity, POS, Invoicing, Inventory, Sales)
+# ============================================================================
+
+# Identity (Auth)
+try:
+    from app.modules.identity.interface.http.tenant_auth import router as identity_router
+
+    app.include_router(identity_router, prefix="/api/v1/tenant")
+    _router_logger.info("Identity router mounted at /api/v1/tenant/auth")
+except Exception as e:
+    _router_logger.warning(f"Identity router mount failed: {e}")
+
+# POS
+try:
+    from app.modules.pos.interface.http.tenant_pos import router as pos_router
+
+    app.include_router(pos_router, prefix="/api/v1/tenant")
+    _router_logger.info("POS router mounted at /api/v1/tenant/pos")
+except Exception as e:
+    _router_logger.warning(f"POS router mount failed: {e}")
+
+# Invoicing
+try:
+    from app.modules.invoicing.interface.http.tenant_invoicing import router as invoicing_router
+
+    app.include_router(invoicing_router, prefix="/api/v1/tenant")
+    _router_logger.info("Invoicing router mounted at /api/v1/tenant/invoicing")
+except Exception as e:
+    _router_logger.warning(f"Invoicing router mount failed: {e}")
+
+# Inventory
+try:
+    from app.modules.inventory.interface.http.tenant_inventory import router as inventory_router
+
+    app.include_router(inventory_router, prefix="/api/v1/tenant")
+    _router_logger.info("Inventory router mounted at /api/v1/tenant/inventory")
+except Exception as e:
+    _router_logger.warning(f"Inventory router mount failed: {e}")
+
+# Sales
+try:
+    from app.modules.sales.interface.http.tenant_sales import router as sales_router
+
+    app.include_router(sales_router, prefix="/api/v1/tenant")
+    _router_logger.info("Sales router mounted at /api/v1/tenant/sales")
+except Exception as e:
+    _router_logger.warning(f"Sales router mount failed: {e}")
+
 if __name__ == "__main__":
     import uvicorn
 
