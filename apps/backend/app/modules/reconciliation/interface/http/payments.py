@@ -277,6 +277,25 @@ async def handle_webhook(provider: str, request: Request, db: Session = Depends(
 
                 logger.info(f"Invoice marked as paid: {invoice_id}")
 
+                # Trigger payment.received webhook
+                try:
+                    from app.modules.reconciliation.webhooks import PaymentWebhookService
+                    from uuid import UUID
+
+                    tenant_id = UUID(str(config.get("tenant_id", "00000000-0000-0000-0000-000000000000")))
+                    webhook_service = PaymentWebhookService(db)
+                    webhook_service.trigger_payment_received(
+                        tenant_id=tenant_id,
+                        payment_id=result.get("payment_id", ""),
+                        invoice_id=invoice_id,
+                        amount=result.get("amount", 0),
+                        currency=result.get("currency", "USD"),
+                        payment_method=result.get("method"),
+                        reference_number=result.get("reference"),
+                    )
+                except Exception as e:
+                    logger.error(f"Error triggering payment.received webhook: {e}")
+
         elif result.get("status") == "failed":
             invoice_id = result.get("invoice_id")
 
@@ -300,6 +319,25 @@ async def handle_webhook(provider: str, request: Request, db: Session = Depends(
                 )
 
                 db.commit()
+
+                # Trigger payment.failed webhook
+                try:
+                    from app.modules.reconciliation.webhooks import PaymentWebhookService
+                    from uuid import UUID
+
+                    tenant_id = UUID(str(config.get("tenant_id", "00000000-0000-0000-0000-000000000000")))
+                    webhook_service = PaymentWebhookService(db)
+                    webhook_service.trigger_payment_failed(
+                        tenant_id=tenant_id,
+                        payment_id=result.get("payment_id", ""),
+                        invoice_id=invoice_id,
+                        amount=result.get("amount", 0),
+                        currency=result.get("currency", "USD"),
+                        reason=result.get("error", "Payment failed"),
+                        error_code=result.get("error_code"),
+                    )
+                except Exception as e:
+                    logger.error(f"Error triggering payment.failed webhook: {e}")
 
         return JSONResponse(content={"status": "ok"}, status_code=200)
 

@@ -151,14 +151,16 @@ def init_chunk_upload(dto: InitChunkUploadDTO, request: Request):
     Client must upload parts to PUT /imports/uploads/chunk/{upload_id}/{part_number}
     and then call POST /imports/uploads/chunk/{upload_id}/complete.
     """
+    # Allow turning off on-disk storage entirely (e.g. "store only JSON results").
+    if os.getenv("IMPORTS_STORE_UPLOAD_FILES", "1").lower() not in ("1", "true", "yes"):
+        raise HTTPException(status_code=403, detail="file_storage_disabled")
+
     claims = _get_claims(request)
     tenant_id = claims.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
 
     # Part size must be <= backend upload limit (default 10MB)
-    import os
-
     max_mb = float(os.getenv("IMPORTS_MAX_UPLOAD_MB", "10"))
     # Conservative default part size (1MB) to avoid proxy limits
     default_part = 1 * 1024 * 1024
@@ -206,12 +208,13 @@ def init_chunk_upload(dto: InitChunkUploadDTO, request: Request):
 @router.put("/uploads/chunk/{upload_id}/{part_number}")
 async def upload_chunk_part(upload_id: str, part_number: int, request: Request):
     """Receive a chunk part (raw body) <= max upload size and store it on disk."""
+    if os.getenv("IMPORTS_STORE_UPLOAD_FILES", "1").lower() not in ("1", "true", "yes"):
+        raise HTTPException(status_code=403, detail="file_storage_disabled")
+
     claims = _get_claims(request)
     tenant_id = claims.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
-
-    import os
 
     max_mb = float(os.getenv("IMPORTS_MAX_UPLOAD_MB", "10"))
     max_bytes = int(max_mb * 1024 * 1024)
@@ -246,6 +249,9 @@ class CompleteChunkUploadDTO(BaseModel):
 @router.post("/uploads/chunk/{upload_id}/complete")
 def complete_chunk_upload(upload_id: str, dto: CompleteChunkUploadDTO, request: Request):
     """Merge all parts into final file and return a file_key usable by imports."""
+    if os.getenv("IMPORTS_STORE_UPLOAD_FILES", "1").lower() not in ("1", "true", "yes"):
+        raise HTTPException(status_code=403, detail="file_storage_disabled")
+
     claims = _get_claims(request)
     tenant_id = claims.get("tenant_id")
     user_id = claims.get("user_id")
@@ -253,7 +259,6 @@ def complete_chunk_upload(upload_id: str, dto: CompleteChunkUploadDTO, request: 
         raise HTTPException(status_code=401, detail="tenant_id_missing")
 
     import glob
-    import os
     import shutil
     from uuid import uuid4 as _uuid4
 
@@ -663,7 +668,6 @@ async def suggest_mapping_endpoint(
     # Optional: refine with Ollama if configured (best effort)
     try:
         import json
-        import os
 
         import httpx  # type: ignore
 
@@ -788,20 +792,67 @@ async def process_document_api(
             detail=f"File too large: {len(contenido)} bytes > {max_bytes}",
         )
 
+    # OCR endpoint: only PDFs and images. Excel/CSV must go through the import pipeline (batches/ingest).
     allowed = {
         "application/pdf",
         "image/jpeg",
+        "image/jpg",
         "image/png",
-        "image/heic",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/vnd.ms-excel",
-        "text/csv",
+        "image/webp",
+        "image/bmp",
+        "image/tiff",
     }
     content_type = file.content_type or "application/octet-stream"
     if content_type not in allowed:
         raise HTTPException(status_code=422, detail=f"Unsupported file type: {content_type}")
 
     filename = file.filename or "documento.pdf"
+    # If you don't want to store any file bytes anywhere (DB/uploads), process inline and
+    # persist only filename + extracted JSON into import_ocr_jobs.
+    store_payload = os.getenv("IMPORTS_OCR_STORE_PAYLOAD", "1").lower() in ("1", "true", "yes")
+    if not store_payload:
+        from app.config.database import session_scope
+        from app.db.rls import set_tenant_guc
+        from app.models.core.modelsimport import ImportOCRJob
+        from app.modules.imports import services
+
+        def _serialize_docs(documentos: list[Any]) -> list[dict[str, Any]]:
+            out: list[dict[str, Any]] = []
+            for doc in documentos:
+                if hasattr(doc, "model_dump"):
+                    out.append(doc.model_dump())  # type: ignore[attr-defined]
+                elif isinstance(doc, dict):
+                    out.append(doc)
+                else:
+                    try:
+                        out.append(dict(doc))
+                    except Exception:
+                        out.append({"valor": str(doc)})
+            return out
+
+        job_uuid = uuid4()
+        documentos = services.procesar_documento(contenido, filename)
+        result = {"archivo": filename, "documentos": _serialize_docs(documentos)}
+        with session_scope() as db:
+            try:
+                set_tenant_guc(db, str(tenant_id), persist=False)
+            except Exception:
+                pass
+            job = ImportOCRJob(
+                id=job_uuid,
+                tenant_id=tenant_id,
+                filename=filename,
+                content_type=content_type,
+                payload=b"",  # keep schema, but store no file bytes
+                status="done",
+                result=result,
+                error=None,
+            )
+            db.add(job)
+            db.flush()
+
+        return {"job_id": str(job_uuid), "status": "done"}
+
     job_id = enqueue_job(
         tenant_id=tenant_id,
         filename=filename,
@@ -1277,7 +1328,6 @@ def ingest_rows_endpoint(
 
     # Limit number of rows per ingest (413 on overflow)
     import logging
-    import os
 
     logger = logging.getLogger("imports")
     rows_count = len(payload.rows) if payload.rows else 0
@@ -2435,19 +2485,86 @@ def promote_batch_endpoint(
     supplier_id: str | None = Query(default=None),
     purchase_date: str | None = Query(default=None),
     purchase_status: str | None = Query(default="received"),
+    post_accounting: bool = Query(
+        default=False, description="Generar asiento contable automaticamente al promover"
+    ),
+    payment_status: str | None = Query(
+        default=None,
+        description="Estado de pago al promover (pending|paid). Si no se indica, se mantiene pending.",
+        pattern="^(pending|paid)$",
+    ),
+    payment_method: str | None = Query(
+        default=None,
+        description="Metodo de pago si payment_status=paid (cash|bank|card|transfer|direct_debit|check|other)",
+        pattern="^(cash|bank|card|transfer|direct_debit|check|other)$",
+    ),
+    paid_at: str | None = Query(
+        default=None, description="Fecha de pago YYYY-MM-DD (si payment_status=paid)"
+    ),
+    save_as_products: str | None = Query(
+        default=None, description="Para recetas: guardar ingredientes como productos (true|false)"
+    ),
 ):
     from app.modules.imports.application import use_cases
-
+    from app.modules.imports.infrastructure.repositories import ImportsRepository
+    
     claims = _get_claims(request)
     # tenant_id is now UUID, not int
     tenant_id = claims.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
+    
+    # Special handling for recipes
+    def to_uuid_safe(value):
+        try:
+            return value if isinstance(value, UUID) else UUID(str(value))
+        except Exception:
+            return None
+    
+    repo = ImportsRepository()
+    batch_uuid = to_uuid_safe(batch_id)
+    if not batch_uuid:
+        raise HTTPException(status_code=400, detail="Invalid batch_id format")
+    batch = repo.get_batch(db, tenant_id, batch_uuid)
+    if batch and batch.source_type == "recipes":
+        from app.modules.imports.application.tasks.task_import_file import (
+            _file_path_from_key,
+            _persist_recipes,
+        )
+        from app.modules.imports.parsers.xlsx_recipes import parse_xlsx_recipes
+        
+        file_path = _file_path_from_key(batch.file_key) if batch.file_key else None
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(status_code=400, detail="Recipe file not found for batch")
+        
+        parsed = parse_xlsx_recipes(file_path)
+        result = _persist_recipes(db, tenant_id, parsed)
+        
+        # Optionally save ingredients as products
+        if save_as_products == 'true' and result.get("created", 0) > 0:
+            # Already handled by _persist_recipes
+            pass
+        
+        batch.status = "READY" if result.get("errors", 0) == 0 else "PARTIAL"
+        db.add(batch)
+        db.commit()
+        return {
+            "created": result.get("created", 0),
+            "skipped": 0,
+            "failed": result.get("errors", 0),
+        }
+    
     options = {
         "allow_missing_price": allow_missing_price if auto else False,
         "activate": activate if auto else False,
         "target_warehouse": target_warehouse if auto else None,
         "create_missing_warehouses": create_warehouse if auto else False,
+        "post_accounting": bool(post_accounting) if auto else False,
+        "user_id": claims.get("user_id") or claims.get("tenant_user_id") or claims.get("user_uuid"),
+        "payment_status": payment_status,
+        "payment_method": payment_method,
+        "paid_at": paid_at,
+        "save_as_products": save_as_products == 'true' if save_as_products else False,
     }
     if create_purchase:
         options["skip_stock_init"] = True
@@ -2970,8 +3087,6 @@ async def upload_photo_to_batch(
         raise HTTPException(status_code=404, detail="Batch no encontrado")
 
     # Limit file size (read & rewind) + mimetype
-    import os
-
     max_mb = float(os.getenv("IMPORTS_MAX_UPLOAD_MB", "10"))
     max_bytes = int(max_mb * 1024 * 1024)
     content = await file.read()
@@ -3010,8 +3125,6 @@ async def attach_photo_to_item(
     user_id = claims.get("user_id")
 
     # Limit file size + mimetype
-    import os
-
     max_mb = float(os.getenv("IMPORTS_MAX_UPLOAD_MB", "10"))
     max_bytes = int(max_mb * 1024 * 1024)
     content = await file.read()
@@ -3040,8 +3153,6 @@ async def attach_photo_to_item(
         raise HTTPException(status_code=404, detail="Item no encontrado")
 
     # Limit file size (read & rewind)
-    import os
-
     max_mb = float(os.getenv("IMPORTS_MAX_UPLOAD_MB", "10"))
     max_bytes = int(max_mb * 1024 * 1024)
     content = await file.read()

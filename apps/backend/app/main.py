@@ -149,7 +149,6 @@ except Exception:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    start_after_bind = False
     runner_to_start = None
     global _imports_job_runner
 
@@ -182,7 +181,6 @@ async def lifespan(app: FastAPI):
                 from app.modules.imports.application.job_runner import job_runner as _jr
 
                 runner_to_start = _jr
-                start_after_bind = True
             except Exception:
                 logging.getLogger("app.startup").info(
                     "Imports runner not available (import failed)"
@@ -196,22 +194,14 @@ async def lifespan(app: FastAPI):
             "Failed preparing imports runner; continuing without it"
         )
 
-    yield
-
-    # Post-startup
-    if start_after_bind and runner_to_start is not None:
+    if runner_to_start is not None:
         try:
-
-            def _start_runner():
-                try:
-                    runner_to_start.start()
-                finally:
-                    globals()["_imports_job_runner"] = runner_to_start
-
-            loop = asyncio.get_event_loop()
-            loop.run_in_executor(None, _start_runner)
+            runner_to_start.start()
+            globals()["_imports_job_runner"] = runner_to_start
         except Exception:
-            logging.getLogger("app.startup").exception("Failed starting imports runner post-bind")
+            logging.getLogger("app.startup").exception("Failed starting imports runner")
+
+    yield
 
     # Shutdown
     if _imports_job_runner:
@@ -622,6 +612,15 @@ try:
 except Exception as e:
     _router_logger.error(f"Error mounting Notifications router: {e}")
 
+# Profit Reports
+try:
+    from app.modules.reports.interface.http.profit import router as profit_router
+
+    app.include_router(profit_router, prefix="/api/v1")
+    _router_logger.info("Profit Reports router mounted at /api/v1/reports")
+except Exception as e:
+    _router_logger.warning(f"Profit Reports router mount failed: {e}")
+
 # E-invoicing - Montado por platform/http/router.py (ver línea ~360)
 
 
@@ -761,6 +760,15 @@ try:
 except Exception:
     _router_logger.debug("Tenant auth router not available", exc_info=True)
 
+
+# Document Storage
+try:
+    from app.modules.documents.interface.http.document_storage import router as doc_storage_router
+
+    app.include_router(doc_storage_router, prefix="/api/v1")
+    _router_logger.info("Document Storage router mounted at /api/v1/documents/storage")
+except Exception as e:
+    _router_logger.warning(f"Document Storage router mount failed: {e}")
 
 if __name__ == "__main__":
     import uvicorn

@@ -112,6 +112,9 @@ class AccountingSettingsPayload(BaseModel):
     sales_bakery_account_id: UUID | None = None
     vat_output_account_id: UUID
     loss_account_id: UUID | None = None
+    ap_account_id: UUID | None = None
+    vat_input_account_id: UUID | None = None
+    default_expense_account_id: UUID | None = None
 
 
 class PaymentMethodPayload(BaseModel):
@@ -398,6 +401,13 @@ async def get_pos_accounting_settings(
         else None,
         "vat_output_account_id": str(cfg.vat_output_account_id),
         "loss_account_id": str(cfg.loss_account_id) if cfg.loss_account_id else None,
+        "ap_account_id": str(cfg.ap_account_id) if getattr(cfg, "ap_account_id", None) else None,
+        "vat_input_account_id": str(cfg.vat_input_account_id)
+        if getattr(cfg, "vat_input_account_id", None)
+        else None,
+        "default_expense_account_id": str(cfg.default_expense_account_id)
+        if getattr(cfg, "default_expense_account_id", None)
+        else None,
     }
 
 
@@ -418,6 +428,9 @@ async def upsert_pos_accounting_settings(
     cfg.sales_bakery_account_id = payload.sales_bakery_account_id
     cfg.vat_output_account_id = payload.vat_output_account_id
     cfg.loss_account_id = payload.loss_account_id
+    cfg.ap_account_id = payload.ap_account_id
+    cfg.vat_input_account_id = payload.vat_input_account_id
+    cfg.default_expense_account_id = payload.default_expense_account_id
 
     db.commit()
     db.refresh(cfg)
@@ -436,6 +449,11 @@ async def upsert_pos_accounting_settings(
         "sales_bakery_account_id": str(cfg.sales_bakery_account_id),
         "vat_output_account_id": str(cfg.vat_output_account_id),
         "loss_account_id": str(cfg.loss_account_id) if cfg.loss_account_id else None,
+        "ap_account_id": str(cfg.ap_account_id) if cfg.ap_account_id else None,
+        "vat_input_account_id": str(cfg.vat_input_account_id) if cfg.vat_input_account_id else None,
+        "default_expense_account_id": str(cfg.default_expense_account_id)
+        if cfg.default_expense_account_id
+        else None,
     }
 
 

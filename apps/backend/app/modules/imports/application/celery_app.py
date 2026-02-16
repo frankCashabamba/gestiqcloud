@@ -8,6 +8,8 @@ import warnings
 from celery import Celery
 from kombu import Queue
 
+from app.config import env_loader as _env_loader  # noqa: F401
+
 
 def _get_redis_url_for_imports() -> str:
     """

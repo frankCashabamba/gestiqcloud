@@ -11,7 +11,7 @@ import ProtectedButton from '../../components/ProtectedButton'
 import ShiftManager, { type ShiftManagerHandle } from './components/ShiftManager'
 import PaymentModal from './components/PaymentModal'
 import ConvertToInvoiceModal from './components/ConvertToInvoiceModal'
-import useOfflineSync from './hooks/useOfflineSync'
+import uset('pos:header.offline')Sync from './hooks/uset('pos:header.offline')Sync'
 import { useCurrency } from '../../hooks/useCurrency'
 import { useAuth } from '../../auth/AuthContext'
 import { POS_DRAFT_KEY } from '../../constants/storage'
@@ -201,7 +201,7 @@ export default function POSView() {
         return name || u.username || u.email || (u.id ? `#${String(u.id).slice(0, 8)}` : '')
     }
 
-    const { isOnline, pendingCount, syncNow } = useOfflineSync()
+    const { ist('pos:header.online'), pendingCount, syncNow } = uset('pos:header.offline')Sync()
     // Almacenes (para admins)
     const [warehouses, setWarehouses] = useState<Warehouse[]>([])
     const [headerWarehouseId, setHeaderWarehouseId] = useState<string | null>(null)
@@ -1227,7 +1227,7 @@ export default function POSView() {
                 })),
             }
 
-            if (isOnline) {
+            if (ist('pos:header.online')) {
                 try {
                     const issued = await issueDocument(saleDraft)
                     const docId = issued?.document?.id
@@ -1283,7 +1283,7 @@ export default function POSView() {
                 alert(t('pos:messages.saleSupervisor'))
             }
         } catch (error: any) {
-            if (!isOnline) {
+            if (!ist('pos:header.online')) {
                 await addToOutbox({ type: 'receipt', data: { cart, totals } })
             alert(t('pos:errors.offlineSync'))
                 setCart([])
@@ -1428,7 +1428,7 @@ export default function POSView() {
                                 value={newRegisterName}
                                 onChange={(e) => setNewRegisterName(e.target.value)}
                                 className="border rounded px-3 py-2 w-full"
-                                placeholder="Caja Principal"
+                                placeholder={t('pos:register.nameDefault')}
                                 disabled={!esAdminEmpresa}
                                 required
                             />
@@ -1545,8 +1545,8 @@ export default function POSView() {
                     )}
                 </div>
                 <div className="top-meta">
-                    <span className={`badge ${isOnline ? 'ok' : 'off'}`}>
-                        {isOnline ? t('pos:header.online') : t('pos:header.offline')}
+                    <span className={`badge ${ist('pos:header.online') ? 'ok' : 'off'}`}>
+                        {ist('pos:header.online') ? t('pos:header.online') : t('pos:header.offline')}
                     </span>
                     {pendingCount > 0 && (
                         <ProtectedButton permission="pos:read" className="badge" onClick={syncNow} title={t('pos:header.syncing')}>

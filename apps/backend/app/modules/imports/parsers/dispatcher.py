@@ -62,7 +62,9 @@ def select_parser_for_file(
     # XLSX/XLS: inspeccionar cabeceras
     if ext in (".xlsx", ".xls", ".xlsm", ".xlsb"):
         try:
-            detected_parser, detected_doc = _detect_excel_parser(file_path)
+            detected_parser, detected_doc = _detect_excel_parser(
+                file_path, hinted_doc_type=hint or None
+            )
             return detected_parser, detected_doc
         except Exception:
             pass
@@ -70,6 +72,19 @@ def select_parser_for_file(
     # PDF: usar pdf_ocr directamente (detecta tipo internamente)
     if ext == ".pdf" and registry.get_parser("pdf_ocr"):
         return "pdf_ocr", "generic"
+
+    # Images: use image_ocr directly
+    if ext in (
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".tiff",
+        ".bmp",
+        ".gif",
+        ".heic",
+        ".heif",
+    ) and registry.get_parser("image_ocr"):
+        return "image_ocr", "generic"
 
     # Fallback por extensión sin hint
     if ext in _EXT_PREFERENCES:
@@ -85,20 +100,29 @@ def select_parser_for_file(
     return "generic_excel", "generic"
 
 
-def _detect_excel_parser(file_path: str) -> tuple[str, str]:
-    """Detectar parser para Excel por cabeceras/keywords."""
+def _detect_excel_parser(file_path: str, *, hinted_doc_type: str | None = None) -> tuple[str, str]:
+    """Detectar parser para Excel por cabeceras/keywords.
+
+    Nota: el parser `xlsx_recipes` es un formato muy específico (PAN KUSI). Para evitar
+    falsos positivos cuando el caller ya sabe el tipo esperado (p.ej. `products`),
+    solo lo consideramos si:
+    - no hay hint, o
+    - el hint es `recipes`.
+    """
     wb = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
     try:
         ws = wb.active
         header_row = detect_header_row(ws)
         headers = extract_headers(ws, header_row)
         headers_str = " ".join([str(h or "").lower() for h in headers])
-        # Fallback: if headers look empty, scan a few rows for any text.
-        if not headers_str.strip():
-            rows = list(ws.iter_rows(values_only=True, max_row=10))
-            headers_str = " ".join(
-                str(cell or "").lower() for row in rows for cell in row if cell not in (None, "")
-            )
+
+        # Always scan a few top rows as many "template" Excels (like costing sheets)
+        # have a title row as header and the real signals appear below.
+        rows = list(ws.iter_rows(values_only=True, max_row=30))
+        scan_str = " ".join(
+            str(cell or "").lower() for row in rows for cell in row if cell not in (None, "")
+        )
+        haystack = f"{headers_str} {scan_str}".strip()
     finally:
         try:
             wb.close()
@@ -119,16 +143,25 @@ def _detect_excel_parser(file_path: str) -> tuple[str, str]:
         "temperatura de servicio",
     )
 
-    # Recipes first so they don't fall into products
-    if any(k in headers_str for k in recipe_kw) and registry.get_parser("xlsx_recipes"):
-        return "xlsx_recipes", registry.get_parser("xlsx_recipes")["doc_type"]
-    if any(k in headers_str for k in bank_kw) and registry.get_parser("xlsx_bank"):
+    hint = (hinted_doc_type or "").strip().lower()
+
+    # Costing template: for products flow, parse it as products (price list); for recipes flow, parse as recipes.
+    if any(k in haystack for k in recipe_kw):
+        # If explicitly hinted as recipes, keep recipes.
+        if hint in ("recipes", "recipe") and registry.get_parser("xlsx_recipes"):
+            return "xlsx_recipes", registry.get_parser("xlsx_recipes")["doc_type"]
+        # Otherwise default to "products" view (one sheet -> one product with suggested price).
+        if registry.get_parser("xlsx_costing_products"):
+            return "xlsx_costing_products", registry.get_parser("xlsx_costing_products")["doc_type"]
+        if registry.get_parser("xlsx_recipes"):
+            return "xlsx_recipes", registry.get_parser("xlsx_recipes")["doc_type"]
+    if any(k in haystack for k in bank_kw) and registry.get_parser("xlsx_bank"):
         return "xlsx_bank", registry.get_parser("xlsx_bank")["doc_type"]
-    if any(k in headers_str for k in invoice_kw) and registry.get_parser("xlsx_invoices"):
+    if any(k in haystack for k in invoice_kw) and registry.get_parser("xlsx_invoices"):
         return "xlsx_invoices", registry.get_parser("xlsx_invoices")["doc_type"]
-    if any(k in headers_str for k in expenses_kw) and registry.get_parser("xlsx_expenses"):
+    if any(k in haystack for k in expenses_kw) and registry.get_parser("xlsx_expenses"):
         return "xlsx_expenses", registry.get_parser("xlsx_expenses")["doc_type"]
-    if any(k in headers_str for k in product_kw) and registry.get_parser("products_excel"):
+    if any(k in haystack for k in product_kw) and registry.get_parser("products_excel"):
         return "products_excel", registry.get_parser("products_excel")["doc_type"]
 
     # Si no se detecta, usar genérico pero con doc_type detectado por parser

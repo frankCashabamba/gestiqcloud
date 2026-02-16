@@ -20,7 +20,18 @@ def _ensure_test_env():
     os.environ.setdefault("ENV", "development")
     os.environ.setdefault("ENVIRONMENT", "development")
     os.environ.setdefault("FRONTEND_URL", "http://localhost:5173")
-    os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
+    # Safety guard: tests must run against an isolated DB.
+    # If TEST_DATABASE_URL is not provided, default to local SQLite test DB.
+    # This prevents accidental execution against development databases.
+    test_db_url = os.environ.get("TEST_DATABASE_URL", "sqlite:///./test.db")
+    current_db_url = os.environ.get("DATABASE_URL", "")
+    if current_db_url and current_db_url != test_db_url:
+        print(
+            f"[tests] Overriding DATABASE_URL for test isolation: "
+            f"{current_db_url!r} -> {test_db_url!r}"
+        )
+    os.environ["DATABASE_URL"] = test_db_url
+    os.environ["DB_DSN"] = test_db_url
     os.environ.setdefault("TENANT_NAMESPACE_UUID", str(uuid.uuid4()))
     os.environ["IMPORTS_ENABLED"] = "1"
     os.environ["IMPORTS_SKIP_NATIVE_PDF"] = "0"
@@ -29,6 +40,7 @@ def _ensure_test_env():
     os.environ["RATE_LIMIT_ENABLED"] = "0"
     os.environ["ENDPOINT_RATE_LIMIT_ENABLED"] = "0"
     os.environ["LOGIN_RATE_LIMIT_ENABLED"] = "0"
+    os.environ["ALLOW_DANGEROUS_COMPANY_DELETE"] = "1"
     # Disable Redis for tests (use in-memory fallback)
     os.environ["REDIS_URL"] = ""
     os.environ["DISABLE_REDIS"] = "1"

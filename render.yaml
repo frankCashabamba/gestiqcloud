@@ -57,7 +57,9 @@ services:
       - key: TENANT_NAMESPACE_UUID
         value: 0280249e-6707-40fb-8d60-1e8f3aea0f8e
       - key: IMPORTS_ENABLED
-        value: "0"
+        value: "1"
+      - key: IMPORTS_RUNNER_MODE
+        value: celery
       - key: IMPORTS_EASYOCR_WARM_ON_START
         value: "0"
       - key: POOL_SIZE
@@ -229,6 +231,46 @@ services:
         value: "1"
       - key: OTEL_SERVICE_NAME
         value: gestiqcloud-worker
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+
+  # ------------ IMPORTS WORKER (Celery imports queues) ------------
+  - type: worker
+    name: gestiqcloud-imports-worker
+    runtime: python
+    branch: main
+    rootDir: apps/backend
+    buildCommand: |
+      pip install -U pip
+      pip install -r requirements.txt
+    startCommand: python -m app.modules.imports.application.worker_main
+    buildFilter:
+      paths:
+        - apps/backend/**
+        - ops/migrations/**
+        - scripts/**
+        - apps/packages/http-core/**
+      ignoredPaths:
+        - '**/*.md'
+        - .github/**
+        - docs/**
+    envVars:
+      - key: ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: REDIS_RESULT_URL
+        sync: false
+      - key: IMPORTS_ENABLED
+        value: "1"
+      - key: IMPORTS_RUNNER_MODE
+        value: celery
+      - key: OTEL_ENABLED
+        value: "1"
+      - key: OTEL_SERVICE_NAME
+        value: gestiqcloud-imports-worker
       - key: OTEL_EXPORTER_OTLP_ENDPOINT
         sync: false
 

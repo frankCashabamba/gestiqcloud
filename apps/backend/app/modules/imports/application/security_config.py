@@ -26,6 +26,8 @@ class SecurityConfig:
             "image/tiff",
             "image/webp",
             "image/bmp",
+            "image/heic",
+            "image/heif",
         ]
     )
 

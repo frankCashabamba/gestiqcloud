@@ -20,7 +20,8 @@ class SqlModuloRepo(SqlAlchemyRepo):
             )
             .all()
         )
-        return [self._to_dto(ma.module) for ma in rows if ma.module]
+        # Only return active modules
+        return [self._to_dto(ma.module) for ma in rows if ma.module and ma.module.active]
 
     def list_contracted(self, *, tenant_id) -> Sequence[dict]:
         rows = (

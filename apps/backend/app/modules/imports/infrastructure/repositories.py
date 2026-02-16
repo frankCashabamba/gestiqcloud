@@ -119,6 +119,8 @@ class ImportsRepository:
             .filter(
                 ImportItem.dedupe_hash == dedupe_hash,
                 ImportItem.status == "PROMOTED",
+                # Prevent stale PROMOTED-without-id rows from blocking retries/idempotency.
+                ImportItem.promoted_id.isnot(None),
             )
         )
         return db.query(q.exists()).scalar() or False

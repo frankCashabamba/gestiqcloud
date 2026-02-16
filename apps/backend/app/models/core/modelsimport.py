@@ -14,6 +14,7 @@ from sqlalchemy import (
     Index,
     Integer,
     LargeBinary,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -244,4 +245,46 @@ class ImportOCRJob(Base):
             "status",
             "created_at",
         ),
+    )
+
+
+class ImportResolution(Base):
+    __tablename__ = "import_resolutions"
+
+    id = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    tenant_id = mapped_column(TENANT_UUID, ForeignKey("tenants.id"), index=True, nullable=False)
+    import_job_id = mapped_column(UUID, ForeignKey("import_batches.id"), nullable=True)
+    entity_type = mapped_column(String, nullable=False)  # product|supplier|account|unit
+    raw_value = mapped_column(String, nullable=False)
+    resolved_id = mapped_column(UUID, nullable=True)
+    status = mapped_column(String, default="pending")  # resolved|pending|ignored
+    confidence = mapped_column(Numeric(3, 2), nullable=True)
+    resolved_by = mapped_column(String, nullable=True)  # auto|manual|ai
+    created_at = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "import_job_id", "entity_type", "raw_value", name="uq_import_res_job_entity_raw"
+        ),
+        Index("ix_import_resolutions_tenant_entity_raw", "tenant_id", "entity_type", "raw_value"),
+    )
+
+
+class PostingRegistry(Base):
+    __tablename__ = "posting_registry"
+
+    id = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    tenant_id = mapped_column(TENANT_UUID, ForeignKey("tenants.id"), index=True, nullable=False)
+    import_job_id = mapped_column(UUID, ForeignKey("import_batches.id"), nullable=True)
+    posting_key = mapped_column(String, nullable=False)
+    entity_type = mapped_column(
+        String, nullable=False
+    )  # invoice|expense|bank_txn|product|sale_item
+    entity_id = mapped_column(UUID, nullable=True)
+    created_at = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "posting_key", name="uq_posting_registry_tenant_key"),
+        Index("ix_posting_registry_tenant_key", "tenant_id", "posting_key"),
+        Index("ix_posting_registry_import_job", "import_job_id"),
     )

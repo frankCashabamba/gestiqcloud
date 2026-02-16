@@ -50,6 +50,23 @@ class TenantAccountingSettings(Base):
         nullable=True,
     )
 
+    # AP / Expenses (supplier invoices + expenses posting)
+    ap_account_id: Mapped[PGUUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(schema_column("chart_of_accounts"), ondelete="CASCADE"),
+        nullable=True,
+    )
+    vat_input_account_id: Mapped[PGUUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(schema_column("chart_of_accounts"), ondelete="CASCADE"),
+        nullable=True,
+    )
+    default_expense_account_id: Mapped[PGUUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(schema_column("chart_of_accounts"), ondelete="CASCADE"),
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow

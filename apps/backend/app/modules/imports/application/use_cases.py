@@ -31,12 +31,7 @@ from app.modules.imports.application.photo_utils import (
 )
 from app.modules.imports.application.status import ImportBatchStatus, ImportItemStatus
 from app.modules.imports.application.use_utils import apply_mapping
-from app.modules.imports.domain.handlers import (
-    BankHandler,
-    ExpenseHandler,
-    InvoiceHandler,
-    ProductHandler,
-)
+from app.modules.imports.domain.handlers import BankHandler, ExpenseHandler, ProductHandler, RecipeHandler
 from app.modules.imports.infrastructure.repositories import ImportsRepository
 from app.modules.imports.validators import validate_bank, validate_expenses, validate_invoices
 from app.modules.imports.validators.products import validate_product
@@ -808,24 +803,43 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
     # Consider all items; we'll count already promoted as skipped to make idempotency visible
     items = repo.list_items(db, tenant_id, batch_uuid)
     created = skipped = failed = 0
-    handler = {
-        "invoices": InvoiceHandler,
-        "bank": BankHandler,
-        "receipts": ExpenseHandler,
-        "expenses": ExpenseHandler,
-        "products": ProductHandler,
-        "productos": ProductHandler,
-    }.get(batch.source_type, ExpenseHandler)
+    # Special handling for recipes: we handle them differently
+    if batch.source_type == "recipes":
+        handler = RecipeHandler
+    else:
+        handler = {
+            # En el importador, "invoices" corresponde a facturas recibidas (proveedor),
+            # que deben terminar como gastos/AP, no como facturación de ventas.
+            "invoices": ExpenseHandler,
+            "bank": BankHandler,
+            "receipts": ExpenseHandler,
+            "expenses": ExpenseHandler,
+            "products": ProductHandler,
+            "productos": ProductHandler,
+        }.get(batch.source_type, ExpenseHandler)
 
     t0 = datetime.utcnow()
     promoted_hashes: set[str] = set()
     collect_promoted = bool(options and options.get("collect_promoted"))
     promoted_items: list[dict[str, Any]] = []
     for it in items:
-        # Already promoted: count as skipped (idempotent)
+        # Already promoted: count as skipped (idempotent).
+        # Guard against stale states from past bugs: PROMOTED but promoted_id is NULL.
+        # In that case, retry promotion instead of skipping, otherwise UI says "PROMOTED"
+        # but nothing exists in the destination module.
         if it.status == ImportItemStatus.PROMOTED:
-            skipped += 1
-            continue
+            if getattr(it, "promoted_id", None):
+                skipped += 1
+                continue
+            # Retry: downgrade to OK so this item can be promoted again.
+            it.status = ImportItemStatus.OK
+            it.errors = (it.errors or []) + [
+                {
+                    "phase": "promotion",
+                    "message": "Stale PROMOTED state without promoted_id; retrying promotion",
+                }
+            ]
+            db.add(it)
         # Only attempt to promote valid items
         if it.status != ImportItemStatus.OK:
             continue
@@ -871,7 +885,22 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
             if res.skipped:
                 skipped += 1
                 continue
-            it.promoted_to = batch.source_type
+            # Defensive: some handlers were returning domain_id=None on errors. That must not
+            # mark the item as PROMOTED, otherwise UI shows PROMOTED but nothing is created.
+            if not getattr(res, "domain_id", None):
+                it.status = ImportItemStatus.ERROR_PROMOTION
+                it.errors = (it.errors or []) + [
+                    {
+                        "phase": "promotion",
+                        "message": "Handler did not return a destination id (domain_id=None)",
+                        "source_type": batch.source_type,
+                    }
+                ]
+                db.add(it)
+                failed += 1
+                continue
+            # promoted_to indica el módulo/tabla destino real
+            it.promoted_to = "expenses" if batch.source_type == "invoices" else batch.source_type
             it.promoted_id = res.domain_id
             it.promoted_at = datetime.utcnow()
             it.status = ImportItemStatus.PROMOTED
@@ -882,7 +911,7 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
             lineage = ImportLineage(
                 tenant_id=tenant_id,  # INT
                 item_id=it.id,  # UUID
-                promoted_to=batch.source_type,
+                promoted_to=it.promoted_to,
                 promoted_ref=res.domain_id or "",
             )
             db.add(lineage)
@@ -895,7 +924,7 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
                         "src": _merge_src(it.raw, it.normalized),
                     }
                 )
-        except Exception:
+        except Exception as exc:
             # If session is in pending rollback state, rollback first before making changes
             if db.is_active:
                 try:
@@ -903,6 +932,9 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
                 except Exception:
                     pass
             it.status = ImportItemStatus.ERROR_PROMOTION
+            it.errors = (it.errors or []) + [
+                {"phase": "promotion", "message": str(exc) or "Unhandled error"}
+            ]
             db.add(it)
             failed += 1
 
@@ -964,7 +996,7 @@ def ingest_photo(
     )
 
     # 3) OCR
-    texto = ocr_texto(content)  # devuelve str
+    texto = ocr_texto(content, filename=file.filename or "")  # devuelve str
 
     # 4) detectar tipo y extraer campos
     tipo = _detectar_tipo_por_texto(texto)
@@ -1031,7 +1063,7 @@ def attach_photo_and_reocr(
     file_key, sha256 = guardar_adjunto_bytes(
         tenant_id, content, filename=file.filename or "foto.jpg"
     )
-    texto = ocr_texto(content)
+    texto = ocr_texto(content, filename=file.filename or "")
 
     # Re-extraer valores "inteligentes" (NO pisa raw original; añade sugerencias)
     tipo = item.batch.source_type or _detectar_tipo_por_texto(texto)

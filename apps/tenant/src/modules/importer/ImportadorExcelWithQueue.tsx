@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import ImportadorLayout from './components/ImportadorLayout'
 import { useImportQueue } from './context/ImportQueueContext'
 import { cleanupStuckBatches } from './services/importsApi'
+import { uploadDocument } from '../../services/api/documents'
 import { useAuth } from '../../auth/AuthContext'
 import { useToast } from '../../shared/toast'
 import { usePermission } from '../../hooks/usePermission'
@@ -51,19 +52,48 @@ export default function ImportadorExcelWithQueue() {
     return match ? match[1] : ''
   }, [empresa, location.pathname])
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      addToQueue(e.target.files)
+      const files = Array.from(e.target.files)
+      addToQueue(files)
+      
+      // Upload to document storage
+      for (const file of files) {
+        try {
+          await uploadDocument(
+            file,
+            'import_source', // doc_type
+            'importer'        // source
+          )
+        } catch (err: any) {
+          toastError(`Failed to upload ${file.name}: ${err.message}`)
+        }
+      }
+      
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
     }
   }
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault()
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      addToQueue(e.dataTransfer.files)
+      const files = Array.from(e.dataTransfer.files)
+      addToQueue(files)
+      
+      // Upload to document storage
+      for (const file of files) {
+        try {
+          await uploadDocument(
+            file,
+            'import_source', // doc_type
+            'importer'        // source
+          )
+        } catch (err: any) {
+          toastError(`Failed to upload ${file.name}: ${err.message}`)
+        }
+      }
     }
   }
 
@@ -134,7 +164,7 @@ export default function ImportadorExcelWithQueue() {
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept=".xlsx,.xls,.csv,.pdf,image/*"
+                accept=".xlsx,.xls,.csv,.xml,.pdf,image/*"
                 onChange={handleFileChange}
                 className="hidden"
                 id="file-upload"

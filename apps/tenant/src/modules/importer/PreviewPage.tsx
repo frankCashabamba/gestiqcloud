@@ -5,11 +5,13 @@ import ImportadorLayout from './components/ImportadorLayout'
 import {
     listBatchesByCompany,
     listCategories,
+    listItems,
     listProductItems,
     startExcelImport,
     promoteBatch,
     validateBatch,
     getBatchStatus,
+    getBatch,
     patchItem,
     ingestBatch,
     resetBatch,
@@ -66,6 +68,7 @@ export default function PreviewPage() {
     () => batches.find((b) => b.id === selectedBatch) || null,
     [batches, selectedBatch]
   )
+  const isProductsBatch = selectedBatchObj?.source_type === 'products'
     const [productos, setProductos] = useState<ProductoPreview[]>([])
     const [totalProductos, setTotalProductos] = useState<number>(0)
     const [page, setPage] = useState<number>(1)
@@ -79,6 +82,16 @@ export default function PreviewPage() {
   const [promoting, setPromoting] = useState(false)
   const [newCategory, setNewCategory] = useState<string>('')
   const [expandedErrors, setExpandedErrors] = useState<string | null>(null)
+  const [expandedDetails, setExpandedDetails] = useState<string | null>(null)
+  const [showPromoteModal, setShowPromoteModal] = useState(false)
+  const [showRecipePromoteModal, setShowRecipePromoteModal] = useState(false)
+  const [recipeAlsoSaveAsProducts, setRecipeAlsoSaveAsProducts] = useState(false)
+  const [promotePostAccounting, setPromotePostAccounting] = useState(false)
+  const [promotePaymentStatus, setPromotePaymentStatus] = useState<'pending' | 'paid'>('pending')
+  const [promotePaymentMethod, setPromotePaymentMethod] = useState<
+    'bank' | 'cash' | 'card' | 'transfer' | 'direct_debit' | 'check' | 'other'
+  >('bank')
+  const [promotePaidAt, setPromotePaidAt] = useState<string>(() => new Date().toISOString().slice(0, 10))
 
     // Detected categories in the batch (by frequency)
     const detectedCategories = useMemo(() => {
@@ -106,7 +119,7 @@ export default function PreviewPage() {
         }
     }, [token])
 
-    // Cargar categorías
+    // Cargar categorÃ­as
     const fetchCategories = useCallback(async () => {
         try {
             const data = await listCategories(token || undefined)
@@ -120,7 +133,7 @@ export default function PreviewPage() {
         }
     }, [token])
 
-    // Cargar lotes pendientes de validación
+    // Cargar lotes pendientes de validaciÃ³n
     const fetchBatches = useCallback(async () => {
         if (!profile?.tenant_id) {
             setError('tenant_id not found')
@@ -131,14 +144,29 @@ export default function PreviewPage() {
             setLoading(true)
             const data = await listBatchesByCompany(profile.tenant_id, token || undefined)
             const items = Array.isArray(data) ? data : (data as any).items || []
-            setBatches(items)
+
+            // If coming from a deep-link (?batch_id=...), ensure that batch exists in the list
+            // so source_type-based UI works (products vs other) even if list endpoint is truncated.
+            const urlBatchId = searchParams.get('batch_id')
+            let nextItems = items
+            if (urlBatchId && !items.some((b: any) => String(b?.id) === String(urlBatchId))) {
+                try {
+                    const b = await getBatch(urlBatchId, token || undefined)
+                    if (b && (b as any).id) {
+                        nextItems = [b as any, ...items]
+                    }
+                } catch {
+                    // ignore: fallback selection still works for non-products
+                }
+            }
+
+            setBatches(nextItems)
 
             // Auto-seleccionar si hay batch_id en URL o priorizar PARSING/PENDING/READY
-            const urlBatchId = searchParams.get('batch_id')
             if (urlBatchId) {
                 setSelectedBatch(urlBatchId)
             } else {
-                const arr = items as any[]
+                const arr = nextItems as any[]
                 if (Array.isArray(arr) && arr.length > 0) {
                     const prio = (s: string) => (s === 'PARSING' ? 0 : s === 'PENDING' ? 1 : s === 'READY' ? 2 : s === 'EMPTY' ? 3 : 4)
                     const sorted = [...arr].sort((a, b) => prio(a.status) - prio(b.status))
@@ -159,21 +187,29 @@ export default function PreviewPage() {
             return
         }
         try {
-            const limit = pageSize
-            const offset = (page - 1) * pageSize
-            const data = await listProductItems(selectedBatch, {
-                status: 'ERROR_VALIDATION',
-                limit,
-                offset,
-                authToken: token || undefined,
-            })
-            setProductos((data as any).items || [])
-            setTotalProductos(Number((data as any).total ?? ((data as any).items ? (data as any).items.length : 0)))
+            const sourceType = selectedBatchObj?.source_type || ''
+            if (sourceType === 'products') {
+                const limit = pageSize
+                const offset = (page - 1) * pageSize
+                const data = await listProductItems(selectedBatch, {
+                    // Show all non-promoted product items by default (OK + validation errors).
+                    limit,
+                    offset,
+                    authToken: token || undefined,
+                })
+                const items = (data as any).items || []
+                setProductos(items)
+                setTotalProductos(Number((data as any).total ?? items.length))
+            } else {
+                const items = await listItems(selectedBatch, { status: 'OK' })
+                setProductos((items as any[]) || [])
+                setTotalProductos(Array.isArray(items) ? items.length : 0)
+            }
         } catch (err: any) {
             console.error(err)
             setProductos([])
         }
-    }, [selectedBatch, token, page, pageSize])
+    }, [selectedBatch, selectedBatchObj?.source_type, token, page, pageSize])
 
     // Poll batch status until READY to show progress while Celery processes
     const [batchStatus, setBatchStatus] = useState<any | null>(null)
@@ -188,7 +224,7 @@ export default function PreviewPage() {
         if (!current) return
         // Solo lanzar start-excel si el batch tiene file_key (lotes creados desde upload)
         const hasFile = Boolean((current as any).file_key)
-        // Auto-iniciar importación si el lote está PENDING y aún no lo hemos intentado
+        // Auto-iniciar importaciÃ³n si el lote estÃ¡ PENDING y aÃºn no lo hemos intentado
         if (current.status === 'PENDING' && kickStarted !== selectedBatch && hasFile) {
             ; (async () => {
                 try {
@@ -203,7 +239,7 @@ export default function PreviewPage() {
                 }
             })()
         }
-        // Para recipes con archivo: si está PENDING/EMPTY y no hay items, dispara ingest vacío (fast-path recetas)
+        // Para recipes con archivo: si estÃ¡ PENDING/EMPTY y no hay items, dispara ingest vacÃ­o (fast-path recetas)
         if (
             hasFile &&
             (current as any).source_type === 'recipes' &&
@@ -269,7 +305,7 @@ export default function PreviewPage() {
         fetchProductos()
     }, [fetchProductos])
 
-    // Asignar categoría a productos seleccionados
+    // Asignar categorÃ­a a productos seleccionados
     const handleAssignCategory = async () => {
         if (!categoryAssignment || selectedIds.size === 0 || !selectedBatch) return
         try {
@@ -285,17 +321,95 @@ export default function PreviewPage() {
         }
     }
 
-    // Promover lote a producción
+    // Promover lote a producciÃ³n
     const handlePromote = async () => {
         if (!selectedBatch) return
-        const confirmed = confirm('Promote this batch to production? This will create/update products in the system.')
+
+        const sourceType = selectedBatchObj?.source_type || ''
+        
+        // For recipes, show the special modal
+        if (sourceType === 'recipes') {
+            setShowRecipePromoteModal(true)
+            return
+        }
+
+        const needsPayment = sourceType === 'invoices' || sourceType === 'expenses' || sourceType === 'receipts'
+        if (needsPayment) {
+            setShowPromoteModal(true)
+            return
+        }
+        const targetPath =
+            sourceType === 'products'
+                ? '../products'
+                : sourceType === 'expenses' || sourceType === 'receipts'
+                ? '../expenses'
+                : sourceType === 'invoices'
+                ? '../expenses'
+                : null
+
+        const confirmMsg =
+            sourceType === 'products'
+                ? 'Promote this batch to production? This will create/update products in the system.'
+                : sourceType === 'expenses' || sourceType === 'receipts'
+                ? 'Promote this batch? This will create expenses in the system.'
+                : sourceType === 'invoices'
+                ? 'Promote this batch? This will create supplier invoices as expenses (accounts payable) in the system.'
+                : 'Promote this batch?'
+
+        const confirmed = confirm(confirmMsg)
         if (!confirmed) return
 
         setPromoting(true)
         try {
-            await promoteBatch(selectedBatch)
-            alert('Batch promoted successfully')
-            navigate('../products')
+            const res = await promoteBatch(selectedBatch)
+            alert(`Batch promoted successfully (created: ${res.created}, skipped: ${res.skipped}, failed: ${res.failed})`)
+            if (targetPath) {
+                navigate(targetPath)
+            } else {
+                await fetchBatches()
+                await fetchProductos()
+            }
+        } catch (err: any) {
+            alert(`Error: ${err.message}`)
+        } finally {
+            setPromoting(false)
+        }
+    }
+
+    const confirmPromoteRecipes = async () => {
+        if (!selectedBatch) return
+        setPromoting(true)
+        try {
+            const opts: any = {}
+            if (recipeAlsoSaveAsProducts) {
+                opts['save_as_products'] = 'true'
+            }
+            const res = await promoteBatch(selectedBatch, opts)
+            alert(`Recipes promoted successfully (created: ${res.created}, skipped: ${res.skipped}, failed: ${res.failed})`)
+            setShowRecipePromoteModal(false)
+            setRecipeAlsoSaveAsProducts(false)
+            await fetchBatches()
+            await fetchProductos()
+        } catch (err: any) {
+            alert(`Error: ${err.message}`)
+        } finally {
+            setPromoting(false)
+        }
+    }
+
+    const confirmPromoteWithOptions = async () => {
+        if (!selectedBatch) return
+        setPromoting(true)
+        try {
+            const res = await promoteBatch(selectedBatch, {
+                postAccounting: promotePostAccounting,
+                paymentStatus: promotePaymentStatus,
+                paymentMethod: promotePaymentStatus === 'paid' ? promotePaymentMethod : undefined,
+                paidAt: promotePaymentStatus === 'paid' ? promotePaidAt : undefined,
+            })
+            alert(`Batch promoted successfully (created: ${res.created}, skipped: ${res.skipped}, failed: ${res.failed})`)
+            setShowPromoteModal(false)
+            navigate('../expenses')
         } catch (err: any) {
             alert(`Error: ${err.message}`)
         } finally {
@@ -323,7 +437,7 @@ export default function PreviewPage() {
         }
     }
 
-    // Asignar texto libre como categoría a seleccionados
+    // Asignar texto libre como categorÃ­a a seleccionados
     const handleAssignFreeCategory = async () => {
         if (!newCategory || selectedIds.size === 0 || !selectedBatch) return
         try {
@@ -354,7 +468,7 @@ export default function PreviewPage() {
     }
 
     const batch = batches.find(b => b.id === selectedBatch)
-    // Excluir filas que parecen encabezados de sección (no son productos)
+    // Excluir filas que parecen encabezados de secciÃ³n (no son productos)
     const visibleProductos = useMemo(() => {
         const isHeaderLike = (p: ProductoPreview) => {
             const name = (p.nombre || p.name || '').trim()
@@ -363,7 +477,7 @@ export default function PreviewPage() {
             const ratio = upper / name.length
             const hasDigits = /\d/.test(name)
             const tokens = name.split(/\s+/)
-            // Mayormente mayúsculas, corto, sin dígitos y sin precio/stock ? encabezado
+            // Mayormente mayÃºsculas, corto, sin dÃ­gitos y sin precio/stock ? encabezado
             const noAmounts = (!p.precio && !p.price) && (!p.stock || Number(p.stock) === 0)
             const banned = /^(total|subtotal|observaciones|nota)$/i.test(name)
             return !banned && ratio >= 0.6 && tokens.length <= 4 && !hasDigits && noAmounts
@@ -376,7 +490,7 @@ export default function PreviewPage() {
     return (
         <ImportadorLayout
             title="Preview"
-            description="Validate, categorize, and promote product batches to production."
+            description="Validate and review import batches before final processing."
         >
             {loading && <div className="text-slate-600">Loading batches...</div>}
             {error && (
@@ -384,6 +498,132 @@ export default function PreviewPage() {
             )}
             {etaSeconds != null && etaSeconds > 0 && (
                 <div className="mt-1 text-[11px] text-amber-700">ETA ~ {Math.floor(etaSeconds / 60)}m {etaSeconds % 60}s</div>
+            )}
+
+            {showPromoteModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                    <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
+                        <div className="border-b border-slate-200 px-4 py-3">
+                            <div className="text-sm font-semibold text-slate-900">Promover lote</div>
+                            <div className="mt-1 text-xs text-slate-500">
+                                Define el estado de pago y, opcionalmente, genera asientos contables.
+                            </div>
+                        </div>
+                        <div className="space-y-4 px-4 py-4">
+                            <label className="flex items-center gap-2 text-sm text-slate-700">
+                                <input
+                                    type="checkbox"
+                                    checked={promotePostAccounting}
+                                    onChange={(e) => setPromotePostAccounting(e.target.checked)}
+                                />
+                                Generar asiento contable
+                            </label>
+
+                            <div className="grid gap-3 md:grid-cols-2">
+                                <div>
+                                    <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Estado</div>
+                                    <select
+                                        className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                                        value={promotePaymentStatus}
+                                        onChange={(e) => setPromotePaymentStatus(e.target.value as any)}
+                                    >
+                                        <option value="pending">Pendiente de pago</option>
+                                        <option value="paid">Pagada</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Metodo</div>
+                                    <select
+                                        className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                                        value={promotePaymentMethod}
+                                        onChange={(e) => setPromotePaymentMethod(e.target.value as any)}
+                                        disabled={promotePaymentStatus !== 'paid'}
+                                    >
+                                        <option value="bank">Banco</option>
+                                        <option value="cash">Efectivo</option>
+                                        <option value="card">Tarjeta</option>
+                                        <option value="transfer">Transferencia</option>
+                                        <option value="direct_debit">Domiciliacion</option>
+                                        <option value="check">Cheque</option>
+                                        <option value="other">Otro</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Fecha de pago</div>
+                                <input
+                                    type="date"
+                                    className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                                    value={promotePaidAt}
+                                    onChange={(e) => setPromotePaidAt(e.target.value)}
+                                    disabled={promotePaymentStatus !== 'paid'}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-4 py-3">
+                            <button
+                                className="rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                                onClick={() => setShowPromoteModal(false)}
+                                disabled={promoting}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                                onClick={confirmPromoteWithOptions}
+                                disabled={promoting}
+                            >
+                                {promoting ? 'Promoting...' : 'Promover'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showRecipePromoteModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                    <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
+                        <div className="border-b border-slate-200 px-4 py-3">
+                            <div className="text-sm font-semibold text-slate-900">Promover Recetas</div>
+                            <div className="mt-1 text-xs text-slate-500">
+                                Las recetas se guardarán en el módulo de recetas. Opcionalmente, también puedes guardar los productos base.
+                            </div>
+                        </div>
+                        <div className="space-y-4 px-4 py-4">
+                            <label className="flex items-center gap-2 text-sm text-slate-700">
+                                <input
+                                    type="checkbox"
+                                    checked={recipeAlsoSaveAsProducts}
+                                    onChange={(e) => setRecipeAlsoSaveAsProducts(e.target.checked)}
+                                />
+                                <span>También guardar ingredientes como productos en el inventario</span>
+                            </label>
+                            <div className="rounded-md bg-blue-50 p-3 text-xs text-blue-700">
+                                <strong>Nota:</strong> Los ingredientes extraídos de la receta se guardarán como productos individuales en el inventario si activas esta opción.
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-4 py-3">
+                            <button
+                                className="rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                                onClick={() => {
+                                    setShowRecipePromoteModal(false)
+                                    setRecipeAlsoSaveAsProducts(false)
+                                }}
+                                disabled={promoting}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                                onClick={confirmPromoteRecipes}
+                                disabled={promoting}
+                            >
+                                {promoting ? 'Promoting...' : 'Promover'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {!loading && batches.length === 0 && (
@@ -417,7 +657,7 @@ export default function PreviewPage() {
                                     'EMPTY': 'bg-slate-50 border-slate-200 text-slate-500',
                                 }
                                 const statusLabels: Record<string, string> = {
-                                    EMPTY: 'VACÍO',
+                                    EMPTY: 'VACÃO',
                                     READY: 'READY',
                                     PARSING: 'PARSING',
                                     PENDING: 'PENDING',
@@ -493,11 +733,11 @@ export default function PreviewPage() {
                                 )}
                             </div>
                             <div className="mt-1 text-[11px] text-amber-700">
-                                Última actualización: {new Date().toLocaleTimeString()}
+                                Ãšltima actualizaciÃ³n: {new Date().toLocaleTimeString()}
                             </div>
                             {batchStatus && (
                                 <div className="mt-1 text-xs text-amber-800">
-                                    Pendientes: {batchStatus.pending ?? 0} · En proceso: {batchStatus.processing ?? 0} · Completados: {batchStatus.completed ?? 0}
+                                    Pendientes: {batchStatus.pending ?? 0} Â· En proceso: {batchStatus.processing ?? 0} Â· Completados: {batchStatus.completed ?? 0}
                                 </div>
                             )}
                             <div className="mt-2 h-2 w-full rounded bg-amber-100">
@@ -508,7 +748,7 @@ export default function PreviewPage() {
                             </div>
                             {(stuckSince && Date.now() - stuckSince > 60000) && (
                                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                                    <span className="text-xs text-amber-700">Parece atascado. Opciones de recuperación:</span>
+                                    <span className="text-xs text-amber-700">Parece atascado. Opciones de recuperaciÃ³n:</span>
                                     <button
                                         className="rounded border border-blue-300 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50"
                                         onClick={async () => {
@@ -544,7 +784,7 @@ export default function PreviewPage() {
                                         className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50"
                                         onClick={async () => {
                                             if (!selectedBatch) return
-                                            const ok = confirm('¿Eliminar lote forzado?')
+                                            const ok = confirm('Â¿Eliminar lote forzado?')
                                             if (!ok) return
                                             await deleteBatch(selectedBatch, token || undefined)
                                             await fetchBatches(); setSelectedBatch(null); setProductos([])
@@ -555,7 +795,7 @@ export default function PreviewPage() {
                         </div>
                     )}
 
-                    {/* Estadísticas del lote */}
+                    {/* EstadÃ­sticas del lote */}
                     {batch && productos.length > 0 && (
                         <div className="rounded-lg border border-slate-200 bg-white p-4">
                             <h3 className="text-lg font-semibold text-slate-900 mb-3">
@@ -563,15 +803,15 @@ export default function PreviewPage() {
                             </h3>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                                 <div>
-                                    <div className="text-slate-500">Total productos</div>
+                                    <div className="text-slate-500">{isProductsBatch ? 'Total productos' : 'Total registros'}</div>
                                     <div className="text-2xl font-bold text-slate-900">{productos.length}</div>
                                 </div>
                                 <div>
-                                    <div className="text-slate-500">Sin categoría</div>
+                                    <div className="text-slate-500">Sin categorÃ­a</div>
                                     <div className="text-2xl font-bold text-amber-600">{sinCategoria}</div>
                                 </div>
                                 <div>
-                                    <div className="text-slate-500">Categorías únicas</div>
+                                    <div className="text-slate-500">{isProductsBatch ? 'CategorÃ­as Ãºnicas' : 'Etiquetas Ãºnicas'}</div>
                                     <div className="text-2xl font-bold text-blue-600">{categorias.length}</div>
                                 </div>
                                 <div>
@@ -583,7 +823,7 @@ export default function PreviewPage() {
                             {categorias.length > 0 && (
                                 <div className="mt-4 pt-4 border-t border-slate-200">
                                     <div className="text-xs font-semibold text-slate-500 uppercase mb-2">
-                                        Categorías detectadas
+                                        CategorÃ­as detectadas
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         {categorias.map(cat => (
@@ -600,7 +840,7 @@ export default function PreviewPage() {
                         </div>
                     )}
 
-                    {/* Asignación masiva de categorías */}
+                    {/* AsignaciÃ³n masiva de categorÃ­as */}
                     {productos.length > 0 && selectedIds.size > 0 && (
                         <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
                             <div className="flex items-center gap-4">
@@ -612,7 +852,7 @@ export default function PreviewPage() {
                                     onChange={(e) => setCategoryAssignment(e.target.value)}
                                     className="rounded-md border border-blue-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
                                 >
-                                    <option value="">Asignar categoría...</option>
+                                    <option value="">Asignar categorÃ­a...</option>
                                     {categories.map(cat => (
                                         <option key={cat.id} value={cat.name}>
                                             {cat.name}
@@ -639,6 +879,16 @@ export default function PreviewPage() {
                         >
                             Revalidar lote
                         </button>
+                        {selectedBatch && (selectedBatchObj?.source_type !== 'products' || selectedBatchObj?.source_type === 'recipes') && (
+                            <button
+                                onClick={handlePromote}
+                                disabled={promoting}
+                                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                                title={selectedBatchObj?.source_type === 'recipes' ? 'Promover recetas' : 'Promover lote (con estado de pago y asientos opcionales)'}
+                            >
+                                {promoting ? 'Promoting...' : 'Promover'}
+                            </button>
+                        )}
                         {selectedBatch && (
                             <ReassignMappingInline batchId={selectedBatch} onAfter={() => { fetchBatches(); fetchProductos() }} />
                         )}
@@ -646,7 +896,7 @@ export default function PreviewPage() {
                             className="rounded-md border border-rose-300 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50"
                             onClick={async () => {
                                 if (!selectedBatch) return
-                                const ok = confirm('¿Eliminar este lote y todos sus items? Esta acción no se puede deshacer.')
+                                const ok = confirm('Â¿Eliminar este lote y todos sus items? Esta acciÃ³n no se puede deshacer.')
                                 if (!ok) return
                                 try {
                                     await deleteBatch(selectedBatch, token || undefined)
@@ -677,7 +927,7 @@ export default function PreviewPage() {
                                     className="rounded-md border border-rose-300 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50"
                                     onClick={async () => {
                                         if (!selectedBatch) return
-                                        const ok = confirm('¿Eliminar forzado este lote en procesamiento?')
+                                        const ok = confirm('Â¿Eliminar forzado este lote en procesamiento?')
                                         if (!ok) return
                                         await deleteBatch(selectedBatch, token || undefined)
                                         await fetchBatches(); setProductos([]); setSelectedBatch(null)
@@ -689,18 +939,18 @@ export default function PreviewPage() {
                         )}
                     </div>
 
-                    {/* Herramientas de categorización */}
+                    {/* Herramientas de categorizaciÃ³n */}
                     <div className="mb-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3 md:flex-row md:items-end md:justify-between">
                         <div className="flex items-end gap-2">
                             <div>
-                                <label className="block text-xs font-semibold text-slate-600">Asignar categoría existente</label>
+                                <label className="block text-xs font-semibold text-slate-600">Asignar categorÃ­a existente</label>
                                 <div className="flex items-center gap-2">
                                     <select
                                         className="rounded-md border border-slate-200 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none"
                                         value={categoryAssignment}
                                         onChange={(e) => setCategoryAssignment(e.target.value)}
                                     >
-                                        <option value="">(elige categoría)</option>
+                                        <option value="">(elige categorÃ­a)</option>
                                         {categories.map((c) => (
                                             <option key={c.id} value={c.name}>{c.name}</option>
                                         ))}
@@ -716,7 +966,7 @@ export default function PreviewPage() {
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-xs font-semibold text-slate-600">Crear/asignar texto como categoría</label>
+                                <label className="block text-xs font-semibold text-slate-600">Crear/asignar texto como categorÃ­a</label>
                                 <div className="flex items-center gap-2">
                                     <input
                                         value={newCategory}
@@ -738,7 +988,7 @@ export default function PreviewPage() {
                             <div>Seleccionados: {selectedIds.size}</div>
                             {detectedCategories.length > 0 && (
                                 <div className="flex flex-wrap items-center gap-1">
-                                    <span className="mr-1 text-slate-500">Categorías detectadas:</span>
+                                    <span className="mr-1 text-slate-500">CategorÃ­as detectadas:</span>
                                     {detectedCategories.map((cat) => (
                                         <button
                                             key={cat}
@@ -750,7 +1000,7 @@ export default function PreviewPage() {
                                                     setNewCategory(cat)
                                                     return
                                                 }
-                                                // asignación directa a seleccionados
+                                                // asignaciÃ³n directa a seleccionados
                                                 const doAssign = async () => {
                                                     const promises = Array.from(selectedIds).map(id =>
                                                         patchItem(selectedBatch!, id, 'categoria', cat)
@@ -792,7 +1042,7 @@ export default function PreviewPage() {
                         <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
                             {selectedBatchObj && selectedBatchObj.source_type !== 'products' && (
                                 <div className="bg-amber-50 px-4 py-2 text-xs text-amber-700 border-b border-amber-200">
-                                    Lote de tipo {selectedBatchObj.source_type}. La vista de tabla se muestra en formato producto solo para editar/visualizar; la promoción debería usarse para productos.
+                                    Lote de tipo {selectedBatchObj.source_type}. La vista de tabla se muestra en formato producto solo para editar/visualizar; la promociÃ³n deberÃ­a usarse para productos.
                                 </div>
                             )}
                             <div className="overflow-x-auto">
@@ -807,11 +1057,11 @@ export default function PreviewPage() {
                                                 />
                                             </th>
                                             <th className="px-3 py-3 text-left font-medium text-slate-600">#</th>
-                                            <th className="px-3 py-3 text-left font-medium text-slate-600">Código</th>
+                                            <th className="px-3 py-3 text-left font-medium text-slate-600">CÃ³digo</th>
                                             <th className="px-3 py-3 text-left font-medium text-slate-600">Nombre</th>
                                             <th className="px-3 py-3 text-left font-medium text-slate-600">Precio</th>
                                             <th className="px-3 py-3 text-left font-medium text-slate-600">Costo</th>
-                                            <th className="px-3 py-3 text-left font-medium text-slate-600">Categoría</th>
+                                            <th className="px-3 py-3 text-left font-medium text-slate-600">CategorÃ­a</th>
                                             <th className="px-3 py-3 text-left font-medium text-slate-600">Stock</th>
                                             <th className="px-3 py-3 text-left font-medium text-slate-600">Errores</th>
                                             <th className="px-3 py-3 text-left font-medium text-slate-600">Estado</th>
@@ -836,7 +1086,7 @@ export default function PreviewPage() {
                                                                     defaultValue={p.categoria || ''}
                                                                     onChange={(e) => patchField(p.id, 'categoria', e.target.value)}
                                                                 >
-                                                                    <option value="">Sin categoría</option>
+                                                                    <option value="">Sin categorÃ­a</option>
                                                                     {categories.map((c) => (
                                                                         <option key={c.id} value={c.name}>{c.name}</option>
                                                                     ))}
@@ -851,6 +1101,15 @@ export default function PreviewPage() {
                                                                 className="w-full rounded-md border border-slate-200 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none"
                                                                 onBlur={(e) => patchField(p.id, 'nombre', e.target.value)}
                                                             />
+                                                            {((p.raw as any)?.ingredients?.length || (p.raw as any)?.materials?.length) ? (
+                                                                <button
+                                                                    type="button"
+                                                                    className="mt-1 text-xs text-blue-600 hover:text-blue-700"
+                                                                    onClick={() => setExpandedDetails(expandedDetails === p.id ? null : p.id)}
+                                                                >
+                                                                    {expandedDetails === p.id ? 'Ocultar insumos' : 'Ver insumos'}
+                                                                </button>
+                                                            ) : null}
                                                         </td>
                                                         <td className="px-3 py-2 text-slate-900">
                                                             <input
@@ -917,6 +1176,72 @@ export default function PreviewPage() {
                                                             </td>
                                                         </tr>
                                                     )}
+                                                    {expandedDetails === p.id && (
+                                                        <tr>
+                                                            <td colSpan={11} className="bg-slate-50 px-6 py-4 text-xs text-slate-700">
+                                                                <div className="grid gap-4 md:grid-cols-2">
+                                                                    <div>
+                                                                        <div className="mb-2 font-semibold text-slate-800">Ingredientes</div>
+                                                                        {Array.isArray((p.raw as any)?.ingredients) && (p.raw as any).ingredients.length > 0 ? (
+                                                                            <div className="overflow-x-auto">
+                                                                                <table className="min-w-full divide-y divide-slate-200">
+                                                                                    <thead className="bg-white">
+                                                                                        <tr>
+                                                                                            <th className="px-2 py-1 text-left font-medium text-slate-600">Ingrediente</th>
+                                                                                            <th className="px-2 py-1 text-right font-medium text-slate-600">Cant.</th>
+                                                                                            <th className="px-2 py-1 text-left font-medium text-slate-600">Unidad</th>
+                                                                                            <th className="px-2 py-1 text-right font-medium text-slate-600">Importe</th>
+                                                                                        </tr>
+                                                                                    </thead>
+                                                                                    <tbody className="divide-y divide-slate-100 bg-white">
+                                                                                        {(p.raw as any).ingredients.map((it: any, j: number) => (
+                                                                                            <tr key={j}>
+                                                                                                <td className="px-2 py-1">{String(it?.ingredient ?? '')}</td>
+                                                                                                <td className="px-2 py-1 text-right">{it?.quantity ?? ''}</td>
+                                                                                                <td className="px-2 py-1">{String(it?.unit ?? '')}</td>
+                                                                                                <td className="px-2 py-1 text-right">{typeof it?.amount === 'number' ? `$${it.amount.toFixed(3)}` : ''}</td>
+                                                                                            </tr>
+                                                                                        ))}
+                                                                                    </tbody>
+                                                                                </table>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="text-slate-500">Sin ingredientes detectados.</div>
+                                                                        )}
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="mb-2 font-semibold text-slate-800">Materiales / Insumos</div>
+                                                                        {Array.isArray((p.raw as any)?.materials) && (p.raw as any).materials.length > 0 ? (
+                                                                            <div className="overflow-x-auto">
+                                                                                <table className="min-w-full divide-y divide-slate-200">
+                                                                                    <thead className="bg-white">
+                                                                                        <tr>
+                                                                                            <th className="px-2 py-1 text-left font-medium text-slate-600">Descripción</th>
+                                                                                            <th className="px-2 py-1 text-right font-medium text-slate-600">Cant.</th>
+                                                                                            <th className="px-2 py-1 text-left font-medium text-slate-600">Unidad compra</th>
+                                                                                            <th className="px-2 py-1 text-right font-medium text-slate-600">Importe</th>
+                                                                                        </tr>
+                                                                                    </thead>
+                                                                                    <tbody className="divide-y divide-slate-100 bg-white">
+                                                                                        {(p.raw as any).materials.map((it: any, j: number) => (
+                                                                                            <tr key={j}>
+                                                                                                <td className="px-2 py-1">{String(it?.description ?? '')}</td>
+                                                                                                <td className="px-2 py-1 text-right">{it?.quantity ?? ''}</td>
+                                                                                                <td className="px-2 py-1">{String(it?.purchase_unit ?? '')}</td>
+                                                                                                <td className="px-2 py-1 text-right">{typeof it?.amount === 'number' ? `$${it.amount.toFixed(3)}` : ''}</td>
+                                                                                            </tr>
+                                                                                        ))}
+                                                                                    </tbody>
+                                                                                </table>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="text-slate-500">Sin materiales detectados.</div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    )}
                                                 </React.Fragment>
                                             )
                                         })}
@@ -946,7 +1271,7 @@ export default function PreviewPage() {
                     {productos.length > 0 && selectedBatchObj && selectedBatchObj.source_type !== 'products' && (
                         <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
                             <div className="bg-amber-50 px-4 py-2 text-xs text-amber-700 border-b border-amber-200">
-                                Lote de tipo {selectedBatchObj.source_type || 'desconocido'}: vista bancaria/gastos.
+                                Lote de tipo {selectedBatchObj.source_type || 'desconocido'}: vista de gastos/factura de proveedor.
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -957,23 +1282,51 @@ export default function PreviewPage() {
                                             <th className="px-3 py-3 text-left font-medium text-slate-600">Importe</th>
                                             <th className="px-3 py-3 text-left font-medium text-slate-600">Concepto</th>
                                             <th className="px-3 py-3 text-left font-medium text-slate-600">Cuenta</th>
-                                            <th className="px-3 py-3 text-left font-medium text-slate-600">Cliente</th>
+                                            <th className="px-3 py-3 text-left font-medium text-slate-600">Cliente/Proveedor</th>
                                             <th className="px-3 py-3 text-left font-medium text-slate-600">Errores</th>
                                             <th className="px-3 py-3 text-left font-medium text-slate-600">Estado</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 bg-white">
                                         {visibleProductos.map((p, i) => {
-                                            const merged = { ...(p.raw?.datos || {}), ...(p.raw || {}), ...(p.normalized || {}) }
+                                            const merged: Record<string, any> = { ...(p.raw?.datos || {}), ...(p.raw || {}), ...(p.normalized || {}) }
+                                            const mergedTotals = (merged.totals || {}) as Record<string, any>
+                                            const firstLine =
+                                                Array.isArray(merged.lines) && merged.lines.length > 0 ? merged.lines[0] : null
+                                            const fecha =
+                                                merged.expense_date ||
+                                                merged.issue_date ||
+                                                merged.invoice_date ||
+                                                merged.value_date ||
+                                                merged.fecha ||
+                                                merged.transaction_date ||
+                                                '-'
+                                            const importe =
+                                                merged.amount ??
+                                                merged.total_amount ??
+                                                merged.total ??
+                                                merged.importe ??
+                                                mergedTotals.total ??
+                                                firstLine?.total ??
+                                                0
+                                            const concepto =
+                                                merged.description || merged.concept || merged.concepto || firstLine?.desc || '-'
+                                            const cuenta = merged.cuenta || merged.account || merged.counterparty || '-'
+                                            const cliente =
+                                                merged.cliente ||
+                                                merged.customer ||
+                                                merged.vendor_name ||
+                                                merged.vendor?.name ||
+                                                '-'
                                             return (
                                                 <React.Fragment key={p.id}>
                                                     <tr key={p.id} className="hover:bg-slate-50">
                                                         <td className="px-3 py-2 text-slate-500">{i + 1}</td>
-                                                        <td className="px-3 py-2">{merged.fecha || merged.transaction_date || '-'}</td>
-                                                        <td className="px-3 py-2">{merged.importe || merged.amount || 0}</td>
-                                                        <td className="px-3 py-2">{merged.concepto || merged.concept || '-'}</td>
-                                                        <td className="px-3 py-2">{merged.cuenta || merged.account || '-'}</td>
-                                                        <td className="px-3 py-2">{merged.cliente || merged.customer || '-'}</td>
+                                                        <td className="px-3 py-2">{fecha}</td>
+                                                        <td className="px-3 py-2">{importe}</td>
+                                                        <td className="px-3 py-2">{concepto}</td>
+                                                        <td className="px-3 py-2">{cuenta}</td>
+                                                        <td className="px-3 py-2">{cliente}</td>
                                                         <td className="px-3 py-2">
                                                             {p.errors && p.errors.length > 0 ? (
                                                                 <button
@@ -1014,7 +1367,7 @@ export default function PreviewPage() {
                         </div>
                     )}
 
-                    {/* Paginación */}
+                    {/* PaginaciÃ³n */}
             {totalProductos > pageSize && (
                 <div className="mt-4 flex items-center justify-between text-sm text-slate-700">
                     <div>
@@ -1066,8 +1419,8 @@ function ReassignMappingInline({ batchId, onAfter }: { batchId: string; onAfter?
             setOpen(false)
             if (onAfter) onAfter()
         } catch (err: any) {
-            console.error('Reasignar mapping falló', err)
-            alert(err?.message || 'No se pudo reasignar el mapping. Revisa la consola para más detalles.')
+            console.error('Reasignar mapping fallÃ³', err)
+            alert(err?.message || 'No se pudo reasignar el mapping. Revisa la consola para mÃ¡s detalles.')
         } finally {
             setLoading(false)
         }
@@ -1082,10 +1435,10 @@ function ReassignMappingInline({ batchId, onAfter }: { batchId: string; onAfter?
             ) : (
                 <div className="flex items-center gap-2">
                     <select className="rounded-md border border-slate-200 px-2 py-1 text-sm" value={selected} onChange={(e) => setSelected(e.target.value)}>
-                        <option value="">Select a mapping…</option>
+                        <option value="">Select a mappingâ€¦</option>
                         {mappings.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
                     </select>
-                    <button className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50" onClick={apply} disabled={!selected || loading}>{loading ? 'Applying…' : 'Apply and reprocess'}</button>
+                    <button className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50" onClick={apply} disabled={!selected || loading}>{loading ? 'Applyingâ€¦' : 'Apply and reprocess'}</button>
                     <button className="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100" onClick={() => setOpen(false)}>Cancel</button>
                 </div>
             )}

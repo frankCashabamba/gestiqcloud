@@ -83,7 +83,23 @@ async def analyze_upload(
         raise HTTPException(status_code=422, detail="Nombre de archivo requerido")
 
     ext = file.filename.lower().split(".")[-1]
-    allowed_extensions = ["xlsx", "xls", "xlsm", "xlsb", "csv", "xml", "pdf"]
+    allowed_extensions = [
+        "xlsx",
+        "xls",
+        "xlsm",
+        "xlsb",
+        "csv",
+        "xml",
+        "pdf",
+        "png",
+        "jpg",
+        "jpeg",
+        "tiff",
+        "bmp",
+        "gif",
+        "heic",
+        "heif",
+    ]
 
     if ext not in allowed_extensions:
         raise HTTPException(

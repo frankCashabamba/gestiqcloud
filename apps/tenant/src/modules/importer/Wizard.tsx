@@ -5,6 +5,7 @@
  * - promote batch with flags
  */
 import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 
 import VistaPreviaTabla from './components/VistaPreviaTabla'
@@ -47,6 +48,7 @@ const PREVIEW_LIMIT = 50
 
 function ImportadorWizard() {
   const { token } = useAuth() as { token: string | null }
+  const navigate = useNavigate()
   const {
     classify,
     loading: classifying,
@@ -296,6 +298,13 @@ function ImportadorWizard() {
       }
 
       await ingestBatch(batch.id, { rows: docs }, token || undefined, null)
+
+      // Professional UX: for non-products, promotion should happen in Preview so the user can
+      // choose paid/pending and accounting options in one place (avoid multiple promote UIs).
+      if (effectiveDocType !== 'products' && effectiveDocType !== 'productos') {
+        navigate(`../preview?batch_id=${encodeURIComponent(batch.id)}`)
+        return
+      }
 
       try {
         const url = new URL(`/api/v1/tenant/imports/batches/${batch.id}/promote`, window.location.origin)

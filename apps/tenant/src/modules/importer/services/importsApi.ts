@@ -1,4 +1,5 @@
 import { apiFetch, API_URL, HttpError } from '../../../lib/http'
+
 import { IMPORTS } from '@endpoints/imports'
 import {
   ParserRegistry,
@@ -13,6 +14,10 @@ import {
   ConfirmBatchResponse,
   ConfirmationStatus,
 } from '@api-types/imports'
+
+// API_URL usually ends with /api (e.g. http://localhost:8000/api).
+// Some endpoints already include /api/v1..., so use the host root to avoid /api/api/v1...
+const API_ROOT = API_URL.replace(/\/api\/?$/, '')
 
 export type {
   ParserRegistry,
@@ -131,12 +136,12 @@ export async function processDocument(file: File, authToken?: string): Promise<P
     return { status: 'pending', jobId }
   } catch (err: any) {
     if (err instanceof HttpError) {
-      // Mensajes claros según status común en OCR
+      // Mensajes claros segÃºn status comÃºn en OCR
       if (err.status === 401) {
-        throw new Error('Sesión expirada o sin permisos. Inicia sesión para usar el OCR.')
+        throw new Error('SesiÃ³n expirada o sin permisos. Inicia sesiÃ³n para usar el OCR.')
       }
       if (err.status === 413) {
-        throw new Error('Archivo demasiado grande para OCR (supera el límite configurado).')
+        throw new Error('Archivo demasiado grande para OCR (supera el lÃ­mite configurado).')
       }
       if (err.status === 415 || err.status === 422) {
         throw new Error('Formato no soportado para OCR. Usa PDF/imagen o el flujo de Excel/CSV.')
@@ -150,7 +155,7 @@ export async function pollOcrJob(jobId: string, authToken?: string): Promise<Pro
   const status = await getOcrJob(jobId, authToken)
 
   if (status.status === 'failed') {
-    throw new Error(status.error || 'El procesamiento del documento falló.')
+    throw new Error(status.error || 'El procesamiento del documento fallÃ³.')
   }
 
   if (status.status === 'done' && status.result) {
@@ -173,8 +178,8 @@ export async function listBatchesByCompany(tenantId: string, authToken?: string)
   return apiFetch<{ items: ImportBatch[] } | ImportBatch[]>(`${IMPORTS.batches.base}?${qs}`, { authToken })
 }
 
-export async function getBatch(id: string) {
-  return apiFetch<ImportBatch>(IMPORTS.batches.byId(id))
+export async function getBatch(id: string, authToken?: string) {
+  return apiFetch<ImportBatch>(IMPORTS.batches.byId(id), { authToken })
 }
 
 /** Accepts optional filters (status, q). */
@@ -204,7 +209,7 @@ export async function listProductItems(
   )
 }
 
-/** Lista productos de importación de todos los batches (requiere tenant_id cuando no se usa RLS). */
+/** Lista productos de importaciÃ³n de todos los batches (requiere tenant_id cuando no se usa RLS). */
 export async function listAllProductItems(
   opts?: { status?: string; limit?: number; offset?: number; tenantId?: string; authToken?: string }
 ) {
@@ -261,9 +266,24 @@ export async function validateBatch(batchId: string) {
   return apiFetch<ImportItem[]>(IMPORTS.batches.itemsValidate(batchId), { method: 'POST' })
 }
 
-export async function promoteBatch(batchId: string) {
+export type PromoteBatchOptions = {
+  postAccounting?: boolean
+  paymentStatus?: 'pending' | 'paid'
+  paymentMethod?: 'cash' | 'bank' | 'card' | 'transfer' | 'direct_debit' | 'check' | 'other'
+  paidAt?: string // YYYY-MM-DD
+  save_as_products?: string // 'true' or 'false' for recipes
+}
+
+export async function promoteBatch(batchId: string, opts?: PromoteBatchOptions) {
+  const u = new URL(IMPORTS.batches.promote(batchId), window.location.origin)
+  if (opts?.postAccounting) u.searchParams.set('post_accounting', 'true')
+  if (opts?.paymentStatus) u.searchParams.set('payment_status', opts.paymentStatus)
+  if (opts?.paymentMethod) u.searchParams.set('payment_method', opts.paymentMethod)
+  if (opts?.paidAt) u.searchParams.set('paid_at', opts.paidAt)
+  if (opts?.save_as_products) u.searchParams.set('save_as_products', opts.save_as_products)
+
   return apiFetch<{ created: number; skipped: number; failed: number }>(
-    IMPORTS.batches.promote(batchId),
+    u.pathname + u.search,
     { method: 'POST' },
   )
 }
@@ -286,7 +306,7 @@ export async function downloadErrorsCsv(batchId: string) {
   const headers: HeadersInit = { }
   if (token) headers['Authorization'] = `Bearer ${token}`
 
-  const res = await fetch(`${API_URL}${IMPORTS.reports.errorsCsv(batchId)}`, {
+  const res = await fetch(`${API_ROOT}${IMPORTS.reports.errorsCsv(batchId)}`, {
     credentials: 'include',
     headers,
   })
@@ -303,7 +323,7 @@ export async function uploadBatchPhotos(batchId: string, files: File[]) {
   const headers: HeadersInit = { }
   if (token) headers['Authorization'] = `Bearer ${token}`
 
-  const res = await fetch(`${API_URL}${IMPORTS.reports.batchPhotos(batchId)}`, {
+  const res = await fetch(`${API_ROOT}${IMPORTS.reports.batchPhotos(batchId)}`, {
     method: 'POST',
     body: form,
     credentials: 'include',
@@ -322,7 +342,7 @@ export async function uploadItemPhotos(batchId: string, itemId: string, files: F
   const headers: HeadersInit = { }
   if (token) headers['Authorization'] = `Bearer ${token}`
 
-  const res = await fetch(`${API_URL}${IMPORTS.reports.itemPhotos(batchId, itemId)}`, {
+  const res = await fetch(`${API_ROOT}${IMPORTS.reports.itemPhotos(batchId, itemId)}`, {
     method: 'POST',
     body: form,
     credentials: 'include',

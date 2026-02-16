@@ -158,7 +158,9 @@ def process_ocr_job(job_id: UUID) -> dict[str, Any]:
     with session_scope() as db:
         job = db.query(ImportOCRJob).filter(ImportOCRJob.id == job_id).first()
         if not job:
-            raise ValueError(f"OCR job {job_id} not found")
+            # Idempotent behavior for stale/duplicate queue messages.
+            _LOGGER.warning("OCR job %s not found; skipping task", job_id)
+            return {"status": "skipped", "job_id": str(job_id), "reason": "not_found"}
         # Set tenant GUC if available
         try:
             set_tenant_guc(db, str(job.tenant_id), persist=False)

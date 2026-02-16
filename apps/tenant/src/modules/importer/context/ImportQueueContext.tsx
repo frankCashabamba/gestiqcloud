@@ -14,8 +14,11 @@ const env =
     ? (import.meta as any).env
     : ((globalThis as any).__IMPORTS_ENV__ || {})
 const OCR_RECHECK_DELAY_MS = Number(env.VITE_IMPORTS_JOB_RECHECK_INTERVAL ?? 2000)
+const OCR_MAX_POLL_ATTEMPTS = Number(env.VITE_IMPORTS_JOB_POLL_ATTEMPTS ?? 120)
+const OCR_MAX_WAIT_MS = Number(env.VITE_IMPORTS_JOB_MAX_WAIT_MS ?? 10 * 60 * 1000)
+const STORE_UPLOAD_FILES = String(env.VITE_IMPORTS_STORE_UPLOAD_FILES ?? '1').toLowerCase() !== '0'
 
-type Row = Record<string, string>
+type Row = Record<string, unknown>
 type ItemStatus = 'pending' | 'processing' | 'ready' | 'saving' | 'saved' | 'duplicate' | 'error'
 
 export type QueueItem = {
@@ -33,6 +36,8 @@ export type QueueItem = {
   mappingId?: string
   jobId?: string
   batchId?: string
+  ocrPollAttempts?: number
+  ocrStartedAt?: number
 }
 
 type ImportQueueContextType = {
@@ -115,6 +120,41 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
     })
   }, [])
 
+  const detectFileKind = useCallback((item: QueueItem): 'csv' | 'excel' | 'xml' | 'doc' | 'unknown' => {
+    const name = (item.name || '').toLowerCase()
+    const type = (item.type || '').toLowerCase()
+
+    const isCSV = name.endsWith('.csv') || type.includes('text/csv') || type.includes('application/csv')
+    if (isCSV) return 'csv'
+
+    const isXML = name.endsWith('.xml') || type.includes('xml')
+    if (isXML) return 'xml'
+
+    const isExcel =
+      name.endsWith('.xlsx') ||
+      name.endsWith('.xls') ||
+      type.includes('spreadsheetml.sheet') ||
+      type.includes('ms-excel') ||
+      type.includes('excel')
+    if (isExcel) return 'excel'
+
+    const isDocumentByName =
+      name.endsWith('.pdf') ||
+      name.endsWith('.png') ||
+      name.endsWith('.jpg') ||
+      name.endsWith('.jpeg') ||
+      name.endsWith('.webp') ||
+      name.endsWith('.bmp') ||
+      name.endsWith('.tif') ||
+      name.endsWith('.tiff') ||
+      name.endsWith('.heic') ||
+      name.endsWith('.heif')
+    const isDocumentByType = type.includes('pdf') || type.includes('image')
+    if (isDocumentByName || isDocumentByType) return 'doc'
+
+    return 'unknown'
+  }, [])
+
   const processItem = useCallback(
     async (item: QueueItem, mappings?: ImportMapping[], defaultMappingId?: string) => {
       if (processingRef.current.has(item.id)) return
@@ -122,9 +162,11 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
 
       updateQueue(item.id, { status: 'processing', error: null })
 
-          const isCSV = item.name.toLowerCase().endsWith('.csv')
-          const isExcel = item.name.toLowerCase().endsWith('.xlsx') || item.name.toLowerCase().endsWith('.xls')
-          const isDoc = item.type.includes('pdf') || item.type.includes('image')
+          const fileKind = detectFileKind(item)
+          const isCSV = fileKind === 'csv'
+          const isExcel = fileKind === 'excel'
+          const isXML = fileKind === 'xml'
+          const isDoc = fileKind === 'doc'
 
       try {
         if (isCSV) {
@@ -175,7 +217,7 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
 
             // Recetas requieren archivo en servidor para el fast-path del backend
             const thresholdMb = Number(env.VITE_IMPORTS_CHUNK_THRESHOLD_MB ?? 8)
-            if (docType === 'recipes' || item.size > thresholdMb * 1024 * 1024) {
+            if (STORE_UPLOAD_FILES && (docType === 'recipes' || item.size > thresholdMb * 1024 * 1024)) {
               updateQueue(item.id, { info: 'Subiendo archivo por partes...' })
               const res = await uploadExcelViaChunks(item.file, {
                 sourceType: docType || 'products',
@@ -222,17 +264,76 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
             return
           }
 
+        if (isXML) {
+          if (!STORE_UPLOAD_FILES) {
+            throw new Error('Importar XML requiere almacenamiento de archivos en servidor (VITE_IMPORTS_STORE_UPLOAD_FILES=1).')
+          }
+
+          // Infer best hint for dispatcher: xml_invoice vs xml_camt053_bank, etc.
+          let docType: ImportDocType = 'invoices'
+          try {
+            const xml = (await item.file.text()).slice(0, 200_000).toLowerCase()
+            if (
+              xml.includes('camt.053') ||
+              xml.includes('bktocstmrstmt') ||
+              xml.includes('cstmrstmt') ||
+              xml.includes('banktocus') ||
+              xml.includes('camt')
+            ) {
+              docType = 'bank'
+            } else if (
+              xml.includes('facturae') ||
+              xml.includes('<invoice') ||
+              xml.includes(':invoice') ||
+              xml.includes('invoice')
+            ) {
+              docType = 'invoices'
+            }
+          } catch {
+            docType = detectarTipoDocumento([item.name])
+          }
+
+          updateQueue(item.id, { info: 'Subiendo XML...' })
+          const res = await uploadExcelViaChunks(item.file, {
+            sourceType: docType,
+            onProgress: (pct) => updateQueue(item.id, { info: `Subiendo... ${pct}%` }),
+            authToken: token || undefined,
+          })
+          updateQueue(item.id, {
+            status: 'saved',
+            info: 'Procesando en segundo plano...',
+            batchId: res.batchId,
+            docType,
+          })
+          processingRef.current.delete(item.id)
+          return
+        }
+
         if (isDoc) {
           const response = item.jobId
             ? await pollOcrJob(item.jobId, token || undefined)
             : await processDocument(item.file, token || undefined)
 
           if (response.status === 'pending') {
+            const startedAt = item.ocrStartedAt || Date.now()
+            const nextPollAttempts = (item.ocrPollAttempts || 0) + 1
+            const elapsedMs = Date.now() - startedAt
+            const exceededAttempts = nextPollAttempts >= OCR_MAX_POLL_ATTEMPTS
+            const exceededTime = elapsedMs >= OCR_MAX_WAIT_MS
+
+            if (exceededAttempts || exceededTime) {
+              throw new Error(
+                'El OCR sigue en cola y no responde a tiempo. Verifica que el worker de importaciones este activo e intenta de nuevo.'
+              )
+            }
+
             updateQueue(item.id, {
               status: 'processing',
               error: null,
               info: 'Procesando documento OCR...',
               jobId: response.jobId,
+              ocrPollAttempts: nextPollAttempts,
+              ocrStartedAt: startedAt,
             })
 
             setTimeout(() => {
@@ -246,21 +347,20 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
 
           const documentos = Array.isArray(response.payload?.documentos) ? response.payload.documentos : []
           const headers = documentos.length ? Object.keys(documentos[0]) : []
-          const rows: Row[] = documentos.map((doc: Record<string, unknown>) => {
-            const result: Row = {}
-            headers.forEach((header) => {
-              result[header] = String(doc[header] ?? '')
-            })
-            return result
-          })
+          const rows: Row[] = documentos.map((doc: Record<string, unknown>) => ({ ...doc }))
 
-          const docType = normalizeDocType(documentos[0]?.documentoTipo as string)
+          const firstDoc = (documentos[0] || {}) as Record<string, unknown>
+          const docType = normalizeDocType(
+            (firstDoc.documentoTipo as string)
+            || (firstDoc.doc_type as string)
+            || (firstDoc.tipo as string)
+          )
           updateQueue(item.id, { status: 'ready', headers, rows, docType, error: null, info: null, jobId: response.jobId })
           await saveItem(item, headers, rows, docType)
           return
         }
 
-        throw new Error('Tipo de archivo no soportado')
+        throw new Error('Tipo de archivo no soportado. Usa CSV, Excel, XML, PDF o imagen.')
       } catch (err: any) {
         updateQueue(item.id, {
           status: 'error',
@@ -271,7 +371,7 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
         processingRef.current.delete(item.id)
       }
     },
-    [token, updateQueue]
+    [token, updateQueue, detectFileKind]
   )
 
   const saveItem = async (item: QueueItem, headers: string[], rows: Row[], docType: ImportDocType) => {

@@ -1,12 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import ImportadorLayout from '../components/ImportadorLayout'
 import {
   getBatch,
   listItems,
   patchItem,
   validateBatch,
-  promoteBatch,
   downloadErrorsCsv,
   uploadBatchPhotos,
   uploadItemPhotos,
@@ -40,6 +39,7 @@ const statusTone: Record<string, string> = {
 
 export default function BatchDetail() {
   const { id = '' } = useParams()
+  const navigate = useNavigate()
   const [batch, setBatch] = useState<any>(null)
   const [items, setItems] = useState<ImportItem[]>([])
   const [filters, setFilters] = useState<FilterState>({ status: '', q: '' })
@@ -92,11 +92,9 @@ export default function BatchDetail() {
     setMessageTone('success')
   }
 
-  async function onPromote() {
-    const res = await promoteBatch(id)
-    setMessage(`Promovidos: ${res.created}, omitidos: ${res.skipped}, con error: ${res.failed}`)
-    setMessageTone('success')
-    await load()
+  function onOpenPreview() {
+    if (!id) return
+    navigate(`../preview?batch_id=${encodeURIComponent(id)}`)
   }
 
   async function onDownloadCsv() {
@@ -210,10 +208,10 @@ export default function BatchDetail() {
           <button
             type="button"
             className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow hover:bg-blue-500"
-            onClick={onPromote}
+            onClick={onOpenPreview}
             disabled={loading}
           >
-            Promover validos
+            Abrir en Preview
           </button>
           <button
             type="button"

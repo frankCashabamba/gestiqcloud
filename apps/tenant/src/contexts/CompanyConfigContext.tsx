@@ -27,12 +27,14 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   ReactNode,
 } from 'react'
 import { apiFetch } from '../lib/http'
 import { useCompanySectorFullConfig as useCompanySectorFullConfigHook, SectorFullConfig, FeaturesConfig as SectorFeaturesConfig } from '../hooks/useCompanySectorFullConfig'
 import i18n, { normalizeLang } from '../i18n'
+import { useAuth } from '../auth/AuthContext'
 
 interface CompanyInfo {
   id: string
@@ -127,9 +129,11 @@ interface CompanyConfigContextValue {
 const CompanyConfigContext = createContext<CompanyConfigContextValue | undefined>(undefined)
 
 export function CompanyConfigProvider({ children }: { children: ReactNode }) {
+  const { token, loading: authLoading } = useAuth()
   const [config, setConfig] = useState<CompanyConfigData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const loadSeqRef = useRef(0)
 
   // NUEVO (Fase 2): Cargar configuración completa del sector
   const { config: sectorConfig, loading: sectorConfigLoading } = useCompanySectorFullConfigHook(
@@ -137,11 +141,22 @@ export function CompanyConfigProvider({ children }: { children: ReactNode }) {
   )
 
   const loadConfig = useCallback(async () => {
+    // Only fetch protected company config after auth bootstrap is finished.
+    if (authLoading) return
+    if (!token) {
+      setConfig(null)
+      setError(null)
+      setLoading(false)
+      return
+    }
+
+    const loadSeq = ++loadSeqRef.current
     try {
       setLoading(true)
       setError(null)
 
       const response = await apiFetch('/api/v1/company/settings/config') as any
+      if (loadSeq !== loadSeqRef.current) return
       const mapped: CompanyConfigData = {
         ...response,
         company: response?.tenant,
@@ -158,12 +173,20 @@ export function CompanyConfigProvider({ children }: { children: ReactNode }) {
       } catch {}
       setConfig(mapped)
     } catch (err: any) {
+      if (loadSeq !== loadSeqRef.current) return
+      if (err?.status === 401) {
+        setConfig(null)
+        setError(null)
+        return
+      }
       console.error('Error loading company config:', err)
-      setError(err.message || 'Error cargando configuracionón de la empresa')
+      setError(err.message || 'Error cargando configuracion de la empresa')
     } finally {
-      setLoading(false)
+      if (loadSeq === loadSeqRef.current) {
+        setLoading(false)
+      }
     }
-  }, [])
+  }, [authLoading, token])
 
   useEffect(() => {
     loadConfig()

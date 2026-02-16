@@ -6,6 +6,7 @@ import logging
 import signal
 import sys
 
+from app.config import env_loader as _env_loader  # noqa: F401
 from app.modules.imports.application.celery_app import celery_app
 
 logging.basicConfig(
@@ -28,14 +29,22 @@ if __name__ == "__main__":
 
     logger.info("Starting GestiQ Imports worker...")
 
+    is_windows = sys.platform.startswith("win")
     argv = [
         "worker",
         "--loglevel=info",
-        "--concurrency=4",
         "-Q",
         "imports_pre,imports_ocr,imports_ml,imports_etl,imports_val,imports_pub",
         "-n",
         "imports-worker@%h",
     ]
+
+    if is_windows:
+        # billiard/prefork is unstable on Windows (WinError 5/6 in child workers).
+        # Use solo pool for local development stability.
+        argv.extend(["--pool=solo", "--concurrency=1"])
+        logger.info("Windows detected: starting Celery imports worker with pool=solo")
+    else:
+        argv.extend(["--concurrency=4"])
 
     celery_app.worker_main(argv)

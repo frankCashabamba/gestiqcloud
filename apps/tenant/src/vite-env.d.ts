@@ -7,6 +7,7 @@ interface ImportMetaEnv {
   readonly VITE_IMPORTS_JOB_POLL_INTERVAL?: string
   readonly VITE_IMPORTS_JOB_POLL_ATTEMPTS?: string
   readonly VITE_IMPORTS_JOB_RECHECK_INTERVAL?: string
+  readonly VITE_IMPORTS_STORE_UPLOAD_FILES?: string
 }
 interface ImportMeta {
   readonly env: ImportMetaEnv

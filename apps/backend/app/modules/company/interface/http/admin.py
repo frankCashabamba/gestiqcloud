@@ -426,6 +426,7 @@ def impersonate_tenant(tenant_id: str, db: Session = Depends(get_db)):
 @router.delete("/{tenant_id}")
 def delete_company(
     tenant_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(with_access_claims),
 ):
@@ -438,6 +439,24 @@ def delete_company(
     company = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not company:
         raise HTTPException(status_code=404, detail="company_not_found")
+
+    # Safety guard in non-production environments:
+    # require explicit confirmation to prevent accidental destructive deletes.
+    if settings.ENVIRONMENT != "production":
+        allow_delete = str(os.getenv("ALLOW_DANGEROUS_COMPANY_DELETE", "0")).lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        confirm_header = (request.headers.get("X-Confirm-Delete-Tenant") or "").strip()
+        if not allow_delete and confirm_header != str(tenant_id):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "destructive_delete_blocked: set header X-Confirm-Delete-Tenant=<tenant_id> "
+                    "or ALLOW_DANGEROUS_COMPANY_DELETE=1 in controlled environments"
+                ),
+            )
 
     company_data = serialize_model(company)
 

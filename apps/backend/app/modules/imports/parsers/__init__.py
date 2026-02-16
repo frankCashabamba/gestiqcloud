@@ -52,12 +52,14 @@ def _register_parsers():
     from .csv_invoices import parse_csv_invoices
     from .csv_products import parse_csv_products
     from .generic_excel import parse_excel_generic
+    from .image_ocr import parse_image_ocr
     from .pdf_ocr import parse_pdf_ocr
     from .pdf_qr import parse_pdf_qr
     from .products_excel import parse_products_excel
     from .xlsx_bank import parse_xlsx_bank
     from .xlsx_expenses import parse_xlsx_expenses
     from .xlsx_invoices import parse_xlsx_invoices
+    from .xlsx_costing_products import parse_xlsx_costing_products
     from .xlsx_recipes import parse_xlsx_recipes
     from .xml_camt053_bank import parse_xml_camt053_bank
     from .xml_facturae import parse_facturae
@@ -128,6 +130,12 @@ def _register_parsers():
         "Excel parser for recipe costing sheets with ingredients and pricing",
     )
     registry.register(
+        "xlsx_costing_products",
+        DocType.PRODUCTS,
+        parse_xlsx_costing_products,
+        "PAN KUSI costing workbook parsed as products (suggested selling prices)",
+    )
+    registry.register(
         "xml_facturae",
         DocType.INVOICES,
         parse_facturae,
@@ -138,6 +146,12 @@ def _register_parsers():
         DocType.GENERIC,
         parse_pdf_ocr,
         "PDF parser with OCR for tickets, receipts, invoices and general documents",
+    )
+    registry.register(
+        "image_ocr",
+        DocType.GENERIC,
+        parse_image_ocr,
+        "Image parser with OCR for tickets, receipts, invoices and general documents",
     )
 
 

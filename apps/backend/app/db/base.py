@@ -47,5 +47,17 @@ try:
     import app.modules.production.infrastructure.models  # noqa: F401
 except Exception:
     pass
+try:
+    import app.models.core.event_outbox  # noqa: F401
+except Exception:
+    pass
+try:
+    import app.models.core.profit_snapshots  # noqa: F401
+except Exception:
+    pass
+try:
+    import app.models.core.document_storage  # noqa: F401
+except Exception:
+    pass
 
 target_metadata = Base.metadata
