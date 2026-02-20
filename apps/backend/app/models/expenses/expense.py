@@ -9,6 +9,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config.database import Base
 
+UUID = PGUUID(as_uuid=True)
+TENANT_UUID = UUID.with_variant(String(36), "sqlite")
+
 
 class Expense(Base):
     """Operational Expense"""
@@ -17,10 +20,10 @@ class Expense(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+        TENANT_UUID, primary_key=True, default=uuid.uuid4, index=True
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -38,7 +41,7 @@ class Expense(Base):
     vat: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     supplier_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
+        TENANT_UUID,
         ForeignKey("suppliers.id", ondelete="SET NULL"),
         nullable=True,
     )
@@ -55,7 +58,7 @@ class Expense(Base):
         index=True,
         # pending, paid, cancelled
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(TENANT_UUID, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
 

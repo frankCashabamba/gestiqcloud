@@ -30,6 +30,8 @@ export interface ProtectedButtonProps
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
   /** Contenido del botón */
   children: React.ReactNode
+  /** Si es true, no aplica estilos inline base/variant */
+  unstyled?: boolean
 }
 
 export default function ProtectedButton({
@@ -39,6 +41,7 @@ export default function ProtectedButton({
   onClick,
   children,
   className,
+  unstyled = false,
   ...rest
 }: ProtectedButtonProps) {
   const can = usePermission()
@@ -86,12 +89,16 @@ export default function ProtectedButton({
     onClick?.(e)
   }
 
+  const mergedStyle = unstyled
+    ? (rest.style as React.CSSProperties | undefined)
+    : ({ ...baseStyle, ...variantStyles[variant], ...(rest.style as React.CSSProperties | undefined) } as React.CSSProperties)
+
   return (
     <button
       {...rest}
       disabled={!hasAccess || rest.disabled}
       onClick={handleClick}
-      style={{ ...baseStyle, ...variantStyles[variant] }}
+      style={mergedStyle}
       className={className}
       title={!hasAccess ? `Permission denied: ${permissionLabel}` : ''}
     >

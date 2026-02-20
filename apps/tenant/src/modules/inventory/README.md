@@ -2,7 +2,7 @@
 
 ## 📋 Descripción
 
-Módulo profesional de gestión de inventario con control de stock, movimientos, alertas y valoración. Integrado 100% con módulo de Productos.
+Módulo profesional de gestión de inventario con control de stock, movimientos, alertas y valoración. Integrado con el módulo de Productos.
 
 ## 🏗️ Arquitectura
 
@@ -152,7 +152,7 @@ if (stock_item.qty < producto.stock_minimo) {
 
 ## 🔧 Backend - Endpoints
 
-### Base URL: `/api/v1/inventario`
+### Base URL: `/api/v1/tenant/inventory`
 
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
@@ -161,15 +161,11 @@ if (stock_item.qty < producto.stock_minimo) {
 | PUT | `/warehouses/:id` | Actualiza almacén |
 | DELETE | `/warehouses/:id` | Elimina almacén |
 | GET | `/stock` | Lista stock con filtros opcionales |
-| GET | `/stock/summary` | Resumen consolidado |
-| GET | `/stock/product/:id` | Stock de un producto |
-| GET | `/moves` | Historial de movimientos |
-| POST | `/moves` | Crea movimiento (auto-actualiza stock) |
-| POST | `/adjustment` | Ajuste batch (recuento físico) |
+| POST | `/stock/adjust` | Crea ajuste/movimiento (auto-actualiza stock) |
 | POST | `/stock/transfer` | Transferencia entre almacenes |
-| GET | `/kpis` | Métricas dashboard |
-| GET | `/valuation` | Valoración (FIFO/average/last) |
-| GET | `/export/stock` | Export CSV |
+| GET | `/alerts/configs` | Configuraciones de alertas |
+| POST | `/alerts/configs` | Crear configuración de alertas |
+| GET | `/alerts/history` | Historial de alertas |
 
 ## 🧪 Testing
 
@@ -267,12 +263,12 @@ curl -X POST http://localhost:8000/api/v1/tenant/products \
   -d '{"codigo":"TEST001","nombre":"Producto Test","precio":10,"stock_minimo":10,"activo":true}'
 
 # 2. Crear movimiento de entrada
-curl -X POST http://localhost:8000/api/v1/inventario/moves \
+curl -X POST http://localhost:8000/api/v1/tenant/inventory/stock/adjust \
   -H "Content-Type: application/json" \
   -d '{"product_id":"uuid-test","warehouse_id":1,"qty":50,"kind":"purchase"}'
 
 # 3. Ver en inventario
-curl http://localhost:8000/api/v1/inventario/stock?product_id=uuid-test
+curl http://localhost:8000/api/v1/tenant/inventory/stock?product_id=uuid-test
 
 # Resultado:
 # Stock creado con qty=50
@@ -405,5 +401,5 @@ await createWarehouse({
 ---
 
 **Versión:** 1.0.0
-**Estado:** ✅ Production Ready
-**Última actualización:** Octubre 2025
+**Estado:** Activo (validar cobertura con tests en CI)
+**Última revisión documental:** Febrero 2026

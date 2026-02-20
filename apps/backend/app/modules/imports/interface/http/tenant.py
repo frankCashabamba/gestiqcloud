@@ -9,6 +9,7 @@ import unicodedata
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
+from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
@@ -35,12 +36,18 @@ from app.models.core.modelsimport import (
     ImportOCRJob,
 )
 from app.models.core.products import Product
+from app.models.core.ui_field_config import TenantFieldConfig
 from app.models.imports import ImportColumnMapping
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.inventory.warehouse import Warehouse
 from app.models.purchases.purchase import Purchase, PurchaseLine
 from app.modules.imports.application.job_runner import enqueue_job
-from app.modules.imports.parsers.dispatcher import select_parser_for_file
+from app.modules.imports.parsers import registry as parser_registry
+from app.modules.imports.parsers.dispatcher import (
+    is_parser_compatible_with_extension,
+    select_fallback_parser_for_extension,
+    select_parser_for_file,
+)
 from app.modules.imports.schemas import (
     BatchCreate,
     BatchOut,
@@ -129,6 +136,133 @@ def _load_original_filename_from_file_key(file_key: str) -> str | None:
     except Exception:
         return None
     return None
+
+
+def _header_similarity_score(headers: list[str] | None, mapping: dict | None) -> tuple[float, int]:
+    """Compute similarity between detected headers and a saved mapping.
+
+    Supports both mapping orientations:
+    - source->target (expected by backend pipeline)
+    - target->source (legacy/frontend forms)
+    """
+    if not headers or not isinstance(mapping, dict):
+        return (0.0, 0)
+
+    def _norm_token(value: object) -> str:
+        if value is None:
+            return ""
+        s = str(value).strip()
+        if not s:
+            return ""
+        s = unicodedata.normalize("NFKD", s)
+        s = "".join(ch for ch in s if not unicodedata.combining(ch))
+        s = s.lower()
+        s = re.sub(r"[^a-z0-9]+", "_", s).strip("_")
+        return s
+
+    header_set = {_norm_token(h) for h in headers if _norm_token(h)}
+    if not header_set:
+        return (0.0, 0)
+
+    key_set = {_norm_token(k) for k in mapping.keys() if _norm_token(k)}
+    val_set = {
+        _norm_token(v)
+        for v in mapping.values()
+        if isinstance(v, str) and str(v).strip().lower() != "ignore" and _norm_token(v)
+    }
+
+    # Keep best orientation to stay backward compatible with mixed templates.
+    best_score = 0.0
+    best_overlap = 0
+    for candidate in (key_set, val_set):
+        if not candidate:
+            continue
+        overlap = len(header_set.intersection(candidate))
+        if overlap <= 0:
+            continue
+        # Main signal: fraction of mapped columns present in current file.
+        coverage = overlap / max(len(candidate), 1)
+        # Small bonus to favor richer intersections when coverage ties.
+        bonus = overlap / max(len(header_set), 1)
+        score = (coverage * 0.85) + (bonus * 0.15)
+        if score > best_score:
+            best_score = score
+            best_overlap = overlap
+    return (best_score, best_overlap)
+
+
+def _extract_headers_from_file_key(file_key: str) -> list[str]:
+    try:
+        from io import BytesIO
+
+        file_path = _file_path_from_key(file_key)
+        with open(file_path, "rb") as fh:
+            analysis = analyze_excel_stream(BytesIO(fh.read()))
+        headers = analysis.get("headers") or []
+        normalized = [str(h) for h in headers if str(h).strip()]
+        if normalized:
+            return normalized
+    except Exception:
+        pass
+    try:
+        # Fallback for legacy .xls or analyzer failures.
+        from app.modules.imports.parsers.generic_excel import parse_excel_generic  # type: ignore
+
+        file_path = _file_path_from_key(file_key)
+        parsed = parse_excel_generic(file_path)
+        headers = parsed.get("headers") or []
+        return [str(h) for h in headers if str(h).strip()]
+    except Exception:
+        return []
+
+
+def _resolve_best_column_mapping(
+    db: Session,
+    *,
+    tenant_id: str | UUID,
+    original_filename: str | None = None,
+    headers: list[str] | None = None,
+    min_similarity: float = 0.45,
+    min_overlap: int = 2,
+) -> tuple[ImportColumnMapping | None, str | None, float]:
+    """Resolve best mapping by file pattern first, then by header similarity."""
+    mappings = (
+        db.query(ImportColumnMapping)
+        .filter(ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active)  # noqa: E712
+        .order_by(
+            ImportColumnMapping.last_used_at.desc().nullslast(),
+            ImportColumnMapping.use_count.desc(),
+            ImportColumnMapping.created_at.desc(),
+        )
+        .all()
+    )
+    if not mappings:
+        return (None, None, 0.0)
+
+    if original_filename:
+        for m in mappings:
+            try:
+                if m.file_pattern and re.search(str(m.file_pattern), str(original_filename), re.I):
+                    return (m, "file_pattern", 1.0)
+            except Exception:
+                continue
+
+    if not headers:
+        return (None, None, 0.0)
+
+    best_obj: ImportColumnMapping | None = None
+    best_score = 0.0
+    best_overlap = 0
+    for m in mappings:
+        score, overlap = _header_similarity_score(headers, m.mapping or {})
+        if score > best_score or (score == best_score and overlap > best_overlap):
+            best_obj = m
+            best_score = score
+            best_overlap = overlap
+
+    if best_obj and best_score >= min_similarity and best_overlap >= min_overlap:
+        return (best_obj, "header_similarity", float(best_score))
+    return (None, None, 0.0)
 
 
 # ------------------------------
@@ -371,46 +505,29 @@ def create_batch_from_upload(
 
     original_filename = dto.original_filename or _load_original_filename_from_file_key(dto.file_key)
 
-    # Auto-pick mapping by file_pattern if not provided
+    # Auto-pick mapping by file_pattern or header similarity if not provided.
     auto_mapping_id = None
-    if not dto.mapping_id and (original_filename or ""):
+    if not dto.mapping_id:
         try:
-            from app.models.imports import ImportColumnMapping
-
-            patterns = (
-                db.query(ImportColumnMapping)
-                .filter(
-                    ImportColumnMapping.tenant_id == tenant_id,
-                    ImportColumnMapping.is_active,
-                    ImportColumnMapping.file_pattern.isnot(None),
-                )
-                .all()
+            headers_for_match = _extract_headers_from_file_key(dto.file_key)
+            best_mapping, _, _ = _resolve_best_column_mapping(
+                db,
+                tenant_id=tenant_id,
+                original_filename=original_filename,
+                headers=headers_for_match,
             )
-            import re as _re
-
-            for m in patterns:
-                try:
-                    if m.file_pattern and _re.search(
-                        str(m.file_pattern), str(original_filename), _re.I
-                    ):
-                        auto_mapping_id = str(m.id)
-                        break
-                except Exception:
-                    continue
+            if best_mapping:
+                auto_mapping_id = str(best_mapping.id)
         except Exception:
             pass
 
     # If no mapping matches, try to auto-suggest one from headers and persist it.
     if not dto.mapping_id and not auto_mapping_id:
         try:
-            from io import BytesIO
-
             from app.modules.imports.application.transform_suggest import suggest_mapping
 
             file_path = _file_path_from_key(dto.file_key)
-            with open(file_path, "rb") as fh:
-                analysis = analyze_excel_stream(BytesIO(fh.read()))
-            headers = analysis.get("headers") or []
+            headers = _extract_headers_from_file_key(dto.file_key)
             if headers:
                 mapping, transforms, defaults, _confidence = suggest_mapping(headers)
                 if mapping:
@@ -531,10 +648,18 @@ def start_excel_import(batch_id: UUID, request: Request, db: Session = Depends(g
     batch = (
         db.query(ImportBatch)
         .filter(ImportBatch.id == batch_id, ImportBatch.tenant_id == tenant_id)
+        .with_for_update()
         .first()
     )
     if not batch or not batch.file_key:
         raise HTTPException(status_code=404, detail="batch_not_found_or_no_file")
+    if str(getattr(batch, "status", "")) == "PARSING":
+        return {
+            "task_id": None,
+            "status": "already_enqueued",
+            "parser_id": getattr(batch, "parser_id", None),
+            "doc_type": getattr(batch, "source_type", None),
+        }
 
     # Ensure mapping is auto-picked on reprocess if missing.
     if not getattr(batch, "mapping_id", None):
@@ -542,37 +667,47 @@ def start_excel_import(batch_id: UUID, request: Request, db: Session = Depends(g
             original_filename = getattr(
                 batch, "original_filename", None
             ) or _load_original_filename_from_file_key(batch.file_key)
-            if original_filename:
-                patterns = (
-                    db.query(ImportColumnMapping)
-                    .filter(
-                        ImportColumnMapping.tenant_id == tenant_id,
-                        ImportColumnMapping.is_active,
-                        ImportColumnMapping.file_pattern.isnot(None),
-                    )
-                    .all()
-                )
-                for m in patterns:
-                    try:
-                        if m.file_pattern and re.search(
-                            str(m.file_pattern), str(original_filename), re.I
-                        ):
-                            batch.mapping_id = m.id
-                            db.add(batch)
-                            db.commit()
-                            break
-                    except Exception:
-                        continue
+            headers_for_match = _extract_headers_from_file_key(batch.file_key)
+            best_mapping, _, _ = _resolve_best_column_mapping(
+                db,
+                tenant_id=tenant_id,
+                original_filename=original_filename,
+                headers=headers_for_match,
+            )
+            if best_mapping:
+                batch.mapping_id = best_mapping.id
+                db.add(batch)
+                db.commit()
         except Exception:
             db.rollback()
 
     file_path = _file_path_from_key(batch.file_key)
     ext = Path(file_path).suffix.lower()
-    parser_id, detected_doc_type = select_parser_for_file(
-        file_path,
-        hinted_doc_type=batch.source_type,
-        original_filename=getattr(batch, "original_filename", None),
+    selected_parser = (getattr(batch, "parser_id", None) or "").strip() or None
+    parser_user_confirmed = bool(getattr(batch, "confirmed_at", None)) or bool(
+        getattr(batch, "user_override", False)
     )
+    selected_ext = Path(getattr(batch, "original_filename", None) or file_path).suffix.lower()
+    if (
+        parser_user_confirmed
+        and selected_parser
+        and is_parser_compatible_with_extension(selected_parser, selected_ext)
+    ):
+        parser_id = selected_parser
+        parser_info = parser_registry.get_parser(parser_id)
+        detected_doc_type = (
+            parser_info["doc_type"] if parser_info else (batch.source_type or "generic")
+        )
+    else:
+        parser_id, detected_doc_type = select_parser_for_file(
+            file_path,
+            hinted_doc_type=batch.source_type,
+            original_filename=getattr(batch, "original_filename", None),
+        )
+        if not is_parser_compatible_with_extension(parser_id, selected_ext):
+            parser_id, detected_doc_type = select_fallback_parser_for_extension(
+                selected_ext,
+            )
 
     # Persistimos sugerencia de parser y doc_type detectado en batch si no está seteado
     try:
@@ -591,6 +726,15 @@ def start_excel_import(batch_id: UUID, request: Request, db: Session = Depends(g
         "parser_id": parser_id,
     }
     use_products_task = parser_id == "products_excel" and ext in (".xlsx", ".xls", ".xlsm", ".xlsb")
+    # Reserve the batch before enqueuing to avoid duplicate starts for the same batch.
+    try:
+        if str(getattr(batch, "status", "")) != "PARSING":
+            batch.status = "PARSING"
+            db.add(batch)
+            db.commit()
+            db.refresh(batch)
+    except Exception:
+        db.rollback()
     if RUNNER_MODE != "celery":
         if use_products_task:
             result = import_products_excel.run(
@@ -671,7 +815,7 @@ async def suggest_mapping_endpoint(
 
         import httpx  # type: ignore
 
-        ollama_url = os.getenv("OLLAMA_URL")
+        ollama_url = os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_URL")
         if ollama_url and ollama_url.startswith("http"):
             prompt = (
                 "Sugiere un mapeo JSON de columnas de Excel a campos del sistema"
@@ -890,6 +1034,7 @@ async def parse_excel(
         data = await file.read()
         if not data:
             raise HTTPException(status_code=400, detail="Archivo vac????o")
+        is_legacy_xls = bool(file.filename and file.filename.lower().endswith(".xls"))
 
         # Prefer openpyxl for xlsx to honor header row detection and merged cells.
         try:
@@ -920,18 +1065,100 @@ async def parse_excel(
             # Fallback to pandas for other formats or if openpyxl fails.
             import pandas as pd  # type: ignore
 
+            def _detect_header_row(df_raw):
+                keywords = [
+                    "fecha",
+                    "factura",
+                    "cliente",
+                    "producto",
+                    "cantidad",
+                    "precio",
+                    "subtotal",
+                    "iva",
+                    "total",
+                    "tipo",
+                    "codigo",
+                    "descripcion",
+                ]
+                max_scan = min(len(df_raw.index), 40)
+                best_idx = 0
+                best_score = -(10**9)
+                for idx in range(max_scan):
+                    values = [str(v).strip() for v in df_raw.iloc[idx].tolist()]
+                    non_empty = [v for v in values if v and v.lower() != "nan"]
+                    if len(non_empty) < 2:
+                        continue
+                    lowered = " ".join(v.lower() for v in non_empty)
+                    kw_hits = sum(1 for kw in keywords if kw in lowered)
+                    unnamed_penalty = sum(1 for v in non_empty if v.lower().startswith("unnamed"))
+                    score = len(non_empty) + (kw_hits * 4) - (unnamed_penalty * 2)
+                    if score > best_score:
+                        best_score = score
+                        best_idx = idx
+                return best_idx
+
+            def _build_headers(raw_headers):
+                headers = []
+                seen: dict[str, int] = {}
+                for i, value in enumerate(raw_headers):
+                    header = str(value).strip()
+                    if (
+                        not header
+                        or header.lower() == "nan"
+                        or header.lower().startswith("unnamed")
+                    ):
+                        header = f"col_{i + 1}"
+                    if header in seen:
+                        seen[header] += 1
+                        header = f"{header}_{seen[header]}"
+                    else:
+                        seen[header] = 1
+                    headers.append(header)
+                return headers
+
             with BytesIO(data) as bio:
-                try:
-                    df = pd.read_excel(bio, engine=None)
-                except Exception:
-                    df = pd.read_excel(bio, engine="openpyxl")
+                if is_legacy_xls:
+                    try:
+                        df = pd.read_excel(bio, engine="xlrd", header=None)
+                    except ImportError as e:
+                        raise HTTPException(
+                            status_code=422,
+                            detail=(
+                                "No se puede leer .xls antiguo: falta dependencia 'xlrd'. "
+                                "Convierte el archivo a .xlsx/.csv o instala xlrd en backend."
+                            ),
+                        ) from e
+                    except Exception as e:
+                        raise HTTPException(
+                            status_code=422,
+                            detail=(
+                                "No se pudo leer el archivo .xls. "
+                                "Convierte a .xlsx/.csv e intenta nuevamente."
+                            ),
+                        ) from e
+                else:
+                    try:
+                        df = pd.read_excel(bio, engine=None, header=None)
+                    except Exception:
+                        df = pd.read_excel(bio, engine="openpyxl", header=None)
 
             df = df.fillna("")
-            headers = [str(h) for h in list(df.columns)]
-            rows = [
-                {str(col): str(val) for col, val in row.items()}
-                for row in df.to_dict(orient="records")
-            ]
+            if df.empty:
+                return {"headers": [], "rows": []}
+
+            header_row_idx = _detect_header_row(df)
+            headers = _build_headers(df.iloc[header_row_idx].tolist())
+            rows = []
+            for row_idx in range(header_row_idx + 1, len(df.index)):
+                vals = df.iloc[row_idx].tolist()
+                if not any(str(v).strip() and str(v).lower() != "nan" for v in vals):
+                    continue
+                row_dict = {}
+                for col_idx, header in enumerate(headers):
+                    val = vals[col_idx] if col_idx < len(vals) else ""
+                    text = "" if str(val).lower() == "nan" else str(val)
+                    row_dict[header] = text
+                rows.append(row_dict)
             return {"headers": headers, "rows": rows}
     except ImportError as e:
         raise HTTPException(
@@ -941,7 +1168,7 @@ async def parse_excel(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"No se pudo leer el Excel: {e}") from e
+        raise HTTPException(status_code=400, detail=f"No se pudo procesar Excel: {e}") from e
 
 
 @router.get("/jobs/{job_id}", response_model=OCRJobStatusResponse)
@@ -1312,19 +1539,34 @@ def ingest_rows_endpoint(
         except ValueError:
             pass
 
-        mp = (
-            db.query(ImportMapping)
+        cm = (
+            db.query(ImportColumnMapping)
             .filter(
-                ImportMapping.id == mapping_id_val,
-                ImportMapping.tenant_id == tenant_id,
-                ImportMapping.source_type == batch.source_type,
+                ImportColumnMapping.id == mapping_id_val,
+                ImportColumnMapping.tenant_id == tenant_id,
+                ImportColumnMapping.is_active,
             )
             .first()
         )
-        if mp:
-            mappings = mp.mappings or mappings
-            transforms = mp.transforms or transforms
-            defaults = mp.defaults or defaults
+        if cm:
+            mappings = (cm.mapping or {}) or mappings
+            transforms = (cm.transforms or {}) or transforms
+            defaults = (cm.defaults or {}) or defaults
+        else:
+            # Backward compatibility with old import_mappings table.
+            mp = (
+                db.query(ImportMapping)
+                .filter(
+                    ImportMapping.id == mapping_id_val,
+                    ImportMapping.tenant_id == tenant_id,
+                    ImportMapping.source_type == batch.source_type,
+                )
+                .first()
+            )
+            if mp:
+                mappings = mp.mappings or mappings
+                transforms = mp.transforms or transforms
+                defaults = mp.defaults or defaults
 
     # Limit number of rows per ingest (413 on overflow)
     import logging
@@ -1564,11 +1806,43 @@ def set_batch_mapping_endpoint(
     if not batch:
         raise HTTPException(status_code=404, detail="batch_not_found")
     try:
-        batch.mapping_id = UUID(str(dto.mapping_id))
+        mapping_uuid = UUID(str(dto.mapping_id))
+        batch.mapping_id = mapping_uuid
     except Exception as e:
         raise HTTPException(status_code=400, detail="invalid_mapping_id") from e
     db.add(batch)
     db.commit()
+
+    # Learn from explicit user-approved mapping reassignment.
+    try:
+        mapping_obj = (
+            db.query(ImportColumnMapping)
+            .filter(
+                ImportColumnMapping.id == mapping_uuid,
+                ImportColumnMapping.tenant_id == tenant_id,
+            )
+            .first()
+        )
+        if mapping_obj and isinstance(mapping_obj.mapping, dict):
+            from app.modules.imports.domain.mapping_feedback import MappingFeedback, mapping_learner
+
+            feedback = MappingFeedback(
+                tenant_id=tenant_id,
+                batch_id=batch_id,
+                doc_type=str(batch.source_type or "products"),
+                headers=list(mapping_obj.mapping.keys()),
+            )
+            for source_field, canonical in mapping_obj.mapping.items():
+                if canonical and canonical != "ignore":
+                    feedback.mark_field_correct(
+                        source_field=str(source_field),
+                        canonical=str(canonical),
+                        confidence=0.9,
+                    )
+            if feedback.field_feedbacks:
+                mapping_learner.record_feedback(feedback)
+    except Exception as e:
+        logger.warning(f"mapping learning skipped on set-mapping: {e}")
     return OkResponse()
 
 
@@ -1959,23 +2233,39 @@ def analyze_file_endpoint(
         .all()
     )
 
-    saved = [
-        {
-            "id": str(m.id),
-            "name": m.name,
-            "description": m.description,
-            "mapping": m.mapping or {},
-            "transforms": m.transforms or {},
-            "defaults": m.defaults or {},
-            "file_pattern": m.file_pattern,
-            "use_count": int(m.use_count or 0),
-            "last_used_at": m.last_used_at.isoformat() if m.last_used_at else None,
-            "created_at": m.created_at.isoformat() if m.created_at else None,
-        }
-        for m in mappings
-    ]
+    detected_headers = [str(h) for h in (analysis.get("headers") or []) if str(h).strip()]
+    saved = []
+    for m in mappings:
+        similarity, overlap = _header_similarity_score(detected_headers, m.mapping or {})
+        saved.append(
+            {
+                "id": str(m.id),
+                "name": m.name,
+                "description": m.description,
+                "mapping": m.mapping or {},
+                "transforms": m.transforms or {},
+                "defaults": m.defaults or {},
+                "file_pattern": m.file_pattern,
+                "use_count": int(m.use_count or 0),
+                "last_used_at": m.last_used_at.isoformat() if m.last_used_at else None,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+                "header_similarity": round(float(similarity), 4),
+                "header_overlap": int(overlap),
+            }
+        )
+
+    best_mapping, matched_by, best_score = _resolve_best_column_mapping(
+        db,
+        tenant_id=tenant_id,
+        original_filename=file.filename,
+        headers=detected_headers,
+    )
 
     analysis["saved_mappings"] = saved
+    analysis["best_mapping_id"] = str(best_mapping.id) if best_mapping else None
+    analysis["best_mapping_name"] = best_mapping.name if best_mapping else None
+    analysis["best_mapping_match"] = matched_by
+    analysis["best_mapping_score"] = round(float(best_score), 4) if best_mapping else 0.0
     return analysis
 
 
@@ -2019,6 +2309,107 @@ class CreateColumnMappingDTO(BaseModel):
     defaults: dict | None = None
 
 
+_IMPORT_ALIAS_DOC_TYPES = {
+    "invoices",
+    "bank_transactions",
+    "products",
+    "generic",
+    "expenses",
+}
+
+
+def _module_for_import_aliases(doc_type: str) -> str:
+    dt = str(doc_type or "").strip().lower()
+    if dt not in _IMPORT_ALIAS_DOC_TYPES:
+        raise HTTPException(status_code=422, detail="unsupported_doc_type")
+    return f"imports_{dt}"
+
+
+class ImportAliasFieldIn(BaseModel):
+    field: str
+    aliases: list[str] = []
+    field_type: str | None = None
+    required: bool = False
+
+
+class ImportAliasConfigIn(BaseModel):
+    doc_type: str
+    fields: list[ImportAliasFieldIn]
+
+
+@router.get("/field-aliases")
+def get_import_field_aliases(
+    request: Request,
+    doc_type: str = Query(..., description="invoices|bank_transactions|products|generic|expenses"),
+    db: Session = Depends(get_db),
+):
+    claims = _get_claims(request)
+    if not bool(claims.get("is_admin_company")):
+        raise HTTPException(status_code=403, detail="admin_company_required")
+    tenant_id = claims.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="tenant_id_missing")
+
+    module = _module_for_import_aliases(doc_type)
+    rows = (
+        db.query(TenantFieldConfig)
+        .filter(TenantFieldConfig.tenant_id == tenant_id, TenantFieldConfig.module == module)
+        .order_by(TenantFieldConfig.ord.asc().nulls_last(), TenantFieldConfig.field.asc())
+        .all()
+    )
+    return {
+        "doc_type": doc_type,
+        "module": module,
+        "fields": [
+            {
+                "field": r.field,
+                "aliases": r.aliases or [],
+                "field_type": r.field_type,
+                "required": bool(r.required),
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.put("/field-aliases")
+def put_import_field_aliases(
+    payload: ImportAliasConfigIn,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    claims = _get_claims(request)
+    if not bool(claims.get("is_admin_company")):
+        raise HTTPException(status_code=403, detail="admin_company_required")
+    tenant_id = claims.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="tenant_id_missing")
+
+    module = _module_for_import_aliases(payload.doc_type)
+    db.query(TenantFieldConfig).filter(
+        TenantFieldConfig.tenant_id == tenant_id,
+        TenantFieldConfig.module == module,
+    ).delete()
+    for idx, item in enumerate(payload.fields):
+        field = (item.field or "").strip()
+        if not field:
+            continue
+        aliases = [str(a).strip() for a in (item.aliases or []) if str(a).strip()]
+        row = TenantFieldConfig(
+            tenant_id=tenant_id,
+            module=module,
+            field=field,
+            visible=True,
+            required=bool(item.required),
+            ord=idx + 1,
+            aliases=aliases,
+            field_type=item.field_type,
+        )
+        db.add(row)
+    db.commit()
+    return {"ok": True, "doc_type": payload.doc_type, "module": module}
+
+
 @router.post("/column-mappings")
 def create_column_mapping_endpoint(
     dto: CreateColumnMappingDTO,
@@ -2048,6 +2439,33 @@ def create_column_mapping_endpoint(
     db.add(m)
     db.commit()
     db.refresh(m)
+
+    # Learn from manually saved mapping templates (user-curated signal).
+    try:
+        from app.modules.imports.domain.mapping_feedback import MappingFeedback, mapping_learner
+
+        inferred_doc_type = "products"
+        target_values = {str(v) for v in (dto.mapping or {}).values() if v and v != "ignore"}
+        if any(v in target_values for v in ("expense_date", "amount", "payment_method")):
+            inferred_doc_type = "expenses"
+        elif any(v in target_values for v in ("invoice_number", "issue_date", "vendor_name")):
+            inferred_doc_type = "invoices"
+        elif any(v in target_values for v in ("value_date", "narrative", "balance")):
+            inferred_doc_type = "bank_transactions"
+
+        feedback = MappingFeedback(
+            tenant_id=tenant_id,
+            doc_type=inferred_doc_type,
+            headers=list((dto.mapping or {}).keys()),
+        )
+        for source_field, canonical in (dto.mapping or {}).items():
+            if canonical and canonical != "ignore":
+                feedback.mark_field_correct(str(source_field), str(canonical), confidence=0.85)
+        if feedback.field_feedbacks:
+            mapping_learner.record_feedback(feedback)
+    except Exception as e:
+        logger.warning(f"mapping learning skipped on save-mapping: {e}")
+
     return {
         "id": str(m.id),
         "name": m.name,
@@ -2507,20 +2925,20 @@ def promote_batch_endpoint(
 ):
     from app.modules.imports.application import use_cases
     from app.modules.imports.infrastructure.repositories import ImportsRepository
-    
+
     claims = _get_claims(request)
     # tenant_id is now UUID, not int
     tenant_id = claims.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
-    
+
     # Special handling for recipes
     def to_uuid_safe(value):
         try:
             return value if isinstance(value, UUID) else UUID(str(value))
         except Exception:
             return None
-    
+
     repo = ImportsRepository()
     batch_uuid = to_uuid_safe(batch_id)
     if not batch_uuid:
@@ -2532,19 +2950,19 @@ def promote_batch_endpoint(
             _persist_recipes,
         )
         from app.modules.imports.parsers.xlsx_recipes import parse_xlsx_recipes
-        
+
         file_path = _file_path_from_key(batch.file_key) if batch.file_key else None
         if not file_path or not os.path.exists(file_path):
             raise HTTPException(status_code=400, detail="Recipe file not found for batch")
-        
+
         parsed = parse_xlsx_recipes(file_path)
         result = _persist_recipes(db, tenant_id, parsed)
-        
+
         # Optionally save ingredients as products
-        if save_as_products == 'true' and result.get("created", 0) > 0:
+        if save_as_products == "true" and result.get("created", 0) > 0:
             # Already handled by _persist_recipes
             pass
-        
+
         batch.status = "READY" if result.get("errors", 0) == 0 else "PARTIAL"
         db.add(batch)
         db.commit()
@@ -2553,7 +2971,7 @@ def promote_batch_endpoint(
             "skipped": 0,
             "failed": result.get("errors", 0),
         }
-    
+
     options = {
         "allow_missing_price": allow_missing_price if auto else False,
         "activate": activate if auto else False,
@@ -2564,7 +2982,7 @@ def promote_batch_endpoint(
         "payment_status": payment_status,
         "payment_method": payment_method,
         "paid_at": paid_at,
-        "save_as_products": save_as_products == 'true' if save_as_products else False,
+        "save_as_products": save_as_products == "true" if save_as_products else False,
     }
     if create_purchase:
         options["skip_stock_init"] = True
@@ -2714,7 +3132,7 @@ def reprocess_batch(
 # ------------------------------
 
 
-@router.post("/analyze-file")
+@router.post("/_legacy/analyze-file")
 async def analyze_import_file(
     file: UploadFile = File(...), request: Request = None, db: Session = Depends(get_db)
 ):
@@ -2780,7 +3198,7 @@ async def analyze_import_file(
 # ------------------------------
 
 
-@router.post("/column-mappings")
+@router.post("/_legacy/column-mappings")
 def create_column_mapping(
     name: str,
     mapping: dict[str, str],
@@ -2846,7 +3264,7 @@ def create_column_mapping(
     }
 
 
-@router.get("/column-mappings")
+@router.get("/_legacy/column-mappings")
 def list_column_mappings(request: Request, db: Session = Depends(get_db)):
     """Lista todos los mapeos guardados del tenant"""
     claims = _get_claims(request)
@@ -2883,7 +3301,7 @@ def list_column_mappings(request: Request, db: Session = Depends(get_db)):
     ]
 
 
-@router.delete("/column-mappings/{mapping_id}")
+@router.delete("/_legacy/column-mappings/{mapping_id}")
 def delete_column_mapping(mapping_id: str, request: Request, db: Session = Depends(get_db)):
     """Elimina (soft delete) un mapeo guardado"""
     claims = _get_claims(request)
@@ -2918,22 +3336,37 @@ def create_mapping(dto: ImportMappingCreate, request: Request, db: Session = Dep
     claims = _get_claims(request)
     # tenant_id is now UUID, not int
     tenant_id = claims.get("tenant_id")
+    user_id = claims.get("user_id")
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
-    obj = ImportMapping(
+
+    from uuid import uuid4
+
+    obj = ImportColumnMapping(
+        id=uuid4(),
         tenant_id=tenant_id,
         name=dto.name,
-        source_type=dto.source_type,
-        version=dto.version,
-        mappings=dto.mappings,
-        transforms=dto.transforms,
-        defaults=dto.defaults,
-        dedupe_keys=dto.dedupe_keys,
+        description=f"compat:/mappings source_type={dto.source_type}",
+        mapping=dto.mappings or {},
+        transforms=dto.transforms or {},
+        defaults=dto.defaults or {},
+        created_by=user_id,
     )
     db.add(obj)
     db.commit()
     db.refresh(obj)
-    return obj
+    return {
+        "id": obj.id,
+        "tenant_id": obj.tenant_id,
+        "name": obj.name,
+        "source_type": dto.source_type,
+        "version": dto.version or 1,
+        "mappings": obj.mapping or {},
+        "transforms": obj.transforms or {},
+        "defaults": obj.defaults or {},
+        "dedupe_keys": dto.dedupe_keys,
+        "created_at": obj.created_at,
+    }
 
 
 @router.get("/mappings", response_model=list[ImportMappingOut])
@@ -2944,14 +3377,34 @@ def list_mappings(request: Request, db: Session = Depends(get_db), source_type: 
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
 
-    try:
-        q = db.query(ImportMapping).filter(ImportMapping.tenant_id == tenant_id)
-        if source_type:
-            q = q.filter(ImportMapping.source_type == source_type)
-        return q.order_by(ImportMapping.created_at.desc()).all()
-    except Exception:
-        # Tabla import_mappings no existe aÃºn
-        return []
+    items = (
+        db.query(ImportColumnMapping)
+        .filter(ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active)  # noqa: E712
+        .order_by(ImportColumnMapping.created_at.desc())
+        .all()
+    )
+    out = []
+    for m in items:
+        mapped_source_type = source_type or "generic"
+        if source_type and m.description:
+            marker = f"source_type={source_type}"
+            if marker not in m.description:
+                continue
+        out.append(
+            {
+                "id": m.id,
+                "tenant_id": m.tenant_id,
+                "name": m.name,
+                "source_type": mapped_source_type,
+                "version": 1,
+                "mappings": m.mapping or {},
+                "transforms": m.transforms or {},
+                "defaults": m.defaults or {},
+                "dedupe_keys": None,
+                "created_at": m.created_at,
+            }
+        )
+    return out
 
 
 @router.get("/mappings/{mapping_id}", response_model=ImportMappingOut)
@@ -2962,13 +3415,34 @@ def get_mapping(mapping_id: UUID, request: Request, db: Session = Depends(get_db
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
     obj = (
-        db.query(ImportMapping)
-        .filter(ImportMapping.id == mapping_id, ImportMapping.tenant_id == tenant_id)
+        db.query(ImportColumnMapping)
+        .filter(
+            ImportColumnMapping.id == mapping_id,
+            ImportColumnMapping.tenant_id == tenant_id,
+            ImportColumnMapping.is_active,
+        )
         .first()
     )
     if not obj:
         raise HTTPException(status_code=404, detail="Mapping no encontrado")
-    return obj
+    source_type = "generic"
+    if obj.description and "source_type=" in obj.description:
+        try:
+            source_type = obj.description.split("source_type=", 1)[1].split()[0].strip()
+        except Exception:
+            source_type = "generic"
+    return {
+        "id": obj.id,
+        "tenant_id": obj.tenant_id,
+        "name": obj.name,
+        "source_type": source_type,
+        "version": 1,
+        "mappings": obj.mapping or {},
+        "transforms": obj.transforms or {},
+        "defaults": obj.defaults or {},
+        "dedupe_keys": None,
+        "created_at": obj.created_at,
+    }
 
 
 @router.put("/mappings/{mapping_id}", response_model=ImportMappingOut)
@@ -2984,28 +3458,45 @@ def update_mapping(
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
     obj = (
-        db.query(ImportMapping)
-        .filter(ImportMapping.id == mapping_id, ImportMapping.tenant_id == tenant_id)
+        db.query(ImportColumnMapping)
+        .filter(
+            ImportColumnMapping.id == mapping_id,
+            ImportColumnMapping.tenant_id == tenant_id,
+            ImportColumnMapping.is_active,
+        )
         .first()
     )
     if not obj:
         raise HTTPException(status_code=404, detail="Mapping no encontrado")
     if dto.name is not None:
         obj.name = dto.name
-    if dto.version is not None:
-        obj.version = dto.version
     if dto.mappings is not None:
-        obj.mappings = dto.mappings
+        obj.mapping = dto.mappings
     if dto.transforms is not None:
         obj.transforms = dto.transforms
     if dto.defaults is not None:
         obj.defaults = dto.defaults
-    if dto.dedupe_keys is not None:
-        obj.dedupe_keys = dto.dedupe_keys
     db.add(obj)
     db.commit()
     db.refresh(obj)
-    return obj
+    source_type = "generic"
+    if obj.description and "source_type=" in obj.description:
+        try:
+            source_type = obj.description.split("source_type=", 1)[1].split()[0].strip()
+        except Exception:
+            source_type = "generic"
+    return {
+        "id": obj.id,
+        "tenant_id": obj.tenant_id,
+        "name": obj.name,
+        "source_type": source_type,
+        "version": dto.version or 1,
+        "mappings": obj.mapping or {},
+        "transforms": obj.transforms or {},
+        "defaults": obj.defaults or {},
+        "dedupe_keys": dto.dedupe_keys,
+        "created_at": obj.created_at,
+    }
 
 
 @router.post("/mappings/{mapping_id}/clone", response_model=ImportMappingOut)
@@ -3015,27 +3506,50 @@ def clone_mapping(mapping_id: UUID, request: Request, db: Session = Depends(get_
     tenant_id = claims.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
+    from uuid import uuid4
+
     src = (
-        db.query(ImportMapping)
-        .filter(ImportMapping.id == mapping_id, ImportMapping.tenant_id == tenant_id)
+        db.query(ImportColumnMapping)
+        .filter(
+            ImportColumnMapping.id == mapping_id,
+            ImportColumnMapping.tenant_id == tenant_id,
+            ImportColumnMapping.is_active,
+        )
         .first()
     )
     if not src:
         raise HTTPException(status_code=404, detail="Mapping no encontrado")
-    clone = ImportMapping(
+    clone = ImportColumnMapping(
+        id=uuid4(),
         tenant_id=tenant_id,
         name=f"{src.name} (copia)",
-        source_type=src.source_type,
-        version=(src.version or 1) + 1,
-        mappings=src.mappings,
+        description=src.description,
+        mapping=src.mapping,
         transforms=src.transforms,
         defaults=src.defaults,
-        dedupe_keys=src.dedupe_keys,
+        created_by=claims.get("user_id"),
     )
     db.add(clone)
     db.commit()
     db.refresh(clone)
-    return clone
+    source_type = "generic"
+    if clone.description and "source_type=" in clone.description:
+        try:
+            source_type = clone.description.split("source_type=", 1)[1].split()[0].strip()
+        except Exception:
+            source_type = "generic"
+    return {
+        "id": clone.id,
+        "tenant_id": clone.tenant_id,
+        "name": clone.name,
+        "source_type": source_type,
+        "version": 1,
+        "mappings": clone.mapping or {},
+        "transforms": clone.transforms or {},
+        "defaults": clone.defaults or {},
+        "dedupe_keys": None,
+        "created_at": clone.created_at,
+    }
 
 
 @router.delete("/mappings/{mapping_id}", response_model=OkResponse)
@@ -3046,13 +3560,18 @@ def delete_mapping(mapping_id: UUID, request: Request, db: Session = Depends(get
     if not tenant_id:
         raise HTTPException(status_code=401, detail="tenant_id_missing")
     obj = (
-        db.query(ImportMapping)
-        .filter(ImportMapping.id == mapping_id, ImportMapping.tenant_id == tenant_id)
+        db.query(ImportColumnMapping)
+        .filter(
+            ImportColumnMapping.id == mapping_id,
+            ImportColumnMapping.tenant_id == tenant_id,
+            ImportColumnMapping.is_active,
+        )
         .first()
     )
     if not obj:
         raise HTTPException(status_code=404, detail="Mapping no encontrado")
-    db.delete(obj)
+    obj.is_active = False
+    db.add(obj)
     db.commit()
     return OkResponse()
 

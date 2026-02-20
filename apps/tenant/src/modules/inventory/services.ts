@@ -1,5 +1,7 @@
 // apps/tenant/src/modules/inventario/services.ts
 import { apiFetch } from '../../lib/http'
+import { queueDeletion, storeEntity } from '../../lib/offlineStore'
+import { createOfflineTempId, isNetworkIssue, stripOfflineMeta } from '../../lib/offlineHttp'
 
 // Base de API para inventario (coincide con rutas backend)
 const INVENTORY_BASE = '/api/v1/tenant/inventory'
@@ -43,6 +45,10 @@ function mapWarehouse(w: any): Warehouse {
   }
 }
 
+function isQueuedBody(response: any): boolean {
+  return response?.queued === true
+}
+
 function mapStockItem(x: any): StockItem {
   const product = x.product ?? x.producto ?? {}
   const wh = x.warehouse ?? x.almacen ?? x.w ?? {}
@@ -75,21 +81,49 @@ export async function listWarehouses(): Promise<Warehouse[]> {
 }
 
 export async function createWarehouse(data: { code: string; name: string; is_active?: boolean }): Promise<Warehouse> {
-  const res = await apiFetch<any>(`${INVENTORY_BASE}/warehouses`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  })
-  return mapWarehouse(res)
+  const payload = stripOfflineMeta(data as any)
+  try {
+    const res = await apiFetch<any>(`${INVENTORY_BASE}/warehouses`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Offline-Managed': '1' },
+      body: JSON.stringify(payload),
+    })
+    if (isQueuedBody(res)) {
+      const tempId = createOfflineTempId('inventory')
+      await storeEntity('inventory', tempId, { ...payload, _resource: 'warehouse', _op: 'create' }, 'pending')
+      return mapWarehouse({ id: tempId, ...payload })
+    }
+    return mapWarehouse(res)
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      const tempId = createOfflineTempId('inventory')
+      await storeEntity('inventory', tempId, { ...payload, _resource: 'warehouse', _op: 'create' }, 'pending')
+      return mapWarehouse({ id: tempId, ...payload })
+    }
+    throw error
+  }
 }
 
 export async function updateWarehouse(id: string | number, patch: Partial<Pick<Warehouse, 'code' | 'name' | 'is_active'>>): Promise<Warehouse> {
-  const res = await apiFetch<any>(`${INVENTORY_BASE}/warehouses/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  })
-  return mapWarehouse(res)
+  const payload = stripOfflineMeta(patch as any)
+  try {
+    const res = await apiFetch<any>(`${INVENTORY_BASE}/warehouses/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Offline-Managed': '1' },
+      body: JSON.stringify(payload),
+    })
+    if (isQueuedBody(res)) {
+      await storeEntity('inventory', `warehouse:${id}`, { ...payload, _resource: 'warehouse', _target_id: String(id), _op: 'update' }, 'pending')
+      return mapWarehouse({ id, ...payload })
+    }
+    return mapWarehouse(res)
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      await storeEntity('inventory', `warehouse:${id}`, { ...payload, _resource: 'warehouse', _target_id: String(id), _op: 'update' }, 'pending')
+      return mapWarehouse({ id, ...payload })
+    }
+    throw error
+  }
 }
 
 // Stock Items API
@@ -113,16 +147,32 @@ export async function createStockMove(data: {
   lote?: string
   expires_at?: string
 }): Promise<any> {
-  return apiFetch(`${INVENTORY_BASE}/stock/adjust`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      warehouse_id: data.warehouse_id,
-      product_id: data.product_id,
-      delta: Number(data.qty),
-      reason: data.notes || data.kind,
-    }),
-  })
+  const payload = stripOfflineMeta({
+    warehouse_id: data.warehouse_id,
+    product_id: data.product_id,
+    delta: Number(data.qty),
+    reason: data.notes || data.kind,
+  } as any)
+  try {
+    const res = await apiFetch(`${INVENTORY_BASE}/stock/adjust`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Offline-Managed': '1' },
+      body: JSON.stringify(payload),
+    })
+    if (isQueuedBody(res)) {
+      const tempId = createOfflineTempId('inventory')
+      await storeEntity('inventory', tempId, { ...payload, _resource: 'stock_move', _op: 'create' }, 'pending')
+      return { queued: true, ...payload, id: tempId }
+    }
+    return res
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      const tempId = createOfflineTempId('inventory')
+      await storeEntity('inventory', tempId, { ...payload, _resource: 'stock_move', _op: 'create' }, 'pending')
+      return { queued: true, ...payload, id: tempId }
+    }
+    throw error
+  }
 }
 
 export async function adjustStock(data: { warehouse_id: string | number; product_id: string | number; delta: number; reason?: string }): Promise<any> {
@@ -184,25 +234,82 @@ export async function listAlertConfigs(): Promise<AlertConfig[]> {
 }
 
 export async function createAlertConfig(config: Omit<AlertConfig, 'id' | 'created_at' | 'updated_at'>): Promise<AlertConfig> {
-  return apiFetch<AlertConfig>(`${INVENTORY_BASE}/alerts/configs`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(config),
-  })
+  const payload = stripOfflineMeta(config as any)
+  try {
+    const res = await apiFetch<any>(`${INVENTORY_BASE}/alerts/configs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Offline-Managed': '1' },
+      body: JSON.stringify(payload),
+    })
+    if (isQueuedBody(res)) {
+      const tempId = createOfflineTempId('inventory')
+      await storeEntity('inventory', tempId, { ...payload, _resource: 'alert_config', _op: 'create' }, 'pending')
+      return {
+        id: tempId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        ...payload,
+      } as AlertConfig
+    }
+    return res as AlertConfig
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      const tempId = createOfflineTempId('inventory')
+      await storeEntity('inventory', tempId, { ...payload, _resource: 'alert_config', _op: 'create' }, 'pending')
+      return {
+        id: tempId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        ...payload,
+      } as AlertConfig
+    }
+    throw error
+  }
 }
 
 export async function updateAlertConfig(configId: string, config: Partial<AlertConfig>): Promise<AlertConfig> {
-  return apiFetch<AlertConfig>(`${INVENTORY_BASE}/alerts/configs/${configId}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(config),
-  })
+  const payload = stripOfflineMeta(config as any)
+  try {
+    const res = await apiFetch<any>(`${INVENTORY_BASE}/alerts/configs/${configId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Offline-Managed': '1' },
+      body: JSON.stringify(payload),
+    })
+    if (isQueuedBody(res)) {
+      await storeEntity('inventory', `alert_config:${configId}`, { ...payload, _resource: 'alert_config', _target_id: configId, _op: 'update' }, 'pending')
+      return {
+        id: configId,
+        updated_at: new Date().toISOString(),
+        ...(payload as any),
+      } as AlertConfig
+    }
+    return res as AlertConfig
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      await storeEntity('inventory', `alert_config:${configId}`, { ...payload, _resource: 'alert_config', _target_id: configId, _op: 'update' }, 'pending')
+      return {
+        id: configId,
+        updated_at: new Date().toISOString(),
+        ...(payload as any),
+      } as AlertConfig
+    }
+    throw error
+  }
 }
 
 export async function deleteAlertConfig(configId: string): Promise<void> {
-  await apiFetch(`${INVENTORY_BASE}/alerts/configs/${configId}`, {
-    method: 'DELETE',
-  })
+  try {
+    await apiFetch(`${INVENTORY_BASE}/alerts/configs/${configId}`, {
+      method: 'DELETE',
+      headers: { 'X-Offline-Managed': '1' },
+    })
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      await queueDeletion('inventory', `alert_config:${configId}`, { _resource: 'alert_config', _target_id: configId })
+      return
+    }
+    throw error
+  }
 }
 
 export async function testAlertConfig(configId: string): Promise<{ status: string; channels_sent: string[]; errors?: string[] }> {

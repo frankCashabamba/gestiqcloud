@@ -138,6 +138,7 @@ class FileClassifier:
         file_path: str,
         filename: str,
         tenant_id: str | None = None,
+        provider_name: str | None = None,
     ) -> dict[str, Any]:
         """
         Classify file with AI enhancement (Fase D).
@@ -170,7 +171,7 @@ class FileClassifier:
                 try:
                     from app.modules.imports.ai import get_ai_provider_singleton
 
-                    ai_provider = await get_ai_provider_singleton()
+                    ai_provider = await get_ai_provider_singleton(provider_name)
                 except Exception as e:
                     self.logger.warning(f"Could not load AI provider: {e}, using base result")
                     return base_result
@@ -272,7 +273,20 @@ class FileClassifier:
 
             return " ".join(text_parts)[:1000]  # First 1000 chars
         except Exception:
-            return ""
+            try:
+                import pandas as pd
+
+                engine = "xlrd" if file_path.lower().endswith(".xls") else None
+                df = pd.read_excel(file_path, engine=engine, header=None).fillna("")
+                if df.empty:
+                    return ""
+                text_parts = []
+                max_rows = min(len(df.index), 10)
+                for row_idx in range(max_rows):
+                    text_parts.extend([str(v) for v in df.iloc[row_idx].tolist() if str(v).strip()])
+                return " ".join(text_parts)[:1000]
+            except Exception:
+                return ""
 
     def _classify_excel(
         self, file_path: str, filename: str, decision_log: DecisionLog
@@ -519,15 +533,18 @@ class FileClassifier:
 
     def _analyze_excel_content(self, file_path: str) -> dict[str, Any]:
         """Analyze Excel file content for classification hints."""
-        wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
-        ws = wb.active
+        try:
+            wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+            ws = wb.active
 
-        # Get headers from first few rows
-        headers = []
-        for row in ws.iter_rows(min_row=1, max_row=5, values_only=True):
-            if any(cell for cell in row if cell):
-                headers.extend([str(cell).lower() for cell in row if cell])
-                break
+            headers = []
+            for row in ws.iter_rows(min_row=1, max_row=5, values_only=True):
+                if any(cell for cell in row if cell):
+                    headers.extend([str(cell).lower() for cell in row if cell])
+                    break
+            total_rows = sum(1 for _ in ws.iter_rows())
+        except Exception:
+            headers, total_rows = self._extract_excel_headers_pandas(file_path)
 
         # Count keywords for different document types
         product_keywords = [
@@ -576,13 +593,63 @@ class FileClassifier:
 
         return {
             "headers": headers[:20],  # First 20 headers
-            "total_rows": sum(1 for _ in ws.iter_rows()),
+            "total_rows": total_rows,
             "scores": {
                 "products": product_score,
                 "bank": bank_score,
                 "invoices": invoice_score,
             },
         }
+
+    def _extract_excel_headers_pandas(self, file_path: str) -> tuple[list[str], int]:
+        """Extract likely headers and total rows using pandas fallback (xls/xlsx)."""
+        try:
+            import pandas as pd
+
+            engine = "xlrd" if file_path.lower().endswith(".xls") else None
+            df = pd.read_excel(file_path, engine=engine, header=None).fillna("")
+            if df.empty:
+                return [], 0
+
+            keywords = [
+                "fecha",
+                "factura",
+                "cliente",
+                "producto",
+                "cantidad",
+                "precio",
+                "subtotal",
+                "iva",
+                "total",
+                "tipo",
+                "codigo",
+                "descripcion",
+            ]
+            max_scan = min(len(df.index), 40)
+            best_idx = 0
+            best_score = -(10**9)
+            for idx in range(max_scan):
+                values = [str(v).strip() for v in df.iloc[idx].tolist()]
+                non_empty = [v for v in values if v and v.lower() != "nan"]
+                if len(non_empty) < 2:
+                    continue
+                lowered = " ".join(v.lower() for v in non_empty)
+                kw_hits = sum(1 for kw in keywords if kw in lowered)
+                unnamed_penalty = sum(1 for v in non_empty if v.lower().startswith("unnamed"))
+                score = len(non_empty) + (kw_hits * 4) - (unnamed_penalty * 2)
+                if score > best_score:
+                    best_score = score
+                    best_idx = idx
+
+            headers = []
+            for i, value in enumerate(df.iloc[best_idx].tolist()):
+                header = str(value).strip()
+                if not header or header.lower() == "nan" or header.lower().startswith("unnamed"):
+                    header = f"col_{i + 1}"
+                headers.append(header.lower())
+            return headers, int(len(df.index))
+        except Exception:
+            return [], 0
 
     def _looks_like_products(self, analysis: dict[str, Any]) -> bool:
         """Check if content looks like product data."""

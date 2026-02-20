@@ -1,6 +1,9 @@
 // apps/tenant/src/modules/products/productsApi.ts
 // Centralized API client for products and categories
 import { apiFetch } from '../../lib/http'
+import { queueDeletion, storeEntity } from '../../lib/offlineStore'
+import { createOfflineTempId, isNetworkIssue, stripOfflineMeta } from '../../lib/offlineHttp'
+import { IMPORTS } from '@endpoints/imports'
 
 // ============================================================================
 // ENDPOINTS
@@ -17,7 +20,6 @@ const ENDPOINTS = {
     purge: '/api/v1/tenant/products/purge',
     bulkActive: '/api/v1/tenant/products/bulk/active',
     bulkCategory: '/api/v1/tenant/products/bulk/category',
-    importExcel: '/api/v1/imports/upload',
   },
   categories: {
     list: '/api/v1/tenant/products/product-categories',
@@ -109,23 +111,117 @@ export async function getProducto(id: string): Promise<Producto> {
 }
 
 export async function createProducto(data: Partial<Producto>): Promise<Producto> {
-  return apiFetch<Producto>(ENDPOINTS.products.create, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  })
+  const cleanPayload = stripOfflineMeta(data as any)
+  try {
+    const created = await apiFetch<Producto | { queued: boolean }>(ENDPOINTS.products.create, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Offline-Managed': '1' },
+      body: JSON.stringify(cleanPayload),
+    })
+
+    if ((created as any)?.queued === true) {
+      const tempId = createOfflineTempId('product')
+      await storeEntity('product', tempId, { ...cleanPayload, _op: 'create' }, 'pending')
+      return {
+        id: tempId,
+        tenant_id: String((cleanPayload as any).tenant_id || ''),
+        sku: (cleanPayload as any).sku ?? null,
+        name: String((cleanPayload as any).name || ''),
+        description: (cleanPayload as any).description ?? (cleanPayload as any).descripcion ?? null,
+        price: Number((cleanPayload as any).price ?? 0) || 0,
+        active: Boolean((cleanPayload as any).active ?? true),
+        stock: Number((cleanPayload as any).stock ?? 0) || 0,
+        unit: String((cleanPayload as any).unit || 'unit'),
+        created_at: new Date().toISOString(),
+      }
+    }
+
+    return created as Producto
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      const tempId = createOfflineTempId('product')
+      await storeEntity('product', tempId, { ...cleanPayload, _op: 'create' }, 'pending')
+      return {
+        id: tempId,
+        tenant_id: String((cleanPayload as any).tenant_id || ''),
+        sku: (cleanPayload as any).sku ?? null,
+        name: String((cleanPayload as any).name || ''),
+        description: (cleanPayload as any).description ?? (cleanPayload as any).descripcion ?? null,
+        price: Number((cleanPayload as any).price ?? 0) || 0,
+        active: Boolean((cleanPayload as any).active ?? true),
+        stock: Number((cleanPayload as any).stock ?? 0) || 0,
+        unit: String((cleanPayload as any).unit || 'unit'),
+        created_at: new Date().toISOString(),
+      }
+    }
+    throw error
+  }
 }
 
 export async function updateProducto(id: string, data: Partial<Producto>): Promise<Producto> {
-  return apiFetch<Producto>(ENDPOINTS.products.update(id), {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  })
+  const cleanPayload = stripOfflineMeta(data as any)
+  try {
+    const updated = await apiFetch<Producto | { queued: boolean }>(ENDPOINTS.products.update(id), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Offline-Managed': '1' },
+      body: JSON.stringify(cleanPayload),
+    })
+
+    if ((updated as any)?.queued === true) {
+      await storeEntity('product', String(id), { ...cleanPayload, _op: 'update' }, 'pending')
+      return {
+        id: String(id),
+        tenant_id: String((cleanPayload as any).tenant_id || ''),
+        sku: (cleanPayload as any).sku ?? null,
+        name: String((cleanPayload as any).name || ''),
+        description: (cleanPayload as any).description ?? (cleanPayload as any).descripcion ?? null,
+        price: Number((cleanPayload as any).price ?? 0) || 0,
+        active: Boolean((cleanPayload as any).active ?? true),
+        stock: Number((cleanPayload as any).stock ?? 0) || 0,
+        unit: String((cleanPayload as any).unit || 'unit'),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+    }
+
+    return updated as Producto
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      await storeEntity('product', String(id), { ...cleanPayload, _op: 'update' }, 'pending')
+      return {
+        id: String(id),
+        tenant_id: String((cleanPayload as any).tenant_id || ''),
+        sku: (cleanPayload as any).sku ?? null,
+        name: String((cleanPayload as any).name || ''),
+        description: (cleanPayload as any).description ?? (cleanPayload as any).descripcion ?? null,
+        price: Number((cleanPayload as any).price ?? 0) || 0,
+        active: Boolean((cleanPayload as any).active ?? true),
+        stock: Number((cleanPayload as any).stock ?? 0) || 0,
+        unit: String((cleanPayload as any).unit || 'unit'),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+    }
+    throw error
+  }
 }
 
 export async function removeProducto(id: string): Promise<void> {
-  await apiFetch(ENDPOINTS.products.delete(id), { method: 'DELETE' })
+  try {
+    const response = await apiFetch<any>(ENDPOINTS.products.delete(id), {
+      method: 'DELETE',
+      headers: { 'X-Offline-Managed': '1' },
+    })
+    if (response?.queued === true) {
+      await queueDeletion('product', String(id))
+    }
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      await queueDeletion('product', String(id))
+      return
+    }
+    throw error
+  }
 }
 
 export async function searchProductos(q: string): Promise<Producto[]> {
@@ -186,12 +282,28 @@ export async function purgeProductosConfirm(options?: {
 export async function importProductosExcel(file: File): Promise<{ batch_id: string; items_count: number }> {
   const formData = new FormData()
   formData.append('file', file)
-  formData.append('entity_type', 'products')
-
-  return apiFetch<{ batch_id: string; items_count: number }>(ENDPOINTS.products.importExcel, {
+  const parsed = await apiFetch<{ headers: string[]; rows: Record<string, unknown>[] }>(IMPORTS.excel.parse, {
     method: 'POST',
     body: formData,
   })
+
+  const batch = await apiFetch<{ id: string }>(IMPORTS.batches.base, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      source_type: 'products',
+      origin: file.name || 'products-import',
+    }),
+  })
+
+  const rows = Array.isArray(parsed?.rows) ? parsed.rows : []
+  await apiFetch(IMPORTS.batches.ingest(batch.id), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rows }),
+  })
+
+  return { batch_id: batch.id, items_count: rows.length }
 }
 
 // ============================================================================

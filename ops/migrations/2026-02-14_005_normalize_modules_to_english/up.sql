@@ -1,6 +1,6 @@
 -- Normalize all module names to English
 -- The frontend will translate them using i18n via the locales/es.json file
--- 
+--
 -- This migration:
 -- 1. Deactivates old duplicate Spanish modules that don't have URLs
 -- 2. Renames remaining Spanish module names to English

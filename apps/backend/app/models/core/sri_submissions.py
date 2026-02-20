@@ -12,7 +12,7 @@ from datetime import datetime
 from uuid import UUID
 
 
-class SRISubmission:  # noqa: D401 - simple data holder
+class SRISubmissionShim:  # noqa: D401 - simple data holder
     """Lightweight submission record used in tests."""
 
     def __init__(
@@ -36,3 +36,7 @@ class SRISubmission:  # noqa: D401 - simple data holder
         # Map both alias names so use_case can read receipt_number
         self.clave_acceso = clave_acceso
         self.receipt_number = clave_acceso
+
+
+# Backward-compatible alias used by tests/imports.
+SRISubmission = SRISubmissionShim

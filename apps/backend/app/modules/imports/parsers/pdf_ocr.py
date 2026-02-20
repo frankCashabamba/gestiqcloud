@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from datetime import datetime
 from typing import Any
 
@@ -32,13 +33,7 @@ def parse_pdf_ocr(file_path: str) -> dict[str, Any]:
             return _build_error_result(errors)
 
         # Run OCR (async → sync wrapper)
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        ocr_result = loop.run_until_complete(ocr_service.extract_text(file_path))
+        ocr_result = _run_coroutine_sync(ocr_service.extract_text(file_path))
         ocr_text = ocr_result.text
         layout = ocr_result.layout.value
 
@@ -192,3 +187,30 @@ def _build_error_result(errors: list[str]) -> dict[str, Any]:
             "extracted_at": datetime.utcnow().isoformat(),
         },
     }
+
+
+def _run_coroutine_sync(coro):
+    """Execute a coroutine from sync code, even if another loop is already running."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+
+    if not loop.is_running():
+        return loop.run_until_complete(coro)
+
+    result: dict[str, Any] = {}
+    error: dict[str, Exception] = {}
+
+    def _runner():
+        try:
+            result["value"] = asyncio.run(coro)
+        except Exception as e:  # pragma: no cover
+            error["value"] = e
+
+    worker = threading.Thread(target=_runner, daemon=True)
+    worker.start()
+    worker.join()
+    if "value" in error:
+        raise error["value"]
+    return result.get("value")

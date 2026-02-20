@@ -5,7 +5,8 @@
 import tenantApi from '../../shared/api/client'
 import { TENANT_INVOICING } from '@shared/endpoints'
 import { ensureArray } from '../../shared/utils/array'
-import { queueInvoiceForSync } from './offlineQueue'
+import { queueInvoiceDeletion, queueInvoiceForSync } from './offlineQueue'
+import { createOfflineTempId, isNetworkIssue, isOfflineQueuedResponse, stripOfflineMeta } from '../../lib/offlineHttp'
 
 // ============================================================================
 // Cache para evitar rate limiting
@@ -71,10 +72,6 @@ function normalizeInvoice(raw: any): Invoice {
       raw?.products ??
       []
 
-    console.log('Available keys in raw:', Object.keys(raw))
-    console.log('raw.lineas:', raw?.lineas)
-    console.log('raw.lines:', raw?.lines)
-
     // Normalize lineas - handle both InvoiceLine format and LineaFactura format
     // Also handle POS lines from invoices created via POS receipts
     const normalizedLineas = Array.isArray(lineas)
@@ -83,8 +80,6 @@ function normalizeInvoice(raw: any): Invoice {
           const precio_unitario = Number(l?.precio_unitario ?? l?.unit_price ?? l?.price ?? 0)
           const total_linea = Number(l?.total ?? cantidad * precio_unitario)
           const description = l?.description ?? l?.descripcion ?? l?.product_name ?? l?.name ?? ''
-
-          console.log('Normalizing line:', l)
 
           return {
             cantidad,
@@ -95,10 +90,6 @@ function normalizeInvoice(raw: any): Invoice {
           }
         })
       : []
-
-    console.log('Raw invoice data:', raw)
-    console.log('Normalized lineas:', normalizedLineas)
-
     return {
         id,
         numero: numero ? String(numero) : undefined,
@@ -179,14 +170,8 @@ export async function getInvoice(id: number | string): Promise<Invoice> {
     return normalizeInvoice(data)
 }
 
-function isNetworkIssue(error: any): boolean {
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) return true
-    const msg = (error?.message || '').toLowerCase()
-    return msg.includes('network') || msg.includes('failed to fetch') || msg.includes('timeout') || msg.includes('offline')
-}
-
 export async function createInvoice(invoice: InvoiceCreate | Partial<InvoiceCreate>): Promise<Invoice> {
-    const payload = {
+    const payload = stripOfflineMeta({
         ...invoice,
         lineas: (invoice.lineas || []).map((l) => ({
             description: l.description,
@@ -196,11 +181,15 @@ export async function createInvoice(invoice: InvoiceCreate | Partial<InvoiceCrea
             sku: l.sku,
         })),
         date: (invoice as any)?.fecha || (invoice as any)?.date,
-    }
+    })
 
     try {
-        const { data } = await tenantApi.post(TENANT_INVOICING.base, payload)
-        return normalizeInvoice(data)
+        const response = await tenantApi.post(TENANT_INVOICING.base, payload, { headers: { 'X-Offline-Managed': '1' } })
+        if (isOfflineQueuedResponse(response)) {
+            const tempId = createOfflineTempId('invoice')
+            return normalizeInvoice({ ...payload, id: tempId })
+        }
+        return normalizeInvoice(response.data)
     } catch (error) {
         if (isNetworkIssue(error)) {
             const tempId = await queueInvoiceForSync(payload, 'create')
@@ -212,7 +201,7 @@ export async function createInvoice(invoice: InvoiceCreate | Partial<InvoiceCrea
 }
 
 export async function updateInvoice(id: number | string, invoice: Partial<Invoice>): Promise<Invoice> {
-    const payload = {
+    const payload = stripOfflineMeta({
         ...invoice,
         lineas: (invoice.lineas || []).map((l) => ({
             description: l.description,
@@ -222,11 +211,14 @@ export async function updateInvoice(id: number | string, invoice: Partial<Invoic
             sku: l.sku,
         })),
         date: (invoice as any)?.fecha || (invoice as any)?.date,
-    }
+    })
 
     try {
-        const { data } = await tenantApi.put(TENANT_INVOICING.byId(String(id)), payload)
-        return normalizeInvoice(data)
+        const response = await tenantApi.put(TENANT_INVOICING.byId(String(id)), payload, { headers: { 'X-Offline-Managed': '1' } })
+        if (isOfflineQueuedResponse(response)) {
+            return normalizeInvoice({ ...payload, id })
+        }
+        return normalizeInvoice(response.data)
     } catch (error) {
         if (isNetworkIssue(error)) {
             const tempId = await queueInvoiceForSync({ ...payload, id }, 'update')
@@ -238,7 +230,18 @@ export async function updateInvoice(id: number | string, invoice: Partial<Invoic
 }
 
 export async function deleteInvoice(id: number | string): Promise<void> {
-    await tenantApi.delete(TENANT_INVOICING.byId(String(id)))
+    try {
+        const response = await tenantApi.delete(TENANT_INVOICING.byId(String(id)), { headers: { 'X-Offline-Managed': '1' } })
+        if (isOfflineQueuedResponse(response)) {
+            await queueInvoiceDeletion(String(id))
+        }
+    } catch (error) {
+        if (isNetworkIssue(error)) {
+            await queueInvoiceDeletion(String(id))
+            return
+        }
+        throw error
+    }
 }
 
 // ============================================================================

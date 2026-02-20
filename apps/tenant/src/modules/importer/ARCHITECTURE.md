@@ -4,6 +4,7 @@ Importador (frontend) – Arquitectura y lineamientos
 Propósito
 ---------
 Módulo universal de importación (Excel/CSV/PDF/imagen) con soporte multi-tenant, mapeo de columnas y colas locales. Entrada única preferida: `ImportadorExcelWithQueue` en `/imports`.
+Reglas operativas del módulo: `CONVENTIONS.md`.
 
 Rutas y entrypoints
 -------------------
@@ -18,7 +19,7 @@ Estado y servicios
 ------------------
 - Estado: `context/ImportQueueContext.tsx` gestiona la cola local, persistencia en localStorage y reintentos OCR. Estados: pending, processing, ready, saving, saved, duplicate, error.
 - Servicios:
-  - `services/importsApi.ts`: cliente oficial `/api/v1/imports/*` (batches, items, mappings, chunked upload, OCR jobs, promote, OCR enqueue/poll).
+  - `services/importsApi.ts`: cliente oficial `@endpoints/imports` (base tenant: `/api/v1/tenant/imports`; endpoints públicos de análisis/IA bajo `/api/v1/imports`).
   - `services/parseExcelFile.ts`: parseo XLSX en cliente; usa `VITE_IMPORTS_CHUNK_THRESHOLD_MB` para decidir chunked upload.
 
 Componentes clave

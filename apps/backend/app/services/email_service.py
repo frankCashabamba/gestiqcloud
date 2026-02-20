@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from typing import Any
-from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
@@ -100,8 +99,8 @@ class EmailService:
                 "timestamp": datetime.utcnow(),
             }
 
-        except Exception as e:
-            logger.exception(f"Error sending receipt email")
+        except Exception:
+            logger.exception("Error sending receipt email")
             raise
 
     def send_payment_confirmation(
@@ -136,7 +135,7 @@ class EmailService:
                 "timestamp": datetime.utcnow(),
             }
 
-        except Exception as e:
+        except Exception:
             logger.exception("Error sending payment confirmation")
             raise
 
@@ -173,7 +172,7 @@ class EmailService:
                 "timestamp": datetime.utcnow(),
             }
 
-        except Exception as e:
+        except Exception:
             logger.exception(f"Error sending notification to {to_email}")
             raise
 
@@ -207,6 +206,6 @@ class EmailService:
                 "timestamp": datetime.utcnow(),
             }
 
-        except Exception as e:
+        except Exception:
             logger.exception("Error sending bulk emails")
             raise

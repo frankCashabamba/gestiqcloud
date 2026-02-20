@@ -11,12 +11,11 @@ Este módulo implementa:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from app.core.login_rate_limit import RLStatus
 from app.models.core.user import User
+
 from .ports import PasswordHasher, RateLimiter, RefreshTokenRepo, TokenService
 
 logger = logging.getLogger(__name__)
@@ -79,9 +78,7 @@ class LoginUseCase:
         rl_status = self.rate_limiter.check(request, user.email)
         if rl_status.is_locked:
             logger.warning(f"Login blocked by rate limit: {user.email}")
-            raise ValueError(
-                f"Cuenta temporalmente bloqueada. Intenta en {rl_status.retry_after}s"
-            )
+            raise ValueError(f"Cuenta temporalmente bloqueada. Intenta en {rl_status.retry_after}s")
 
         # 2. Validate password
         is_valid, err_msg = self.password_hasher.verify(password, user.password_hash)
@@ -202,9 +199,7 @@ class RefreshTokenUseCase:
         if is_reused:
             # CRITICAL: Revoke entire family → user must re-login
             self.refresh_repo.revoke_family(family_id=family_id)
-            logger.warning(
-                f"Refresh token replay attack detected! Family {family_id} revoked"
-            )
+            logger.warning(f"Refresh token replay attack detected! Family {family_id} revoked")
             raise ValueError("Sesión comprometida. Por favor, vuelve a iniciar sesión")
 
         # 3. Issue new access token (with same claims)

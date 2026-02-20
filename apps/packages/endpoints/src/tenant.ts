@@ -64,6 +64,7 @@ export const TENANT_ROLES = {
 export const TENANT_SETTINGS = {
   general: '/api/v1/company/settings/general',
   branding: '/api/v1/company/settings/branding',
+  brandingLogoUpload: '/api/v1/company/settings/branding/logo',
   fiscal: '/api/v1/company/settings/fiscal',
   schedules: '/api/v1/company/settings/schedules',
   limits: '/api/v1/company/settings/limits',

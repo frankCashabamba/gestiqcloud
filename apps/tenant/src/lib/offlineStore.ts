@@ -8,7 +8,16 @@
 
 import { createStore, get, set, del, entries } from 'idb-keyval'
 
-export type EntityType = 'product' | 'customer' | 'sale' | 'receipt' | 'purchase' | 'shift' | 'invoice'
+export type EntityType =
+  | 'product'
+  | 'customer'
+  | 'sale'
+  | 'receipt'
+  | 'purchase'
+  | 'shift'
+  | 'invoice'
+  | 'expense'
+  | 'inventory'
 export type SyncStatus = 'pending' | 'synced' | 'conflict' | 'failed'
 
 export interface StoredEntity {

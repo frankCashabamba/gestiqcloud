@@ -42,4 +42,3 @@ BEGIN
             ON DELETE CASCADE;
     END IF;
 END $$;
-

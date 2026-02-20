@@ -2,19 +2,20 @@
 Sistema de logging y análisis de requests/responses de IA
 Permite auditoría, análisis de errores y mejora continua
 """
+
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import uuid
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
+from sqlalchemy import Integer, func
 from sqlalchemy.orm import Session
 
-from app.models.ai_log import AIRequestLog, AIResponseStatus, AITaskLog, AIErrorAnalysis, AIErrorRecovery
-from app.services.ai.base import AIRequest, AIResponse, AITask
+from app.models.ai_log import AIErrorAnalysis, AIErrorRecovery, AIRequestLog, AIResponseStatus
+from app.services.ai.base import AIRequest, AIResponse
 
 logger = logging.getLogger(__name__)
 
@@ -28,23 +29,23 @@ class AILogger:
         request: AIRequest,
         provider_name: str,
         provider_model: str,
-        tenant_id: Optional[str] = None,
-        module: Optional[str] = None,
-        user_id: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        tenant_id: str | None = None,
+        module: str | None = None,
+        user_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         """
         Registra un request de IA
-        
+
         Returns:
             request_id para tracking
         """
         try:
             request_id = str(uuid.uuid4())
-            
+
             # Calcular hash del prompt para dedup
             prompt_hash = hashlib.sha256(request.prompt.encode()).hexdigest()
-            
+
             log_entry = AIRequestLog(
                 request_id=request_id,
                 tenant_id=tenant_id,
@@ -61,13 +62,13 @@ class AILogger:
                 status=AIResponseStatus.SUCCESS.value,  # Por defecto
                 request_metadata=metadata or {},
             )
-            
+
             db.add(log_entry)
             db.commit()
-            
+
             logger.debug(f"Request logging: {request_id} ({module}/{request.task.value})")
             return request_id
-            
+
         except Exception as e:
             logger.error(f"Error logging request: {e}")
             return str(uuid.uuid4())  # Retornar ID anyway
@@ -79,20 +80,18 @@ class AILogger:
         response: AIResponse,
         status: AIResponseStatus = AIResponseStatus.SUCCESS,
         retry_count: int = 0,
-        fallback_used: Optional[str] = None,
+        fallback_used: str | None = None,
     ) -> None:
         """
         Registra response y resultado
         """
         try:
-            log_entry = db.query(AIRequestLog).filter(
-                AIRequestLog.request_id == request_id
-            ).first()
-            
+            log_entry = db.query(AIRequestLog).filter(AIRequestLog.request_id == request_id).first()
+
             if not log_entry:
                 logger.warning(f"Request log not found: {request_id}")
                 return
-            
+
             # Actualizar con respuesta
             log_entry.status = status.value
             log_entry.response_content_length = len(response.content)
@@ -101,17 +100,17 @@ class AILogger:
             log_entry.retry_count = retry_count
             log_entry.fallback_used = fallback_used
             log_entry.confidence_score = response.confidence
-            
+
             if response.is_error:
                 log_entry.error_message = response.error
                 log_entry.error_code = response.error[:50] if response.error else None
-            
+
             log_entry.response_metadata = response.metadata or {}
             log_entry.updated_at = datetime.utcnow()
-            
+
             db.commit()
             logger.debug(f"Response logged: {request_id} (status={status.value})")
-            
+
         except Exception as e:
             logger.error(f"Error logging response: {e}")
 
@@ -120,27 +119,25 @@ class AILogger:
         db: Session,
         request_id: str,
         error_message: str,
-        error_code: Optional[str] = None,
-        provider_name: Optional[str] = None,
+        error_code: str | None = None,
+        provider_name: str | None = None,
     ) -> None:
         """
         Registra error específico
         """
         try:
-            log_entry = db.query(AIRequestLog).filter(
-                AIRequestLog.request_id == request_id
-            ).first()
-            
+            log_entry = db.query(AIRequestLog).filter(AIRequestLog.request_id == request_id).first()
+
             if log_entry:
                 log_entry.status = AIResponseStatus.ERROR.value
                 log_entry.error_message = error_message[:500]
                 log_entry.error_code = error_code or "unknown"
                 log_entry.updated_at = datetime.utcnow()
                 db.commit()
-            
+
             # Analizar patrón de error
             AILogger._analyze_error_pattern(db, error_message, provider_name)
-            
+
         except Exception as e:
             logger.error(f"Error logging error: {e}")
 
@@ -148,7 +145,7 @@ class AILogger:
     def _analyze_error_pattern(
         db: Session,
         error_message: str,
-        provider_name: Optional[str] = None,
+        provider_name: str | None = None,
     ) -> None:
         """
         Analiza patrones de error y actualiza análisis
@@ -158,11 +155,13 @@ class AILogger:
             pattern = error_message[:50].lower()
             if provider_name:
                 pattern = f"{provider_name}_{pattern}"
-            
-            error_analysis = db.query(AIErrorAnalysis).filter(
-                AIErrorAnalysis.error_message_pattern.like(f"%{pattern[:30]}%")
-            ).first()
-            
+
+            error_analysis = (
+                db.query(AIErrorAnalysis)
+                .filter(AIErrorAnalysis.error_message_pattern.like(f"%{pattern[:30]}%"))
+                .first()
+            )
+
             if error_analysis:
                 error_analysis.occurrence_count += 1
                 error_analysis.last_occurred = datetime.utcnow()
@@ -173,13 +172,13 @@ class AILogger:
                     error_code=error_message.split(":")[0][:50],
                     error_message_pattern=error_message[:255],
                     probable_cause="Error recurrente detectado",
-                    suggested_action="Revisar logs y configuración"
+                    suggested_action="Revisar logs y configuración",
                 )
                 db.add(error_analysis)
-            
+
             db.commit()
             logger.info(f"Error pattern tracked: {pattern}")
-            
+
         except Exception as e:
             logger.debug(f"Could not analyze error pattern: {e}")
 
@@ -191,7 +190,7 @@ class AILogger:
         action_taken: str,
         success: bool,
         recovery_time_ms: int,
-        result: Optional[dict[str, Any]] = None,
+        result: dict[str, Any] | None = None,
     ) -> None:
         """
         Registra intento de recuperación de error
@@ -206,12 +205,12 @@ class AILogger:
                 recovery_time_ms=recovery_time_ms,
                 recovery_result=result or {},
             )
-            
+
             db.add(recovery)
             db.commit()
-            
+
             logger.info(f"Recovery logged: {strategy_name} ({'success' if success else 'failed'})")
-            
+
         except Exception as e:
             logger.error(f"Error logging recovery: {e}")
 
@@ -223,39 +222,40 @@ class AIMetrics:
     def get_error_rate(
         db: Session,
         hours: int = 24,
-        module: Optional[str] = None,
+        module: str | None = None,
     ) -> float:
         """
         Calcula tasa de error en últimas N horas
-        
+
         Returns:
             Porcentaje (0-100)
         """
         try:
             from datetime import timedelta
+
             cutoff = datetime.utcnow() - timedelta(hours=hours)
-            
-            query = db.query(AIRequestLog).filter(
-                AIRequestLog.created_at >= cutoff
-            )
-            
+
+            query = db.query(AIRequestLog).filter(AIRequestLog.created_at >= cutoff)
+
             if module:
                 query = query.filter(AIRequestLog.module == module)
-            
+
             total = query.count()
             errors = query.filter(
-                AIRequestLog.status.in_([
-                    AIResponseStatus.ERROR.value,
-                    AIResponseStatus.TIMEOUT.value,
-                    AIResponseStatus.INVALID.value,
-                ])
+                AIRequestLog.status.in_(
+                    [
+                        AIResponseStatus.ERROR.value,
+                        AIResponseStatus.TIMEOUT.value,
+                        AIResponseStatus.INVALID.value,
+                    ]
+                )
             ).count()
-            
+
             if total == 0:
                 return 0.0
-            
+
             return (errors / total) * 100
-            
+
         except Exception as e:
             logger.error(f"Error calculating error rate: {e}")
             return 0.0
@@ -270,24 +270,26 @@ class AIMetrics:
         """
         try:
             from datetime import timedelta
-            from sqlalchemy import avg, func
-            
+
+            from sqlalchemy import func
+
             cutoff = datetime.utcnow() - timedelta(hours=hours)
-            
-            results = db.query(
-                AIRequestLog.provider_used,
-                func.count(AIRequestLog.id).label("total"),
-                func.sum(
-                    (AIRequestLog.status == AIResponseStatus.SUCCESS.value).cast(Integer)
-                ).label("success"),
-                func.avg(AIRequestLog.processing_time_ms).label("avg_time_ms"),
-                func.avg(AIRequestLog.tokens_used).label("avg_tokens"),
-            ).filter(
-                AIRequestLog.created_at >= cutoff
-            ).group_by(
-                AIRequestLog.provider_used
-            ).all()
-            
+
+            results = (
+                db.query(
+                    AIRequestLog.provider_used,
+                    func.count(AIRequestLog.id).label("total"),
+                    func.sum(
+                        (AIRequestLog.status == AIResponseStatus.SUCCESS.value).cast(Integer)
+                    ).label("success"),
+                    func.avg(AIRequestLog.processing_time_ms).label("avg_time_ms"),
+                    func.avg(AIRequestLog.tokens_used).label("avg_tokens"),
+                )
+                .filter(AIRequestLog.created_at >= cutoff)
+                .group_by(AIRequestLog.provider_used)
+                .all()
+            )
+
             performance = {}
             for provider, total, success, avg_time, avg_tokens in results:
                 success_rate = (success / total * 100) if total > 0 else 0
@@ -298,9 +300,9 @@ class AIMetrics:
                     "avg_time_ms": float(avg_time) if avg_time else 0,
                     "avg_tokens": float(avg_tokens) if avg_tokens else 0,
                 }
-            
+
             return performance
-            
+
         except Exception as e:
             logger.error(f"Error getting provider performance: {e}")
             return {}
@@ -316,22 +318,28 @@ class AIMetrics:
         """
         try:
             from datetime import timedelta
+
             cutoff = datetime.utcnow() - timedelta(hours=hours)
-            
-            errors = db.query(
-                AIRequestLog.error_code,
-                AIRequestLog.error_message,
-                func.count(AIRequestLog.id).label("count"),
-            ).filter(
-                AIRequestLog.created_at >= cutoff,
-                AIRequestLog.status == AIResponseStatus.ERROR.value,
-            ).group_by(
-                AIRequestLog.error_code,
-                AIRequestLog.error_message,
-            ).order_by(
-                func.count(AIRequestLog.id).desc()
-            ).limit(limit).all()
-            
+
+            errors = (
+                db.query(
+                    AIRequestLog.error_code,
+                    AIRequestLog.error_message,
+                    func.count(AIRequestLog.id).label("count"),
+                )
+                .filter(
+                    AIRequestLog.created_at >= cutoff,
+                    AIRequestLog.status == AIResponseStatus.ERROR.value,
+                )
+                .group_by(
+                    AIRequestLog.error_code,
+                    AIRequestLog.error_message,
+                )
+                .order_by(func.count(AIRequestLog.id).desc())
+                .limit(limit)
+                .all()
+            )
+
             return [
                 {
                     "error_code": code,
@@ -340,7 +348,7 @@ class AIMetrics:
                 }
                 for code, msg, count in errors
             ]
-            
+
         except Exception as e:
             logger.error(f"Error getting top errors: {e}")
             return []
@@ -356,15 +364,20 @@ class AIMetrics:
         """
         try:
             from datetime import timedelta
+
             cutoff = datetime.utcnow() - timedelta(hours=hours)
-            
-            slow = db.query(AIRequestLog).filter(
-                AIRequestLog.created_at >= cutoff,
-                AIRequestLog.processing_time_ms.isnot(None),
-            ).order_by(
-                AIRequestLog.processing_time_ms.desc()
-            ).limit(limit).all()
-            
+
+            slow = (
+                db.query(AIRequestLog)
+                .filter(
+                    AIRequestLog.created_at >= cutoff,
+                    AIRequestLog.processing_time_ms.isnot(None),
+                )
+                .order_by(AIRequestLog.processing_time_ms.desc())
+                .limit(limit)
+                .all()
+            )
+
             return [
                 {
                     "request_id": log.request_id,
@@ -375,7 +388,7 @@ class AIMetrics:
                 }
                 for log in slow
             ]
-            
+
         except Exception as e:
             logger.error(f"Error getting slowest requests: {e}")
             return []

@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
-from app.core.authz import require_scope
 from app.db.rls import ensure_rls, tenant_id_from_request
 from app.modules.copilot.services import (
     create_invoice_draft,
@@ -19,19 +18,42 @@ from app.modules.copilot.services import (
     suggest_overlay_fields,
 )
 
+
+def _feature_enabled() -> bool:
+    value = str(os.getenv("COPILOT_TENANT_ENABLED", "1")).strip().lower()
+    return value in ("1", "true", "yes", "on")
+
+
+def _require_tenant_access(request: Request) -> dict[str, Any]:
+    claims = getattr(request.state, "access_claims", None) or {}
+    kind = str(claims.get("kind", "")).strip().lower()
+    scope = str(claims.get("scope", "")).strip().lower()
+    scopes_claim = claims.get("scopes")
+    scopes: set[str] = set()
+    if isinstance(scopes_claim, (list, tuple, set)):
+        scopes = {str(s).strip().lower() for s in scopes_claim if s}
+    elif isinstance(scopes_claim, str) and scopes_claim.strip():
+        scopes = {scopes_claim.strip().lower()}
+
+    if kind == "tenant" or scope == "tenant" or "tenant" in scopes:
+        return claims
+
+    # Fallback for legacy tokens that only carry tenant_id.
+    if claims.get("tenant_id"):
+        return claims
+
+    raise HTTPException(status_code=403, detail="forbidden")
+
+
 router = APIRouter(
     prefix="/ai",
     tags=["Copilot"],
     dependencies=[
         Depends(with_access_claims),
-        Depends(require_scope("tenant")),
+        Depends(_require_tenant_access),
         Depends(ensure_rls),
     ],
 )
-
-
-def _feature_enabled() -> bool:
-    return str(os.getenv("COPILOT_TENANT_ENABLED", "1")).lower() in ("1", "true")
 
 
 class AskIn(BaseModel):

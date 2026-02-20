@@ -35,14 +35,10 @@ class ProfitSnapshotDaily(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
-        UniqueConstraint(
-            "tenant_id", "date", "location_id", name="uq_profit_snap_tenant_date_loc"
-        ),
+        UniqueConstraint("tenant_id", "date", "location_id", name="uq_profit_snap_tenant_date_loc"),
         Index("ix_profit_snapshots_daily_tenant_date", "tenant_id", "date"),
     )
 
@@ -55,9 +51,7 @@ class ProductProfitSnapshot(Base):
         TENANT_UUID, ForeignKey("tenants.id"), nullable=False, index=True
     )
     date: Mapped[date] = mapped_column(Date, nullable=False)
-    product_id: Mapped[uuid.UUID] = mapped_column(
-        UUID, ForeignKey("products.id"), nullable=False
-    )
+    product_id: Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("products.id"), nullable=False)
     location_id: Mapped[uuid.UUID | None] = mapped_column(UUID, nullable=True)
     revenue: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
     cogs: Mapped[float] = mapped_column(Numeric(14, 2), default=0)
@@ -68,17 +62,20 @@ class ProductProfitSnapshot(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
         UniqueConstraint(
-            "tenant_id", "date", "product_id", "location_id",
+            "tenant_id",
+            "date",
+            "product_id",
+            "location_id",
             name="uq_prod_snap_tenant_date_prod_loc",
         ),
         Index(
             "ix_product_profit_snapshots_tenant_date_product",
-            "tenant_id", "date", "product_id",
+            "tenant_id",
+            "date",
+            "product_id",
         ),
     )

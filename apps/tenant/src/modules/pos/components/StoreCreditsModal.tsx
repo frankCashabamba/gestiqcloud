@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react'
 import { listStoreCredits, getStoreCreditByCode, redeemStoreCredit } from '../services'
 import type { StoreCredit } from '../../../types/pos'
+import { useToast } from '../../../shared/toast'
 
 interface StoreCreditsModalProps {
   onSelect: (credit: StoreCredit) => void
@@ -12,6 +13,7 @@ interface StoreCreditsModalProps {
 }
 
 export default function StoreCreditsModal({ onSelect, onClose }: StoreCreditsModalProps) {
+  const toast = useToast()
   const [credits, setCredits] = useState<StoreCredit[]>([])
   const [loading, setLoading] = useState(false)
   const [searchCode, setSearchCode] = useState('')
@@ -42,7 +44,7 @@ export default function StoreCreditsModal({ onSelect, onClose }: StoreCreditsMod
       const credit = await getStoreCreditByCode(searchCode.toUpperCase())
       setFoundCredit(credit)
     } catch (error: any) {
-      alert(error.response?.data?.detail || 'Vale no encontrado')
+      toast.error(error.response?.data?.detail || 'Vale no encontrado')
       setFoundCredit(null)
     } finally {
       setSearching(false)
@@ -51,7 +53,7 @@ export default function StoreCreditsModal({ onSelect, onClose }: StoreCreditsMod
 
   const handleSelect = (credit: StoreCredit) => {
     if (credit.status !== 'active' || credit.amount_remaining <= 0) {
-      alert('Este vale no es válido')
+      toast.warning('Este vale no es válido')
       return
     }
     onSelect(credit)

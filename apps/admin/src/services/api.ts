@@ -1,15 +1,14 @@
 /**
  * Centralized API Client
  * All backend API calls go through this client
- * NO HARDCODES - Configuration from backend
+ * Configuration is centralized in constants/api.ts
  */
+import { API_BASE } from "../constants/api";
 
 const getAuthToken = () =>
   typeof window !== "undefined"
     ? sessionStorage.getItem("access_token_admin")
     : null;
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
 
 interface ApiError extends Error {
   status: number;

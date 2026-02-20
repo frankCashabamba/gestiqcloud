@@ -1,4 +1,5 @@
 """Profit Reports API — Snapshot-based fast queries"""
+
 import logging
 from datetime import date
 from uuid import UUID
@@ -53,7 +54,9 @@ def get_profit_report(
             "total_sales": total_sales,
             "total_cogs": total_cogs,
             "gross_profit": gross_profit,
-            "gross_margin_pct": round(gross_profit / total_sales * 100, 2) if total_sales > 0 else 0,
+            "gross_margin_pct": round(gross_profit / total_sales * 100, 2)
+            if total_sales > 0
+            else 0,
             "total_expenses": total_expenses,
             "net_profit": net_profit,
             "net_margin_pct": round(net_profit / total_sales * 100, 2) if total_sales > 0 else 0,
@@ -111,15 +114,17 @@ def get_product_margins(
         cogs = float(r[2] or 0)
         gross = float(r[3] or 0)
         margin = round(gross / revenue * 100, 2) if revenue > 0 else 0
-        products_data.append({
-            "product_id": str(r[0]),
-            "revenue": revenue,
-            "cogs": cogs,
-            "gross_profit": gross,
-            "margin_pct": margin,
-            "sold_qty": float(r[4] or 0),
-            "waste_qty": float(r[5] or 0),
-        })
+        products_data.append(
+            {
+                "product_id": str(r[0]),
+                "revenue": revenue,
+                "cogs": cogs,
+                "gross_profit": gross,
+                "margin_pct": margin,
+                "sold_qty": float(r[4] or 0),
+                "waste_qty": float(r[5] or 0),
+            }
+        )
 
     # Sort
     reverse = True

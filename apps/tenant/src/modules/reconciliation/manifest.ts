@@ -9,8 +9,8 @@ export const manifest = {
   routes: [
     {
       path: '',
-      label: 'Conciliación',
-      component: lazy(() => import('./Placeholder'))
+      label: 'Conciliación Bancaria',
+      component: lazy(() => import('./ReconciliationDashboard'))
     }
   ]
 }

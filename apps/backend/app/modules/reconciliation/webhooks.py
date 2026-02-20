@@ -8,7 +8,7 @@ Integrates with the webhooks module for secure, async delivery.
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import text
@@ -29,11 +29,11 @@ class PaymentWebhookService:
         self,
         tenant_id: UUID,
         payment_id: str,
-        invoice_id: Optional[str] = None,
+        invoice_id: str | None = None,
         amount: float = 0,
         currency: str = "USD",
-        payment_method: Optional[str] = None,
-        reference_number: Optional[str] = None,
+        payment_method: str | None = None,
+        reference_number: str | None = None,
     ) -> bool:
         """
         Trigger webhook when payment is received
@@ -79,11 +79,11 @@ class PaymentWebhookService:
         self,
         tenant_id: UUID,
         payment_id: str,
-        invoice_id: Optional[str] = None,
+        invoice_id: str | None = None,
         amount: float = 0,
         currency: str = "USD",
-        reason: Optional[str] = None,
-        error_code: Optional[str] = None,
+        reason: str | None = None,
+        error_code: str | None = None,
     ) -> bool:
         """
         Trigger webhook when payment fails
@@ -125,9 +125,7 @@ class PaymentWebhookService:
             logger.error(f"Error triggering payment.failed webhook: {e}", exc_info=True)
             return False
 
-    def _enqueue_delivery(
-        self, tenant_id: UUID, event: str, payload: Dict[str, Any]
-    ) -> bool:
+    def _enqueue_delivery(self, tenant_id: UUID, event: str, payload: dict[str, Any]) -> bool:
         """
         Internal method to enqueue webhook delivery for all active subscriptions
 

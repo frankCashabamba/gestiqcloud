@@ -1,6 +1,8 @@
 import tenantApi from '../../shared/api/client'
 import { ensureArray } from '../../shared/utils/array'
 import { TENANT_CLIENTS } from '@shared/endpoints'
+import { queueDeletion, storeEntity } from '../../lib/offlineStore'
+import { createOfflineTempId, isNetworkIssue, isOfflineQueuedResponse, stripOfflineMeta } from '../../lib/offlineHttp'
 
 export type Cliente = {
   id: number | string
@@ -61,15 +63,54 @@ export async function getCliente(id: number | string): Promise<Cliente> {
 }
 
 export async function createCliente(payload: Omit<Cliente, 'id'>): Promise<Cliente> {
-  const { data } = await tenantApi.post<Cliente>(TENANT_CLIENTS.base, payload)
-  return data
+  const cleanPayload = stripOfflineMeta(payload as any)
+  try {
+    const response = await tenantApi.post<Cliente>(TENANT_CLIENTS.base, cleanPayload, { headers: { 'X-Offline-Managed': '1' } })
+    if (isOfflineQueuedResponse(response)) {
+      const tempId = createOfflineTempId('customer')
+      await storeEntity('customer', tempId, { ...cleanPayload, _op: 'create' }, 'pending')
+      return { id: tempId, ...(cleanPayload as any) }
+    }
+    return response.data
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      const tempId = createOfflineTempId('customer')
+      await storeEntity('customer', tempId, { ...cleanPayload, _op: 'create' }, 'pending')
+      return { id: tempId, ...(cleanPayload as any) }
+    }
+    throw error
+  }
 }
 
 export async function updateCliente(id: number | string, payload: Omit<Cliente, 'id'>): Promise<Cliente> {
-  const { data } = await tenantApi.put<Cliente>(TENANT_CLIENTS.byId(id), payload)
-  return data
+  const cleanPayload = stripOfflineMeta(payload as any)
+  try {
+    const response = await tenantApi.put<Cliente>(TENANT_CLIENTS.byId(id), cleanPayload, { headers: { 'X-Offline-Managed': '1' } })
+    if (isOfflineQueuedResponse(response)) {
+      await storeEntity('customer', String(id), { ...cleanPayload, _op: 'update' }, 'pending')
+      return { id, ...(cleanPayload as any) } as Cliente
+    }
+    return response.data
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      await storeEntity('customer', String(id), { ...cleanPayload, _op: 'update' }, 'pending')
+      return { id, ...(cleanPayload as any) } as Cliente
+    }
+    throw error
+  }
 }
 
 export async function removeCliente(id: number | string): Promise<void> {
-  await tenantApi.delete(TENANT_CLIENTS.byId(id))
+  try {
+    const response = await tenantApi.delete(TENANT_CLIENTS.byId(id), { headers: { 'X-Offline-Managed': '1' } })
+    if (isOfflineQueuedResponse(response)) {
+      await queueDeletion('customer', String(id))
+    }
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      await queueDeletion('customer', String(id))
+      return
+    }
+    throw error
+  }
 }

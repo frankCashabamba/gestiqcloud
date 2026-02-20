@@ -17,7 +17,7 @@ export const PerdidasGanancias: React.FC = () => {
         setLoading(true)
         const dateFrom = toISO(addDays(new Date(), -30))
         const dateTo = toISO(new Date())
-        
+
         const data = await getProfitReport(dateFrom, dateTo)
         setReportData(data)
         setError(null)

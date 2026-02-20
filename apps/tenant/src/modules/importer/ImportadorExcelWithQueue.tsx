@@ -56,7 +56,7 @@ export default function ImportadorExcelWithQueue() {
     if (e.target.files && e.target.files.length > 0) {
       const files = Array.from(e.target.files)
       addToQueue(files)
-      
+
       // Upload to document storage
       for (const file of files) {
         try {
@@ -66,10 +66,10 @@ export default function ImportadorExcelWithQueue() {
             'importer'        // source
           )
         } catch (err: any) {
-          toastError(`Failed to upload ${file.name}: ${err.message}`)
+          toastError(t('importer:uploadFailed', { file: file.name, message: err.message }))
         }
       }
-      
+
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
@@ -81,7 +81,7 @@ export default function ImportadorExcelWithQueue() {
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const files = Array.from(e.dataTransfer.files)
       addToQueue(files)
-      
+
       // Upload to document storage
       for (const file of files) {
         try {
@@ -91,7 +91,7 @@ export default function ImportadorExcelWithQueue() {
             'importer'        // source
           )
         } catch (err: any) {
-          toastError(`Failed to upload ${file.name}: ${err.message}`)
+          toastError(t('importer:uploadFailed', { file: file.name, message: err.message }))
         }
       }
     }
@@ -113,7 +113,7 @@ export default function ImportadorExcelWithQueue() {
         }
       })
     } catch (err: any) {
-      toastError(err?.message || 'Error cleaning up stuck batches')
+      toastError(err?.message || t('importer:cleanupStuckFailed'))
     } finally {
       setCleaning(false)
     }

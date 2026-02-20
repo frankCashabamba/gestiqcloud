@@ -1,5 +1,7 @@
 import tenantApi from '../../shared/api/client'
 import { TENANT_PURCHASES } from '@shared/endpoints'
+import { queueDeletion, storeEntity } from '../../lib/offlineStore'
+import { createOfflineTempId, isNetworkIssue, isOfflineQueuedResponse, stripOfflineMeta } from '../../lib/offlineHttp'
 
 export type CompraLinea = {
   id?: number | string
@@ -56,17 +58,82 @@ export async function getCompra(id: number | string): Promise<Compra> {
 }
 
 export async function createCompra(payload: Omit<Compra, 'id'>): Promise<Compra> {
-  const { data } = await tenantApi.post<Compra>(TENANT_PURCHASES.base, payload)
-  return normalizeCompra(data)
+  const cleanPayload = stripOfflineMeta(payload as any)
+  try {
+    const response = await tenantApi.post<Compra>(TENANT_PURCHASES.base, cleanPayload, { headers: { 'X-Offline-Managed': '1' } })
+
+    if (isOfflineQueuedResponse(response)) {
+      const tempId = createOfflineTempId('purchase')
+      await storeEntity('purchase', tempId, { ...cleanPayload, _op: 'create' }, 'pending')
+      return normalizeCompra({
+        id: tempId,
+        ...cleanPayload,
+        estado: payload.estado || 'draft',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as Compra)
+    }
+
+    return normalizeCompra(response.data)
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      const tempId = createOfflineTempId('purchase')
+      await storeEntity('purchase', tempId, { ...cleanPayload, _op: 'create' }, 'pending')
+      return normalizeCompra({
+        id: tempId,
+        ...cleanPayload,
+        estado: payload.estado || 'draft',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as Compra)
+    }
+    throw error
+  }
 }
 
 export async function updateCompra(id: number | string, payload: Partial<Omit<Compra, 'id'>>): Promise<Compra> {
-  const { data } = await tenantApi.put<Compra>(TENANT_PURCHASES.byId(id), payload)
-  return normalizeCompra(data)
+  const cleanPayload = stripOfflineMeta(payload as any)
+  try {
+    const response = await tenantApi.put<Compra>(TENANT_PURCHASES.byId(id), cleanPayload, { headers: { 'X-Offline-Managed': '1' } })
+
+    if (isOfflineQueuedResponse(response)) {
+      await storeEntity('purchase', String(id), { ...cleanPayload, _op: 'update' }, 'pending')
+      return normalizeCompra({
+        id,
+        ...(cleanPayload as any),
+        estado: (payload as any)?.estado || 'draft',
+        updated_at: new Date().toISOString(),
+      } as Compra)
+    }
+
+    return normalizeCompra(response.data)
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      await storeEntity('purchase', String(id), { ...cleanPayload, _op: 'update' }, 'pending')
+      return normalizeCompra({
+        id,
+        ...(cleanPayload as any),
+        estado: (payload as any)?.estado || 'draft',
+        updated_at: new Date().toISOString(),
+      } as Compra)
+    }
+    throw error
+  }
 }
 
 export async function removeCompra(id: number | string): Promise<void> {
-  await tenantApi.delete(TENANT_PURCHASES.byId(id))
+  try {
+    const response = await tenantApi.delete(TENANT_PURCHASES.byId(id), { headers: { 'X-Offline-Managed': '1' } })
+    if (isOfflineQueuedResponse(response)) {
+      await queueDeletion('purchase', String(id))
+    }
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      await queueDeletion('purchase', String(id))
+      return
+    }
+    throw error
+  }
 }
 
 export async function recibirCompra(id: number | string): Promise<Compra> {

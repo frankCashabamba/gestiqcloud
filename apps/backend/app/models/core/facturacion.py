@@ -241,8 +241,8 @@ class BankTransaction(Base):
         self.status = value
 
 
-class Payment(Base):
-    """Payment model."""
+class LegacyPayment(Base):
+    """Legacy payment allocation model (bank transaction <-> invoice)."""
 
     __tablename__ = "payments"
 
@@ -263,6 +263,10 @@ class Payment(Base):
     # Relationships
     bank_tx: Mapped[BankTransaction] = relationship(BankTransaction)
     invoice: Mapped[Invoice] = relationship(Invoice)
+
+
+# Backward-compat import alias.
+Payment = LegacyPayment
 
 
 class InternalTransfer(Base):

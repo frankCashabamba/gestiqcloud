@@ -8,7 +8,7 @@ Integrates with the webhooks module for secure, async delivery.
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import text
@@ -33,7 +33,7 @@ class InvoicingWebhookService:
         amount: float,
         currency: str,
         customer_name: str,
-        customer_id: Optional[str] = None,
+        customer_id: str | None = None,
         status: str = "draft",
     ) -> bool:
         """
@@ -82,7 +82,7 @@ class InvoicingWebhookService:
         tenant_id: UUID,
         invoice_id: str,
         invoice_number: str,
-        sent_to: Optional[str] = None,
+        sent_to: str | None = None,
     ) -> bool:
         """
         Trigger webhook when invoice is sent (email, etc.)
@@ -124,7 +124,7 @@ class InvoicingWebhookService:
         invoice_id: str,
         invoice_number: str,
         authorization_number: str,
-        authorization_key: Optional[str] = None,
+        authorization_key: str | None = None,
     ) -> bool:
         """
         Trigger webhook when invoice is authorized in SRI
@@ -159,9 +159,7 @@ class InvoicingWebhookService:
                 logger.info(f"Enqueued webhook for invoice.authorized: {invoice_id}")
             return result
         except Exception as e:
-            logger.error(
-                f"Error triggering invoice.authorized webhook: {e}", exc_info=True
-            )
+            logger.error(f"Error triggering invoice.authorized webhook: {e}", exc_info=True)
             return False
 
     def trigger_invoice_rejected(
@@ -170,7 +168,7 @@ class InvoicingWebhookService:
         invoice_id: str,
         invoice_number: str,
         reason: str,
-        error_code: Optional[str] = None,
+        error_code: str | None = None,
     ) -> bool:
         """
         Trigger webhook when invoice is rejected (SRI rejection, validation, etc.)
@@ -213,7 +211,7 @@ class InvoicingWebhookService:
         tenant_id: UUID,
         invoice_id: str,
         invoice_number: str,
-        reason: Optional[str] = None,
+        reason: str | None = None,
     ) -> bool:
         """
         Trigger webhook when invoice is cancelled
@@ -249,9 +247,7 @@ class InvoicingWebhookService:
             logger.error(f"Error triggering invoice.cancelled webhook: {e}", exc_info=True)
             return False
 
-    def _enqueue_delivery(
-        self, tenant_id: UUID, event: str, payload: Dict[str, Any]
-    ) -> bool:
+    def _enqueue_delivery(self, tenant_id: UUID, event: str, payload: dict[str, Any]) -> bool:
         """
         Internal method to enqueue webhook delivery for all active subscriptions
 

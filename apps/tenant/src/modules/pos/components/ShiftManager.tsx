@@ -6,6 +6,9 @@ import { openShift, closeShift, getCurrentShift, getShiftSummary, getLastDailyCo
 import type { POSShift, POSRegister, ShiftSummary } from '../../../types/pos'
 import { useCurrency } from '../../../hooks/useCurrency'
 import { POS_DEFAULTS } from '../../../constants/defaults'
+import { useToast } from '../../../shared/toast'
+import { useAuth } from '../../../auth/AuthContext'
+import { usePermission } from '../../../hooks/usePermission'
 
 interface ShiftManagerProps {
     register: POSRegister
@@ -20,6 +23,9 @@ export interface ShiftManagerHandle {
 const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
     ({ register, onShiftChange, compact = false }, ref) => {
         const { symbol: currencySymbol, formatCurrency } = useCurrency()
+        const toast = useToast()
+        const { profile } = useAuth()
+        const can = usePermission()
         const [currentShift, setCurrentShift] = useState<POSShift | null>(null)
         const [loading, setLoading] = useState(false)
         const [openingFloat, setOpeningFloat] = useState(POS_DEFAULTS.OPENING_FLOAT)
@@ -29,19 +35,23 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
         const [showCloseModal, setShowCloseModal] = useState(false)
         const [summary, setSummary] = useState<ShiftSummary | null>(null)
         const [loadingSummary, setLoadingSummary] = useState(false)
-        const [canEditClose, setCanEditClose] = useState(false)
+        const canEditClose =
+            !!(profile?.es_admin_empresa || (profile as any)?.is_company_admin) ||
+            can('pos:update') ||
+            can('pos:write')
+        const parseMoney = (raw: string) => {
+            if (!raw) return 0
+            const normalized = raw.replace(',', '.').trim()
+            const num = Number.parseFloat(normalized)
+            return Number.isFinite(num) ? num : 0
+        }
+        const closingCashValue = parseMoney(closingCash)
+        const lossAmountValue = parseMoney(lossAmount)
+        const netCashToSave = Math.max(0, closingCashValue - lossAmountValue)
 
         useEffect(() => {
             loadCurrentShift()
             loadSuggestedOpeningFloat()
-
-            try {
-                const rawProfile = JSON.parse(localStorage.getItem('userProfile') || 'null')
-                const isAdmin = rawProfile?.es_admin_empresa || rawProfile?.is_company_admin
-                setCanEditClose(!!isAdmin)
-            } catch {
-                setCanEditClose(false)
-            }
         }, [register.id])
 
         const loadCurrentShift = async () => {
@@ -67,7 +77,7 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
 
         const handleOpenShift = async () => {
             if (!openingFloat || parseFloat(openingFloat) < 0) {
-                alert('Ingrese un monto de apertura válido')
+                toast.warning('Ingrese un monto de apertura válido')
                 return
             }
 
@@ -79,9 +89,9 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
                 })
                 setCurrentShift(shift)
                 onShiftChange(shift)
-                alert('Turno abierto exitosamente')
+                toast.success('Turno abierto exitosamente')
             } catch (error: any) {
-                alert(error.response?.data?.detail || 'Error al abrir turno')
+                toast.error(error.response?.data?.detail || 'Error al abrir turno')
             } finally {
                 setLoading(false)
             }
@@ -100,7 +110,7 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
                     }
                 } catch (error: any) {
                     console.error('Error loading summary:', error)
-                    alert('Error al cargar el resumen del turno')
+                    toast.error('Error al cargar el resumen del turno')
                 } finally {
                     setLoadingSummary(false)
                 }
@@ -118,12 +128,12 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
             if (!currentShift) return
 
             if (summary && summary.pending_receipts > 0) {
-                alert(`No se puede cerrar el turno. Hay ${summary.pending_receipts} recibo(s) sin cobrar/terminar.`)
+                toast.warning(`No se puede cerrar el turno. Hay ${summary.pending_receipts} recibo(s) sin cobrar/terminar.`)
                 return
             }
 
             if (!closingCash || parseFloat(closingCash) < 0) {
-                alert('Ingrese el total de efectivo en caja')
+                toast.warning('Ingrese el total de efectivo en caja')
                 return
             }
 
@@ -154,7 +164,7 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
                     (result.loss_amount > 0 ? `\nPérdidas: ${formatCurrency(result.loss_amount || 0)}` : '') +
                     (result.loss_note ? `\nNota: ${result.loss_note}` : '')
 
-                alert(msg)
+                toast.success(msg)
 
                 setCurrentShift(null)
                 onShiftChange(null)
@@ -164,7 +174,7 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
                 setLossNote('')
                 setSummary(null)
             } catch (error: any) {
-                alert(error.response?.data?.detail || 'Error al cerrar turno')
+                toast.error(error.response?.data?.detail || 'Error al cerrar turno')
             } finally {
                 setLoading(false)
             }
@@ -184,7 +194,7 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
                             step="0.01"
                             value={openingFloat}
                             onChange={(e) => setOpeningFloat(e.target.value)}
-                            className="w-full px-3 py-2 border rounded"
+                            className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             disabled={loading}
                         />
                     </div>
@@ -261,37 +271,37 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
                                             <h4 className="font-semibold text-gray-900">Productos vendidos</h4>
                                             <span className="text-xs text-gray-500">Stock restante por almacén</span>
                                         </div>
-                                        <div className="max-h-60 overflow-y-auto border rounded shadow-sm">
-                                            <table className="w-full text-sm">
-                                                <thead className="bg-gray-100 sticky top-0 text-gray-700">
+                                        <div className="max-h-60 overflow-y-auto border rounded shadow-sm bg-white">
+                                            <table className="w-full text-[14px] text-slate-800">
+                                                <thead className="bg-slate-100 sticky top-0 text-slate-800 border-b border-slate-300 shadow-sm">
                                                     <tr>
-                                                        <th className="p-2 text-left">Código</th>
-                                                        <th className="p-2 text-left">Producto</th>
-                                                        <th className="p-2 text-right">Vendido</th>
-                                                        <th className="p-2 text-right">Subtotal</th>
-                                                        <th className="p-2 text-right">Stock Restante</th>
+                                                        <th className="p-2 text-left font-semibold">Código</th>
+                                                        <th className="p-2 text-left font-semibold">Producto</th>
+                                                        <th className="p-2 text-right font-semibold">Vendido</th>
+                                                        <th className="p-2 text-right font-semibold">Subtotal</th>
+                                                        <th className="p-2 text-right font-semibold">Stock Restante</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     {summary.items_sold
                                                         .filter(item => item.qty_sold > 0)
                                                         .map((item, idx) => (
-                                                            <tr key={idx} className="border-t">
-                                                                <td className="p-2">{item.code || '-'}</td>
-                                                                <td className="p-2">{item.name}</td>
-                                                                <td className="p-2 text-right">{item.qty_sold.toFixed(2)}</td>
-                                                                <td className="p-2 text-right">{formatCurrency(item.subtotal)}</td>
-                                                                <td className="p-2 text-right">
+                                                            <tr key={idx} className="border-t border-slate-200 odd:bg-white even:bg-slate-50">
+                                                                <td className="p-2 text-slate-700">{item.code || '-'}</td>
+                                                                <td className="p-2 text-slate-900 font-medium">{item.name}</td>
+                                                                <td className="p-2 text-right text-slate-800">{item.qty_sold.toFixed(2)}</td>
+                                                                <td className="p-2 text-right text-slate-900 font-semibold">{formatCurrency(item.subtotal)}</td>
+                                                                <td className="p-2 text-right text-slate-700">
                                                                     {item.stock.length > 0 ? (
                                                                         <div className="space-y-1">
                                                                             {item.stock.map((s, i) => (
-                                                                                <div key={i} className={s.qty < 0 ? 'text-red-600 font-semibold' : s.qty === 0 ? 'text-gray-400' : ''}>
+                                                                                <div key={i} className={s.qty < 0 ? 'text-red-600 font-semibold' : s.qty === 0 ? 'text-slate-400' : 'text-slate-700'}>
                                                                                     {s.warehouse_name}: {s.qty.toFixed(2)}
                                                                                 </div>
                                                                             ))}
                                                                         </div>
                                                                     ) : (
-                                                                        <span className="text-gray-400">-</span>
+                                                                        <span className="text-slate-400">-</span>
                                                                     )}
                                                                 </td>
                                                             </tr>
@@ -304,54 +314,80 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
                             ) : null}
 
                             {/* Formulario de cierre */}
-                            <div className="space-y-4 border-t pt-4 mt-4">
-                                <div>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <label className="block text-sm font-medium">Total en efectivo ({currencySymbol})</label>
-                                        {summary?.payments && (
-                                            <div className="text-xs text-gray-500 space-x-2 text-right">
-                                                <span>Efectivo registrado: {formatCurrency(summary.payments?.cash || summary.payments?.efectivo || 0)}</span>
-                                                {summary.payments?.card ? <span>Tarjeta: {formatCurrency(summary.payments.card)}</span> : null}
-                                                {summary.payments?.link ? <span>Link: {formatCurrency(summary.payments.link)}</span> : null}
-                                                {summary.payments?.store_credit ? <span>Vale: {formatCurrency(summary.payments.store_credit)}</span> : null}
-                                            </div>
-                                        )}
+                            <div className="space-y-4 border-t border-slate-200 pt-4 mt-4">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                                    <div className="min-w-0">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="block text-sm font-semibold text-slate-800">Total en efectivo ({currencySymbol})</label>
+                                            {summary?.payments && (
+                                                <div className="text-xs text-slate-600 space-x-2 text-right leading-tight">
+                                                    <span>Efectivo registrado: {formatCurrency(summary.payments?.cash || summary.payments?.efectivo || 0)}</span>
+                                                    {summary.payments?.card ? <span>Tarjeta: {formatCurrency(summary.payments.card)}</span> : null}
+                                                    {summary.payments?.link ? <span>Link: {formatCurrency(summary.payments.link)}</span> : null}
+                                                    {summary.payments?.store_credit ? <span>Vale: {formatCurrency(summary.payments.store_credit)}</span> : null}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            inputMode="decimal"
+                                            value={closingCash}
+                                            onChange={(e) => setClosingCash(e.target.value)}
+                                            className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-900 text-right font-semibold placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            placeholder="0.00"
+                                            autoFocus
+                                            disabled={!canEditClose}
+                                        />
                                     </div>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        value={closingCash}
-                                        onChange={(e) => setClosingCash(e.target.value)}
-                                        className="w-full px-3 py-2 border rounded"
-                                        placeholder="0.00"
-                                        autoFocus
-                                        disabled={!canEditClose}
-                                    />
+
+                                    <div className="min-w-0">
+                                        <label className="block text-sm font-semibold text-slate-800 mb-2">Perdidas/Mermas ({currencySymbol})</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            inputMode="decimal"
+                                            value={lossAmount}
+                                            onChange={(e) => setLossAmount(e.target.value)}
+                                            className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-900 text-right font-semibold placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            placeholder="0.00"
+                                            disabled={!canEditClose}
+                                        />
+                                        <p className="mt-1 text-xs text-slate-500">
+                                            Registre aqui el monto total de perdidas/mermas detectadas en caja.
+                                        </p>
+                                    </div>
+
+                                    <div className="min-w-0">
+                                        <label className="block text-sm font-semibold text-slate-800 mb-2">Total a guardar ({currencySymbol})</label>
+                                        <input
+                                            type="text"
+                                            value={formatCurrency(netCashToSave)}
+                                            className="w-full px-3 py-2 border border-emerald-300 rounded bg-emerald-50 text-emerald-800 text-right font-bold"
+                                            readOnly
+                                            aria-label="Total a guardar"
+                                        />
+                                        <p className="mt-1 text-xs text-slate-500">
+                                            Calculado automaticamente: efectivo menos perdidas/mermas.
+                                        </p>
+                                    </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Pérdidas/Mermas ({currencySymbol})</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        value={lossAmount}
-                                        onChange={(e) => setLossAmount(e.target.value)}
-                                        className="w-full px-3 py-2 border rounded"
-                                        placeholder="0.00"
-                                        disabled={!canEditClose}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium mb-2">Nota de Pérdidas</label>
+                                    <label className="block text-sm font-semibold text-slate-800 mb-2">Nota de perdidas</label>
                                     <textarea
                                         value={lossNote}
                                         onChange={(e) => setLossNote(e.target.value)}
-                                        className="w-full px-3 py-2 border rounded"
-                                        placeholder="Descripción de pérdidas o productos deteriorados..."
+                                        className="w-full px-3 py-2 border border-slate-300 rounded bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        placeholder="Descripcion de perdidas o productos deteriorados..."
                                         rows={3}
                                         disabled={!canEditClose}
                                     />
+                                    {!canEditClose && (
+                                        <p className="mt-1 text-xs text-amber-700">
+                                            Tu rol no permite editar cifras de cierre.
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
@@ -359,9 +395,9 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
                                 <button
                                     onClick={handleCloseShift}
                                     disabled={loading || (summary?.pending_receipts ?? 0) > 0}
-                                    className="flex-1 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="flex-1 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    {loading ? 'Cerrando...' : 'Cerrar Turno'}
+                                    {loading ? 'Cerrando...' : 'Cerrar caja'}
                                 </button>
                                 <button
                                     onClick={() => {
@@ -369,7 +405,7 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
                                         setSummary(null)
                                     }}
                                     disabled={loading}
-                                    className="flex-1 bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
+                                    className="flex-1 bg-slate-200 text-slate-800 px-4 py-2 rounded hover:bg-slate-300 font-medium"
                                 >
                                     Cancelar
                                 </button>

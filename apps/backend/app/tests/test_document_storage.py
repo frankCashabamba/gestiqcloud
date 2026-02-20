@@ -1,7 +1,6 @@
 """Tests for Document Storage Service — WORM + SHA256 dedupe"""
-import uuid
 
-import pytest
+import uuid
 
 # Register models with Base
 import app.models.core.document_storage  # noqa: F401
@@ -12,6 +11,7 @@ class TestDocumentStorageService:
 
     def _make_tenant(self, db):
         from app.models.tenant import Tenant
+
         tid = uuid.uuid4()
         t = Tenant(id=tid, name="Doc Test", slug=f"doc-{tid.hex[:8]}")
         db.add(t)
@@ -19,7 +19,10 @@ class TestDocumentStorageService:
         return tid
 
     def _svc(self, db):
-        from app.modules.documents.application.document_storage_service import DocumentStorageService
+        from app.modules.documents.application.document_storage_service import (
+            DocumentStorageService,
+        )
+
         return DocumentStorageService(db)
 
     def test_upload_creates_document_and_version(self, db):
@@ -27,9 +30,13 @@ class TestDocumentStorageService:
         svc = self._svc(db)
         content = b"hello world document"
         doc, ver, is_dup = svc.upload_document(
-            tenant_id=tid, created_by=tid,
-            file_content=content, file_name="test.pdf",
-            mime="application/pdf", source="upload", doc_type="invoice_vendor",
+            tenant_id=tid,
+            created_by=tid,
+            file_content=content,
+            file_name="test.pdf",
+            mime="application/pdf",
+            source="upload",
+            doc_type="invoice_vendor",
         )
         db.flush()
         assert doc is not None
@@ -45,13 +52,19 @@ class TestDocumentStorageService:
         svc = self._svc(db)
         content = b"duplicate content"
         doc1, ver1, dup1 = svc.upload_document(
-            tenant_id=tid, created_by=tid,
-            file_content=content, file_name="a.pdf", mime="application/pdf",
+            tenant_id=tid,
+            created_by=tid,
+            file_content=content,
+            file_name="a.pdf",
+            mime="application/pdf",
         )
         db.flush()
         doc2, ver2, dup2 = svc.upload_document(
-            tenant_id=tid, created_by=tid,
-            file_content=content, file_name="b.pdf", mime="application/pdf",
+            tenant_id=tid,
+            created_by=tid,
+            file_content=content,
+            file_name="b.pdf",
+            mime="application/pdf",
         )
         assert dup1 is False
         assert dup2 is True
@@ -61,12 +74,18 @@ class TestDocumentStorageService:
         tid = self._make_tenant(db)
         svc = self._svc(db)
         _, ver1, _ = svc.upload_document(
-            tenant_id=tid, created_by=tid,
-            file_content=b"content A", file_name="a.pdf", mime="application/pdf",
+            tenant_id=tid,
+            created_by=tid,
+            file_content=b"content A",
+            file_name="a.pdf",
+            mime="application/pdf",
         )
         _, ver2, _ = svc.upload_document(
-            tenant_id=tid, created_by=tid,
-            file_content=b"content B", file_name="b.pdf", mime="application/pdf",
+            tenant_id=tid,
+            created_by=tid,
+            file_content=b"content B",
+            file_name="b.pdf",
+            mime="application/pdf",
         )
         db.flush()
         assert ver1.sha256 != ver2.sha256
@@ -75,8 +94,11 @@ class TestDocumentStorageService:
         tid = self._make_tenant(db)
         svc = self._svc(db)
         doc, _, _ = svc.upload_document(
-            tenant_id=tid, created_by=tid,
-            file_content=b"get me", file_name="get.txt", mime="text/plain",
+            tenant_id=tid,
+            created_by=tid,
+            file_content=b"get me",
+            file_name="get.txt",
+            mime="text/plain",
         )
         db.flush()
         found = svc.get_document(tid, doc.id)
@@ -88,8 +110,11 @@ class TestDocumentStorageService:
         tid2 = self._make_tenant(db)
         svc = self._svc(db)
         doc, _, _ = svc.upload_document(
-            tenant_id=tid1, created_by=tid1,
-            file_content=b"tenant1 doc", file_name="t1.pdf", mime="application/pdf",
+            tenant_id=tid1,
+            created_by=tid1,
+            file_content=b"tenant1 doc",
+            file_name="t1.pdf",
+            mime="application/pdf",
         )
         db.flush()
         assert svc.get_document(tid2, doc.id) is None
@@ -99,9 +124,12 @@ class TestDocumentStorageService:
         svc = self._svc(db)
         for i in range(3):
             svc.upload_document(
-                tenant_id=tid, created_by=tid,
-                file_content=f"doc {i}".encode(), file_name=f"doc{i}.pdf",
-                mime="application/pdf", doc_type="sales_excel",
+                tenant_id=tid,
+                created_by=tid,
+                file_content=f"doc {i}".encode(),
+                file_name=f"doc{i}.pdf",
+                mime="application/pdf",
+                doc_type="sales_excel",
             )
         db.flush()
         docs = svc.list_documents(tid, doc_type="sales_excel")
@@ -112,8 +140,10 @@ class TestDocumentStorageService:
         svc = self._svc(db)
         for i in range(5):
             svc.upload_document(
-                tenant_id=tid, created_by=tid,
-                file_content=f"limited {i}".encode(), file_name=f"lim{i}.pdf",
+                tenant_id=tid,
+                created_by=tid,
+                file_content=f"limited {i}".encode(),
+                file_name=f"lim{i}.pdf",
                 mime="application/pdf",
             )
         db.flush()
@@ -124,8 +154,11 @@ class TestDocumentStorageService:
         tid = self._make_tenant(db)
         svc = self._svc(db)
         doc, ver1, _ = svc.upload_document(
-            tenant_id=tid, created_by=tid,
-            file_content=b"v1 content", file_name="versioned.pdf", mime="application/pdf",
+            tenant_id=tid,
+            created_by=tid,
+            file_content=b"v1 content",
+            file_name="versioned.pdf",
+            mime="application/pdf",
         )
         db.flush()
         versions = svc.get_versions(tid, doc.id)
@@ -136,13 +169,19 @@ class TestDocumentStorageService:
         tid = self._make_tenant(db)
         svc = self._svc(db)
         doc, ver1, _ = svc.upload_document(
-            tenant_id=tid, created_by=tid,
-            file_content=b"original", file_name="ver.pdf", mime="application/pdf",
+            tenant_id=tid,
+            created_by=tid,
+            file_content=b"original",
+            file_name="ver.pdf",
+            mime="application/pdf",
         )
         db.flush()
         ver2, is_dup = svc.add_version(
-            tenant_id=tid, document_id=doc.id,
-            file_content=b"updated content", file_name="ver_v2.pdf", mime="application/pdf",
+            tenant_id=tid,
+            document_id=doc.id,
+            file_content=b"updated content",
+            file_name="ver_v2.pdf",
+            mime="application/pdf",
         )
         db.flush()
         assert is_dup is False
@@ -152,12 +191,18 @@ class TestDocumentStorageService:
         tid = self._make_tenant(db)
         svc = self._svc(db)
         doc, _, _ = svc.upload_document(
-            tenant_id=tid, created_by=tid,
-            file_content=b"same content", file_name="dup.pdf", mime="application/pdf",
+            tenant_id=tid,
+            created_by=tid,
+            file_content=b"same content",
+            file_name="dup.pdf",
+            mime="application/pdf",
         )
         db.flush()
         ver2, is_dup = svc.add_version(
-            tenant_id=tid, document_id=doc.id,
-            file_content=b"same content", file_name="dup_v2.pdf", mime="application/pdf",
+            tenant_id=tid,
+            document_id=doc.id,
+            file_content=b"same content",
+            file_name="dup_v2.pdf",
+            mime="application/pdf",
         )
         assert is_dup is True

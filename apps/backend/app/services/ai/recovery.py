@@ -2,17 +2,17 @@
 Sistema de recuperación y corrección automática de errores de IA
 Intenta solucionar problemas automáticamente
 """
+
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.services.ai.base import AIRequest, AIResponse, AITask
+from app.services.ai.base import AIRequest, AIResponse
 from app.services.ai.factory import AIProviderFactory
 from app.services.ai.logging import AILogger
 
@@ -31,10 +31,10 @@ class ErrorRecoveryStrategy:
         db: Session,
         request_id: str,
         original_error: str,
-    ) -> Optional[AIResponse]:
+    ) -> AIResponse | None:
         """
         Intenta recuperarse del error
-        
+
         Returns:
             AIResponse si tuvo éxito, None si debe intentar siguiente estrategia
         """
@@ -55,12 +55,12 @@ class RetryStrategy(ErrorRecoveryStrategy):
         db: Session,
         request_id: str,
         original_error: str,
-    ) -> Optional[AIResponse]:
+    ) -> AIResponse | None:
         """Reintentar con backoff"""
         for attempt in range(self.max_retries):
             try:
                 # Esperar exponencialmente
-                delay = self.initial_delay * (2 ** attempt)
+                delay = self.initial_delay * (2**attempt)
                 await asyncio.sleep(delay)
 
                 # Obtener proveedor disponible
@@ -99,13 +99,16 @@ class RetryStrategy(ErrorRecoveryStrategy):
 class FallbackStrategy(ErrorRecoveryStrategy):
     """Cambiar a diferente proveedor"""
 
+    def __init__(self):
+        super().__init__("fallback")
+
     async def execute(
         self,
         request: AIRequest,
         db: Session,
         request_id: str,
         original_error: str,
-    ) -> Optional[AIResponse]:
+    ) -> AIResponse | None:
         """Intentar con siguiente proveedor en cadena"""
         try:
             for provider_name in AIProviderFactory._fallback_chain:
@@ -151,13 +154,16 @@ class FallbackStrategy(ErrorRecoveryStrategy):
 class SimplifyStrategy(ErrorRecoveryStrategy):
     """Simplificar el prompt y reintentar"""
 
+    def __init__(self):
+        super().__init__("simplify")
+
     async def execute(
         self,
         request: AIRequest,
         db: Session,
         request_id: str,
         original_error: str,
-    ) -> Optional[AIResponse]:
+    ) -> AIResponse | None:
         """Intentar con prompt simplificado"""
         try:
             # Detectar si fue truncado
@@ -203,13 +209,16 @@ class SimplifyStrategy(ErrorRecoveryStrategy):
 class CacheStrategy(ErrorRecoveryStrategy):
     """Usar respuesta en caché si disponible"""
 
+    def __init__(self):
+        super().__init__("cache")
+
     async def execute(
         self,
         request: AIRequest,
         db: Session,
         request_id: str,
         original_error: str,
-    ) -> Optional[AIResponse]:
+    ) -> AIResponse | None:
         """
         Buscar en cache (futuro)
         Por ahora es placeholder
@@ -235,10 +244,10 @@ class AIRecoveryManager:
         db: Session,
         request_id: str,
         original_error: str,
-    ) -> Optional[AIResponse]:
+    ) -> AIResponse | None:
         """
         Ejecuta estrategias de recuperación en orden
-        
+
         Returns:
             AIResponse si se recuperó, None si no
         """

@@ -12,17 +12,15 @@ Gestión completa de plantillas de mapeo:
   - 🍞 Panadería - Productos
   - 🛍️ Bazar - Productos
   - 📄 Factura Genérica
-- **Fallback temporal**: LocalStorage hasta que backend esté listo
-- **TODO**: Endpoints `/api/v1/imports/templates` (501 Not Implemented)
+- Backend ya disponible para plantillas/mapeos: `/api/v1/tenant/imports/mappings` y `/api/v1/tenant/imports/column-mappings`
 
-### 2. **hooks/useImportProgress.tsx** ✅
+### 2. **hooks/useImportProgress.ts** ✅
 Hook para monitoreo de progreso en tiempo real:
-- WebSocket connection a `/ws/imports/progress/{batchId}`
+- Polling HTTP a `GET /api/v1/tenant/imports/batches/{batchId}/status`
 - Estados: `idle`, `processing`, `completed`, `error`
 - Tiempo estimado restante
 - Manejo de errores de conexión
-- **Fallback temporal**: Simulación de progreso
-- **TODO**: WebSocket endpoint en backend
+- Sin simulación local: consume estado real del batch
 
 ### 3. **components/ProgressIndicator.tsx** ✅
 Componente visual de progreso:
@@ -117,7 +115,7 @@ Flujo mejorado a 6 pasos:
 - ✅ Información del total
 
 #### Paso 6: Importando ⭐ NUEVO
-- ✅ Barra de progreso con WebSocket
+- ✅ Barra de progreso por polling HTTP
 - ✅ Mensaje "Procesando fila X de Y..."
 - ✅ Tiempo estimado
 - ✅ Animación de completado 🎉
@@ -157,25 +155,25 @@ Flujo mejorado a 6 pasos:
 
 ---
 
-## 🔧 Integraciones Backend (TODO)
+## 🔧 Integraciones Backend (Estado actual)
 
 ### Endpoints necesarios:
 
-#### 1. **Plantillas** `/api/v1/imports/templates`
+#### 1. **Plantillas/Mapeos** `/api/v1/tenant/imports/mappings` y `/api/v1/tenant/imports/column-mappings`
 ```python
-# GET /api/v1/imports/templates
+# GET /api/v1/tenant/imports/mappings
 # Parámetros: source_type (opcional)
-# Respuesta: List[ImportTemplate]
+# Respuesta: List[ImportMappingOut]
 
-# POST /api/v1/imports/templates
-# Body: { name, source_type, mappings }
-# Respuesta: ImportTemplate
+# POST /api/v1/tenant/imports/mappings
+# Body: { name, source_type, mappings, transforms?, defaults? }
+# Respuesta: ImportMappingOut
 
-# GET /api/v1/imports/templates/{id}
-# Respuesta: ImportTemplate
+# GET /api/v1/tenant/imports/mappings/{id}
+# Respuesta: ImportMappingOut
 
-# DELETE /api/v1/imports/templates/{id}
-# Respuesta: 204 No Content
+# DELETE /api/v1/tenant/imports/mappings/{id}
+# Respuesta: OkResponse
 ```
 
 **Modelo SQLAlchemy**:
@@ -193,42 +191,16 @@ class ImportTemplate(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 ```
 
-#### 2. **WebSocket Progreso** `/ws/imports/progress/{batch_id}`
+#### 2. **Estado de Progreso (batch status)** `GET /api/v1/tenant/imports/batches/{batch_id}/status`
 ```python
-# WebSocket endpoint
-# Enviar JSON cada X segundos:
+# Endpoint HTTP para polling de progreso
+# Respuesta esperada:
 {
-  "current": 150,
+  "processed": 150,
   "total": 500,
-  "status": "processing",  # idle, processing, completed, error
-  "message": "Validando fila 150 de 500...",
-  "estimated_time_remaining": 45  # segundos
+  "status": "processing",
+  "message": "Validando fila 150 de 500..."
 }
-```
-
-**Implementación sugerida**:
-```python
-from fastapi import WebSocket
-import asyncio
-
-@router.websocket("/ws/imports/progress/{batch_id}")
-async def import_progress_ws(websocket: WebSocket, batch_id: str):
-    await websocket.accept()
-
-    try:
-        while True:
-            # Obtener estado del batch desde Redis o DB
-            progress = await get_batch_progress(batch_id)
-
-            await websocket.send_json(progress)
-
-            if progress['status'] in ['completed', 'error']:
-                break
-
-            await asyncio.sleep(1)  # Actualizar cada segundo
-
-    except Exception as e:
-        await websocket.close(code=1011, reason=str(e))
 ```
 
 ---
@@ -237,13 +209,13 @@ async def import_progress_ws(websocket: WebSocket, batch_id: str):
 
 | Componente | Estado | Líneas | Notas |
 |------------|--------|--------|-------|
-| **services/templates.ts** | ✅ 100% | 200 | Fallback localStorage |
-| **hooks/useImportProgress.tsx** | ✅ 100% | 120 | Simulación temporal |
-| **components/ProgressIndicator.tsx** | ✅ 100% | 80 | Animaciones completas |
-| **components/TemplateManager.tsx** | ✅ 100% | 180 | Modal completo |
-| **utils/levenshtein.ts** | ✅ 100% | 90 | Algoritmo optimizado |
-| **components/MapeoCampos.tsx** | ✅ 100% | 280 | Reescrito completo |
-| **Wizard.tsx** | ✅ 100% | 400 | 6 pasos con breadcrumb |
+| **services/templates.ts** | ✅ Implementado | 200 | Integrado con endpoints tenant |
+| **hooks/useImportProgress.ts** | ✅ Implementado | 120 | Polling HTTP a status |
+| **components/ProgressIndicator.tsx** | ✅ Implementado | 80 | Animaciones completas |
+| **components/TemplateManager.tsx** | ✅ Implementado | 180 | Modal completo |
+| **utils/levenshtein.ts** | ✅ Implementado | 90 | Algoritmo optimizado |
+| **components/MapeoCampos.tsx** | ✅ Implementado | 280 | Reescrito completo |
+| **Wizard.tsx** | ✅ Implementado | 400 | 6 pasos con breadcrumb |
 
 **Total implementado**: ~1,350 líneas de código profesional
 
@@ -284,8 +256,8 @@ http://localhost:5173/importador
 
 ### Backend Priority:
 1. **Alta**: Crear tabla `import_templates` y CRUD endpoints
-2. **Alta**: Implementar WebSocket `/ws/imports/progress/{batch_id}`
-3. **Media**: Migrar plantillas de localStorage a DB
+2. **Media**: Consolidar catálogo de plantillas del sistema desde backend
+3. **Media**: Documentar SLA de polling y estados terminales
 4. **Baja**: Sincronizar plantillas del sistema desde seed
 
 ### Frontend Enhancements:
@@ -298,7 +270,7 @@ http://localhost:5173/importador
 - [ ] Unit tests para algoritmo Levenshtein
 - [ ] Integration tests para flujo completo
 - [ ] E2E tests con Playwright
-- [ ] Test de WebSocket con mock
+- [ ] Test de polling de progreso con mock
 
 ---
 
@@ -316,7 +288,7 @@ Wizard
 └── ResumenImportacion (paso 5)
 
 hooks/
-└── useImportProgress (WebSocket)
+└── useImportProgress (Polling HTTP)
 
 services/
 └── templates (CRUD)
@@ -329,7 +301,7 @@ services/
 3. Usuario ajusta → onChange(mapa)
 4. Validación → runValidation() → errores[]
 5. Normalización → normalizarDocumento()
-6. Importación → guardarPendiente() + WebSocket
+6. Importación → guardarPendiente() + polling de status
 ```
 
 ### Estado del wizard:
@@ -347,10 +319,10 @@ const { progress, error } = useImportProgress(batchId)
 
 ## ⚠️ Notas Importantes
 
-### 1. Backend NO implementado:
-- Endpoints de plantillas devuelven 501 temporalmente
-- WebSocket usa simulación de progreso
-- LocalStorage como fallback temporal
+### 1. Estado backend/frontend:
+- Endpoints de mapeos activos (`/api/v1/tenant/imports/mappings`, `/api/v1/tenant/imports/column-mappings`)
+- Progreso activo por polling HTTP (`/api/v1/tenant/imports/batches/{id}/status`)
+- Persistencia de plantillas de usuario disponible en backend
 
 ### 2. Migraciones pendientes:
 ```sql
@@ -374,7 +346,6 @@ CREATE INDEX idx_import_templates_type ON import_templates(source_type);
 ```bash
 # .env
 VITE_API_URL=http://localhost:8000
-VITE_WS_URL=ws://localhost:8000
 ```
 
 ---
@@ -388,19 +359,19 @@ VITE_WS_URL=ws://localhost:8000
 - [x] Plantillas predefinidas del sistema
 - [ ] Backend: tabla import_templates
 - [ ] Backend: endpoints CRUD
-- [ ] Backend: WebSocket progreso
+- [x] Backend: endpoint status para progreso (polling HTTP)
 - [ ] Migrar localStorage → DB
 - [ ] Tests unitarios
 - [ ] Documentación de usuario
 
-**Estado**: Frontend 100% completo ✅
-**Bloqueadores**: Backend endpoints (501)
+**Estado**: Frontend implementado, pendiente de ampliar cobertura de tests
+**Bloqueadores**: Ninguno critico en endpoints base del importador
 
 ---
 
 ## 🎯 Conclusión
 
-El **Importador Visual Mejorado** está completamente implementado en frontend con todas las funcionalidades solicitadas:
+El **Importador Visual Mejorado** está implementado en frontend para el flujo principal:
 
 ✅ Auto-detección inteligente (Levenshtein)
 ✅ Preview en vivo
@@ -409,4 +380,4 @@ El **Importador Visual Mejorado** está completamente implementado en frontend c
 ✅ Progreso en tiempo real
 ✅ UX/UI profesional
 
-**Próximo paso**: Implementar endpoints backend para desbloquear funcionalidad completa.
+**Próximo paso**: cubrir con tests de integración el flujo parse -> batch -> ingest -> status.

@@ -5,6 +5,8 @@ desktop.ini
 .idea/
 .vscode/
 *.swp
+*.bak
+*.bak.*
 .eslintcache
 
 # --- caches / logs / reports ---

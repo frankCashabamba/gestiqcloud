@@ -1,115 +1,80 @@
 /**
- * useImportProgress - Hook para conectar WebSocket de progreso de importación
- * Sprint 3: Real-time progress updates durante importación
+ * Hook para monitorear progreso de importacion (polling HTTP)
  */
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import api from '../../../shared/api/client'
+import { IMPORTS } from '@endpoints/imports'
 
-export interface ProgressUpdate {
-  batchId: string
-  rowsProcessed: number
-  totalRows: number
-  status: 'pending' | 'processing' | 'completed' | 'failed'
-  currentStep: string
-  errorCount: number
-  speed: number // rows/sec
-  estimatedTime: number // seconds
-  errors?: Array<{ row: number; message: string }>
+export interface ImportProgress {
+  current: number
+  total: number
+  status: 'idle' | 'processing' | 'completed' | 'error'
+  message: string
+  estimated_time_remaining?: number
 }
 
-interface UseImportProgressOptions {
-  batchId?: string
-  token?: string
-  onComplete?: () => void
-  onError?: (error: string) => void
-}
-
-export const useImportProgress = ({
-  batchId,
-  token,
-  onComplete,
-  onError
-}: UseImportProgressOptions = {}) => {
-  const [progress, setProgress] = useState<ProgressUpdate | null>(null)
-  const [isConnected, setIsConnected] = useState(false)
+export function useImportProgress(batchId: string | null) {
+  const [progress, setProgress] = useState<ImportProgress>({
+    current: 0,
+    total: 0,
+    status: 'idle',
+    message: '',
+  })
   const [error, setError] = useState<string | null>(null)
-  const wsRef = useRef<WebSocket | null>(null)
-
-  const connect = useCallback((id: string) => {
-    if (!id) return
-
-    // Construir URL del WebSocket
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = window.location.host
-    const wsUrl = `${protocol}//${host}/api/v1/tenant/imports/batches/${id}/progress?token=${token}`
-
-    try {
-      wsRef.current = new WebSocket(wsUrl)
-
-      wsRef.current.onopen = () => {
-        setIsConnected(true)
-        setError(null)
-      }
-
-      wsRef.current.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data) as ProgressUpdate
-          setProgress(data)
-
-          if (data.status === 'completed') {
-            onComplete?.()
-          } else if (data.status === 'failed') {
-            const errorMsg = data.errors?.[0]?.message || 'Importación fallida'
-            setError(errorMsg)
-            onError?.(errorMsg)
-          }
-        } catch (err) {
-          console.error('Error parsing WebSocket message:', err)
-        }
-      }
-
-      wsRef.current.onerror = () => {
-        setError('Conexión WebSocket perdida')
-        onError?.('Conexión WebSocket perdida')
-      }
-
-      wsRef.current.onclose = () => {
-        setIsConnected(false)
-      }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Error conectando WebSocket'
-      setError(errorMsg)
-      onError?.(errorMsg)
-    }
-  }, [token, onComplete, onError])
-
-  const disconnect = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.close()
-      wsRef.current = null
-    }
-    setIsConnected(false)
-  }, [])
 
   useEffect(() => {
-    if (batchId) {
-      connect(batchId)
+    if (!batchId) {
+      setProgress({ current: 0, total: 0, status: 'idle', message: '' })
+      setError(null)
+      return
     }
 
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+
+    const poll = async () => {
+      try {
+        const { data } = await api.get<any>(IMPORTS.batches.status(batchId))
+        if (cancelled) return
+
+        const current = Number(data?.processed || 0)
+        const total = Number(data?.total || 0)
+        const status =
+          (data?.status as ImportProgress['status']) ||
+          (current >= total && total > 0 ? 'completed' : 'processing')
+
+        setProgress({
+          current,
+          total,
+          status,
+          message: data?.message || '',
+        })
+        setError(null)
+
+        if (status === 'completed' || status === 'error') return
+      } catch (e: any) {
+        setError(e?.message || 'Error obteniendo progreso')
+      }
+
+      timer = setTimeout(poll, 1000)
+    }
+
+    void poll()
     return () => {
-      disconnect()
+      cancelled = true
+      if (timer) clearTimeout(timer)
     }
-  }, [batchId, connect, disconnect])
+  }, [batchId])
 
-  const progressPercent = progress
-    ? Math.round((progress.rowsProcessed / progress.totalRows) * 100)
-    : 0
+  const progressPercent = useMemo(() => {
+    if (!progress.total) return 0
+    return Math.max(0, Math.min(100, Math.round((progress.current / progress.total) * 100)))
+  }, [progress.current, progress.total])
 
   return {
     progress,
     progressPercent,
-    isConnected,
+    isConnected: true,
     error,
-    connect,
-    disconnect
   }
 }

@@ -19,11 +19,26 @@ export async function saveGeneral(payload: SettingsGeneral) {
 }
 
 export async function getBranding(): Promise<SettingsBranding> {
-  const { data } = await tenantApi.get<SettingsBranding>(TENANT_SETTINGS.branding)
-  return data || {}
+  const { data } = await tenantApi.get<any>(TENANT_SETTINGS.branding)
+  return {
+    colorPrimario: data?.colorPrimario || data?.primary_color || '#0f172a',
+    logoUrl: data?.logoUrl || data?.company_logo || '',
+  }
 }
 export async function saveBranding(payload: SettingsBranding) {
-  await tenantApi.put(TENANT_SETTINGS.branding, payload)
+  await tenantApi.put(TENANT_SETTINGS.branding, {
+    primary_color: payload.colorPrimario,
+    company_logo: payload.logoUrl || null,
+  })
+}
+
+export async function uploadBrandingLogo(file: File): Promise<string> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await tenantApi.post<any>(TENANT_SETTINGS.brandingLogoUpload, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data?.company_logo || ''
 }
 
 export async function getFiscal(): Promise<SettingsFiscal> {

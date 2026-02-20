@@ -71,6 +71,27 @@ def validate_critical_config() -> None:
                     f"   Value: {cors_origins}"
                 )
 
+        # 5. Secret keys - must not be placeholder values
+        _PLACEHOLDER_SECRETS = {
+            "your-secret-key-min-32-chars-change-in-production",
+            "change-me",
+            "secret",
+            "changeme",
+        }
+        secret_key = os.getenv("SECRET_KEY", "").strip()
+        if not secret_key or secret_key.lower() in _PLACEHOLDER_SECRETS:
+            validation_errors.append(
+                "❌ SECRET_KEY not configured or uses a placeholder value. "
+                'Generate a strong secret: python -c "import secrets; print(secrets.token_urlsafe(64))"'
+            )
+
+        jwt_secret = os.getenv("JWT_SECRET_KEY", "").strip()
+        if not jwt_secret or jwt_secret.lower() in _PLACEHOLDER_SECRETS:
+            validation_errors.append(
+                "❌ JWT_SECRET_KEY not configured or uses a placeholder value. "
+                'Generate a strong secret: python -c "import secrets; print(secrets.token_urlsafe(64))"'
+            )
+
     else:
         # Development: validaciones menos estrictas pero aún recomendaciones
         logger.info("🔓 Validating DEVELOPMENT configuration...")

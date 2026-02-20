@@ -4,8 +4,8 @@ import { useSearchParams } from 'react-router-dom'
 import { listDailyCounts, listRegisters, getCurrentShift, getShiftSummary } from '../services'
 import { useCurrency } from '../../../hooks/useCurrency'
 import { useAuth } from '../../../auth/AuthContext'
-import { listUsuarios } from '../../usuarios/services'
-import type { Usuario } from '../../usuarios/types'
+import { listUsuarios } from '../../users/services'
+import type { Usuario } from '../../users/types'
 import type { ShiftSummary, POSShift } from '../../../types/pos'
 
 interface DailyCount {

@@ -1,8 +1,6 @@
 """Tests for EventService — event outbox publishing"""
-import uuid
-from datetime import datetime
 
-import pytest
+import uuid
 
 import app.models.core.event_outbox  # noqa: F401
 
@@ -10,6 +8,7 @@ import app.models.core.event_outbox  # noqa: F401
 class TestEventService:
     def _make_tenant(self, db):
         from app.models.tenant import Tenant
+
         tid = uuid.uuid4()
         t = Tenant(id=tid, name="Event Test", slug=f"evt-{tid.hex[:8]}")
         db.add(t)
@@ -18,9 +17,12 @@ class TestEventService:
 
     def test_publish_creates_event(self, db):
         from app.services.event_service import EventService
+
         tid = self._make_tenant(db)
         event = EventService.publish(
-            db, tid, "sale.posted",
+            db,
+            tid,
+            "sale.posted",
             payload={"sale_id": str(uuid.uuid4()), "date": "2026-02-14"},
             aggregate_type="sale",
         )
@@ -32,6 +34,7 @@ class TestEventService:
 
     def test_mark_published(self, db):
         from app.services.event_service import EventService
+
         tid = self._make_tenant(db)
         event = EventService.publish(db, tid, "test.event", payload={"key": "val"})
         db.flush()
@@ -43,6 +46,7 @@ class TestEventService:
 
     def test_mark_failed(self, db):
         from app.services.event_service import EventService
+
         tid = self._make_tenant(db)
         event = EventService.publish(db, tid, "fail.event", payload={})
         db.flush()
@@ -54,6 +58,7 @@ class TestEventService:
 
     def test_mark_failed_increments_retry(self, db):
         from app.services.event_service import EventService
+
         tid = self._make_tenant(db)
         event = EventService.publish(db, tid, "retry.event", payload={})
         db.flush()
@@ -67,6 +72,7 @@ class TestEventService:
 
     def test_get_unpublished(self, db):
         from app.services.event_service import EventService
+
         tid = self._make_tenant(db)
         EventService.publish(db, tid, "a.event", payload={"n": 1})
         EventService.publish(db, tid, "b.event", payload={"n": 2})
@@ -84,6 +90,7 @@ class TestEventService:
 
     def test_get_unpublished_respects_max_retries(self, db):
         from app.services.event_service import EventService
+
         tid = self._make_tenant(db)
         event = EventService.publish(db, tid, "exhaust.event", payload={})
         db.flush()
@@ -98,6 +105,7 @@ class TestEventService:
 class TestEventOutboxWorker:
     def test_poll_and_process_empty(self, db):
         from app.workers.event_outbox_worker import poll_and_process
+
         # Should not error on empty outbox
         count = poll_and_process(batch_size=10)
         assert count >= 0

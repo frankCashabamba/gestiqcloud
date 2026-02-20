@@ -8,13 +8,14 @@ from pydantic import BaseModel, Field
 
 from app.config.settings import settings
 from app.modules.imports.ai import get_ai_provider_singleton
+from app.modules.imports.domain.mapping_feedback import MappingFeedback, mapping_learner
 
 from .mapping_suggester import mapping_suggester
 from .telemetry import telemetry
 
 logger = logging.getLogger("imports.ai.http")
 
-router = APIRouter(prefix="/imports/ai", tags=["imports-ai"])
+router = APIRouter(prefix="/ai", tags=["imports-ai"])
 
 
 class ClassifyDocumentRequest(BaseModel):
@@ -50,6 +51,7 @@ class AIStatusResponse(BaseModel):
 async def classify_document(
     request: ClassifyDocumentRequest,
     tenant_id: str | None = Query(None),
+    provider: str | None = Query(None),
 ):
     """
     Classify a document to select the best parser.
@@ -66,10 +68,10 @@ async def classify_document(
         Classification result with suggested parser and confidence
     """
     try:
-        provider = await get_ai_provider_singleton()
+        ai_provider = await get_ai_provider_singleton(provider)
 
         # Classify
-        result = await provider.classify_document(
+        result = await ai_provider.classify_document(
             text=request.text,
             available_parsers=request.available_parsers,
             doc_metadata={"tenant_id": tenant_id} if tenant_id else None,
@@ -91,6 +93,7 @@ async def classify_document(
 @router.get("/status", response_model=AIStatusResponse)
 async def get_ai_status(
     tenant_id: str | None = Query(None),
+    provider: str | None = Query(None),
 ):
     """
     Get AI provider status and telemetry.
@@ -101,12 +104,12 @@ async def get_ai_status(
         Current AI provider status and usage metrics
     """
     try:
-        provider = await get_ai_provider_singleton()
+        ai_provider = await get_ai_provider_singleton(provider)
 
         return AIStatusResponse(
-            provider=settings.IMPORT_AI_PROVIDER,
+            provider=provider or settings.IMPORT_AI_PROVIDER,
             status="active",
-            telemetry=provider.get_telemetry(),
+            telemetry=ai_provider.get_telemetry(),
             threshold=settings.IMPORT_AI_CONFIDENCE_THRESHOLD,
             cache_enabled=settings.IMPORT_AI_CACHE_ENABLED,
         )
@@ -245,20 +248,25 @@ async def validate_metric(
 
 # Health check
 @router.get("/health")
-async def health_check():
+async def health_check(provider: str | None = Query(None)):
     """Quick health check for AI provider."""
     try:
-        provider = await get_ai_provider_singleton()
+        ai_provider = await get_ai_provider_singleton(provider)
+        current_provider = provider or settings.IMPORT_AI_PROVIDER
+        available_providers = [current_provider]
         return {
             "status": "healthy",
-            "provider": settings.IMPORT_AI_PROVIDER,
-            "telemetry": provider.get_telemetry(),
+            "provider": current_provider,
+            "available_providers": available_providers,
+            "latency_ms": 0,
+            "telemetry": ai_provider.get_telemetry(),
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return {
-            "status": "unhealthy",
+            "status": "unavailable",
             "provider": settings.IMPORT_AI_PROVIDER,
+            "available_providers": [],
             "error": str(e),
         }
 
@@ -351,6 +359,53 @@ class MappingCacheStatsResponse(BaseModel):
     in_memory_entries: int
     redis_available: bool
     redis_entries: int | str | None = None
+
+
+class MappingFeedbackRequest(BaseModel):
+    """Request to record mapping corrections/confirmations."""
+
+    doc_type: str = Field(..., description="Document type context")
+    headers: list[str] = Field(default_factory=list, description="Original headers")
+    mapping: dict[str, str] = Field(
+        default_factory=dict,
+        description="Final user-approved mapping {source_header: canonical_field}",
+    )
+    tenant_id: str | None = Field(None, description="Tenant scope for learning")
+
+
+@router.post("/mappings/feedback")
+async def record_mapping_feedback(
+    request: MappingFeedbackRequest,
+):
+    """
+    Record explicit mapping feedback for learning.
+
+    Endpoint: POST /imports/ai/mappings/feedback
+    """
+    try:
+        if not request.tenant_id:
+            return {"status": "skipped", "message": "tenant_id_required"}
+
+        feedback = MappingFeedback(
+            tenant_id=request.tenant_id,
+            doc_type=request.doc_type,
+            headers=request.headers or list(request.mapping.keys()),
+        )
+        for source_field, canonical_field in (request.mapping or {}).items():
+            if canonical_field and canonical_field != "ignore":
+                feedback.mark_field_correct(source_field, canonical_field, confidence=0.9)
+
+        if feedback.field_feedbacks:
+            mapping_learner.record_feedback(feedback)
+            return {
+                "status": "ok",
+                "learned_fields": len(feedback.field_feedbacks),
+                "doc_type": request.doc_type,
+            }
+        return {"status": "skipped", "message": "no_valid_fields"}
+    except Exception as e:
+        logger.error(f"Mapping feedback error: {e}")
+        raise
 
 
 @router.get("/mappings/cache/stats", response_model=MappingCacheStatsResponse)

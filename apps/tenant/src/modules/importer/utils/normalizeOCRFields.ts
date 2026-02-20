@@ -155,7 +155,7 @@ export function normalizeOCRRow(row: Row, docType: string): Row {
   // Añadir campos faltantes con defaults
   if (docType === 'bank' && normalized.amount && !normalized.direction) {
     // Inferir dirección desde el signo del importe
-    const amount = parseFloat(normalized.amount.replace(',', '.'))
+    const amount = parseFloat(toStringValue(normalized.amount).replace(',', '.'))
     if (!isNaN(amount)) {
       normalized.direction = amount < 0 ? 'debit' : 'credit'
       normalized.amount = String(Math.abs(amount))

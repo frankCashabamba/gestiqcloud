@@ -3,8 +3,8 @@ INVOICING MODULE: Use Cases para facturación.
 
 Implementa:
 - Creación de facturas (desde POS o manualmente)
-- Generación de PDFs
-- Envío por email
+- Generación de PDFs (Jinja2 + WeasyPrint)
+- Envío por email (SMTP/SendGrid)
 - Tracking de pagos
 - Numeración secuencial
 """
@@ -12,8 +12,10 @@ Implementa:
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -22,9 +24,6 @@ logger = logging.getLogger(__name__)
 
 class CreateInvoiceUseCase:
     """Crea factura desde recibo POS o manualmente."""
-
-    def __init__(self):
-        pass
 
     def execute(
         self,
@@ -37,34 +36,9 @@ class CreateInvoiceUseCase:
         notes: str | None = None,
         due_date: datetime | None = None,
     ) -> dict[str, Any]:
-        """
-        Crea factura con líneas.
-
-        Args:
-            invoice_number: Número secuencial (ej: FAC-2026-001)
-            customer_id: Customer ID (optional)
-            lines: List of {description, qty, unit_price, tax_rate, amount}
-            subtotal: Subtotal
-            tax: Total tax
-            notes: Notas (términos de pago, referencias)
-            due_date: Fecha de vencimiento
-
-        Returns:
-            {
-                "invoice_id": UUID,
-                "number": str,
-                "status": "draft",
-                "subtotal": Decimal,
-                "tax": Decimal,
-                "total": Decimal,
-                "issued_at": datetime,
-                "due_date": datetime
-            }
-        """
         total = subtotal + tax
-
         return {
-            "invoice_id": UUID(int=0),  # Set by repo
+            "invoice_id": UUID(int=0),
             "number": invoice_number,
             "customer_id": customer_id,
             "status": "draft",
@@ -79,10 +53,7 @@ class CreateInvoiceUseCase:
 
 
 class GenerateInvoicePDFUseCase:
-    """Genera PDF de factura."""
-
-    def __init__(self):
-        pass
+    """Genera PDF de factura usando Jinja2 + WeasyPrint."""
 
     def execute(
         self,
@@ -98,44 +69,64 @@ class GenerateInvoicePDFUseCase:
         company_name: str,
         company_logo_url: str | None = None,
     ) -> bytes:
-        """
-        Genera PDF de factura.
+        """Genera PDF de factura. Returns PDF bytes."""
+        from jinja2 import Environment, FileSystemLoader, select_autoescape
+        from weasyprint import HTML
 
-        Usa ReportLab para crear PDF dinámico.
-        Incluye: logo, datos empresa, líneas, totales, código QR.
+        base_dir = Path(__file__).resolve().parents[3]  # apps/backend/app
+        tmpl_dir = base_dir / "templates" / "pdf"
 
-        Args:
-            invoice_id: Invoice ID
-            invoice_number: Invoice number
-            customer_name: Customer name
-            lines: Invoice lines
-            subtotal: Subtotal
-            tax: Tax total
-            total: Grand total
-            issued_at: Issue date
-            company_name: Company name
-            company_logo_url: Logo URL (optional)
+        if not tmpl_dir.exists():
+            tmpl_dir.mkdir(parents=True, exist_ok=True)
 
-        Returns:
-            PDF bytes
-        """
-        # TODO: Implement with reportlab
-        # - Header with company logo + details
-        # - Table with lines (item, qty, price, tax, total)
-        # - Summary (subtotal, tax, total)
-        # - Footer with payment terms
-        # - QR code with payment reference
+        env = Environment(
+            loader=FileSystemLoader(str(tmpl_dir)),
+            autoescape=select_autoescape(["html"]),
+        )
 
-        logger.info(f"Generated PDF for invoice {invoice_number}")
+        tmpl_name = os.getenv("INVOICE_PDF_TEMPLATE", "invoice_base.html")
+        try:
+            template = env.get_template(tmpl_name)
+        except Exception:
+            logger.warning("Template %s not found, using inline fallback", tmpl_name)
+            from jinja2 import Template
 
-        return b"PDF content placeholder"
+            template = Template(
+                "<html><body>"
+                "<h1>{{ company_name }}</h1>"
+                "<h2>Factura {{ invoice_number }}</h2>"
+                "<p>Cliente: {{ customer_name or 'N/A' }}</p>"
+                "<p>Fecha: {{ issued_at }}</p>"
+                "<table border='1' cellpadding='5'><tr><th>Descripción</th><th>Cant</th>"
+                "<th>P.Unit</th><th>Total</th></tr>"
+                "{% for l in lines %}<tr><td>{{ l.description }}</td>"
+                "<td>{{ l.qty }}</td><td>{{ l.unit_price }}</td>"
+                "<td>{{ l.amount }}</td></tr>{% endfor %}</table>"
+                "<p>Subtotal: {{ subtotal }}</p>"
+                "<p>IVA: {{ tax }}</p>"
+                "<p><strong>Total: {{ total }}</strong></p>"
+                "</body></html>"
+            )
+
+        html = template.render(
+            invoice_number=invoice_number,
+            customer_name=customer_name,
+            lines=lines,
+            subtotal=subtotal,
+            tax=tax,
+            total=total,
+            issued_at=issued_at,
+            company_name=company_name,
+            company_logo_url=company_logo_url,
+        )
+
+        pdf_bytes = HTML(string=html).write_pdf()
+        logger.info("Generated PDF for invoice %s (%d bytes)", invoice_number, len(pdf_bytes))
+        return pdf_bytes
 
 
 class SendInvoiceEmailUseCase:
-    """Envía factura por email."""
-
-    def __init__(self):
-        pass
+    """Envía factura por email con PDF adjunto."""
 
     def execute(
         self,
@@ -145,42 +136,73 @@ class SendInvoiceEmailUseCase:
         recipient_email: str,
         pdf_bytes: bytes,
         template: str = "default",
+        company_name: str = "",
     ) -> dict[str, Any]:
-        """
-        Envía factura por email con PDF.
+        """Envía factura por email usando el servicio de correo configurado."""
+        import smtplib
+        from email.message import EmailMessage
 
-        Usa SendGrid con template personalizado.
+        from_email = os.getenv("DEFAULT_FROM_EMAIL", "")
+        smtp_host = os.getenv("EMAIL_HOST", "")
+        smtp_port = int(os.getenv("EMAIL_PORT", "587"))
+        smtp_user = os.getenv("EMAIL_HOST_USER", "")
+        smtp_pass = os.getenv("EMAIL_HOST_PASSWORD", "")
 
-        Args:
-            invoice_id: Invoice ID
-            invoice_number: Invoice number
-            recipient_email: Recipient email
-            pdf_bytes: PDF content
-            template: Template name (default, es, en)
-
-        Returns:
-            {
-                "invoice_id": UUID,
-                "sent_at": datetime,
-                "recipient": str,
-                "status": "sent"
+        if not from_email or not smtp_host:
+            logger.warning("Email not configured (EMAIL_HOST / DEFAULT_FROM_EMAIL missing)")
+            return {
+                "invoice_id": invoice_id,
+                "sent_at": datetime.utcnow(),
+                "recipient": recipient_email,
+                "status": "skipped",
+                "reason": "email_not_configured",
             }
-        """
-        logger.info(f"Sent invoice {invoice_number} to {recipient_email}")
 
-        return {
-            "invoice_id": invoice_id,
-            "sent_at": datetime.utcnow(),
-            "recipient": recipient_email,
-            "status": "sent",
-        }
+        msg = EmailMessage()
+        msg["Subject"] = f"Factura {invoice_number} - {company_name}".strip()
+        msg["From"] = from_email
+        msg["To"] = recipient_email
+        msg.set_content(
+            f"Estimado cliente,\n\n"
+            f"Adjuntamos la factura {invoice_number}.\n\n"
+            f"Atentamente,\n{company_name}"
+        )
+        msg.add_attachment(
+            pdf_bytes,
+            maintype="application",
+            subtype="pdf",
+            filename=f"factura_{invoice_number}.pdf",
+        )
+
+        try:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
+                server.ehlo()
+                if smtp_port != 25:
+                    server.starttls()
+                if smtp_user and smtp_pass:
+                    server.login(smtp_user, smtp_pass)
+                server.send_message(msg)
+
+            logger.info("Sent invoice %s to %s", invoice_number, recipient_email)
+            return {
+                "invoice_id": invoice_id,
+                "sent_at": datetime.utcnow(),
+                "recipient": recipient_email,
+                "status": "sent",
+            }
+        except Exception as e:
+            logger.error("Failed to send invoice email: %s", e)
+            return {
+                "invoice_id": invoice_id,
+                "sent_at": datetime.utcnow(),
+                "recipient": recipient_email,
+                "status": "failed",
+                "error": str(e),
+            }
 
 
 class MarkInvoiceAsPaidUseCase:
     """Marca factura como pagada."""
-
-    def __init__(self):
-        pass
 
     def execute(
         self,
@@ -191,24 +213,6 @@ class MarkInvoiceAsPaidUseCase:
         payment_ref: str | None = None,
         payment_date: datetime | None = None,
     ) -> dict[str, Any]:
-        """
-        Marca factura como pagada.
-
-        Args:
-            invoice_id: Invoice ID
-            paid_amount: Amount paid
-            payment_method: cash, card, transfer, check
-            payment_ref: Reference (check number, transfer ID)
-            payment_date: Payment date (default: now)
-
-        Returns:
-            {
-                "invoice_id": UUID,
-                "status": "paid",
-                "paid_at": datetime,
-                "paid_amount": Decimal
-            }
-        """
         return {
             "invoice_id": invoice_id,
             "status": "paid",
@@ -222,9 +226,6 @@ class MarkInvoiceAsPaidUseCase:
 class CreateInvoiceFromPOSReceiptUseCase:
     """Crea factura automáticamente desde recibo POS."""
 
-    def __init__(self):
-        pass
-
     def execute(
         self,
         *,
@@ -235,35 +236,9 @@ class CreateInvoiceFromPOSReceiptUseCase:
         tax: Decimal,
         customer_id: UUID | None = None,
     ) -> dict[str, Any]:
-        """
-        Convierte recibo POS a factura formal.
-
-        Mapeo:
-        - receipt.number → invoice.number (con prefijo FAC-)
-        - receipt.lines → invoice.lines
-        - receipt.customer_id → invoice.customer_id
-        - receipt.total → invoice.total
-
-        Args:
-            receipt_id: Receipt ID
-            receipt_number: Receipt number
-            lines: Receipt lines
-            subtotal: Subtotal
-            tax: Tax
-            customer_id: Customer ID (optional)
-
-        Returns:
-            {
-                "invoice_id": UUID,
-                "invoice_number": str,
-                "status": "draft",
-                "receipt_id": UUID
-            }
-        """
         invoice_number = f"FAC-{receipt_number}"
-
         return {
-            "invoice_id": UUID(int=0),  # Set by repo
+            "invoice_id": UUID(int=0),
             "invoice_number": invoice_number,
             "status": "draft",
             "receipt_id": receipt_id,
@@ -271,43 +246,4 @@ class CreateInvoiceFromPOSReceiptUseCase:
             "subtotal": subtotal,
             "tax": tax,
             "total": subtotal + tax,
-        }
-
-
-class GetInvoiceUseCase:
-    """Obtiene detalle de factura."""
-
-    def __init__(self):
-        pass
-
-    def execute(
-        self,
-        *,
-        invoice_id: UUID,
-    ) -> dict[str, Any]:
-        """
-        Obtiene detalle completo de factura.
-
-        Args:
-            invoice_id: Invoice ID
-
-        Returns:
-            {
-                "id": UUID,
-                "number": str,
-                "status": str,
-                "customer": {...},
-                "lines": [...],
-                "subtotal": Decimal,
-                "tax": Decimal,
-                "total": Decimal,
-                "issued_at": datetime,
-                "paid_at": datetime | None,
-                "due_date": datetime
-            }
-        """
-        return {
-            "id": invoice_id,
-            "number": "",
-            "status": "draft",
         }

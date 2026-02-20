@@ -1,5 +1,7 @@
 import tenantApi from '../shared/api/client'
 
+export type PosTheme = 'corporate-dark' | 'soft-dark' | 'light'
+
 export interface CompanySettings {
   currency: string
   locale: string
@@ -17,6 +19,7 @@ export interface CompanySettings {
     track_expiry?: boolean
   }
   pos_config?: {
+    theme?: PosTheme | string
     allow_negative?: boolean
     tax?: {
       price_includes_tax?: boolean
@@ -70,6 +73,22 @@ export async function getCompanySettings(): Promise<CompanySettings> {
 
 export function clearCompanySettingsCache() {
   cachedSettings = null
+}
+
+export async function updateCompanySettings(payload: Partial<CompanySettings>) {
+  await tenantApi.put('/api/v1/company/settings', payload)
+  clearCompanySettingsCache()
+}
+
+export async function savePosTheme(theme: PosTheme, currentSettings?: CompanySettings | null) {
+  const base = currentSettings || (await getCompanySettings())
+  const currentPosConfig = (base?.pos_config || {}) as Record<string, any>
+  await updateCompanySettings({
+    pos_config: {
+      ...currentPosConfig,
+      theme,
+    },
+  } as Partial<CompanySettings>)
 }
 
 // Helper para formatear moneda

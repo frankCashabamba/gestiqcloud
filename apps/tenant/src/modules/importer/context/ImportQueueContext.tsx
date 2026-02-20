@@ -18,7 +18,7 @@ const OCR_MAX_POLL_ATTEMPTS = Number(env.VITE_IMPORTS_JOB_POLL_ATTEMPTS ?? 120)
 const OCR_MAX_WAIT_MS = Number(env.VITE_IMPORTS_JOB_MAX_WAIT_MS ?? 10 * 60 * 1000)
 const STORE_UPLOAD_FILES = String(env.VITE_IMPORTS_STORE_UPLOAD_FILES ?? '1').toLowerCase() !== '0'
 
-type Row = Record<string, unknown>
+type Row = Record<string, string>
 type ItemStatus = 'pending' | 'processing' | 'ready' | 'saving' | 'saved' | 'duplicate' | 'error'
 
 export type QueueItem = {
@@ -235,7 +235,7 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
               return
             }
 
-            const { headers, rows } = await parseExcelFile(item.file)
+            const { headers, rows } = await parseExcelFile(item.file, token || undefined)
             // Intentar análisis con IA para obtener doc_type y mapping sugerido
             let docTypeLocal: ImportDocType = docType || detectarTipoDocumento(headers)
             let mappedRows = rows
@@ -347,7 +347,11 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
 
           const documentos = Array.isArray(response.payload?.documentos) ? response.payload.documentos : []
           const headers = documentos.length ? Object.keys(documentos[0]) : []
-          const rows: Row[] = documentos.map((doc: Record<string, unknown>) => ({ ...doc }))
+          const rows: Row[] = documentos.map((doc: Record<string, unknown>) =>
+            Object.fromEntries(
+              Object.entries(doc || {}).map(([k, v]) => [String(k), String(v ?? '')])
+            )
+          )
 
           const firstDoc = (documentos[0] || {}) as Record<string, unknown>
           const docType = normalizeDocType(
@@ -381,15 +385,31 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
 
     try {
       const nameLower = (item.name || '').toLowerCase()
-      const isExcelOrCsv =
-        nameLower.endsWith('.xlsx') || nameLower.endsWith('.xls') || nameLower.endsWith('.csv')
+      const isExcel = nameLower.endsWith('.xlsx') || nameLower.endsWith('.xls')
+      const isCsv = nameLower.endsWith('.csv')
+      const isExcelOrCsv = isExcel || isCsv
+
+      if (isExcel && STORE_UPLOAD_FILES) {
+        const res = await uploadExcelViaChunks(item.file, {
+          sourceType: docType || 'products',
+          mappingId: item.mappingId || undefined,
+          authToken: token || undefined,
+          onProgress: (pct) => updateQueue(item.id, { info: `Subiendo... ${pct}%` }),
+        })
+        updateQueue(item.id, {
+          status: 'saved',
+          batchId: res.batchId,
+          info: 'Procesando en segundo plano...',
+        })
+        return true
+      }
 
       let normalizedRows: Record<string, unknown>[]
       if (isExcelOrCsv) {
         if (docType === 'products') {
-          normalizedRows = normalizarProductos(rows) as Row[]
+          normalizedRows = normalizarProductos(rows)
         } else {
-          normalizedRows = normalizarDocumento(rows, {})
+          normalizedRows = normalizarDocumento(rows, {}, docType)
         }
       } else {
         // Normalizar campos OCR al schema canónico antes de enviar al backend
@@ -404,7 +424,7 @@ export function ImportQueueProvider({ children }: { children: React.ReactNode })
 
       const batchId = batch.id
 
-      const origen = isExcelOrCsv ? (nameLower.endsWith('.csv') ? 'csv' : 'excel') : 'ocr'
+      const origen = isExcelOrCsv ? (isCsv ? 'csv' : 'excel') : 'ocr'
       const payload = {
         rows: normalizedRows.map((row) => ({
           tipo: docType,

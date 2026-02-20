@@ -34,8 +34,12 @@ export function applyTheme(t: ThemeConfig) {
   // Bridge to tenant CSS variables (gc-*) so tenant shell/buttons can inherit theme
   set('--gc-primary', c['primary'])
   set('--gc-primary-dark', c['primaryDark'] || c['primary'])
+  set('--gc-on-primary', c['onPrimary'])
   set('--color-on-primary', c['onPrimary'])
-  if (!c['onPrimary'] && onPrimary) set('--color-on-primary', onPrimary)
+  if (!c['onPrimary'] && onPrimary) {
+    set('--color-on-primary', onPrimary)
+    set('--gc-on-primary', onPrimary)
+  }
   set('--color-bg', c['bg'])
   set('--color-fg', c['fg'])
   set('--color-muted', c['muted'])

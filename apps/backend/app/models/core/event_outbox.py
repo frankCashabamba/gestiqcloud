@@ -5,19 +5,10 @@ Event Outbox pattern – stores domain events for reliable async publishing."""
 import uuid
 from datetime import datetime
 
-from sqlalchemy import (
-    JSON,
-    DateTime,
-    ForeignKey,
-    Index,
-    Integer,
-    String,
-    Text,
-    text,
-)
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import mapped_column
 
 UUID = PGUUID(as_uuid=True)
 from sqlalchemy import String as _String  # noqa: E402

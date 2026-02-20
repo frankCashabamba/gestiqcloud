@@ -8,11 +8,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.accounting.chart_of_accounts import (
-    ChartOfAccounts,
-    JournalEntry,
-    JournalEntryLine,
-)
+from app.models.accounting.chart_of_accounts import ChartOfAccounts, JournalEntry, JournalEntryLine
 
 
 @dataclass(frozen=True)
@@ -65,8 +61,8 @@ def create_posted_entry(
     if len(lines) < 2:
         raise ValueError("journal_entry_requires_min_2_lines")
 
-    debit_total = sum((_as_dec(l.debit) for l in lines), Decimal("0"))
-    credit_total = sum((_as_dec(l.credit) for l in lines), Decimal("0"))
+    debit_total = sum((_as_dec(line.debit) for line in lines), Decimal("0"))
+    credit_total = sum((_as_dec(line.credit) for line in lines), Decimal("0"))
     if (debit_total - credit_total).copy_abs() > Decimal("0.01"):
         raise ValueError(f"journal_entry_not_balanced debit={debit_total} credit={credit_total}")
 
@@ -91,26 +87,25 @@ def create_posted_entry(
     db.add(entry)
     db.flush()
 
-    for i, l in enumerate(lines, start=1):
+    for i, line in enumerate(lines, start=1):
         db.add(
             JournalEntryLine(
                 entry_id=entry.id,
-                account_id=l.account_id,
-                debit=_as_dec(l.debit),
-                credit=_as_dec(l.credit),
-                description=l.description,
-                line_number=int(l.line_number or i),
+                account_id=line.account_id,
+                debit=_as_dec(line.debit),
+                credit=_as_dec(line.credit),
+                description=line.description,
+                line_number=int(line.line_number or i),
             )
         )
 
         # Update account balances incrementally for POSTED entries.
-        acct = db.get(ChartOfAccounts, l.account_id)
+        acct = db.get(ChartOfAccounts, line.account_id)
         if acct:
-            acct.debit_balance = _as_dec(acct.debit_balance or 0) + _as_dec(l.debit)
-            acct.credit_balance = _as_dec(acct.credit_balance or 0) + _as_dec(l.credit)
+            acct.debit_balance = _as_dec(acct.debit_balance or 0) + _as_dec(line.debit)
+            acct.credit_balance = _as_dec(acct.credit_balance or 0) + _as_dec(line.credit)
             acct.balance = _as_dec(acct.debit_balance or 0) - _as_dec(acct.credit_balance or 0)
             db.add(acct)
 
     db.flush()
     return entry
-

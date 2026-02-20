@@ -84,7 +84,7 @@ class Settings(BaseSettings):
         default="development", description="Environment: development, staging, or production"
     )
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
-    APP_VERSION: str = "0.1.0"
+    APP_VERSION: str = "1.0.0"
 
     # JWT / Security
     JWT_ALGORITHM: str = "HS256"
@@ -216,9 +216,9 @@ class Settings(BaseSettings):
     GZIP_ENABLED: bool = True
 
     # Fase D - IA Configurable
-    IMPORT_AI_PROVIDER: Literal["local", "openai", "azure"] = Field(
+    IMPORT_AI_PROVIDER: Literal["local", "ollama", "openai", "azure", "ovhcloud"] = Field(
         default="local",
-        description="AI provider for document classification (local | openai | azure)",
+        description="AI provider for imports classification (local | ollama | openai | azure | ovhcloud)",
     )
     IMPORT_AI_CONFIDENCE_THRESHOLD: float = Field(
         default=0.7,

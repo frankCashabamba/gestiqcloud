@@ -185,13 +185,15 @@ export async function getBatch(id: string, authToken?: string) {
 /** Accepts optional filters (status, q). */
 export async function listItems(
   batchId: string,
-  opts?: { status?: string; q?: string }
+  opts?: { status?: string; q?: string; authToken?: string }
 ) {
   const params = new URLSearchParams()
   if (opts?.status) params.set('status', opts.status)
   if (opts?.q) params.set('q', opts.q)
   const qs = params.toString() ? `?${params.toString()}` : ''
-  return apiFetch<ImportItem[]>(IMPORTS.batches.items(batchId, qs))
+  return apiFetch<ImportItem[]>(IMPORTS.batches.items(batchId, qs), {
+    authToken: opts?.authToken,
+  })
 }
 
 export async function listProductItems(
@@ -446,7 +448,7 @@ export async function createBatchFromUpload(fileKey: string, sourceType = 'produ
 }
 
 export async function startExcelImport(batchId: string, authToken?: string) {
-  return apiFetch<{ task_id: string; status: string; parser_id?: string; doc_type?: string }>(
+  return apiFetch<{ task_id: string | null; status: string; parser_id?: string; doc_type?: string }>(
     IMPORTS.batches.startExcel(batchId),
     {
       method: 'POST',
@@ -457,6 +459,73 @@ export async function startExcelImport(batchId: string, authToken?: string) {
 
 export async function getBatchStatus(batchId: string, authToken?: string) {
   return apiFetch<any>(IMPORTS.batches.status(batchId), { authToken })
+}
+
+export async function retryBatch(batchId: string, authToken?: string) {
+  return apiFetch<{ retried?: number; enqueued?: number; batch_id?: string }>(
+    IMPORTS.batches.retry(batchId),
+    { method: 'POST', authToken },
+  )
+}
+
+export async function reprocessBatch(batchId: string, authToken?: string) {
+  return apiFetch<{ ok?: boolean; detail?: string }>(IMPORTS.batches.reprocess(batchId), {
+    method: 'POST',
+    authToken,
+  })
+}
+
+export async function classifyAndPersistBatch(batchId: string, authToken?: string) {
+  return apiFetch<ImportBatch>(IMPORTS.batches.classifyAndPersist(batchId), {
+    method: 'POST',
+    authToken,
+  })
+}
+
+export async function updateBatchClassification(
+  batchId: string,
+  payload: {
+    suggested_parser?: string
+    suggested_doc_type?: string
+    classification_confidence?: number
+    ai_enhanced?: boolean
+    ai_provider?: string | null
+  },
+  authToken?: string,
+) {
+  return apiFetch<ImportBatch>(IMPORTS.batches.updateClassification(batchId), {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+    authToken,
+  })
+}
+
+export async function bulkPatchBatchItems(
+  batchId: string,
+  payload: { item_ids: string[]; field: string; value: unknown },
+  authToken?: string,
+) {
+  return apiFetch<{ ok: boolean; detail?: string }>(IMPORTS.batches.bulkPatchItems(batchId), {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    authToken,
+  })
+}
+
+export async function promoteItems(payload: { item_ids: string[] }, authToken?: string) {
+  return apiFetch<{ created?: number; skipped?: number; failed?: number }>(IMPORTS.items.promote, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    authToken,
+  })
+}
+
+export async function deleteMultipleItems(payload: { item_ids: string[] }, authToken?: string) {
+  return apiFetch<{ deleted: number }>(IMPORTS.items.deleteMultiple, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    authToken,
+  })
 }
 
 export async function uploadExcelViaChunks(
@@ -554,4 +623,18 @@ export async function cleanupStuckBatches(hours: number = 2, authToken?: string)
       authToken,
     }
   )
+}
+
+export async function deleteAllBatches(tenantId: string, authToken?: string) {
+  const batches = await listBatchesByCompany(tenantId, authToken)
+  const items = Array.isArray(batches) ? batches : (batches as any).items || []
+
+  if (!items.length) return { deleted: 0 }
+
+  const results = await Promise.allSettled(
+    items.map(batch => deleteBatch(batch.id, authToken))
+  )
+
+  const deleted = results.filter(r => r.status === 'fulfilled').length
+  return { deleted }
 }

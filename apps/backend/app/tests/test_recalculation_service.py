@@ -1,18 +1,18 @@
 """Tests for RecalculationService — profit snapshots"""
+
 import uuid
 from datetime import date
 from decimal import Decimal
 
-import pytest
-
+import app.models.core.products  # noqa: F401
 import app.models.core.profit_snapshots  # noqa: F401
 import app.models.sales.order  # noqa: F401
-import app.models.core.products  # noqa: F401
 
 
 class TestRecalculationService:
     def _make_tenant(self, db):
         from app.models.tenant import Tenant
+
         tid = uuid.uuid4()
         t = Tenant(id=tid, name="Recalc Test", slug=f"recalc-{tid.hex[:8]}")
         db.add(t)
@@ -21,10 +21,15 @@ class TestRecalculationService:
 
     def _make_product(self, db, tenant_id, name="Test Product", cost_price=10.0, price=20.0):
         from app.models.core.products import Product
+
         p = Product(
-            id=uuid.uuid4(), tenant_id=tenant_id,
-            name=name, sku=f"SKU-{uuid.uuid4().hex[:6]}",
-            price=price, cost_price=cost_price, stock=100,
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            name=name,
+            sku=f"SKU-{uuid.uuid4().hex[:6]}",
+            price=price,
+            cost_price=cost_price,
+            stock=100,
         )
         db.add(p)
         db.flush()
@@ -32,21 +37,28 @@ class TestRecalculationService:
 
     def _make_sale(self, db, tenant_id, order_date, product_id, qty=5, unit_price=20.0):
         from app.models.sales.order import SalesOrder, SalesOrderItem
+
         order_id = uuid.uuid4()
         line_total = qty * unit_price
         order = SalesOrder(
-            id=order_id, tenant_id=tenant_id,
+            id=order_id,
+            tenant_id=tenant_id,
             number=f"SO-{uuid.uuid4().hex[:8]}",
             order_date=order_date,
-            subtotal=line_total, tax=0, total=line_total,
+            subtotal=line_total,
+            tax=0,
+            total=line_total,
             status="completed",
         )
         db.add(order)
         db.flush()
         item = SalesOrderItem(
-            id=uuid.uuid4(), order_id=order_id,
-            product_id=product_id, qty=qty,
-            unit_price=unit_price, line_total=line_total,
+            id=uuid.uuid4(),
+            order_id=order_id,
+            product_id=product_id,
+            qty=qty,
+            unit_price=unit_price,
+            line_total=line_total,
         )
         db.add(item)
         db.flush()
@@ -54,6 +66,7 @@ class TestRecalculationService:
 
     def _svc(self, db):
         from app.modules.reports.application.recalculation_service import RecalculationService
+
         return RecalculationService(db)
 
     def test_recalculate_daily_no_sales(self, db):
@@ -83,7 +96,7 @@ class TestRecalculationService:
         product = self._make_product(db, tid, cost_price=5.0)
         self._make_sale(db, tid, date(2026, 3, 1), product.id, qty=2, unit_price=15.0)
         svc = self._svc(db)
-        snap1 = svc.recalculate_daily(tid, date(2026, 3, 1))
+        svc.recalculate_daily(tid, date(2026, 3, 1))
         db.flush()
         # Add another sale same day
         self._make_sale(db, tid, date(2026, 3, 1), product.id, qty=3, unit_price=15.0)
@@ -95,6 +108,7 @@ class TestRecalculationService:
 
     def test_recalculate_creates_product_snapshots(self, db):
         from app.models.core.profit_snapshots import ProductProfitSnapshot
+
         tid = self._make_tenant(db)
         p1 = self._make_product(db, tid, name="Bread", cost_price=3.0, price=5.0)
         p2 = self._make_product(db, tid, name="Cake", cost_price=10.0, price=25.0)
@@ -103,10 +117,14 @@ class TestRecalculationService:
         svc = self._svc(db)
         svc.recalculate_daily(tid, date(2026, 4, 1))
         db.flush()
-        product_snaps = db.query(ProductProfitSnapshot).filter(
-            ProductProfitSnapshot.tenant_id == tid,
-            ProductProfitSnapshot.date == date(2026, 4, 1),
-        ).all()
+        product_snaps = (
+            db.query(ProductProfitSnapshot)
+            .filter(
+                ProductProfitSnapshot.tenant_id == tid,
+                ProductProfitSnapshot.date == date(2026, 4, 1),
+            )
+            .all()
+        )
         assert len(product_snaps) == 2
 
     def test_recalculate_range(self, db):
@@ -128,10 +146,14 @@ class TestRecalculationService:
 
     def test_get_unit_cost_no_cost_returns_zero(self, db):
         from app.models.core.products import Product
+
         tid = self._make_tenant(db)
         p = Product(
-            id=uuid.uuid4(), tenant_id=tid,
-            name="No Cost", sku="NC-001", stock=0,
+            id=uuid.uuid4(),
+            tenant_id=tid,
+            name="No Cost",
+            sku="NC-001",
+            stock=0,
         )
         db.add(p)
         db.flush()

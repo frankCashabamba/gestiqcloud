@@ -1,4 +1,5 @@
 """Event Outbox Service — Publish domain events with guaranteed delivery"""
+
 import logging
 from datetime import datetime
 from typing import Any

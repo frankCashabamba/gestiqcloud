@@ -45,9 +45,7 @@ class DocumentStorageService:
 
         if existing:
             doc = (
-                self.db.query(DocumentFile)
-                .filter(DocumentFile.id == existing.document_id)
-                .first()
+                self.db.query(DocumentFile).filter(DocumentFile.id == existing.document_id).first()
             )
             return doc, existing, True
 

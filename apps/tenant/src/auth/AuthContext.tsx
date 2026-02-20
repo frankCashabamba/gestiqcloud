@@ -28,16 +28,22 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const expiryTimer = useRef<number | null>(null)
   const isUnauthorized = (e: any) => e?.status === 401 || e?.response?.status === 401
 
-  const getTokenExpiryMs = (tok: string | null): number | null => {
+  const parseJwtPayload = (tok: string | null): Record<string, any> | null => {
     if (!tok) return null
-    const [, payload] = tok.split('.')
-    if (!payload) return null
+    const parts = tok.split('.')
+    if (parts.length < 2) return null
+    let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    while (base64.length % 4 !== 0) base64 += '='
     try {
-      const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
-      return typeof json?.exp === 'number' ? json.exp * 1000 : null
+      return JSON.parse(atob(base64))
     } catch {
       return null
     }
+  }
+
+  const getTokenExpiryMs = (tok: string | null): number | null => {
+    const payload = parseJwtPayload(tok)
+    return typeof payload?.exp === 'number' ? payload.exp * 1000 : null
   }
 
   useEffect(() => {
@@ -116,7 +122,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       try {
         const data = await apiFetch<{ access_token?: string }>(
           '/api/v1/tenant/auth/refresh',
-          { method: 'POST' } as any
+          { method: 'POST', retryOn401: false } as any
         )
         return data?.access_token ?? null
       } catch {
@@ -153,6 +159,14 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }, delay)
   }
 
+  const ensureTokenStillValid = async () => {
+    const expMs = getTokenExpiryMs(token)
+    if (!expMs) return
+    if (Date.now() < expMs - EXP_SKEW_MS) return
+    const ok = await refresh()
+    if (!ok) clear()
+  }
+
   const login = async (body: LoginBody) => {
     const data = await apiFetch<LoginResponse>('/api/v1/tenant/auth/login', { method: 'POST', body: JSON.stringify(body), retryOn401: false })
     setToken(data.access_token)
@@ -183,6 +197,20 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     scheduleExpiryWatch(token)
     return () => {
       if (expiryTimer.current) window.clearTimeout(expiryTimer.current)
+    }
+  }, [token])
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void ensureTokenStillValid()
+      }
+    }
+    window.addEventListener('focus', onVisibility)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('focus', onVisibility)
+      document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [token])
 

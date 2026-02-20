@@ -5,9 +5,9 @@ Revises: 010_ui_configuration_tables
 Create Date: 2026-02-13
 """
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "011_accounting_settings_ap_expense"
@@ -32,4 +32,3 @@ def downgrade() -> None:
         batch_op.drop_column("default_expense_account_id")
         batch_op.drop_column("vat_input_account_id")
         batch_op.drop_column("ap_account_id")
-

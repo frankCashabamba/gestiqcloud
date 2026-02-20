@@ -16,7 +16,8 @@ Propósito: pipeline de importación (OCR/AI), staging/validación y promoción 
 - `application/job_runner.py`: arranque del runner si `IMPORTS_ENABLED=1` y tablas listas.
 - `interface/http/*`: routers (tenant/public/preview).
 - `domain/handlers_*`: lógica de parsers y transformaciones.
-- Docs internas extensas en `INDICE_DOCUMENTACION_COMPLETA.md` y otros `.md`.
+- Docs historicas movidas a `_legacy_docs/`.
+- Docs activas: `README.md`, `README_MODULE.md`, `PARSER_REGISTRY.md`, `PARSER_REGISTRY_GUIDE.md`.
 
 ## Notas
 - Env: `IMPORTS_ENABLED`, credenciales de OCR/AI/storage si aplica.

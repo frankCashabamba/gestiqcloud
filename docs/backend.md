@@ -103,7 +103,7 @@ Backend API multi-tenant construido con FastAPI + SQLAlchemy, orientado a ERP/CR
 
 ## Imports (guía rápida)
 - Router: `/api/v1/imports/*` se monta si `IMPORTS_ENABLED=1` y tablas de imports existen.
-- Documentación detallada en `app/modules/imports/INDICE_DOCUMENTACION_COMPLETA.md` y README del módulo.
+- Documentación detallada en `app/modules/imports/README.md` y `app/modules/imports/README_MODULE.md` (histórico en `_legacy_docs/`).
 - Flujo: `batches` → `ingest` → `validate` → `promote` (+ fotos/OCR opcional).
 - Env relevantes: `IMPORTS_ENABLED`, credenciales de storage/OCR/AI si aplica.
 - Ejemplos curl:

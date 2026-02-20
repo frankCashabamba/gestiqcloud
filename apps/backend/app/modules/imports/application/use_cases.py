@@ -31,7 +31,12 @@ from app.modules.imports.application.photo_utils import (
 )
 from app.modules.imports.application.status import ImportBatchStatus, ImportItemStatus
 from app.modules.imports.application.use_utils import apply_mapping
-from app.modules.imports.domain.handlers import BankHandler, ExpenseHandler, ProductHandler, RecipeHandler
+from app.modules.imports.domain.handlers import (
+    BankHandler,
+    ExpenseHandler,
+    ProductHandler,
+    RecipeHandler,
+)
 from app.modules.imports.infrastructure.repositories import ImportsRepository
 from app.modules.imports.validators import validate_bank, validate_expenses, validate_invoices
 from app.modules.imports.validators.products import validate_product
@@ -64,7 +69,7 @@ def _validate_by_type(source_type: str, normalized: dict[str, Any]) -> list[dict
 
     if source_type == "invoices":
         return validate_invoices(normalized, enable_currency_rule=validate_currency)
-    if source_type == "bank":
+    if source_type in ("bank", "bank_transactions"):
         return validate_bank(normalized)
     if source_type in ("expenses", "receipts"):
         return validate_expenses(normalized, require_categories=require_categories)
@@ -98,7 +103,7 @@ def _dedupe_hash(source_type: str, data: dict[str, Any], *, keys: list[str] | No
             g("invoice_date", "date"),
             g("total_amount", "total"),
         ]
-    elif source_type == "bank":
+    elif source_type in ("bank", "bank_transactions"):
         parts = [
             g("statement_id"),
             g("entry_ref", "reference"),
@@ -175,13 +180,39 @@ def _normalize_bank_row(raw: dict[str, Any]) -> dict[str, Any] | None:
     """Best-effort normalization for bank OCR rows when no mapping is provided."""
     if not isinstance(raw, dict):
         return None
+    text_blob = " ".join(str(v) for v in raw.values() if v is not None)
+
+    def _extract_date_from_text(text: str) -> str | None:
+        m = re.search(r"\b(\d{2}[/-]\d{2}[/-]\d{4})\b", text)
+        if m:
+            return m.group(1)
+        m = re.search(r"\b(\d{4}[/-]\d{2}[/-]\d{2})\b", text)
+        if m:
+            return m.group(1)
+        return None
+
     tx_date = (
         raw.get("transaction_date")
         or raw.get("fecha")
         or raw.get("date")
+        or raw.get("fecha_envio")
+        or raw.get("fecha de envio")
+        or raw.get("fecha de envío")
+        or raw.get("fecha_valor")
+        or raw.get("fecha valor")
+        or raw.get("issue_date")
+        or raw.get("value_date")
         or _get_case_insensitive(raw, "transaction_date")
         or _get_case_insensitive(raw, "fecha")
         or _get_case_insensitive(raw, "date")
+        or _get_case_insensitive(raw, "fecha_envio")
+        or _get_case_insensitive(raw, "fecha de envio")
+        or _get_case_insensitive(raw, "fecha de envío")
+        or _get_case_insensitive(raw, "fecha_valor")
+        or _get_case_insensitive(raw, "fecha valor")
+        or _get_case_insensitive(raw, "issue_date")
+        or _get_case_insensitive(raw, "value_date")
+        or _extract_date_from_text(text_blob)
     )
     amount = raw.get("amount") if raw.get("amount") is not None else raw.get("importe")
     if amount is None:
@@ -240,6 +271,101 @@ def _normalize_bank_row(raw: dict[str, Any]) -> dict[str, Any] | None:
     return normalized or None
 
 
+def _normalize_invoice_row(raw: dict[str, Any]) -> dict[str, Any] | None:
+    """Best-effort normalization for invoice rows when no mapping is provided."""
+    if not isinstance(raw, dict):
+        return None
+
+    invoice_number = (
+        raw.get("invoice_number")
+        or raw.get("invoice")
+        or raw.get("number")
+        or raw.get("numero")
+        or raw.get("numero_factura")
+        or raw.get("nro")
+        or raw.get("folio")
+        or _get_case_insensitive(raw, "invoice_number")
+        or _get_case_insensitive(raw, "invoice")
+        or _get_case_insensitive(raw, "number")
+        or _get_case_insensitive(raw, "numero")
+        or _get_case_insensitive(raw, "numero_factura")
+        or _get_case_insensitive(raw, "nro")
+        or _get_case_insensitive(raw, "folio")
+    )
+    invoice_date = (
+        raw.get("invoice_date")
+        or raw.get("issue_date")
+        or raw.get("date")
+        or raw.get("fecha")
+        or _get_case_insensitive(raw, "invoice_date")
+        or _get_case_insensitive(raw, "issue_date")
+        or _get_case_insensitive(raw, "date")
+        or _get_case_insensitive(raw, "fecha")
+    )
+
+    totals = raw.get("totals") if isinstance(raw.get("totals"), dict) else {}
+    total_amount = _parse_amount_value(
+        raw.get("total_amount") if raw.get("total_amount") is not None else raw.get("total")
+    )
+    if total_amount is None:
+        total_amount = _parse_amount_value(raw.get("amount") or raw.get("importe"))
+    if total_amount is None:
+        total_amount = _parse_amount_value(
+            totals.get("total") if isinstance(totals, dict) else None
+        )
+
+    net_amount = _parse_amount_value(raw.get("net_amount") or raw.get("subtotal"))
+    if net_amount is None and isinstance(totals, dict):
+        net_amount = _parse_amount_value(totals.get("subtotal"))
+    tax_amount = _parse_amount_value(raw.get("tax_amount") or raw.get("tax") or raw.get("iva"))
+    if tax_amount is None and isinstance(totals, dict):
+        tax_amount = _parse_amount_value(totals.get("tax"))
+
+    customer_name = (
+        raw.get("customer_name")
+        or raw.get("customer")
+        or raw.get("cliente")
+        or raw.get("buyer")
+        or raw.get("vendor_name")
+        or raw.get("vendor")
+        or _get_case_insensitive(raw, "customer_name")
+        or _get_case_insensitive(raw, "customer")
+        or _get_case_insensitive(raw, "cliente")
+        or _get_case_insensitive(raw, "buyer")
+        or _get_case_insensitive(raw, "vendor_name")
+        or _get_case_insensitive(raw, "vendor")
+    )
+
+    normalized: dict[str, Any] = {}
+    if invoice_number:
+        normalized["invoice_number"] = invoice_number
+    if invoice_date:
+        normalized["invoice_date"] = invoice_date
+    if total_amount is not None:
+        normalized["total_amount"] = total_amount
+    if net_amount is not None:
+        normalized["net_amount"] = net_amount
+    if tax_amount is not None:
+        normalized["tax_amount"] = tax_amount
+    if customer_name:
+        normalized["customer_name"] = customer_name
+
+    if not normalized.get("invoice_number"):
+        base = "|".join(
+            [
+                str(normalized.get("invoice_date") or ""),
+                str(normalized.get("total_amount") or ""),
+                str(normalized.get("customer_name") or ""),
+            ]
+        ).strip("|")
+        if base:
+            normalized["invoice_number"] = (
+                "AUTO-" + hashlib.sha256(base.encode("utf-8")).hexdigest()[:10].upper()
+            )
+
+    return normalized or None
+
+
 def _normalize_expense_row(raw: dict[str, Any]) -> dict[str, Any] | None:
     """Best-effort normalization for expenses/receipts when mapping is missing (OCR uploads)."""
     if not isinstance(raw, dict):
@@ -294,8 +420,10 @@ def _normalize_expense_row(raw: dict[str, Any]) -> dict[str, Any] | None:
 
 def _auto_normalize_row(source_type: str, raw: dict[str, Any]) -> dict[str, Any] | None:
     """Auto-mapping fallback for OCR/excel rows when no ImportMapping is provided."""
-    if source_type == "bank":
+    if source_type in ("bank", "bank_transactions"):
         return _normalize_bank_row(raw)
+    if source_type in ("invoices", "invoice"):
+        return _normalize_invoice_row(raw)
     if source_type in ("expenses", "receipts"):
         return _normalize_expense_row(raw)
     return None
@@ -791,17 +919,15 @@ def patch_item(
 
 def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None = None):
     batch_uuid = _to_uuid(batch_id)
-
-    # tenant_id parameter is already UUID, use directly
-    _tenant_id_uuid = tenant_id
+    tenant_uuid = _to_uuid(tenant_id)
 
     repo = ImportsRepository()
-    batch = repo.get_batch(db, tenant_id, batch_uuid)
+    batch = repo.get_batch(db, tenant_uuid, batch_uuid)
     if not batch:
         return {"created": 0, "skipped": 0, "failed": 0}
 
     # Consider all items; we'll count already promoted as skipped to make idempotency visible
-    items = repo.list_items(db, tenant_id, batch_uuid)
+    items = repo.list_items(db, tenant_uuid, batch_uuid)
     created = skipped = failed = 0
     # Special handling for recipes: we handle them differently
     if batch.source_type == "recipes":
@@ -845,14 +971,14 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
             continue
         try:
             if it.dedupe_hash and (
-                repo.exists_promoted_hash(db, tenant_id, it.dedupe_hash)
+                repo.exists_promoted_hash(db, tenant_uuid, it.dedupe_hash)
                 or it.dedupe_hash in promoted_hashes
             ):
                 # Log duplicate as an incident so it’s visible in the panel
                 try:
                     db.add(
                         Incident(
-                            tenant_id=tenant_id,
+                            tenant_id=tenant_uuid,
                             tipo="warning",
                             severidad="low",
                             titulo="Elemento duplicado en importación",
@@ -876,7 +1002,7 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
             # Todos los handlers ahora usan la firma completa con db y tenant_id
             res = handler.promote(
                 db,
-                tenant_id,
+                tenant_uuid,
                 it.normalized or it.raw or {},
                 it.promoted_id,
                 options=options or {},
@@ -901,7 +1027,7 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
                 continue
             # promoted_to indica el módulo/tabla destino real
             it.promoted_to = "expenses" if batch.source_type == "invoices" else batch.source_type
-            it.promoted_id = res.domain_id
+            it.promoted_id = _to_uuid(res.domain_id) if res.domain_id else None
             it.promoted_at = datetime.utcnow()
             it.status = ImportItemStatus.PROMOTED
             db.add(it)
@@ -909,7 +1035,7 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
                 promoted_hashes.add(it.dedupe_hash)
 
             lineage = ImportLineage(
-                tenant_id=tenant_id,  # INT
+                tenant_id=tenant_uuid,
                 item_id=it.id,  # UUID
                 promoted_to=it.promoted_to,
                 promoted_ref=res.domain_id or "",
@@ -952,6 +1078,7 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
             "promote_batch",
             extra={
                 "tenant": tenant_id,
+                "tenant_uuid": str(tenant_uuid),
                 "batch_id": str(batch_uuid),
                 "items_total": len(items),
                 "items_ok": created,

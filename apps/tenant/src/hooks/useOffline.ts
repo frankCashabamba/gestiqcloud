@@ -37,6 +37,8 @@ export default function useOffline(autoSyncIntervalMs: number = 30000): UseOffli
     purchase: 0,
     shift: 0,
     invoice: 0,
+    expense: 0,
+    inventory: 0,
   }
 
   const [syncStatus, setSyncStatus] = useState<Record<EntityType, number>>(EMPTY_STATUS)
@@ -82,7 +84,7 @@ export default function useOffline(autoSyncIntervalMs: number = 30000): UseOffli
         setTotalPending(pending)
 
         // Get metadata for each entity type
-        const entities: EntityType[] = ['product', 'customer', 'sale', 'receipt', 'purchase', 'shift', 'invoice']
+        const entities: EntityType[] = ['product', 'customer', 'sale', 'receipt', 'purchase', 'shift', 'invoice', 'expense', 'inventory']
         const statuses: Record<EntityType, number> = { ...EMPTY_STATUS }
 
         for (const entity of entities) {

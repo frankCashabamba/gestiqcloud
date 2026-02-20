@@ -132,7 +132,7 @@ class AccountingService:
                 "status": "posted",
             }
 
-        except Exception as e:
+        except Exception:
             logger.exception(f"Error creating journal entry for invoice {invoice_id}")
             raise
 
@@ -184,7 +184,7 @@ class AccountingService:
                 "status": "posted",
             }
 
-        except Exception as e:
+        except Exception:
             logger.exception(f"Error creating journal entry for payment {payment_id}")
             raise
 
@@ -220,13 +220,11 @@ class AccountingService:
         """
         try:
             # TODO: Validate entry balance
-            debit_total = sum(Decimal(str(l.get("debit", 0))) for l in lines)
-            credit_total = sum(Decimal(str(l.get("credit", 0))) for l in lines)
+            debit_total = sum(Decimal(str(line.get("debit", 0))) for line in lines)
+            credit_total = sum(Decimal(str(line.get("credit", 0))) for line in lines)
 
             if debit_total != credit_total:
-                raise ValueError(
-                    f"Entry unbalanced: DEBE={debit_total} HABER={credit_total}"
-                )
+                raise ValueError(f"Entry unbalanced: DEBE={debit_total} HABER={credit_total}")
 
             if len(lines) < 2:
                 raise ValueError("Entry must have at least 2 lines")
@@ -242,7 +240,7 @@ class AccountingService:
                 "credit_total": credit_total,
             }
 
-        except Exception as e:
+        except Exception:
             logger.exception("Error creating manual journal entry")
             raise
 
@@ -259,7 +257,7 @@ class AccountingService:
                 "status": "posted",
             }
 
-        except Exception as e:
+        except Exception:
             logger.exception("Error posting journal entry")
             raise
 
@@ -278,6 +276,6 @@ class AccountingService:
                 "status": "voided",
             }
 
-        except Exception as e:
+        except Exception:
             logger.exception("Error voiding journal entry")
             raise

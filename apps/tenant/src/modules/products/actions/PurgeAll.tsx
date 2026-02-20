@@ -1,7 +1,7 @@
 // apps/tenant/src/modules/products/actions/PurgeAll.tsx
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { purgeProductosConfirm, purgeProductosDryRun } from '../services'
+import { purgeProductosConfirm, purgeProductosDryRun } from '../productsApi'
 import { useToast, getErrorMessage } from '../../../shared/toast'
 
 export default function ProductosPurge() {

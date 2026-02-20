@@ -181,10 +181,14 @@ class POSInvoicingService:
                     SELECT id, customer_id, number, status, gross_total, tax_total, created_at, invoice_id
                     FROM pos_receipts
                     WHERE id = :rid
+                      AND tenant_id = :tid
                     FOR UPDATE
                     """
-                ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
-                {"rid": receipt_id},
+                ).bindparams(
+                    bindparam("rid", type_=PGUUID(as_uuid=True)),
+                    bindparam("tid", type_=PGUUID(as_uuid=True)),
+                ),
+                {"rid": receipt_id, "tid": self.tenant_id},
             ).first()
 
             if not receipt:
@@ -305,12 +309,14 @@ class POSInvoicingService:
                     UPDATE pos_receipts
                     SET invoice_id = :invoice_id
                     WHERE id = :receipt_id
+                      AND tenant_id = :tid
                     """
                 ).bindparams(
                     bindparam("invoice_id", type_=PGUUID(as_uuid=True)),
                     bindparam("receipt_id", type_=PGUUID(as_uuid=True)),
+                    bindparam("tid", type_=PGUUID(as_uuid=True)),
                 ),
-                {"invoice_id": invoice_id, "receipt_id": receipt_uuid},
+                {"invoice_id": invoice_id, "receipt_id": receipt_uuid, "tid": self.tenant_id},
             )
 
             lines = self.db.execute(
@@ -384,11 +390,15 @@ class POSInvoicingService:
                 )
 
             self.db.execute(
-                text("UPDATE pos_receipts SET invoice_id = :iid WHERE id = :rid").bindparams(
+                text(
+                    "UPDATE pos_receipts SET invoice_id = :iid "
+                    "WHERE id = :rid AND tenant_id = :tid"
+                ).bindparams(
                     bindparam("iid", type_=PGUUID(as_uuid=True)),
                     bindparam("rid", type_=PGUUID(as_uuid=True)),
+                    bindparam("tid", type_=PGUUID(as_uuid=True)),
                 ),
-                {"iid": invoice_id, "rid": receipt_uuid},
+                {"iid": invoice_id, "rid": receipt_uuid, "tid": self.tenant_id},
             )
 
             if savepoint:
@@ -443,10 +453,14 @@ class POSInvoicingService:
                     SELECT id, customer_id, number, status, gross_total, tax_total, created_at
                     FROM pos_receipts
                     WHERE id = :rid
+                      AND tenant_id = :tid
                     FOR UPDATE
                     """
-                ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
-                {"rid": receipt_id},
+                ).bindparams(
+                    bindparam("rid", type_=PGUUID(as_uuid=True)),
+                    bindparam("tid", type_=PGUUID(as_uuid=True)),
+                ),
+                {"rid": receipt_id, "tid": self.tenant_id},
             ).first()
             if not receipt:
                 return None
@@ -653,10 +667,14 @@ class POSInvoicingService:
             savepoint = self.db.begin_nested()
 
             receipt = self.db.execute(
-                text("SELECT id, number, cashier_id FROM pos_receipts WHERE id = :rid").bindparams(
-                    bindparam("rid", type_=PGUUID(as_uuid=True))
+                text(
+                    "SELECT id, number, cashier_id FROM pos_receipts "
+                    "WHERE id = :rid AND tenant_id = :tid"
+                ).bindparams(
+                    bindparam("rid", type_=PGUUID(as_uuid=True)),
+                    bindparam("tid", type_=PGUUID(as_uuid=True)),
                 ),
-                {"rid": receipt_id},
+                {"rid": receipt_id, "tid": self.tenant_id},
             ).first()
             if not receipt:
                 return None

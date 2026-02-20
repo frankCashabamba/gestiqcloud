@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import ImportadorLayout from '../components/ImportadorLayout'
 import {
   getBatch,
@@ -18,14 +19,6 @@ type FilterState = {
   q: string
 }
 
-const statusOptions = [
-  { value: '', label: 'Todos' },
-  { value: 'OK', label: 'OK' },
-  { value: 'ERROR_VALIDATION', label: 'Error validacion' },
-  { value: 'ERROR_PROMOTION', label: 'Error promocion' },
-  { value: 'PROMOTED', label: 'Promovidos' },
-]
-
 const statusTone: Record<string, string> = {
   OK: 'bg-emerald-50 text-emerald-700',
   READY: 'bg-blue-50 text-blue-700',
@@ -39,6 +32,7 @@ const statusTone: Record<string, string> = {
 
 export default function BatchDetail() {
   const { id = '' } = useParams()
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [batch, setBatch] = useState<any>(null)
   const [items, setItems] = useState<ImportItem[]>([])
@@ -51,6 +45,16 @@ export default function BatchDetail() {
   const [itemAttachments, setItemAttachments] = useState<Record<string, ImportAttachment[]>>({})
   const [uploadingBatch, setUploadingBatch] = useState(false)
   const [uploadingItemId, setUploadingItemId] = useState<string | null>(null)
+  const statusOptions = useMemo(
+    () => [
+      { value: '', label: t('importerBatchDetail.statusOptions.all') },
+      { value: 'OK', label: 'OK' },
+      { value: 'ERROR_VALIDATION', label: t('importerBatchDetail.statusOptions.validationError') },
+      { value: 'ERROR_PROMOTION', label: t('importerBatchDetail.statusOptions.promotionError') },
+      { value: 'PROMOTED', label: t('importerBatchDetail.statusOptions.promoted') },
+    ],
+    [t]
+  )
 
   async function load() {
     if (!id) return
@@ -73,7 +77,7 @@ export default function BatchDetail() {
       })
       setItemAttachments(attachmentsMap)
     } catch (err: any) {
-      setMessage(err?.message || 'No se pudo cargar el lote')
+      setMessage(err?.message || t('importerBatchDetail.errors.loadBatchFailed'))
       setMessageTone('error')
     } finally {
       setLoading(false)
@@ -88,7 +92,7 @@ export default function BatchDetail() {
   async function onValidate() {
     await validateBatch(id)
     await load()
-    setMessage('Lote revalidado correctamente')
+    setMessage(t('importerBatchDetail.messages.batchRevalidated'))
     setMessageTone('success')
   }
 
@@ -113,7 +117,7 @@ export default function BatchDetail() {
     try {
       await patchItem(id, item.id, field, value)
       await load()
-      setMessage('Item actualizado')
+      setMessage(t('importerBatchDetail.messages.itemUpdated'))
       setMessageTone('success')
     } finally {
       setSavingItemId(null)
@@ -134,10 +138,10 @@ export default function BatchDetail() {
     try {
       const { attachments } = await uploadBatchPhotos(id, files)
       setBatchAttachments((prev) => [...prev, ...attachments])
-      setMessage('Fotos del lote subidas correctamente')
+      setMessage(t('importerBatchDetail.messages.batchPhotosUploaded'))
       setMessageTone('success')
     } catch (err: any) {
-      setMessage(err?.message || 'No se pudieron subir las fotos del lote')
+      setMessage(err?.message || t('importerBatchDetail.errors.batchPhotosUploadFailed'))
       setMessageTone('error')
     } finally {
       setUploadingBatch(false)
@@ -155,10 +159,10 @@ export default function BatchDetail() {
         ...prev,
         [itemId]: [...(prev[itemId] || []), ...attachments],
       }))
-      setMessage('Fotos del item subidas correctamente')
+      setMessage(t('importerBatchDetail.messages.itemPhotosUploaded'))
       setMessageTone('success')
     } catch (err: any) {
-      setMessage(err?.message || 'No se pudieron subir las fotos del item')
+      setMessage(err?.message || t('importerBatchDetail.errors.itemPhotosUploadFailed'))
       setMessageTone('error')
     } finally {
       setUploadingItemId(null)
@@ -174,10 +178,10 @@ export default function BatchDetail() {
       className="group block h-16 w-16 overflow-hidden rounded border border-neutral-200 hover:border-blue-400"
     >
       {attachment.kind === 'photo' ? (
-        <img src={attachment.url} alt="Adjunto" className="h-full w-full object-cover" />
+        <img src={attachment.url} alt={t('importerBatchDetail.attachments.attachmentAlt')} className="h-full w-full object-cover" />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-neutral-50 text-[11px] font-medium text-neutral-500">
-          Ver
+          {t('importerBatchDetail.actions.view')}
         </div>
       )}
     </a>
@@ -193,8 +197,8 @@ export default function BatchDetail() {
 
   return (
     <ImportadorLayout
-      title={`Lote ${id.slice(0, 8)}`}
-      description="Edita registros individuales, revisa errores y ejecuta acciones de validacion o promocion del lote."
+      title={t('importerBatchDetail.title', { id: id.slice(0, 8) })}
+      description={t('importerBatchDetail.description')}
       actions={
         <div className="flex flex-wrap gap-2">
           <button
@@ -203,7 +207,7 @@ export default function BatchDetail() {
             onClick={onValidate}
             disabled={loading}
           >
-            Revalidar lote
+            {t('importerBatchDetail.actions.revalidateBatch')}
           </button>
           <button
             type="button"
@@ -211,7 +215,7 @@ export default function BatchDetail() {
             onClick={onOpenPreview}
             disabled={loading}
           >
-            Abrir en Preview
+            {t('importerBatchDetail.actions.openInPreview')}
           </button>
           <button
             type="button"
@@ -219,7 +223,7 @@ export default function BatchDetail() {
             onClick={onDownloadCsv}
             disabled={loading}
           >
-            Descargar errors.csv
+            {t('importerBatchDetail.actions.downloadErrorsCsv')}
           </button>
         </div>
       }
@@ -228,15 +232,15 @@ export default function BatchDetail() {
         {batch && (
           <div className="grid gap-4 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm md:grid-cols-3">
             <div>
-              <p className="text-xs uppercase tracking-wide text-neutral-500">Origen</p>
-              <p className="text-sm font-medium text-neutral-900">{batch.origin || 'sin origen'}</p>
+              <p className="text-xs uppercase tracking-wide text-neutral-500">{t('importerBatchDetail.summary.origin')}</p>
+              <p className="text-sm font-medium text-neutral-900">{batch.origin || t('importerBatchDetail.summary.withoutOrigin')}</p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wide text-neutral-500">Tipo</p>
+              <p className="text-xs uppercase tracking-wide text-neutral-500">{t('importerBatchDetail.summary.type')}</p>
               <p className="text-sm font-medium text-neutral-900">{batch.source_type}</p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wide text-neutral-500">Estado actual</p>
+              <p className="text-xs uppercase tracking-wide text-neutral-500">{t('importerBatchDetail.summary.currentStatus')}</p>
               <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
                 statusTone[batch.status] || 'bg-neutral-100 text-neutral-700'
               }`}>
@@ -249,11 +253,11 @@ export default function BatchDetail() {
         <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-neutral-900">Adjuntos del lote</p>
-              <p className="text-xs text-neutral-500">Sube evidencias o fotos desde movil para este lote.</p>
+              <p className="text-sm font-semibold text-neutral-900">{t('importerBatchDetail.attachments.batchTitle')}</p>
+              <p className="text-xs text-neutral-500">{t('importerBatchDetail.attachments.batchDescription')}</p>
             </div>
             <label className="flex cursor-pointer items-center gap-2 rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60">
-              <span>{uploadingBatch ? 'Subiendo...' : 'Subir fotos'}</span>
+              <span>{uploadingBatch ? t('importerBatchDetail.actions.uploading') : t('importerBatchDetail.actions.uploadPhotos')}</span>
               <input
                 type="file"
                 accept="image/*"
@@ -267,7 +271,7 @@ export default function BatchDetail() {
           <div className="mt-3 flex flex-wrap gap-3">
             {batchAttachments.length ?
               batchAttachments.map(renderAttachment) : (
-                <span className="text-xs text-neutral-400">Sin adjuntos cargados.</span>
+                <span className="text-xs text-neutral-400">{t('importerBatchDetail.attachments.noneLoaded')}</span>
               )}
           </div>
         </div>
@@ -301,7 +305,7 @@ export default function BatchDetail() {
           >
             <input
               className="rounded-md border border-neutral-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
-              placeholder="Buscar por texto"
+              placeholder={t('importerBatchDetail.filters.searchPlaceholder')}
               value={filters.q}
               onChange={(event) => setFilters((prev) => ({ ...prev, q: event.target.value }))}
             />
@@ -310,7 +314,7 @@ export default function BatchDetail() {
               className="rounded-md bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-700"
               disabled={loading}
             >
-              Buscar
+              {t('importerBatchDetail.filters.search')}
             </button>
           </form>
         </div>
@@ -329,11 +333,11 @@ export default function BatchDetail() {
             <thead className="bg-neutral-50 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">
               <tr>
                 <th className="px-4 py-3">#</th>
-                <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3">Campo</th>
-                <th className="px-4 py-3">Valor</th>
-                <th className="px-4 py-3">Errores</th>
-                <th className="px-4 py-3">Adjuntos</th>
+                <th className="px-4 py-3">{t('importerBatchDetail.table.status')}</th>
+                <th className="px-4 py-3">{t('importerBatchDetail.table.field')}</th>
+                <th className="px-4 py-3">{t('importerBatchDetail.table.value')}</th>
+                <th className="px-4 py-3">{t('importerBatchDetail.table.errors')}</th>
+                <th className="px-4 py-3">{t('importerBatchDetail.table.attachments')}</th>
               </tr>
             </thead>
             <tbody>
@@ -375,11 +379,11 @@ export default function BatchDetail() {
                         defaultValue={value}
                         onBlur={(event) => onInlineEdit(item, firstKey, event.currentTarget.value)}
                       />
-                      {saving && <p className="mt-1 text-[11px] text-neutral-500">Guardando...</p>}
+                      {saving && <p className="mt-1 text-[11px] text-neutral-500">{t('importerBatchDetail.actions.saving')}</p>}
                     </td>
                     <td className="px-4 py-3">
                       {errors.length === 0 ? (
-                        <span className="text-xs text-neutral-400">Sin errores</span>
+                        <span className="text-xs text-neutral-400">{t('importerBatchDetail.table.noErrors')}</span>
                       ) : (
                         <div className="flex flex-wrap gap-1">
                           {errors.map((error, idxError) => (
@@ -387,7 +391,7 @@ export default function BatchDetail() {
                               key={idxError}
                               className="rounded-full bg-rose-50 px-2 py-1 text-[11px] font-medium text-rose-700"
                             >
-                              {error.field || 'campo'}: {error.msg || 'revisar'}
+                              {error.field || t('importerBatchDetail.table.fieldFallback')}: {error.msg || t('importerBatchDetail.table.reviewFallback')}
                             </span>
                           ))}
                         </div>
@@ -398,11 +402,11 @@ export default function BatchDetail() {
                         {attachments.length ? (
                           attachments.map(renderAttachment)
                         ) : (
-                          <span className="text-xs text-neutral-400">Sin adjuntos</span>
+                          <span className="text-xs text-neutral-400">{t('importerBatchDetail.attachments.none')}</span>
                         )}
                       </div>
                       <label className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium text-neutral-600 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60">
-                        <span>{uploadingItem ? 'Subiendo...' : 'Subir fotos'}</span>
+                        <span>{uploadingItem ? t('importerBatchDetail.actions.uploading') : t('importerBatchDetail.actions.uploadPhotos')}</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -422,10 +426,10 @@ export default function BatchDetail() {
             </tbody>
           </table>
           {loading && (
-            <div className="px-4 py-6 text-center text-sm text-neutral-500">Loading items...</div>
+            <div className="px-4 py-6 text-center text-sm text-neutral-500">{t('importerBatchDetail.loadingItems')}</div>
           )}
           {!loading && total === 0 && (
-            <div className="px-4 py-6 text-center text-sm text-neutral-500">No hay registros con el filtro seleccionado.</div>
+            <div className="px-4 py-6 text-center text-sm text-neutral-500">{t('importerBatchDetail.empty')}</div>
           )}
         </div>
       </section>

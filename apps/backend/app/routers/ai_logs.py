@@ -1,19 +1,20 @@
 """
 Endpoints para logs, métricas y análisis de IA
 """
+
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.models.ai_log import AIRequestLog, AIErrorAnalysis, AIResponseStatus
-from app.services.ai.logging import AILogger, AIMetrics
+from app.models.ai_log import AIRequestLog, AIResponseStatus
+from app.services.ai.logging import AIMetrics
 from app.services.ai.recovery import recovery_manager
 
 logger = logging.getLogger(__name__)
@@ -33,11 +34,11 @@ class AIRequestLogOut(BaseModel):
     task: str
     status: str
     provider_used: str
-    processing_time_ms: Optional[int]
-    tokens_used: Optional[int]
-    error_message: Optional[str]
+    processing_time_ms: int | None
+    tokens_used: int | None
+    error_message: str | None
     created_at: datetime
-    module: Optional[str]
+    module: str | None
 
     class Config:
         from_attributes = True
@@ -72,13 +73,13 @@ class ProviderPerformanceOut(BaseModel):
 @router.get("/recent", response_model=list[AIRequestLogOut])
 async def get_recent_logs(
     limit: int = Query(20, ge=1, le=100),
-    module: Optional[str] = None,
-    status: Optional[str] = None,
+    module: str | None = None,
+    status: str | None = None,
     db: Session = Depends(get_db),
 ):
     """
     Obtiene logs recientes
-    
+
     Args:
         limit: Número de registros (máx 100)
         module: Filtrar por módulo (copilot, imports, etc)
@@ -104,12 +105,12 @@ async def get_recent_logs(
 @router.get("/statistics", response_model=ErrorStatisticsOut)
 async def get_error_statistics(
     hours: int = Query(24, ge=1, le=168),
-    module: Optional[str] = None,
+    module: str | None = None,
     db: Session = Depends(get_db),
 ):
     """
     Obtiene estadísticas de errores
-    
+
     Args:
         hours: Período a analizar (1-168 horas)
         module: Filtrar por módulo
@@ -136,9 +137,12 @@ async def get_error_statistics(
 
         from sqlalchemy import func
 
-        avg_time = db.query(func.avg(AIRequestLog.processing_time_ms)).filter(
-            AIRequestLog.created_at >= cutoff
-        ).scalar() or 0
+        avg_time = (
+            db.query(func.avg(AIRequestLog.processing_time_ms))
+            .filter(AIRequestLog.created_at >= cutoff)
+            .scalar()
+            or 0
+        )
 
         error_rate = (errors / total * 100) if total > 0 else 0
 
@@ -163,7 +167,7 @@ async def get_provider_performance(
 ):
     """
     Obtiene performance de cada proveedor
-    
+
     Args:
         hours: Período a analizar
     """
@@ -189,7 +193,7 @@ async def get_top_errors(
 ):
     """
     Obtiene top errores recientes
-    
+
     Args:
         limit: Número de errores (máx 50)
         hours: Período a analizar
@@ -211,7 +215,7 @@ async def get_slowest_requests(
 ):
     """
     Obtiene requests más lentos
-    
+
     Args:
         limit: Número de requests (máx 50)
         hours: Período a analizar
@@ -232,7 +236,7 @@ async def get_request_log(
 ):
     """
     Obtiene log específico de un request
-    
+
     Args:
         request_id: ID del request
     """
@@ -258,7 +262,7 @@ async def get_analysis_summary(
 ):
     """
     Resumen de análisis de errores
-    
+
     Returns:
         Análisis y recomendaciones
     """
@@ -290,7 +294,9 @@ async def get_analysis_summary(
         )
 
         if best_provider[0]:
-            recommendations.append(f"✅ Mejor proveedor: {best_provider[0]} ({best_provider[1].get('success_rate', 0):.1f}% éxito)")
+            recommendations.append(
+                f"✅ Mejor proveedor: {best_provider[0]} ({best_provider[1].get('success_rate', 0):.1f}% éxito)"
+            )
 
         return {
             "period_hours": hours,
@@ -315,7 +321,7 @@ async def suggest_error_fix(
 ):
     """
     Obtiene sugerencias para fixear un error
-    
+
     Args:
         error_code: Código del error
         error_message: Mensaje del error
@@ -336,16 +342,14 @@ async def cleanup_old_logs(
 ):
     """
     Elimina logs antiguos
-    
+
     Args:
         days: Eliminar logs más antiguos que N días
     """
     try:
         cutoff = datetime.utcnow() - timedelta(days=days)
 
-        deleted = (
-            db.query(AIRequestLog).filter(AIRequestLog.created_at < cutoff).delete()
-        )
+        deleted = db.query(AIRequestLog).filter(AIRequestLog.created_at < cutoff).delete()
 
         db.commit()
 

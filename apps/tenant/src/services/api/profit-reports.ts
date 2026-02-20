@@ -1,6 +1,6 @@
 /**
  * Profit Reports API Service
- * Connects to Blueprint V2 /api/v1/reports endpoints
+ * Connects to Blueprint V2 /api/v1/tenant/reports endpoints
  */
 
 import { apiClient } from './client'
@@ -56,7 +56,7 @@ export async function getProfitReport(
   dateFrom: string,
   dateTo: string
 ): Promise<ProfitReport> {
-  const response = await apiClient.get<ProfitReport>('/reports/profit', {
+  const response = await apiClient.get<ProfitReport>('/api/v1/tenant/reports/profit', {
     params: {
       date_from: dateFrom,
       date_to: dateTo,
@@ -78,7 +78,7 @@ export async function getProductMargins(
   }
 ): Promise<ProductMarginsReport> {
   const response = await apiClient.get<ProductMarginsReport>(
-    '/reports/product-margins',
+    '/api/v1/tenant/reports/product-margins',
     {
       params: {
         date_from: dateFrom,
@@ -102,7 +102,7 @@ export async function triggerRecalculation(
   const response = await apiClient.post<{
     status: string
     days_recalculated: number
-  }>('/reports/recalculate', null, {
+  }>('/api/v1/tenant/reports/recalculate', null, {
     params: {
       date_from: dateFrom,
       date_to: dateTo,

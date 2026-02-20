@@ -25,7 +25,7 @@ def create_invoice(invoice_data: dict, tenant_id: str):
     with SessionLocal() as db:
         # Create invoice in database
         invoice = create_invoice_in_db(db, invoice_data, tenant_id)
-        
+
         # Trigger webhook
         payload = WebhookFormatter.format_event_payload(
             event="invoice.created",
@@ -40,7 +40,7 @@ def create_invoice(invoice_data: dict, tenant_id: str):
             },
             tenant_id=tenant_id,
         )
-        
+
         # Enqueue deliveries
         db.execute(
             text(
@@ -51,7 +51,7 @@ def create_invoice(invoice_data: dict, tenant_id: str):
             ),
             {"tid": tenant_id, "event": "invoice.created"},
         )
-        
+
         if db.execute(...).scalar():
             # Create delivery records
             subs = db.execute(
@@ -63,7 +63,7 @@ def create_invoice(invoice_data: dict, tenant_id: str):
                 ),
                 {"tid": tenant_id, "event": "invoice.created"},
             ).fetchall()
-            
+
             for sub_id, url, secret in subs:
                 db.execute(
                     text(
@@ -82,7 +82,7 @@ def create_invoice(invoice_data: dict, tenant_id: str):
                         "secret": secret,
                     },
                 )
-        
+
         db.commit()
         return invoice
 ```
@@ -95,10 +95,10 @@ from app.modules.webhooks.service import WebhookService
 def create_invoice(invoice_data: dict, tenant_id: str):
     """Create an invoice and trigger webhook"""
     webhook_service = WebhookService(db)
-    
+
     # Create invoice
     invoice = create_invoice_in_db(db, invoice_data, tenant_id)
-    
+
     # Trigger webhook
     webhook_service.trigger_event(
         tenant_id=tenant_id,
@@ -113,7 +113,7 @@ def create_invoice(invoice_data: dict, tenant_id: str):
             "status": invoice.status,
         },
     )
-    
+
     return invoice
 ```
 
@@ -244,10 +244,10 @@ from sqlalchemy import text
 class InvoiceService:
     def __init__(self, db: Session):
         self.db = db
-    
+
     def create_invoice(self, data: dict, tenant_id: str):
         """Create invoice and trigger webhook"""
-        
+
         # Create invoice
         invoice = Invoice(
             tenant_id=tenant_id,
@@ -258,7 +258,7 @@ class InvoiceService:
         )
         self.db.add(invoice)
         self.db.flush()  # Get the invoice ID before commit
-        
+
         # Trigger webhook
         self._trigger_webhook(
             tenant_id=tenant_id,
@@ -271,10 +271,10 @@ class InvoiceService:
                 "customer": invoice.customer_name,
             },
         )
-        
+
         self.db.commit()
         return invoice
-    
+
     def _trigger_webhook(self, tenant_id: str, event: str, resource_id: str, data: dict):
         """Internal webhook trigger"""
         # Find subscriptions
@@ -287,10 +287,10 @@ class InvoiceService:
             ),
             {"tid": tenant_id, "event": event},
         ).fetchall()
-        
+
         if not subs:
             return
-        
+
         # Create delivery records
         payload = {
             "event": event,
@@ -298,7 +298,7 @@ class InvoiceService:
             "timestamp": datetime.utcnow().isoformat(),
             "data": data,
         }
-        
+
         for url, secret in subs:
             self.db.execute(
                 text(
@@ -339,10 +339,10 @@ def create_invoice(
 ):
     """Create invoice"""
     tenant_id = tenant_id_from_request(request)
-    
+
     service = InvoiceService(db)
     invoice = service.create_invoice(data.dict(), tenant_id)
-    
+
     return invoice
 ```
 
@@ -361,29 +361,29 @@ WEBHOOK_SECRET = "your-webhook-secret-key"
 @router.post("/gestiqcloud")
 async def receive_webhook(request: Request):
     """Receive webhook from GestiqCloud"""
-    
+
     # Get signature from header
     signature = request.headers.get("X-Signature")
     if not signature:
         raise HTTPException(status_code=400, detail="Missing X-Signature header")
-    
+
     # Get raw body
     body = await request.body()
-    
+
     # Verify signature
     if not WebhookSignature.verify_raw(WEBHOOK_SECRET, body, signature):
         raise HTTPException(status_code=401, detail="Invalid signature")
-    
+
     # Parse payload
     payload = json.loads(body)
     event = payload.get("event")
-    
+
     # Handle event
     if event == "invoice.created":
         await handle_invoice_created(payload["data"])
     elif event == "payment.received":
         await handle_payment_received(payload["data"])
-    
+
     return {"status": "ok"}
 
 async def handle_invoice_created(data):

@@ -1,4 +1,5 @@
 """Posting Registry Service — Idempotency for imports"""
+
 import hashlib
 import json
 import logging

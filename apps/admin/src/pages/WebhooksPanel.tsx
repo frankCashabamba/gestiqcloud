@@ -12,10 +12,10 @@ import '../features/webhooks/styles.css';
 import '../features/webhooks/webhooks-page.css';
 
 export const WebhooksPanel: React.FC = () => {
-  const [selectedWebhook, setSelectedWebhook] = useState<Webhook | null>(null);
+  const [selectedWebhook, setSelectedWebhook] = useState<Webhook | undefined>(undefined);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showForm, setShowForm] = useState(false);
-  const [editingWebhook, setEditingWebhook] = useState<Webhook | null>(null);
+  const [editingWebhook, setEditingWebhook] = useState<Webhook | undefined>(undefined);
 
   const handleEditWebhook = (webhook: Webhook) => {
     setEditingWebhook(webhook);
@@ -23,13 +23,13 @@ export const WebhooksPanel: React.FC = () => {
   };
 
   const handleCreateWebhook = () => {
-    setEditingWebhook(null);
+    setEditingWebhook(undefined);
     setShowForm(true);
   };
 
   const handleFormClose = () => {
     setShowForm(false);
-    setEditingWebhook(null);
+    setEditingWebhook(undefined);
   };
 
   const handleFormSuccess = () => {
@@ -53,10 +53,10 @@ export const WebhooksPanel: React.FC = () => {
       </div>
 
       <div className="webhooks-panel__content">
-        <WebhooksList 
-          onEdit={handleEditWebhook} 
-          onRefresh={handleFormSuccess} 
-          key={refreshTrigger} 
+        <WebhooksList
+          onEdit={handleEditWebhook}
+          onRefresh={handleFormSuccess}
+          key={refreshTrigger}
         />
 
         {selectedWebhook && (

@@ -383,7 +383,17 @@ async def get_pos_accounting_settings(
     tid = claims["tenant_id"]
     cfg = db.query(TenantAccountingSettings).filter_by(tenant_id=tid).first()
     if not cfg:
-        raise HTTPException(status_code=404, detail="Config contable POS no configurada")
+        # Return empty defaults instead of 404 so the UI can bootstrap config gracefully.
+        return {
+            "cash_account_id": None,
+            "bank_account_id": None,
+            "sales_bakery_account_id": None,
+            "vat_output_account_id": None,
+            "loss_account_id": None,
+            "ap_account_id": None,
+            "vat_input_account_id": None,
+            "default_expense_account_id": None,
+        }
     logger.info(
         "POS accounting settings loaded for tenant_id=%s cash_account_id=%s bank_account_id=%s sales_account_id=%s vat_output_account_id=%s loss_account_id=%s",
         tid,

@@ -15,8 +15,12 @@ export default function OutboxIndicator() {
         setPending((n) => Math.max(0, n - (m.ok ?? 0)))
       }
     }
+    navigator.serviceWorker?.addEventListener('message', onMsg)
     window.addEventListener('message', onMsg)
-    return () => window.removeEventListener('message', onMsg)
+    return () => {
+      navigator.serviceWorker?.removeEventListener('message', onMsg)
+      window.removeEventListener('message', onMsg)
+    }
   }, [])
 
   const visible = pending > 0 || (last && last.fail > 0)

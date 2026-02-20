@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { IMPORTS } from '@endpoints/imports'
 
 interface FeedbackPromptProps {
   batchId: string
@@ -102,7 +103,7 @@ export function FeedbackPrompt({
     setError(null)
 
     try {
-      const response = await fetch('/api/v1/imports/feedback', {
+      const response = await fetch(IMPORTS.feedback.base, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

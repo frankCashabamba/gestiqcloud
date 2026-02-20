@@ -6,7 +6,7 @@ import { manifest as sales } from './sales/manifest'
 import { manifest as purchases } from './purchases/manifest'
 import { manifest as suppliers } from './suppliers/manifest'
 import { manifest as expenses } from './expenses/manifest'
-import { manifest as usuarios } from './usuarios/manifest'
+import { manifest as usuarios } from './users/manifest'
 import { productosManifest } from './products/manifest'
 import { crmManifest } from './crm/manifest'
 import { manifest as reportes } from './reportes/manifest'
@@ -15,6 +15,7 @@ import { manifest as templates } from './templates/manifest'
 import { manifest as webhooks } from './webhooks/manifest'
 import { manifest as einvoicing } from './einvoicing/manifest'
 import { manifest as reconciliation } from './reconciliation/manifest'
+import { manifest as notifications } from './notifications/manifest'
 
 export const MODULES = [
   productosManifest,   // 0 - Productos
@@ -33,6 +34,7 @@ export const MODULES = [
   webhooks,            // 13 - Webhooks
   einvoicing,          // 14 - Facturación Electrónica (stub)
   reconciliation,      // 15 - Conciliación Bancaria (stub)
+  notifications,       // 16 - Notificaciones
 ]
 
 export type ModuleManifest = typeof pos

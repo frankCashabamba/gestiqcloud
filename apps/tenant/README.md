@@ -50,4 +50,7 @@ npm run test        # Vitest si se habilita
 
 ## Pendientes
 - Añadir ejemplos de rutas y flujo de auth en la app.
-- Documentar procesos del importador (ver `src/modules/importador/FRONTEND_TODO.md`).
+- Mantener sincronizada la documentación del importador en:
+  - `src/modules/importer/README.md`
+  - `src/modules/importer/ARCHITECTURE.md`
+  - `src/modules/importer/CONVENTIONS.md`

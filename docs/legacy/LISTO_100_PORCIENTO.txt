@@ -14,11 +14,11 @@ SERVICIOS WEBHOOK (3):
    1. PaymentWebhookService (181 líneas)
       - trigger_payment_received()
       - trigger_payment_failed()
-   
+
    2. CustomerWebhookService (175 líneas)
       - trigger_customer_created()
       - trigger_customer_updated()
-   
+
    3. SalesOrderWebhookService (213 líneas)
       - trigger_sales_order_created()
       - trigger_sales_order_confirmed()
@@ -34,11 +34,11 @@ INTEGRACIONES (7 TRIGGERS):
    PAYMENT MODULE (2 triggers):
    - payment.received (reconciliation/interface/http/payments.py:279)
    - payment.failed (reconciliation/interface/http/payments.py:322)
-   
+
    CRM MODULE (2 triggers):
    - customer.created (crm/application/services.py:88)
    - customer.updated (crm/application/services.py:121)
-   
+
    SALES MODULE (3 triggers):
    - sales_order.created (sales/interface/http/tenant.py:206)
    - sales_order.confirmed (sales/interface/http/tenant.py:307)
@@ -178,9 +178,9 @@ OPCIÓN 2 - Postman:
   4. Ver request en Postman
 
 OPCIÓN 3 - SQL Query:
-  SELECT * FROM webhook_deliveries 
-  WHERE event = 'payment.received' 
-  ORDER BY created_at DESC 
+  SELECT * FROM webhook_deliveries
+  WHERE event = 'payment.received'
+  ORDER BY created_at DESC
   LIMIT 10;
 
 ================================================================================

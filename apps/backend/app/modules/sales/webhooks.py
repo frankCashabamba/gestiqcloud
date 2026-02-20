@@ -8,7 +8,7 @@ Integrates with the webhooks module for secure, async delivery.
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import text
@@ -30,8 +30,8 @@ class SalesOrderWebhookService:
         tenant_id: UUID,
         order_id: str,
         order_number: str,
-        customer_id: Optional[str] = None,
-        customer_name: Optional[str] = None,
+        customer_id: str | None = None,
+        customer_name: str | None = None,
         amount: float = 0,
         currency: str = "USD",
         items_count: int = 0,
@@ -83,8 +83,8 @@ class SalesOrderWebhookService:
         tenant_id: UUID,
         order_id: str,
         order_number: str,
-        customer_id: Optional[str] = None,
-        customer_name: Optional[str] = None,
+        customer_id: str | None = None,
+        customer_name: str | None = None,
         amount: float = 0,
         currency: str = "USD",
     ) -> bool:
@@ -133,7 +133,7 @@ class SalesOrderWebhookService:
         tenant_id: UUID,
         order_id: str,
         order_number: str,
-        reason: Optional[str] = None,
+        reason: str | None = None,
     ) -> bool:
         """
         Trigger webhook when sales order is cancelled
@@ -169,9 +169,7 @@ class SalesOrderWebhookService:
             logger.error(f"Error triggering sales_order.cancelled webhook: {e}", exc_info=True)
             return False
 
-    def _enqueue_delivery(
-        self, tenant_id: UUID, event: str, payload: Dict[str, Any]
-    ) -> bool:
+    def _enqueue_delivery(self, tenant_id: UUID, event: str, payload: dict[str, Any]) -> bool:
         """
         Internal method to enqueue webhook delivery for all active subscriptions
 

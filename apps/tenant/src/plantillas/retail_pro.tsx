@@ -86,11 +86,7 @@ const RetailDashboard: React.FC = () => {
   const ventasTickets = liveTickets ?? ventas.tickets ?? 0
   const ventasTicketMedio = liveAvgTicket ?? ventas.ticket_medio ?? 0
 
-  const customLinks = [
-    isModuleEnabled('inventario') && { label: 'Stock replenishment', href: '#replenish', icon: 'S' },
-    isModuleEnabled('ventas') && { label: 'Promotions', href: '#promotions', icon: 'P' },
-    isModuleEnabled('ventas') && { label: 'Sales analysis', href: '#analysis', icon: 'A' },
-  ].filter(Boolean) as Array<{ label: string; href: string; icon: string }>
+  const customLinks: Array<{ label: string; href: string; icon: string }> = []
 
   return (
     <DashboardPro sectorName="Retail ERP" sectorIcon="R" customLinks={customLinks}>
@@ -105,9 +101,6 @@ const RetailDashboard: React.FC = () => {
           <p style={{ marginTop: '12px', opacity: 0.9 }}>
             Start by adding your customers. Other modules will unlock as you progress.
           </p>
-          <a href="#customers" className="btn" style={{ marginTop: '20px', display: 'inline-block', background: '#fff', color: 'var(--primary)', fontWeight: 600 }}>
-            Go to Customers
-          </a>
         </section>
       )}
 
@@ -122,12 +115,6 @@ const RetailDashboard: React.FC = () => {
               <span className="pill">{ventasTickets} tickets</span>
               <span className="pill">Avg ticket: {currencySymbol}{ventasTicketMedio.toFixed(2)}</span>
             </div>
-          </div>
-          <div className="card__actions">
-            {isModuleEnabled('pos') && <a className="link" href="#close">Cash close</a>}
-            {isModuleEnabled('inventario') && <a className="link" href="#inventory">Inventory</a>}
-            {isModuleEnabled('inventario') && <a className="link" href="#replenish">Replenishment</a>}
-            {isModuleEnabled('clientes') && <a className="link" href="#customers">Customers</a>}
           </div>
         </section>
 
@@ -183,43 +170,8 @@ const RetailDashboard: React.FC = () => {
               <li>Low rotation: {stock.productos_baja_rotacion || 0} products</li>
               <li>Replenish now: {stock.reposicion_necesaria || 0}</li>
             </div>
-            <div className="card__footer">
-              <a className="link" href="#inventory">Open inventory</a>
-            </div>
           </section>
         )}
-
-        <section className="card col-8">
-          <h3>Quick actions</h3>
-          <div className="action-grid">
-            {isModuleEnabled('pos') && (
-              <a href="#new-sale" className="action-btn">
-                <span className="action-btn__icon">+</span>
-                <span>New sale</span>
-              </a>
-            )}
-            {isModuleEnabled('ventas') && (
-              <a href="#promotion" className="action-btn">
-                <span className="action-btn__icon">%</span>
-                <span>Create promotion</span>
-              </a>
-            )}
-            {isModuleEnabled('clientes') && (
-              <a href="#customers" className="action-btn">
-                <span className="action-btn__icon">@</span>
-                <span>New customer</span>
-              </a>
-            )}
-            <a href="#price-update" className="action-btn">
-              <span className="action-btn__icon">T</span>
-              <span>Price update</span>
-            </a>
-            <a href="#count" className="action-btn">
-              <span className="action-btn__icon">#</span>
-              <span>Cycle count</span>
-            </a>
-          </div>
-        </section>
       </div>
     </DashboardPro>
   )

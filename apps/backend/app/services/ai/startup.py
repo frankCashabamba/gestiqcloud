@@ -1,7 +1,7 @@
 """
-Startup initialization para AI Provider Factory
-Agregar esto al lifespan de FastAPI en main.py
+Startup initialization for AI provider factory.
 """
+
 from __future__ import annotations
 
 import logging
@@ -13,53 +13,34 @@ logger = logging.getLogger(__name__)
 
 async def initialize_ai_providers() -> None:
     """
-    Inicializa todos los proveedores de IA en startup
-    
-    Llamar desde app.main lifespan:
-        @asynccontextmanager
-        async def lifespan(app: FastAPI):
-            # Startup
-            await initialize_ai_providers()
-            ...
-            yield
-            # Shutdown
-            ...
+    Initialize all AI providers on startup.
     """
     try:
-        logger.info("Inicializando proveedores de IA...")
+        logger.info("Initializing AI providers...")
         AIProviderFactory.initialize()
-        
-        # Verificar salud
+
         health = await AIProviderFactory.health_check_all()
-        
         for provider_name, is_healthy in health.items():
-            status = "✅ Disponible" if is_healthy else "❌ No disponible"
-            logger.info(f"  {provider_name.upper()}: {status}")
-        
-        # Determinar estado general
-        available = sum(1 for v in health.values() if v)
+            status = "available" if is_healthy else "unavailable"
+            logger.info("AI provider %s: %s", provider_name, status)
+
+        available = sum(1 for value in health.values() if value)
         if available == 0:
             logger.warning(
-                "⚠️  ADVERTENCIA: Ningún proveedor de IA disponible. "
-                "Revisa OLLAMA_URL, OVHCLOUD_API_KEY, OPENAI_API_KEY en .env"
+                "No AI provider is available. Check AI_PROVIDER, OLLAMA_BASE_URL/OLLAMA_URL, "
+                "OVHCLOUD_BASE_URL/OVHCLOUD_API_URL, and OPENAI_API_KEY."
             )
         else:
-            logger.info(f"✅ {available}/{len(health)} proveedores de IA disponibles")
-        
-        primary = AIProviderFactory._primary_provider
-        logger.info(f"🎯 Proveedor primario: {primary}")
-        logger.info(f"🔗 Cadena de fallback: {' → '.join(AIProviderFactory._fallback_chain)}")
-        
-    except Exception as e:
-        logger.error(f"Error inicializando IA: {e}", exc_info=True)
-        # No fallar el startup, solo log warning
-        # Los providers se inicializan lazy on first use
+            logger.info("%s/%s AI providers available", available, len(health))
+
+        logger.info("AI primary provider: %s", AIProviderFactory._primary_provider)
+        logger.info("AI fallback chain: %s", " -> ".join(AIProviderFactory._fallback_chain))
+    except Exception as exc:
+        logger.error("Error initializing AI providers: %s", exc, exc_info=True)
 
 
 async def shutdown_ai_providers() -> None:
     """
-    Cleanup en shutdown (si es necesario)
-    Actualmente no requerido pero disponible para futura extensión
+    Cleanup on shutdown.
     """
-    logger.info("Limpiando proveedores de IA...")
-    # Agregar cleanup aquí si es necesario en futuro
+    logger.info("Shutting down AI providers...")

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .ai_health import protected_router as ai_health_protected_router
+from .ai_health import router as ai_health_router
 from .analyze import router as analyze_router
 from .confirm import router as confirm_router
 from .feedback import router as feedback_router
@@ -14,6 +16,8 @@ __all__ = [
     "router",
     "public_router",
     "files_router",
+    "ai_health_router",
+    "ai_health_protected_router",
     "analyze_router",
     "confirm_router",
     "feedback_router",

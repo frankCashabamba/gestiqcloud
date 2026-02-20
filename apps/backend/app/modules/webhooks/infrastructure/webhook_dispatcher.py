@@ -252,7 +252,7 @@ class WebhookDispatcher:
             hashlib.sha256,
         ).hexdigest()
 
-        return signature
+        return f"sha256={signature}"
 
     @staticmethod
     def verify_signature(secret: str, payload: dict, signature: str) -> bool:
@@ -274,7 +274,11 @@ class WebhookDispatcher:
             hashlib.sha256,
         ).hexdigest()
 
-        return hmac.compare_digest(signature, expected_signature)
+        normalized = signature.strip()
+        if normalized.lower().startswith("sha256="):
+            normalized = normalized.split("=", 1)[1]
+
+        return hmac.compare_digest(normalized, expected_signature)
 
 
 class WebhookRegistry:

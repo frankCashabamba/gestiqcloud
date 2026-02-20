@@ -1,21 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import ImportadorLayout from './components/ImportadorLayout'
 import { useAuth } from '../../auth/AuthContext'
-import {
-  listarPendientes,
-  eliminarPendiente,
-  actualizarPendiente,
-  enviarDocumento,
-  type DatosImportadosOut,
-} from './services'
+import { deleteMultipleItems, listAllProductItems, patchItem, promoteItems } from './services/importsApi'
 
 type Editable = {
-  fecha?: string
-  concepto?: string
-  monto?: number
-  documentoTipo?: string
-  cuenta?: string
-  cliente?: string
+  sku?: string
+  nombre?: string
+  precio?: number
+  costo?: number
+  categoria?: string
+  stock?: number
 }
 
 type PendingRowState = {
@@ -24,29 +18,49 @@ type PendingRowState = {
   deleting?: boolean
 }
 
+type PendingItem = {
+  id: string
+  batch_id?: string
+  status: string
+  codigo?: string | null
+  sku?: string | null
+  nombre?: string | null
+  name?: string | null
+  precio?: number | null
+  price?: number | null
+  costo?: number | null
+  categoria?: string | null
+  stock?: number
+}
+
 export default function ImportadosList() {
-  const { token } = useAuth() as { token: string | null }
-  const [items, setItems] = useState<DatosImportadosOut[]>([])
+  const { token, profile } = useAuth() as { token: string | null; profile?: { tenant_id?: string } | null }
+  const [items, setItems] = useState<PendingItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const [editing, setEditing] = useState<Record<number, Editable>>({})
-  const [selected, setSelected] = useState<Record<number, boolean>>({})
-  const [rowState, setRowState] = useState<Record<number, PendingRowState>>({})
+  const [editing, setEditing] = useState<Record<string, Editable>>({})
+  const [selected, setSelected] = useState<Record<string, boolean>>({})
+  const [rowState, setRowState] = useState<Record<string, PendingRowState>>({})
   const [bulkSending, setBulkSending] = useState(false)
-
-  const cols = useMemo(() => ['fecha', 'concepto', 'monto', 'documentoTipo', 'cuenta', 'cliente'], [])
 
   async function load() {
     setError(null)
     setMessage(null)
     setLoading(true)
     try {
-      const data = await listarPendientes()
-      setItems(data)
+      const data = await listAllProductItems({
+        status: 'OK',
+        limit: 5000,
+        offset: 0,
+        tenantId: profile?.tenant_id,
+        authToken: token || undefined,
+      })
+      const rows = (data?.items || []) as PendingItem[]
+      setItems(rows)
       setEditing({})
-      const initialSelected: Record<number, boolean> = {}
-      data.forEach((item) => {
+      const initialSelected: Record<string, boolean> = {}
+      rows.forEach((item) => {
         initialSelected[item.id] = false
       })
       setSelected(initialSelected)
@@ -60,33 +74,34 @@ export default function ImportadosList() {
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [token, profile?.tenant_id])
 
-  const onEditChange = (id: number, key: keyof Editable, value: string) => {
-    setEditing((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), [key]: value } }))
+  const onEditChange = (id: string, key: keyof Editable, value: string) => {
+    const parsed =
+      key === 'precio' || key === 'costo'
+        ? Number(value || 0)
+        : key === 'stock'
+        ? parseInt(value || '0', 10)
+        : value
+    setEditing((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), [key]: parsed } }))
   }
 
-  const setRowStatus = (id: number, changes: PendingRowState) => {
+  const setRowStatus = (id: string, changes: PendingRowState) => {
     setRowState((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), ...changes } }))
   }
 
-  const onSave = async (item: DatosImportadosOut) => {
+  const onSave = async (item: PendingItem) => {
     const pendingChanges = editing[item.id] || {}
-    const datos = { ...(item.datos || {}) } as Record<string, unknown>
-    if (pendingChanges.fecha !== undefined) datos.fecha = pendingChanges.fecha
-    if (pendingChanges.concepto !== undefined) datos.concepto = pendingChanges.concepto
-    if (pendingChanges.monto !== undefined) datos.monto = Number(pendingChanges.monto)
-    if (pendingChanges.documentoTipo !== undefined) datos.documentoTipo = pendingChanges.documentoTipo
-    if (pendingChanges.cuenta !== undefined) datos.cuenta = pendingChanges.cuenta
-    if (pendingChanges.cliente !== undefined) datos.cliente = pendingChanges.cliente
-
+    if (!item.batch_id) {
+      setError('No batch_id for selected item')
+      return
+    }
     setRowStatus(item.id, { saving: true })
     try {
-      await actualizarPendiente(
-        item.id,
-        { tipo: item.tipo, origen: item.origen, datos, estado: item.estado },
-        token || undefined,
-      )
+      for (const [field, value] of Object.entries(pendingChanges)) {
+        // eslint-disable-next-line no-await-in-loop
+        await patchItem(item.batch_id, item.id, field, value)
+      }
       setMessage('Changes saved successfully')
       await load()
     } catch (err: any) {
@@ -97,10 +112,10 @@ export default function ImportadosList() {
     }
   }
 
-  const onDelete = async (id: number) => {
+  const onDelete = async (id: string) => {
     setRowStatus(id, { deleting: true })
     try {
-      await eliminarPendiente(id)
+      await deleteMultipleItems({ item_ids: [id] }, token || undefined)
       setMessage('Record deleted')
       await load()
     } catch (err: any) {
@@ -110,10 +125,10 @@ export default function ImportadosList() {
     }
   }
 
-  const onSend = async (id: number) => {
+  const onSend = async (id: string) => {
     setRowStatus(id, { sending: true })
     try {
-      await enviarDocumento(id, token || undefined)
+      await promoteItems({ item_ids: [id] }, token || undefined)
       setMessage('Document sent')
       await load()
     } catch (err: any) {
@@ -124,14 +139,14 @@ export default function ImportadosList() {
   }
 
   const toggleAll = (checked: boolean) => {
-    const next: Record<number, boolean> = {}
+    const next: Record<string, boolean> = {}
     items.forEach((item) => {
       next[item.id] = checked
     })
     setSelected(next)
   }
 
-  const toggleOne = (id: number, checked: boolean) => {
+  const toggleOne = (id: string, checked: boolean) => {
     setSelected((prev) => ({ ...prev, [id]: checked }))
   }
 
@@ -141,10 +156,7 @@ export default function ImportadosList() {
     if (!selectedIds.length) return
     setBulkSending(true)
     try {
-      for (const id of selectedIds) {
-        // eslint-disable-next-line no-await-in-loop
-        await enviarDocumento(id, token || undefined)
-      }
+      await promoteItems({ item_ids: selectedIds }, token || undefined)
       setMessage(`${selectedIds.length} documento${selectedIds.length === 1 ? '' : 's'} enviados`)
       await load()
     } catch (err: any) {
@@ -223,19 +235,21 @@ export default function ImportadosList() {
                     />
                   </th>
                   <th className="px-4 py-3 text-left">ID</th>
-                  {cols.map((col) => (
-                    <th key={col} className="px-4 py-3 text-left capitalize">
-                      {col}
-                    </th>
-                  ))}
-                  <th className="px-4 py-3 text-left">Acciones</th>
+                  <th className="px-4 py-3 text-left">Code</th>
+                  <th className="px-4 py-3 text-left">Name</th>
+                  <th className="px-4 py-3 text-left">Price</th>
+                  <th className="px-4 py-3 text-left">Cost</th>
+                  <th className="px-4 py-3 text-left">Category</th>
+                  <th className="px-4 py-3 text-left">Stock</th>
+                  <th className="px-4 py-3 text-left">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((item) => {
-                  const currentData = (item.datos || {}) as Record<string, unknown>
                   const draft = editing[item.id] || {}
                   const state = rowState[item.id] || {}
+                  const name = item.nombre || item.name || ''
+                  const code = item.sku || item.codigo || ''
 
                   return (
                     <tr key={item.id} className="border-t border-neutral-100 hover:bg-neutral-50">
@@ -247,15 +261,48 @@ export default function ImportadosList() {
                         />
                       </td>
                       <td className="px-4 py-3 text-xs font-mono text-neutral-500">{item.id}</td>
-                      {cols.map((col) => (
-                        <td key={col} className="px-4 py-3">
-                          <input
-                            className="w-full rounded-md border border-neutral-200 px-2 py-1 text-xs focus:border-blue-400 focus:outline-none"
-                            value={(draft as Record<string, string>)[col] ?? String(currentData[col] ?? '')}
-                            onChange={(event) => onEditChange(item.id, col as keyof Editable, event.target.value)}
-                          />
-                        </td>
-                      ))}
+                      <td className="px-4 py-3">
+                        <input
+                          className="w-full rounded-md border border-neutral-200 px-2 py-1 text-xs focus:border-blue-400 focus:outline-none"
+                          value={String(draft.sku ?? code)}
+                          onChange={(event) => onEditChange(item.id, 'sku', event.target.value)}
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          className="w-full rounded-md border border-neutral-200 px-2 py-1 text-xs focus:border-blue-400 focus:outline-none"
+                          value={String(draft.nombre ?? name)}
+                          onChange={(event) => onEditChange(item.id, 'nombre', event.target.value)}
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          className="w-full rounded-md border border-neutral-200 px-2 py-1 text-xs focus:border-blue-400 focus:outline-none"
+                          value={String(draft.precio ?? item.precio ?? item.price ?? 0)}
+                          onChange={(event) => onEditChange(item.id, 'precio', event.target.value)}
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          className="w-full rounded-md border border-neutral-200 px-2 py-1 text-xs focus:border-blue-400 focus:outline-none"
+                          value={String(draft.costo ?? item.costo ?? 0)}
+                          onChange={(event) => onEditChange(item.id, 'costo', event.target.value)}
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          className="w-full rounded-md border border-neutral-200 px-2 py-1 text-xs focus:border-blue-400 focus:outline-none"
+                          value={String(draft.categoria ?? item.categoria ?? '')}
+                          onChange={(event) => onEditChange(item.id, 'categoria', event.target.value)}
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          className="w-full rounded-md border border-neutral-200 px-2 py-1 text-xs focus:border-blue-400 focus:outline-none"
+                          value={String(draft.stock ?? item.stock ?? 0)}
+                          onChange={(event) => onEditChange(item.id, 'stock', event.target.value)}
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-2 text-xs">
                           <button

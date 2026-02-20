@@ -1,4 +1,4 @@
-// src/modules/importador/components/ClassificationSuggestion.tsx
+// src/modules/importer/components/ClassificationSuggestion.tsx
 // UI for file classification suggestions
 
 import React from 'react'

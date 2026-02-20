@@ -5,7 +5,6 @@ Generate invoices, receipts, reports as PDF using ReportLab
 
 from __future__ import annotations
 
-import io
 import logging
 from datetime import datetime
 from decimal import Decimal
@@ -172,7 +171,7 @@ class PDFService:
 
             return b""
 
-        except Exception as e:
+        except Exception:
             logger.exception(f"Error generating receipt PDF {receipt_number}")
             raise
 
@@ -201,6 +200,6 @@ class PDFService:
 
             return b""
 
-        except Exception as e:
+        except Exception:
             logger.exception(f"Error generating report PDF {title}")
             raise

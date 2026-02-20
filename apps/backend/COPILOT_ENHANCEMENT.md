@@ -21,20 +21,20 @@ from app.services.ai import AIService, AITask
 import json
 
 async def query_readonly_enhanced(
-    db: Session, 
-    topic: str, 
+    db: Session,
+    topic: str,
     params: dict[str, Any],
     with_ai_insights: bool = True
 ) -> dict[str, Any]:
     """Query curada + análisis IA opcional"""
-    
+
     # 1. Obtener datos (igual que ahora)
     result = query_readonly(db, topic, params)
-    
+
     # 2. Mejorar con IA si se solicita
     if with_ai_insights and result['cards']:
         summary = json.dumps(result['cards'], indent=2)
-        
+
         ai_response = await AIService.query(
             task=AITask.ANALYSIS,
             prompt=f"""Analiza estos datos de {topic}:
@@ -48,14 +48,14 @@ Proporciona:
 
 Responde en JSON con keys: findings, trends, recommendations, alerts"""
         )
-        
+
         if not ai_response.is_error:
             try:
                 insights = json.loads(ai_response.content)
                 result['ai_insights'] = insights
             except json.JSONDecodeError:
                 result['ai_insights'] = {"raw": ai_response.content}
-    
+
     return result
 ```
 
@@ -65,9 +65,9 @@ Responde en JSON con keys: findings, trends, recommendations, alerts"""
 
 async def get_smart_suggestions(db: Session) -> list[dict[str, Any]]:
     """Genera sugerencias contextuales inteligentes"""
-    
+
     suggestions = []
-    
+
     # 1. Stock bajo - con sugerencia de acción
     low_stock = await query_readonly(db, "stock_bajo", {"threshold": 5})
     if low_stock['cards'][0]['data']:
@@ -83,7 +83,7 @@ async def get_smart_suggestions(db: Session) -> list[dict[str, Any]]:
                     "content": suggestion,
                     "action": "review_stock"
                 })
-    
+
     # 2. Oportunidades de venta cruzada
     top_products = await query_readonly(db, "top_productos", {})
     if top_products['cards'][0]['data']:
@@ -99,7 +99,7 @@ async def get_smart_suggestions(db: Session) -> list[dict[str, Any]]:
                 "content": suggestion,
                 "action": "review_bundles"
             })
-    
+
     # 3. Patrones de cobros/pagos
     payments = await query_readonly(db, "cobros_pagos", {})
     if payments['cards'][0]['data']:
@@ -114,7 +114,7 @@ async def get_smart_suggestions(db: Session) -> list[dict[str, Any]]:
                 "content": suggestion,
                 "action": "review_cash_flow"
             })
-    
+
     return suggestions
 ```
 
@@ -131,7 +131,7 @@ async def ai_suggestions(db: Session = Depends(get_db)):
     """Obtiene sugerencias inteligentes generadas por IA"""
     if not _feature_enabled():
         raise HTTPException(status_code=403, detail="copilot_disabled")
-    
+
     suggestions = await get_smart_suggestions(db)
     return {
         "suggestions": suggestions,
@@ -157,14 +157,14 @@ async def chat_query(
     db: Session = Depends(get_db)
 ):
     """Chat inteligente sobre datos empresariales"""
-    
+
     # 1. Enriquecer contexto con datos actuales
     context = message.context or {}
-    
+
     # Agregar datos relevantes automáticamente
     context['top_products'] = await query_readonly(db, "top_productos", {})
     context['recent_sales'] = await query_readonly(db, "ventas_mes", {})
-    
+
     # 2. Consultar IA con contexto
     response = await AIService.query(
         task=AITask.CHAT,
@@ -172,7 +172,7 @@ async def chat_query(
         context=context,
         temperature=0.5
     )
-    
+
     return {
         "response": response.content,
         "confidence": response.confidence,
@@ -183,17 +183,17 @@ async def chat_query(
 @router.websocket("/chat/ws")
 async def websocket_chat(websocket: WebSocket, db: Session):
     await websocket.accept()
-    
+
     while True:
         data = await websocket.receive_json()
         message = data.get("message", "")
-        
+
         response = await AIService.query(
             task=AITask.CHAT,
             prompt=message,
             temperature=0.5
         )
-        
+
         await websocket.send_json({
             "response": response.content,
             "processing_time_ms": response.processing_time_ms
@@ -214,17 +214,17 @@ export default function ChatPanel() {
 
   const handleSend = async () => {
     if (!input.trim()) return
-    
+
     // Agregar mensaje del usuario
     setMessages(prev => [...prev, { role: 'user', content: input }])
     setLoading(true)
-    
+
     try {
       const response = await askCopilot({
         topic: 'chat',
         params: { message: input }
       })
-      
+
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: response.cards[0]?.data?.response || 'Sin respuesta'
@@ -246,8 +246,8 @@ export default function ChatPanel() {
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-sm px-4 py-2 rounded-lg ${
-              msg.role === 'user' 
-                ? 'bg-blue-600 text-white' 
+              msg.role === 'user'
+                ? 'bg-blue-600 text-white'
                 : 'bg-gray-200 text-gray-900'
             }`}>
               {msg.content}
@@ -255,7 +255,7 @@ export default function ChatPanel() {
           </div>
         ))}
       </div>
-      
+
       <div className="border-t p-4 flex gap-2">
         <input
           type="text"
@@ -285,10 +285,10 @@ export default function ChatPanel() {
 ```python
 async def predictive_analysis(db: Session) -> dict[str, Any]:
     """Análisis predictivo de tendencias"""
-    
+
     # Datos históricos
     sales_data = await query_readonly(db, "ventas_mes", {})
-    
+
     prompt = f"""Analiza estos datos de ventas mensuales:
 {json.dumps(sales_data['cards'][0]['series'])}
 
@@ -298,14 +298,14 @@ Proporciona análisis predictivo en JSON:
 - forecast_next_3_months: [float, float, float]
 - confidence: float (0-1)
 - recommendations: [str]"""
-    
+
     response = await AIService.query(
         task=AITask.ANALYSIS,
         prompt=prompt,
         temperature=0.2,
         max_tokens=1000
     )
-    
+
     return json.loads(response.content) if not response.is_error else {}
 ```
 
@@ -313,9 +313,9 @@ Proporciona análisis predictivo en JSON:
 ```python
 async def check_anomalies(db: Session) -> list[dict]:
     """Detecta anomalías en datos"""
-    
+
     alerts = []
-    
+
     # Revisar stock
     low_stock = await query_readonly(db, "stock_bajo", {"threshold": 10})
     if len(low_stock['cards'][0]['data']) > 5:
@@ -325,7 +325,7 @@ async def check_anomalies(db: Session) -> list[dict]:
             "message": "Múltiples productos con stock bajo",
             "count": len(low_stock['cards'][0]['data'])
         })
-    
+
     # Revisar cobros pendientes
     payments = await query_readonly(db, "cobros_pagos", {})
     pending = [p for p in payments['cards'][0]['data'] if p['estado'] == 'pending']
@@ -336,7 +336,7 @@ async def check_anomalies(db: Session) -> list[dict]:
             "message": f"Cobros pendientes > $10,000",
             "total": sum(p['importe'] for p in pending)
         })
-    
+
     return alerts
 ```
 
@@ -366,7 +366,7 @@ export default function CopilotDashboard() {
         <Card title="Ventas por Mes">
           {salesMonth && /* ... */}
         </Card>
-        
+
         {/* Chat conversacional */}
         <Card title="Chat con IA">
           <ChatPanel />
@@ -375,7 +375,7 @@ export default function CopilotDashboard() {
 
       {/* Sugerencias inteligentes */}
       <SuggestionsPanel suggestions={suggestions} />
-      
+
       {/* Alertas */}
       <AlertsPanel alerts={anomalies} />
     </div>
@@ -439,7 +439,7 @@ async def test_query_enhanced():
         topic="ventas_mes",
         with_ai_insights=True
     )
-    
+
     assert "cards" in result
     assert "ai_insights" in result
     assert "findings" in result["ai_insights"]
@@ -447,7 +447,7 @@ async def test_query_enhanced():
 @pytest.mark.asyncio
 async def test_suggestions():
     suggestions = await get_smart_suggestions(mock_db)
-    
+
     assert isinstance(suggestions, list)
     assert all("type" in s for s in suggestions)
     assert all("content" in s for s in suggestions)

@@ -9,7 +9,7 @@ import os
 import tempfile
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel
 
 from app.core.access_guard import with_access_claims
@@ -53,6 +53,7 @@ def _get_claims(request: Request) -> dict[str, Any]:
 async def analyze_upload(
     request: Request,
     file: UploadFile = File(...),
+    provider: str | None = Query(None, description="Override AI provider"),
 ):
     """
     Analiza un archivo para determinar el mejor parser y mapeo.
@@ -120,6 +121,7 @@ async def analyze_upload(
                 filename=file.filename,
                 content_type=file.content_type,
                 tenant_id=tenant_id,
+                provider_name=provider,
             )
 
             logger.info(

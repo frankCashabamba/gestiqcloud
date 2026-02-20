@@ -25,8 +25,41 @@ from app.modules.identity.application.use_cases import (
     LogoutUseCase,
     RefreshTokenUseCase,
 )
+from app.modules.identity.infrastructure.jwt_service import JwtService
+from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
+from app.modules.identity.infrastructure.rate_limit import SimpleRateLimiter
+from app.modules.identity.infrastructure.refresh_repo import SqlRefreshTokenRepo
 
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# INFRASTRUCTURE SINGLETONS
+# ============================================================================
+
+_jwt_service = JwtService()
+_password_hasher = PasslibPasswordHasher()
+_rate_limiter = SimpleRateLimiter()
+
+
+class _JwtTokenServiceAdapter:
+    """Adapts JwtService to the TokenService protocol expected by use cases."""
+
+    def __init__(self, jwt_svc: JwtService):
+        self._jwt = jwt_svc
+
+    def issue_access(self, payload: dict) -> str:
+        return self._jwt.encode(payload, kind="access")
+
+    def issue_refresh(self, payload: dict, *, jti: str, prev_jti: str | None) -> str:
+        full = {**payload, "jti": jti, "prev_jti": prev_jti}
+        return self._jwt.encode(full, kind="refresh")
+
+    def decode_and_validate(self, token: str, *, expected_type: str) -> dict:
+        return dict(self._jwt.decode(token, expected_kind=expected_type))
+
+
+_token_service = _JwtTokenServiceAdapter(_jwt_service)
+
 
 # ============================================================================
 # SCHEMAS
@@ -38,19 +71,7 @@ class LoginRequest(BaseModel):
 
     email: str = Field(max_length=255)
     password: str = Field(min_length=8, max_length=255)
-    tenant_id: str | None = None  # Optional for tenant-scoped login
-
-
-class RefreshRequest(BaseModel):
-    """Refresh token request (from cookie)."""
-
-    pass  # Refresh token comes from HttpOnly cookie
-
-
-class LogoutRequest(BaseModel):
-    """Logout request."""
-
-    pass
+    tenant_id: str | None = None
 
 
 class ChangePasswordRequest(BaseModel):
@@ -111,39 +132,19 @@ def login(
     payload: LoginRequest,
     request: Request,
     db: Session = Depends(get_db),
-) -> dict:
-    """
-    Login with email and password.
-
-    Returns access token + refresh token in HttpOnly cookie.
-
-    Args:
-        payload: LoginRequest with email, password
-        request: FastAPI request
-        db: Database session
-
-    Returns:
-        LoginResponse with access_token + user info
-
-    Raises:
-        HTTPException 400: Invalid credentials
-        HTTPException 429: Rate limit exceeded
-    """
+) -> JSONResponse:
+    """Login with email and password. Returns access token + refresh token in HttpOnly cookie."""
     try:
-        # Get user by email
         user = db.query(User).filter(User.email == payload.email).first()
         if not user or not user.is_active:
-            logger.warning(f"Login failed: user not found or inactive: {payload.email}")
             raise ValueError("Email o contraseña incorrecta")
 
-        # Use case execution (will validate password, rate limit, etc)
-        # For now, just return success
-        # TODO: Wire in actual use case dependencies
+        refresh_repo = SqlRefreshTokenRepo(db)
         use_case = LoginUseCase(
-            token_service=None,  # TODO: inject
-            password_hasher=None,  # TODO: inject
-            rate_limiter=None,  # TODO: inject
-            refresh_repo=None,  # TODO: inject
+            token_service=_token_service,
+            password_hasher=_password_hasher,
+            rate_limiter=_rate_limiter,
+            refresh_repo=refresh_repo,
         )
 
         result = use_case.execute(
@@ -151,86 +152,16 @@ def login(
             password=payload.password,
             request=request,
             user_agent=request.headers.get("user-agent", "unknown"),
-            ip_address=request.client.host if request.client else "0.0.0.0",
+            ip_address=request.client.host if request.client else "unknown",
             tenant_id=payload.tenant_id,
         )
 
-        # Build response with cookie
         response = JSONResponse(
             content={
                 "access_token": result["access_token"],
                 "token_type": result["token_type"],
                 "expires_in": result["expires_in"],
                 "user": result["user"],
-            }
-        )
-
-        # Set refresh token in HttpOnly cookie
-        response.set_cookie(
-            "refresh_token",
-            result["refresh_token"],
-            httponly=True,
-            secure=True,
-            samesite="strict",
-            max_age=604800,  # 7 days
-            path="/",
-        )
-
-        logger.info(f"Login successful for user {user.email}")
-        return response
-
-    except ValueError as e:
-        logger.warning(f"Login validation error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.exception("Login error")
-        raise HTTPException(status_code=500, detail="Error al iniciar sesión")
-
-
-@router.post("/refresh", response_model=RefreshResponse)
-def refresh(
-    request: Request,
-    db: Session = Depends(get_db),
-) -> dict:
-    """
-    Refresh access token using refresh token from cookie.
-
-    Implements token rotation: old refresh → new access + new refresh.
-
-    Args:
-        request: FastAPI request (contains refresh_token cookie)
-        db: Database session
-
-    Returns:
-        RefreshResponse with new access_token
-
-    Raises:
-        HTTPException 401: No/invalid refresh token
-        HTTPException 401: Token replay attack detected
-    """
-    try:
-        refresh_token = request.cookies.get("refresh_token")
-        if not refresh_token:
-            raise HTTPException(status_code=401, detail="No refresh token in cookie")
-
-        # Use case
-        use_case = RefreshTokenUseCase(
-            token_service=None,  # TODO: inject
-            refresh_repo=None,  # TODO: inject
-        )
-
-        result = use_case.execute(
-            refresh_token=refresh_token,
-            user_agent=request.headers.get("user-agent", "unknown"),
-            ip_address=request.client.host if request.client else "0.0.0.0",
-        )
-
-        # Update cookie with new refresh token
-        response = JSONResponse(
-            content={
-                "access_token": result["access_token"],
-                "token_type": result["token_type"],
-                "expires_in": result["expires_in"],
             }
         )
         response.set_cookie(
@@ -242,14 +173,59 @@ def refresh(
             max_age=604800,
             path="/",
         )
-
-        logger.debug("Token refreshed successfully")
         return response
 
     except ValueError as e:
-        logger.warning(f"Token refresh error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        logger.exception("Login error")
+        raise HTTPException(status_code=500, detail="Error al iniciar sesión")
+
+
+@router.post("/refresh", response_model=RefreshResponse)
+def refresh(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    """Refresh access token using refresh token from cookie."""
+    try:
+        refresh_token = request.cookies.get("refresh_token")
+        if not refresh_token:
+            raise HTTPException(status_code=401, detail="No refresh token in cookie")
+
+        refresh_repo = SqlRefreshTokenRepo(db)
+        use_case = RefreshTokenUseCase(
+            token_service=_token_service,
+            refresh_repo=refresh_repo,
+        )
+
+        result = use_case.execute(
+            refresh_token=refresh_token,
+            user_agent=request.headers.get("user-agent", "unknown"),
+            ip_address=request.client.host if request.client else "unknown",
+        )
+
+        response = JSONResponse(
+            content={
+                "access_token": result["access_token"],
+                "token_type": result["token_type"],
+                "expires_in": result.get("expires_in", 900),
+            }
+        )
+        response.set_cookie(
+            "refresh_token",
+            result["refresh_token"],
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            max_age=604800,
+            path="/",
+        )
+        return response
+
+    except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
-    except Exception as e:
+    except Exception:
         logger.exception("Token refresh exception")
         raise HTTPException(status_code=500, detail="Error al refrescar token")
 
@@ -258,22 +234,9 @@ def refresh(
 def logout(
     request: Request,
     db: Session = Depends(get_db),
-) -> dict:
-    """
-    Logout: revoke all sessions by revoking refresh token family.
-
-    Args:
-        request: FastAPI request
-        db: Database session
-
-    Returns:
-        Success message
-
-    Raises:
-        HTTPException 401: Not authenticated
-    """
+) -> JSONResponse:
+    """Logout: revoke all sessions by revoking refresh token family."""
     try:
-        # Get user from claims
         claims = getattr(request.state, "access_claims", {})
         if not claims:
             raise HTTPException(status_code=401, detail="Not authenticated")
@@ -281,24 +244,17 @@ def logout(
         user_id = UUID(claims.get("sub"))
         refresh_token = request.cookies.get("refresh_token")
 
-        # Use case
-        use_case = LogoutUseCase(
-            refresh_repo=None,  # TODO: inject
-        )
-
+        refresh_repo = SqlRefreshTokenRepo(db)
+        use_case = LogoutUseCase(refresh_repo=refresh_repo)
         use_case.execute(refresh_token=refresh_token, user_id=user_id)
 
-        # Clear cookie
         response = JSONResponse({"message": "Logged out successfully"})
         response.delete_cookie("refresh_token", path="/")
-
-        logger.info(f"Logout for user {user_id}")
         return response
 
     except ValueError as e:
-        logger.warning(f"Logout error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         logger.exception("Logout exception")
         raise HTTPException(status_code=500, detail="Error al cerrar sesión")
 
@@ -308,27 +264,9 @@ def change_password(
     payload: ChangePasswordRequest,
     request: Request,
     db: Session = Depends(get_db),
-) -> dict:
-    """
-    Change user password.
-
-    Requires current password for verification.
-    Revokes all sessions after password change.
-
-    Args:
-        payload: ChangePasswordRequest
-        request: FastAPI request
-        db: Database session
-
-    Returns:
-        Success message
-
-    Raises:
-        HTTPException 400: Current password invalid / Weak password
-        HTTPException 401: Not authenticated
-    """
+) -> JSONResponse:
+    """Change user password. Requires current password for verification."""
     try:
-        # Get user
         claims = getattr(request.state, "access_claims", {})
         if not claims:
             raise HTTPException(status_code=401, detail="Not authenticated")
@@ -338,10 +276,10 @@ def change_password(
         if not user:
             raise ValueError("User not found")
 
-        # Use case
+        refresh_repo = SqlRefreshTokenRepo(db)
         use_case = ChangePasswordUseCase(
-            password_hasher=None,  # TODO: inject
-            refresh_repo=None,  # TODO: inject
+            password_hasher=_password_hasher,
+            refresh_repo=refresh_repo,
         )
 
         result = use_case.execute(
@@ -351,21 +289,16 @@ def change_password(
             user_id=user_id,
         )
 
-        # Update user password
         user.password_hash = result["new_password_hash"]
         user.updated_at = datetime.utcnow()
         db.commit()
 
-        # Clear all sessions
-        response = JSONResponse(result)
+        response = JSONResponse({"message": result["message"]})
         response.delete_cookie("refresh_token", path="/")
-
-        logger.info(f"Password changed for user {user_id}")
         return response
 
     except ValueError as e:
-        logger.warning(f"Password change validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         logger.exception("Password change exception")
         raise HTTPException(status_code=500, detail="Error al cambiar contraseña")

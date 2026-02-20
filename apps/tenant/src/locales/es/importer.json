@@ -1,8 +1,8 @@
 {
   "title": "Importador Universal",
-  "description": "Carga archivos Excel, CSV, PDF o imágenes para procesarlos automáticamente",
-  "dragFilesHere": "Arrastra archivos aquí o haz clic para seleccionar",
-  "acceptedFormats": "Excel (.xlsx, .xls), CSV, PDF o imágenes",
+  "description": "Carga archivos Excel, CSV, PDF o imagenes para procesarlos automaticamente",
+  "dragFilesHere": "Arrastra archivos aqui o haz clic para seleccionar",
+  "acceptedFormats": "Excel (.xlsx, .xls), CSV, PDF o imagenes",
   "selectFiles": "Seleccionar archivos",
   "filesInQueue": "Archivos en cola ({{count}})",
   "clearing": "Limpiando...",
@@ -14,17 +14,40 @@
   "reviewContinueBatches": "Revisar y continuar con lotes creados",
   "preview": "Vista previa",
   "openDetailScreen": "Abre la pantalla de detalle pasando ?batch_id=...",
-  "new": "Nueva Importación",
+  "uploadFailed": "Error al subir {{file}}: {{message}}",
+  "cleanupStuckFailed": "Error al limpiar lotes atascados",
+  "new": "Nueva Importacion",
   "search": "Buscar importaciones",
   "empty": "No hay importaciones encontradas",
   "edit": "Editar",
   "delete": "Eliminar",
-  "confirmDelete": "¿Está seguro de que desea eliminar esta importación?",
-  "actions": "Acciones",
+  "confirmDelete": "Estas seguro de que deseas eliminar esta importacion?",
+  "actions": {
+    "processPending": "Procesar pendientes",
+    "sending": "Enviando...",
+    "sendAllToPreview": "Enviar todo a vista previa",
+    "uploadFile": "Subir archivo",
+    "uploadPhoto": "Subir foto",
+    "process": "Procesar",
+    "sendToPreview": "Enviar a vista previa",
+    "reprocess": "Reprocesar",
+    "hidePreview": "Ocultar vista previa",
+    "showPreview": "Mostrar vista previa",
+    "goToPending": "Ir a pendientes",
+    "viewPreview": "Ver vista previa",
+    "openInNewTab": "Abrir en nueva pestana"
+  },
   "messages": {
-    "created": "Importación creada exitosamente",
-    "updated": "Importación actualizada exitosamente",
-    "deleted": "Importación eliminada exitosamente"
+    "created": "Importacion creada exitosamente",
+    "updated": "Importacion actualizada exitosamente",
+    "deleted": "Importacion eliminada exitosamente",
+    "usingTemplate": "Usando plantilla: {{name}}",
+    "processingWithoutTemplate": "Procesando sin plantilla de mapeo",
+    "uploadingInChunks": "Subiendo archivo por partes...",
+    "uploadingPercent": "Subiendo... {{pct}}%",
+    "backgroundProcessing": "Procesando en segundo plano...",
+    "processingDocumentWait": "Estamos procesando tu documento. Esto puede tardar unos segundos.",
+    "mappingSaved": "Mapping guardado: {{name}}"
   },
   "table": {
     "date": "Fecha",
@@ -42,8 +65,328 @@
     "pending": "Pendiente",
     "processing": "Procesando...",
     "ready": "Listo",
+    "readyToSave": "Listo para guardar",
     "saving": "Guardando...",
     "saved": "Guardado",
+    "duplicate": "Duplicado",
     "error": "Error"
-  }
-}
+  },
+  "errors": {
+    "templatesLoadFailed": "No se pudieron cargar las plantillas",
+    "unsupportedFileType": "Tipo de archivo no soportado",
+    "fileProcessFailed": "Ocurrio un error al procesar el archivo",
+    "saveDocumentFailed": "Error al guardar el documento",
+    "someFilesCouldNotBeSaved": "Algunos archivos no se pudieron guardar. Revisa la cola para mas detalles."
+  },
+  "common": {
+    "close": "Cerrar",
+    "cancel": "Cancelar",
+    "notAvailable": "No disponible"
+  },
+  "page": {
+    "title": "Importar archivos",
+    "description": "Sube recibos, CSV, Excel o PDF. Revisa la vista previa y guarda los registros cuando esten listos."
+  },
+  "camera": {
+    "title": "Capturar foto",
+    "starting": "Iniciando camara...",
+    "alignDocument": "Alinea el documento antes de capturar.",
+    "useUploadIfIssue": "Si tienes problemas, usa la opcion de subir archivo.",
+    "capture": "Capturar",
+    "openCamera": "Abrir camara",
+    "deviceWithoutCamera": "El dispositivo no expone camara, se abrira el selector de archivos.",
+    "errors": {
+      "accessDenied": "No se pudo acceder a la camara",
+      "notReady": "La camara aun no esta lista",
+      "imageProcessFailed": "No se pudo procesar la imagen",
+      "captureFailed": "No se pudo capturar la foto"
+    }
+  },
+  "upload": {
+    "title": "Anadir archivos",
+    "description": "Aceptamos CSV, Excel, PDF o imagenes (JPG/PNG). Puedes arrastrarlos aqui o seleccionarlos manualmente.",
+    "mappingTemplate": "Plantilla de mapeo",
+    "loadingTemplates": "Cargando plantillas...",
+    "noTemplate": "Sin plantilla",
+    "noTemplatesConfigured": "No hay plantillas configuradas.",
+    "selectFiles": "Seleccionar archivos",
+    "maxFilesPerBatch": "Max. 10 archivos por lote",
+    "tipAutoDetectDocType": "Detectamos tipo de documento automaticamente.",
+    "tipApplyTemplatePerBatch": "Aplica plantillas de mapeo al crear cada lote.",
+    "tipReviewRowsBeforeSave": "Cada archivo genera un bloque de filas que puedes revisar antes de guardar."
+  },
+  "queue": {
+    "title": "Cola de documentos",
+    "filesCount": "{{count}} archivo",
+    "filesCount_plural": "{{count}} archivos",
+    "empty": "Todavia no hay archivos en la cola. Sube uno para comenzar.",
+    "fileFallbackType": "Archivo",
+    "rowsDetected": "{{count}} filas detectadas",
+    "typeLabel": "Tipo: {{type}}",
+    "templateLabel": "Plantilla:",
+    "analyzingDocument": "Analizando documento...",
+    "savingData": "Guardando datos..."
+  },
+  "previewTable": {
+    "showingRows": "Mostrando {{shown}} de {{total}} filas procesadas"
+  },
+  "summary": {
+    "savedToStaging": "Guardado {{count}} archivo en staging",
+    "savedToStaging_plural": "Guardados {{count}} archivos en staging",
+    "withErrors": "con {{count}} error",
+    "withErrors_plural": "con {{count}} errores"
+  },
+  "toast": {
+    "fileSaved": "Archivo guardado"
+  },
+  "wizard": {
+    "page": {
+      "title": "Asistente de Importaci?n",
+      "description": "Sube un archivo, mapea campos, valida datos e importa con un flujo guiado."
+    },
+    "actions": {
+      "hideAiTelemetry": "Ocultar telemetr?a IA",
+      "showAiTelemetry": "Mostrar telemetr?a IA",
+      "back": "Atr?s",
+      "continue": "Continuar",
+      "validate": "Validar",
+      "importNow": "Importar ahora"
+    },
+    "steps": {
+      "completed": "OK",
+      "upload": {
+        "label": "Carga",
+        "helper": "Selecciona un archivo"
+      },
+      "preview": {
+        "label": "Vista previa",
+        "helper": "Revisar filas"
+      },
+      "mapping": {
+        "label": "Mapeo",
+        "helper": "Relacionar campos"
+      },
+      "validate": {
+        "label": "Validar",
+        "helper": "Revisar errores"
+      },
+      "summary": {
+        "label": "Resumen",
+        "helper": "Confirmar ajustes"
+      },
+      "importing": {
+        "label": "Importar",
+        "helper": "Procesando"
+      }
+    },
+    "messages": {
+      "ocrDocument": "Documento OCR"
+    },
+    "errors": {
+      "ocrNoDocuments": "OCR no devolvi? documentos",
+      "ocrProcessFailed": "Error procesando PDF/imagen",
+      "unknownError": "Error desconocido",
+      "oldXlsReadFailed": "No se pudo leer {{file}}. Los .xls antiguos pueden requerir conversi?n a .xlsx o .csv. Detalle: {{detail}}",
+      "fileReadFailed": "No se pudo leer el archivo {{file}}. Detalle: {{detail}}",
+      "importError": "Error de importaci?n"
+    },
+    "upload": {
+      "selectFilePrompt": "Selecciona un archivo a importar (CSV, Excel, PDF o imagen).",
+      "processingWithOcr": "Procesando con OCR...",
+      "mayTakeMoment": "Esto puede tardar un momento",
+      "clickChooseFile": "Haz clic para elegir un archivo",
+      "acceptedFormats": "CSV, Excel, PDF o im?genes"
+    },
+    "preview": {
+      "fileSummary": "Archivo: {{file}} | {{rows}} filas | {{columns}} columnas"
+    },
+    "mapping": {
+      "reviewAdjust": "Revisa y ajusta el mapeo de campos. El auto-mapeo ya est? aplicado.",
+      "parserSelection": "Selecci?n de parser",
+      "useSuggestion": "Usar sugerencia: {{parser}}",
+      "override": "OVERRIDE",
+      "selected": "Seleccionado",
+      "type": "Tipo",
+      "description": "Descripci?n",
+      "confidence": "Confianza",
+      "provider": "Proveedor",
+      "aiProviderFallback": "IA",
+      "heuristic": "Heur?stica"
+    },
+    "validation": {
+      "missingMappingFor": "Falta mapeo para: {{field}}",
+      "fileHasNoRows": "El archivo no tiene filas",
+      "maxRowsPerImport": "M?ximo {{max}} filas por importaci?n",
+      "fixIssuesBeforeContinue": "Corrige estos problemas antes de continuar:",
+      "passed": "Validaci?n superada."
+    },
+    "summary": {
+      "autoModeRecommended": "Modo autom?tico (recomendado)",
+      "autoModeHelp": "Activa productos, crea ALM-1 si falta y aplica stock inicial.",
+      "targetWarehouse": "Almac?n destino",
+      "promotedWithErrors": "Promovidos: {{promoted}} | Errores: {{errors}}",
+      "goToProducts": "Ir a Productos",
+      "goToInventory": "Ir a Inventario"
+    },
+    "common": {
+      "error": "Error"
+    }
+  },
+  "importedProducts": {
+    "states": {
+      "loadingProducts": "Cargando productos..."
+    },
+    "alerts": {
+      "couldNotDetermineBatch": "No se pudo determinar el lote para este item",
+      "errorWithMessage": "Error: {{message}}",
+      "selectAtLeastOne": "Selecciona al menos un producto",
+      "productsDeleted": "{{count}} productos eliminados",
+      "promotedWithErrors": "Promovidos: {{promoted}}/{{total}}\nErrores: {{errors}}\nRevisa la consola para detalles.",
+      "promotedSuccessfully": "{{count}} productos promovidos correctamente"
+    },
+    "confirm": {
+      "deleteProducts": "?Eliminar {{count}} productos? Esta acci?n no se puede deshacer.",
+      "zeroStockPromoteAnyway": "Hay {{count}} productos con stock cero. ?Promover igual?",
+      "promoteProducts": "?Promover {{count}} productos al cat?logo?"
+    },
+    "actions": {
+      "backToImporter": "Volver al importador",
+      "deleteSelectedTitle": "Eliminar productos seleccionados",
+      "deleteCount": "Eliminar ({{count}})",
+      "promoteCount": "Promover ({{count}})",
+      "hide": "Ocultar",
+      "save": "Guardar",
+      "edit": "Editar"
+    },
+    "header": {
+      "batchProducts": "Productos del lote",
+      "allImportedProducts": "Todos los productos importados",
+      "countSummary": "{{products}} productos | {{selected}} seleccionados"
+    },
+    "filters": {
+      "status": "Estado",
+      "all": "Todos",
+      "ready": "Listo",
+      "withErrors": "Con errores",
+      "promoted": "Promovido",
+      "zeroStock": "Stock cero",
+      "showingAllBatches": "Mostrando productos de todos los lotes"
+    },
+    "autoMode": {
+      "recommended": "Modo autom?tico (recomendado)",
+      "help": "Activa productos, crea ALM-1 si falta y aplica stock inicial.",
+      "targetWarehouse": "Almac?n destino"
+    },
+    "zeroStock": {
+      "notice": "Hay {{count}} productos con stock cero."
+    },
+    "table": {
+      "code": "C?digo",
+      "name": "Nombre",
+      "price": "Precio",
+      "cost": "Costo",
+      "category": "Categor?a",
+      "stock": "Stock",
+      "unit": "Unidad",
+      "tax": "Impuesto",
+      "status": "Estado",
+      "actions": "Acciones",
+      "noProductsToShow": "No hay productos para mostrar."
+    },
+    "pagination": {
+      "showingRange": "Mostrando {{from}}-{{to}} de {{total}}",
+      "previous": "Anterior",
+      "next": "Siguiente"
+    }
+  },
+  "mapeoCampos": {
+    "title": "Mapeo de campos",
+    "actions": {
+      "autoDetect": "Auto-detectar",
+      "loadTemplate": "Cargar plantilla",
+      "saveTemplate": "Guardar plantilla",
+      "save": "Guardar"
+    },
+    "alerts": {
+      "templateLoaded": "Plantilla \"{{name}}\" cargada",
+      "enterTemplateName": "Ingresa un nombre de plantilla",
+      "templateSaved": "Plantilla \"{{name}}\" guardada",
+      "errorSavingTemplate": "Error al guardar plantilla"
+    },
+    "unmappedFields": "{{count}} campo(s) sin mapear",
+    "selectColumn": "-- Seleccionar columna --",
+    "match": "coincidencia",
+    "suggested": "Sugerido",
+    "previewTitle": "Vista previa del mapeo (primeras 3 filas)",
+    "emptyValue": "(vac?o)",
+    "fileColumns": "Columnas del archivo",
+    "dragHint": "Arrastra columnas a los campos destino",
+    "saveModal": {
+      "title": "Guardar plantilla",
+      "templateNamePlaceholder": "Nombre de plantilla...",
+      "saving": "Guardando..."
+    }
+  },
+  "templateManager": {
+    "title": "Plantillas de mapeo",
+    "loading": "Cargando plantillas...",
+    "errors": {
+      "loadFailed": "Error al cargar plantillas",
+      "cannotDeleteSystemTemplate": "No se pueden eliminar plantillas del sistema",
+      "deleteFailed": "Error al eliminar plantilla"
+    },
+    "confirm": {
+      "deleteTemplate": "?Eliminar esta plantilla?"
+    },
+    "empty": {
+      "noTemplates": "No hay plantillas disponibles para este tipo de importaci?n.",
+      "createFromMapping": "Crea una desde el mapeo de campos."
+    },
+    "badges": {
+      "system": "Sistema"
+    },
+    "actions": {
+      "useTemplate": "Usar plantilla"
+    }
+  },
+  "columnMappingModal": {
+    "title": "Mapeo de columnas",
+    "fileLabel": "Archivo",
+    "autoDetectedTitle": "Mapeo detectado autom?ticamente",
+    "autoDetectedProcessing": "Columnas detectadas correctamente. Procesando en 1.5 segundos...",
+    "loadSavedMapping": "Cargar mapeo guardado:",
+    "manualOption": "Manual...",
+    "usedTimes": "(usado {{count}} veces)",
+    "mapColumnsPrompt": "Mapea las columnas de Excel a los campos del sistema:",
+    "example": "Ejemplo",
+    "selectField": "Seleccionar campo...",
+    "previewTitle": "Vista previa (primeras 3 filas)",
+    "saveConfiguration": "Guardar esta configuraci?n para reutilizar",
+    "saveNamePlaceholder": "Ej: Proveedor L?cteos - Mensual",
+    "readyToContinue": "Listo para continuar",
+    "mustMapProductNameFooter": "Debes mapear \"Nombre Producto\"",
+    "continueImport": "Continuar con importaci?n",
+    "alerts": {
+      "mustMapProductName": "Debes mapear al menos el campo \"Nombre Producto\""
+    },
+    "fields": {
+      "productName": "Nombre Producto",
+      "salePrice": "Precio Venta",
+      "stockQuantity": "Stock/Cantidad",
+      "category": "Categor?a",
+      "codeSku": "C?digo/SKU",
+      "purchaseCost": "Costo Compra",
+      "supplier": "Proveedor",
+      "unit": "Unidad",
+      "ignoreColumn": "Ignorar columna"
+      }
+      },
+      "importerPreviewPage": {
+      "actions": {
+      "deleteAllProcesses": "Eliminar todos los procesos"
+      },
+      "confirm": {
+      "deleteAllProcesses": "¿Estás seguro de que deseas eliminar TODOS los procesos? Esta acción no se puede deshacer."
+      }
+      }
+      }

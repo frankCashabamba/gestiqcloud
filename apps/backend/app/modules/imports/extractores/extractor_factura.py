@@ -149,7 +149,7 @@ def extract_invoice(text: str, country: str = "EC") -> list[dict[str, Any]]:
         client = search_client(text)
         extracted_lines = _extract_invoice_lines(text)
         if extracted_lines:
-            computed_total = sum(float(l.get("total") or 0) for l in extracted_lines)
+            computed_total = sum(float(line.get("total") or 0) for line in extracted_lines)
             if total <= 0 and computed_total > 0:
                 total = computed_total
 
@@ -217,11 +217,11 @@ def extract_invoice(text: str, country: str = "EC") -> list[dict[str, Any]]:
                 if not extracted_lines
                 else [
                     {
-                        **l,
+                        **line,
                         "tax_code": tax_code,
                         "tax_amount": 0.0,
                     }
-                    for l in extracted_lines
+                    for line in extracted_lines
                 ]
             ),
             "source": "ocr",

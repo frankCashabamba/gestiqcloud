@@ -39,9 +39,7 @@ def _sign(secret: str, payload: dict[str, Any]) -> str:
     Returns:
         Hex-encoded signature
     """
-    body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode(
-        "utf-8"
-    )
+    body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     sig = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
     return f"sha256={sig}"
 
@@ -68,7 +66,7 @@ def deliver(self, delivery_id: str) -> dict:
         delivery_row = db.execute(
             text(
                 """
-                SELECT 
+                SELECT
                     id::text, event, payload, target_url, secret, status, attempts, tenant_id::text
                 FROM webhook_deliveries
                 WHERE id = CAST(:id AS uuid)
@@ -95,9 +93,7 @@ def deliver(self, delivery_id: str) -> dict:
                 payload = json.loads(payload)
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse payload JSON: {e}")
-                _update_delivery_status(
-                    db, did, "FAILED", str(e), attempts + 1
-                )
+                _update_delivery_status(db, did, "FAILED", str(e), attempts + 1)
                 record_delivery_attempt(event, tenant_id, "failed")
                 return {"ok": False, "error": "invalid_payload_json"}
 
@@ -137,8 +133,7 @@ def deliver(self, delivery_id: str) -> dict:
             if 200 <= response.status_code < 300:
                 # Success
                 logger.info(
-                    f"Webhook delivered successfully: {did} "
-                    f"(HTTP {response.status_code})"
+                    f"Webhook delivered successfully: {did} " f"(HTTP {response.status_code})"
                 )
                 _update_delivery_status(db, did, "DELIVERED", None, attempts + 1)
                 record_delivery_attempt(event, tenant_id, "delivered", response.status_code)

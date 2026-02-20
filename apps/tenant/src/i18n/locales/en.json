@@ -582,6 +582,320 @@
     "import": "Import",
     "preview": "Preview",
     "batches": "Batches",
-    "products": "Products"
+    "products": "Products",
+    "settings": "Settings"
+  },
+  "importerPreview": {
+    "bannerInvoice": "Batch type {{type}}: supplier invoice view.",
+    "bannerGeneric": "Batch type {{type}}: expenses/supplier invoice view.",
+    "invoiceHeaders": {
+      "date": "Date",
+      "type": "Type",
+      "invoiceNumber": "Invoice Number",
+      "idType": "Identification Type",
+      "idNumber": "Identification Number",
+      "customer": "Customer",
+      "productCode": "Product Code",
+      "product": "Product",
+      "unitPrice": "Unit Price",
+      "quantity": "Quantity",
+      "subtotal": "Subtotal",
+      "vat": "VAT",
+      "total": "Total",
+      "sector": "Sector",
+      "observation": "Observation",
+      "promotion": "Promotion",
+      "seller": "Seller"
+    },
+    "genericHeaders": {
+      "date": "Date",
+      "amount": "Amount",
+      "concept": "Concept",
+      "account": "Account",
+      "counterparty": "Customer/Supplier"
+    },
+    "common": {
+      "errors": "Errors",
+      "status": "Status",
+      "noErrors": "No errors",
+      "errorCount_one": "{{count}} error",
+      "errorCount_other": "{{count}} errors"
+    }
+  },
+  "importerLayout": {
+    "badge": "Importer Operations"
+  },
+  "importerBatches": {
+    "title": "Import batches",
+    "description": "Review processed batch history, filter by status, and open details to revalidate or promote records.",
+    "actions": {
+      "refresh": "Refresh",
+      "refreshing": "Refreshing..."
+    },
+    "errors": {
+      "noSession": "No active session",
+      "fetchFailed": "Could not load batches"
+    },
+    "statusOptions": {
+      "all": "All",
+      "ready": "Ready",
+      "validated": "Validated",
+      "promoted": "Promoted",
+      "empty": "Empty",
+      "error": "With errors"
+    },
+    "statusLabels": {
+      "empty": "Empty"
+    },
+    "totalBatches_one": "{{count}} batch",
+    "totalBatches_other": "{{count}} batches",
+    "table": {
+      "batch": "Batch",
+      "origin": "Origin",
+      "status": "Status",
+      "created": "Created"
+    },
+    "withoutOrigin": "without origin",
+    "loading": "Loading batches...",
+    "empty": "No batches found with this filter."
+  },
+  "importerBatchDetail": {
+    "title": "Batch {{id}}",
+    "description": "Edit individual records, review errors, and execute validation or promotion actions for this batch.",
+    "actions": {
+      "revalidateBatch": "Revalidate batch",
+      "openInPreview": "Open in Preview",
+      "downloadErrorsCsv": "Download errors.csv",
+      "view": "View",
+      "uploading": "Uploading...",
+      "uploadPhotos": "Upload photos",
+      "saving": "Saving..."
+    },
+    "messages": {
+      "batchRevalidated": "Batch revalidated successfully",
+      "itemUpdated": "Item updated",
+      "batchPhotosUploaded": "Batch photos uploaded successfully",
+      "itemPhotosUploaded": "Item photos uploaded successfully"
+    },
+    "errors": {
+      "loadBatchFailed": "Could not load batch",
+      "batchPhotosUploadFailed": "Batch photos could not be uploaded",
+      "itemPhotosUploadFailed": "Item photos could not be uploaded"
+    },
+    "summary": {
+      "origin": "Origin",
+      "withoutOrigin": "without origin",
+      "type": "Type",
+      "currentStatus": "Current status"
+    },
+    "attachments": {
+      "attachmentAlt": "Attachment",
+      "batchTitle": "Batch attachments",
+      "batchDescription": "Upload evidence or photos from mobile for this batch.",
+      "noneLoaded": "No attachments uploaded.",
+      "none": "No attachments"
+    },
+    "statusOptions": {
+      "all": "All",
+      "validationError": "Validation error",
+      "promotionError": "Promotion error",
+      "promoted": "Promoted"
+    },
+    "filters": {
+      "searchPlaceholder": "Search text",
+      "search": "Search"
+    },
+    "table": {
+      "status": "Status",
+      "field": "Field",
+      "value": "Value",
+      "errors": "Errors",
+      "attachments": "Attachments",
+      "noErrors": "No errors",
+      "fieldFallback": "field",
+      "reviewFallback": "review"
+    },
+    "loadingItems": "Loading items...",
+    "empty": "No records found for the selected filter."
+  },
+  "importerPreviewPage": {
+    "title": "Preview",
+    "description": "Validate and review import batches before final processing.",
+    "loadingBatches": "Loading batches...",
+    "promote": "Promote",
+    "promoting": "Promoting...",
+    "noPendingBatches": "No pending batches to validate.",
+    "importFiles": "Import files",
+    "selectBatch": "Select a batch to validate",
+    "promoteModal": {
+      "title": "Promote batch",
+      "description": "Define payment status and optionally generate accounting entries.",
+      "postAccounting": "Generate accounting entry",
+      "status": "Status",
+      "method": "Method",
+      "paidAt": "Payment date",
+      "paymentPending": "Pending payment",
+      "paymentPaid": "Paid"
+    },
+    "recipeModal": {
+      "title": "Promote Recipes",
+      "description": "Recipes will be saved in the recipes module. Optionally, you can also save base products.",
+      "saveIngredientsAsProducts": "Also save ingredients as inventory products",
+      "noteLabel": "Note:",
+      "noteText": "Recipe ingredients will be saved as individual inventory products if you enable this option."
+    },
+    "paymentMethods": {
+      "bank": "Bank",
+      "cash": "Cash",
+      "card": "Card",
+      "transfer": "Transfer",
+      "directDebit": "Direct debit",
+      "check": "Check",
+      "other": "Other"
+    },
+    "status": {
+      "empty": "EMPTY",
+      "ready": "READY",
+      "parsing": "PARSING",
+      "pending": "PENDING",
+      "promoted": "PROMOTED",
+      "error": "ERROR"
+    },
+    "batchSummary": {
+      "title": "Batch summary",
+      "totalProducts": "Total products",
+      "totalRecords": "Total records",
+      "withoutCategory": "Without category",
+      "uniqueCategories": "Unique categories",
+      "uniqueLabels": "Unique labels",
+      "detectedCategories": "Detected categories"
+    },
+    "tooltips": {
+      "promoteRecipes": "Promote recipes",
+      "promoteBatch": "Promote batch (with payment status and optional entries)"
+    },
+    "actions": {
+      "retry": "Retry",
+      "resetAndRelaunch": "Reset and relaunch",
+      "forceDelete": "Force delete",
+      "cancelTask": "Cancel task",
+      "assignToSelected": "Assign to selected",
+      "assignCategory": "Assign category...",
+      "assignCategoryToSelected": "Assign \"{{category}}\" to selected",
+      "assignCategoriesBeforePromote": "Assign categories to all products before promoting",
+      "hideSupplies": "Hide supplies",
+      "viewSupplies": "View supplies",
+      "others": "OTHERS",
+      "deleteBatch": "Delete batch",
+      "promoteToProduction": "Promote to production",
+      "reassignAndReprocess": "Reassign mapping + Reprocess",
+      "selectMapping": "Select a mapping...",
+      "applying": "Applying...",
+      "applyAndReprocess": "Apply and reprocess"
+    },
+    "processing": {
+      "message": "Processing batch, this may take a few minutes...",
+      "lastUpdate": "Last update",
+      "stats": "Pending: {{pending}} · Processing: {{processing}} · Completed: {{completed}}",
+      "stuckOptions": "Looks stuck. Recovery options:"
+    },
+    "labels": {
+      "assignExistingCategory": "Assign existing category",
+      "selectedCount": "Selected: {{count}}"
+    },
+    "placeholders": {
+      "categoryExample": "e.g. DAIRY AND CHEESE"
+    },
+    "details": {
+      "ingredients": "Ingredients",
+      "ingredient": "Ingredient",
+      "qty": "Qty.",
+      "unit": "Unit",
+      "amount": "Amount",
+      "materials": "Materials / Supplies",
+      "description": "Description",
+      "purchaseUnit": "Purchase unit",
+      "noIngredients": "No ingredients detected.",
+      "noMaterials": "No materials detected."
+    },
+    "productTable": {
+      "batchTypeNotice": "Batch type {{type}}. Product table view is shown for edit/review only; promotion should be used for products.",
+      "code": "Code",
+      "name": "Name",
+      "price": "Price",
+      "cost": "Cost",
+      "category": "Category",
+      "stock": "Stock",
+      "noCategory": "No category"
+    },
+    "selectedProducts": "{{count}} selected product",
+    "selectedProducts_other": "{{count}} selected products",
+    "batchItems": "{{count}} items",
+    "productCount": "{{count}} product",
+    "productCount_other": "{{count}} products",
+    "pagination": {
+      "showing": "Showing {{from}} - {{to}} of {{total}}",
+      "previous": "Previous",
+      "next": "Next"
+    },
+    "messages": {
+      "promoteSuccess": "Batch promoted successfully (created: {{created}}, skipped: {{skipped}}, failed: {{failed}})",
+      "promoteRecipesSuccess": "Recipes promoted successfully (created: {{created}}, skipped: {{skipped}}, failed: {{failed}})"
+    },
+    "confirm": {
+      "promoteProducts": "Promote this batch to production? This will create/update products in the system.",
+      "promoteExpenses": "Promote this batch? This will create expenses in the system.",
+      "promoteInvoices": "Promote this batch? This will create supplier invoices as expenses (accounts payable) in the system.",
+      "promoteGeneric": "Promote this batch?",
+      "forceDeleteBatch": "Force delete batch?",
+      "deleteBatchWithItems": "Delete this batch and all its items? This action cannot be undone.",
+      "forceDeleteProcessingBatch": "Force delete this processing batch?"
+    },
+    "errors": {
+      "tenantNotFound": "tenant_id not found",
+      "genericWithMessage": "Error: {{message}}",
+      "reassignMappingFailed": "Could not reassign mapping. Check console for more details."
+    }
+  },
+  "importerPrintLabels": {
+    "title": "Print labels ({{total}} total)",
+    "summary": "{{products}} products x {{copies}} copy(s) = {{labels}} labels",
+    "printer": "Printer",
+    "selectPrinter": "Select a printer",
+    "savedConfigs": "Saved configurations",
+    "loading": "Loading...",
+    "noSavedConfigs": "No saved configurations",
+    "selectProfile": "Select a profile",
+    "generating": "Generating...",
+    "printNow": "Print now",
+    "activePrinter": "Active printer: {{printer}}",
+    "selectAndPrint": "Select and print on your configured printer.",
+    "formatTitle": "Label format",
+    "widthMm": "Width (mm)",
+    "heightMm": "Height (mm)",
+    "gapMm": "Gap (mm)",
+    "labelsPerRow": "Labels per row",
+    "horizontalGapMm": "Horizontal gap (mm)",
+    "copiesPerProduct": "Copies per product",
+    "offsetXMm": "Horizontal offset (mm)",
+    "offsetYMm": "Vertical offset (mm)",
+    "barcodeWidth": "Barcode width",
+    "priceAlignment": "Price alignment",
+    "align": {
+      "left": "Left",
+      "center": "Center",
+      "right": "Right"
+    },
+    "offsetHelp": "Use negative values to move left/up; positive values move right/down.",
+    "headerText": "Header text",
+    "headerPlaceholder": "Text shown above the product",
+    "footerText": "Footer text",
+    "footerPlaceholder": "Text shown below the price",
+    "showPrice": "Show price",
+    "showCategory": "Show category",
+    "currentSize": "Current size",
+    "priceVisible": "Price visible",
+    "categoryVisible": "Category visible",
+    "sku": "SKU"
   }
 }

@@ -348,7 +348,7 @@ Retorna:
 @pytest.fixture
 async def mock_ai():
     from app.services.ai.base import AIResponse, AITask
-    
+
     async def mock_call(request):
         return AIResponse(
             task=request.task,
@@ -356,7 +356,7 @@ async def mock_ai():
             model="mock",
             tokens_used=10
         )
-    
+
     return mock_call
 
 async def test_classification(mock_ai):

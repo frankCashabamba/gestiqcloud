@@ -144,3 +144,97 @@ class InventoryCostingService:
         )
 
         return CostState(_dec(new_qty, "0.000001"), state.avg_cost)
+
+    def _ensure_layers_table(self) -> None:
+        """Create cost layers table if it doesn't exist (idempotent)."""
+        self.db.execute(
+            text(
+                "CREATE TABLE IF NOT EXISTS inventory_cost_layers ("
+                "id SERIAL PRIMARY KEY, "
+                "tenant_id TEXT NOT NULL, "
+                "warehouse_id TEXT NOT NULL, "
+                "product_id TEXT NOT NULL, "
+                "remaining_qty NUMERIC(14,6) NOT NULL, "
+                "unit_cost NUMERIC(14,6) NOT NULL, "
+                "created_at TIMESTAMP DEFAULT NOW()"
+                ")"
+            )
+        )
+
+    def apply_inbound_lifo(
+        self,
+        tenant_id: str,
+        warehouse_id: str,
+        product_id: str,
+        *,
+        qty: Decimal,
+        unit_cost: Decimal,
+    ) -> CostState:
+        """Record an inbound layer for LIFO costing."""
+        self._ensure_layers_table()
+        self.db.execute(
+            text(
+                "INSERT INTO inventory_cost_layers "
+                "(tenant_id, warehouse_id, product_id, remaining_qty, unit_cost) "
+                "VALUES (:tid, :wid, :pid, :qty, :cost)"
+            ),
+            {
+                "tid": tenant_id,
+                "wid": warehouse_id,
+                "pid": product_id,
+                "qty": float(qty),
+                "cost": float(unit_cost),
+            },
+        )
+        # Also update the summary state
+        return self.apply_inbound(tenant_id, warehouse_id, product_id, qty=qty, unit_cost=unit_cost)
+
+    def apply_outbound_lifo(
+        self,
+        tenant_id: str,
+        warehouse_id: str,
+        product_id: str,
+        *,
+        qty: Decimal,
+        allow_negative: bool = False,
+    ) -> tuple[CostState, Decimal]:
+        """
+        Consume stock using LIFO (last layer first).
+        Returns (new_state, total_cogs).
+        """
+        self._ensure_layers_table()
+        remaining = qty
+        total_cogs = Decimal("0")
+
+        # Get layers newest first (LIFO)
+        layers = self.db.execute(
+            text(
+                "SELECT id, remaining_qty, unit_cost "
+                "FROM inventory_cost_layers "
+                "WHERE tenant_id = :tid AND warehouse_id = :wid "
+                "AND product_id = :pid AND remaining_qty > 0 "
+                "ORDER BY created_at DESC, id DESC"
+            ),
+            {"tid": tenant_id, "wid": warehouse_id, "pid": product_id},
+        ).fetchall()
+
+        for layer_id, layer_qty, layer_cost in layers:
+            if remaining <= 0:
+                break
+            consume = min(remaining, Decimal(str(layer_qty)))
+            total_cogs += consume * Decimal(str(layer_cost))
+            remaining -= consume
+            new_layer_qty = Decimal(str(layer_qty)) - consume
+            self.db.execute(
+                text("UPDATE inventory_cost_layers SET remaining_qty = :q WHERE id = :id"),
+                {"q": float(new_layer_qty), "id": layer_id},
+            )
+
+        if remaining > 0 and not allow_negative:
+            raise HTTPException(status_code=400, detail="insufficient_stock_lifo")
+
+        # Update summary state
+        state = self.apply_outbound(
+            tenant_id, warehouse_id, product_id, qty=qty, allow_negative=allow_negative
+        )
+        return state, _dec(total_cogs, "0.000001")

@@ -7,13 +7,15 @@ URLs:
 
 import json
 import logging
-from uuid import UUID
+from pathlib import Path
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
+from app.config.settings import settings
 from app.core.access_guard import with_access_claims
 from app.core.audit_events import audit_event
 from app.core.authz import require_scope
@@ -516,6 +518,54 @@ def update_settings_branding(
         "secondary_color": company_settings.secondary_color,
         "company_logo": company_settings.company_logo,
     }
+
+
+@router.post("/settings/branding/logo", summary="Upload branding logo")
+async def upload_settings_branding_logo(
+    file: UploadFile = File(...),
+    tenant_id: str = Depends(ensure_tenant),
+    db: Session = Depends(get_db),
+):
+    """Upload logo image and persist path in company branding settings."""
+    company_settings = (
+        db.query(CompanySettings).filter(CompanySettings.tenant_id == tenant_id).first()
+    )
+    if not company_settings:
+        raise HTTPException(status_code=404, detail="Settings not found")
+
+    content_type = (file.content_type or "").lower().strip()
+    allowed_types = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
+    if content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="invalid_logo_format")
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="empty_file")
+    if len(raw) > settings.MAX_REQUEST_BYTES:
+        raise HTTPException(status_code=413, detail="file_too_large")
+
+    ext_by_type = {
+        "image/png": ".png",
+        "image/jpeg": ".jpg",
+        "image/jpg": ".jpg",
+        "image/webp": ".webp",
+    }
+    ext = ext_by_type.get(content_type, ".png")
+
+    upload_root = Path(settings.UPLOADS_DIR)
+    logos_dir = upload_root / "logos"
+    logos_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = f"{tenant_id}-{uuid4().hex}{ext}"
+    destination = logos_dir / filename
+    destination.write_bytes(raw)
+
+    logo_path = f"/uploads/logos/{filename}"
+    company_settings.company_logo = logo_path
+    db.commit()
+    db.refresh(company_settings)
+
+    return {"company_logo": logo_path}
 
 
 @router.get("/settings/fiscal", summary="Get fiscal settings")

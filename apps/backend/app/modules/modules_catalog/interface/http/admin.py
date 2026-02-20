@@ -113,7 +113,7 @@ def _resolve_modules_dir() -> str:
 
 def _normalize_module_name(folder_name: str) -> str:
     """Normalize Spanish/other folder names to English.
-    
+
     This ensures all modules are registered with English names,
     allowing the frontend to handle translations via i18n.
     """
@@ -133,7 +133,7 @@ def _normalize_module_name(folder_name: str) -> str:
         "finanzas": "finances",
         "contabilidad": "accounting",
     }
-    
+
     normalized = folder_name.lower()
     return mapping.get(normalized, normalized)
 

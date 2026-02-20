@@ -10,6 +10,7 @@ Soporta:
 Salida: CanonicalDocument con doc_type='invoice'
 """
 
+import re
 import xml.etree.ElementTree as ET
 from typing import Any
 
@@ -45,7 +46,12 @@ def parse_xml_invoice(file_path: str) -> dict[str, Any]:
             errors.append("No se pudo extraer datos de factura del XML")
 
     except ET.ParseError as e:
-        errors.append(f"Error parsing XML: {str(e)}")
+        recovered, recovered_errors = _parse_concatenated_xml_invoices(file_path)
+        if recovered:
+            invoices.extend(recovered)
+        else:
+            errors.append(f"Error parsing XML: {str(e)}")
+        errors.extend(recovered_errors)
     except Exception as e:
         errors.append(f"Unexpected error: {str(e)}")
 
@@ -219,3 +225,39 @@ def _to_float(val) -> float | None:
         return float(str(val).replace(",", "."))
     except (ValueError, TypeError):
         return None
+
+
+def _parse_concatenated_xml_invoices(file_path: str) -> tuple[list[dict[str, Any]], list[str]]:
+    """Recover invoices from files containing multiple concatenated XML documents."""
+    invoices: list[dict[str, Any]] = []
+    errors: list[str] = []
+    try:
+        with open(file_path, encoding="utf-8", errors="ignore") as f:
+            content = f.read().strip()
+    except Exception as e:
+        return [], [f"Error leyendo XML concatenado: {str(e)}"]
+
+    if not content:
+        return [], ["XML vacio"]
+
+    chunks = [c.strip() for c in re.split(r"(?=<\\?xml)", content) if c.strip()]
+    if not chunks:
+        chunks = [content]
+
+    for idx, chunk in enumerate(chunks, start=1):
+        try:
+            root = ET.fromstring(chunk)
+            namespaces = _detect_namespaces(root)
+            invoice = _extract_invoice_data(root, namespaces)
+            if invoice:
+                invoice["source"] = "xml"
+                invoice["confidence"] = 0.9
+                invoice["_metadata"] = {"parser": "xml_invoice", "chunk_index": idx}
+                invoices.append(invoice)
+        except Exception:
+            continue
+
+    if not invoices:
+        errors.append("No se pudo recuperar facturas de XML concatenado")
+
+    return invoices, errors

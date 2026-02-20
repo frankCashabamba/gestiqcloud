@@ -279,10 +279,13 @@ async def handle_webhook(provider: str, request: Request, db: Session = Depends(
 
                 # Trigger payment.received webhook
                 try:
-                    from app.modules.reconciliation.webhooks import PaymentWebhookService
                     from uuid import UUID
 
-                    tenant_id = UUID(str(config.get("tenant_id", "00000000-0000-0000-0000-000000000000")))
+                    from app.modules.reconciliation.webhooks import PaymentWebhookService
+
+                    tenant_id = UUID(
+                        str(config.get("tenant_id", "00000000-0000-0000-0000-000000000000"))
+                    )
                     webhook_service = PaymentWebhookService(db)
                     webhook_service.trigger_payment_received(
                         tenant_id=tenant_id,
@@ -322,10 +325,13 @@ async def handle_webhook(provider: str, request: Request, db: Session = Depends(
 
                 # Trigger payment.failed webhook
                 try:
-                    from app.modules.reconciliation.webhooks import PaymentWebhookService
                     from uuid import UUID
 
-                    tenant_id = UUID(str(config.get("tenant_id", "00000000-0000-0000-0000-000000000000")))
+                    from app.modules.reconciliation.webhooks import PaymentWebhookService
+
+                    tenant_id = UUID(
+                        str(config.get("tenant_id", "00000000-0000-0000-0000-000000000000"))
+                    )
                     webhook_service = PaymentWebhookService(db)
                     webhook_service.trigger_payment_failed(
                         tenant_id=tenant_id,

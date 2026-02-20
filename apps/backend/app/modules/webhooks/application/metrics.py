@@ -5,29 +5,35 @@ Tracks webhook delivery performance, retry counts, and failure rates.
 """
 
 import logging
-from typing import Optional
 
 try:
     from prometheus_client import Counter, Histogram
+
     PROMETHEUS_AVAILABLE = True
 except ImportError:
     PROMETHEUS_AVAILABLE = False
+
     # Dummy implementations if prometheus_client not available
     class Counter:
         def __init__(self, *args, **kwargs):
             pass
+
         def inc(self, *args, **kwargs):
             pass
+
         def labels(self, *args, **kwargs):
             return self
 
     class Histogram:
         def __init__(self, *args, **kwargs):
             pass
+
         def observe(self, *args, **kwargs):
             pass
+
         def labels(self, *args, **kwargs):
             return self
+
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +96,7 @@ class WebhookMetrics:
         event: str,
         tenant_id: str,
         status: str,
-        http_status: Optional[int] = None,
+        http_status: int | None = None,
     ):
         """
         Record a webhook delivery attempt
@@ -180,7 +186,7 @@ class WebhookMetrics:
 
 
 # Global metrics instance
-_webhook_metrics: Optional[WebhookMetrics] = None
+_webhook_metrics: WebhookMetrics | None = None
 
 
 def get_webhook_metrics() -> WebhookMetrics:
@@ -195,7 +201,7 @@ def record_delivery_attempt(
     event: str,
     tenant_id: str,
     status: str,
-    http_status: Optional[int] = None,
+    http_status: int | None = None,
 ):
     """Convenience function to record delivery attempt"""
     get_webhook_metrics().record_delivery_attempt(

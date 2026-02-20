@@ -151,7 +151,8 @@ def create_invoice_from_pos_receipt(
         ).scalar()
 
         receipt_number = db.execute(
-            text("SELECT number FROM pos_receipts WHERE id = :id"), {"id": receipt_uuid}
+            text("SELECT number FROM pos_receipts WHERE id = :id AND tenant_id = :tid"),
+            {"id": receipt_uuid, "tid": str(tenant_id)},
         ).scalar()
 
         return InvoiceFromReceiptResponse(

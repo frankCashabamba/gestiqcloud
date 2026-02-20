@@ -106,7 +106,11 @@ def _parse_ingredients(ws) -> list[dict[str, Any]]:
             {
                 "ingredient": str(name).strip(),
                 "quantity": _to_number(ws.cell(row=row, column=6).value),  # F
-                "unit": (str(ws.cell(row=row, column=7).value).strip() if ws.cell(row=row, column=7).value not in (None, "") else None),  # G
+                "unit": (
+                    str(ws.cell(row=row, column=7).value).strip()
+                    if ws.cell(row=row, column=7).value not in (None, "")
+                    else None
+                ),  # G
                 "amount": _to_number(ws.cell(row=row, column=19).value),  # S (IMPORTE)
             }
         )
@@ -134,7 +138,11 @@ def _parse_materials(ws) -> list[dict[str, Any]]:
             {
                 "description": str(desc).strip(),
                 "quantity": _to_number(ws.cell(row=row, column=7).value),  # G
-                "purchase_unit": (str(ws.cell(row=row, column=11).value).strip() if ws.cell(row=row, column=11).value not in (None, "") else None),  # K
+                "purchase_unit": (
+                    str(ws.cell(row=row, column=11).value).strip()
+                    if ws.cell(row=row, column=11).value not in (None, "")
+                    else None
+                ),  # K
                 "amount": _to_number(ws.cell(row=row, column=19).value),  # S (IMPORTE)
             }
         )
@@ -187,8 +195,12 @@ def parse_xlsx_costing_products(file_path: str) -> dict[str, Any]:
                 "sku": str(name).strip(),  # sanitized later in import pipeline
                 "price": float(price_unit or 0.0),
                 "precio": float(price_unit or 0.0),
-                "category": str(classification).strip() if classification not in (None, "") else None,
-                "categoria": str(classification).strip() if classification not in (None, "") else None,
+                "category": str(classification).strip()
+                if classification not in (None, "")
+                else None,
+                "categoria": str(classification).strip()
+                if classification not in (None, "")
+                else None,
                 "ingredients": ingredients,
                 "materials": materials,
                 "source": "xlsx_costing",

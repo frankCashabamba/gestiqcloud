@@ -51,6 +51,7 @@ from .core.startup_validation import ConfigValidationError, validate_critical_co
 from .middleware.rate_limit import RateLimitMiddleware
 from .middleware.request_log import RequestLogMiddleware
 from .middleware.security_headers import security_headers_middleware
+from .services.ai.startup import initialize_ai_providers
 
 # Rate limiting configuration: increased for development, stricter for production
 _RATE_LIMIT_PER_MINUTE = (
@@ -161,6 +162,15 @@ async def lifespan(app: FastAPI):
 
     # Initialize error tracking
     init_sentry()
+
+    # Initialize AI providers early to expose real connection status.
+    try:
+        await initialize_ai_providers()
+    except Exception:
+        logging.getLogger("app.startup").warning(
+            "AI providers initialization failed; continuing startup",
+            exc_info=True,
+        )
 
     # Evitar que la descarga de assets bloquee el bind del puerto en plataformas con timeouts estrictos
     skip_docs_assets = str(os.getenv("DOCS_ASSETS_SKIP", "0")).lower() in ("1", "true", "yes")
@@ -468,7 +478,8 @@ def root_head():
 
 # Static uploads
 _uploads_dir = Path(settings.UPLOADS_DIR)
-if settings.UPLOADS_MOUNT_ENABLED and _uploads_dir.is_dir():
+if settings.UPLOADS_MOUNT_ENABLED:
+    _uploads_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/uploads", StaticFiles(directory=str(_uploads_dir)), name="uploads")
 
 
@@ -652,6 +663,76 @@ try:
     has_imports = _has_imports_with_post(app.router.routes)
 except Exception:
     has_imports = False
+
+
+def _mount_imports_auxiliary_routes() -> None:
+    """Mount imports analyze/preview/ai/ocr auxiliary routers once."""
+    if getattr(app.state, "_imports_aux_routes_mounted", False):
+        return
+
+    # Analyze router for file analysis
+    try:
+        from app.modules.imports.interface.http.analyze import router as analyze_router
+
+        app.include_router(analyze_router, prefix="/api/v1/imports")
+        _router_logger.info("Analyze router mounted at /api/v1/imports/uploads")
+    except Exception as e:
+        _router_logger.warning(f"Analyze router mount failed: {e}")
+
+    # Preview + files router
+    try:
+        from app.modules.imports.interface.http.preview import files_router as preview_files_router
+        from app.modules.imports.interface.http.preview import router as preview_router
+
+        app.include_router(preview_router, prefix="/api/v1/imports")
+        app.include_router(preview_files_router, prefix="/api/v1/imports")
+        _router_logger.info("Preview/files routers mounted at /api/v1/imports")
+    except Exception as e:
+        _router_logger.warning(f"Preview/files routers mount failed: {e}")
+
+    # IA Classification router
+    try:
+        from app.modules.imports.ai.http_endpoints import router as ai_router
+
+        app.include_router(ai_router, prefix="/api/v1/imports")
+        _router_logger.info("IA Classification router mounted at /api/v1/imports/ai")
+    except Exception as e:
+        _router_logger.warning(f"IA Classification router mount failed: {e}")
+
+    # AI Health router
+    try:
+        from app.modules.imports.interface.http.ai_health import (
+            protected_router as ai_health_protected_router,
+        )
+        from app.modules.imports.interface.http.ai_health import router as ai_health_router
+
+        app.include_router(ai_health_router, prefix="/api/v1/imports")
+        app.include_router(ai_health_protected_router, prefix="/api/v1/imports")
+        _router_logger.info("AI Health router mounted at /api/v1/imports/ai")
+    except Exception as e:
+        _router_logger.warning(f"AI Health router mount failed: {e}")
+
+    # Feedback router
+    try:
+        from app.modules.imports.interface.http.feedback import router as feedback_router
+
+        app.include_router(feedback_router, prefix="/api/v2/imports")
+        _router_logger.info("Feedback router mounted at /api/v2/imports/feedback")
+    except Exception as e:
+        _router_logger.warning(f"Feedback router mount failed: {e}")
+
+    # OCR router
+    try:
+        from app.modules.imports.interface.http.ocr import router as ocr_router
+
+        app.include_router(ocr_router, prefix="/api/v1/imports")
+        _router_logger.info("OCR router mounted at /api/v1/imports/ocr")
+    except Exception as e:
+        _router_logger.warning(f"OCR router mount failed: {e}")
+
+    app.state._imports_aux_routes_mounted = True
+
+
 if not has_imports:
     mounted = False
     try:
@@ -664,13 +745,11 @@ if not has_imports:
     except Exception:
         pass
     try:
-        from app.modules.imports.interface.http.preview import router as _preview_router
         from app.modules.imports.interface.http.tenant import public_router as _imports_public
         from app.modules.imports.interface.http.tenant import router as _imports_router
 
         app.include_router(_imports_router, prefix="/api/v1")
         app.include_router(_imports_public, prefix="/api/v1")
-        app.include_router(_preview_router, prefix="/api/v1/imports")
         mounted = True
     except Exception:
         pass
@@ -687,43 +766,11 @@ if not has_imports:
             app.include_router(_imports_public_b, prefix="/api/v1")
         except Exception:
             pass
+    if mounted:
+        _mount_imports_auxiliary_routes()
 
 if os.getenv("IMPORTS_ENABLED", "0").lower() in ("1", "true"):
-    # Preview router (standalone)
-    try:
-        from app.modules.imports.interface.http.preview import router as preview_router
-
-        app.include_router(preview_router, prefix="/api/v1/imports")
-        print("[INFO] Preview router mounted at /api/v1/imports/preview")
-    except Exception as e:
-        print(f"[DEBUG] Preview router mount failed: {e}")
-
-    # IA Classification router (Fase D)
-    try:
-        from app.modules.imports.ai.http_endpoints import router as ai_router
-
-        app.include_router(ai_router, prefix="/api/v1/imports")
-        _router_logger.info("IA Classification router mounted at /api/v1/imports/ai")
-    except Exception as e:
-        _router_logger.warning(f"IA Classification router mount failed: {e}")
-
-    # Feedback router for classification improvement
-    try:
-        from app.modules.imports.interface.http.feedback import router as feedback_router
-
-        app.include_router(feedback_router, prefix="/api/v2/imports")
-        _router_logger.info("Feedback router mounted at /api/v2/imports/feedback")
-    except Exception as e:
-        _router_logger.warning(f"Feedback router mount failed: {e}")
-
-    # OCR router for PDF/image text extraction
-    try:
-        from app.modules.imports.interface.http.ocr import router as ocr_router
-
-        app.include_router(ocr_router, prefix="/api/v1/imports")
-        _router_logger.info("OCR router mounted at /api/v1/imports/ocr")
-    except Exception as e:
-        _router_logger.warning(f"OCR router mount failed: {e}")
+    _mount_imports_auxiliary_routes()
 else:
     _router_logger.info("Imports/OCR routers skipped (IMPORTS_ENABLED=0)")
 
@@ -783,41 +830,7 @@ try:
 except Exception as e:
     _router_logger.warning(f"Identity router mount failed: {e}")
 
-# POS
-try:
-    from app.modules.pos.interface.http.tenant_pos import router as pos_router
-
-    app.include_router(pos_router, prefix="/api/v1/tenant")
-    _router_logger.info("POS router mounted at /api/v1/tenant/pos")
-except Exception as e:
-    _router_logger.warning(f"POS router mount failed: {e}")
-
-# Invoicing
-try:
-    from app.modules.invoicing.interface.http.tenant_invoicing import router as invoicing_router
-
-    app.include_router(invoicing_router, prefix="/api/v1/tenant")
-    _router_logger.info("Invoicing router mounted at /api/v1/tenant/invoicing")
-except Exception as e:
-    _router_logger.warning(f"Invoicing router mount failed: {e}")
-
-# Inventory
-try:
-    from app.modules.inventory.interface.http.tenant_inventory import router as inventory_router
-
-    app.include_router(inventory_router, prefix="/api/v1/tenant")
-    _router_logger.info("Inventory router mounted at /api/v1/tenant/inventory")
-except Exception as e:
-    _router_logger.warning(f"Inventory router mount failed: {e}")
-
-# Sales
-try:
-    from app.modules.sales.interface.http.tenant_sales import router as sales_router
-
-    app.include_router(sales_router, prefix="/api/v1/tenant")
-    _router_logger.info("Sales router mounted at /api/v1/tenant/sales")
-except Exception as e:
-    _router_logger.warning(f"Sales router mount failed: {e}")
+# Sprint 1 placeholder routers removed — real routers registered via build_api_router()
 
 if __name__ == "__main__":
     import uvicorn

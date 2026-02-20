@@ -9,4 +9,3 @@ ALTER TABLE public.tenant_accounting_settings
     DROP COLUMN IF EXISTS default_expense_account_id,
     DROP COLUMN IF EXISTS vat_input_account_id,
     DROP COLUMN IF EXISTS ap_account_id;
-

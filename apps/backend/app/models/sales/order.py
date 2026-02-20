@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, func, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -57,7 +57,9 @@ class SalesOrderItem(Base):
     product_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     qty: Mapped[float] = mapped_column("quantity", Numeric(14, 3), nullable=False)
     unit_price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
-    tax_rate: Mapped[float | None] = mapped_column(Numeric(6, 4), nullable=True, default=None)
+    tax_rate: Mapped[float] = mapped_column(
+        Numeric(6, 4), nullable=False, default=0, server_default=text("0")
+    )
     discount_percent: Mapped[float] = mapped_column(Numeric(5, 2), default=0)
     line_total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     created_at: Mapped[datetime] = mapped_column(

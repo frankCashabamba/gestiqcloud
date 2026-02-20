@@ -1,6 +1,6 @@
 /**
  * AnalysisResultDisplay.tsx
- * 
+ *
  * Componente para mostrar los resultados del análisis IA
  * Incluye:
  * - Parser sugerido
@@ -66,7 +66,7 @@ export function AnalysisResultDisplay({
             {confidencePercentage}%
           </span>
         </div>
-        
+
         {/* Progress bar */}
         <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
           <div

@@ -1,16 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 import ImportadorLayout from './components/ImportadorLayout'
 
 import { useAuth } from '../../auth/AuthContext'
 
-import { procesarDocumento, pollOcrJob, guardarPendiente, type DatosImportadosCreate } from './services'
-
 import { autoMapeoColumnas } from './services/autoMapeoColumnas'
 
-import { createBatch, ingestBatch, listMappings, type ImportMapping, uploadExcelViaChunks } from './services/importsApi'
+import { createBatch, ingestBatch, listMappings, type ImportMapping, uploadExcelViaChunks, processDocument, pollOcrJob } from './services/importsApi'
 import MappingSuggestModal from './components/MappingSuggestModal'
 
 import { getAliasSugeridos } from './utils/aliasCampos'
@@ -26,26 +25,6 @@ import { parseExcelFile } from './services/parseExcelFile'
 const MAX_PREVIEW_ROWS = 5
 
 const OCR_RECHECK_DELAY_MS = Number(import.meta.env.VITE_IMPORTS_JOB_RECHECK_INTERVAL ?? 4000)
-
-
-const statusConfig: Record<ItemStatus, { label: string; tone: string }> = {
-
-    pending: { label: 'Pending', tone: 'bg-neutral-100 text-neutral-700' },
-
-    processing: { label: 'Processing...', tone: 'bg-blue-50 text-blue-700' },
-
-    ready: { label: 'Ready to save', tone: 'bg-emerald-50 text-emerald-700' },
-
-    saving: { label: 'Saving...', tone: 'bg-blue-50 text-blue-700' },
-
-    saved: { label: 'Saved', tone: 'bg-emerald-100 text-emerald-800' },
-
-    duplicate: { label: 'Duplicate', tone: 'bg-amber-100 text-amber-800' },
-
-    error: { label: 'Error', tone: 'bg-rose-100 text-rose-800' },
-
-}
-
 
 
 type Row = Record<string, string>
@@ -141,6 +120,16 @@ function formatBytes(bytes: number) {
 
 
 function StatusBadge({ status }: { status: ItemStatus }) {
+    const { t } = useTranslation('importer')
+    const statusConfig: Record<ItemStatus, { label: string; tone: string }> = {
+        pending: { label: t('statuses.pending'), tone: 'bg-neutral-100 text-neutral-700' },
+        processing: { label: t('statuses.processing'), tone: 'bg-blue-50 text-blue-700' },
+        ready: { label: t('statuses.readyToSave'), tone: 'bg-emerald-50 text-emerald-700' },
+        saving: { label: t('statuses.saving'), tone: 'bg-blue-50 text-blue-700' },
+        saved: { label: t('statuses.saved'), tone: 'bg-emerald-100 text-emerald-800' },
+        duplicate: { label: t('statuses.duplicate'), tone: 'bg-amber-100 text-amber-800' },
+        error: { label: t('statuses.error'), tone: 'bg-rose-100 text-rose-800' },
+    }
 
     const { label, tone } = statusConfig[status]
 
@@ -151,6 +140,7 @@ function StatusBadge({ status }: { status: ItemStatus }) {
 
 
 function PreviewTable({ headers, rows }: { headers?: string[]; rows?: Row[] }) {
+    const { t } = useTranslation('importer')
 
     if (!headers || headers.length === 0 || !rows || rows.length === 0) return null
 
@@ -208,7 +198,7 @@ function PreviewTable({ headers, rows }: { headers?: string[]; rows?: Row[] }) {
 
                 <div className="border-t border-neutral-100 px-3 py-2 text-right text-[11px] text-neutral-500">
 
-                    Showing {preview.length} of {rows.length} processed rows
+                    {t('previewTable.showingRows', { shown: preview.length, total: rows.length })}
 
                 </div>
 
@@ -225,6 +215,7 @@ function PreviewTable({ headers, rows }: { headers?: string[]; rows?: Row[] }) {
 export default function ImportadorPage() {
 
     const { token } = useAuth() as { token: string | null }
+    const { t } = useTranslation('importer')
 
     const [queue, setQueue] = useState<QueueItem[]>([])
     const queueRef = useRef<QueueItem[]>([])
@@ -317,7 +308,7 @@ export default function ImportadorPage() {
 
                 if (!cancelled) {
 
-                    setMappingsError(err?.message || 'No se pudieron cargar las plantillas')
+                    setMappingsError(err?.message || t('errors.templatesLoadFailed'))
 
                 }
 
@@ -424,7 +415,7 @@ export default function ImportadorPage() {
                 await videoRef.current.play().catch(() => { })
             }
         } catch (err: any) {
-            setCameraError(err?.message || 'No se pudo acceder a la c�mara')
+            setCameraError(err?.message || t('camera.errors.accessDenied'))
             stopCamera()
         } finally {
             setCameraInitializing(false)
@@ -433,14 +424,14 @@ export default function ImportadorPage() {
 
     const capturePhoto = useCallback(async () => {
         if (!videoRef.current) {
-            setCameraError('La c�mara a�n no est� lista')
+            setCameraError(t('camera.errors.notReady'))
             return
         }
         const video = videoRef.current
         const width = video.videoWidth || 1280
         const height = video.videoHeight || 720
         if (!width || !height) {
-            setCameraError('La c�mara a�n no est� lista')
+            setCameraError(t('camera.errors.notReady'))
             return
         }
         setCameraInitializing(true)
@@ -449,15 +440,15 @@ export default function ImportadorPage() {
             canvas.width = width
             canvas.height = height
             const ctx = canvas.getContext('2d')
-            if (!ctx) throw new Error('No se pudo procesar la imagen')
+            if (!ctx) throw new Error(t('camera.errors.imageProcessFailed'))
             ctx.drawImage(video, 0, 0, width, height)
             const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92))
-            if (!blob) throw new Error('No se pudo capturar la foto')
+            if (!blob) throw new Error(t('camera.errors.captureFailed'))
             const file = new File([blob], `captura_${Date.now()}.jpeg`, { type: blob.type || 'image/jpeg' })
             enqueueFiles([file])
             closeCameraModal()
         } catch (err: any) {
-            setCameraError(err?.message || 'No se pudo capturar la foto')
+            setCameraError(err?.message || t('camera.errors.captureFailed'))
         } finally {
             setCameraInitializing(false)
         }
@@ -526,27 +517,27 @@ export default function ImportadorPage() {
                         })
                         if (matched) {
                             effectiveMappingId = matched.id
-                            updateQueue(item.id, { mappingId: matched.id, info: `Usando mapping: ${matched.name}` })
+                            updateQueue(item.id, { mappingId: matched.id, info: t('messages.usingTemplate', { name: matched.name }) })
                         }
                     }
                     // Si no hay mapping, continuar sin él (el backend hará auto-mapeo)
                     if (!effectiveMappingId) {
-                        updateQueue(item.id, { info: 'Procesando sin plantilla de mapeo' })
+                        updateQueue(item.id, { info: t('messages.processingWithoutTemplate') })
                     }
                     // For very large Excel files, use chunked upload + Celery processing
                     const thresholdMb = Number(import.meta.env.VITE_IMPORTS_CHUNK_THRESHOLD_MB ?? 8)
                     if (item.size > thresholdMb * 1024 * 1024) {
-                        updateQueue(item.id, { status: 'processing', error: null, info: 'Subiendo archivo por partes...' })
+                        updateQueue(item.id, { status: 'processing', error: null, info: t('messages.uploadingInChunks') })
                         const res = await uploadExcelViaChunks(item.file, {
                             sourceType: 'products',
                             mappingId: effectiveMappingId || undefined,
-                            onProgress: (pct) => updateQueue(item.id, { info: `Subiendo... ${pct}%` }),
+                            onProgress: (pct) => updateQueue(item.id, { info: t('messages.uploadingPercent', { pct }) }),
                         })
-                        updateQueue(item.id, { status: 'saved', info: 'Procesando en segundo plano...', batchId: res.batchId })
+                        updateQueue(item.id, { status: 'saved', info: t('messages.backgroundProcessing'), batchId: res.batchId })
                         navigate(`preview?batch_id=${res.batchId}`)
                         return
                     }
-                    const { headers, rows } = await parseExcelFile(item.file)
+                    const { headers, rows } = await parseExcelFile(item.file, token || undefined)
                     const docType = detectarTipoDocumento(headers)
                     updateQueue(item.id, { status: 'ready', headers, rows, docType, error: null, info: null, jobId: undefined })
                     // Guardar y navegar siempre a vista previa si hay batch_id, sin importar docType
@@ -562,13 +553,13 @@ export default function ImportadorPage() {
                 if (isDoc) {
                     const response = item.jobId
                         ? await pollOcrJob(item.jobId, token || undefined)
-                        : await procesarDocumento(item.file, token || undefined)
+                        : await processDocument(item.file, token || undefined)
 
                     if (response.status === 'pending') {
                         updateQueue(item.id, {
                             status: 'processing',
                             error: null,
-                            info: 'Estamos procesando tu documento. Esto puede tardar unos segundos.',
+                            info: t('messages.processingDocumentWait'),
                             jobId: response.jobId,
                         })
 
@@ -611,11 +602,11 @@ export default function ImportadorPage() {
                     return
                 }
 
-                throw new Error('Tipo de archivo no soportado')
+                throw new Error(t('errors.unsupportedFileType'))
             } catch (err: any) {
                 updateQueue(item.id, {
                     status: 'error',
-                    error: err?.message || 'Ocurri? un error al procesar el archivo',
+                    error: err?.message || t('errors.fileProcessFailed'),
                     info: null,
                     jobId: undefined,
                 })
@@ -649,6 +640,32 @@ export default function ImportadorPage() {
             if (!item.headers || !item.rows) return false
 
             updateQueue(item.id, { status: 'saving', error: null, info: null })
+            const nameLower = (item.name || '').toLowerCase()
+            const isExcel = nameLower.endsWith('.xlsx') || nameLower.endsWith('.xls')
+            const isXml = nameLower.endsWith('.xml')
+
+            if (isExcel || isXml) {
+                try {
+                    const res = await uploadExcelViaChunks(item.file, {
+                        sourceType: item.docType || 'products',
+                        mappingId: item.mappingId || (defaultMappingId || undefined),
+                        authToken: token || undefined,
+                        onProgress: (pct) => updateQueue(item.id, { info: t('messages.uploadingPercent', { pct }) }),
+                    })
+                    item.batchId = res.batchId
+                    updateQueue(item.id, {
+                        status: 'saved',
+                        info: t('messages.backgroundProcessing'),
+                        jobId: undefined,
+                        batchId: res.batchId,
+                    })
+                    return true
+                } catch (err: any) {
+                    const message = err?.message || t('errors.saveDocumentFailed')
+                    updateQueue(item.id, { status: 'error', error: message, info: null, jobId: undefined })
+                    return false
+                }
+            }
 
             const sugeridos = autoMapeoColumnas(item.headers, getAliasSugeridos())
 
@@ -658,7 +675,7 @@ export default function ImportadorPage() {
                 const { normalizarProductos } = await import('./utils/normalizarProductosSections')
                 docs = normalizarProductos(item.rows)
             } else {
-                docs = normalizarDocumento(item.rows, sugeridos as any)
+                docs = normalizarDocumento(item.rows, sugeridos as any, item.docType || 'expenses')
             }
 
             const metadata = {
@@ -687,9 +704,9 @@ export default function ImportadorPage() {
 
                     metadata,
 
-                })
+                }, token || undefined)
 
-                await ingestBatch(batch.id, { rows: docs })
+                await ingestBatch(batch.id, { rows: docs }, token || undefined)
 
                 // Propagar el batchId al item local para que saveAll pueda detectarlo
                 // y habilitar la navegación hacia la vista de preview.
@@ -699,51 +716,15 @@ export default function ImportadorPage() {
 
                 return true
 
-            } catch (primaryError: any) {
-
-                console.warn('Fallo al crear/ingestar lote, intentando fallback a pendientes', primaryError)
-
-                try {
-
-                    for (const doc of docs) {
-
-                        const payload: DatosImportadosCreate = {
-
-                            tipo: 'documento',
-
-                            origen: 'excel',
-
-                            datos: { ...doc, documentoTipo: item.docType || 'generico' },
-
-                        }
-
-                        // eslint-disable-next-line no-await-in-loop
-
-                        await guardarPendiente(payload)
-
-                    }
-
-                    updateQueue(item.id, { status: 'saved', info: null, jobId: undefined })
-
-                    return true
-
-                } catch (fallbackError: any) {
-
-                    const message =
-
-                        fallbackError?.message || primaryError?.message || 'Error al guardar el documento'
-
-                    updateQueue(item.id, { status: 'error', error: message, info: null, jobId: undefined })
-
-                    return false
-
-                }
-
+            } catch (err: any) {
+                const message = err?.message || t('errors.saveDocumentFailed')
+                updateQueue(item.id, { status: 'error', error: message, info: null, jobId: undefined })
+                return false
             }
 
         },
 
-        [token, updateQueue],
+        [token, updateQueue, defaultMappingId],
 
     )
 
@@ -788,7 +769,7 @@ export default function ImportadorPage() {
 
         if (errorCounter) {
 
-            setGlobalError('Algunos archivos no se pudieron guardar. Revisa la cola para mas detalles.')
+            setGlobalError(t('errors.someFilesCouldNotBeSaved'))
 
         }
 
@@ -817,9 +798,9 @@ export default function ImportadorPage() {
         <>
             <ImportadorLayout
 
-                title="Importar archivos"
+                title={t('page.title')}
 
-                description="Upload receipts, CSV or Excel files, and PDF documents. Review the preview and save records when ready."
+                description={t('page.description')}
 
                 actions={
 
@@ -839,7 +820,7 @@ export default function ImportadorPage() {
 
                             >
 
-                                Procesar pendientes
+                                {t('actions.processPending')}
 
                             </button>
 
@@ -855,7 +836,7 @@ export default function ImportadorPage() {
 
                             >
 
-                                {savingAll ? 'Enviando...' : 'Enviar todo a vista previa'}
+                                {savingAll ? t('actions.sending') : t('actions.sendAllToPreview')}
 
                             </button>
 
@@ -871,13 +852,13 @@ export default function ImportadorPage() {
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
                         <div className="w-full max-w-sm rounded-lg bg-white p-4 shadow-xl">
                             <div className="flex items-center justify-between">
-                                <h3 className="text-sm font-semibold text-neutral-900">Capturar foto</h3>
+                                <h3 className="text-sm font-semibold text-neutral-900">{t('camera.title')}</h3>
                                 <button
                                     type="button"
                                     className="text-xs text-neutral-500 hover:text-neutral-700"
                                     onClick={closeCameraModal}
                                 >
-                                    Cerrar
+                                    {t('common.close')}
                                 </button>
                             </div>
                             <div className="mt-3 aspect-[3/4] w-full overflow-hidden rounded-md bg-neutral-900">
@@ -890,13 +871,13 @@ export default function ImportadorPage() {
                                 />
                                 {(cameraInitializing || cameraError) && (
                                     <div className="flex h-full items-center justify-center px-3 text-center text-xs text-white">
-                                        {cameraError || 'Iniciando c�mara...'}
+                                        {cameraError || t('camera.starting')}
                                     </div>
                                 )}
                             </div>
                             <div className="mt-3 flex flex-col gap-1 text-xs text-neutral-500">
-                                <span>Alinea el documento antes de capturar.</span>
-                                <span>Si tienes problemas, usa la opci�n de subir archivo.</span>
+                                <span>{t('camera.alignDocument')}</span>
+                                <span>{t('camera.useUploadIfIssue')}</span>
                             </div>
                             <div className="mt-4 flex flex-wrap justify-between gap-2">
                                 <button
@@ -904,7 +885,7 @@ export default function ImportadorPage() {
                                     className="rounded-md border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-600 hover:bg-neutral-100"
                                     onClick={closeCameraModal}
                                 >
-                                    Cancelar
+                                    {t('common.cancel')}
                                 </button>
                                 <div className="flex gap-2">
                                     <button
@@ -912,7 +893,7 @@ export default function ImportadorPage() {
                                         className="rounded-md border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-600 hover:bg-neutral-100"
                                         onClick={() => { closeCameraModal(); cameraInputRef.current?.click() }}
                                     >
-                                        Subir archivo
+                                        {t('actions.uploadFile')}
                                     </button>
                                     <button
                                         type="button"
@@ -920,7 +901,7 @@ export default function ImportadorPage() {
                                         onClick={capturePhoto}
                                         disabled={cameraInitializing}
                                     >
-                                        {cameraInitializing ? 'Procesando...' : 'Capturar'}
+                                        {cameraInitializing ? t('statuses.processing') : t('camera.capture')}
                                     </button>
                                 </div>
                             </div>
@@ -935,17 +916,17 @@ export default function ImportadorPage() {
 
                             <div className="space-y-3">
 
-                                <h2 className="text-lg font-semibold text-neutral-900">Anade archivos</h2>
+                                <h2 className="text-lg font-semibold text-neutral-900">{t('upload.title')}</h2>
 
                                 <p className="text-sm text-neutral-600">
 
-                                    Aceptamos CSV, Excel, PDF o imagenes (JPG/PNG). Puedes arrastrarlos aqui o seleccionarlos manualmente.
+                                    {t('upload.description')}
 
                                 </p>
 
                                 <div className="space-y-1">
 
-                                    <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500">Plantilla de mapeo</label>
+                                    <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500">{t('upload.mappingTemplate')}</label>
 
                                     {mappingsError ? (
 
@@ -953,7 +934,7 @@ export default function ImportadorPage() {
 
                                     ) : loadingMappings ? (
 
-                                        <div className="text-xs text-neutral-500">Loading templates...</div>
+                                        <div className="text-xs text-neutral-500">{t('upload.loadingTemplates')}</div>
 
                                     ) : mappings.length ? (
 
@@ -967,7 +948,7 @@ export default function ImportadorPage() {
 
                                         >
 
-                                            <option value="">Sin plantilla</option>
+                                            <option value="">{t('upload.noTemplate')}</option>
 
                                             {mappings.map((mapping) => (
 
@@ -983,7 +964,7 @@ export default function ImportadorPage() {
 
                                     ) : (
 
-                                        <div className="text-xs text-neutral-400">No hay plantillas configuradas.</div>
+                                        <div className="text-xs text-neutral-400">{t('upload.noTemplatesConfigured')}</div>
 
                                     )}
 
@@ -993,9 +974,9 @@ export default function ImportadorPage() {
 
                                     <label className="group flex flex-1 cursor-pointer flex-col items-center justify-center rounded-md border border-neutral-200 bg-neutral-50 px-4 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50">
 
-                                        <span className="text-sm font-medium text-blue-700 group-hover:text-blue-600">Seleccionar archivos</span>
+                                        <span className="text-sm font-medium text-blue-700 group-hover:text-blue-600">{t('upload.selectFiles')}</span>
 
-                                        <span className="mt-1 text-xs text-neutral-500">Max. 10 archivos por lote</span>
+                                        <span className="mt-1 text-xs text-neutral-500">{t('upload.maxFilesPerBatch')}</span>
 
                                         <input
 
@@ -1023,11 +1004,11 @@ export default function ImportadorPage() {
 
                                         disabled={cameraModalOpen || cameraInitializing}
 
-                                        title={cameraAvailable ? 'Abrir camara' : 'El dispositivo no expone camara, se abrira el selector de archivos'}
+                                        title={cameraAvailable ? t('camera.openCamera') : t('camera.deviceWithoutCamera')}
 
                                     >
 
-                                        {cameraAvailable ? 'Abrir camara' : 'Subir foto'}
+                                        {cameraAvailable ? t('camera.openCamera') : t('actions.uploadPhoto')}
 
                                     </button>
 
@@ -1053,11 +1034,11 @@ export default function ImportadorPage() {
 
                             <ul className="space-y-2 text-xs text-neutral-500">
 
-                                <li>Detectamos tipo de documento automaticamente.</li>
+                                <li>{t('upload.tipAutoDetectDocType')}</li>
 
-                                <li>Aplica plantillas de mapeo al crear cada lote.</li>
+                                <li>{t('upload.tipApplyTemplatePerBatch')}</li>
 
-                                <li>Cada archivo genera un bloque de filas que puedes revisar antes de guardar.</li>
+                                <li>{t('upload.tipReviewRowsBeforeSave')}</li>
 
                             </ul>
 
@@ -1069,9 +1050,9 @@ export default function ImportadorPage() {
 
                         <div className="flex items-center justify-between">
 
-                            <h3 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">Cola de documentos</h3>
+                            <h3 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">{t('queue.title')}</h3>
 
-                            <span className="text-xs text-neutral-500">{total} archivo{total === 1 ? '' : 's'}</span>
+                            <span className="text-xs text-neutral-500">{t('queue.filesCount', { count: total })}</span>
 
                         </div>
 
@@ -1093,7 +1074,7 @@ export default function ImportadorPage() {
 
                             <div className="rounded-lg border border-neutral-200 bg-white p-6 text-sm text-neutral-600 shadow-sm">
 
-                                Todavia no hay archivos en la cola. Sube uno para comenzar.
+                                {t('queue.empty')}
 
                             </div>
 
@@ -1129,19 +1110,19 @@ export default function ImportadorPage() {
 
                                                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
 
-                                                    <span>{item.type || 'Archivo'}</span>
+                                                    <span>{item.type || t('queue.fileFallbackType')}</span>
 
                                                     <span>{formatBytes(item.size)}</span>
 
-                                                    {item.rows && <span>{item.rows.length} filas detectadas</span>}
+                                                    {item.rows && <span>{t('queue.rowsDetected', { count: item.rows.length })}</span>}
 
-                                                    {item.docType && <span>Tipo: {item.docType}</span>}
+                                                    {item.docType && <span>{t('queue.typeLabel', { type: item.docType })}</span>}
 
                                                 </div>
 
                                                 <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
 
-                                                    <span>Plantilla:</span>
+                                                    <span>{t('queue.templateLabel')}</span>
 
                                                     {mappings.length ? (
 
@@ -1159,7 +1140,7 @@ export default function ImportadorPage() {
 
                                                         >
 
-                                                            <option value="">Sin plantilla</option>
+                                                            <option value="">{t('upload.noTemplate')}</option>
 
                                                             {mappings.map((mappingOption) => (
 
@@ -1175,7 +1156,7 @@ export default function ImportadorPage() {
 
                                                     ) : (
 
-                                                        <span className="text-neutral-400">No disponible</span>
+                                                        <span className="text-neutral-400">{t('common.notAvailable')}</span>
 
                                                     )}
 
@@ -1190,7 +1171,7 @@ export default function ImportadorPage() {
                                                 {(item.status === 'processing' || item.status === 'saving') && (
                                                     <div className="flex items-center gap-2 text-xs text-blue-600">
                                                         <span className="h-2 w-2 animate-ping rounded-full bg-blue-500" />
-                                                        <span>{item.status === 'processing' ? 'Analyzing document...' : 'Saving data...'}</span>
+                                                        <span>{item.status === 'processing' ? t('queue.analyzingDocument') : t('queue.savingData')}</span>
                                                     </div>
                                                 )}
 
@@ -1210,7 +1191,7 @@ export default function ImportadorPage() {
 
                                                     >
 
-                                                        Process
+                                                        {t('actions.process')}
 
                                                     </button>
 
@@ -1234,7 +1215,7 @@ export default function ImportadorPage() {
                                                         }}
                                                         disabled={item.status === 'saving'}
                                                     >
-                                                        {item.status === 'saving' ? 'Sending...' : 'Send to preview'}
+                                                        {item.status === 'saving' ? t('actions.sending') : t('actions.sendToPreview')}
                                                     </button>
                                                 )}
 
@@ -1250,7 +1231,7 @@ export default function ImportadorPage() {
 
                                                     >
 
-                                                        Reprocess
+                                                        {t('actions.reprocess')}
 
                                                     </button>
 
@@ -1268,7 +1249,7 @@ export default function ImportadorPage() {
 
                                                     >
 
-                                                        {isExpanded ? 'Hide preview' : 'Show preview'}
+                                                        {isExpanded ? t('actions.hidePreview') : t('actions.showPreview')}
 
                                                     </button>
 
@@ -1330,21 +1311,21 @@ export default function ImportadorPage() {
 
                     <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
 
-                        Saved {savedSummary.saved} file{savedSummary.saved === 1 ? '' : 's'} to staging
+                        {t('summary.savedToStaging', { count: savedSummary.saved })}
 
-                        {savedSummary.errors ? `, ${savedSummary.errors} with error.` : '.'}
+                        {savedSummary.errors ? ` ${t('summary.withErrors', { count: savedSummary.errors })}` : '.'}
 
                         <div className="mt-2">
 
                             <Link
 
-                                to={`${empresa ? `/${empresa}` : ''}/mod/imports/pendientes`}
+                                to={`${empresa ? `/${empresa}` : ''}/mod/imports/batches`}
 
                                 className="text-sm font-medium text-emerald-900 underline"
 
                             >
 
-                                Go to pending
+                                {t('actions.goToPending')}
 
                             </Link>
 
@@ -1365,7 +1346,7 @@ export default function ImportadorPage() {
                     setMappings((prev) => [saved, ...prev])
                     setDefaultMappingId(saved.id)
                     if (mappingTargetId) {
-                        updateQueue(mappingTargetId, { mappingId: saved.id, info: `Mapping guardado: ${saved.name}` })
+                        updateQueue(mappingTargetId, { mappingId: saved.id, info: t('messages.mappingSaved', { name: saved.name }) })
                         const target = queueRef.current.find((q) => q.id === mappingTargetId)
                         setMappingModalOpen(false)
                         setMappingTargetId(null)
@@ -1384,7 +1365,7 @@ export default function ImportadorPage() {
                     <div className="flex items-start gap-3">
                         <div className="mt-1 h-2 w-2 rounded-full bg-emerald-500" />
                         <div className="flex-1">
-                            <div className="text-sm font-medium text-slate-900">File saved</div>
+                            <div className="text-sm font-medium text-slate-900">{t('toast.fileSaved')}</div>
                             {recentSaved.name && (
                                 <div className="mt-0.5 truncate text-xs text-slate-600">{recentSaved.name}</div>
                             )}
@@ -1393,7 +1374,7 @@ export default function ImportadorPage() {
                                     className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
                                     onClick={() => navigate(`preview?batch_id=${recentSaved.batchId}`)}
                                 >
-                                    View preview
+                                    {t('actions.viewPreview')}
                                 </button>
                                 <a
                                     className="rounded-md border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
@@ -1401,13 +1382,13 @@ export default function ImportadorPage() {
                                     target="_blank"
                                     rel="noopener noreferrer"
                                 >
-                                    Open in new tab
+                                    {t('actions.openInNewTab')}
                                 </a>
                                 <button
                                     className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
                                     onClick={() => setRecentSaved(null)}
                                 >
-                                    Close
+                                    {t('common.close')}
                                 </button>
                             </div>
                         </div>

@@ -4,7 +4,7 @@ import hashlib
 import hmac
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ class WebhookSignature:
     """Utilities for webhook signature generation and verification"""
 
     @staticmethod
-    def sign(secret: str, payload: Dict[str, Any]) -> str:
+    def sign(secret: str, payload: dict[str, Any]) -> str:
         """
         Generate HMAC-SHA256 signature for webhook payload.
 
@@ -28,9 +28,7 @@ class WebhookSignature:
             raise ValueError("Secret cannot be empty")
 
         # Serialize payload deterministically
-        body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode(
-            "utf-8"
-        )
+        body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
         # Generate HMAC-SHA256
         signature = hmac.new(
@@ -42,7 +40,7 @@ class WebhookSignature:
         return f"sha256={signature}"
 
     @staticmethod
-    def verify(secret: str, payload: Dict[str, Any], signature: str) -> bool:
+    def verify(secret: str, payload: dict[str, Any], signature: str) -> bool:
         """
         Verify webhook signature.
 
@@ -69,9 +67,7 @@ class WebhookSignature:
             return False
 
     @staticmethod
-    def verify_raw(
-        secret: str, body_raw: bytes, signature: str
-    ) -> bool:
+    def verify_raw(secret: str, body_raw: bytes, signature: str) -> bool:
         """
         Verify webhook signature using raw request body.
 
@@ -114,7 +110,7 @@ class WebhookValidator:
     """Webhook input validation utilities"""
 
     @staticmethod
-    def validate_url(url: str) -> tuple[bool, Optional[str]]:
+    def validate_url(url: str) -> tuple[bool, str | None]:
         """
         Validate webhook URL.
 
@@ -142,7 +138,7 @@ class WebhookValidator:
         return True, None
 
     @staticmethod
-    def validate_event(event: str) -> tuple[bool, Optional[str]]:
+    def validate_event(event: str) -> tuple[bool, str | None]:
         """
         Validate event name.
 
@@ -170,7 +166,7 @@ class WebhookValidator:
         return True, None
 
     @staticmethod
-    def validate_secret(secret: Optional[str]) -> tuple[bool, Optional[str]]:
+    def validate_secret(secret: str | None) -> tuple[bool, str | None]:
         """
         Validate webhook secret.
 
@@ -194,7 +190,7 @@ class WebhookValidator:
         return True, None
 
     @staticmethod
-    def validate_payload(payload: Any) -> tuple[bool, Optional[str]]:
+    def validate_payload(payload: Any) -> tuple[bool, str | None]:
         """
         Validate webhook payload.
 
@@ -225,9 +221,9 @@ class WebhookFormatter:
         event: str,
         resource_type: str,
         resource_id: str,
-        data: Dict[str, Any],
+        data: dict[str, Any],
         tenant_id: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Format a standard webhook payload.
 
@@ -257,7 +253,7 @@ class WebhookFormatter:
         }
 
     @staticmethod
-    def mask_secret(secret: Optional[str]) -> Optional[str]:
+    def mask_secret(secret: str | None) -> str | None:
         """
         Mask a secret for logging/display.
 
@@ -317,7 +313,7 @@ class WebhookRetry:
         return True
 
     @staticmethod
-    def get_retry_strategy(max_attempts: int = 3) -> Dict[int, int]:
+    def get_retry_strategy(max_attempts: int = 3) -> dict[int, int]:
         """
         Get retry strategy with delays.
 
@@ -328,8 +324,7 @@ class WebhookRetry:
             Dictionary mapping attempt number to delay in seconds
         """
         return {
-            attempt: WebhookRetry.get_retry_delay(attempt)
-            for attempt in range(1, max_attempts + 1)
+            attempt: WebhookRetry.get_retry_delay(attempt) for attempt in range(1, max_attempts + 1)
         }
 
 

@@ -238,7 +238,11 @@ def send_telegram(config: dict[str, Any], chat_id: str, message: str) -> dict[st
     if not bot_token:
         raise ValueError("bot_token no configurado")
 
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    telegram_api_base = config.get("api_base") or os.getenv(
+        "TELEGRAM_API_BASE", "https://api.telegram.org"
+    )
+    telegram_api_base = str(telegram_api_base).rstrip("/")
+    url = f"{telegram_api_base}/bot{bot_token}/sendMessage"
 
     response = requests.post(
         url,

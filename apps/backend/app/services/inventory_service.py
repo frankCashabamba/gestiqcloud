@@ -144,7 +144,7 @@ class InventoryCostingService:
             # TODO: Query stock_items + calculate
             return Decimal("0")
 
-        except Exception as e:
+        except Exception:
             logger.exception("Error calculating weighted average")
             raise
 
@@ -172,7 +172,7 @@ class InventoryCostingService:
             # TODO: Query stock layers, calculate FIFO cost
             return Decimal("0")
 
-        except Exception as e:
+        except Exception:
             logger.exception("Error calculating FIFO cost")
             raise
 
@@ -200,7 +200,7 @@ class InventoryCostingService:
             # TODO: Query stock layers, calculate LIFO cost
             return Decimal("0")
 
-        except Exception as e:
+        except Exception:
             logger.exception("Error calculating LIFO cost")
             raise
 
@@ -224,7 +224,7 @@ class InventoryCostingService:
             # TODO: Sum all stock items with proper costing
             return Decimal("0")
 
-        except Exception as e:
+        except Exception:
             logger.exception("Error calculating inventory value")
             raise
 
@@ -259,6 +259,6 @@ class InventoryCostingService:
             logger.info(f"Stock move created: {move_type} {qty} units product {product_id}")
             return UUID(int=0)
 
-        except Exception as e:
+        except Exception:
             logger.exception("Error creating stock move")
             raise

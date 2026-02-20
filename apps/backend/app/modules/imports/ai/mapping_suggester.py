@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.config.settings import settings
+from app.modules.imports.domain.mapping_feedback import mapping_learner
 
 logger = logging.getLogger("imports.ai.mapping")
 
@@ -284,9 +285,50 @@ class MappingSuggester:
         if not suggestion or suggestion.confidence < 0.5:
             suggestion = self._suggest_with_heuristics(headers, doc_type)
 
-        self._set_in_cache(cache_key, suggestion)
+        learned_suggestion = self._apply_learned_mappings(
+            suggestion=suggestion,
+            headers=headers,
+            doc_type=doc_type,
+            tenant_id=tenant_id,
+        )
 
-        return suggestion
+        self._set_in_cache(cache_key, learned_suggestion)
+
+        return learned_suggestion
+
+    def _apply_learned_mappings(
+        self,
+        suggestion: MappingSuggestion,
+        headers: list[str],
+        doc_type: str,
+        tenant_id: str | None,
+    ) -> MappingSuggestion:
+        """Overlay mapping learner output on top of heuristic/AI output."""
+        if not tenant_id or not headers:
+            return suggestion
+        try:
+            enhanced = mapping_learner.get_suggested_mapping(
+                tenant_id=tenant_id,
+                doc_type=doc_type,
+                headers=headers,
+                baseline_mapping=suggestion.mappings,
+            )
+            if enhanced == suggestion.mappings:
+                return suggestion
+            changed = sum(1 for h in headers if suggestion.mappings.get(h) != enhanced.get(h))
+            reasoning_suffix = f" + learner adjusted {changed} column(s)"
+            return MappingSuggestion(
+                mappings=enhanced,
+                transforms=suggestion.transforms,
+                defaults=suggestion.defaults,
+                confidence=min(suggestion.confidence + 0.1, 1.0),
+                reasoning=f"{suggestion.reasoning}{reasoning_suffix}",
+                from_cache=suggestion.from_cache,
+                provider=f"{suggestion.provider}+learner",
+            )
+        except Exception as e:
+            logger.warning(f"Failed to apply learned mappings: {e}")
+            return suggestion
 
     def _get_from_cache(self, key: str) -> MappingSuggestion | None:
         """Retrieve from cache (Redis or in-memory)."""
@@ -328,7 +370,8 @@ class MappingSuggester:
         doc_type: str,
     ) -> MappingSuggestion:
         """Usa IA para sugerir mapping."""
-        from app.modules.imports.ai import get_ai_provider_singleton
+        from app.services.ai.base import AITask
+        from app.services.ai.service import AIService
 
         target_fields = self.TARGET_FIELDS.get(doc_type, self.TARGET_FIELDS["products"])
 
@@ -351,40 +394,43 @@ Respond with JSON only (no markdown):
 Transform types: uppercase, lowercase, trim, parse_date, parse_number, none
 Only include transforms and defaults if needed."""
 
-        provider = await get_ai_provider_singleton()
+        provider_name = settings.IMPORT_AI_PROVIDER.lower()
+        preferred_provider = (
+            provider_name if provider_name in ("ollama", "openai", "ovhcloud") else None
+        )
 
         try:
-            if hasattr(provider, "openai"):
-                response = provider.openai.ChatCompletion.create(
-                    model=getattr(provider, "model", "gpt-3.5-turbo"),
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are a data mapping expert. Respond with valid JSON only.",
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    temperature=0.1,
-                    max_tokens=800,
-                )
+            response = await AIService.query(
+                task=AITask.GENERATION,
+                prompt=prompt,
+                temperature=0.1,
+                max_tokens=800,
+                provider=preferred_provider,
+                enable_recovery=True,
+            )
+            if response.is_error:
+                raise RuntimeError(response.error or "ai_mapping_failed")
 
-                response_text = response["choices"][0]["message"]["content"].strip()
-                data = self._parse_json_response(response_text)
+            data = self._parse_json_response(response.content)
+            mappings = data.get("mappings", {})
+            valid_mappings = {
+                k: v for k, v in mappings.items() if k in headers and v in target_fields
+            }
 
-                mappings = data.get("mappings", {})
-                valid_mappings = {
-                    k: v for k, v in mappings.items() if k in headers and v in target_fields
-                }
+            used_provider = (
+                str((response.metadata or {}).get("provider"))
+                if isinstance(response.metadata, dict)
+                else None
+            )
 
-                return MappingSuggestion(
-                    mappings=valid_mappings,
-                    transforms=data.get("transforms"),
-                    defaults=data.get("defaults"),
-                    confidence=len(valid_mappings) / max(len(headers), 1),
-                    reasoning=data.get("reasoning", "AI-suggested mapping"),
-                    provider=settings.IMPORT_AI_PROVIDER,
-                )
-
+            return MappingSuggestion(
+                mappings=valid_mappings,
+                transforms=data.get("transforms"),
+                defaults=data.get("defaults"),
+                confidence=len(valid_mappings) / max(len(headers), 1),
+                reasoning=data.get("reasoning", "AI-suggested mapping"),
+                provider=used_provider or provider_name,
+            )
         except Exception as e:
             logger.error(f"AI mapping error: {e}")
             raise

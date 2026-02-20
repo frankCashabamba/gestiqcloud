@@ -1066,12 +1066,12 @@ class RecipeHandler:
         options: dict[str, Any] | None = None,
     ) -> PromoteResult:
         """Promote recipe data - this is a placeholder that just returns skipped.
-        
+
         Actual recipe promotion is handled by _persist_recipes in task_import_file.py
         """
         if promoted_id:
             return PromoteResult(domain_id=promoted_id, skipped=True)
-        
+
         # For now, recipes are handled separately via _persist_recipes
         # This handler is mainly to satisfy the routing logic
         return PromoteResult(domain_id=None, skipped=True)

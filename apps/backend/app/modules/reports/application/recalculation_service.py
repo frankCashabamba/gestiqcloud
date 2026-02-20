@@ -1,4 +1,5 @@
 """Recalculation Engine — Profit snapshots"""
+
 import logging
 from datetime import date
 from decimal import Decimal
@@ -22,19 +23,19 @@ class RecalculationService:
         self.db = db
 
     def recalculate_daily(
-        self, tenant_id: UUID, target_date: date, location_id: UUID | None = None,
+        self,
+        tenant_id: UUID,
+        target_date: date,
+        location_id: UUID | None = None,
     ) -> ProfitSnapshotDaily:
         """Recalculate profit snapshot for a given day."""
         # 1. Calculate total sales for the day
-        sales_query = (
-            self.db.query(
-                func.count(SalesOrder.id).label("order_count"),
-                func.coalesce(func.sum(SalesOrder.total), 0).label("total_sales"),
-            )
-            .filter(
-                SalesOrder.tenant_id == tenant_id,
-                SalesOrder.order_date == target_date,
-            )
+        sales_query = self.db.query(
+            func.count(SalesOrder.id).label("order_count"),
+            func.coalesce(func.sum(SalesOrder.total), 0).label("total_sales"),
+        ).filter(
+            SalesOrder.tenant_id == tenant_id,
+            SalesOrder.order_date == target_date,
         )
         sales_result = sales_query.first()
         order_count = sales_result[0] or 0
@@ -86,19 +87,22 @@ class RecalculationService:
             gross = revenue - cogs
             margin = (gross / revenue * 100) if revenue > 0 else Decimal("0")
 
-            product_snapshots.append({
-                "product_id": product_id,
-                "revenue": revenue,
-                "cogs": cogs,
-                "gross_profit": gross,
-                "margin_pct": margin,
-                "sold_qty": sold_qty,
-            })
+            product_snapshots.append(
+                {
+                    "product_id": product_id,
+                    "revenue": revenue,
+                    "cogs": cogs,
+                    "gross_profit": gross,
+                    "margin_pct": margin,
+                    "sold_qty": sold_qty,
+                }
+            )
 
         # 3. Calculate expenses for the day
         total_expenses = Decimal("0")
         try:
             from app.models.expenses.expense import Expense
+
             exp_result = (
                 self.db.query(func.coalesce(func.sum(Expense.amount), 0))
                 .filter(
@@ -181,11 +185,15 @@ class RecalculationService:
         return snapshot
 
     def recalculate_range(
-        self, tenant_id: UUID, date_from: date, date_to: date,
+        self,
+        tenant_id: UUID,
+        date_from: date,
+        date_to: date,
         location_id: UUID | None = None,
     ) -> list[ProfitSnapshotDaily]:
         """Recalculate snapshots for a date range."""
         from datetime import timedelta
+
         results = []
         current = date_from
         while current <= date_to:
@@ -203,7 +211,7 @@ class RecalculationService:
             .filter(
                 Recipe.tenant_id == tenant_id,
                 Recipe.product_id == product_id,
-                Recipe.is_active == True,
+                Recipe.is_active.is_(True),
             )
             .first()
         )

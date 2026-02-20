@@ -6,12 +6,11 @@ Limpia deuda técnica y valida que todo esté listo para desarrollo
 Uso: python cleanup_and_validate.py
 """
 
-import os
-import sys
-import subprocess
 import shutil
-from pathlib import Path
+import subprocess
+import sys
 from datetime import datetime
+from pathlib import Path
 
 # Colores
 GREEN = "\033[92m"
@@ -20,27 +19,33 @@ YELLOW = "\033[93m"
 BLUE = "\033[94m"
 END = "\033[0m"
 
+
 def log_section(title):
     """Log sección"""
     print(f"\n{BLUE}{'='*70}{END}")
     print(f"{BLUE}{title}{END}")
     print(f"{BLUE}{'='*70}{END}\n")
 
+
 def log_ok(msg):
     """Log OK"""
     print(f"{GREEN}✓{END} {msg}")
+
 
 def log_warning(msg):
     """Log warning"""
     print(f"{YELLOW}⚠{END} {msg}")
 
+
 def log_error(msg):
     """Log error"""
     print(f"{RED}✗{END} {msg}")
 
+
 def log_info(msg):
     """Log info"""
     print(f"{BLUE}ℹ{END} {msg}")
+
 
 class Cleanup:
     def __init__(self):
@@ -52,14 +57,14 @@ class Cleanup:
     def run_all(self):
         """Ejecutar todas las limpiezas"""
         log_section("SPRINT 0: CLEANUP Y VALIDACIÓN")
-        
+
         self.cleanup_debt()
         self.cleanup_dev_files()
         self.cleanup_cache()
         self.cleanup_docs()
         self.validate_structure()
         self.create_summary()
-        
+
         print(f"\n{BLUE}{'='*70}{END}")
         if self.errors:
             log_error(f"Completado con {len(self.errors)} errores")
@@ -72,13 +77,13 @@ class Cleanup:
     def cleanup_debt(self):
         """Ejecutar cleanup scripts"""
         log_section("1. LIMPIAR DEUDA TÉCNICA")
-        
+
         debt_scripts = [
             "cleanup_stuck_imports.py",
             "fix_duplicate_modules.py",
-            "fix_pos_translations.py"
+            "fix_pos_translations.py",
         ]
-        
+
         for script in debt_scripts:
             path = self.repo_root / script
             if path.exists():
@@ -88,7 +93,7 @@ class Cleanup:
                         [sys.executable, str(path)],
                         capture_output=True,
                         text=True,
-                        timeout=30
+                        timeout=30,
                     )
                     if result.returncode == 0:
                         log_ok(f"{script} ejecutado")
@@ -105,7 +110,7 @@ class Cleanup:
     def cleanup_dev_files(self):
         """Eliminar archivos internos de dev"""
         log_section("2. ELIMINAR ARCHIVOS INTERNOS DE DEV")
-        
+
         dev_files = [
             "find_byte.py",
             "find_spanish_identifiers.py",
@@ -114,7 +119,7 @@ class Cleanup:
             "normalize_models.py",
             "test.db",
         ]
-        
+
         for filename in dev_files:
             path = self.repo_root / filename
             if path.exists():
@@ -134,7 +139,7 @@ class Cleanup:
     def cleanup_cache(self):
         """Limpiar caché"""
         log_section("3. LIMPIAR CACHÉ")
-        
+
         cache_dirs = [
             ".mypy_cache",
             ".pytest_cache",
@@ -142,7 +147,7 @@ class Cleanup:
             "htmlcov",
             ".coverage",
         ]
-        
+
         for dirname in cache_dirs:
             for root in [self.repo_root, self.backend]:
                 path = root / dirname
@@ -160,7 +165,7 @@ class Cleanup:
     def cleanup_docs(self):
         """Organizar documentación legacy"""
         log_section("4. ORGANIZAR DOCUMENTACIÓN LEGACY")
-        
+
         legacy_docs = [
             "ARCHIVOS_CREADOS_FINAL.txt",
             "LISTO_100_PORCIENTO.txt",
@@ -168,10 +173,10 @@ class Cleanup:
             "ENTREGA_FINAL.txt",
             "ENTREGA_FINAL_RETAIL_DASHBOARD.txt",
         ]
-        
+
         docs_dir = self.repo_root / "docs"
         docs_dir.mkdir(exist_ok=True)
-        
+
         for doc in legacy_docs:
             path = self.repo_root / doc
             if path.exists():
@@ -189,7 +194,7 @@ class Cleanup:
     def validate_structure(self):
         """Validar estructura del repo"""
         log_section("5. VALIDAR ESTRUCTURA")
-        
+
         # Validar carpetas clave
         required_dirs = [
             "apps/backend",
@@ -199,7 +204,7 @@ class Cleanup:
             "ops",
             "docs",
         ]
-        
+
         for dirname in required_dirs:
             path = self.repo_root / dirname
             if path.exists():
@@ -215,7 +220,7 @@ class Cleanup:
             "apps/tenant/package.json",
             "apps/backend/pyproject.toml",
         ]
-        
+
         for filename in required_files:
             path = self.repo_root / filename
             if path.exists():
@@ -227,7 +232,7 @@ class Cleanup:
     def create_summary(self):
         """Crear resumen"""
         log_section("6. CREAR RESUMEN")
-        
+
         summary = f"""# SPRINT 0: CLEANUP SUMMARY
 
 **Fecha:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
@@ -236,16 +241,16 @@ class Cleanup:
 
 {len(self.changes)} cambios:
 """
-        
+
         for change in self.changes:
             summary += f"- {change}\n"
-        
+
         if self.errors:
             summary += f"\n## ⚠️ Errores/Warnings\n\n{len(self.errors)} items:\n"
             for error in self.errors:
                 summary += f"- {error}\n"
-        
-        summary += f"""
+
+        summary += """
 ## 🎯 Próximos Pasos
 
 1. Revisar cambios: `git status`
@@ -272,10 +277,10 @@ pytest --tb=short -q
 
 Si todos los tests pasan: ✓ LISTO PARA SPRINT 1
 """
-        
+
         summary_path = self.repo_root / "SPRINT_0_CLEANUP_SUMMARY.md"
         summary_path.write_text(summary)
-        log_ok(f"Resumen guardado en SPRINT_0_CLEANUP_SUMMARY.md")
+        log_ok("Resumen guardado en SPRINT_0_CLEANUP_SUMMARY.md")
 
 
 def main():

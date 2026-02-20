@@ -3,8 +3,9 @@
  */
 
 import { apiFetch } from '../../../lib/http';
+import { IMPORTS } from '@endpoints/imports'
 
-const API_BASE = '/api/v1/imports/preview';
+const API_BASE = IMPORTS.public.preview;
 
 export interface PreviewResponse {
   success: boolean;

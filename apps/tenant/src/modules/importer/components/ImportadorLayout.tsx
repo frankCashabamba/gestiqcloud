@@ -2,6 +2,8 @@
 import React from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { useAuth } from '../../../auth/AuthContext'
+import { isCompanyAdmin } from '../utils/companyAdmin'
 
 type ImportadorLayoutProps = {
   title?: string
@@ -35,13 +37,16 @@ export default function ImportadorLayout({
   const location = useLocation()
   const basePath = buildBasePath(location.pathname)
   const { t } = useTranslation()
+  const { profile, token } = useAuth()
+  const canManageImporterSettings = isCompanyAdmin(profile, token)
 
   const navItems = React.useMemo(() => ([
     { to: '.', label: t('importerNav.import') },
     { to: 'preview', label: t('importerNav.preview') },
     { to: 'batches', label: t('importerNav.batches') },
     { to: 'products', label: t('importerNav.products') },
-  ]), [t])
+    ...(canManageImporterSettings ? [{ to: 'settings', label: t('importerNav.settings') }] : []),
+  ]), [t, canManageImporterSettings])
 
   return (
     <div className="gc-container gc-stack pb-12">
@@ -49,7 +54,7 @@ export default function ImportadorLayout({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
             <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-              Importer Operations
+              {t('importerLayout.badge')}
             </span>
             <div>
               <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>

@@ -1,7 +1,6 @@
 """Tests for PostingService — idempotency + import resolutions"""
-import uuid
 
-import pytest
+import uuid
 
 import app.models.core.modelsimport  # noqa: F401
 
@@ -11,6 +10,7 @@ class TestPostingService:
 
     def _make_tenant(self, db):
         from app.models.tenant import Tenant
+
         tid = uuid.uuid4()
         t = Tenant(id=tid, name="Post Test", slug=f"post-{tid.hex[:8]}")
         db.add(t)
@@ -19,6 +19,7 @@ class TestPostingService:
 
     def _make_batch(self, db, tenant_id):
         from app.models.core.modelsimport import ImportBatch
+
         batch = ImportBatch(
             id=uuid.uuid4(),
             tenant_id=tenant_id,
@@ -32,6 +33,7 @@ class TestPostingService:
 
     def _svc(self, db):
         from app.modules.imports.services.posting_service import PostingService
+
         return PostingService(db)
 
     def test_compute_posting_key_deterministic(self, db):
@@ -106,6 +108,7 @@ class TestImportResolutions:
 
     def _make_tenant(self, db):
         from app.models.tenant import Tenant
+
         tid = uuid.uuid4()
         t = Tenant(id=tid, name="Res Test", slug=f"res-{tid.hex[:8]}")
         db.add(t)
@@ -114,9 +117,13 @@ class TestImportResolutions:
 
     def _make_batch(self, db, tenant_id):
         from app.models.core.modelsimport import ImportBatch
+
         batch = ImportBatch(
-            id=uuid.uuid4(), tenant_id=tenant_id,
-            source_type="invoices", origin="api", created_by="test",
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            source_type="invoices",
+            origin="api",
+            created_by="test",
         )
         db.add(batch)
         db.flush()
@@ -124,6 +131,7 @@ class TestImportResolutions:
 
     def _svc(self, db):
         from app.modules.imports.services.posting_service import PostingService
+
         return PostingService(db)
 
     def test_save_resolution_creates(self, db):
@@ -131,10 +139,14 @@ class TestImportResolutions:
         batch_id = self._make_batch(db, tid)
         svc = self._svc(db)
         res = svc.save_resolution(
-            tenant_id=tid, import_job_id=batch_id,
-            entity_type="product", raw_value="PAN TAPADO",
-            resolved_id=uuid.uuid4(), status="resolved",
-            confidence=0.95, resolved_by="ai",
+            tenant_id=tid,
+            import_job_id=batch_id,
+            entity_type="product",
+            raw_value="PAN TAPADO",
+            resolved_id=uuid.uuid4(),
+            status="resolved",
+            confidence=0.95,
+            resolved_by="ai",
         )
         db.flush()
         assert res is not None
@@ -148,16 +160,22 @@ class TestImportResolutions:
         svc = self._svc(db)
         resolved_id = uuid.uuid4()
         svc.save_resolution(
-            tenant_id=tid, import_job_id=batch_id,
-            entity_type="product", raw_value="BAGUETTE",
+            tenant_id=tid,
+            import_job_id=batch_id,
+            entity_type="product",
+            raw_value="BAGUETTE",
             status="pending",
         )
         db.flush()
         res = svc.save_resolution(
-            tenant_id=tid, import_job_id=batch_id,
-            entity_type="product", raw_value="BAGUETTE",
-            resolved_id=resolved_id, status="resolved",
-            confidence=0.88, resolved_by="manual",
+            tenant_id=tid,
+            import_job_id=batch_id,
+            entity_type="product",
+            raw_value="BAGUETTE",
+            resolved_id=resolved_id,
+            status="resolved",
+            confidence=0.88,
+            resolved_by="manual",
         )
         db.flush()
         assert str(res.resolved_id) == str(resolved_id)
@@ -179,8 +197,12 @@ class TestImportResolutions:
         svc = self._svc(db)
         resolved_id = uuid.uuid4()
         svc.save_resolution(
-            tid, batch_id, "product", "CROISSANT",
-            resolved_id=resolved_id, status="resolved",
+            tid,
+            batch_id,
+            "product",
+            "CROISSANT",
+            resolved_id=resolved_id,
+            status="resolved",
         )
         db.flush()
         prev = svc.find_previous_resolution(tid, "product", "CROISSANT")

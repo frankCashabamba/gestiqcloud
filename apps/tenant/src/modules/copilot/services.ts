@@ -31,11 +31,11 @@ export interface ActionResult {
 }
 
 export async function askCopilot(payload: AskPayload): Promise<QueryResult> {
-  return api.post('/ai/ask', payload).then(r => r.data)
+  return api.post('/api/v1/tenant/ai/ask', payload).then(r => r.data)
 }
 
 export async function actCopilot(payload: ActPayload): Promise<ActionResult> {
-  return api.post('/ai/act', payload).then(r => r.data)
+  return api.post('/api/v1/tenant/ai/act', payload).then(r => r.data)
 }
 
 export async function createInvoiceDraft(data: {

@@ -8,7 +8,12 @@ const rawBase = process.env.VITE_BASE_PATH || '/'
 const basePath = rawBase.endsWith('/') ? rawBase : `${rawBase}/`
 
 const buildId = process.env.VITE_BUILD_ID || new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)
-const rawApiTarget = process.env.VITE_API_URL || 'http://localhost:8000'
+const rawApiTarget = process.env.VITE_API_URL || process.env.API_URL
+if (!rawApiTarget) {
+  throw new Error(
+    'Missing API target. Set VITE_API_URL (recommended) or API_URL for local/dev execution.'
+  )
+}
 const apiTarget = rawApiTarget.replace(/\/+$/, '')
 const targetHasApiSuffix = apiTarget.endsWith('/api')
 

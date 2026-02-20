@@ -2,7 +2,7 @@
 
 ###############################################################################
 # Setup AI Providers: Ollama (Development) + OVHCloud (Production)
-# 
+#
 # Usage:
 #   bash setup_ai_providers.sh [dev|prod]
 #
@@ -64,11 +64,11 @@ setup_ollama() {
 
     # Check OS
     OS=$(uname -s)
-    
+
     if [[ "$OS" == "Darwin" ]]; then
         print_info "Detected macOS"
         print_info "Installing Ollama..."
-        
+
         if ! command -v ollama &> /dev/null; then
             curl https://ollama.ai/install.sh | sh
             print_success "Ollama installed"
@@ -76,10 +76,10 @@ setup_ollama() {
             print_info "Ollama already installed"
             ollama --version
         fi
-        
+
     elif [[ "$OS" == "Linux" ]]; then
         print_info "Detected Linux"
-        
+
         if ! command -v ollama &> /dev/null; then
             curl https://ollama.ai/install.sh | sh
             print_success "Ollama installed"
@@ -87,7 +87,7 @@ setup_ollama() {
             print_info "Ollama already installed"
             ollama --version
         fi
-        
+
     elif [[ "$OS" == "MINGW64_NT" ]] || [[ "$OS" == "MSYS_NT" ]] || [[ "$OS" == "CYGWIN_NT" ]]; then
         print_warning "Windows detected"
         echo "Please install Ollama manually from: https://ollama.ai/download"
@@ -105,7 +105,7 @@ setup_ollama() {
 
     # Create .env file
     print_info "Creating .env file..."
-    
+
     cat > .env << 'EOF'
 # =========================================
 # DEVELOPMENT: Ollama Local
@@ -162,26 +162,26 @@ setup_ovhcloud() {
     # Prompt for credentials
     echo "Please provide OVHCloud API credentials:"
     echo ""
-    
+
     read -p "OVHCloud API Key: " OVHCLOUD_API_KEY
     if [ -z "$OVHCLOUD_API_KEY" ]; then
         print_error "API Key is required"
         exit 1
     fi
-    
+
     read -s -p "OVHCloud API Secret: " OVHCLOUD_API_SECRET
     if [ -z "$OVHCLOUD_API_SECRET" ]; then
         print_error "API Secret is required"
         exit 1
     fi
     echo ""
-    
+
     read -p "OVHCloud Model [gpt-4o]: " OVHCLOUD_MODEL
     OVHCLOUD_MODEL=${OVHCLOUD_MODEL:-gpt-4o}
-    
+
     # Validate credentials
     print_info "Validating OVHCloud credentials..."
-    
+
     HEALTH_CHECK=$(curl -s -X GET \
         "https://manager.eu.ovhcloud.com/api/v2/ai/health" \
         -H "Authorization: Bearer $OVHCLOUD_API_KEY" \
@@ -189,18 +189,18 @@ setup_ovhcloud() {
         -H "Content-Type: application/json" \
         -w "%{http_code}" \
         -o /dev/null)
-    
+
     if [ "$HEALTH_CHECK" != "200" ]; then
         print_error "OVHCloud API health check failed (HTTP $HEALTH_CHECK)"
         print_info "Please verify your API credentials"
         exit 1
     fi
-    
+
     print_success "OVHCloud credentials validated"
 
     # Create .env.production file
     print_info "Creating .env.production file..."
-    
+
     cat > .env.production << EOF
 # =========================================
 # PRODUCTION: OVHCloud
@@ -255,11 +255,11 @@ EOF
     echo "4. Check metrics:"
     echo "   ${BLUE}curl http://localhost:8000/api/v1/imports/ai/telemetry${NC}"
     echo ""
-    
+
     # Save credentials info
     print_info "Credentials saved in .env.production (KEEP SECURE!)"
     print_warning "Never commit .env.production to git!"
-    
+
 }
 
 ###############################################################################

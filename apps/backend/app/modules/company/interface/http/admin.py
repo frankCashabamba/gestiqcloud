@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.api.email.email_utils import enviar_correo_bienvenida
 from app.config.database import get_db
+from app.config.settings import settings
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.models.company.company import (
@@ -199,7 +200,7 @@ def admin_list_pos_backfill_candidates(
         if val:
             tenant_currency = str(val).strip().upper() or None
 
-    where_parts: list[str] = ["r.status = 'paid'"]
+    where_parts: list[str] = ["r.tenant_id = :tid", "r.status = 'paid'"]
     params: dict = {"tid": tenant_uuid, "limit": limit, "offset": offset}
 
     if since is not None:
@@ -326,10 +327,14 @@ def admin_backfill_pos_receipt_documents(
             SELECT status
             FROM pos_receipts
             WHERE id = :id
+              AND tenant_id = :tid
             FOR UPDATE
             """
-        ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
-        {"id": receipt_uuid},
+        ).bindparams(
+            bindparam("id", type_=PGUUID(as_uuid=True)),
+            bindparam("tid", type_=PGUUID(as_uuid=True)),
+        ),
+        {"id": receipt_uuid, "tid": tenant_uuid},
     ).first()
     if not receipt:
         raise HTTPException(status_code=404, detail="receipt_not_found")

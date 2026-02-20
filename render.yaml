@@ -120,6 +120,8 @@ services:
         value: gestiqcloud-api
       - key: OTEL_EXPORTER_OTLP_ENDPOINT
         sync: false
+      - key: SENTRY_DSN
+        sync: false
 
   # ------------ FRONTEND TENANT (Vite) ------------
   - type: web
@@ -324,15 +326,18 @@ services:
       pip install -r requirements.txt
     startCommand: |
       set -e
-      echo "⏳ Checking Alembic pending migrations..."
-      CURRENT=$(alembic current 2>/dev/null | awk '{print $1}' | tail -n1 || true)
-      HEADS=$(alembic heads 2>/dev/null | awk '{print $1}' | tr '\n' ' ' || true)
-      if [ -n "$HEADS" ] && echo "$HEADS" | grep -q "$CURRENT"; then
-        echo "✅ No Alembic migrations pending ($CURRENT is at heads: $HEADS)"
-      else
-        echo "🚀 Applying Alembic migrations to head"
-        alembic upgrade head
-      fi
+      echo "⏳ Running SQL migrations from ops/migrations..."
+      for dir in $(ls -d ../../ops/migrations/*/  2>/dev/null | sort); do
+        for sql in $(ls "$dir"*.sql 2>/dev/null | sort); do
+          echo "  → $sql"
+          psql "$DATABASE_URL" -f "$sql" || true
+        done
+      done
+      for sql in $(ls ../../ops/migrations/*.sql 2>/dev/null | sort); do
+        echo "  → $sql"
+        psql "$DATABASE_URL" -f "$sql" || true
+      done
+      echo "✅ Migrations complete"
       echo "🔐 Applying RLS defaults/policies (idempotent)"
       python ../scripts/py/apply_rls.py --schema public --set-default
     buildFilter:

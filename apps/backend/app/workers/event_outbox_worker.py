@@ -1,4 +1,5 @@
 """Event Outbox Poller Worker — Processes unpublished events"""
+
 import logging
 import time
 
@@ -31,7 +32,9 @@ def _process_event(event: EventOutbox) -> None:
         except Exception as e:
             logger.error(
                 "Handler %s failed for event %s: %s",
-                handler.__name__, event.id, e,
+                handler.__name__,
+                event.id,
+                e,
             )
             raise
 

@@ -3,6 +3,9 @@
  */
 import tenantApi from '../../shared/api/client'
 import { API_PATHS } from '../../constants/api'
+import { getSyncManager } from '../../lib/syncManager'
+import { storeEntity } from '../../lib/offlineStore'
+import { createOfflineTempId } from '../../lib/offlineHttp'
 import type {
     POSRegister,
     POSShift,
@@ -440,23 +443,7 @@ export async function createPaymentLink(payload: PaymentLinkRequest): Promise<{ 
 // ============================================================================
 
 export async function syncOfflineReceipts(): Promise<void> {
-    const outbox = JSON.parse(localStorage.getItem('pos_outbox') || '[]')
-
-    for (const item of outbox) {
-        try {
-            const payload = item.payload
-            if (payload?.type === 'document_issue') {
-                await issueDocument(payload.data)
-            } else {
-                await tenantApi.post(`${BASE_URL}/receipts`, payload)
-            }
-            // Remove from outbox on success
-            const updated = outbox.filter((i: any) => i.id !== item.id)
-            localStorage.setItem('pos_outbox', JSON.stringify(updated))
-        } catch (error) {
-            console.error('Sync failed for item:', item.id, error)
-        }
-    }
+    await getSyncManager().syncEntity('receipt')
 }
 
 export async function listDailyCounts(params?: { register_id?: string; since?: string; until?: string; limit?: number }): Promise<any[]> {
@@ -469,12 +456,17 @@ export async function getLastDailyCount(registerId: string): Promise<any | null>
     return counts.length > 0 ? counts[0] : null
 }
 
-export function addToOutbox(payload: any): void {
-    const outbox = JSON.parse(localStorage.getItem('pos_outbox') || '[]')
-    outbox.push({
-        id: `temp_${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        payload
-    })
-    localStorage.setItem('pos_outbox', JSON.stringify(outbox))
+export async function addToOutbox(payload: any): Promise<string> {
+    const id = createOfflineTempId('receipt')
+    const normalized = payload?.type === 'receipt' ? payload.data : payload
+
+    await storeEntity('receipt', id, {
+        ...(normalized || {}),
+        _op: 'create',
+        _pending: true,
+        _createdAt: new Date().toISOString(),
+        _source: 'pos',
+    }, 'pending')
+
+    return id
 }

@@ -20,7 +20,7 @@ export interface TemplateOverlay {
 }
 
 export async function getUIConfig(): Promise<UIConfig> {
-  return api.get('/templates/ui-config').then(r => r.data)
+  return api.get('/api/v1/tenant/templates/ui-config').then(r => r.data)
 }
 
 export function deepMerge(base: Record<string, any>, over: Record<string, any>): Record<string, any> {

@@ -8,7 +8,7 @@ Integrates with the webhooks module for secure, async delivery.
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import text
@@ -30,8 +30,8 @@ class CustomerWebhookService:
         tenant_id: UUID,
         customer_id: str,
         customer_name: str,
-        customer_email: Optional[str] = None,
-        customer_phone: Optional[str] = None,
+        customer_email: str | None = None,
+        customer_phone: str | None = None,
         customer_type: str = "individual",
     ) -> bool:
         """
@@ -77,9 +77,9 @@ class CustomerWebhookService:
         tenant_id: UUID,
         customer_id: str,
         customer_name: str,
-        customer_email: Optional[str] = None,
-        customer_phone: Optional[str] = None,
-        changes: Optional[Dict[str, Any]] = None,
+        customer_email: str | None = None,
+        customer_phone: str | None = None,
+        changes: dict[str, Any] | None = None,
     ) -> bool:
         """
         Trigger webhook when customer/lead is updated
@@ -119,9 +119,7 @@ class CustomerWebhookService:
             logger.error(f"Error triggering customer.updated webhook: {e}", exc_info=True)
             return False
 
-    def _enqueue_delivery(
-        self, tenant_id: UUID, event: str, payload: Dict[str, Any]
-    ) -> bool:
+    def _enqueue_delivery(self, tenant_id: UUID, event: str, payload: dict[str, Any]) -> bool:
         """
         Internal method to enqueue webhook delivery for all active subscriptions
 

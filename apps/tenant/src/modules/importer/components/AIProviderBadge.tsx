@@ -1,15 +1,15 @@
 /**
  * AIProviderBadge.tsx
- * 
+ *
  * Muestra un badge visual indicando:
  * - Proveedor IA usado (Ollama, OVHCloud, OpenAI, Azure, Local)
  * - Nivel de confianza
  * - Si fue mejorado con IA
- * 
+ *
  * Uso:
- * <AIProviderBadge 
- *   provider="ovhcloud" 
- *   confidence={0.95} 
+ * <AIProviderBadge
+ *   provider="ovhcloud"
+ *   confidence={0.95}
  *   enhanced={true}
  * />
  */
@@ -69,19 +69,19 @@ const SIZE_CLASSES: Record<string, string> = {
 
 /**
  * Componente AIProviderBadge
- * 
+ *
  * Ejemplo de uso completo:
- * 
+ *
  * ```tsx
  * import { AIProviderBadge } from './AIProviderBadge'
- * 
+ *
  * function MyComponent() {
  *   const analysisResult = {
  *     ai_provider: 'ovhcloud',
  *     ai_enhanced: true,
  *     confidence: 0.95
  *   }
- * 
+ *
  *   return (
  *     <div className="flex gap-2 items-center">
  *       <h2>Documento clasificado</h2>

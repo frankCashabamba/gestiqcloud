@@ -19,7 +19,7 @@ from app.config.database import SessionLocal
 # In your payment handler
 with SessionLocal() as db:
     webhook_service = PaymentWebhookService(db)
-    
+
     # When payment is received
     webhook_service.trigger_payment_received(
         tenant_id=tenant_uuid,
@@ -30,7 +30,7 @@ with SessionLocal() as db:
         payment_method="credit_card",
         reference_number="stripe-tx-789"
     )
-    
+
     # When payment fails
     webhook_service.trigger_payment_failed(
         tenant_id=tenant_uuid,
@@ -56,7 +56,7 @@ elif result.get("status") == "paid":
     if invoice_id:
         # ... existing code ...
         db.commit()
-        
+
         # ADD THIS:
         webhook_service = PaymentWebhookService(db)
         webhook_service.trigger_payment_received(
@@ -85,7 +85,7 @@ from app.config.database import SessionLocal
 # In your CRM service
 with SessionLocal() as db:
     webhook_service = CustomerWebhookService(db)
-    
+
     # When customer is created
     webhook_service.trigger_customer_created(
         tenant_id=tenant_uuid,
@@ -95,7 +95,7 @@ with SessionLocal() as db:
         customer_phone="+1234567890",
         customer_type="individual"
     )
-    
+
     # When customer is updated
     webhook_service.trigger_customer_updated(
         tenant_id=tenant_uuid,
@@ -123,7 +123,7 @@ def create_lead(self, tenant_id: UUID, data: LeadCreate) -> LeadOut:
     self.db.add(lead)
     self.db.commit()
     self.db.refresh(lead)
-    
+
     # ADD THIS:
     webhook_service = CustomerWebhookService(self.db)
     webhook_service.trigger_customer_created(
@@ -134,7 +134,7 @@ def create_lead(self, tenant_id: UUID, data: LeadCreate) -> LeadOut:
         customer_phone=lead.phone,
         customer_type="lead"
     )
-    
+
     return LeadOut.model_validate(lead)
 ```
 
@@ -153,7 +153,7 @@ from app.config.database import SessionLocal
 # In your sales order handler
 with SessionLocal() as db:
     webhook_service = SalesOrderWebhookService(db)
-    
+
     # When order is created
     webhook_service.trigger_sales_order_created(
         tenant_id=tenant_uuid,
@@ -165,7 +165,7 @@ with SessionLocal() as db:
         currency="USD",
         items_count=5
     )
-    
+
     # When order is confirmed
     webhook_service.trigger_sales_order_confirmed(
         tenant_id=tenant_uuid,
@@ -176,7 +176,7 @@ with SessionLocal() as db:
         amount=5000.00,
         currency="USD"
     )
-    
+
     # When order is cancelled
     webhook_service.trigger_sales_order_cancelled(
         tenant_id=tenant_uuid,
@@ -198,7 +198,7 @@ with SessionLocal() as db:
 @router.post("", response_model=OrderOut)
 def create_order(order_data: OrderCreateIn, ...):
     # ... existing order creation code ...
-    
+
     # ADD THIS:
     webhook_service = SalesOrderWebhookService(db)
     webhook_service.trigger_sales_order_created(
@@ -211,7 +211,7 @@ def create_order(order_data: OrderCreateIn, ...):
         currency=order.currency or "USD",
         items_count=len(order.items) if hasattr(order, 'items') else 0
     )
-    
+
     return OrderOut.from_orm(order)
 ```
 
@@ -249,14 +249,14 @@ Metrics are automatically collected during webhook delivery. Available metrics:
 webhook_deliveries_total
 
 # Success rate for invoices
-webhook_deliveries_total{status="delivered", event="invoice.created"} / 
+webhook_deliveries_total{status="delivered", event="invoice.created"} /
 webhook_deliveries_total{event="invoice.created"}
 
 # Retry reasons
 webhook_retries_total
 
 # Average delivery time
-rate(webhook_delivery_duration_seconds_sum[5m]) / 
+rate(webhook_delivery_duration_seconds_sum[5m]) /
 rate(webhook_delivery_duration_seconds_count[5m])
 
 # Failed deliveries
@@ -268,7 +268,7 @@ webhook_deliveries_total{status="failed"}
 ```yaml
 - alert: WebhookDeliveryFailureRate
   expr: |
-    (webhook_deliveries_total{status="failed"} / 
+    (webhook_deliveries_total{status="failed"} /
      webhook_deliveries_total{status=~"delivered|failed"}) > 0.1
   for: 5m
   annotations:
@@ -410,7 +410,7 @@ def verify_webhook(request_body: bytes, signature: str, secret: str) -> bool:
         request_body,
         hashlib.sha256
     ).hexdigest()
-    
+
     received = signature.replace('sha256=', '')
     return hmac.compare_digest(expected, received)
 ```
@@ -425,7 +425,7 @@ function verifyWebhook(body, signature, secret) {
         .createHmac('sha256', secret)
         .update(body)
         .digest('hex');
-    
+
     const received = signature.replace('sha256=', '');
     return crypto.timingSafeEqual(expected, received);
 }

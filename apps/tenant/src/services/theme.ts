@@ -1,4 +1,5 @@
 import { apiFetch } from '../lib/http'
+import { env } from '../env'
 
 export type ThemeResponse = { brand?: { name?: string; logoUrl?: string | null } } & Record<string, any>
 
@@ -15,6 +16,22 @@ function cacheKey(empresa?: string | null) {
   return empresa ? `empresa:${empresa}` : 'default'
 }
 
+export function invalidateCompanyThemeCache(empresa?: string | null) {
+  if (empresa) {
+    cache.delete(cacheKey(empresa))
+    return
+  }
+  cache.clear()
+}
+
+function toAbsoluteAssetUrl(url?: string | null) {
+  if (!url) return url ?? null
+  if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) return url
+  const apiRoot = (env.apiUrl || '').replace(/\/+$/g, '').replace(/\/api(?:\/v1)?$/i, '')
+  if (!apiRoot) return url
+  return `${apiRoot}${url.startsWith('/') ? '' : '/'}${url}`
+}
+
 export async function fetchCompanyTheme(empresa?: string | null): Promise<ThemeResponse> {
   const key = cacheKey(empresa)
   const cached = cache.get(key)
@@ -27,8 +44,17 @@ export async function fetchCompanyTheme(empresa?: string | null): Promise<ThemeR
       : '/api/v1/company/settings/theme'
   )
     .then((data) => {
-      cache.set(key, { ts: Date.now(), data })
-      return data
+      const normalized = {
+        ...data,
+        brand: data?.brand
+          ? {
+              ...data.brand,
+              logoUrl: toAbsoluteAssetUrl(data.brand.logoUrl),
+            }
+          : data?.brand,
+      }
+      cache.set(key, { ts: Date.now(), data: normalized })
+      return normalized
     })
     .catch((err) => {
       cache.delete(key)

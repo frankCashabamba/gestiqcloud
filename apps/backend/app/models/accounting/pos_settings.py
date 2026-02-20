@@ -79,7 +79,7 @@ class PaymentMethod(Base):
     """
 
     __tablename__ = "payment_methods"
-    __table_args__ = schema_table_args()
+    __table_args__ = schema_table_args(sqlite_autoincrement=True)
 
     id: Mapped[PGUUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     tenant_id: Mapped[PGUUID] = mapped_column(
@@ -101,5 +101,3 @@ class PaymentMethod(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
-
-    __table_args__ = ({"sqlite_autoincrement": True},)

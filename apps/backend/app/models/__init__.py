@@ -42,7 +42,6 @@ from app.models.core.facturacion import (
     InternalTransfer,
     Invoice,
     InvoiceTemp,
-    Payment,
     TransactionStatus,
     TransactionType,
 )
@@ -68,9 +67,9 @@ from app.models.core.ui_config import (
     UiWidget,
 )
 from app.models.expenses import Expense
-from app.models.finance import BankMovement, CashClosing, CashMovement
-from app.models.hr import Employee, Vacation
-from app.models.hr.payroll import Payroll, PayrollConcept, PayrollTemplate
+from app.models.finance import BankMovement, CashClosing, CashMovement, Payment
+from app.models.hr import Employee
+from app.models.hr.payroll import Payroll, PayrollDetail, PayrollTax
 from app.models.imports import ImportColumnMapping
 
 # Inventory
@@ -169,7 +168,6 @@ __all__ = [
     "CashMovement",
     "CashClosing",
     "Employee",
-    "Vacation",
     # POS
     "POSRegister",
     "POSShift",
@@ -194,8 +192,8 @@ __all__ = [
     "PostingRegistry",
     # Payroll
     "Payroll",
-    "PayrollConcept",
-    "PayrollTemplate",
+    "PayrollDetail",
+    "PayrollTax",
     # Production
     "ProductionOrder",
     "ProductionOrderLine",

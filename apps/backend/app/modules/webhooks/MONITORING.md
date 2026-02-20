@@ -304,7 +304,7 @@ ORDER BY event, status;
 ### Delivery Rate by Event
 
 ```sql
-SELECT 
+SELECT
   event,
   COUNT(*) as total_deliveries,
   SUM(CASE WHEN status = 'DELIVERED' THEN 1 ELSE 0 END) as delivered,

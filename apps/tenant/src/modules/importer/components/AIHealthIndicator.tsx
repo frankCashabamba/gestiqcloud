@@ -1,6 +1,6 @@
 /**
  * AIHealthIndicator.tsx
- * 
+ *
  * Componente que muestra el estado de salud del sistema de IA
  * - Provider actual
  * - Estado (healthy/degraded/unavailable)
@@ -10,6 +10,8 @@
 
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../../../auth/AuthContext'
+import { IMPORTS } from '@endpoints/imports'
+import { withImportAIProvider } from '../services/aiProviderPreference'
 
 interface AIHealth {
   status: 'healthy' | 'degraded' | 'unavailable'
@@ -42,7 +44,7 @@ export function AIHealthIndicator({
       try {
         setLoading(true)
         const response = await fetch(
-          '/api/v1/imports/ai/health',
+          withImportAIProvider(IMPORTS.public.aiHealth),
           {
             headers: { Authorization: `Bearer ${token}` },
           }

@@ -183,14 +183,6 @@ const RetailDashboard: React.FC = () => {
   // ─────────────────────────────────────────────────────────
   const quickActions: QuickAction[] = [
     {
-      id: 'new-sale',
-      label: t('quickActions.newSale'),
-      icon: '+',
-      disabled: !isModuleEnabled('pos'),
-      action: handleNewSale,
-      requiresModule: 'pos',
-    },
-    {
       id: 'create-promotion',
       label: t('quickActions.createPromotion'),
       icon: '%',
@@ -238,12 +230,10 @@ const RetailDashboard: React.FC = () => {
       sectorIcon="R"
       customLinks={customLinks}
     >
-      <h1>{t('title')}</h1>
-
       {/* Welcome Card (Only when single module 'clientes' enabled) */}
       {modules.length === 1 && isModuleEnabled('clientes') && (
         <section
-          className="card full-width"
+          className="card full-width retail-welcome-card"
           style={{
             background: 'linear-gradient(135deg, var(--primary), var(--focus))',
             color: '#fff',
@@ -278,7 +268,7 @@ const RetailDashboard: React.FC = () => {
 
       <div className="dashboard-grid">
         {/* Today Overview Card */}
-        <section className="card full-width">
+        <section className="card full-width retail-summary-card">
           <div className="card__header">
             <h3>{t('todayOverview.title')}</h3>
             <div className="pills">
@@ -297,18 +287,6 @@ const RetailDashboard: React.FC = () => {
             </div>
           </div>
           <div className="card__actions">
-            <button
-              onClick={handleCashClose}
-              disabled={!isModuleEnabled('pos')}
-              className="link"
-              title={
-                !isModuleEnabled('pos')
-                  ? t('moduleRequired', { module: 'POS' })
-                  : ''
-              }
-            >
-              {t('cardActions.cashClose')}
-            </button>
             <button
               onClick={handleInventory}
               disabled={!isModuleEnabled('inventario')}
@@ -350,7 +328,7 @@ const RetailDashboard: React.FC = () => {
 
         {/* Sales Today Card */}
         {isModuleEnabled('ventas') && (
-          <section className="card col-6">
+          <section className="card col-6 retail-kpi-card">
             <h3>{t('cardHeaders.salesToday')}</h3>
             <div className="kpi-grid">
               <div className="kpi">
@@ -378,7 +356,7 @@ const RetailDashboard: React.FC = () => {
 
         {/* Weekly Comparison Card */}
         {isModuleEnabled('ventas') && (
-          <section className="card col-6">
+          <section className="card col-6 retail-kpi-card">
             <h3>{t('cardHeaders.weeklyComparison')}</h3>
             <div className="kpi-grid">
               <div className="kpi">
@@ -407,7 +385,7 @@ const RetailDashboard: React.FC = () => {
 
         {/* Stock Rotation Card */}
         {isModuleEnabled('inventario') && (
-          <section className="card col-4">
+          <section className="card col-4 retail-stock-card">
             <h3>{t('cardHeaders.stockRotation')}</h3>
             <div className="list-compact">
               <li>
