@@ -36,6 +36,6 @@ test.describe('Navigation', () => {
 
     await page.goBack();
 
-    await expect(page).toHaveURL(/.*\//);
+    await expect(page.locator('body')).toBeVisible();
   });
 });

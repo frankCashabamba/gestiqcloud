@@ -44,7 +44,7 @@ export default defineConfig({
       ...process.env,
       HOST: process.env.HOST || '0.0.0.0',
       PORT: process.env.PORT || String(devPort),
-      VITE_API_URL: process.env.VITE_API_URL || 'http://localhost:8000/api',
+      VITE_API_URL: process.env.VITE_API_URL || `http://${devHost}:${devPort}/api`,
       VITE_BASE_PATH: process.env.VITE_BASE_PATH || '/',
       VITE_TENANT_ORIGIN: process.env.VITE_TENANT_ORIGIN || 'http://localhost:8082',
       VITE_ADMIN_ORIGIN: process.env.VITE_ADMIN_ORIGIN || 'http://localhost:8081',

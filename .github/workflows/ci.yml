@@ -58,16 +58,9 @@ jobs:
         pip install -r requirements.txt
         pip install -r requirements-dev.txt
 
-    - name: Lint with Ruff
-      working-directory: ./apps/backend
+    - name: Run pre-commit checks
       run: |
-        # Legacy lint debt exists in app/; keep signal visible without blocking CI.
-        ruff check app/ --exit-zero
-
-    - name: Format check with Black
-      working-directory: ./apps/backend
-      run: |
-        black --check app/ --line-length 100
+        pre-commit run --all-files
 
     - name: Type check with mypy
       working-directory: ./apps/backend
@@ -231,7 +224,7 @@ jobs:
       run: npx playwright test --project=chromium
       env:
         CI: true
-        VITE_API_URL: http://localhost:8000
+        VITE_API_URL: http://localhost:5173/api
         PORT: 5173
         PLAYWRIGHT_WORKERS: 2
         PLAYWRIGHT_RETRIES: 1
