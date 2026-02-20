@@ -11,7 +11,7 @@ test.describe('Responsive Design', () => {
     test(`should render correctly on ${vp.name} (${vp.width}x${vp.height})`, async ({ page }) => {
       await page.setViewportSize({ width: vp.width, height: vp.height })
       await page.goto('/')
-      await page.waitForLoadState('networkidle').catch(() => {})
+      await page.waitForLoadState('domcontentloaded').catch(() => {})
       await expect(page.locator('body')).toBeVisible()
       // Check no horizontal overflow
       const bodyWidth = await page.evaluate(() => document.body.scrollWidth)
@@ -21,7 +21,7 @@ test.describe('Responsive Design', () => {
 
   test('should adapt layout between mobile and desktop', async ({ page }) => {
     await page.goto('/')
-    await page.waitForLoadState('networkidle').catch(() => {})
+    await page.waitForLoadState('domcontentloaded').catch(() => {})
 
     await page.setViewportSize({ width: 375, height: 667 })
     await expect(page.locator('body')).toBeVisible()

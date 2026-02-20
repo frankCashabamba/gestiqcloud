@@ -14,7 +14,7 @@ test.describe('Dashboard', () => {
 
   test('should have a structured layout', async ({ page }) => {
     await page.goto('/')
-    await page.waitForLoadState('networkidle').catch(() => {})
+    await page.waitForLoadState('domcontentloaded').catch(() => {})
     const hasNav = await page.locator('nav, [role="navigation"], aside').count()
     expect(hasNav).toBeGreaterThanOrEqual(0)
   })
