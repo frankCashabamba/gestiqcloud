@@ -223,7 +223,7 @@ import { useTranslation } from 'react-i18next';
 export function useEmployeeStatuses() {
     const { data: statuses } = useSWR('/api/v1/hr/statuses', fetcher);
     const { t } = useTranslation('hr');
-    
+
     return statuses?.map(s => ({
         code: s.code,
         label: t(`status.${s.code}`),
@@ -235,7 +235,7 @@ export function useEmployeeStatuses() {
 export function useContractTypes() {
     const { data: contracts } = useSWR('/api/v1/hr/contracts', fetcher);
     const { t } = useTranslation('hr');
-    
+
     return contracts?.map(c => ({
         code: c.code,
         label: t(`contract.${c.code}`)
@@ -245,7 +245,7 @@ export function useContractTypes() {
 export function useDeductionTypes() {
     const { data: deductions } = useSWR('/api/v1/hr/deductions', fetcher);
     const { t } = useTranslation('hr');
-    
+
     return deductions?.map(d => ({
         code: d.code,
         label: t(`deduction.${d.code}`),
@@ -257,7 +257,7 @@ export function useDeductionTypes() {
 export function useGenderTypes() {
     const { data: genders } = useSWR('/api/v1/hr/genders', fetcher);
     const { t } = useTranslation('hr');
-    
+
     return genders?.map(g => ({
         code: g.code,
         label: t(`gender.${g.code}`)
@@ -274,7 +274,7 @@ import { useEmployeeStatuses, useContractTypes } from '../hooks/useHREnums';
 export function EmployeeForm() {
     const statuses = useEmployeeStatuses();
     const contracts = useContractTypes();
-    
+
     return (
         <form>
             <Select
@@ -415,4 +415,3 @@ const label = statuses.find(s => s.code === 'ACTIVE').name_es;
 - [ ] API endpoint to create/edit lookup values
 - [ ] Export lookup values as CSV for reporting
 - [ ] Webhook events when lookup values change
-

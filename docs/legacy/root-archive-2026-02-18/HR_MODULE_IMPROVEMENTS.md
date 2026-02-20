@@ -31,7 +31,7 @@ class Employee(Base):
 class Employee(Base):
     """
     Employee record — core HR information.
-    
+
     Related Tables (see migrations):
       - employee_statuses: Dynamic status codes
       - contract_types: Dynamic contract type codes
@@ -189,7 +189,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 class EmployeeStatus(Base):
     """Employee status lookup table."""
     __tablename__ = "employee_statuses"
-    
+
     id: Mapped[UUID]
     tenant_id: Mapped[UUID]
     code: Mapped[str]
@@ -231,25 +231,25 @@ from app.models.hr.lookups import EmployeeStatus, ContractType, DeductionType, G
 class HRLookupService:
     def __init__(self, db: Session):
         self.db = db
-    
+
     def get_statuses(self, tenant_id: UUID) -> list[EmployeeStatus]:
         return self.db.query(EmployeeStatus).filter(
             EmployeeStatus.tenant_id == tenant_id,
             EmployeeStatus.is_active == True
         ).order_by(EmployeeStatus.sort_order).all()
-    
+
     def get_contracts(self, tenant_id: UUID) -> list[ContractType]:
         return self.db.query(ContractType).filter(
             ContractType.tenant_id == tenant_id,
             ContractType.is_active == True
         ).order_by(ContractType.sort_order).all()
-    
+
     def get_deductions(self, tenant_id: UUID) -> list[DeductionType]:
         return self.db.query(DeductionType).filter(
             DeductionType.tenant_id == tenant_id,
             DeductionType.is_active == True
         ).order_by(DeductionType.sort_order).all()
-    
+
     def get_genders(self, tenant_id: UUID) -> list[GenderType]:
         return self.db.query(GenderType).filter(
             GenderType.tenant_id == tenant_id,
@@ -332,7 +332,7 @@ export function useEmployeeStatuses() {
         fetcher
     );
     const { t } = useTranslation('hr');
-    
+
     return {
         statuses: data?.map((s: any) => ({
             code: s.code,
@@ -351,7 +351,7 @@ export function useContractTypes() {
         fetcher
     );
     const { t } = useTranslation('hr');
-    
+
     return {
         contracts: data?.map((c: any) => ({
             code: c.code,
@@ -374,7 +374,7 @@ import { useEmployeeStatuses, useContractTypes } from '../hooks/useHREnums';
 export function EmployeeForm({ initialData }: { initialData?: Employee }) {
     const { statuses } = useEmployeeStatuses();
     const { contracts } = useContractTypes();
-    
+
     return (
         <form>
             <Select
@@ -386,7 +386,7 @@ export function EmployeeForm({ initialData }: { initialData?: Employee }) {
                 }))}
                 defaultValue={initialData?.status}
             />
-            
+
             <Select
                 name="contract_type"
                 label={t('hr:employee.contractType')}
@@ -453,7 +453,7 @@ from app.modules.hr.services.lookup_service import HRLookupService
 def test_get_employee_statuses(db, tenant_id):
     service = HRLookupService(db)
     statuses = service.get_statuses(tenant_id)
-    
+
     assert len(statuses) > 0
     assert any(s.code == 'ACTIVE' for s in statuses)
     assert all(s.is_active for s in statuses)
@@ -462,14 +462,14 @@ def test_get_employee_statuses(db, tenant_id):
 def test_get_contract_types(db, tenant_id):
     service = HRLookupService(db)
     contracts = service.get_contracts(tenant_id)
-    
+
     assert any(c.code == 'PERMANENT' for c in contracts)
     assert all(c.is_active for c in contracts)
 
 def test_get_deduction_types(db, tenant_id):
     service = HRLookupService(db)
     deductions = service.get_deductions(tenant_id)
-    
+
     assert any(d.code == 'INCOME_TAX' for d in deductions)
     assert any(not d.is_deduction for d in deductions)  # Bonuses
 ```
@@ -488,24 +488,24 @@ test('should fetch employee statuses', async () => {
             {children}
         </SWRConfig>
     );
-    
+
     const { result } = renderHook(() => useEmployeeStatuses(), { wrapper });
-    
+
     await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
     });
-    
+
     expect(result.current.statuses).toBeDefined();
     expect(result.current.statuses.length).toBeGreaterThan(0);
 });
 
 test('should translate status labels', async () => {
     const { result } = renderHook(() => useEmployeeStatuses());
-    
+
     await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
     });
-    
+
     const active = result.current.statuses.find(s => s.code === 'ACTIVE');
     expect(active?.label).toBe('Active');  // or 'Activo' in Spanish
 });
@@ -552,4 +552,3 @@ test('should translate status labels', async () => {
 - [HR_I18N_TRANSLATIONS.md](./HR_I18N_TRANSLATIONS.md) - Complete translation reference
 - [ANALISIS_HARDCODEADOS.md](./ANALISIS_HARDCODEADOS.md) - Analysis of all hardcoded values
 - [employee.py](apps/backend/app/models/hr/employee.py) - Updated model file
-

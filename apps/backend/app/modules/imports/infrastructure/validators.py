@@ -1,10 +1,10 @@
-from typing import Any, Optional
+from typing import Any
 
-from app.modules.imports.domain.interfaces import DocType, ValidatorStrategy, CountryRulePack
+from app.modules.imports.domain.interfaces import CountryRulePack, DocType, ValidatorStrategy
 
 
 class StrictValidator(ValidatorStrategy):
-    def __init__(self, country_pack: Optional[CountryRulePack] = None):
+    def __init__(self, country_pack: CountryRulePack | None = None):
         self.country_pack = country_pack
         self.required_fields = {}
         self.field_types = {}
@@ -23,19 +23,23 @@ class StrictValidator(ValidatorStrategy):
         if doc_type_str in self.required_fields:
             for required_field in self.required_fields[doc_type_str]:
                 if required_field not in data or not data[required_field]:
-                    errors.append({
-                        "field": required_field,
-                        "error": "required_field_missing",
-                    })
+                    errors.append(
+                        {
+                            "field": required_field,
+                            "error": "required_field_missing",
+                        }
+                    )
 
         if doc_type_str in self.field_types:
             for field, expected_type in self.field_types[doc_type_str].items():
                 if field in data and data[field] is not None:
                     if not isinstance(data[field], expected_type):
-                        errors.append({
-                            "field": field,
-                            "error": f"expected_type_{expected_type.__name__}",
-                        })
+                        errors.append(
+                            {
+                                "field": field,
+                                "error": f"expected_type_{expected_type.__name__}",
+                            }
+                        )
 
         if self.country_pack:
             country_errors = self.country_pack.validate_fiscal_fields(data)
@@ -45,7 +49,7 @@ class StrictValidator(ValidatorStrategy):
 
 
 class InvoiceValidator(StrictValidator):
-    def __init__(self, country_pack: Optional[CountryRulePack] = None):
+    def __init__(self, country_pack: CountryRulePack | None = None):
         super().__init__(country_pack)
         self.register_required_fields(
             DocType.INVOICE.value,
@@ -63,7 +67,7 @@ class InvoiceValidator(StrictValidator):
 
 
 class ExpenseReceiptValidator(StrictValidator):
-    def __init__(self, country_pack: Optional[CountryRulePack] = None):
+    def __init__(self, country_pack: CountryRulePack | None = None):
         super().__init__(country_pack)
         self.register_required_fields(
             DocType.EXPENSE_RECEIPT.value,
@@ -79,7 +83,7 @@ class ExpenseReceiptValidator(StrictValidator):
 
 
 class BankStatementValidator(StrictValidator):
-    def __init__(self, country_pack: Optional[CountryRulePack] = None):
+    def __init__(self, country_pack: CountryRulePack | None = None):
         super().__init__(country_pack)
         self.register_required_fields(
             DocType.BANK_STATEMENT.value,
@@ -95,7 +99,7 @@ class BankStatementValidator(StrictValidator):
 
 
 class BankTransactionValidator(StrictValidator):
-    def __init__(self, country_pack: Optional[CountryRulePack] = None):
+    def __init__(self, country_pack: CountryRulePack | None = None):
         super().__init__(country_pack)
         self.register_required_fields(
             DocType.BANK_TRANSACTION.value,
@@ -111,7 +115,7 @@ class BankTransactionValidator(StrictValidator):
 
 
 class ProductListValidator(StrictValidator):
-    def __init__(self, country_pack: Optional[CountryRulePack] = None):
+    def __init__(self, country_pack: CountryRulePack | None = None):
         super().__init__(country_pack)
         self.register_required_fields(
             DocType.PRODUCT_LIST.value,
@@ -128,7 +132,7 @@ class ProductListValidator(StrictValidator):
 
 
 class RecipeValidator(StrictValidator):
-    def __init__(self, country_pack: Optional[CountryRulePack] = None):
+    def __init__(self, country_pack: CountryRulePack | None = None):
         super().__init__(country_pack)
         self.register_required_fields(
             DocType.RECIPE.value,

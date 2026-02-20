@@ -3,11 +3,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from app.modules.imports.infrastructure.learning_store import InMemoryLearningStore, JsonFilelearningStore
 from app.modules.imports.application.learning_loop import ActiveLearning, IncrementalTrainer
-from app.modules.imports.application.quality_gates import QualityGate, CIQualityCheck
 from app.modules.imports.application.observability import MetricsCollector, RollbackManager
+from app.modules.imports.application.quality_gates import CIQualityCheck
 from app.modules.imports.application.scoring_engine import ScoringEngine
+from app.modules.imports.infrastructure.learning_store import InMemoryLearningStore
 
 
 def setup_learning_pipeline(classifier: ScoringEngine) -> dict:
@@ -69,14 +69,14 @@ if __name__ == "__main__":
 
     learning_config = setup_learning_pipeline(classifier)
     print("✓ Learning pipeline initialized")
-    print(f"  - Active learning enabled")
-    print(f"  - Incremental trainer scheduled (weekly)")
-    print(f"  - CI quality check ready")
+    print("  - Active learning enabled")
+    print("  - Incremental trainer scheduled (weekly)")
+    print("  - CI quality check ready")
 
     observability_config = setup_observability()
     print("✓ Observability infrastructure set up")
-    print(f"  - Metrics collection enabled")
-    print(f"  - Rollback management ready")
+    print("  - Metrics collection enabled")
+    print("  - Rollback management ready")
 
     regression_dataset = setup_regression_dataset()
     print(f"✓ Regression dataset prepared ({len(regression_dataset)} samples)")

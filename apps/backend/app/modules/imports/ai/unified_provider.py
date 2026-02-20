@@ -60,7 +60,9 @@ class UnifiedServiceAIProvider(AIProvider):
         if response.is_error:
             self.error_count += 1
             logger.warning("Unified provider classification error: %s", response.error)
-            return self._fallback_result(available_parsers, str(response.error or "classification_error"))
+            return self._fallback_result(
+                available_parsers, str(response.error or "classification_error")
+            )
 
         try:
             data = self._parse_json(response.content)
@@ -158,7 +160,9 @@ class UnifiedServiceAIProvider(AIProvider):
         return ClassificationResult(
             suggested_parser=suggested,
             confidence=confidence,
-            probabilities=self._build_probabilities(parsers, suggested, confidence) if parsers else {},
+            probabilities=self._build_probabilities(parsers, suggested, confidence)
+            if parsers
+            else {},
             reasoning=reason,
             provider=self.provider_name,
             enhanced_by_ai=False,

@@ -1,9 +1,9 @@
 """Domain models for notifications system."""
 
-from datetime import datetime
 import uuid
+from datetime import datetime
 
-from sqlalchemy import Column, String, DateTime, Boolean, Text, JSON, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Column, DateTime, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.config.database import Base
@@ -11,6 +11,7 @@ from app.config.database import Base
 
 class Notification(Base):
     """Notification record."""
+
     __tablename__ = "notifications"
 
     id = Column(UUID, primary_key=True, default=uuid.uuid4)
@@ -20,7 +21,9 @@ class Notification(Base):
     subject = Column(String(500), nullable=False)
     body = Column(Text, nullable=False)
     priority = Column(String(20), nullable=False, default="medium")  # low, medium, high, urgent
-    status = Column(String(20), nullable=False, default="pending")  # pending, sent, failed, read, archived
+    status = Column(
+        String(20), nullable=False, default="pending"
+    )  # pending, sent, failed, read, archived
     metadata_ = Column("metadata", JSON, nullable=True)
     read_at = Column(DateTime, nullable=True)
     archived_at = Column(DateTime, nullable=True)
@@ -34,6 +37,7 @@ class Notification(Base):
 
 class NotificationTemplate(Base):
     """Notification template configuration."""
+
     __tablename__ = "notification_templates"
 
     id = Column(UUID, primary_key=True, default=uuid.uuid4)

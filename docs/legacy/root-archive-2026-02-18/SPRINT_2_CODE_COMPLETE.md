@@ -111,10 +111,10 @@
 - `get_multi_day_positions()` - Obtiene posiciones para rango de fechas
 
 **Features:**
-✅ Multi-tenant via tenant_id  
-✅ Multi-currency support  
-✅ Lazy loads previous balance  
-✅ Aggregates payments from BD  
+✅ Multi-tenant via tenant_id
+✅ Multi-currency support
+✅ Lazy loads previous balance
+✅ Aggregates payments from BD
 ✅ Handles positive/negative amounts
 
 **Sample Usage:**
@@ -138,12 +138,12 @@ position = CashPositionService.calculate_position(
 - `mark_payroll_paid()` - Cambio CONFIRMED → PAID
 
 **Features:**
-✅ IRPF tarifas progresivas (19%, 21%, 25%, 28%, 37%, 45%)  
-✅ SS empleado (6.35%) y empleador (23.60%) España 2026  
-✅ Cálculos desde BD, no hardcodeados  
-✅ Crea PayrollDetail por empleado  
-✅ Crea PaymentSlip con acceso seguro  
-✅ Registra PayrollTax por tipo  
+✅ IRPF tarifas progresivas (19%, 21%, 25%, 28%, 37%, 45%)
+✅ SS empleado (6.35%) y empleador (23.60%) España 2026
+✅ Cálculos desde BD, no hardcodeados
+✅ Crea PayrollDetail por empleado
+✅ Crea PaymentSlip con acceso seguro
+✅ Registra PayrollTax por tipo
 ✅ Válida estado antes de transiciones
 
 **Sample Usage:**
@@ -169,13 +169,13 @@ payroll = PayrollService.generate_payroll(
 - `get_status()` - Obtiene estado actual
 
 **Features:**
-✅ Endpoint desde BD (NO HARDCODEADO)  
-✅ Validaciones por país (ES, EC, MX, CL, CO)  
-✅ Cálculo de IVA validado  
-✅ XML generado automáticamente  
-✅ Retry logic exponencial (1m, 5m, 15m, 1h, 24h)  
-✅ Max 5 reintentos  
-✅ Registro de errores y estado  
+✅ Endpoint desde BD (NO HARDCODEADO)
+✅ Validaciones por país (ES, EC, MX, CL, CO)
+✅ Cálculo de IVA validado
+✅ XML generado automáticamente
+✅ Retry logic exponencial (1m, 5m, 15m, 1h, 24h)
+✅ Max 5 reintentos
+✅ Registro de errores y estado
 ✅ Creación automática de firma (placeholder)
 
 **Sample Usage:**
@@ -395,6 +395,6 @@ curl -X POST http://localhost:8000/einvoicing/send-sii \
 
 ---
 
-**SPRINT 2: DEVELOPMENT PHASE 100% COMPLETE** 
+**SPRINT 2: DEVELOPMENT PHASE 100% COMPLETE**
 
 **Next: Testing & Validation Phase** 🚀

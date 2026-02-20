@@ -43,14 +43,14 @@ def create_resource(
     try:
         use_case = CreateResourceUseCase()
         result = use_case.execute(**payload.dict())
-        
+
         # Persist to DB
         # db.add(Model(**result))
         # db.commit()
-        
+
         # Audit log
         # audit_event(request, "resource.created", result["id"])
-        
+
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -79,13 +79,13 @@ def login(
         user = db.query(User).filter(User.email == payload.email).first()
         if not user:
             raise ValueError("Email no encontrado")
-        
+
         # Use case
         token_svc = JWTService()  # Get from DI
         pw_hasher = PasswordHasher()
         rate_limiter = RateLimiter()
         refresh_repo = RefreshTokenRepo()
-        
+
         use_case = LoginUseCase(token_svc, pw_hasher, rate_limiter, refresh_repo)
         result = use_case.execute(
             user=user,
@@ -95,7 +95,7 @@ def login(
             ip_address=request.client.host,
             tenant_id=payload.tenant_id,  # Optional for tenant login
         )
-        
+
         # Return with cookie
         from fastapi.responses import JSONResponse
         response = JSONResponse({
@@ -128,14 +128,14 @@ def refresh(request: Request, db: Session = Depends(get_db)):
         refresh_token = request.cookies.get("refresh_token")
         if not refresh_token:
             raise HTTPException(status_code=401, detail="No refresh token")
-        
+
         use_case = RefreshTokenUseCase(token_svc, refresh_repo)
         result = use_case.execute(
             refresh_token=refresh_token,
             user_agent=request.headers.get("user-agent", ""),
             ip_address=request.client.host,
         )
-        
+
         from fastapi.responses import JSONResponse
         response = JSONResponse(result)
         response.set_cookie(
@@ -161,10 +161,10 @@ def logout(request: Request, db: Session = Depends(get_db)):
     try:
         refresh_token = request.cookies.get("refresh_token")
         user_id = UUID(request.state.access_claims["sub"])
-        
+
         use_case = LogoutUseCase(refresh_repo)
         use_case.execute(refresh_token=refresh_token, user_id=user_id)
-        
+
         from fastapi.responses import JSONResponse
         response = JSONResponse({"message": "Logged out"})
         response.delete_cookie("refresh_token", path="/")
@@ -189,7 +189,7 @@ def change_password(
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise ValueError("User not found")
-        
+
         use_case = ChangePasswordUseCase(pw_hasher, refresh_repo)
         result = use_case.execute(
             user=user,
@@ -197,11 +197,11 @@ def change_password(
             new_password=payload.new_password,
             user_id=user_id,
         )
-        
+
         # Update user
         user.password_hash = result["new_password_hash"]
         db.commit()
-        
+
         return {"message": "Password changed successfully"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -230,13 +230,13 @@ def open_shift(
             opening_float=payload.opening_float,
             cashier_id=get_user_id(request),
         )
-        
+
         # Persist
         shift = POSShift(**shift_data)
         db.add(shift)
         db.commit()
         db.refresh(shift)
-        
+
         audit_event(request, "pos.shift.opened", shift.id)
         return shift
     except ValueError as e:
@@ -261,19 +261,19 @@ def create_receipt(
             lines=payload.lines,
             notes=payload.notes,
         )
-        
+
         # Persist receipt
         receipt = POSReceipt(**receipt_data)
         db.add(receipt)
-        
+
         # Persist lines
         for line in payload.lines:
             line_obj = POSReceiptLine(receipt_id=receipt.id, **line.dict())
             db.add(line_obj)
-        
+
         db.commit()
         db.refresh(receipt)
-        
+
         audit_event(request, "pos.receipt.created", receipt.id)
         return receipt
     except ValueError as e:
@@ -298,12 +298,12 @@ def checkout(
             payments=payload.payments,
             warehouse_id=payload.warehouse_id,
         )
-        
+
         # Update receipt
         receipt = db.query(POSReceipt).filter(POSReceipt.id == receipt_id).first()
         receipt.status = "paid"
         receipt.paid_at = datetime.utcnow()
-        
+
         # Deduct stock
         inv_svc = InventoryCostingService(db)
         for line in receipt.lines:
@@ -312,14 +312,14 @@ def checkout(
                 warehouse_id=result.get("warehouse_id"),
                 qty=line.qty,
             )
-        
+
         # Create journal entry
         acct_svc = AccountingService(db)
         acct_svc.create_entry_from_receipt(receipt_id)
-        
+
         db.commit()
         audit_event(request, "pos.receipt.paid", receipt_id)
-        
+
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -343,26 +343,26 @@ def close_shift(
             cash_count=payload.cash_count,
             closing_notes=payload.notes,
         )
-        
+
         # Calculate variance
         shift = db.query(POSShift).filter(POSShift.id == shift_id).first()
         receipts = db.query(POSReceipt).filter(
             POSReceipt.shift_id == shift_id,
             POSReceipt.status == "paid"
         ).all()
-        
+
         sales_total = sum(r.total for r in receipts)
         expected_cash = shift.opening_float + sales_total
         variance = payload.cash_count - expected_cash
-        
+
         # Update shift
         shift.status = "closed"
         shift.closed_at = datetime.utcnow()
         shift.cash_count = payload.cash_count
-        
+
         db.commit()
         audit_event(request, "pos.shift.closed", shift_id)
-        
+
         return {**summary, "variance": variance}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -397,12 +397,12 @@ def get_shift_summary(
     shift = db.query(POSShift).filter(POSShift.id == shift_id).first()
     if not shift:
         raise HTTPException(status_code=404, detail="Shift not found")
-    
+
     # Calculate totals
     receipts = db.query(POSReceipt).filter(
         POSReceipt.shift_id == shift_id
     ).all()
-    
+
     return {
         "shift_id": shift.id,
         "register_id": shift.register_id,

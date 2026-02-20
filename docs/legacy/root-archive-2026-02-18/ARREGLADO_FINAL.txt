@@ -8,7 +8,7 @@
 apps/tenant/src/modules/pos/POSView.tsx:105
 
   const DEFAULT_ID_TYPES = ['CEDULA', 'RUC', 'PASSPORT']
-  
+
   PROBLEMAS:
     ❌ Hardcodeado en TypeScript
     ❌ No configurable por tenant
@@ -27,7 +27,7 @@ ARCHIVOS CREADOS (CÓDIGO REAL, NO DOCUMENTACIÓN):
 1. DATABASE MODELS
    ✅ apps/backend/app/models/hr/lookups.py
       - Clase DocumentIDType
-      - Clase EmployeeStatus  
+      - Clase EmployeeStatus
       - Clase ContractType
       - Clase DeductionType
       - Clase GenderType
@@ -105,7 +105,7 @@ Usuario elige CEDULA/RUC/PASSPORT (desde BD, no hardcodeado)
 
 PASO 1: MIGRACIONES (SQL, ya listas)
   $ alembic upgrade head
-  
+
   Crea tablas:
     - document_id_types (nueva)
     - employee_statuses (nueva)
@@ -118,7 +118,7 @@ PASO 2: DESPLEGAR BACKEND
   $ git add apps/backend/app/modules/hr/services/lookup_service.py
   $ git add apps/backend/app/modules/hr/routes/lookups.py
   $ git commit -m "feat: add HR lookup service and routes"
-  
+
   En main.py o app.py:
     from app.modules.hr.routes.lookups import router as hr_router
     app.include_router(hr_router)
@@ -128,11 +128,11 @@ PASO 3: DESPLEGAR FRONTEND
   $ git add apps/tenant/src/modules/pos/components/CustomerIDTypeSelect.tsx
   $ git add apps/tenant/src/modules/pos/POSView.tsx
   $ git commit -m "feat: replace hardcoded DEFAULT_ID_TYPES with API"
-  
+
   En POSView donde necesites:
     import { useDocumentIDTypes } from '../../hooks/useDocumentIDTypes'
     const { data: idTypes } = useDocumentIDTypes()
-    
+
     // Usar en JSX:
     {idTypes.map(idType => (
       <option key={idType.code} value={idType.code}>
@@ -151,7 +151,7 @@ PASO 3: DESPLEGAR FRONTEND
 
 2. API
    $ curl -H "tenant-id: YOUR_TENANT_ID" http://localhost:8000/api/v1/hr/document-id-types
-   Expected: 
+   Expected:
    {
      "data": [
        {
@@ -201,7 +201,7 @@ DESPUÉS:
 1. En backend:
    from app.models.hr.lookups import DocumentIDType
    from app.modules.hr.services.lookup_service import HRLookupService
-   
+
    service = HRLookupService(db)
    ids = service.get_document_id_types(tenant_id="test")
    print(ids)  # Debería mostrar CEDULA, RUC, PASSPORT
@@ -218,7 +218,7 @@ DESPUÉS:
 3. En frontend (React):
    // En un test o en la consola del navegador:
    import { useDocumentIDTypes } from './hooks/useDocumentIDTypes'
-   
+
    function Test() {
        const { data, loading } = useDocumentIDTypes()
        return (
@@ -259,19 +259,19 @@ DOCUMENTACIÓN ÚTIL:
 ═════════════════════════════════════════════════════════════════════════════════
 
 Hacer lo MISMO con otros hardcodeados:
-  
+
   1. payment_methods (CASH, CARD, TRANSFER)
      ✅ Ya tenemos modelos y migraciones
      → Crear service, routes, hook
-  
+
   2. employee_statuses (ACTIVE, INACTIVE, TERMINATED)
      ✅ Ya tenemos modelos y migraciones
      → Crear service, routes, hook
-  
+
   3. contract_types (PERMANENT, TEMPORARY, PART_TIME)
      ✅ Ya tenemos modelos y migraciones
      → Crear service, routes, hook
-  
+
   4. deduction_types (INCOME_TAX, SOCIAL_SECURITY)
      ✅ Ya tenemos modelos y migraciones
      → Crear service, routes, hook

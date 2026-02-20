@@ -1,8 +1,8 @@
 # 🚀 SPRINT 1: TIER 1 ROBUSTO (SEMANAS 2-3)
 
-**Status:** EMPEZANDO AHORA  
-**Objetivo:** 5 módulos producción-ready  
-**Modules:** Identity, POS, Invoicing, Inventory, Sales  
+**Status:** EMPEZANDO AHORA
+**Objetivo:** 5 módulos producción-ready
+**Modules:** Identity, POS, Invoicing, Inventory, Sales
 
 ---
 

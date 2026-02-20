@@ -3,10 +3,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from app.modules.imports.application.smart_router import SmartRouter
-from app.modules.imports.application.scoring_engine import ScoringEngine
-from app.modules.imports.application.quality_gates import QualityGate
 from app.modules.imports.application.observability import MetricsCollector, RollbackManager
+from app.modules.imports.application.quality_gates import QualityGate
+from app.modules.imports.application.scoring_engine import ScoringEngine
 from app.modules.imports.infrastructure.learning_store import InMemoryLearningStore
 
 
@@ -68,7 +67,9 @@ if __name__ == "__main__":
     print("✓ Scoring engine v2 initialized")
 
     quality_gate = setup_quality_gates()
-    print(f"✓ Quality gate configured (precision: {quality_gate.min_precision}, recall: {quality_gate.min_recall})")
+    print(
+        f"✓ Quality gate configured (precision: {quality_gate.min_precision}, recall: {quality_gate.min_recall})"
+    )
 
     metrics = setup_metrics_collector()
     print("✓ Metrics collector initialized")

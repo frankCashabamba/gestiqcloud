@@ -1,6 +1,4 @@
 from fastapi import APIRouter, HTTPException
-from typing import Optional
-from uuid import UUID
 
 from app.modules.imports.infrastructure.learning_store import InMemoryLearningStore
 

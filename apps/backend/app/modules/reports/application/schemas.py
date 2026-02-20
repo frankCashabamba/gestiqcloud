@@ -3,13 +3,9 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from app.modules.reports.domain.entities import (
-    ReportFormat,
-    ReportFrequency,
-    ReportType,
-)
+from app.modules.reports.domain.entities import ReportFormat, ReportFrequency, ReportType
 
 
 class GenerateReportRequest(BaseModel):

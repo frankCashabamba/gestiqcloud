@@ -132,7 +132,7 @@ curl -X POST http://localhost:8000/api/v1/tenant/webhooks \
 
 ### Webhooks (DONE ✅)
 - [x] Domain models
-- [x] Pydantic schemas  
+- [x] Pydantic schemas
 - [x] 8 use cases
 - [x] 7 endpoints
 - [x] Delivery service (HMAC + retry)
@@ -183,7 +183,7 @@ curl -X POST http://localhost:8000/api/v1/tenant/webhooks \
 - payroll.created, payroll.completed
 - backup.completed, error.occurred
 
-**Security:** 
+**Security:**
 - HMAC-SHA256 signing of all payloads
 - Secret key per webhook
 - Signature verification ready
@@ -320,7 +320,7 @@ All modules follow the same 5-layer pattern:
 ### Layer 1: Domain
 ```python
 # models.py - Database models
-# events.py - Event definitions  
+# events.py - Event definitions
 # exceptions.py - Custom exceptions
 ```
 

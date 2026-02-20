@@ -65,15 +65,15 @@ cat SPRINT_3_WEBHOOKS_GUIDE.md
 ```
 
 ### 2. Files to Copy (In Order)
-1. `apps/webhooks/application/schemas.py` 
+1. `apps/webhooks/application/schemas.py`
    → `apps/backend/app/modules/webhooks/application/schemas.py`
-   
+
 2. `apps/webhooks/application/use_cases.py`
    → `apps/backend/app/modules/webhooks/application/use_cases.py`
-   
+
 3. `apps/webhooks/infrastructure/delivery.py`
    → `apps/backend/app/modules/webhooks/infrastructure/delivery.py`
-   
+
 4. `apps/webhooks/infrastructure/event_queue.py`
    → `apps/backend/app/modules/webhooks/infrastructure/event_queue.py`
 
@@ -91,7 +91,7 @@ from uuid import UUID
 class WebhookRepository:
     def __init__(self, db_session: Session):
         self.db_session = db_session
-    
+
     # CRUD methods here
 ```
 

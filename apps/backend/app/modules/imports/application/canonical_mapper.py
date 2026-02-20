@@ -1,12 +1,12 @@
-from typing import Any, Optional
+from typing import Any
 
+from app.modules.imports.config.aliases import detect_language, normalize_field_name
 from app.modules.imports.domain.interfaces import (
     DocType,
     MapperStrategy,
     MappingResult,
     ValidatorStrategy,
 )
-from app.modules.imports.config.aliases import normalize_field_name, detect_language
 
 
 class CanonicalMapper(MapperStrategy):
@@ -20,9 +20,7 @@ class CanonicalMapper(MapperStrategy):
     def register_field_mapping(self, doc_type: str, mapping: dict[str, str]) -> None:
         self.field_mappings[doc_type] = mapping
 
-    def map_fields(
-        self, raw_data: dict[str, Any], doc_type: DocType
-    ) -> MappingResult:
+    def map_fields(self, raw_data: dict[str, Any], doc_type: DocType) -> MappingResult:
         language = detect_language(str(raw_data))
         mapping = self.field_mappings.get(doc_type.value, {})
 
@@ -55,9 +53,7 @@ class CanonicalMapper(MapperStrategy):
             warnings=warnings,
         )
 
-    def _find_canonical_field(
-        self, raw_field: str, language: str, mapping: dict
-    ) -> Optional[str]:
+    def _find_canonical_field(self, raw_field: str, language: str, mapping: dict) -> str | None:
         normalized = normalize_field_name(raw_field, language)
 
         for canonical, aliases in mapping.items():
@@ -77,9 +73,7 @@ class CanonicalMapper(MapperStrategy):
             self.field_mappings[doc_type][canonical] = []
 
         if not isinstance(self.field_mappings[doc_type][canonical], list):
-            self.field_mappings[doc_type][canonical] = [
-                self.field_mappings[doc_type][canonical]
-            ]
+            self.field_mappings[doc_type][canonical] = [self.field_mappings[doc_type][canonical]]
 
         if alias not in self.field_mappings[doc_type][canonical]:
             self.field_mappings[doc_type][canonical].append(alias)

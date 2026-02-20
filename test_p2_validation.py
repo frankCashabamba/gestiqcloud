@@ -2,25 +2,21 @@
 """P2 quick validation."""
 
 import sys
+
 sys.path.insert(0, "./apps/backend")
 
 from uuid import uuid4
-from datetime import datetime
+
 from app.modules.imports.domain import (
-    ChunkedFileSession,
-    StreamingExcelParser,
-    LargeFileOptimizer,
-    Country,
-    PeruRuleSet,
-    ColombiaRuleSet,
-    country_rules_registry,
-    AuditEvent,
-    AuditTrail,
-    AuditLogger,
     AuditEventType,
-    BenchmarkThresholds,
-    QualityBenchmark,
+    AuditLogger,
     BenchmarkStatus,
+    ChunkedFileSession,
+    Country,
+    LargeFileOptimizer,
+    PeruRuleSet,
+    QualityBenchmark,
+    country_rules_registry,
 )
 
 print("[OK] Testing P2 features...\n")
@@ -42,7 +38,8 @@ print("  [OK] Chunked file session tracking")
 
 # Simulate adding chunks
 for i in range(15):
-    from app.modules.imports.domain import FileChunk, ChunkStatus
+    from app.modules.imports.domain import ChunkStatus, FileChunk
+
     chunk = FileChunk(
         upload_id="upload-1",
         chunk_number=i,
@@ -193,6 +190,6 @@ decision_pass = benchmark.get_deployment_decision(report)
 assert decision_pass["decision"] == "APPROVE"
 print("  [OK] Deployment approval on high quality")
 
-print("\n" + "="*50)
+print("\n" + "=" * 50)
 print("[OK] ALL P2 TESTS PASSED")
-print("="*50)
+print("=" * 50)

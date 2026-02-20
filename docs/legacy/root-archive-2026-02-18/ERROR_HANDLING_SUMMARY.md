@@ -4,12 +4,12 @@
 
 Un **sistema enterprise de logging, análisis y recuperación automática** de errores de IA que:
 
-✅ **Registra TODOS los requests/responses** en BD para auditoría completa  
-✅ **Analiza patrones de error** automáticamente  
-✅ **Intenta recuperarse** de errores con múltiples estrategias  
-✅ **Proporciona métricas** en tiempo real  
-✅ **Sugiere fixes** para problemas conocidos  
-✅ **Funciona transparentemente** sin cambiar código existente  
+✅ **Registra TODOS los requests/responses** en BD para auditoría completa
+✅ **Analiza patrones de error** automáticamente
+✅ **Intenta recuperarse** de errores con múltiples estrategias
+✅ **Proporciona métricas** en tiempo real
+✅ **Sugiere fixes** para problemas conocidos
+✅ **Funciona transparentemente** sin cambiar código existente
 
 ---
 
@@ -254,15 +254,15 @@ else:
 ### 1. Auditoría Completa
 ```bash
 # ¿Quién usó IA y cuándo?
-SELECT user_id, COUNT(*), MAX(created_at) 
-FROM ai_request_logs 
+SELECT user_id, COUNT(*), MAX(created_at)
+FROM ai_request_logs
 GROUP BY user_id
 ```
 
 ### 2. Detección de Problemas
 ```bash
 # ¿Hay aumento de errores en últimas 2h?
-SELECT 
+SELECT
     DATE_TRUNC('hour', created_at) as hora,
     COUNT(*) as total,
     SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as errors,
@@ -275,7 +275,7 @@ GROUP BY 1 ORDER BY 1 DESC
 ### 3. Optimización de Costo
 ```bash
 # ¿Cuál proveedor consume menos tokens?
-SELECT 
+SELECT
     provider_used,
     COUNT(*) as requests,
     AVG(tokens_used) as avg_tokens,
@@ -289,7 +289,7 @@ ORDER BY total_tokens
 ### 4. Mejora de Calidad
 ```bash
 # ¿Cuál estrategia de recovery funciona mejor?
-SELECT 
+SELECT
     strategy_name,
     COUNT(*) as attempts,
     SUM(CASE WHEN was_successful = 'true' THEN 1 ELSE 0 END) as successes,
@@ -457,14 +457,14 @@ curl http://localhost:8000/api/v1/ai/logs/analysis/summary
 ## 🔐 Seguridad
 
 ### Qué se loguea
-✅ Metadata de request (task, provider, tiempo)  
-✅ Metadata de response (tokens, status)  
-✅ Error messages (para debugging)  
+✅ Metadata de request (task, provider, tiempo)
+✅ Metadata de response (tokens, status)
+✅ Error messages (para debugging)
 
 ### Qué se oculta
-❌ Contenido completo del prompt (solo hash SHA256)  
-❌ Contenido completo de response  
-❌ Datos sensibles del usuario  
+❌ Contenido completo del prompt (solo hash SHA256)
+❌ Contenido completo de response
+❌ Datos sensibles del usuario
 
 ### Privacy
 - Logs se pueden filtrar por tenant (RLS)
@@ -513,13 +513,13 @@ Has obtenido un sistema **enterprise-grade** de:
 - ✅ Auditoría y compliance
 - ✅ Sugerencias de fix
 
-**Sin cambiar código existente** (backward compatible)  
+**Sin cambiar código existente** (backward compatible)
 **Con solo agregar `db=session`** en los queries
 
 ---
 
-**Implementado**: ✅ Sistema completo de error handling  
-**Archivos nuevos**: 7 (código + documentación)  
-**Líneas de código**: ~1,200  
-**Líneas de documentación**: ~700  
+**Implementado**: ✅ Sistema completo de error handling
+**Archivos nuevos**: 7 (código + documentación)
+**Líneas de código**: ~1,200
+**Líneas de documentación**: ~700
 **Status**: Listo para usar

@@ -1,7 +1,7 @@
 from .aliases import (
+    DOC_TYPE_ALIASES,
     FIELD_ALIASES,
     LANGUAGE_DETECTION,
-    DOC_TYPE_ALIASES,
     detect_language,
     get_doc_type_aliases,
     normalize_field_name,

@@ -195,8 +195,8 @@ cat .env | grep -i "AI_PROVIDER\|OLLAMA\|OVHCLOUD"
 
 ## 🎯 Resumen
 
-**Desarrollo:** Solo instalar Ollama y cambiar .env  
-**Producción:** Obtener credenciales OVHCloud y configurar  
+**Desarrollo:** Solo instalar Ollama y cambiar .env
+**Producción:** Obtener credenciales OVHCloud y configurar
 **Total:** 15 minutos para ambos entornos operativos
 
 **Status:** ✅ Listo para usar

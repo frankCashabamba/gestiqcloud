@@ -1,8 +1,8 @@
 # SPRINT 2 - TESTING GUIDE
 ## Manual de Testing - Layout Responsivo + Pago Unificado
 
-**Fecha:** Feb 16, 2026  
-**Versión:** 1.0  
+**Fecha:** Feb 16, 2026
+**Versión:** 1.0
 **Componentes a Testing:** 5 nuevos
 
 ---
@@ -166,22 +166,22 @@ describe('DiscountModal', () => {
   it('should call onConfirm with validated value', () => {
     const onConfirm = jest.fn()
     render(<DiscountModal isOpen={true} onConfirm={onConfirm} {...props} />)
-    
+
     const input = screen.getByDisplayValue('5')
     fireEvent.change(input, { target: { value: '50' } })
     fireEvent.click(screen.getByText('Confirmar'))
-    
+
     expect(onConfirm).toHaveBeenCalledWith(50)
   })
 
   it('should clamp value to 0-100', () => {
     const onConfirm = jest.fn()
     render(<DiscountModal isOpen={true} onConfirm={onConfirm} {...props} />)
-    
+
     const input = screen.getByDisplayValue('5')
     fireEvent.change(input, { target: { value: '150' } })
     fireEvent.click(screen.getByText('Confirmar'))
-    
+
     expect(onConfirm).toHaveBeenCalledWith(100)
   })
 
@@ -225,17 +225,17 @@ describe('ResumeTicketModal', () => {
   it('should select ticket on click', () => {
     const tickets = [{ id: 'T1', cart: [], globalDiscountPct: 0 }]
     render(<ResumeTicketModal isOpen={true} heldTickets={tickets} {...props} />)
-    
+
     const ticketBtn = screen.getByText('T1').closest('button')
     fireEvent.click(ticketBtn)
-    
+
     expect(ticketBtn).toHaveStyle('border-color: #3b82f6')
   })
 
   it('should disable confirm without selection', () => {
     const tickets = [{ id: 'T1', cart: [], globalDiscountPct: 0 }]
     render(<ResumeTicketModal isOpen={true} heldTickets={tickets} {...props} />)
-    
+
     const confirmBtn = screen.getByText('Confirmar')
     expect(confirmBtn).toBeDisabled()
   })
@@ -244,10 +244,10 @@ describe('ResumeTicketModal', () => {
     const tickets = [{ id: 'T1', cart: [], globalDiscountPct: 0 }]
     const onConfirm = jest.fn()
     render(<ResumeTicketModal isOpen={true} heldTickets={tickets} onConfirm={onConfirm} {...props} />)
-    
+
     fireEvent.click(screen.getByText('T1').closest('button'))
     const confirmBtn = screen.getByText('Confirmar')
-    
+
     expect(confirmBtn).not.toBeDisabled()
     fireEvent.click(confirmBtn)
     expect(onConfirm).toHaveBeenCalledWith('T1')
@@ -317,7 +317,7 @@ describe('PaymentModalUnified', () => {
     render(<PaymentModalUnified isOpen={true} total={100} {...props} />)
     const input = screen.getByDisplayValue('100.00')
     fireEvent.change(input, { target: { value: '50' } })
-    
+
     const confirmBtn = screen.getByText('Confirmar')
     expect(confirmBtn).toBeDisabled()
   })
@@ -325,10 +325,10 @@ describe('PaymentModalUnified', () => {
   it('should require card reference', () => {
     render(<PaymentModalUnified isOpen={true} {...props} />)
     fireEvent.click(screen.getByText('Tarjeta'))
-    
+
     const confirmBtn = screen.getByText('Confirmar')
     expect(confirmBtn).toBeDisabled()
-    
+
     const input = screen.getByPlaceholderText('Ej: TRX123456789')
     fireEvent.change(input, { target: { value: 'ABC123' } })
     expect(confirmBtn).not.toBeDisabled()
@@ -337,11 +337,11 @@ describe('PaymentModalUnified', () => {
   it('should call onPayment with correct params', async () => {
     const onPayment = jest.fn().mockResolvedValue(undefined)
     render(<PaymentModalUnified isOpen={true} total={100} onPayment={onPayment} {...props} />)
-    
+
     const input = screen.getByDisplayValue('100.00')
     fireEvent.change(input, { target: { value: '150' } })
     fireEvent.click(screen.getByText('Confirmar'))
-    
+
     await waitFor(() => {
       expect(onPayment).toHaveBeenCalledWith('cash', 150)
     })
@@ -491,6 +491,6 @@ Template:
 
 ---
 
-**Testing Lead:** QA Team  
-**Última actualización:** Feb 16, 2026  
+**Testing Lead:** QA Team
+**Última actualización:** Feb 16, 2026
 **Siguiente:** Code Review

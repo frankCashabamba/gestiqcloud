@@ -21,7 +21,7 @@
   - `apps/tenant/src/components/Toast/useToast.ts` - Hook
   - `apps/tenant/src/components/Toast/types.ts` - Tipos
   - `apps/tenant/src/components/Toast/toast-styles.css` - Estilos
-  
+
 - **Características**:
   - Notificaciones sin bloques (reemplazo para `alert()`)
   - Tipos: success, error, warning, info

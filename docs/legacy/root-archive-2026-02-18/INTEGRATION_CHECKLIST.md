@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI):
         raise
 
     init_sentry()
-    
+
     skip_docs_assets = str(os.getenv("DOCS_ASSETS_SKIP", "0")).lower() in ("1", "true", "yes")
     try:
         if not skip_docs_assets:
@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
 
     # 🆕 AGREGAR AQUÍ
     await initialize_ai_providers()
-    
+
     # ... resto del código
     yield
     # Shutdown
@@ -226,7 +226,7 @@ Editar `apps/backend/app/modules/copilot/services.py`:
 # Agregar db parameter
 async def query_readonly_enhanced(db: Session, topic: str, params: dict):
     result = query_readonly(db, topic, params)
-    
+
     # Con logging
     response = await AIService.query(
         task=AITask.ANALYSIS,
@@ -374,8 +374,8 @@ Si tienes problemas:
 
 ---
 
-**Tiempo estimado**: 15-30 minutos  
-**Complejidad**: Baja (principalmente configuración)  
+**Tiempo estimado**: 15-30 minutos
+**Complejidad**: Baja (principalmente configuración)
 **Riesgo**: Muy bajo (no afecta código existente)
 
 ---

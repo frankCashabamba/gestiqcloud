@@ -1,6 +1,6 @@
 # SPRINT 1: DB PERSISTENCE LAYER INTEGRATION
 
-**Status:** Endpoints ready for DB integration  
+**Status:** Endpoints ready for DB integration
 **Effort:** 2-3 hours to wire everything
 
 ---
@@ -146,27 +146,27 @@ Check if these tables exist in PostgreSQL:
 
 ```sql
 -- Identity
-SELECT table_name FROM information_schema.tables WHERE table_schema='public' 
+SELECT table_name FROM information_schema.tables WHERE table_schema='public'
   AND table_name IN ('users', 'user_roles', 'refresh_tokens');
 
 -- POS
-SELECT table_name FROM information_schema.tables WHERE table_schema='public' 
+SELECT table_name FROM information_schema.tables WHERE table_schema='public'
   AND table_name IN ('pos_registers', 'pos_shifts', 'pos_receipts', 'pos_receipt_lines', 'pos_payments');
 
 -- Invoicing
-SELECT table_name FROM information_schema.tables WHERE table_schema='public' 
+SELECT table_name FROM information_schema.tables WHERE table_schema='public'
   AND table_name IN ('invoices', 'invoice_lines', 'payments');
 
 -- Inventory
-SELECT table_name FROM information_schema.tables WHERE table_schema='public' 
+SELECT table_name FROM information_schema.tables WHERE table_schema='public'
   AND table_name IN ('warehouses', 'stock_items', 'stock_moves');
 
 -- Sales
-SELECT table_name FROM information_schema.tables WHERE table_schema='public' 
+SELECT table_name FROM information_schema.tables WHERE table_schema='public'
   AND table_name IN ('sales_orders', 'sales_order_lines');
 
 -- Accounting
-SELECT table_name FROM information_schema.tables WHERE table_schema='public' 
+SELECT table_name FROM information_schema.tables WHERE table_schema='public'
   AND table_name IN ('journal_entries', 'journal_entry_lines', 'chart_of_accounts');
 ```
 
@@ -267,11 +267,11 @@ Replace TODOs in endpoints like this:
 def checkout(...):
     use_case = CheckoutReceiptUseCase()
     result = use_case.execute(...)
-    
+
     # TODO: Update receipt
     # TODO: Deduct stock
     # TODO: Create journal entry
-    
+
     logger.info(f"Receipt {receipt_id} paid")
     return result
 ```
@@ -294,15 +294,15 @@ def checkout(
             payments=payload.payments,
             warehouse_id=payload.warehouse_id,
         )
-        
+
         # 1. Update receipt
         receipt = db.query(POSReceipt).filter(POSReceipt.id == receipt_id).first()
         if not receipt:
             raise HTTPException(status_code=404, detail="Receipt not found")
-        
+
         receipt.status = "paid"
         receipt.paid_at = datetime.utcnow()
-        
+
         # 2. Deduct stock
         for line in receipt.lines:
             cogs = inv_svc.deduct_stock(
@@ -313,16 +313,16 @@ def checkout(
             # Update line with COGS info
             line.cogs_unit = cogs["cogs_unit"]
             line.cogs_total = cogs["cogs_total"]
-        
+
         # 3. Create journal entry
         acct_svc.create_entry_from_receipt(receipt_id=receipt_id)
-        
+
         db.commit()
         audit_event(request, "pos.receipt.paid", receipt_id)
-        
+
         logger.info(f"Receipt {receipt_id} paid with stock + accounting")
         return result
-    
+
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))

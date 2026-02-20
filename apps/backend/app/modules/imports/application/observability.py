@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
 
 
 @dataclass
@@ -27,7 +26,7 @@ class MetricsCollector:
         self.metrics: list[Metric] = []
         self.buckets: dict[str, MetricsBucket] = {}
 
-    def record_metric(self, name: str, value: float, tags: Optional[dict] = None) -> None:
+    def record_metric(self, name: str, value: float, tags: dict | None = None) -> None:
         self.metrics.append(
             Metric(
                 name=name,
@@ -43,7 +42,7 @@ class MetricsCollector:
         confidence: float,
         processing_time_ms: float,
         success: bool,
-        error_reason: Optional[str] = None,
+        error_reason: str | None = None,
     ) -> None:
         if doc_type not in self.buckets:
             self.buckets[doc_type] = MetricsBucket(doc_type=doc_type)
@@ -87,7 +86,7 @@ class MetricsCollector:
             },
         }
 
-    def get_metrics_by_doc_type(self, doc_type: str) -> Optional[dict]:
+    def get_metrics_by_doc_type(self, doc_type: str) -> dict | None:
         if doc_type not in self.buckets:
             return None
 
@@ -145,11 +144,13 @@ class RollbackManager:
         if version_name not in self.versions:
             return False
 
-        self.rollback_history.append({
-            "from_version": self.current_version,
-            "to_version": version_name,
-            "timestamp": datetime.utcnow().isoformat(),
-        })
+        self.rollback_history.append(
+            {
+                "from_version": self.current_version,
+                "to_version": version_name,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
 
         return self.set_active_version(version_name)
 

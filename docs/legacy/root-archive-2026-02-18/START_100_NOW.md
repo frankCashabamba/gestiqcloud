@@ -1,7 +1,7 @@
 # 🚀 START HERE: COMPLETAR AL 100% AHORA
 
-**Tiempo total:** 6-7 horas  
-**Deadline:** Mañana  
+**Tiempo total:** 6-7 horas
+**Deadline:** Mañana
 **Resultado:** Sistema en Render
 
 ---
@@ -67,30 +67,30 @@ async def calculate_cost_lifo(
     layers = await self._repo.get_cost_layers(
         product_id, warehouse_id, order_by="-created_at"
     )
-    
+
     remaining = quantity
     total_cost = Decimal(0)
     updated_layers = []
-    
+
     for layer in layers:
         if remaining <= 0:
             updated_layers.append(layer)
             continue
-        
+
         consumed = min(remaining, layer.quantity)
         layer_cost = consumed * layer.unit_cost
         total_cost += layer_cost
         remaining -= consumed
-        
+
         layer.quantity -= consumed
         if layer.quantity > 0:
             updated_layers.append(layer)
-    
+
     if remaining > 0:
         raise InsufficientStockError(
             f"Stock insuficiente: falta {remaining} unidades"
         )
-    
+
     return CostLayerResult(
         method="lifo",
         total_cost=total_cost,
@@ -136,10 +136,10 @@ async def calculate_order_with_discount(
 ):
     """
     Calcular total de orden con descuento.
-    
+
     Ejemplo:
     POST /orders/123/calculate-with-discount?discount_pct=10
-    
+
     Respuesta:
     {
         "order_id": "...",
@@ -152,15 +152,15 @@ async def calculate_order_with_discount(
     order = await order_crud.get(order_id)
     if not order:
         raise NotFound(f"Order {order_id} not found")
-    
+
     subtotal = sum(
-        item.quantity * item.unit_price 
+        item.quantity * item.unit_price
         for item in order.items
     )
-    
+
     discount_amount = subtotal * (Decimal(discount_pct) / Decimal(100))
     total = subtotal - discount_amount
-    
+
     return {
         "order_id": order_id,
         "subtotal": subtotal,
@@ -217,12 +217,12 @@ async def create_invoice_from_order(
 ):
     """
     Crear factura desde orden de venta.
-    
+
     Validaciones:
     - Orden debe existir
     - Orden debe estar CONFIRMED
     - No debe tener factura previa
-    
+
     Proceso:
     1. Crear factura (DRAFT)
     2. Copiar líneas de orden
@@ -233,22 +233,22 @@ async def create_invoice_from_order(
     order = await order_crud.get(order_id)
     if not order:
         raise NotFound(f"Order {order_id} not found")
-    
+
     if order.status != OrderStatus.CONFIRMED:
         raise BadRequest(f"Order must be CONFIRMED, is {order.status}")
-    
+
     # Validar que no tenga factura
     existing = await invoicing_repo.get_by_order(order_id)
     if existing:
         raise BadRequest(f"Order {order_id} already has invoice")
-    
+
     # Crear factura
     invoice_service = InvoiceService(invoicing_repo)
     invoice = await invoice_service.create_invoice_from_order(
         order_id=order_id,
         tenant_id=tenant_id,
     )
-    
+
     return InvoiceOut.from_orm(invoice)
 ```
 
@@ -261,10 +261,10 @@ async def create_invoice_from_order(
     tenant_id: UUID,
 ):
     """Create invoice from confirmed order."""
-    
+
     # Obtener orden con items
     order = await self._order_repo.get_order_with_items(order_id)
-    
+
     # Crear factura
     factura = Factura(
         tenant_id=tenant_id,
@@ -275,7 +275,7 @@ async def create_invoice_from_order(
         fecha=datetime.now(),
     )
     factura = await self._factura_repo.create(factura)
-    
+
     # Copiar líneas
     for item in order.items:
         linea = FacturaLinea(
@@ -285,11 +285,11 @@ async def create_invoice_from_order(
             precio_unitario=item.unit_price,
         )
         await self._linea_repo.create(linea)
-    
+
     # Linkar
     order.factura_id = factura.id
     await self._order_repo.update(order)
-    
+
     return factura
 ```
 
@@ -487,7 +487,7 @@ Ahora:     Setup (5 min)
 
 **EMPIEZA AHORA.**
 
-Lee TODO_TAREAS_ESPECIFICAS.md y comienza con LIFO. 
+Lee TODO_TAREAS_ESPECIFICAS.md y comienza con LIFO.
 
 Son 6-7 horas. Nada más. Después: RENDER.
 

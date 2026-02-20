@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -69,11 +68,7 @@ class BenchmarkRunner:
 
         precision = correct / total if total > 0 else 0.0
         recall = correct / total if total > 0 else 0.0
-        f1 = (
-            2 * (precision * recall) / (precision + recall)
-            if (precision + recall) > 0
-            else 0.0
-        )
+        f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
 
         return QualityMetrics(
             total_samples=total,

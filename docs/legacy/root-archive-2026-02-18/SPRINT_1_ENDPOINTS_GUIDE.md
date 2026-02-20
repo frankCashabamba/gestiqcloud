@@ -1,6 +1,6 @@
 # SPRINT 1: ENDPOINTS IMPLEMENTATION GUIDE
 
-**Objetivo:** Implementar endpoints para 5 módulos Tier 1  
+**Objetivo:** Implementar endpoints para 5 módulos Tier 1
 **Patrón:** DDD - application/use_cases.py → interface/http/*.py
 
 ---
@@ -77,7 +77,7 @@ def refresh(request: Request, db: Session = Depends(get_db)):
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
         raise HTTPException(status_code=401, detail="No refresh token")
-    
+
     use_case = RefreshTokenUseCase(token_svc, refresh_repo)
     result = use_case.execute(
         refresh_token=refresh_token,
@@ -94,10 +94,10 @@ def logout(request: Request, db: Session = Depends(get_db)):
     """Logout: revoke all sessions."""
     refresh_token = request.cookies.get("refresh_token")
     user_id = UUID(request.state.access_claims["sub"])
-    
+
     use_case = LogoutUseCase(refresh_repo)
     use_case.execute(refresh_token=refresh_token, user_id=user_id)
-    
+
     response = JSONResponse({"message": "Logged out"})
     response.delete_cookie("refresh_token")
     return response
@@ -114,7 +114,7 @@ def change_password(
     """Change password."""
     user_id = UUID(request.state.access_claims["sub"])
     user = db.query(User).filter(User.id == user_id).first()
-    
+
     use_case = ChangePasswordUseCase(pw_hasher, refresh_repo)
     result = use_case.execute(
         user=user,
@@ -191,12 +191,12 @@ def checkout(
         payments=payload.payments,
         warehouse_id=payload.warehouse_id,
     )
-    
+
     # 1. Update receipt status
     db.query(POSReceipt).filter(POSReceipt.id == receipt_id).update(
         {"status": "paid", "paid_at": datetime.utcnow()}
     )
-    
+
     # 2. Call InventoryService.deduct_stock()
     inv_svc = InventoryCostingService(db)
     for line in receipt_lines:
@@ -205,11 +205,11 @@ def checkout(
             warehouse_id=result["warehouse_id"],
             qty=line.qty,
         )
-    
+
     # 3. Call AccountingService.create_journal_entry()
     acct_svc = AccountingService(db)
     acct_svc.create_entry_from_receipt(receipt_id)
-    
+
     db.commit()
     return result
 ```
@@ -274,7 +274,7 @@ def send_invoice(
 ):
     """Send invoice by email."""
     invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
-    
+
     use_case_pdf = GenerateInvoicePDFUseCase()
     pdf_bytes = use_case_pdf.execute(
         invoice_id=invoice.id,
@@ -287,7 +287,7 @@ def send_invoice(
         issued_at=invoice.issued_at,
         company_name="Your Company",
     )
-    
+
     use_case_send = SendInvoiceEmailUseCase()
     result = use_case_send.execute(
         invoice_id=invoice.id,
@@ -296,13 +296,13 @@ def send_invoice(
         pdf_bytes=pdf_bytes,
         template=payload.template,
     )
-    
+
     # Update invoice status
     db.query(Invoice).filter(Invoice.id == invoice_id).update(
         {"status": "sent", "sent_at": datetime.utcnow()}
     )
     db.commit()
-    
+
     return result
 ```
 
@@ -456,7 +456,7 @@ def test_login_success(db, client):
 # test_pos.py
 def test_create_receipt(db, client, auth_headers):
     """Test POS receipt creation."""
-    response = client.post("/pos/receipts", 
+    response = client.post("/pos/receipts",
         json={"shift_id": "...", "lines": [...]},
         headers=auth_headers
     )

@@ -13,7 +13,6 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
-from app.models.inventory.transfers import StockTransfer, TransferStatus
 from app.modules.inventory.application.stock_transfer_service import StockTransferService
 
 router = APIRouter(
@@ -153,7 +152,9 @@ def list_transfers(
 @router.get("/{transfer_id}", response_model=StockTransferResponse)
 def get_transfer(
     request: Request,
-    transfer_id: str = Path(..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"),
+    transfer_id: str = Path(
+        ..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    ),
     db: Session = Depends(get_db),
 ):
     """Get a specific stock transfer by ID"""
@@ -172,7 +173,9 @@ def get_transfer(
 @router.post("/{transfer_id}/start", response_model=StockTransferResponse)
 def start_transfer(
     request: Request,
-    transfer_id: str = Path(..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"),
+    transfer_id: str = Path(
+        ..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    ),
     db: Session = Depends(get_db),
 ):
     """
@@ -198,7 +201,9 @@ def start_transfer(
 @router.post("/{transfer_id}/complete", response_model=StockTransferResponse)
 def complete_transfer(
     request: Request,
-    transfer_id: str = Path(..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"),
+    transfer_id: str = Path(
+        ..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    ),
     db: Session = Depends(get_db),
 ):
     """
@@ -224,7 +229,9 @@ def complete_transfer(
 @router.post("/{transfer_id}/cancel", response_model=StockTransferResponse)
 def cancel_transfer(
     request: Request,
-    transfer_id: str = Path(..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"),
+    transfer_id: str = Path(
+        ..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    ),
     db: Session = Depends(get_db),
 ):
     """

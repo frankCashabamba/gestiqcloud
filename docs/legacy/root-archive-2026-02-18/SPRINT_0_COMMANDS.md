@@ -487,4 +487,3 @@ echo "SPRINT 0 DONE"
 ```
 
 **Contéstame: SPRINT 0 COMPLETADO ✅**
-

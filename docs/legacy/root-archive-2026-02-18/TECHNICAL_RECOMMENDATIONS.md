@@ -103,7 +103,7 @@ OPCIÓN B: SQL manual para schemas grandes
   1. Mantener ops/migrations/ para cambios complejos
   2. Alembic solo para incrementos pequeños
   3. Documentar orden de ejecución
-  
+
 Recomendado: OPCIÓN A
 ```
 
@@ -285,25 +285,25 @@ test.describe('POS Module', () => {
     await page.fill('input[name="username"]', 'admin');
     await page.fill('input[name="password"]', 'secret');
     await page.click('button:has-text("Login")');
-    
+
     // 2. Navigate to POS
     await page.goto('/pos');
-    
+
     // 3. Open shift
     await page.click('button:has-text("Open Shift")');
-    
+
     // 4. Add product
     await page.click('[data-product-id="bread-1"]');
-    
+
     // 5. Verify cart
     const total = await page.textContent('[data-total-price]');
     expect(total).toContain('€');
-    
+
     // 6. Process payment
     await page.click('button:has-text("Charge")');
     await page.fill('input[placeholder="Amount"]', '10');
     await page.click('button:has-text("Confirm")');
-    
+
     // 7. Verify receipt
     await expect(page).toHaveURL(/receipt/);
   });
@@ -369,8 +369,8 @@ const POS = React.lazy(() => import('./modules/pos/POSView'));
 </Suspense>
 
 // 2. Image optimization
-<img 
-  src="product.jpg" 
+<img
+  src="product.jpg"
   alt="Product"
   loading="lazy"
   decoding="async"
@@ -550,22 +550,22 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      
+
       - name: Install dependencies
         run: |
           cd apps/backend
           pip install -r requirements.txt
-      
+
       - name: Run tests
         run: |
           cd apps/backend
           pytest --cov=app --cov-report=xml
-      
+
       - name: Upload coverage
         uses: codecov/codecov-action@v3
         with:
@@ -573,24 +573,24 @@ jobs:
 
   test-frontend:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Set up Node
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-      
+
       - name: Install tenant
         run: cd apps/tenant && npm ci
-      
+
       - name: Run typecheck
         run: cd apps/tenant && npm run typecheck
-      
+
       - name: Run lint
         run: cd apps/tenant && npm run lint
-      
+
       - name: Run tests
         run: cd apps/tenant && npm run test:run
 ```
@@ -743,10 +743,10 @@ async def list_receipts(
 ):
     """
     Listar todos los tickets de punto de venta
-    
+
     - **skip**: Número de registros a saltar (default: 0)
     - **limit**: Número máximo de registros (default: 50)
-    
+
     Retorna una lista paginada de tickets.
     """
     return db.query(Receipt).offset(skip).limit(limit).all()
@@ -799,4 +799,3 @@ async def list_receipts(
 
 **Estimated Total:** 8-10 semanas para producción
 **Costo estimado:** €60-80k
-

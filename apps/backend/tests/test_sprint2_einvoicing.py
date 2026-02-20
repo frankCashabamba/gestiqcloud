@@ -1,14 +1,19 @@
 """Tests - E-Invoicing Module (Sprint 2)"""
 
-import pytest
-from datetime import date, datetime, timedelta
-from decimal import Decimal
+from datetime import datetime
 from uuid import uuid4
+
+import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.models.einvoicing.einvoice import EInvoice, EInvoiceSignature, EInvoiceStatus, EInvoiceError
 from app.models.einvoicing.country_settings import EInvoicingCountrySettings, TaxRegime
+from app.models.einvoicing.einvoice import (
+    EInvoice,
+    EInvoiceError,
+    EInvoiceSignature,
+    EInvoiceStatus,
+)
 from app.modules.einvoicing.application.sii_service import SIIService
 
 
@@ -47,7 +52,7 @@ def sii_settings(db: Session, tenant_id):
     )
     db.add(regime)
     db.flush()
-    
+
     # Crear configuración
     settings = EInvoicingCountrySettings(
         tenant_id=tenant_id,
@@ -98,6 +103,7 @@ def invoice_data():
 # TESTS: Configuration
 # ============================================================================
 
+
 def test_sii_settings_creation(db: Session, tenant_id):
     """Test: crea configuración SII."""
     settings = EInvoicingCountrySettings(
@@ -109,7 +115,7 @@ def test_sii_settings_creation(db: Session, tenant_id):
     )
     db.add(settings)
     db.flush()
-    
+
     assert settings.country == "ES"
     assert settings.api_endpoint == "https://www.aeat.es/svl/siiTest"
 
@@ -117,7 +123,7 @@ def test_sii_settings_creation(db: Session, tenant_id):
 def test_sii_get_settings(db: Session, tenant_id, sii_settings):
     """Test: obtiene configuración desde BD."""
     settings = SIIService.get_settings(db, tenant_id, "ES")
-    
+
     assert settings.is_enabled is True
     assert settings.api_endpoint == "https://www.aeat.es/svl/siiTest"
 
@@ -125,7 +131,7 @@ def test_sii_get_settings(db: Session, tenant_id, sii_settings):
 def test_sii_get_api_endpoint(db: Session, tenant_id, sii_settings):
     """Test: obtiene endpoint API (NO HARDCODEADO)."""
     endpoint = SIIService.get_api_endpoint(db, tenant_id, "ES")
-    
+
     # Debe venir de BD, no ser hardcodeado
     assert endpoint == "https://www.aeat.es/svl/siiTest"
     assert "aeat.es" in endpoint
@@ -143,7 +149,7 @@ def test_tax_regime_creation(db: Session):
     )
     db.add(regime)
     db.flush()
-    
+
     assert regime.country == "ES"
     assert regime.vat_applicable is True
 
@@ -152,10 +158,11 @@ def test_tax_regime_creation(db: Session):
 # TESTS: Validation
 # ============================================================================
 
+
 def test_validate_invoice_valid(invoice_data):
     """Test: valida factura correcta."""
     errors = SIIService.validate_invoice_data(invoice_data, "ES")
-    
+
     assert len(errors) == 0
 
 
@@ -163,7 +170,7 @@ def test_validate_invoice_missing_cif(invoice_data):
     """Test: valida que CIF sea requerido."""
     del invoice_data["company_cif"]
     errors = SIIService.validate_invoice_data(invoice_data, "ES")
-    
+
     assert "company_cif_required" in errors
 
 
@@ -171,7 +178,7 @@ def test_validate_invoice_invalid_cif_format(invoice_data):
     """Test: valida formato de CIF."""
     invoice_data["company_cif"] = "INVALID"  # Muy corto
     errors = SIIService.validate_invoice_data(invoice_data, "ES")
-    
+
     assert "company_cif_invalid_format" in errors
 
 
@@ -179,7 +186,7 @@ def test_validate_invoice_missing_customer_nif(invoice_data):
     """Test: valida que NIF cliente sea requerido."""
     del invoice_data["customer_nif"]
     errors = SIIService.validate_invoice_data(invoice_data, "ES")
-    
+
     assert "customer_nif_required" in errors
 
 
@@ -188,7 +195,7 @@ def test_validate_invoice_vat_calculation(invoice_data):
     # VAT incorrecto
     invoice_data["total_vat"] = 300.00  # Debería ser ~210
     errors = SIIService.validate_invoice_data(invoice_data, "ES")
-    
+
     assert len(errors) > 0
 
 
@@ -196,10 +203,11 @@ def test_validate_invoice_vat_calculation(invoice_data):
 # TESTS: XML Generation
 # ============================================================================
 
+
 def test_generate_xml_structure(invoice_data):
     """Test: genera XML con estructura correcta."""
     xml = SIIService.generate_xml(invoice_data, "ES")
-    
+
     assert "<factura" in xml
     assert "version=" in xml
     assert "<cabecera>" in xml
@@ -212,7 +220,7 @@ def test_generate_xml_structure(invoice_data):
 def test_generate_xml_company_data(invoice_data):
     """Test: XML contiene datos de empresa."""
     xml = SIIService.generate_xml(invoice_data, "ES")
-    
+
     assert invoice_data["company_cif"] in xml
     assert invoice_data["company_name"] in xml
 
@@ -220,7 +228,7 @@ def test_generate_xml_company_data(invoice_data):
 def test_generate_xml_customer_data(invoice_data):
     """Test: XML contiene datos de cliente."""
     xml = SIIService.generate_xml(invoice_data, "ES")
-    
+
     assert invoice_data["customer_nif"] in xml
     assert invoice_data["customer_name"] in xml
 
@@ -228,7 +236,7 @@ def test_generate_xml_customer_data(invoice_data):
 def test_generate_xml_invoice_lines(invoice_data):
     """Test: XML contiene líneas de factura."""
     xml = SIIService.generate_xml(invoice_data, "ES")
-    
+
     for line in invoice_data["lines"]:
         assert line["description"] in xml
 
@@ -236,7 +244,7 @@ def test_generate_xml_invoice_lines(invoice_data):
 def test_generate_xml_totals(invoice_data):
     """Test: XML contiene totales."""
     xml = SIIService.generate_xml(invoice_data, "ES")
-    
+
     assert str(invoice_data["subtotal"]) in xml
     assert str(invoice_data["total_vat"]) in xml
     assert str(invoice_data["total"]) in xml
@@ -246,12 +254,11 @@ def test_generate_xml_totals(invoice_data):
 # TESTS: EInvoice Creation
 # ============================================================================
 
+
 def test_einvoice_send_to_sii(db: Session, tenant_id, sii_settings, invoice_data):
     """Test: envía factura a SII."""
-    result = SIIService.send_to_sii(
-        db, tenant_id, uuid4(), invoice_data
-    )
-    
+    result = SIIService.send_to_sii(db, tenant_id, uuid4(), invoice_data)
+
     assert result["status"] in ["PENDING", "SENT", "ACCEPTED", "ERROR"]
 
 
@@ -259,12 +266,13 @@ def test_einvoice_record_created(db: Session, tenant_id, sii_settings, invoice_d
     """Test: crea registro EInvoice."""
     invoice_id = uuid4()
     SIIService.send_to_sii(db, tenant_id, invoice_id, invoice_data)
-    
+
     from sqlalchemy import select
+
     einvoice = db.execute(
         select(EInvoice).where(EInvoice.invoice_id == invoice_id)
     ).scalar_one_or_none()
-    
+
     assert einvoice is not None
     assert einvoice.tenant_id == tenant_id
     assert einvoice.country == "ES"
@@ -274,12 +282,11 @@ def test_einvoice_xml_content(db: Session, tenant_id, sii_settings, invoice_data
     """Test: guarda XML en registro."""
     invoice_id = uuid4()
     SIIService.send_to_sii(db, tenant_id, invoice_id, invoice_data)
-    
+
     from sqlalchemy import select
-    einvoice = db.execute(
-        select(EInvoice).where(EInvoice.invoice_id == invoice_id)
-    ).scalar_one()
-    
+
+    einvoice = db.execute(select(EInvoice).where(EInvoice.invoice_id == invoice_id)).scalar_one()
+
     assert einvoice.xml_content is not None
     assert "<factura" in einvoice.xml_content
 
@@ -288,16 +295,16 @@ def test_einvoice_xml_content(db: Session, tenant_id, sii_settings, invoice_data
 # TESTS: EInvoice Status
 # ============================================================================
 
+
 def test_einvoice_status_pending(db: Session, tenant_id, sii_settings, invoice_data):
     """Test: crea einvoice con estado PENDING."""
     invoice_id = uuid4()
     SIIService.send_to_sii(db, tenant_id, invoice_id, invoice_data)
-    
+
     from sqlalchemy import select
-    einvoice = db.execute(
-        select(EInvoice).where(EInvoice.invoice_id == invoice_id)
-    ).scalar_one()
-    
+
+    einvoice = db.execute(select(EInvoice).where(EInvoice.invoice_id == invoice_id)).scalar_one()
+
     assert einvoice.status in ["PENDING", "SENT", "ACCEPTED"]
 
 
@@ -305,19 +312,18 @@ def test_einvoice_status_transitions(db: Session, tenant_id, sii_settings, invoi
     """Test: transiciones de estado de einvoice."""
     invoice_id = uuid4()
     SIIService.send_to_sii(db, tenant_id, invoice_id, invoice_data)
-    
+
     from sqlalchemy import select
-    einvoice = db.execute(
-        select(EInvoice).where(EInvoice.invoice_id == invoice_id)
-    ).scalar_one()
-    
+
+    einvoice = db.execute(select(EInvoice).where(EInvoice.invoice_id == invoice_id)).scalar_one()
+
     # Cambiar estado
     einvoice.status = "ACCEPTED"
     einvoice.fiscal_number = "SII000001"
     einvoice.authorization_code = "AUTH123"
     einvoice.accepted_at = datetime.utcnow()
     db.flush()
-    
+
     assert einvoice.status == "ACCEPTED"
     assert einvoice.fiscal_number is not None
 
@@ -326,12 +332,11 @@ def test_einvoice_status_history(db: Session, tenant_id, sii_settings, invoice_d
     """Test: registra historial de estados."""
     invoice_id = uuid4()
     SIIService.send_to_sii(db, tenant_id, invoice_id, invoice_data)
-    
+
     from sqlalchemy import select
-    einvoice = db.execute(
-        select(EInvoice).where(EInvoice.invoice_id == invoice_id)
-    ).scalar_one()
-    
+
+    einvoice = db.execute(select(EInvoice).where(EInvoice.invoice_id == invoice_id)).scalar_one()
+
     # Agregar cambio de estado
     status_change = EInvoiceStatus(
         einvoice_id=einvoice.id,
@@ -341,7 +346,7 @@ def test_einvoice_status_history(db: Session, tenant_id, sii_settings, invoice_d
     )
     db.add(status_change)
     db.flush()
-    
+
     # Crear otro cambio
     status_change2 = EInvoiceStatus(
         einvoice_id=einvoice.id,
@@ -351,7 +356,7 @@ def test_einvoice_status_history(db: Session, tenant_id, sii_settings, invoice_d
     )
     db.add(status_change2)
     db.flush()
-    
+
     statuses = db.query(EInvoiceStatus).filter_by(einvoice_id=einvoice.id).all()
     assert len(statuses) >= 2
 
@@ -360,22 +365,22 @@ def test_einvoice_status_history(db: Session, tenant_id, sii_settings, invoice_d
 # TESTS: Retry Logic
 # ============================================================================
 
+
 def test_einvoice_retry_count(db: Session, tenant_id, sii_settings, invoice_data):
     """Test: incrementa contador de reintentos."""
     invoice_id = uuid4()
     SIIService.send_to_sii(db, tenant_id, invoice_id, invoice_data)
-    
+
     from sqlalchemy import select
-    einvoice = db.execute(
-        select(EInvoice).where(EInvoice.invoice_id == invoice_id)
-    ).scalar_one()
-    
+
+    einvoice = db.execute(select(EInvoice).where(EInvoice.invoice_id == invoice_id)).scalar_one()
+
     initial_count = einvoice.retry_count
-    
+
     # Simular reintento
-    result = SIIService.retry_send(db, einvoice.id)
+    SIIService.retry_send(db, einvoice.id)
     db.refresh(einvoice)
-    
+
     assert einvoice.retry_count > initial_count
 
 
@@ -383,12 +388,11 @@ def test_einvoice_retry_schedule(db: Session, tenant_id, sii_settings, invoice_d
     """Test: programa próximo reintento."""
     invoice_id = uuid4()
     SIIService.send_to_sii(db, tenant_id, invoice_id, invoice_data)
-    
+
     from sqlalchemy import select
-    einvoice = db.execute(
-        select(EInvoice).where(EInvoice.invoice_id == invoice_id)
-    ).scalar_one()
-    
+
+    einvoice = db.execute(select(EInvoice).where(EInvoice.invoice_id == invoice_id)).scalar_one()
+
     # Si status es RETRY, debe tener next_retry_at
     if einvoice.status == "RETRY":
         assert einvoice.next_retry_at is not None
@@ -399,15 +403,14 @@ def test_einvoice_max_retries_exceeded(db: Session, tenant_id, sii_settings, inv
     """Test: detiene después de max retries."""
     invoice_id = uuid4()
     SIIService.send_to_sii(db, tenant_id, invoice_id, invoice_data)
-    
+
     from sqlalchemy import select
-    einvoice = db.execute(
-        select(EInvoice).where(EInvoice.invoice_id == invoice_id)
-    ).scalar_one()
-    
+
+    einvoice = db.execute(select(EInvoice).where(EInvoice.invoice_id == invoice_id)).scalar_one()
+
     # Simular múltiples reintentos
     einvoice.retry_count = 6  # Más que max_retries (5)
-    
+
     with pytest.raises(ValueError, match="Max retry"):
         SIIService.retry_send(db, einvoice.id)
 
@@ -416,16 +419,16 @@ def test_einvoice_max_retries_exceeded(db: Session, tenant_id, sii_settings, inv
 # TESTS: Signature
 # ============================================================================
 
+
 def test_einvoice_signature_creation(db: Session, tenant_id, sii_settings, invoice_data):
     """Test: crea firma digital."""
     invoice_id = uuid4()
     SIIService.send_to_sii(db, tenant_id, invoice_id, invoice_data)
-    
+
     from sqlalchemy import select
-    einvoice = db.execute(
-        select(EInvoice).where(EInvoice.invoice_id == invoice_id)
-    ).scalar_one()
-    
+
+    einvoice = db.execute(select(EInvoice).where(EInvoice.invoice_id == invoice_id)).scalar_one()
+
     # Si tiene firma, verificar
     if einvoice.signature:
         assert einvoice.signature.status in ["SIGNED", "VERIFIED"]
@@ -442,7 +445,7 @@ def test_einvoice_signature_info(db: Session):
     )
     db.add(signature)
     db.flush()
-    
+
     assert signature.certificate_serial == "1234567890"
     assert signature.digest_algorithm == "SHA256"
 
@@ -450,6 +453,7 @@ def test_einvoice_signature_info(db: Session):
 # ============================================================================
 # TESTS: Errors
 # ============================================================================
+
 
 def test_einvoice_error_logging(db: Session, tenant_id, sii_settings):
     """Test: registra errores de envío."""
@@ -461,7 +465,7 @@ def test_einvoice_error_logging(db: Session, tenant_id, sii_settings):
     )
     db.add(einvoice)
     db.flush()
-    
+
     error = EInvoiceError(
         einvoice_id=einvoice.id,
         error_code="VAL_001",
@@ -471,7 +475,7 @@ def test_einvoice_error_logging(db: Session, tenant_id, sii_settings):
     )
     db.add(error)
     db.flush()
-    
+
     assert error.error_type == "VALIDATION"
     assert error.is_recoverable is False
 
@@ -486,7 +490,7 @@ def test_einvoice_recoverable_error(db: Session, tenant_id, sii_settings):
     )
     db.add(einvoice)
     db.flush()
-    
+
     error = EInvoiceError(
         einvoice_id=einvoice.id,
         error_message="Connection timeout",
@@ -495,7 +499,7 @@ def test_einvoice_recoverable_error(db: Session, tenant_id, sii_settings):
     )
     db.add(error)
     db.flush()
-    
+
     assert error.is_recoverable is True
     # Poder hacer reintento
 
@@ -504,23 +508,23 @@ def test_einvoice_recoverable_error(db: Session, tenant_id, sii_settings):
 # INTEGRATION TESTS
 # ============================================================================
 
+
 def test_full_einvoicing_workflow(db: Session, tenant_id, sii_settings, invoice_data):
     """Test: flujo completo de factura electrónica."""
     invoice_id = uuid4()
-    
+
     # 1. Enviar factura
     result = SIIService.send_to_sii(db, tenant_id, invoice_id, invoice_data)
     assert result["status"] in ["PENDING", "SENT", "ACCEPTED"]
-    
+
     # 2. Obtener estado
     from sqlalchemy import select
-    einvoice = db.execute(
-        select(EInvoice).where(EInvoice.invoice_id == invoice_id)
-    ).scalar_one()
-    
+
+    einvoice = db.execute(select(EInvoice).where(EInvoice.invoice_id == invoice_id)).scalar_one()
+
     status = SIIService.get_status(db, einvoice.id)
     assert status["status"] is not None
-    
+
     # 3. Si aceptada, verificar datos
     if status["status"] == "ACCEPTED":
         assert status["fiscal_number"] is not None

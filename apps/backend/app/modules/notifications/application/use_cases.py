@@ -1,23 +1,21 @@
 """Business logic for notifications module."""
 
 import logging
-from typing import List, Tuple
 from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.modules.notifications.domain.models import Notification, NotificationTemplate
 from app.modules.notifications.domain.exceptions import (
+    DeliveryFailed,
     NotificationNotFound,
     TemplateNotFound,
-    InvalidChannel,
-    DeliveryFailed,
 )
+from app.modules.notifications.domain.models import Notification, NotificationTemplate
 from app.modules.notifications.infrastructure.notification_service import (
-    NotificationService,
     NotificationChannel,
     NotificationPriority,
+    NotificationService,
 )
 
 logger = logging.getLogger(__name__)
@@ -91,11 +89,15 @@ class SendTemplateNotificationUseCase:
         db_session: Session,
     ) -> Notification:
         """Load template, render, and send."""
-        template = db_session.query(NotificationTemplate).filter(
-            NotificationTemplate.tenant_id == tenant_id,
-            NotificationTemplate.name == template_name,
-            NotificationTemplate.is_active == True,
-        ).first()
+        template = (
+            db_session.query(NotificationTemplate)
+            .filter(
+                NotificationTemplate.tenant_id == tenant_id,
+                NotificationTemplate.name == template_name,
+                NotificationTemplate.is_active,
+            )
+            .first()
+        )
 
         if not template:
             raise TemplateNotFound(f"Template '{template_name}' not found")
@@ -130,12 +132,16 @@ class ListNotificationsUseCase:
         skip: int = 0,
         limit: int = 50,
         db_session: Session,
-    ) -> Tuple[List[Notification], int]:
+    ) -> tuple[list[Notification], int]:
         """List user's notifications."""
-        query = db_session.query(Notification).filter(
-            Notification.tenant_id == tenant_id,
-            Notification.user_id == user_id,
-        ).order_by(Notification.created_at.desc())
+        query = (
+            db_session.query(Notification)
+            .filter(
+                Notification.tenant_id == tenant_id,
+                Notification.user_id == user_id,
+            )
+            .order_by(Notification.created_at.desc())
+        )
 
         total = query.count()
         notifications = query.offset(skip).limit(limit).all()
@@ -151,19 +157,23 @@ class MarkAsReadUseCase:
         *,
         tenant_id: UUID,
         user_id: UUID,
-        notification_ids: List[UUID],
+        notification_ids: list[UUID],
         db_session: Session,
     ) -> int:
         """Mark notifications as read. Returns count updated."""
         now = datetime.utcnow()
-        count = db_session.query(Notification).filter(
-            Notification.tenant_id == tenant_id,
-            Notification.user_id == user_id,
-            Notification.id.in_(notification_ids),
-            Notification.read_at.is_(None),
-        ).update(
-            {"read_at": now, "status": "read", "updated_at": now},
-            synchronize_session="fetch",
+        count = (
+            db_session.query(Notification)
+            .filter(
+                Notification.tenant_id == tenant_id,
+                Notification.user_id == user_id,
+                Notification.id.in_(notification_ids),
+                Notification.read_at.is_(None),
+            )
+            .update(
+                {"read_at": now, "status": "read", "updated_at": now},
+                synchronize_session="fetch",
+            )
         )
 
         db_session.commit()
@@ -183,11 +193,15 @@ class ArchiveNotificationUseCase:
         db_session: Session,
     ) -> Notification:
         """Archive a notification."""
-        notification = db_session.query(Notification).filter(
-            Notification.id == notification_id,
-            Notification.tenant_id == tenant_id,
-            Notification.user_id == user_id,
-        ).first()
+        notification = (
+            db_session.query(Notification)
+            .filter(
+                Notification.id == notification_id,
+                Notification.tenant_id == tenant_id,
+                Notification.user_id == user_id,
+            )
+            .first()
+        )
 
         if not notification:
             raise NotificationNotFound(f"Notification {notification_id} not found")
@@ -215,9 +229,13 @@ class GetUnreadCountUseCase:
         db_session: Session,
     ) -> int:
         """Count unread notifications."""
-        return db_session.query(Notification).filter(
-            Notification.tenant_id == tenant_id,
-            Notification.user_id == user_id,
-            Notification.read_at.is_(None),
-            Notification.archived_at.is_(None),
-        ).count()
+        return (
+            db_session.query(Notification)
+            .filter(
+                Notification.tenant_id == tenant_id,
+                Notification.user_id == user_id,
+                Notification.read_at.is_(None),
+                Notification.archived_at.is_(None),
+            )
+            .count()
+        )

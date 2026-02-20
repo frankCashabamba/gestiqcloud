@@ -51,7 +51,7 @@ DEPLOYMENT:
    Método: calculate_cost_lifo()
    Test: test_inventory_lifo_costing
    Tiempo: 1-2 horas
-   
+
    Lo que falta:
    - Algoritmo LIFO (consumir capas de más reciente a más antigua)
    - Test case
@@ -63,7 +63,7 @@ DEPLOYMENT:
    Endpoint: POST /sales/orders/{id}/calculate-total?discount_pct=10
    Response: {subtotal, discount_amount, total}
    Tiempo: 1-2 horas
-   
+
    Lo que falta:
    - Endpoint POST
    - Schema DiscountCalculation
@@ -75,7 +75,7 @@ DEPLOYMENT:
    Endpoint: POST /sales/orders/{id}/invoice
    Validaciones: orden confirmed, stock available
    Tiempo: 2 horas
-   
+
    Lo que falta:
    - Endpoint POST
    - Service method
@@ -86,7 +86,7 @@ DEPLOYMENT:
    Archivo: pyproject.toml
    Cambio: exit_code = 0 → exit_code = 1
    Tiempo: 1-2 horas
-   
+
    Lo que falta:
    - Ejecutar mypy, ver errores
    - Fijar los que se puedan (1-2h)
@@ -98,7 +98,7 @@ DEPLOYMENT:
    Archivo: apps/tenant/domain/models.py
    Modelo: StockTransfer (DRAFT→IN_TRANSIT→COMPLETED)
    Tiempo: 2-3 horas
-   
+
    Lo que falta:
    - Modelo DB
    - Migration SQL
@@ -113,23 +113,23 @@ MAÑANA TEMPRANO (3-4 HORAS):
 
   $ cd c:\Users\frank\OneDrive\Documentos\GitHub\gestiqcloud
   $ .\.venv\Scripts\Activate.ps1
-  
+
   1. Implementar LIFO (1h):
      ✏️ Editar: apps/tenant/application/inventory_costing_service.py
      ✏️ Agregar: calculate_cost_lifo() método
      ✏️ Test: pytest apps/backend/app/tests/test_inventory_costing.py
-  
+
   2. Implementar Discount (1h):
      ✏️ Editar: apps/tenant/presentation/routers/sales.py
      ✏️ Agregar: POST endpoint /calculate-total?discount_pct=X
      ✏️ Test: pytest apps/backend/app/tests/ -k discount
-  
+
   3. Implementar Invoice-from-Order (1.5h):
      ✏️ Editar: apps/tenant/presentation/routers/sales.py
      ✏️ Agregar: POST endpoint /orders/{id}/invoice
      ✏️ Service method: create_invoice_from_order()
      ✏️ Test: pytest apps/backend/app/tests/ -k invoice_from_order
-  
+
   4. Commit:
      $ git add .
      $ git commit -m "Tareas críticas: LIFO, discount, invoice-from-order"
@@ -143,13 +143,13 @@ TARDE (2-3 HORAS):
      ✏️ Ejecutar: mypy apps/ --no-error-summary
      ✏️ Fijar errores que se puedan
      ✏️ Test: pytest tests/ -v
-  
+
   6. Final checks:
      $ ruff check . --fix
      $ black .
      $ isort .
      $ pytest tests/ -v --cov=apps --cov-report=term-missing
-  
+
   7. Commit final:
      $ git commit -m "SPRINT FINAL: 100% ready for production"
      $ git tag -a v1.0.0 -m "Production release"
@@ -225,12 +225,12 @@ Líneas de código:
   Frontend: ~15,000 líneas (React/TypeScript)
   Migrations: ~50 scripts SQL
   Tests: ~72 test files, ~300+ test cases
-  
+
 Módulos:
   Tier 1: 5 (Identity, POS, Invoicing, Inventory, Sales)
   Tier 2: 4 (Accounting, Finance, HR, E-Invoicing)
   Tier 3: 4 (Webhooks, Notifications, Reconciliation, Reports)
-  
+
 Coverage: 70%+
 Performance: P95 <500ms
 Availability: 99.9%
@@ -259,13 +259,13 @@ Availability: 99.9%
 Hoy (2026-02-16):
   ⏰ 2-3h: Tareas bloqueantes (LIFO, Discount, Invoice)
   ⏰ 1-2h: Tests + validación
-  
+
 Mañana (2026-02-17):
   ⏰ 1-2h: Mypy bloqueante
   ⏰ 1h: Final cleanup
   ⏰ 1h: Deploy a Render
   ⏰ 1h: Smoke tests
-  
+
 TOTAL: 12-18 horas = 1.5-2 días
 
 ════════════════════════════════════════════════════════════════════════════════
@@ -274,10 +274,10 @@ SIGUIENTE COMANDO:
 
   cd c:\Users\frank\OneDrive\Documentos\GitHub\gestiqcloud
   .\.venv\Scripts\Activate.ps1
-  
+
   # Leer el plan detallado:
   cat TODO_TAREAS_ESPECIFICAS.md
-  
+
   # Empezar con LIFO:
   code apps/tenant/application/inventory_costing_service.py
 

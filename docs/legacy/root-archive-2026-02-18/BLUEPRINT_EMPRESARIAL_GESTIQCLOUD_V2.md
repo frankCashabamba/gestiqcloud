@@ -1,5 +1,5 @@
 # BLUEPRINT_EMPRESARIAL_GESTIQCLOUD_V2.md
-Versión: 2.0 (Enterprise Blueprint)  
+Versión: 2.0 (Enterprise Blueprint)
 Actualizado: 2026-02-14
 Estado: **ANÁLISIS DE IMPLEMENTACIÓN**
 
@@ -38,20 +38,20 @@ Estado: **ANÁLISIS DE IMPLEMENTACIÓN**
 
 ## 1.1 Capas
 
-1) **Document Layer** (WORM/Versionado)  
-2) **Import Engine** (Parser + Normalizador + Staging + Validaciones + Dedupe)  
-3) **Domain Layer** (Ventas, Compras, Gastos, Stock, Recetas, Facturación, etc.)  
-4) **Recalculation Engine** (COGS, márgenes, snapshots)  
-5) **Analytics Layer** (reportes, KPI, export)  
-6) **Governance Layer** (roles/permisos, entitlements, auditoría)  
+1) **Document Layer** (WORM/Versionado)
+2) **Import Engine** (Parser + Normalizador + Staging + Validaciones + Dedupe)
+3) **Domain Layer** (Ventas, Compras, Gastos, Stock, Recetas, Facturación, etc.)
+4) **Recalculation Engine** (COGS, márgenes, snapshots)
+5) **Analytics Layer** (reportes, KPI, export)
+6) **Governance Layer** (roles/permisos, entitlements, auditoría)
 7) **Observability Layer** (logs, métricas, trazas, alertas)
 
 ## 1.2 Componentes runtime (recomendación)
-- **API** (FastAPI)  
-- **DB** (PostgreSQL)  
-- **Object Storage** (S3/MinIO) para archivos  
-- **Queue** (Redis/RQ o Celery; o RabbitMQ/Kafka si crece)  
-- **Workers** (import parsing, OCR, recalculo)  
+- **API** (FastAPI)
+- **DB** (PostgreSQL)
+- **Object Storage** (S3/MinIO) para archivos
+- **Queue** (Redis/RQ o Celery; o RabbitMQ/Kafka si crece)
+- **Workers** (import parsing, OCR, recalculo)
 - **Search** opcional (Postgres FTS / OpenSearch) para texto OCR y búsqueda documental
 
 ---
@@ -138,7 +138,7 @@ Campos requeridos:
 
 ## 4.1 Objetivos
 - ✅ Parsear Excel/CSV/PDF/imagen → staging canónico
-- ✅ Validar y detectar inconsistencias  
+- ✅ Validar y detectar inconsistencias
 - ✅ Resolver mapeos (producto, proveedor, unidades) — *mapping_suggester.py con IA*
 - ✅ Confirmación humana (UI + API endpoints)
 - ✅ **Postear a domain CON idempotencia y trazabilidad** — *PostingRegistry + PostingService*
@@ -481,7 +481,7 @@ Tabla: `event_outbox`
 - ⚠️ import.post (existe pero sin detalles de posting_key)
 - ✅ recipe.version.create
 
-**Falta**: 
+**Falta**:
 - ❌ Document version tracking (nuevo archivo = entry)
 - ❌ Import resolution tracking (mapping sugerido = entry)
 - ❌ Snapshot recalculations (cada snapshot = entry)
@@ -522,7 +522,7 @@ Tabla: `event_outbox`
 
 - [ ] **Rollback API**: POST `/imports/{id}/rollback` (reversa de entidades)
 - [ ] **Observabilidad**: Ampliar audit_log con resolution + snapshot events
-- [ ] **Alertas**: Margen bajo, venta vs producción mismatch, etc.  
+- [ ] **Alertas**: Margen bajo, venta vs producción mismatch, etc.
 
 ---
 

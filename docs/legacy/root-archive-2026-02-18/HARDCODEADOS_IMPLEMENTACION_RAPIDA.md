@@ -84,7 +84,7 @@ async def get_id_types(db: Session = Depends(get_db), tenant_id: str = Header(..
         IDTypeConfig.tenant_id == tenant_id,
         IDTypeConfig.active == True
     ).all()
-    
+
     return [
         {"code": t.code, "name": t.name, "label": t.label}
         for t in id_types
@@ -100,7 +100,7 @@ from sqlalchemy.orm import relationship
 
 class IDTypeConfig(Base):
     __tablename__ = "pos_id_type_configs"
-    
+
     id = Column(UUID, primary_key=True, default=uuid4)
     tenant_id = Column(UUID, ForeignKey("tenants.id"), nullable=False)
     code = Column(String(50), nullable=False)  # CEDULA, RUC, PASSPORT
@@ -108,7 +108,7 @@ class IDTypeConfig(Base):
     label = Column(String(100))  # Label para UI
     regex_pattern = Column(String(200))  # Para validación
     active = Column(Boolean, default=True)
-    
+
     __table_args__ = (
         UniqueConstraint('tenant_id', 'code'),
     )
@@ -118,8 +118,8 @@ class IDTypeConfig(Base):
 
 ```python
 # migrations/add_id_types.sql
-INSERT INTO pos_id_type_configs (tenant_id, code, name, label, regex_pattern, active) 
-VALUES 
+INSERT INTO pos_id_type_configs (tenant_id, code, name, label, regex_pattern, active)
+VALUES
     ('tenant-123', 'CEDULA', 'Cédula', 'C.I.', '^\d{10}$', true),
     ('tenant-123', 'RUC', 'RUC', 'R.U.C.', '^\d{13}$', true),
     ('tenant-123', 'PASSPORT', 'Pasaporte', 'Pasaporte', '^[A-Z0-9]{6,12}$', true),
@@ -135,19 +135,19 @@ export function useIDTypes() {
         '/api/v1/id-types',
         fetcher
     );
-    
+
     return { idTypes: idTypes || [], isLoading };
 }
 
 // apps/tenant/src/modules/pos/POSView.tsx
 export default function POSView() {
     const { idTypes } = useIDTypes();  // ✅ Dinámico
-    
+
     // Usar idTypes en lugar de DEFAULT_ID_TYPES
     const options = idTypes.map(t => ({ value: t.code, label: t.name }));
-    
+
     return (
-        <Select 
+        <Select
             options={options}
             placeholder="Seleccione tipo de documento"
         />
@@ -179,7 +179,7 @@ class CorePaymentMethod(str, Enum):
 # apps/backend/app/models/payments.py
 class PaymentMethod(Base):
     __tablename__ = "payment_methods"
-    
+
     id = Column(UUID, primary_key=True, default=uuid4)
     tenant_id = Column(UUID, ForeignKey("tenants.id"), nullable=False)
     code = Column(String(50), nullable=False)  # cash, card, transfer
@@ -188,7 +188,7 @@ class PaymentMethod(Base):
     icon = Column(String(50))
     enabled = Column(Boolean, default=True)
     order = Column(Integer, default=0)  # Para ordenar en UI
-    
+
     __table_args__ = (
         UniqueConstraint('tenant_id', 'code'),
     )
@@ -208,7 +208,7 @@ async def get_payment_methods(
         PaymentMethod.tenant_id == tenant_id,
         PaymentMethod.enabled == True
     ).order_by(PaymentMethod.order).all()
-    
+
     return [
         {
             "code": m.code,
@@ -245,7 +245,7 @@ const { data: paymentMethods } = useSWR(
 );
 
 return (
-    <Select 
+    <Select
         options={paymentMethods.map(m => ({
             value: m.code,
             label: m.name,
@@ -265,14 +265,14 @@ return (
 # apps/backend/app/models/configuration.py
 class TenantConfiguration(Base):
     __tablename__ = "tenant_configurations"
-    
+
     id = Column(UUID, primary_key=True, default=uuid4)
     tenant_id = Column(UUID, ForeignKey("tenants.id"), nullable=False)
     key = Column(String(100), nullable=False)  # currency, timezone, tax_rate
     value = Column(Text, nullable=False)
     data_type = Column(String(20), default="string")  # string, number, boolean, json
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     __table_args__ = (
         UniqueConstraint('tenant_id', 'key'),
     )
@@ -291,7 +291,7 @@ async def get_config(
     configs = db.query(TenantConfiguration).filter(
         TenantConfiguration.tenant_id == tenant_id
     ).all()
-    
+
     result = {}
     for c in configs:
         value = c.value
@@ -301,9 +301,9 @@ async def get_config(
             value = value.lower() == "true"
         elif c.data_type == "json":
             value = json.loads(value)
-        
+
         result[c.key] = value
-    
+
     return result
 
 @router.post("/config/{key}")
@@ -318,7 +318,7 @@ async def set_config(
         TenantConfiguration.tenant_id == tenant_id,
         TenantConfiguration.key == key
     ).first()
-    
+
     if not config:
         config = TenantConfiguration(
             tenant_id=tenant_id,
@@ -329,7 +329,7 @@ async def set_config(
         db.add(config)
     else:
         config.value = str(value)
-    
+
     db.commit()
     return {"status": "updated"}
 ```
@@ -352,7 +352,7 @@ INSERT INTO tenant_configurations (tenant_id, key, value, data_type) VALUES
 // apps/tenant/src/hooks/useConfig.ts
 export function useConfig() {
     const { data: config } = useSWR('/api/v1/config', fetcher);
-    
+
     return {
         currency: config?.currency || 'USD',
         timezone: config?.timezone || 'America/Guayaquil',
@@ -372,7 +372,7 @@ export const SAFE_DEFAULTS = {
 // En componentes
 export function POSView() {
     const config = useConfig();  // ✅ Dinámico
-    
+
     return <div>Currency: {config.currency}</div>;
 }
 ```
@@ -428,4 +428,3 @@ npm run e2e -- pos-payment-selection.spec.ts
 | Configurables por tenant | 0% | 100% |
 | Env vars obligatorias validadas | 50% | 100% |
 | Tests para configuración | 0% | 90%+ |
-

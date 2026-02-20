@@ -176,7 +176,7 @@ for row_idx, row_data in enumerate(parse_result["rows"], start=1):
         item_id=item.id,
         batch_id=batch.id,
     )
-    
+
     if not is_valid:
         # Errores con contexto completo
         for error in errors:

@@ -26,18 +26,18 @@ CODE: WEBHOOKS MODULE (12 files - 100% COMPLETE)
      - models.py           (WebhookSubscription, WebhookDelivery)
      - events.py           (WebhookEvent)
      - exceptions.py       (5 custom exceptions)
-  
+
   ✅ Application layer (2 files)
      - schemas.py          (7 Pydantic models)
      - use_cases.py        (8 business logic classes)
-  
+
   ✅ Interface layer (1 file)
      - interface/http/tenant.py  (7 FastAPI endpoints)
-  
+
   ✅ Infrastructure layer (2 files)
      - delivery.py         (HMAC + async HTTP + retry)
      - event_queue.py      (Redis queue management)
-  
+
   ✅ Database (1 file)
      - alembic migration   (2 tables, 7 indexes)
 

@@ -1,8 +1,8 @@
 import re
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
-from app.modules.imports.domain.interfaces import CountryRulePack, DocType
+from app.modules.imports.domain.interfaces import CountryRulePack
 
 
 class CountryPackRegistry:
@@ -15,7 +15,7 @@ class CountryPackRegistry:
         if self.default_pack is None:
             self.default_pack = pack
 
-    def get(self, country_code: str) -> Optional[CountryRulePack]:
+    def get(self, country_code: str) -> CountryRulePack | None:
         return self.packs.get(country_code, self.default_pack)
 
     def list_all(self) -> list[str]:
@@ -39,13 +39,13 @@ class BaseCountryPack(CountryRulePack):
     def get_field_aliases(self) -> dict[str, list[str]]:
         return self._field_aliases
 
-    def validate_tax_id(self, tax_id: str) -> tuple[bool, Optional[str]]:
+    def validate_tax_id(self, tax_id: str) -> tuple[bool, str | None]:
         for pattern in self._tax_id_patterns:
             if re.match(pattern, tax_id):
                 return True, None
         return False, f"Invalid tax ID format for {self._country_code}"
 
-    def validate_date_format(self, date_str: str) -> tuple[bool, Optional[str]]:
+    def validate_date_format(self, date_str: str) -> tuple[bool, str | None]:
         for fmt in self._date_formats:
             try:
                 datetime.strptime(date_str, fmt)
@@ -69,10 +69,12 @@ class BaseCountryPack(CountryRulePack):
 
         if "currency" in data and data["currency"]:
             if data["currency"].upper() != self._currency:
-                errors.append({
-                    "field": "currency",
-                    "error": f"Expected {self._currency}, got {data['currency']}",
-                })
+                errors.append(
+                    {
+                        "field": "currency",
+                        "error": f"Expected {self._currency}, got {data['currency']}",
+                    }
+                )
 
         return errors
 

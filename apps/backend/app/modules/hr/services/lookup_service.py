@@ -5,11 +5,11 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.hr.lookups import (
-    EmployeeStatus,
     ContractType,
     DeductionType,
-    GenderType,
     DocumentIDType,
+    EmployeeStatus,
+    GenderType,
 )
 
 
@@ -21,10 +21,15 @@ class HRLookupService:
 
     def get_employee_statuses(self, tenant_id: UUID) -> list[dict]:
         """Get all active employee statuses for tenant"""
-        rows = self.db.query(EmployeeStatus).filter(
-            EmployeeStatus.tenant_id == tenant_id,
-            EmployeeStatus.is_active == True,
-        ).order_by(EmployeeStatus.sort_order).all()
+        rows = (
+            self.db.query(EmployeeStatus)
+            .filter(
+                EmployeeStatus.tenant_id == tenant_id,
+                EmployeeStatus.is_active,
+            )
+            .order_by(EmployeeStatus.sort_order)
+            .all()
+        )
 
         return [
             {
@@ -42,10 +47,15 @@ class HRLookupService:
 
     def get_contract_types(self, tenant_id: UUID) -> list[dict]:
         """Get all active contract types for tenant"""
-        rows = self.db.query(ContractType).filter(
-            ContractType.tenant_id == tenant_id,
-            ContractType.is_active == True,
-        ).order_by(ContractType.sort_order).all()
+        rows = (
+            self.db.query(ContractType)
+            .filter(
+                ContractType.tenant_id == tenant_id,
+                ContractType.is_active,
+            )
+            .order_by(ContractType.sort_order)
+            .all()
+        )
 
         return [
             {
@@ -65,10 +75,15 @@ class HRLookupService:
 
     def get_deduction_types(self, tenant_id: UUID) -> list[dict]:
         """Get all active deduction types for tenant"""
-        rows = self.db.query(DeductionType).filter(
-            DeductionType.tenant_id == tenant_id,
-            DeductionType.is_active == True,
-        ).order_by(DeductionType.sort_order).all()
+        rows = (
+            self.db.query(DeductionType)
+            .filter(
+                DeductionType.tenant_id == tenant_id,
+                DeductionType.is_active,
+            )
+            .order_by(DeductionType.sort_order)
+            .all()
+        )
 
         return [
             {
@@ -88,10 +103,15 @@ class HRLookupService:
 
     def get_gender_types(self, tenant_id: UUID) -> list[dict]:
         """Get all active gender types for tenant"""
-        rows = self.db.query(GenderType).filter(
-            GenderType.tenant_id == tenant_id,
-            GenderType.is_active == True,
-        ).order_by(GenderType.sort_order).all()
+        rows = (
+            self.db.query(GenderType)
+            .filter(
+                GenderType.tenant_id == tenant_id,
+                GenderType.is_active,
+            )
+            .order_by(GenderType.sort_order)
+            .all()
+        )
 
         return [
             {
@@ -109,7 +129,7 @@ class HRLookupService:
         """Get all active document/ID types for tenant and country"""
         query = self.db.query(DocumentIDType).filter(
             DocumentIDType.tenant_id == tenant_id,
-            DocumentIDType.is_active == True,
+            DocumentIDType.is_active,
         )
 
         if country_code:
@@ -131,12 +151,14 @@ class HRLookupService:
             for r in rows
         ]
 
-    def get_document_id_type_by_code(self, tenant_id: UUID, code: str, country_code: str | None = None) -> dict | None:
+    def get_document_id_type_by_code(
+        self, tenant_id: UUID, code: str, country_code: str | None = None
+    ) -> dict | None:
         """Get specific document ID type by code"""
         query = self.db.query(DocumentIDType).filter(
             DocumentIDType.tenant_id == tenant_id,
             DocumentIDType.code == code,
-            DocumentIDType.is_active == True,
+            DocumentIDType.is_active,
         )
 
         if country_code:

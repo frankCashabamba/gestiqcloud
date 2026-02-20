@@ -183,6 +183,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.tenant == 'true'
     runs-on: ubuntu-latest
+    env:
+      VITE_API_URL: http://localhost:8000
     defaults:
       run:
         working-directory: apps/tenant

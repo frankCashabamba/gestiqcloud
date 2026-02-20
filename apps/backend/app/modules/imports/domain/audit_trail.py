@@ -6,12 +6,13 @@ Tracks: who imported, parser version, rules applied, manual changes.
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 
 class AuditEventType(str, Enum):
     """Type of audit event."""
+
     IMPORT_STARTED = "import_started"
     FILE_UPLOADED = "file_uploaded"
     FILE_ANALYZED = "file_analyzed"
@@ -28,57 +29,59 @@ class AuditEventType(str, Enum):
 @dataclass
 class AuditEvent:
     """Single audit event."""
+
     event_type: AuditEventType
     tenant_id: UUID
-    user_id: Optional[UUID] = None
-    batch_id: Optional[UUID] = None
-    item_id: Optional[UUID] = None
-    
+    user_id: UUID | None = None
+    batch_id: UUID | None = None
+    item_id: UUID | None = None
+
     # Event details
     timestamp: datetime = field(default_factory=datetime.utcnow)
     details: dict[str, Any] = field(default_factory=dict)
-    
+
     # Context for traceability
-    parser_version: Optional[str] = None
-    schema_version: Optional[str] = None
+    parser_version: str | None = None
+    schema_version: str | None = None
     rules_applied: list[str] = field(default_factory=list)
-    
+
     # Changes
-    old_value: Optional[Any] = None
-    new_value: Optional[Any] = None
-    
+    old_value: Any | None = None
+    new_value: Any | None = None
+
     # Status
     success: bool = True
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 @dataclass
 class AuditTrail:
     """Complete audit trail for a batch/import."""
+
     id: UUID
     tenant_id: UUID
     batch_id: UUID
     events: list[AuditEvent] = field(default_factory=list)
-    
+
     # Summary
     created_at: datetime = field(default_factory=datetime.utcnow)
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
     total_items: int = 0
     promoted_items: int = 0
     failed_items: int = 0
-    
+
     def add_event(self, event: AuditEvent):
         """Add event to audit trail."""
         self.events.append(event)
-    
+
     def get_events_for_item(self, item_id: UUID) -> list[AuditEvent]:
         """Get all events for specific item."""
         return [e for e in self.events if e.item_id == item_id]
-    
+
     def get_events_by_type(self, event_type: AuditEventType) -> list[AuditEvent]:
         """Get all events of specific type."""
         return [e for e in self.events if e.event_type == event_type]
-    
+
     def get_timeline(self) -> list[dict[str, Any]]:
         """Get chronological timeline of all events."""
         return [
@@ -91,30 +94,32 @@ class AuditTrail:
             }
             for e in sorted(self.events, key=lambda e: e.timestamp)
         ]
-    
+
     def get_changes_for_field(self, item_id: UUID, field: str) -> list[dict]:
         """Get all changes for a specific field of an item."""
         changes = []
         for event in self.get_events_for_item(item_id):
             if event.event_type == AuditEventType.ITEM_CORRECTED:
                 if event.details.get("field") == field:
-                    changes.append({
-                        "timestamp": event.timestamp.isoformat(),
-                        "old_value": event.old_value,
-                        "new_value": event.new_value,
-                        "user_id": str(event.user_id) if event.user_id else None,
-                        "reason": event.details.get("reason"),
-                    })
+                    changes.append(
+                        {
+                            "timestamp": event.timestamp.isoformat(),
+                            "old_value": event.old_value,
+                            "new_value": event.new_value,
+                            "user_id": str(event.user_id) if event.user_id else None,
+                            "reason": event.details.get("reason"),
+                        }
+                    )
         return changes
 
 
 class AuditLogger:
     """Logs all import operations for audit trail."""
-    
+
     def __init__(self):
         # In-memory storage (will be persisted to DB)
         self.trails = {}
-    
+
     def create_trail(self, tenant_id: UUID, batch_id: UUID) -> AuditTrail:
         """Create new audit trail for batch."""
         trail = AuditTrail(
@@ -124,12 +129,12 @@ class AuditLogger:
         )
         self.trails[batch_id] = trail
         return trail
-    
+
     def log_import_started(
         self,
         trail: AuditTrail,
         filename: str,
-        user_id: Optional[UUID] = None,
+        user_id: UUID | None = None,
     ):
         """Log import started."""
         event = AuditEvent(
@@ -142,7 +147,7 @@ class AuditLogger:
             },
         )
         trail.add_event(event)
-    
+
     def log_file_analyzed(
         self,
         trail: AuditTrail,
@@ -167,7 +172,7 @@ class AuditLogger:
             },
         )
         trail.add_event(event)
-    
+
     def log_item_validated(
         self,
         trail: AuditTrail,
@@ -188,7 +193,7 @@ class AuditLogger:
             },
         )
         trail.add_event(event)
-    
+
     def log_item_correction(
         self,
         trail: AuditTrail,
@@ -197,7 +202,7 @@ class AuditLogger:
         old_value: Any,
         new_value: Any,
         user_id: UUID,
-        reason: Optional[str] = None,
+        reason: str | None = None,
     ):
         """Log manual item correction."""
         event = AuditEvent(
@@ -214,14 +219,14 @@ class AuditLogger:
             },
         )
         trail.add_event(event)
-    
+
     def log_item_promoted(
         self,
         trail: AuditTrail,
         item_id: UUID,
         promoted_to: str,
         promoted_id: UUID,
-        user_id: Optional[UUID] = None,
+        user_id: UUID | None = None,
     ):
         """Log item promotion to next stage."""
         event = AuditEvent(
@@ -237,7 +242,7 @@ class AuditLogger:
         )
         trail.add_event(event)
         trail.promoted_items += 1
-    
+
     def log_batch_completed(
         self,
         trail: AuditTrail,
@@ -259,7 +264,7 @@ class AuditLogger:
         trail.completed_at = datetime.utcnow()
         trail.total_items = total_items
         trail.promoted_items = promoted_count
-    
+
     def log_batch_failed(
         self,
         trail: AuditTrail,
@@ -275,17 +280,17 @@ class AuditLogger:
         )
         trail.add_event(event)
         trail.completed_at = datetime.utcnow()
-    
-    def get_trail(self, batch_id: UUID) -> Optional[AuditTrail]:
+
+    def get_trail(self, batch_id: UUID) -> AuditTrail | None:
         """Get audit trail for batch."""
         return self.trails.get(batch_id)
-    
+
     def get_full_report(self, batch_id: UUID) -> dict[str, Any]:
         """Get complete audit report for batch."""
         trail = self.get_trail(batch_id)
         if not trail:
             return {}
-        
+
         return {
             "batch_id": str(trail.batch_id),
             "tenant_id": str(trail.tenant_id),
@@ -300,7 +305,7 @@ class AuditLogger:
             "timeline": trail.get_timeline(),
             "corrections": self._get_all_corrections(trail),
         }
-    
+
     def _get_all_corrections(self, trail: AuditTrail) -> dict[str, list]:
         """Get all manual corrections in audit trail."""
         corrections_by_item = {}
@@ -308,13 +313,15 @@ class AuditLogger:
             item_id = str(event.item_id)
             if item_id not in corrections_by_item:
                 corrections_by_item[item_id] = []
-            corrections_by_item[item_id].append({
-                "field": event.details.get("field"),
-                "old_value": event.old_value,
-                "new_value": event.new_value,
-                "user_id": str(event.user_id) if event.user_id else None,
-                "timestamp": event.timestamp.isoformat(),
-            })
+            corrections_by_item[item_id].append(
+                {
+                    "field": event.details.get("field"),
+                    "old_value": event.old_value,
+                    "new_value": event.new_value,
+                    "user_id": str(event.user_id) if event.user_id else None,
+                    "timestamp": event.timestamp.isoformat(),
+                }
+            )
         return corrections_by_item
 
 

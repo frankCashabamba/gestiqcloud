@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS employee_statuses (
     updated_at TIMESTAMPTZ DEFAULT now(),
     created_by UUID,
     updated_by UUID,
-    
+
     CONSTRAINT uq_employee_status_per_tenant UNIQUE(tenant_id, code)
 );
 
@@ -57,21 +57,21 @@ CREATE TABLE IF NOT EXISTS contract_types (
     description_en TEXT,
     description_es TEXT,
     description_pt TEXT,
-    
+
     -- Contract characteristics
     is_permanent BOOLEAN DEFAULT TRUE,  -- Permanent (indefinite) vs temporary
     full_time BOOLEAN DEFAULT TRUE,     -- Full-time vs part-time
     requires_probation BOOLEAN DEFAULT FALSE,
     probation_months INTEGER,
     notice_period_days INTEGER,
-    
+
     is_active BOOLEAN DEFAULT TRUE,
     sort_order INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
     created_by UUID,
     updated_by UUID,
-    
+
     CONSTRAINT uq_contract_type_per_tenant UNIQUE(tenant_id, code)
 );
 
@@ -93,21 +93,21 @@ CREATE TABLE IF NOT EXISTS deduction_types (
     description_en TEXT,
     description_es TEXT,
     description_pt TEXT,
-    
+
     -- Deduction characteristics
     is_deduction BOOLEAN DEFAULT TRUE,  -- TRUE for deductions, FALSE for bonuses/additions
     is_mandatory BOOLEAN DEFAULT FALSE,  -- Mandatory vs optional
     is_taxable BOOLEAN DEFAULT FALSE,   -- Whether this affects net salary calculation
     is_percentage_based BOOLEAN DEFAULT FALSE,  -- Can be applied as percentage
     is_fixed_amount BOOLEAN DEFAULT FALSE,      -- Can be applied as fixed amount
-    
+
     is_active BOOLEAN DEFAULT TRUE,
     sort_order INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
     created_by UUID,
     updated_by UUID,
-    
+
     CONSTRAINT uq_deduction_type_per_tenant UNIQUE(tenant_id, code)
 );
 
@@ -129,14 +129,14 @@ CREATE TABLE IF NOT EXISTS gender_types (
     description_en TEXT,
     description_es TEXT,
     description_pt TEXT,
-    
+
     is_active BOOLEAN DEFAULT TRUE,
     sort_order INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
     created_by UUID,
     updated_by UUID,
-    
+
     CONSTRAINT uq_gender_type_per_tenant UNIQUE(tenant_id, code)
 );
 

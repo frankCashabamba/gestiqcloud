@@ -1,7 +1,7 @@
 # ✅ SPRINT 2 - ACTION CHECKLIST (Día a Día)
 
-**Objetivo:** Completar 8 módulos Tier 2 validados  
-**Duración:** 10 días laborales (semanas 4-5)  
+**Objetivo:** Completar 8 módulos Tier 2 validados
+**Duración:** 10 días laborales (semanas 4-5)
 **Salida:** Staging con 300+ tests pasando + documentación completa
 
 ---

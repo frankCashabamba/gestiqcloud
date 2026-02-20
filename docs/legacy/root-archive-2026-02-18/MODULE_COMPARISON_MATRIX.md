@@ -499,14 +499,14 @@ BACKEND:
   ☐ Logging centralized
   ☐ Health checks working
   ☐ Rate limits tuned
-  
+
 FRONTEND:
   ☐ npm run build success
   ☐ Service Worker tested
   ☐ Auth flow manual test
   ☐ POS E2E 10 test cases
   ☐ Mobile responsive (3 resolutions)
-  
+
 DEVOPS:
   ☐ SSL/TLS certificates
   ☐ Docker images pushed
@@ -514,7 +514,7 @@ DEVOPS:
   ☐ Failover tested
   ☐ Backup/restore tested
   ☐ Monitoring alerts setup
-  
+
 DOCUMENTATION:
   ☐ Runbooks written
   ☐ Support manual ready
@@ -525,4 +525,3 @@ DOCUMENTATION:
 
 **Documento actualizado:** 16/02/2026
 **Aplicable a:** GestiQCloud 1.0 Beta
-

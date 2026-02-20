@@ -1,17 +1,18 @@
-import pytest
 from uuid import UUID
 
-from app.modules.imports.application.smart_router import SmartRouter
-from app.modules.imports.application.ingest_service import IngestService, BatchStatus
-from app.modules.imports.application.scoring_engine import ScoringEngine
+import pytest
+
 from app.modules.imports.application.canonical_mapper import CanonicalMapper
-from app.modules.imports.domain.interfaces import DocType, ConfidenceLevel, ItemStatus
-from app.modules.imports.infrastructure.country_packs import create_registry
-from app.modules.imports.infrastructure.validators import InvoiceValidator
-from app.modules.imports.infrastructure.learning_store import InMemoryLearningStore
+from app.modules.imports.application.ingest_service import BatchStatus, IngestService
 from app.modules.imports.application.learning_loop import ActiveLearning
 from app.modules.imports.application.observability import MetricsCollector
 from app.modules.imports.application.quality_gates import QualityGate
+from app.modules.imports.application.scoring_engine import ScoringEngine
+from app.modules.imports.application.smart_router import SmartRouter
+from app.modules.imports.domain.interfaces import ConfidenceLevel, DocType, ItemStatus
+from app.modules.imports.infrastructure.country_packs import create_registry
+from app.modules.imports.infrastructure.learning_store import InMemoryLearningStore
+from app.modules.imports.infrastructure.validators import InvoiceValidator
 
 
 @pytest.fixture
@@ -131,9 +132,7 @@ class TestSprint1Foundation:
         item_ids = ingest_service.ingest_parse_result(batch_id, parse_result)
         item_id = item_ids[0]
 
-        ingest_service.record_correction(
-            item_id, "invoice_number", "INV001", "INV002"
-        )
+        ingest_service.record_correction(item_id, "invoice_number", "INV001", "INV002")
 
         item = ingest_service.items[item_id]
         assert "last_correction" in item
@@ -142,9 +141,7 @@ class TestSprint1Foundation:
 
 class TestSprint2Scoring:
     def test_scoring_engine_classify(self, scoring_engine):
-        result = scoring_engine.classify(
-            {"invoice_number": "INV001", "amount": 100.0}
-        )
+        result = scoring_engine.classify({"invoice_number": "INV001", "amount": 100.0})
 
         assert result.doc_type is not None
         assert result.confidence is not None

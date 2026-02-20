@@ -16,7 +16,7 @@
 - Están COMPLETOS y FUNCIONALES
 
 **QUÉ FALTA:**
-- ❌ Test: `test_inventory_costing_lifo()` 
+- ❌ Test: `test_inventory_costing_lifo()`
 - No existe en `test_inventory_costing.py`
 - Solo hay test para WAC (weighted average cost)
 

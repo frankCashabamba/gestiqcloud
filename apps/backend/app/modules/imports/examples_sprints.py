@@ -1,20 +1,20 @@
 from uuid import UUID
 
-from app.modules.imports.application.smart_router import SmartRouter
-from app.modules.imports.application.ingest_service import IngestService
-from app.modules.imports.application.scoring_engine import ScoringEngine
 from app.modules.imports.application.canonical_mapper import CanonicalMapper
+from app.modules.imports.application.ingest_service import IngestService
+from app.modules.imports.application.learning_loop import ActiveLearning
+from app.modules.imports.application.scoring_engine import ScoringEngine
+from app.modules.imports.application.smart_router import SmartRouter
 from app.modules.imports.domain.interfaces import DocType, ParseResult
 from app.modules.imports.infrastructure.country_packs import create_registry
-from app.modules.imports.infrastructure.validators import InvoiceValidator
 from app.modules.imports.infrastructure.learning_store import InMemoryLearningStore
-from app.modules.imports.application.learning_loop import ActiveLearning
+from app.modules.imports.infrastructure.validators import InvoiceValidator
 
 
 def example_sprint1_basic_flow():
     print("\n=== SPRINT 1: Basic Ingest Flow ===")
 
-    router = SmartRouter()
+    SmartRouter()
     service = IngestService()
 
     tenant_id = UUID("00000000-0000-0000-0000-000000000000")
@@ -171,12 +171,12 @@ def example_end_to_end_flow():
     print("\n=== COMPLETE END-TO-END FLOW ===")
 
     print("1. Initialize systems...")
-    router = SmartRouter()
+    SmartRouter()
     service = IngestService()
     scoring_engine = ScoringEngine()
     mapper = CanonicalMapper()
     registry = create_registry()
-    learning_store = InMemoryLearningStore()
+    InMemoryLearningStore()
 
     print("2. Create batch...")
     batch_id = service.create_batch(

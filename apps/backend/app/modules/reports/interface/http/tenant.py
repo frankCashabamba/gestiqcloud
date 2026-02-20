@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.middleware.tenant import ensure_tenant, get_current_user
+from app.middleware.tenant import ensure_tenant
 from app.modules.reports.application.schemas import (
     ExportRequest,
     GenerateReportRequest,
@@ -81,8 +81,7 @@ def list_report_types(
 ):
     """List available report types and previously generated reports."""
     available_types = [
-        {"value": rt.value, "label": rt.value.replace("_", " ").title()}
-        for rt in ReportType
+        {"value": rt.value, "label": rt.value.replace("_", " ").title()} for rt in ReportType
     ]
     uc = ListReportsUseCase()
     history = uc.execute(db, tenant_id)
@@ -113,7 +112,9 @@ def export_report(
 
         content_type = CONTENT_TYPES.get(payload.format, "application/octet-stream")
         extension = FILE_EXTENSIONS.get(payload.format, "bin")
-        filename = f"{payload.report_type.value}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.{extension}"
+        filename = (
+            f"{payload.report_type.value}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.{extension}"
+        )
 
         return StreamingResponse(
             io.BytesIO(content),

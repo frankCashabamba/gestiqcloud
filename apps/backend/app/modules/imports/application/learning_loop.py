@@ -1,11 +1,6 @@
 from datetime import datetime
-from typing import Optional
 
-from app.modules.imports.domain.interfaces import (
-    ClassifierStrategy,
-    DocType,
-    LearningStore,
-)
+from app.modules.imports.domain.interfaces import ClassifierStrategy, DocType, LearningStore
 
 
 class ActiveLearning:
@@ -19,16 +14,18 @@ class ActiveLearning:
         self,
         raw_data: dict,
         correct_doc_type: DocType,
-        original_doc_type: Optional[DocType] = None,
+        original_doc_type: DocType | None = None,
         confidence_was: float = 0.0,
     ) -> None:
-        self.training_samples.append({
-            "raw_data": raw_data,
-            "correct_doc_type": correct_doc_type,
-            "original_doc_type": original_doc_type,
-            "confidence_was": confidence_was,
-            "timestamp": datetime.utcnow().isoformat(),
-        })
+        self.training_samples.append(
+            {
+                "raw_data": raw_data,
+                "correct_doc_type": correct_doc_type,
+                "original_doc_type": original_doc_type,
+                "confidence_was": confidence_was,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
 
         if original_doc_type and original_doc_type != correct_doc_type:
             self.learning_store.record_correction(
@@ -102,12 +99,14 @@ class IncrementalTrainer:
         self.training_pipeline["scheduled_at"] = datetime.utcnow().isoformat()
 
     def record_weekly_improvement(self, metric_name: str, improvement: float) -> None:
-        self.weekly_improvements.append({
-            "metric": metric_name,
-            "improvement": improvement,
-            "week": datetime.utcnow().isocalendar()[1],
-            "timestamp": datetime.utcnow().isoformat(),
-        })
+        self.weekly_improvements.append(
+            {
+                "metric": metric_name,
+                "improvement": improvement,
+                "week": datetime.utcnow().isocalendar()[1],
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
 
     def get_improvement_trend(self) -> dict:
         if not self.weekly_improvements:

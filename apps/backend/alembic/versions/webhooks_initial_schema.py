@@ -5,9 +5,10 @@ Revises: (previous migration)
 Create Date: 2026-02-16
 
 """
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = 'webhooks_001'
@@ -66,7 +67,7 @@ def downgrade() -> None:
     op.drop_index('ix_webhook_deliveries_event_type', table_name='webhook_deliveries')
     op.drop_index('ix_webhook_deliveries_subscription_id', table_name='webhook_deliveries')
     op.drop_table('webhook_deliveries')
-    
+
     op.drop_index('ix_webhook_subscriptions_is_active', table_name='webhook_subscriptions')
     op.drop_index('ix_webhook_subscriptions_event_type', table_name='webhook_subscriptions')
     op.drop_index('ix_webhook_subscriptions_tenant_id', table_name='webhook_subscriptions')

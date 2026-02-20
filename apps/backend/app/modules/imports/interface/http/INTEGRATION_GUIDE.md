@@ -87,7 +87,7 @@ if not parse_result["success"]:
 for row_idx, row_data in enumerate(parse_result["rows"], start=parse_result["header_row"]+1):
     # Determinar doc_type del batch
     doc_type = batch.source_type  # "sales_invoice", "expense", etc.
-    
+
     is_valid, errors = universal_validator.validate_document_complete(
         data=row_data,
         doc_type=doc_type,
@@ -95,7 +95,7 @@ for row_idx, row_data in enumerate(parse_result["rows"], start=parse_result["hea
         item_id=item.id,
         batch_id=batch.id,
     )
-    
+
     item.status = "VALID" if is_valid else "VALIDATION_FAILED"
     item.errors = errors.to_list()  # Errores estructurados
 ```
@@ -211,36 +211,36 @@ if is_valid:
 async def analyze_import_file(file: UploadFile, request: Request):
     from app.modules.imports.parsers.robust_excel import robust_parser
     from app.modules.imports.services.smart_router import smart_router
-    
+
     claims = _get_claims(request)
     tenant_id = claims.get("tenant_id")
-    
+
     # Guardar archivo temporalmente
     file_path = save_upload(file, tenant_id)
-    
+
     try:
         # Análisis robusto
         analysis = robust_parser.analyze_file(file_path)
-        
+
         if not analysis["success"]:
             return {
                 "status": "PARSE_ERROR",
                 "error": analysis.get("error"),
             }
-        
+
         # Smart routing
         smart_result = await smart_router.analyze_file(
             file_path=file_path,
             filename=file.filename,
             tenant_id=tenant_id,
         )
-        
+
         # Field mapping
         field_mapping = universal_validator.find_field_mapping(
             analysis["headers"],
             smart_result.suggested_doc_type,
         )
-        
+
         return {
             "suggested_parser": smart_result.suggested_parser,
             "suggested_doc_type": smart_result.suggested_doc_type,
@@ -261,14 +261,14 @@ async def analyze_import_file(file: UploadFile, request: Request):
 async def ingest_batch(batch_id: UUID, dto: IngestRows, request: Request, db: Session = Depends(get_db)):
     from app.modules.imports.parsers.robust_excel import robust_parser
     from app.modules.imports.domain import universal_validator
-    
+
     # ... validación de permisos ...
-    
+
     batch = db.query(ImportBatch).filter(...).first()
-    
+
     # Parse robusto
     parse_result = robust_parser.parse_file(file_path)
-    
+
     if not parse_result["success"]:
         raise HTTPException(
             status_code=400,
@@ -277,15 +277,15 @@ async def ingest_batch(batch_id: UUID, dto: IngestRows, request: Request, db: Se
                 "errors": parse_result["errors"],
             },
         )
-    
+
     total_items = 0
     valid_items = 0
     error_items = 0
     all_errors = []
-    
+
     for row_idx, row_data in enumerate(parse_result["rows"], start=parse_result["header_row"]+1):
         total_items += 1
-        
+
         # Validar contra schema
         is_valid, errors = universal_validator.validate_document_complete(
             data=row_data,
@@ -293,7 +293,7 @@ async def ingest_batch(batch_id: UUID, dto: IngestRows, request: Request, db: Se
             row_number=row_idx,
             batch_id=batch.id,
         )
-        
+
         if is_valid:
             valid_items += 1
             status = "VALID"
@@ -303,7 +303,7 @@ async def ingest_batch(batch_id: UUID, dto: IngestRows, request: Request, db: Se
             status = "VALIDATION_FAILED"
             error_list = errors.to_list()
             all_errors.extend(error_list)
-        
+
         # Crear item en BD
         item = ImportItem(
             batch_id=batch.id,
@@ -314,9 +314,9 @@ async def ingest_batch(batch_id: UUID, dto: IngestRows, request: Request, db: Se
             errors=error_list,
         )
         db.add(item)
-    
+
     db.commit()
-    
+
     return {
         "batch_id": batch.id,
         "status": "INGESTED",

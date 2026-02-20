@@ -147,9 +147,7 @@ class StockTransferService:
         offset: int = 0,
     ) -> tuple[list[StockTransfer], int]:
         """List transfers with optional filters"""
-        query = self.db.query(StockTransfer).filter(
-            StockTransfer.tenant_id == str(tenant_id)
-        )
+        query = self.db.query(StockTransfer).filter(StockTransfer.tenant_id == str(tenant_id))
 
         if status:
             query = query.filter(StockTransfer.status == status)
@@ -161,16 +159,22 @@ class StockTransferService:
             query = query.filter(StockTransfer.to_warehouse_id == str(to_warehouse_id))
 
         total = query.count()
-        transfers = query.order_by(StockTransfer.created_at.desc()).offset(offset).limit(limit).all()
+        transfers = (
+            query.order_by(StockTransfer.created_at.desc()).offset(offset).limit(limit).all()
+        )
 
         return transfers, total
 
     def _get_transfer(self, transfer_id: UUID, tenant_id: UUID) -> StockTransfer:
         """Get transfer and verify tenant access"""
-        transfer = self.db.query(StockTransfer).filter(
-            StockTransfer.id == str(transfer_id),
-            StockTransfer.tenant_id == str(tenant_id),
-        ).first()
+        transfer = (
+            self.db.query(StockTransfer)
+            .filter(
+                StockTransfer.id == str(transfer_id),
+                StockTransfer.tenant_id == str(tenant_id),
+            )
+            .first()
+        )
 
         if not transfer:
             raise HTTPException(status_code=404, detail="Transfer not found")

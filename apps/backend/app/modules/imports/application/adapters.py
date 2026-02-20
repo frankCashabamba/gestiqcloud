@@ -1,6 +1,4 @@
-from typing import Optional
-
-from app.modules.imports.domain.interfaces import DocType, ParseResult, ParserAdapter
+from app.modules.imports.domain.interfaces import DocType, ParserAdapter, ParseResult
 
 
 class BaseParserAdapter(ParserAdapter):
@@ -15,7 +13,7 @@ class BaseParserAdapter(ParserAdapter):
     def get_doc_type(self) -> DocType:
         return self._doc_type
 
-    def can_parse(self, file_path: str, content_type: Optional[str] = None) -> bool:
+    def can_parse(self, file_path: str, content_type: str | None = None) -> bool:
         return self._can_parse_impl(file_path, content_type)
 
     def parse(self, file_path: str) -> ParseResult:
@@ -39,27 +37,27 @@ class BaseParserAdapter(ParserAdapter):
                 parse_errors=[{"error": str(e)}],
             )
 
-    def _can_parse_impl(self, file_path: str, content_type: Optional[str]) -> bool:
+    def _can_parse_impl(self, file_path: str, content_type: str | None) -> bool:
         return True
 
 
 class ExcelParserAdapter(BaseParserAdapter):
-    def _can_parse_impl(self, file_path: str, content_type: Optional[str] = None) -> bool:
+    def _can_parse_impl(self, file_path: str, content_type: str | None = None) -> bool:
         return file_path.lower().endswith((".xlsx", ".xls", ".xlsm"))
 
 
 class CSVParserAdapter(BaseParserAdapter):
-    def _can_parse_impl(self, file_path: str, content_type: Optional[str] = None) -> bool:
+    def _can_parse_impl(self, file_path: str, content_type: str | None = None) -> bool:
         return file_path.lower().endswith(".csv")
 
 
 class XMLParserAdapter(BaseParserAdapter):
-    def _can_parse_impl(self, file_path: str, content_type: Optional[str] = None) -> bool:
+    def _can_parse_impl(self, file_path: str, content_type: str | None = None) -> bool:
         return file_path.lower().endswith(".xml")
 
 
 class PDFParserAdapter(BaseParserAdapter):
-    def _can_parse_impl(self, file_path: str, content_type: Optional[str] = None) -> bool:
+    def _can_parse_impl(self, file_path: str, content_type: str | None = None) -> bool:
         if file_path.lower().endswith(".pdf"):
             return True
         if content_type and "pdf" in content_type.lower():
@@ -68,6 +66,6 @@ class PDFParserAdapter(BaseParserAdapter):
 
 
 class ImageParserAdapter(BaseParserAdapter):
-    def _can_parse_impl(self, file_path: str, content_type: Optional[str] = None) -> bool:
+    def _can_parse_impl(self, file_path: str, content_type: str | None = None) -> bool:
         extensions = (".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif", ".heic", ".heif")
         return file_path.lower().endswith(extensions)

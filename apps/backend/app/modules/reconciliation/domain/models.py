@@ -1,17 +1,18 @@
 """Domain models for reconciliation module."""
 
-from datetime import date, datetime
+import uuid
+from datetime import datetime
 
 from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-import uuid
 
 from app.config.database import Base
 
 
 class ReconciliationBankStatement(Base):
     """Imported bank statement."""
+
     __tablename__ = "bank_statements"
 
     id = Column(UUID, primary_key=True, default=uuid.uuid4)
@@ -41,6 +42,7 @@ class ReconciliationBankStatement(Base):
 
 class ReconciliationStatementLine(Base):
     """Single transaction line within a bank statement."""
+
     __tablename__ = "statement_lines"
 
     id = Column(UUID, primary_key=True, default=uuid.uuid4)

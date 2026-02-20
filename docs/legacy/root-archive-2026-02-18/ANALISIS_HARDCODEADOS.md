@@ -1,6 +1,6 @@
 ﻿# Hardcoded Values Analysis (Reality-Checked)
 
-**Date:** February 18, 2026  
+**Date:** February 18, 2026
 **Status:** Validated against repository state
 
 ## Summary
@@ -58,4 +58,3 @@ This document reflects the current code state after verification. Some previousl
 2. Replace enum-driven business catalogs (payment methods, transaction types, CRM states) with tenant-configurable catalogs.
 3. Move OCR keyword dictionaries to configurable data.
 4. Done: removed implicit localhost fallbacks and enforced explicit dev/prod Redis/API config gates.
-

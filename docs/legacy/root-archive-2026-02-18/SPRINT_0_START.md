@@ -1,8 +1,8 @@
 # 🚀 SPRINT 0: CLEANUP + VALIDACIÓN - EMPEZAMOS HOY
 
-**Objetivo:** Dejar el código limpio, tests pasando 100%, listo para features.  
-**Duración:** 5 días intenso (40 horas)  
-**Timeline:** Lunes-Viernes de esta semana  
+**Objetivo:** Dejar el código limpio, tests pasando 100%, listo para features.
+**Duración:** 5 días intenso (40 horas)
+**Timeline:** Lunes-Viernes de esta semana
 
 ---
 
@@ -449,4 +449,3 @@ Voy a crear para ti:
 **Empezamos ahora mismo:**
 
 ¿Estás en la carpeta `gestiqcloud`? Si sí, confirma y comienzo a generar todos los archivos.
-

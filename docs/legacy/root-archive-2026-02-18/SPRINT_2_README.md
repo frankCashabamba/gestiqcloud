@@ -95,28 +95,28 @@ apps/tenant/src/modules/pos/
 ## 🔍 Detalles de Componentes
 
 ### CatalogSection.tsx
-**Props:** searchQuery, searchExpanded, filteredProducts, categories, viewMode...  
-**Features:** Search, Barcode input, Categories, Product grid, Tags  
+**Props:** searchQuery, searchExpanded, filteredProducts, categories, viewMode...
+**Features:** Search, Barcode input, Categories, Product grid, Tags
 **Líneas:** 150
 
 ### CartSection.tsx
-**Props:** cart, totals, onUpdateQty, onRemoveItem...  
-**Features:** Cart items, Qty controls, Line tools, Totals panel  
+**Props:** cart, totals, onUpdateQty, onRemoveItem...
+**Features:** Cart items, Qty controls, Line tools, Totals panel
 **Líneas:** 130
 
 ### DiscountModal.tsx
-**Props:** isOpen, currentValue, onConfirm, onCancel  
-**Features:** Input 0-100%, Enter/ESC, Overlay, Validación  
+**Props:** isOpen, currentValue, onConfirm, onCancel
+**Features:** Input 0-100%, Enter/ESC, Overlay, Validación
 **Líneas:** 80
 
 ### ResumeTicketModal.tsx
-**Props:** isOpen, heldTickets, onConfirm, onCancel  
-**Features:** Ticket list, Selection, Preview, Confirm disabled  
+**Props:** isOpen, heldTickets, onConfirm, onCancel
+**Features:** Ticket list, Selection, Preview, Confirm disabled
 **Líneas:** 110
 
 ### PaymentModalUnified.tsx
-**Props:** isOpen, total, onPayment, onCancel, currency  
-**Features:** 4 tabs, Cambio en vivo, Validación, Processing  
+**Props:** isOpen, total, onPayment, onCancel, currency
+**Features:** 4 tabs, Cambio en vivo, Validación, Processing
 **Líneas:** 280
 
 ---
@@ -233,22 +233,22 @@ Si necesitas hacer cambios:
 
 ## ❓ FAQ
 
-**P: ¿Dónde están los componentes?**  
+**P: ¿Dónde están los componentes?**
 R: En `apps/tenant/src/modules/pos/components/`
 
-**P: ¿Cómo se integran en POSView?**  
+**P: ¿Cómo se integran en POSView?**
 R: Ya están importados y usados en POSView.tsx
 
-**P: ¿Qué falta (Tarea 6)?**  
+**P: ¿Qué falta (Tarea 6)?**
 R: Binding de atajos keyboard (F6 → Descuento, F5 → Reanudar)
 
-**P: ¿Cuál es el estimado para Tarea 6?**  
+**P: ¿Cuál es el estimado para Tarea 6?**
 R: 30 minutos
 
-**P: ¿Dónde veo tests?**  
+**P: ¿Dónde veo tests?**
 R: En SPRINT_2_TESTING_GUIDE.md
 
-**P: ¿Está listo para producción?**  
+**P: ¿Está listo para producción?**
 R: Código sí, testing y code review pendientes
 
 ---
@@ -276,11 +276,11 @@ Preguntas sobre:
 **SPRINT 2: 100% Completado ✅**
 
 ✅ 6 tareas completadas (100%)
-✅ 5 componentes nuevos  
-✅ 730+ líneas de código  
-✅ 0 errores TypeScript  
-✅ Documentación completa  
-✅ Tarea 6 (Atajos keyboard) completada  
+✅ 5 componentes nuevos
+✅ 730+ líneas de código
+✅ 0 errores TypeScript
+✅ Documentación completa
+✅ Tarea 6 (Atajos keyboard) completada
 ✅ F5 → ResumeTicketModal
 ✅ F6 → DiscountModal
 
@@ -288,5 +288,5 @@ Preguntas sobre:
 
 ---
 
-**Última actualización:** Febrero 16, 2026  
+**Última actualización:** Febrero 16, 2026
 **Próxima:** Testing QA + Code Review + Deployment

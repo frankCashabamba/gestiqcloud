@@ -2,19 +2,19 @@
 """P1 quick validation."""
 
 import sys
+
 sys.path.insert(0, "./apps/backend")
 
 from uuid import uuid4
+
 from app.modules.imports.domain import (
-    MappingLearner,
-    MappingFeedback,
-    FeedbackType,
-    ConfidenceGate,
-    ConfidenceLevel,
-    ConfidenceGatingPolicy,
     AccountingNormalizer,
-    QualityTelemetryCollector,
+    ConfidenceGate,
+    ConfidenceGatingPolicy,
+    MappingFeedback,
+    MappingLearner,
     MetricType,
+    QualityTelemetryCollector,
 )
 
 print("[OK] Testing P1 features...")
@@ -126,6 +126,6 @@ accuracy_by_type = collector.get_accuracy_by_doc_type(tenant_id)
 assert "sales_invoice" in accuracy_by_type
 print("  [OK] Accuracy by type works")
 
-print("\n" + "="*50)
+print("\n" + "=" * 50)
 print("[OK] ALL P1 TESTS PASSED")
-print("="*50)
+print("=" * 50)

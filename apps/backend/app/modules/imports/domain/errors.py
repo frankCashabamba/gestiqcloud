@@ -3,13 +3,14 @@ Structured error reporting for import processing.
 Each error has: row, field, rule, message, suggestion.
 """
 
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Optional, Any
+from typing import Any
 
 
 class ErrorSeverity(str, Enum):
     """Error severity levels."""
+
     ERROR = "error"
     WARNING = "warning"
     INFO = "info"
@@ -17,6 +18,7 @@ class ErrorSeverity(str, Enum):
 
 class ErrorCategory(str, Enum):
     """Error categories for grouping/reporting."""
+
     VALIDATION = "validation"
     TYPE_MISMATCH = "type_mismatch"
     MISSING_FIELD = "missing_field"
@@ -30,27 +32,27 @@ class ErrorCategory(str, Enum):
 @dataclass
 class ImportError:
     """Structured error with context for debugging and user guidance."""
-    
+
     # Location
-    row_number: Optional[int] = None  # 1-based row number in file
-    field_name: Optional[str] = None  # Field name in source
-    canonical_field: Optional[str] = None  # Canonical field name in schema
-    
+    row_number: int | None = None  # 1-based row number in file
+    field_name: str | None = None  # Field name in source
+    canonical_field: str | None = None  # Canonical field name in schema
+
     # Classification
     category: ErrorCategory = ErrorCategory.VALIDATION
     severity: ErrorSeverity = ErrorSeverity.ERROR
-    rule_name: Optional[str] = None  # Which validation rule failed
-    
+    rule_name: str | None = None  # Which validation rule failed
+
     # Message
     message: str = ""  # Main error message
-    suggestion: Optional[str] = None  # How to fix it
-    raw_value: Optional[Any] = None  # The actual value that failed
-    
+    suggestion: str | None = None  # How to fix it
+    raw_value: Any | None = None  # The actual value that failed
+
     # Context
-    item_id: Optional[str] = None  # Import item ID for linking
-    batch_id: Optional[str] = None  # Import batch ID for linking
-    doc_type: Optional[str] = None  # Document type being validated
-    
+    item_id: str | None = None  # Import item ID for linking
+    batch_id: str | None = None  # Import batch ID for linking
+    doc_type: str | None = None  # Document type being validated
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dict for JSON serialization."""
         result = asdict(self)
@@ -63,7 +65,7 @@ class ImportError:
         if self.raw_value is not None:
             result["raw_value"] = str(self.raw_value)
         return result
-    
+
     def __str__(self) -> str:
         """User-friendly error message."""
         location = ""
@@ -71,7 +73,7 @@ class ImportError:
             location = f"Row {self.row_number}"
         if self.field_name:
             location = f"{location} {self.field_name}" if location else self.field_name
-        
+
         msg = f"{location}: {self.message}"
         if self.suggestion:
             msg += f"\n  → {self.suggestion}"
@@ -80,25 +82,25 @@ class ImportError:
 
 class ImportErrorCollection:
     """Collection of errors from parsing/validation."""
-    
+
     def __init__(self):
         self.errors: list[ImportError] = []
-    
+
     def add(
         self,
         message: str,
         *,
-        row_number: Optional[int] = None,
-        field_name: Optional[str] = None,
-        canonical_field: Optional[str] = None,
+        row_number: int | None = None,
+        field_name: str | None = None,
+        canonical_field: str | None = None,
         category: ErrorCategory = ErrorCategory.VALIDATION,
         severity: ErrorSeverity = ErrorSeverity.ERROR,
-        rule_name: Optional[str] = None,
-        suggestion: Optional[str] = None,
-        raw_value: Optional[Any] = None,
-        item_id: Optional[str] = None,
-        batch_id: Optional[str] = None,
-        doc_type: Optional[str] = None,
+        rule_name: str | None = None,
+        suggestion: str | None = None,
+        raw_value: Any | None = None,
+        item_id: str | None = None,
+        batch_id: str | None = None,
+        doc_type: str | None = None,
     ) -> ImportError:
         """Add a new error to the collection."""
         error = ImportError(
@@ -117,16 +119,16 @@ class ImportErrorCollection:
         )
         self.errors.append(error)
         return error
-    
+
     def add_validation_error(
         self,
         field_name: str,
         rule_name: str,
         message: str,
-        row_number: Optional[int] = None,
-        canonical_field: Optional[str] = None,
-        suggestion: Optional[str] = None,
-        raw_value: Optional[Any] = None,
+        row_number: int | None = None,
+        canonical_field: str | None = None,
+        suggestion: str | None = None,
+        raw_value: Any | None = None,
     ) -> ImportError:
         """Convenience method for validation errors."""
         return self.add(
@@ -139,12 +141,12 @@ class ImportErrorCollection:
             suggestion=suggestion,
             raw_value=raw_value,
         )
-    
+
     def add_missing_field_error(
         self,
         field_name: str,
-        row_number: Optional[int] = None,
-        canonical_field: Optional[str] = None,
+        row_number: int | None = None,
+        canonical_field: str | None = None,
     ) -> ImportError:
         """Convenience method for missing required fields."""
         return self.add(
@@ -156,15 +158,15 @@ class ImportErrorCollection:
             severity=ErrorSeverity.ERROR,
             suggestion=f"Please provide a value for '{field_name}'",
         )
-    
+
     def add_type_error(
         self,
         field_name: str,
         expected_type: str,
-        row_number: Optional[int] = None,
-        canonical_field: Optional[str] = None,
-        raw_value: Optional[Any] = None,
-        suggestion: Optional[str] = None,
+        row_number: int | None = None,
+        canonical_field: str | None = None,
+        raw_value: Any | None = None,
+        suggestion: str | None = None,
     ) -> ImportError:
         """Convenience method for type mismatches."""
         return self.add(
@@ -176,27 +178,27 @@ class ImportErrorCollection:
             raw_value=raw_value,
             suggestion=suggestion or f"Provide a valid {expected_type} value",
         )
-    
-    def by_row(self) -> dict[Optional[int], list[ImportError]]:
+
+    def by_row(self) -> dict[int | None, list[ImportError]]:
         """Group errors by row number."""
-        result: dict[Optional[int], list[ImportError]] = {}
+        result: dict[int | None, list[ImportError]] = {}
         for error in self.errors:
             row = error.row_number
             if row not in result:
                 result[row] = []
             result[row].append(error)
         return result
-    
-    def by_field(self) -> dict[Optional[str], list[ImportError]]:
+
+    def by_field(self) -> dict[str | None, list[ImportError]]:
         """Group errors by field name."""
-        result: dict[Optional[str], list[ImportError]] = {}
+        result: dict[str | None, list[ImportError]] = {}
         for error in self.errors:
             field = error.field_name
             if field not in result:
                 result[field] = []
             result[field].append(error)
         return result
-    
+
     def by_category(self) -> dict[ErrorCategory, list[ImportError]]:
         """Group errors by category."""
         result: dict[ErrorCategory, list[ImportError]] = {}
@@ -206,25 +208,25 @@ class ImportErrorCollection:
                 result[cat] = []
             result[cat].append(error)
         return result
-    
+
     def has_errors(self) -> bool:
         """Check if there are any errors."""
         return len(self.errors) > 0
-    
+
     def has_errors_in_row(self, row_number: int) -> bool:
         """Check if a specific row has errors."""
         return any(e.row_number == row_number for e in self.errors)
-    
+
     def errors_for_row(self, row_number: int) -> list[ImportError]:
         """Get all errors for a specific row."""
         return [e for e in self.errors if e.row_number == row_number]
-    
+
     def to_list(self) -> list[dict[str, Any]]:
         """Convert all errors to list of dicts."""
         return [e.to_dict() for e in self.errors]
-    
+
     def __len__(self) -> int:
         return len(self.errors)
-    
+
     def __iter__(self):
         return iter(self.errors)

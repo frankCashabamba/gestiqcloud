@@ -1,6 +1,5 @@
 import hashlib
 import json
-from typing import Optional
 
 from app.modules.imports.domain.interfaces import (
     AnalyzeResult,

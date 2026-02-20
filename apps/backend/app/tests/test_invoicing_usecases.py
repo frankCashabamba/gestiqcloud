@@ -1,19 +1,20 @@
 """Tests for Invoicing module use cases."""
 
 import os
-import pytest
-
-pytestmark = pytest.mark.no_db
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
+import pytest
+
 from app.modules.invoicing.application.use_cases import (
+    CreateInvoiceFromPOSReceiptUseCase,
     CreateInvoiceUseCase,
     MarkInvoiceAsPaidUseCase,
-    CreateInvoiceFromPOSReceiptUseCase,
     SendInvoiceEmailUseCase,
 )
+
+pytestmark = pytest.mark.no_db
 
 
 class TestCreateInvoiceUseCase:

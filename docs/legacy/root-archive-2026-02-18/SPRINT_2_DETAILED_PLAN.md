@@ -1,9 +1,9 @@
 # 🚀 SPRINT 2 - TIER 2 VALIDATION (SEMANAS 4-5)
 
-**Status:** LISTO PARA COMENZAR  
-**Duración:** 2 semanas intensas  
-**Módulos:** 8 (Accounting, Finance, HR, E-Invoicing, 4 secundarios)  
-**Goal:** Validar módulos con casos reales de negocio  
+**Status:** LISTO PARA COMENZAR
+**Duración:** 2 semanas intensas
+**Módulos:** 8 (Accounting, Finance, HR, E-Invoicing, 4 secundarios)
+**Goal:** Validar módulos con casos reales de negocio
 **Entrada:** SPRINT 1 COMPLETO (5 módulos Tier 1 en staging)
 
 ---
@@ -44,7 +44,7 @@ Módulo Accounting completo: journal entries, general ledger, trial balance, bal
    □ Models: JournalEntry, GeneralLedger, TrialBalance, BalanceSheet
    □ Services: journal_service.py, ledger_service.py, trial_service.py
    □ Endpoints: /accounting/journal, /accounting/ledger, /accounting/trial, /accounting/balance
-   
+
 2. COMPLETAR DATOS REALES (ESPAÑA)
    □ Chart of Accounts (COA) española:
      - Activo (1xx), Pasivo (2xx), Patrimonio (3xx)
@@ -53,7 +53,7 @@ Módulo Accounting completo: journal entries, general ledger, trial balance, bal
      - IVA Regular (21%), Reducido (10%), Súper reducido (4%)
      - IRPF retenciones (15% autónomos, 19% profesionales)
    □ Casos reales: factura → asiento automático en journal
-   
+
 3. FUNCIONALIDAD CORE
    □ Journal Entry CRUD + validación
    □ Auto-posting on invoice/bill creation
@@ -61,14 +61,14 @@ Módulo Accounting completo: journal entries, general ledger, trial balance, bal
    □ Trial Balance: débito/crédito equilibrado
    □ Balance Sheet: Activo = Pasivo + Patrimonio
    □ Audit Trail: quién cambió qué, cuándo
-   
+
 4. VALIDACIONES
    □ Asientos balanceados (débito = crédito)
    □ Fechas válidas (no del futuro)
    □ Cuentas existentes en COA
    □ Documentos referenciados (invoice/bill)
    □ Permisos: solo contadores > ledger entry
-   
+
 5. TESTING
    □ Unit tests:
      - Create entry, validate balance
@@ -82,7 +82,7 @@ Módulo Accounting completo: journal entries, general ledger, trial balance, bal
    □ Data tests:
      - Excel import COA (1000+ accounts)
      - Real nómina data → asientos automáticos
-   
+
 6. DOCUMENTACIÓN
    □ README: Chart of Accounts structure
    □ Guía: cómo crear asientos manuales
@@ -121,37 +121,37 @@ Finance robusto: cash position, bank reconciliation, payment tracking, forecasti
    □ Models: CashPosition, BankReconciliation, Payment, Forecast
    □ Services: cash_service.py, reconciliation_service.py, forecast_service.py
    □ Endpoints: /finance/cash, /finance/reconciliation, /finance/payment, /finance/forecast
-   
+
 2. CASH POSITION
    □ Real-time balance: sum opening + income - expenses
    □ By bank account (multi-moneda: EUR, USD, etc)
    □ Proyecciones: cash flow next 30/60/90 días
    □ Alertas: low balance, overdraft risk
-   
+
 3. BANK RECONCILIATION
    □ Import bank statements (CSV/OFXL)
    □ Matching algorithm: factura → movimiento banco
    □ Manual matching UI (frontend, SPRINT 3)
    □ Diferencias tracking (pending, disputed, reconciled)
    □ Reporting: reconciliación % semanal
-   
+
 4. PAYMENT TRACKING
    □ Estado pagos: pending → in_progress → completed → failed
    □ Retry logic: exponential backoff
    □ Webhook from bank (payment confirmed)
    □ Invoice-to-payment link
-   
+
 5. FORECASTING
    □ Proyección ingresos (based on open invoices)
    □ Proyección gastos (nóminas, compras recurrentes)
    □ Cash gap analysis
    □ Financing needs (si forecast < 0)
-   
+
 6. VALIDACIONES
    □ Transacciones válidas (no negativas, no del futuro)
    □ Reconciliación: cada movimiento matched o pending
    □ Moneda: conversión si multi-currency
-   
+
 7. TESTING
    □ Unit tests:
      - Cash position calculation
@@ -164,7 +164,7 @@ Finance robusto: cash position, bank reconciliation, payment tracking, forecasti
    □ Data tests:
      - 1000+ transactions, reconcile them
      - Historical accuracy (last 12 months)
-   
+
 8. DOCUMENTACIÓN
    □ README: cash position definition
    □ Guía: bank statement import format
@@ -203,13 +203,13 @@ HR/Payroll completo: empleados, cálculo salarios, deducciones IRPF/SS, nóminas
    □ Models: Employee, Salary, Deductions, Payroll, PayrollDetail
    □ Services: salary_service.py, payroll_service.py, deduction_service.py
    □ Endpoints: /hr/employees, /hr/salaries, /hr/payroll, /hr/payroll/{id}/boleto
-   
+
 2. EMPLOYEE RECORDS
    □ CRUD: name, DNI, account, role, salary, department
    □ Validaciones: DNI único, salary ≥ SMI (españa), activo/inactivo
    □ Historial cambios: salary changes con fecha efectiva
    □ Documentos: contratos, órdenes, cambios
-   
+
 3. SALARY CALCULATIONS (ESPAÑA)
    □ Base: monthly salary
    □ Deducciones:
@@ -221,7 +221,7 @@ HR/Payroll completo: empleados, cálculo salarios, deducciones IRPF/SS, nóminas
      - Horas extra (dobles)
      - Bonificaciones
    □ Neto: Base - Deducciones + Complementos
-   
+
 4. PAYROLL GENERATION
    □ Monthly payroll batch:
      - Calcula cada empleado
@@ -232,19 +232,19 @@ HR/Payroll completo: empleados, cálculo salarios, deducciones IRPF/SS, nóminas
      - All employees have salary record
      - No overlapping periods
      - Deductions valid para período
-   
+
 5. NÓMINA DOCUMENT
    □ Generate PDF:
      - Header: empresa, periodo
      - Detalles: salary, deducciones, neto
      - Pie: firmas, datos banco, SCT
    □ Auditoría: descarga tracking, cambios historial
-   
+
 6. BOLETO (COMPROBANTE DIGITAL)
    □ Envío al empleado (email)
    □ Almacenamiento (90 días minimum en servidor)
    □ Acceso empleado: descargar PDF/XML
-   
+
 7. TESTING
    □ Unit tests:
      - Salary calculation (IRPF, SS, mutual)
@@ -257,7 +257,7 @@ HR/Payroll completo: empleados, cálculo salarios, deducciones IRPF/SS, nóminas
    □ Data tests:
      - 100 employees, payroll generation
      - Historical accuracy (12 meses)
-   
+
 8. DOCUMENTACIÓN
    □ README: payroll process flow
    □ Guía IRPF/SS calculadora
@@ -296,7 +296,7 @@ E-Invoicing integrado: SII (España), FE (Ecuador), firma digital, error handlin
    □ Models: EInvoice, EInvoiceStatus, EInvoiceError
    □ Services: sii_service.py, fe_service.py, signature_service.py
    □ Endpoints: /einvoicing/send, /einvoicing/status, /einvoicing/errors
-   
+
 2. SII INTEGRATION (ESPAÑA)
    □ Format: XML según Facturae 3.2.1 (opcional) o factura-e (Agencia Tributaria)
    □ Validaciones:
@@ -313,7 +313,7 @@ E-Invoicing integrado: SII (España), FE (Ecuador), firma digital, error handlin
      - En proceso → polling
      - Rechazada → errores específicos
    □ Webhook: SII devuelve estado
-   
+
 3. FE INTEGRATION (ECUADOR)
    □ Format: XML según SRI (Servicio de Rentas Internas)
    □ Validaciones:
@@ -325,7 +325,7 @@ E-Invoicing integrado: SII (España), FE (Ecuador), firma digital, error handlin
      - Test: servidor test SRI
      - Producción: servidor SRI
    □ Respuesta: aceptada/rechazada con tracking
-   
+
 4. DIGITAL SIGNATURE
    □ Certificado X.509:
      - Almacenar en vault (no en git)
@@ -335,7 +335,7 @@ E-Invoicing integrado: SII (España), FE (Ecuador), firma digital, error handlin
      - Hash → encrypted con cert privado
      - Resultado → firma adjunta en XML
    □ Validación: verificar firma antes enviar
-   
+
 5. ERROR HANDLING
    □ Estados:
      - pending → enviando → sent → accepted → rejected → retry
@@ -347,7 +347,7 @@ E-Invoicing integrado: SII (España), FE (Ecuador), firma digital, error handlin
      - Validación (CIF, NIF, etc) → correción manual
      - Conectividad → retry automático
      - Certificado expirado → alerta urgente
-   
+
 6. TEST ENVIRONMENT
    □ SII test (Agencia Tributaria)
    □ SRI test (Ecuador)
@@ -355,7 +355,7 @@ E-Invoicing integrado: SII (España), FE (Ecuador), firma digital, error handlin
      - 10 facturas válidas por país
      - 5 facturas inválidas (edge cases)
      - Casos error (cert expirado, NIF invalid, etc)
-   
+
 7. TESTING
    □ Unit tests:
      - XML generation (validations)
@@ -369,7 +369,7 @@ E-Invoicing integrado: SII (España), FE (Ecuador), firma digital, error handlin
    □ Contract tests:
      - XML estructura válida (schema)
      - Response parsing (estado, número, errores)
-   
+
 8. DOCUMENTACIÓN
    □ README: SII/FE process flow
    □ Guía validaciones por país
@@ -448,7 +448,7 @@ POR DÍA (L-V):
   3. Bloqueadores
   4. Tests status (% passing)
   5. Merge status (staging branch)
-  
+
 EJEMPLO (LUNES ACCOUNTING):
   L: Revisé backend accounting
      Hoy: Chart of accounts + journal entry CRUD
@@ -586,5 +586,5 @@ ruff check .
 
 ---
 
-**COMIENZA AHORA:** Rama `sprint-2-accounting` y sigue checklist técnico.  
+**COMIENZA AHORA:** Rama `sprint-2-accounting` y sigue checklist técnico.
 **PRÓXIMO ESTADO:** 15/02/2026 - Sprint 2 Complete → Sprint 3 Start

@@ -52,7 +52,7 @@ Por qué: Si necesitas ayuda implementando, aquí está TODO
 
 👉 USAR CUANDO IMPLEMENTES:
   code START_100_NOW.md
-  
+
 Tiene:
   - Setup (5 min)
   - LIFO + Test (1-2h)
@@ -74,7 +74,7 @@ Por qué: Así ves el progreso y no se te olvida nada
 
 👉 IR MARCANDO MIENTRAS HACES:
   code COMPLETION_CHECKLIST.md
-  
+
 Tiene checkboxes para:
   - Fase 1: Code Quality
   - Fase 2: Tests (18 módulos)

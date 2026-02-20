@@ -195,7 +195,7 @@ apps/backend/app/modules/webhooks/
 └── interface/
     └── http/
         └── tenant.py                   # FastAPI endpoints
-        
+
 tests/
 └── test_webhooks.py                    # Unit and integration tests
 
@@ -285,7 +285,7 @@ def trigger_webhook(db, tenant_id, event, payload):
         ),
         {"tid": tenant_id, "event": event},
     ).fetchall()
-    
+
     for url, secret in subs:
         db.execute(
             text(
@@ -366,7 +366,7 @@ else:
 ### Check Pending Deliveries
 
 ```bash
-SELECT COUNT(*), status FROM webhook_deliveries 
+SELECT COUNT(*), status FROM webhook_deliveries
 WHERE tenant_id = 'abc123' AND status IN ('PENDING', 'SENDING')
 GROUP BY status;
 ```
@@ -382,14 +382,14 @@ ORDER BY created_at DESC LIMIT 10;
 ### View Delivery Log
 
 ```bash
-SELECT 
-  id, 
-  event, 
-  status, 
-  attempts, 
-  target_url, 
-  last_error, 
-  created_at, 
+SELECT
+  id,
+  event,
+  status,
+  attempts,
+  target_url,
+  last_error,
+  created_at,
   updated_at
 FROM webhook_deliveries
 WHERE tenant_id = 'abc123' AND event = 'invoice.created'
@@ -433,6 +433,6 @@ ORDER BY created_at DESC LIMIT 20;
 
 ---
 
-**Version:** 1.0.0  
-**Date:** 2024-02-14  
+**Version:** 1.0.0
+**Date:** 2024-02-14
 **Status:** Production Ready

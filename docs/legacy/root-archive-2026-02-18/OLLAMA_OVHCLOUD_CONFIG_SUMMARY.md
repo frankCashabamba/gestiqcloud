@@ -37,10 +37,10 @@
 └─────────────────────────────────────┘
 ```
 
-**Costo:** $0  
-**Precisión:** 85%  
-**Velocidad:** 1-5 segundos  
-**Internet:** No requerido  
+**Costo:** $0
+**Precisión:** 85%
+**Velocidad:** 1-5 segundos
+**Internet:** No requerido
 
 ---
 
@@ -74,10 +74,10 @@
     └──────────────────────────┘
 ```
 
-**Costo:** ~$0.005-0.015 por documento  
-**Precisión:** 95%+  
-**Velocidad:** 0.5-2 segundos  
-**Internet:** Requerido  
+**Costo:** ~$0.005-0.015 por documento
+**Precisión:** 95%+
+**Velocidad:** 0.5-2 segundos
+**Internet:** Requerido
 
 ---
 
@@ -414,6 +414,6 @@ curl http://localhost:8000/api/v1/imports/ai/health
 
 ---
 
-**Versión:** 1.0.0  
-**Fecha:** 16 Febrero 2026  
+**Versión:** 1.0.0
+**Fecha:** 16 Febrero 2026
 **Status:** ✅ Listo para Producción

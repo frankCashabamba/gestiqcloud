@@ -1,7 +1,7 @@
 # 🚀 SPRINT 0: PLAN DE ACCIÓN DETALLADO
 
-**Hora de inicio:** HOY  
-**Duración:** 5 días intenso (40 horas)  
+**Hora de inicio:** HOY
+**Duración:** 5 días intenso (40 horas)
 **Objetivo:** Sistema limpio, tests 100% pass, listo para Render
 
 ---
@@ -489,4 +489,3 @@ python cleanup_and_validate.py
 ```
 
 **GO GO GO** 🔥
-

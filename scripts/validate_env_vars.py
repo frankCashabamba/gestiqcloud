@@ -76,9 +76,7 @@ def check_var(name: str, config: dict, is_critical: bool = True) -> Tuple[bool, 
     # Validar que no contiene valores prohibidos
     for forbidden in config.get("must_not_contain", []):
         if forbidden.lower() in value.lower():
-            msg = (
-                f"❌ {severity}: {name} contiene '{forbidden}' (inválido en producción)"
-            )
+            msg = f"❌ {severity}: {name} contiene '{forbidden}' (inválido en producción)"
             return False, msg
 
     msg = f"✅ {name} configurada correctamente"
@@ -208,18 +206,14 @@ def main():
     # Resultado final
     print(f"\n{Colors.BOLD}═══ RESULTADO FINAL ═══{Colors.END}")
     if is_valid and checklist_ok:
-        print(
-            f"{Colors.GREEN}✅ Entorno validado correctamente para {args.env}{Colors.END}\n"
-        )
+        print(f"{Colors.GREEN}✅ Entorno validado correctamente para {args.env}{Colors.END}\n")
         return 0
     else:
         print(f"{Colors.RED}❌ Entorno tiene problemas para {args.env}{Colors.END}\n")
         if args.strict:
             return 1
         else:
-            print(
-                f"{Colors.YELLOW}⚠️  Ejecute con --strict para fallar en validación{Colors.END}\n"
-            )
+            print(f"{Colors.YELLOW}⚠️  Ejecute con --strict para fallar en validación{Colors.END}\n")
             return 0
 
 

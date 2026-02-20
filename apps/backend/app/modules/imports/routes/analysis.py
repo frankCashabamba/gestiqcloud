@@ -1,6 +1,9 @@
-from fastapi import APIRouter, UploadFile, File, Query, Depends
-from typing import Optional
+import os
+import tempfile
+from pathlib import Path
 from uuid import UUID
+
+from fastapi import APIRouter, File, Query, UploadFile
 
 router = APIRouter(prefix="/imports", tags=["imports-analysis"])
 
@@ -8,18 +11,25 @@ router = APIRouter(prefix="/imports", tags=["imports-analysis"])
 @router.post("/analyze")
 async def analyze_file(
     file: UploadFile = File(...),
-    hinted_doc_type: Optional[str] = Query(None),
+    hinted_doc_type: str | None = Query(None),
     show_explanation: bool = Query(False),
 ):
     from app.modules.imports.application.smart_router import SmartRouter
 
     router_instance = SmartRouter()
 
-    temp_path = f"/tmp/{file.filename}"
-    with open(temp_path, "wb") as f:
-        f.write(await file.read())
+    suffix = Path(file.filename or "upload.bin").suffix
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(await file.read())
+        temp_path = tmp.name
 
-    parse_result = router_instance.ingest(temp_path, hinted_doc_type=hinted_doc_type)
+    try:
+        parse_result = router_instance.ingest(temp_path, hinted_doc_type=hinted_doc_type)
+    finally:
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
 
     if not parse_result.items:
         return {
@@ -64,15 +74,15 @@ async def classify_batch_items(batch_id: UUID):
     results = []
     for item in batch_items:
         if item["raw"]:
-            classify_result = router_instance.classify(
-                item["raw"], item.get("doc_type", "generic")
+            classify_result = router_instance.classify(item["raw"], item.get("doc_type", "generic"))
+            results.append(
+                {
+                    "item_id": item["id"],
+                    "doc_type": classify_result.doc_type.value,
+                    "confidence": classify_result.confidence.value,
+                    "confidence_score": classify_result.confidence_score,
+                }
             )
-            results.append({
-                "item_id": item["id"],
-                "doc_type": classify_result.doc_type.value,
-                "confidence": classify_result.confidence.value,
-                "confidence_score": classify_result.confidence_score,
-            })
 
             service.update_item_after_classify(item["id"], classify_result)
 
@@ -108,12 +118,14 @@ async def map_batch_items(batch_id: UUID):
                 doc_type = DocType.GENERIC
 
             map_result = router_instance.map(item["raw"], doc_type)
-            results.append({
-                "item_id": item["id"],
-                "mapped_fields": map_result.mapped_fields,
-                "unmapped_fields": map_result.unmapped_fields,
-                "validation_errors": map_result.validation_errors,
-            })
+            results.append(
+                {
+                    "item_id": item["id"],
+                    "mapped_fields": map_result.mapped_fields,
+                    "unmapped_fields": map_result.unmapped_fields,
+                    "validation_errors": map_result.validation_errors,
+                }
+            )
 
             service.update_item_after_map(item["id"], map_result)
 
@@ -125,7 +137,7 @@ async def map_batch_items(batch_id: UUID):
 
 
 @router.post("/batch/{batch_id}/promote")
-async def promote_batch_items(batch_id: UUID, item_ids: Optional[list[str]] = None):
+async def promote_batch_items(batch_id: UUID, item_ids: list[str] | None = None):
     from app.modules.imports.application.ingest_service import IngestService
     from app.modules.imports.application.smart_router import SmartRouter
 
@@ -146,7 +158,7 @@ async def promote_batch_items(batch_id: UUID, item_ids: Optional[list[str]] = No
             continue
 
         if item.get("classified_doc_type"):
-            from app.modules.imports.domain.interfaces import DocType, AnalyzeResult
+            from app.modules.imports.domain.interfaces import AnalyzeResult, DocType
 
             doc_type = DocType(item["classified_doc_type"])
             analyze_result = AnalyzeResult(

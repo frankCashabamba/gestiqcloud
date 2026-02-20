@@ -1,6 +1,6 @@
 # 🤖 IA para Identificación de Documentos - Tu Sistema Está Listo
 
-**Última actualización:** 16 de Febrero 2026  
+**Última actualización:** 16 de Febrero 2026
 **Status:** ✅ **IMPLEMENTADO Y FUNCIONAL**
 
 ---
@@ -217,6 +217,6 @@ Tu sistema de IA para identificación de documentos está:
 
 ---
 
-**Última actualización:** 16 Febrero 2026  
-**Sistema:** GestiQCloud  
+**Última actualización:** 16 Febrero 2026
+**Sistema:** GestiQCloud
 **Versión:** 1.0.0-production

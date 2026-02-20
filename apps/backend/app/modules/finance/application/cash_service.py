@@ -1,14 +1,14 @@
 """Finance Service - Cash Position Management"""
 
+from datetime import date
 from decimal import Decimal
-from datetime import date, datetime
 from uuid import UUID
-from sqlalchemy import case, select, func
+
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
-from app.models.finance.cash import CashPosition, BankStatement, BankStatementLine, CashProjection
+from app.models.finance.cash import CashPosition, CashProjection
 from app.models.finance.payment import Payment
-from app.models.accounting.chart_of_accounts import ChartOfAccounts
 
 
 class CashPositionService:
@@ -23,7 +23,7 @@ class CashPositionService:
     ) -> CashPosition:
         """
         Calcula la posición de caja para una fecha y cuenta.
-        
+
         Fórmula:
             closing_balance = opening_balance + inflows - outflows
         """
@@ -38,9 +38,9 @@ class CashPositionService:
             .order_by(CashPosition.position_date.desc())
             .limit(1)
         ).scalar_one_or_none()
-        
+
         opening_balance = previous.closing_balance if previous else Decimal("0")
-        
+
         # 2. Calcula inflows y outflows del día desde Payment table
         stmt = select(
             func.coalesce(
@@ -57,14 +57,14 @@ class CashPositionService:
             func.date(Payment.payment_date) == position_date,
             Payment.status == "CONFIRMED",
         )
-        
+
         result = db.execute(stmt).one()
         inflows = result.inflows or Decimal("0")
         outflows = result.outflows or Decimal("0")
-        
+
         # 3. Calcula saldo de cierre
         closing_balance = opening_balance + inflows - outflows
-        
+
         # 4. Busca o crea registro
         position = db.execute(
             select(CashPosition).where(
@@ -73,7 +73,7 @@ class CashPositionService:
                 CashPosition.position_date == position_date,
             )
         ).scalar_one_or_none()
-        
+
         if not position:
             position = CashPosition(
                 tenant_id=tenant_id,
@@ -81,12 +81,12 @@ class CashPositionService:
                 position_date=position_date,
             )
             db.add(position)
-        
+
         position.opening_balance = opening_balance
         position.inflows = inflows
         position.outflows = outflows
         position.closing_balance = closing_balance
-        
+
         db.flush()
         return position
 
@@ -99,7 +99,7 @@ class CashPositionService:
     ) -> CashProjection:
         """
         Crea proyección de flujo de caja para los próximos N días.
-        
+
         Base: saldo actual + pagos confirmados próximos N días
         """
         today = date.today()
@@ -109,13 +109,13 @@ class CashPositionService:
             ((today.month + projection_days - 1) % 12) + 1,
             1,
         )
-        
+
         # Obtener saldo actual
         current_position = CashPositionService.calculate_position(
             db, tenant_id, bank_account_id, today
         )
         opening_balance = current_position.closing_balance
-        
+
         # Proyectar inflows y outflows
         stmt = select(
             func.coalesce(
@@ -132,12 +132,12 @@ class CashPositionService:
             func.date(Payment.scheduled_date).between(today, projection_end_date),
             Payment.status.in_(["PENDING", "IN_PROGRESS"]),
         )
-        
+
         result = db.execute(stmt).one()
         projected_inflows = result.proj_inflows or Decimal("0")
         projected_outflows = result.proj_outflows or Decimal("0")
         projected_balance = opening_balance + projected_inflows - projected_outflows
-        
+
         # Crear proyección
         projection = CashProjection(
             tenant_id=tenant_id,
@@ -151,7 +151,7 @@ class CashPositionService:
             projected_balance=projected_balance,
             scenario="BASE",
         )
-        
+
         db.add(projection)
         db.flush()
         return projection
@@ -165,13 +165,18 @@ class CashPositionService:
         end_date: date,
     ) -> list[CashPosition]:
         """Obtiene posiciones de caja para un rango de fechas."""
-        positions = db.execute(
-            select(CashPosition).where(
-                CashPosition.tenant_id == tenant_id,
-                CashPosition.bank_account_id == bank_account_id,
-                CashPosition.position_date.between(start_date, end_date),
+        positions = (
+            db.execute(
+                select(CashPosition)
+                .where(
+                    CashPosition.tenant_id == tenant_id,
+                    CashPosition.bank_account_id == bank_account_id,
+                    CashPosition.position_date.between(start_date, end_date),
+                )
+                .order_by(CashPosition.position_date)
             )
-            .order_by(CashPosition.position_date)
-        ).scalars().all()
-        
+            .scalars()
+            .all()
+        )
+
         return positions

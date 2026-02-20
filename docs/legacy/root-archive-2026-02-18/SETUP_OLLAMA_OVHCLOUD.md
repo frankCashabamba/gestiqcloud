@@ -159,12 +159,12 @@ from app.modules.imports.ai import get_ai_provider_singleton
 
 async def test():
     provider = await get_ai_provider_singleton()
-    
+
     result = await provider.classify_document(
         text="Invoice #001 Total: $100.00 Date: 2025-02-16",
         available_parsers=["csv_invoices", "products_excel"]
     )
-    
+
     print(f"Parser: {result.suggested_parser}")
     print(f"Confidence: {result.confidence:.2%}")
     print(f"Provider: {result.provider}")
@@ -502,7 +502,7 @@ OVHCLOUD_MODEL=gpt-3.5-turbo  # Más rápido, más barato
 
 ---
 
-**Autor:** Setup Documentation  
-**Fecha:** 16 de Febrero 2026  
-**Versión:** 1.0.0  
+**Autor:** Setup Documentation
+**Fecha:** 16 de Febrero 2026
+**Versión:** 1.0.0
 **Status:** ✅ Producción Ready

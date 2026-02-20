@@ -1,16 +1,16 @@
 # 🔧 TODO: TAREAS ESPECÍFICAS PARA 100%
 
-**Generado:** 2026-02-16  
-**Prioridad:** CRÍTICA  
-**Esfuerzo:** 6-8 horas  
+**Generado:** 2026-02-16
+**Prioridad:** CRÍTICA
+**Esfuerzo:** 6-8 horas
 
 ---
 
 ## 🚨 BLOQUEANTES (DEBE HACER)
 
 ### T1: Inventory LIFO Costing Implementation
-**Archivo:** `apps/tenant/domain/models.py` (Inventory)  
-**Status:** ⚠️ Enum definido, NO implementado  
+**Archivo:** `apps/tenant/domain/models.py` (Inventory)
+**Status:** ⚠️ Enum definido, NO implementado
 **Esfuerzo:** 1-2 horas
 
 **Código actual:**
@@ -34,7 +34,7 @@ async def calculate_cost_lifo(
 ) -> CostLayerResult:
     """
     LIFO (Last In, First Out) - Últimas capas primero.
-    
+
     Algoritmo:
     1. Obtener todas las capas de costo ordenadas DESC por fecha
     2. Consumir desde la más reciente hacia atrás
@@ -43,30 +43,30 @@ async def calculate_cost_lifo(
     layers = await self._repo.get_cost_layers(
         product_id, warehouse_id, order_by="-created_at"
     )
-    
+
     remaining = quantity
     total_cost = Decimal(0)
     updated_layers = []
-    
+
     for layer in layers:
         if remaining <= 0:
             updated_layers.append(layer)
             continue
-        
+
         consumed = min(remaining, layer.quantity)
         layer_cost = consumed * layer.unit_cost
         total_cost += layer_cost
         remaining -= consumed
-        
+
         layer.quantity -= consumed
         if layer.quantity > 0:
             updated_layers.append(layer)
-    
+
     if remaining > 0:
         raise InsufficientStockError(
             f"Stock insuficiente: falta {remaining} unidades"
         )
-    
+
     return CostLayerResult(
         method="lifo",
         total_cost=total_cost,
@@ -96,8 +96,8 @@ async def test_lifo_costing():
 ---
 
 ### T2: Sales Discount Implementation
-**Archivo:** `apps/tenant/domain/models.py` (Sales)  
-**Status:** ⚠️ Parcialmente - falta discount_pct endpoint  
+**Archivo:** `apps/tenant/domain/models.py` (Sales)
+**Status:** ⚠️ Parcialmente - falta discount_pct endpoint
 **Esfuerzo:** 1-2 horas
 
 **Implementar en:** `apps/tenant/presentation/routers/sales.py`
@@ -113,11 +113,11 @@ async def calculate_order_total(
 ):
     """
     Calcular total de orden con descuento.
-    
+
     Parámetros:
     - order_id: ID de la orden
     - discount_pct: Porcentaje descuento (0-100)
-    
+
     Retorna:
     {
         "subtotal": 1000.00,
@@ -127,15 +127,15 @@ async def calculate_order_total(
     }
     """
     order = await order_service.get_order(order_id, tenant_id)
-    
+
     subtotal = sum(
-        item.quantity * item.unit_price 
+        item.quantity * item.unit_price
         for item in order.items
     )
-    
+
     discount_amount = subtotal * (discount_pct / 100)
     total = subtotal - discount_amount
-    
+
     return {
         "order_id": order_id,
         "subtotal": subtotal,
@@ -179,8 +179,8 @@ async def test_order_no_discount():
 ---
 
 ### T3: Sales Invoice-from-Order
-**Archivo:** `apps/tenant/presentation/routers/sales.py`  
-**Status:** ⚠️ NOT IMPLEMENTED  
+**Archivo:** `apps/tenant/presentation/routers/sales.py`
+**Status:** ⚠️ NOT IMPLEMENTED
 **Esfuerzo:** 2 horas
 
 **Implementar:**
@@ -194,13 +194,13 @@ async def create_invoice_from_order(
 ):
     """
     Crear factura desde orden de venta.
-    
+
     Validaciones:
     1. Orden debe existir
     2. Orden debe estar en estado CONFIRMED
     3. Orden no debe tener factura asociada
     4. Stock debe estar disponible
-    
+
     Proceso:
     1. Crear factura (DRAFT)
     2. Copiar líneas de orden a factura
@@ -209,19 +209,19 @@ async def create_invoice_from_order(
     """
     # Obtener orden
     order = await sales_repo.get_order(order_id, tenant_id)
-    
+
     if order.status != OrderStatus.CONFIRMED:
         raise BadRequest(f"Orden debe estar confirmada, está {order.status}")
-    
+
     if await invoicing_repo.has_invoice(order_id):
         raise BadRequest("Esta orden ya tiene factura")
-    
+
     # Crear factura
     invoice = await service.create_invoice_from_order(
         order_id=order_id,
         tenant_id=tenant_id,
     )
-    
+
     return InvoiceOut.from_orm(invoice)
 ```
 
@@ -233,10 +233,10 @@ async def create_invoice_from_order(
     tenant_id: UUID,
 ) -> Factura:
     """Crear factura desde orden de venta."""
-    
+
     # Obtener orden con items
     order = await sales_repo.get_order_with_items(order_id, tenant_id)
-    
+
     # Crear factura
     invoice = Factura(
         tenant_id=tenant_id,
@@ -247,7 +247,7 @@ async def create_invoice_from_order(
         fecha_emision=datetime.now(),
     )
     await invoicing_repo.save_factura(invoice)
-    
+
     # Copiar líneas
     for item in order.items:
         line = FacturaLinea(
@@ -259,10 +259,10 @@ async def create_invoice_from_order(
             tipo_linea="SalesLine",
         )
         await invoicing_repo.save_linea(line)
-    
+
     # Linkar
     await sales_repo.link_invoice(order_id, invoice.id)
-    
+
     return invoice
 ```
 
@@ -293,8 +293,8 @@ async def test_invoice_lines_match_order():
 ## ⚠️ IMPORTANTE (DEBERÍA HACER)
 
 ### T4: Stock Transfers (Inventory)
-**Archivo:** `apps/tenant/domain/models.py`  
-**Status:** ⚠️ NOT DESIGNED  
+**Archivo:** `apps/tenant/domain/models.py`
+**Status:** ⚠️ NOT DESIGNED
 **Esfuerzo:** 2-3 horas
 
 **Modelo:**
@@ -302,7 +302,7 @@ async def test_invoice_lines_match_order():
 class StockTransfer(Base):
     """Transferencia entre almacenes."""
     __tablename__ = "stock_transfers"
-    
+
     id = Column(UUID, primary_key=True)
     tenant_id = Column(UUID, ForeignKey("tenants.id"))
     from_warehouse_id = Column(UUID, ForeignKey("warehouses.id"))
@@ -313,7 +313,7 @@ class StockTransfer(Base):
     reason = Column(String(255))  # Razón de transferencia
     created_at = Column(DateTime, default=datetime.now)
     completed_at = Column(DateTime, nullable=True)
-    
+
     # Relations
     from_warehouse = relationship("Warehouse", foreign_keys=[from_warehouse_id])
     to_warehouse = relationship("Warehouse", foreign_keys=[to_warehouse_id])
@@ -337,8 +337,8 @@ class StockTransfer(Base):
 ---
 
 ### T5: Mypy Type Checking - Bloqueante
-**Archivo:** `pyproject.toml`  
-**Status:** ⚠️ Actualmente `exit_code = 0` (no bloqueante)  
+**Archivo:** `pyproject.toml`
+**Status:** ⚠️ Actualmente `exit_code = 0` (no bloqueante)
 **Esfuerzo:** 1-2 horas (fixes) + cambio config
 
 **Cambiar en pyproject.toml:**
@@ -382,8 +382,8 @@ def calculate_total(items: List[Item]) -> Decimal:
 ## 📚 DOCUMENTACIÓN (OPCIONAL PERO RECOMENDADO)
 
 ### T6: API Documentation Update
-**Archivo:** `docs/API.md`  
-**Status:** ⚠️ Parcial  
+**Archivo:** `docs/API.md`
+**Status:** ⚠️ Parcial
 **Esfuerzo:** 1 hora
 
 - [ ] OpenAPI/Swagger actualizado
@@ -392,8 +392,8 @@ def calculate_total(items: List[Item]) -> Decimal:
 - [ ] Error codes documentados
 
 ### T7: Deployment Runbook
-**Archivo:** `docs/DEPLOYMENT.md`  
-**Status:** ⚠️ Existe pero revisar  
+**Archivo:** `docs/DEPLOYMENT.md`
+**Status:** ⚠️ Existe pero revisar
 **Esfuerzo:** 1 hora
 
 - [ ] Render deployment steps claros
@@ -415,7 +415,7 @@ def calculate_total(items: List[Item]) -> Decimal:
 | T6 | API Docs | OPCIONAL | 1h | ⚠️ |
 | T7 | Deployment Docs | OPCIONAL | 1h | ⚠️ |
 
-**TOTAL:** 10-14 horas  
+**TOTAL:** 10-14 horas
 **CRÍTICAS:** 6 horas (T1-T3, T5)
 
 ---
@@ -444,6 +444,6 @@ def calculate_total(items: List[Item]) -> Decimal:
 
 ---
 
-**Actualizado:** 2026-02-16  
-**Responsable:** Tú  
+**Actualizado:** 2026-02-16
+**Responsable:** Tú
 **Target:** 2026-02-18 (100% completo)

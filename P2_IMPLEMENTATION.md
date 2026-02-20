@@ -146,19 +146,19 @@ errors = country_rules_registry.validate_document(
 ```python
 class ArgentinaRuleSet(CountryRuleSet):
     """Argentina-specific rules."""
-    
+
     def get_tax_type(self) -> TaxType:
         return TaxType.IVA
-    
+
     def get_tax_rate(self, doc_type: str) -> float:
         return 0.21  # 21% IVA
-    
+
     def validate_tax_id(self, tax_id: str) -> tuple[bool, Optional[str]]:
         import re
         if re.match(r"^\d{11}$", str(tax_id)):
             return True, None
         return False, "Argentina: CUIT (11 digits) required"
-    
+
     # ... implement other methods ...
 
 # Register
@@ -328,7 +328,7 @@ deploy:
       run: |
         python -m pytest apps/backend/app/tests/test_imports_quality.py
         python scripts/quality_benchmark.py --environment staging
-    
+
     - name: Check benchmark results
       run: |
         result=$(python scripts/check_benchmark.py)
@@ -336,7 +336,7 @@ deploy:
           echo "Quality benchmark FAILED"
           exit 1
         fi
-    
+
     - name: Deploy to production
       if: success()
       run: ./deploy.sh
@@ -377,20 +377,20 @@ async for batch in streaming_parser.parse_file_streaming(file_path):
             doc_type="sales_invoice",
             data=row,
         )
-        
+
         # 7. Normalize + validate
         normalized, _ = accounting_normalizer.normalize(row, "sales_invoice")
         is_valid, errors = universal_validator.validate_document_complete(
             normalized, "sales_invoice"
         )
-        
+
         # 8. Confidence gating
         gate = create_gate(...)
         decision = default_confidence_policy.evaluate(gate)
-        
+
         # 9. Log audit
         audit_logger.log_item_validated(trail, item_id, is_valid)
-        
+
         # 10. Record telemetry
         quality_telemetry.record_validation_result(...)
 

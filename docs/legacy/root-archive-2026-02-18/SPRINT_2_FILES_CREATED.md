@@ -3,8 +3,8 @@
 ## 📂 Nuevos Componentes (5 archivos)
 
 ### 1. CatalogSection.tsx
-**Path:** `apps/tenant/src/modules/pos/components/CatalogSection.tsx`  
-**Líneas:** 150  
+**Path:** `apps/tenant/src/modules/pos/components/CatalogSection.tsx`
+**Líneas:** 150
 **Descripción:** Sección de catálogo con búsqueda, categorías y grilla de productos
 
 **Props:**
@@ -29,8 +29,8 @@ onAddToCart, onSearchEnter, onBarcodeEnter
 ---
 
 ### 2. CartSection.tsx
-**Path:** `apps/tenant/src/modules/pos/components/CartSection.tsx`  
-**Líneas:** 130  
+**Path:** `apps/tenant/src/modules/pos/components/CartSection.tsx`
+**Líneas:** 130
 **Descripción:** Sección de carrito con items y totales
 
 **Props:**
@@ -50,8 +50,8 @@ onSetLineDiscount, onSetLineNote
 ---
 
 ### 3. DiscountModal.tsx
-**Path:** `apps/tenant/src/modules/pos/components/DiscountModal.tsx`  
-**Líneas:** 80  
+**Path:** `apps/tenant/src/modules/pos/components/DiscountModal.tsx`
+**Líneas:** 80
 **Descripción:** Modal para aplicar descuento global (reemplaza `prompt()`)
 
 **Props:**
@@ -72,8 +72,8 @@ onCancel: () => void
 ---
 
 ### 4. ResumeTicketModal.tsx
-**Path:** `apps/tenant/src/modules/pos/components/ResumeTicketModal.tsx`  
-**Líneas:** 110  
+**Path:** `apps/tenant/src/modules/pos/components/ResumeTicketModal.tsx`
+**Líneas:** 110
 **Descripción:** Modal para reanudar tickets suspendidos (reemplaza `prompt()`)
 
 **Props:**
@@ -94,8 +94,8 @@ onCancel: () => void
 ---
 
 ### 5. PaymentModalUnified.tsx
-**Path:** `apps/tenant/src/modules/pos/components/PaymentModalUnified.tsx`  
-**Líneas:** 280  
+**Path:** `apps/tenant/src/modules/pos/components/PaymentModalUnified.tsx`
+**Líneas:** 280
 **Descripción:** Modal unificado para todos los métodos de pago
 
 **Props:**
@@ -125,7 +125,7 @@ currency: string
 ## 📝 Archivo Modificado (1)
 
 ### POSView.tsx
-**Path:** `apps/tenant/src/modules/pos/POSView.tsx`  
+**Path:** `apps/tenant/src/modules/pos/POSView.tsx`
 **Cambios:**
 
 1. **Imports nuevos:**
@@ -247,5 +247,5 @@ POSView (Main)
 
 ---
 
-**Última actualización:** Feb 16, 2026  
+**Última actualización:** Feb 16, 2026
 **Status:** Listo para testing

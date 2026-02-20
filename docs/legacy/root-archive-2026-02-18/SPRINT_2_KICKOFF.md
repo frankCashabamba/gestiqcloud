@@ -26,16 +26,16 @@
    - BankStatement (extracto bancario)
    - BankStatementLine (líneas)
    - CashProjection (pronóstico flujo)
-   
+
 ✅ apps/backend/app/models/finance/reconciliation.py
    - BankReconciliation (conciliación)
    - ReconciliationMatch (coincidencias)
    - ReconciliationDifference (diferencias)
-   
+
 ✅ apps/backend/app/models/finance/payment.py
    - Payment (pagos)
    - PaymentSchedule (planes de pago)
-   
+
 ✅ apps/backend/app/models/finance/currency.py
    - ExchangeRate (tasas de cambio)
 ```
@@ -47,12 +47,12 @@
    - Employee (datos empleado)
    - EmployeeSalary (historial salarial)
    - EmployeeDeduction (deducciones)
-   
+
 ✅ apps/backend/app/models/hr/payroll.py
    - Payroll (nómina)
    - PayrollDetail (detalle empleado)
    - PayrollTax (resumen impuestos)
-   
+
 ✅ apps/backend/app/models/hr/payslip.py
    - PaymentSlip (boleta digital)
 ```
@@ -65,7 +65,7 @@
    - EInvoiceSignature (firma digital)
    - EInvoiceStatus (histórico estados)
    - EInvoiceError (errores)
-   
+
 ✅ apps/backend/app/models/einvoicing/country_settings.py
    - EInvoicingCountrySettings (config por país)
    - TaxRegime (master data)
@@ -98,14 +98,14 @@
 | Check constraints | 8+ |
 
 ### Database Features
-✅ **Multi-tenant** - All models have tenant_id  
-✅ **Multi-country** - Validations per country (ES, EC, MX, CL, CO)  
-✅ **Multi-currency** - ExchangeRate table  
-✅ **Audit trail** - created_at, updated_at, created_by fields  
-✅ **Encrypted fields** - passwords, certificates (in BD)  
-✅ **No hardcoding** - All config from database  
-✅ **Proper indexes** - For query performance  
-✅ **Cascade rules** - For referential integrity  
+✅ **Multi-tenant** - All models have tenant_id
+✅ **Multi-country** - Validations per country (ES, EC, MX, CL, CO)
+✅ **Multi-currency** - ExchangeRate table
+✅ **Audit trail** - created_at, updated_at, created_by fields
+✅ **Encrypted fields** - passwords, certificates (in BD)
+✅ **No hardcoding** - All config from database
+✅ **Proper indexes** - For query performance
+✅ **Cascade rules** - For referential integrity
 
 ---
 
@@ -232,12 +232,12 @@ IRPF_RATES = {2026: [0.19, 0.21, 0.25]}
 
 # ✅ AFTER (from database)
 settings = db.query(EInvoicingCountrySettings).filter_by(
-    tenant_id=tenant_id, 
+    tenant_id=tenant_id,
     country="ES"
 ).first()
 api_endpoint = settings.api_endpoint  # From BD!
 irpf_brackets = db.query(PayrollTaxBrackets).filter_by(
-    country="ES", 
+    country="ES",
     year=2026
 ).all()  # From BD!
 ```
@@ -415,13 +415,13 @@ WEEK 6+:
 
 ## 🚀 YOU ARE READY
 
-✅ Models created  
-✅ Database schema ready  
-✅ Documentation complete  
-✅ Examples provided  
-✅ No hardcoding  
-✅ Multi-tenant ready  
-✅ Multi-country ready  
+✅ Models created
+✅ Database schema ready
+✅ Documentation complete
+✅ Examples provided
+✅ No hardcoding
+✅ Multi-tenant ready
+✅ Multi-country ready
 
 **Start with SPRINT_2_ACTION_CHECKLIST.md and follow day-by-day.**
 

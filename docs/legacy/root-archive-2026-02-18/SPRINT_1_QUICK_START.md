@@ -228,7 +228,7 @@ Si algo no funciona:
 
 1. **Revisar console** (F12 → Console)
    - Buscar errores rojos
-   
+
 2. **Revisar estructura**
    - ¿Todos los archivos están en su lugar?
    - ¿Imports correctos en POSView?

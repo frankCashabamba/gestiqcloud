@@ -8,7 +8,6 @@ from urllib.parse import urlparse
 
 import psycopg2
 
-
 SQL = """
 ALTER TABLE IF EXISTS products
     ALTER COLUMN tax_rate SET DEFAULT 0;
@@ -23,11 +22,7 @@ ALTER TABLE IF EXISTS products
 
 
 def _resolve_db_url() -> str:
-    return (
-        os.getenv("TEST_DATABASE_URL")
-        or os.getenv("DATABASE_URL")
-        or ""
-    ).strip()
+    return (os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL") or "").strip()
 
 
 def _connect(db_url: str):

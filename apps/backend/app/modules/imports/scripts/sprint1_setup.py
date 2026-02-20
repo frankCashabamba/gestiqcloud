@@ -3,25 +3,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from app.modules.imports.application.smart_router import SmartRouter
 from app.modules.imports.application.adapters import (
-    ExcelParserAdapter,
     CSVParserAdapter,
-    XMLParserAdapter,
-    PDFParserAdapter,
+    ExcelParserAdapter,
     ImageParserAdapter,
+    PDFParserAdapter,
+    XMLParserAdapter,
 )
-from app.modules.imports.application.scoring_engine import ScoringEngine
 from app.modules.imports.application.canonical_mapper import CanonicalMapper
-from app.modules.imports.infrastructure.validators import (
-    InvoiceValidator,
-    ExpenseReceiptValidator,
-    BankStatementValidator,
-    BankTransactionValidator,
-    ProductListValidator,
-    RecipeValidator,
-)
+from app.modules.imports.application.scoring_engine import ScoringEngine
+from app.modules.imports.application.smart_router import SmartRouter
 from app.modules.imports.domain.interfaces import DocType
+from app.modules.imports.infrastructure.validators import InvoiceValidator
 
 
 def setup_smart_router() -> SmartRouter:

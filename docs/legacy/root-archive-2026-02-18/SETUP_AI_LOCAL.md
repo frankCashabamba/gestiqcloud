@@ -172,7 +172,7 @@ async def test():
         temperature=0.3,
         max_tokens=100
     )
-    
+
     if response.is_error:
         print(f"❌ Error: {response.error}")
     else:
@@ -336,8 +336,8 @@ Ollama es para **desarrollo local solamente** porque:
 
 ---
 
-**Tiempo total**: ~20 minutos  
-**Tamaño descarga**: ~5-10GB  
+**Tiempo total**: ~20 minutos
+**Tamaño descarga**: ~5-10GB
 **RAM necesaria**: 8GB mínimo (16GB recomendado)
 
 ¿Tienes algún problema? Revisa la sección **Troubleshooting** arriba.

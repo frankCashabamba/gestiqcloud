@@ -1,15 +1,16 @@
 """Tests - Finance Module (Sprint 2)"""
 
-import pytest
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
+
+import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.models.finance.cash import CashPosition, BankStatement, BankStatementLine, CashProjection
-from app.models.finance.payment import Payment, PaymentSchedule
 from app.models.accounting.chart_of_accounts import ChartOfAccounts
+from app.models.finance.cash import BankStatement, BankStatementLine, CashPosition, CashProjection
+from app.models.finance.payment import Payment, PaymentSchedule
 from app.modules.finance.application.cash_service import CashPositionService
 
 
@@ -55,14 +56,13 @@ def bank_account(db: Session, tenant_id):
 # TESTS: Cash Position
 # ============================================================================
 
+
 def test_cash_position_calculation_no_previous(db: Session, tenant_id, bank_account):
     """Test: calcula posición sin saldo anterior."""
     position_date = date(2026, 2, 15)
-    
-    position = CashPositionService.calculate_position(
-        db, tenant_id, bank_account.id, position_date
-    )
-    
+
+    position = CashPositionService.calculate_position(db, tenant_id, bank_account.id, position_date)
+
     assert position.tenant_id == tenant_id
     assert position.bank_account_id == bank_account.id
     assert position.position_date == position_date
@@ -75,7 +75,7 @@ def test_cash_position_calculation_no_previous(db: Session, tenant_id, bank_acco
 def test_cash_position_with_payments(db: Session, tenant_id, bank_account):
     """Test: calcula posición con pagos."""
     today = date.today()
-    
+
     # Crear pagos confirmados
     payment_in = Payment(
         tenant_id=tenant_id,
@@ -100,11 +100,9 @@ def test_cash_position_with_payments(db: Session, tenant_id, bank_account):
     db.add(payment_in)
     db.add(payment_out)
     db.flush()
-    
-    position = CashPositionService.calculate_position(
-        db, tenant_id, bank_account.id, today
-    )
-    
+
+    position = CashPositionService.calculate_position(db, tenant_id, bank_account.id, today)
+
     assert position.inflows == Decimal("1000.00")
     assert position.outflows == Decimal("500.00")
     assert position.closing_balance == Decimal("500.00")
@@ -113,7 +111,7 @@ def test_cash_position_with_payments(db: Session, tenant_id, bank_account):
 def test_cash_position_calculation_formula(db: Session, tenant_id, bank_account):
     """Test: verifica fórmula closing = opening + inflows - outflows."""
     today = date.today()
-    
+
     # Crear posición anterior
     yesterday = today - timedelta(days=1)
     previous = CashPosition(
@@ -127,7 +125,7 @@ def test_cash_position_calculation_formula(db: Session, tenant_id, bank_account)
     )
     db.add(previous)
     db.flush()
-    
+
     # Crear posición actual
     position = CashPosition(
         tenant_id=tenant_id,
@@ -140,7 +138,7 @@ def test_cash_position_calculation_formula(db: Session, tenant_id, bank_account)
     )
     db.add(position)
     db.flush()
-    
+
     # Verificar fórmula
     expected_closing = position.opening_balance + position.inflows - position.outflows
     assert position.closing_balance == expected_closing
@@ -149,6 +147,7 @@ def test_cash_position_calculation_formula(db: Session, tenant_id, bank_account)
 # ============================================================================
 # TESTS: Bank Statement
 # ============================================================================
+
 
 def test_bank_statement_creation(db: Session, tenant_id, bank_account):
     """Test: crea extracto bancario."""
@@ -167,7 +166,7 @@ def test_bank_statement_creation(db: Session, tenant_id, bank_account):
     )
     db.add(statement)
     db.flush()
-    
+
     assert statement.id is not None
     assert statement.opening_balance == Decimal("10000.00")
     assert statement.closing_balance == Decimal("12500.00")
@@ -186,7 +185,7 @@ def test_bank_statement_lines(db: Session, tenant_id, bank_account):
     )
     db.add(statement)
     db.flush()
-    
+
     # Agregar líneas
     line1 = BankStatementLine(
         statement_id=statement.id,
@@ -207,7 +206,7 @@ def test_bank_statement_lines(db: Session, tenant_id, bank_account):
     db.add(line1)
     db.add(line2)
     db.flush()
-    
+
     assert len(statement.lines) == 2
     assert statement.lines[0].amount == Decimal("1500.00")
     assert statement.lines[1].amount == Decimal("-500.00")
@@ -217,11 +216,12 @@ def test_bank_statement_lines(db: Session, tenant_id, bank_account):
 # TESTS: Cash Projection
 # ============================================================================
 
+
 def test_cash_projection_creation(db: Session, tenant_id, bank_account):
     """Test: crea proyección de flujo de caja."""
     today = date.today()
     end_date = today + timedelta(days=30)
-    
+
     projection = CashProjection(
         tenant_id=tenant_id,
         bank_account_id=bank_account.id,
@@ -236,7 +236,7 @@ def test_cash_projection_creation(db: Session, tenant_id, bank_account):
     )
     db.add(projection)
     db.flush()
-    
+
     assert projection.projected_balance == Decimal("6500.00")
     assert projection.scenario == "BASE"
 
@@ -245,12 +245,12 @@ def test_cash_projection_formula(db: Session, tenant_id, bank_account):
     """Test: verifica fórmula projected_balance = opening + inflows - outflows."""
     today = date.today()
     end_date = today + timedelta(days=30)
-    
+
     opening = Decimal("10000.00")
     inflows = Decimal("5000.00")
     outflows = Decimal("2000.00")
     expected_balance = opening + inflows - outflows
-    
+
     projection = CashProjection(
         tenant_id=tenant_id,
         bank_account_id=bank_account.id,
@@ -263,13 +263,14 @@ def test_cash_projection_formula(db: Session, tenant_id, bank_account):
     )
     db.add(projection)
     db.flush()
-    
+
     assert projection.projected_balance == expected_balance
 
 
 # ============================================================================
 # TESTS: Payments
 # ============================================================================
+
 
 def test_payment_status_transitions(db: Session, tenant_id, bank_account):
     """Test: transiciones de estado de pago."""
@@ -285,14 +286,14 @@ def test_payment_status_transitions(db: Session, tenant_id, bank_account):
     )
     db.add(payment)
     db.flush()
-    
+
     assert payment.status == "PENDING"
-    
+
     # Cambiar a IN_PROGRESS
     payment.status = "IN_PROGRESS"
     db.flush()
     assert payment.status == "IN_PROGRESS"
-    
+
     # Cambiar a CONFIRMED
     payment.status = "CONFIRMED"
     payment.confirmed_date = date.today()
@@ -314,22 +315,23 @@ def test_payment_schedule(db: Session, tenant_id):
     )
     db.add(schedule)
     db.flush()
-    
+
     assert schedule.installments == 3
     assert schedule.status == "ACTIVE"
     assert schedule.paid_amount == Decimal("0")
-    
+
     # Simular pago de cuota
     schedule.paid_amount = Decimal("400.00")
     schedule.paid_installments = 1
     db.flush()
-    
+
     assert schedule.paid_installments == 1
 
 
 # ============================================================================
 # TESTS: Multi-Currency
 # ============================================================================
+
 
 def test_payment_multi_currency(db: Session, tenant_id, bank_account):
     """Test: pagos en múltiples monedas."""
@@ -358,7 +360,7 @@ def test_payment_multi_currency(db: Session, tenant_id, bank_account):
     db.add(payment_eur)
     db.add(payment_usd)
     db.flush()
-    
+
     assert payment_eur.currency == "EUR"
     assert payment_usd.currency == "USD"
 
@@ -366,6 +368,7 @@ def test_payment_multi_currency(db: Session, tenant_id, bank_account):
 # ============================================================================
 # TESTS: Validations
 # ============================================================================
+
 
 def test_cash_position_negative_outflows(db: Session, tenant_id, bank_account):
     """Test: maneja outflows negativos correctamente."""
@@ -380,7 +383,7 @@ def test_cash_position_negative_outflows(db: Session, tenant_id, bank_account):
     )
     db.add(position)
     db.flush()
-    
+
     # Closing debe ser positivo incluso con outflows grandes
     assert position.closing_balance >= Decimal("0")
 
@@ -399,7 +402,7 @@ def test_payment_zero_amount_validation(db: Session, tenant_id, bank_account):
         bank_account_id=bank_account.id,
     )
     db.add(payment)
-    
+
     # En prod: lanzar error en servicio
 
 
@@ -407,10 +410,11 @@ def test_payment_zero_amount_validation(db: Session, tenant_id, bank_account):
 # INTEGRATION TESTS
 # ============================================================================
 
+
 def test_cash_position_service_calculation(db: Session, tenant_id, bank_account):
     """Test: servicio calcula posición correctamente."""
     today = date.today()
-    
+
     # Crear pagos
     payment_in = Payment(
         tenant_id=tenant_id,
@@ -435,12 +439,10 @@ def test_cash_position_service_calculation(db: Session, tenant_id, bank_account)
     db.add(payment_in)
     db.add(payment_out)
     db.flush()
-    
+
     # Usar servicio
-    position = CashPositionService.calculate_position(
-        db, tenant_id, bank_account.id, today
-    )
-    
+    position = CashPositionService.calculate_position(db, tenant_id, bank_account.id, today)
+
     assert position.inflows == Decimal("5000.00")
     assert position.outflows == Decimal("2000.00")
     assert position.closing_balance == Decimal("3000.00")
@@ -450,7 +452,7 @@ def test_multi_day_positions(db: Session, tenant_id, bank_account):
     """Test: obtiene posiciones para rango de fechas."""
     start_date = date(2026, 2, 1)
     end_date = date(2026, 2, 5)
-    
+
     # Crear posiciones para cada día
     for i in range(5):
         position = CashPosition(
@@ -464,11 +466,11 @@ def test_multi_day_positions(db: Session, tenant_id, bank_account):
         )
         db.add(position)
     db.flush()
-    
+
     positions = CashPositionService.get_multi_day_positions(
         db, tenant_id, bank_account.id, start_date, end_date
     )
-    
+
     assert len(positions) == 5
     assert positions[0].position_date == start_date
     assert positions[-1].position_date == end_date

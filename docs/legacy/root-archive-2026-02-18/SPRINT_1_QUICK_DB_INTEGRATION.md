@@ -81,7 +81,7 @@ def checkout(
         receipt = db.query(POSReceipt).filter(POSReceipt.id == receipt_id).first()
         if not receipt:
             raise HTTPException(status_code=404, detail="Receipt not found")
-        
+
         if receipt.status != "draft":
             raise HTTPException(
                 status_code=400,
@@ -119,11 +119,11 @@ def checkout(
                 warehouse_id=payload.warehouse_id or UUID(int=0),
                 qty=Decimal(str(line.qty)),
             )
-            
+
             # Update line with cost info
             line.cogs_unit = cogs_info.get("cogs_unit", Decimal("0"))
             line.cogs_total = cogs_info.get("cogs_total", Decimal("0"))
-            
+
             # Calculate margin
             line_sales = line.qty * Decimal(str(line.unit_price))
             line.gross_profit = line_sales - line.cogs_total
@@ -307,13 +307,13 @@ def create_receipt(
         # NEW: Persist receipt + lines
         receipt = POSReceipt(**receipt_data)
         db.add(receipt)
-        
+
         for line in payload.lines:
             db.add(POSReceiptLine(
                 receipt_id=receipt.id,
                 **line.dict()
             ))
-        
+
         db.commit()
         db.refresh(receipt)
 

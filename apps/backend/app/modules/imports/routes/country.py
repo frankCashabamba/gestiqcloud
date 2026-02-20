@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException
-from typing import Optional
 from uuid import UUID
+
+from fastapi import APIRouter, HTTPException
 
 from app.modules.imports.infrastructure.country_packs import create_registry
 

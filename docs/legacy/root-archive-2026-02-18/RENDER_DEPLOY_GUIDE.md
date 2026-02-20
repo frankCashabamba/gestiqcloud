@@ -1,7 +1,7 @@
 # 🚀 DEPLOY GUIDE: GESTIQCLOUD EN RENDER
 
-**Para: SPRINT 5 (Semana 9)**  
-**Tiempo:** 2-3 horas  
+**Para: SPRINT 5 (Semana 9)**
+**Tiempo:** 2-3 horas
 **Costo:** FREE tier (PostgreSQL 256MB, Redis 30GB gratis)
 
 ---
@@ -417,7 +417,7 @@ Mismo que DB, upgrade para fix
 ```
 Render Dashboard:
   - Backend → "Logs"
-  - Admin → "Logs" 
+  - Admin → "Logs"
   - Tenant → "Logs"
 
 Buscar:
@@ -530,6 +530,5 @@ WEEK 4:
 
 ---
 
-**Siguiente:** SPRINT 5 Week 9 → Deploy a Render  
+**Siguiente:** SPRINT 5 Week 9 → Deploy a Render
 **Si necesitas help:** Check logs en Render Dashboard
-

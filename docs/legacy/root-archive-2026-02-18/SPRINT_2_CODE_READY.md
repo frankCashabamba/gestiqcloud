@@ -110,7 +110,7 @@ Invoice → EInvoice → EInvoiceSignature
                   ↓
           EInvoiceStatus[]
           EInvoiceError[]
-          
+
 Config (Master Data):
 - TaxRegime (master, not tenant-specific)
 - EInvoicingCountrySettings (per tenant)
@@ -192,7 +192,7 @@ Wednesday-Friday: E-INVOICING
 psql -h localhost -U postgres -d gestiqcloud < apps/backend/sql/sprint2_models.sql
 
 # Verify
-SELECT table_name FROM information_schema.tables 
+SELECT table_name FROM information_schema.tables
 WHERE table_schema = 'app' AND table_name LIKE '%finance%';
 ```
 

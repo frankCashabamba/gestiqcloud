@@ -1,11 +1,12 @@
 """Tests for Sales module schemas and logic."""
 
-import pytest
 from decimal import Decimal
 
-pytestmark = pytest.mark.no_db
+import pytest
 
 from app.modules.sales.application.schemas import SalesOrderLineModel
+
+pytestmark = pytest.mark.no_db
 
 
 class TestSalesOrderLineModel:

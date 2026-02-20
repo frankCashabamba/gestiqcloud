@@ -1,12 +1,8 @@
-from uuid import UUID, uuid4
 from datetime import datetime
 from enum import Enum
+from uuid import UUID, uuid4
 
-from app.modules.imports.domain.interfaces import (
-    ItemStatus,
-    ParseResult,
-    DocType,
-)
+from app.modules.imports.domain.interfaces import ItemStatus, ParseResult
 
 
 class BatchStatus(str, Enum):
@@ -50,9 +46,7 @@ class IngestService:
         }
         return batch_id
 
-    def ingest_parse_result(
-        self, batch_id: str, parse_result: ParseResult
-    ) -> list[str]:
+    def ingest_parse_result(self, batch_id: str, parse_result: ParseResult) -> list[str]:
         if batch_id not in self.batches:
             raise ValueError(f"Batch {batch_id} not found")
 
@@ -82,9 +76,7 @@ class IngestService:
         batch["status"] = BatchStatus.INGESTED.value
         return item_ids
 
-    def update_item_after_classify(
-        self, item_id: str, classify_result
-    ) -> None:
+    def update_item_after_classify(self, item_id: str, classify_result) -> None:
         if item_id not in self.items:
             raise ValueError(f"Item {item_id} not found")
 
@@ -93,9 +85,7 @@ class IngestService:
         item["classification_confidence"] = classify_result.confidence_score
         item["classification_metadata"] = classify_result.metadata
 
-    def update_item_after_map(
-        self, item_id: str, map_result
-    ) -> None:
+    def update_item_after_map(self, item_id: str, map_result) -> None:
         if item_id not in self.items:
             raise ValueError(f"Item {item_id} not found")
 
@@ -146,11 +136,13 @@ class IngestService:
             "timestamp": datetime.utcnow().isoformat(),
         }
 
-        item["lineage"].append({
-            "operation": "correction",
-            "field": field,
-            "timestamp": datetime.utcnow().isoformat(),
-        })
+        item["lineage"].append(
+            {
+                "operation": "correction",
+                "field": field,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
 
     def get_batch_items(self, batch_id: str) -> list[dict]:
         if batch_id not in self.batches:

@@ -17,7 +17,7 @@
 | `deduction_types` | ❌ NO | ✅ Safe to create | New table |
 | `gender_types` | ❌ NO | ✅ Safe to create | New table |
 
-**Verification Method**: 
+**Verification Method**:
 - Searched all migration files (ops/migrations/*.sql)
 - Searched all model files (apps/backend/app/models/*.py)
 - No CREATE TABLE statements found for these tables
@@ -143,13 +143,13 @@ INSERT INTO employee_statuses (
     tenant_id, code, name_en, name_es, name_pt,
     color_code, icon_code, sort_order
 )
-SELECT 
+SELECT
     t.id, 'ACTIVE', 'Active', 'Activo', 'Ativo',
     '#22c55e', 'check-circle', 1
 FROM tenants t
 WHERE t.active = TRUE
   AND NOT EXISTS (
-      SELECT 1 FROM employee_statuses 
+      SELECT 1 FROM employee_statuses
       WHERE tenant_id = t.id AND code = 'ACTIVE'
   );
 ```
@@ -361,4 +361,3 @@ For questions about these migrations:
 - See: `HR_MODULE_IMPROVEMENTS.md` (implementation guide)
 - See: `HR_I18N_TRANSLATIONS.md` (translation reference)
 - See: `HR_MODULE_SUMMARY.txt` (executive summary)
-

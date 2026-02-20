@@ -5,7 +5,10 @@ import { fileURLToPath } from 'node:url';
 var rawBase = process.env.VITE_BASE_PATH || '/';
 var basePath = rawBase.endsWith('/') ? rawBase : "".concat(rawBase, "/");
 var buildId = process.env.VITE_BUILD_ID || new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
-var rawApiTarget = process.env.VITE_API_URL || 'http://localhost:8000';
+var rawApiTarget = process.env.VITE_API_URL || process.env.API_URL;
+if (!rawApiTarget) {
+    throw new Error('Missing API target. Set VITE_API_URL (recommended) or API_URL for local/dev execution.');
+}
 var apiTarget = rawApiTarget.replace(/\/+$/, '');
 var targetHasApiSuffix = apiTarget.endsWith('/api');
 function pkgPath(p) {

@@ -120,11 +120,11 @@ User sees: "Compras" (Spanish) or "Purchases" (English)
 5. `ops/migrations/2026-02-14_006_delete_inactive_duplicate_modules/` - Cleanup migration
 
 ## Benefits
-✓ No duplicate modules in the menu  
-✓ Consistent English-only database schema  
-✓ Flexible internationalization via i18n  
-✓ New modules registered via "Detectar desde FS" are automatically normalized  
-✓ Easy to add support for more languages in the future  
+✓ No duplicate modules in the menu
+✓ Consistent English-only database schema
+✓ Flexible internationalization via i18n
+✓ New modules registered via "Detectar desde FS" are automatically normalized
+✓ Easy to add support for more languages in the future
 
 ## Testing Verification
 After applying these changes:

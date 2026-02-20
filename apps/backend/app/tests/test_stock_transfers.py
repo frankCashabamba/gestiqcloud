@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from uuid import uuid4
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.models.inventory.transfers import StockTransfer, TransferStatus
+from app.models.inventory.transfers import TransferStatus
 from app.modules.inventory.application.stock_transfer_service import StockTransferService
 
 
@@ -250,14 +249,14 @@ def test_list_transfers_filtered_by_status(db: Session, transfer_setup):
     service = StockTransferService(db)
 
     # Create multiple transfers
-    t1 = service.create_transfer(
+    service.create_transfer(
         tenant_id=setup["tenant_id"],
         from_warehouse_id=setup["warehouse_1_id"],
         to_warehouse_id=setup["warehouse_2_id"],
         product_id=setup["product_id"],
         quantity=50.0,
     )
-    t2 = service.create_transfer(
+    service.create_transfer(
         tenant_id=setup["tenant_id"],
         from_warehouse_id=setup["warehouse_1_id"],
         to_warehouse_id=setup["warehouse_2_id"],

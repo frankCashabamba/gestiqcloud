@@ -53,7 +53,7 @@ SI HAY FAILED:
       [ ] Editei el archivo test
       [ ] Agregué: @pytest.mark.skip(reason="...")
       [ ] Rerun test: pasó como skipped
-  
+
   [ ] Después de arreglar: pytest -q pasó
 
 LINTING:

@@ -1,6 +1,6 @@
 # 🎯 PLAN FINAL 100% - COMPLETAR GESTIQCLOUD
 
-**Fecha:** 2026-02-16  
+**Fecha:** 2026-02-16
 **Estado:** ~95% completo → Falta cerrar las últimas tareas críticas
 
 ---
@@ -212,7 +212,7 @@ curl http://localhost:8000/openapi.json | jq . > openapi.json
 
 ### Backend
 - [ ] Identity tests: 17+ passing
-- [ ] Invoicing tests: 10+ passing  
+- [ ] Invoicing tests: 10+ passing
 - [ ] Sales tests: 8+ passing (con discount_pct)
 - [ ] Inventory tests (con LIFO)
 - [ ] Accounting tests: 15+ passing

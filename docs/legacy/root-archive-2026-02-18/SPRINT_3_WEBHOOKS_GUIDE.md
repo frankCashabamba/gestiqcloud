@@ -76,24 +76,24 @@ class EventType(str, Enum):
     INVOICE_CREATED = "invoice.created"
     INVOICE_PAID = "invoice.paid"
     INVOICE_CANCELLED = "invoice.cancelled"
-    
+
     # POS events
     RECEIPT_CREATED = "receipt.created"
     RECEIPT_PAID = "receipt.paid"
-    
+
     # Inventory events
     STOCK_CREATED = "stock.created"
     STOCK_UPDATED = "stock.updated"
     STOCK_LOW_ALERT = "stock.low_alert"
-    
+
     # Accounting events
     JOURNAL_ENTRY_CREATED = "journal_entry.created"
     RECONCILIATION_COMPLETED = "reconciliation.completed"
-    
+
     # HR events
     PAYROLL_CREATED = "payroll.created"
     PAYROLL_COMPLETED = "payroll.completed"
-    
+
     # System events
     BACKUP_COMPLETED = "backup.completed"
     ERROR_OCCURRED = "error.occurred"
@@ -102,10 +102,10 @@ class EventType(str, Enum):
 class WebhookSubscription(Base):
     """
     Webhook subscription configuration.
-    
+
     Stores URL and secret for external endpoints that want to
     receive notifications about specific events.
-    
+
     Attributes:
         id: Unique identifier
         tenant_id: Which tenant owns this subscription
@@ -118,7 +118,7 @@ class WebhookSubscription(Base):
         last_delivery_at: Timestamp of last successful delivery
     """
     __tablename__ = "webhook_subscriptions"
-    
+
     id = Column(UUID, primary_key=True, default=uuid.uuid4)
     tenant_id = Column(UUID, nullable=False, index=True)
     event_type = Column(String(50), nullable=False, index=True)
@@ -127,14 +127,14 @@ class WebhookSubscription(Base):
     is_active = Column(Boolean, default=True)
     retry_count = Column(Integer, default=5)
     timeout_seconds = Column(Integer, default=30)
-    
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_delivery_at = Column(DateTime, nullable=True)
-    
+
     # Relationships
     deliveries = relationship("WebhookDelivery", back_populates="subscription")
-    
+
     def __repr__(self):
         return f"<WebhookSubscription {self.id}: {self.event_type}→{self.target_url}>"
 
@@ -142,10 +142,10 @@ class WebhookSubscription(Base):
 class WebhookDelivery(Base):
     """
     Record of a single webhook delivery attempt.
-    
+
     Tracks every attempt to deliver an event to a webhook URL,
     including success/failure and retry information.
-    
+
     Attributes:
         id: Unique identifier
         subscription_id: Which subscription this delivery is for
@@ -159,37 +159,37 @@ class WebhookDelivery(Base):
         created_at: When this record was created
     """
     __tablename__ = "webhook_deliveries"
-    
+
     id = Column(UUID, primary_key=True, default=uuid.uuid4)
     subscription_id = Column(UUID, ForeignKey("webhook_subscriptions.id"))
     event_type = Column(String(50), nullable=False)
     payload = Column(JSON, nullable=False)
-    
+
     # Delivery attempt info
     status_code = Column(Integer, nullable=True)
     response_body = Column(String(4096), nullable=True)
     error_message = Column(String(1024), nullable=True)
-    
+
     # Retry tracking
     attempt_number = Column(Integer, default=1)
     next_retry_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
-    
+
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     # Relationships
     subscription = relationship("WebhookSubscription", back_populates="deliveries")
-    
+
     @property
     def is_successful(self) -> bool:
         """Check if delivery was successful."""
         return self.status_code is not None and 200 <= self.status_code < 300
-    
+
     @property
     def is_pending(self) -> bool:
         """Check if delivery is pending retry."""
         return self.next_retry_at is not None and self.completed_at is None
-    
+
     def __repr__(self):
         status = "✓" if self.is_successful else "✗"
         return f"<WebhookDelivery {status} {self.event_type} attempt={self.attempt_number}>"
@@ -214,7 +214,7 @@ from uuid import UUID
 class WebhookEvent:
     """
     Event payload structure for all webhooks.
-    
+
     Attributes:
         event_type: Type of event (e.g., "invoice.created")
         event_id: Unique ID for this event
@@ -233,7 +233,7 @@ class WebhookEvent:
     resource_id: UUID
     data: Dict[str, Any]
     metadata: Optional[Dict[str, Any]] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to JSON-serializable dict."""
         return {
@@ -325,7 +325,7 @@ class CreateWebhookRequest(BaseModel):
     event_type: EventType = Field(..., description="Event type to subscribe to")
     target_url: HttpUrl = Field(..., description="HTTP endpoint URL")
     secret: str = Field(..., min_length=8, description="HMAC secret (min 8 chars)")
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -342,7 +342,7 @@ class UpdateWebhookRequest(BaseModel):
     secret: Optional[str] = Field(None, min_length=8)
     is_active: Optional[bool] = None
     retry_count: Optional[int] = Field(None, ge=1, le=10)
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -362,7 +362,7 @@ class WebhookResponse(BaseModel):
     last_delivery_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -382,7 +382,7 @@ class DeliveryResponse(BaseModel):
     is_successful: bool
     created_at: datetime
     completed_at: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
 
@@ -432,8 +432,8 @@ import json
 from sqlalchemy.orm import Session
 
 from ..domain.models import (
-    WebhookSubscription, 
-    WebhookDelivery, 
+    WebhookSubscription,
+    WebhookDelivery,
     EventType
 )
 from ..domain.events import WebhookEvent
@@ -449,10 +449,10 @@ logger = logging.getLogger(__name__)
 class CreateWebhookSubscriptionUseCase:
     """
     Create a new webhook subscription.
-    
+
     Use case: User configures webhook at /webhooks endpoint
     """
-    
+
     def execute(
         self,
         *,
@@ -463,25 +463,25 @@ class CreateWebhookSubscriptionUseCase:
     ) -> Dict[str, Any]:
         """
         Create webhook subscription.
-        
+
         Args:
             tenant_id: Which tenant owns this webhook
             event_type: Event type to subscribe to
             target_url: HTTP endpoint to deliver to
             secret: HMAC secret for signing
-            
+
         Returns:
             Subscription details
-            
+
         Raises:
             InvalidWebhookURL: If URL is malformed
         """
         # Validate URL
         if not target_url.startswith(('http://', 'https://')):
             raise InvalidWebhookURL("URL must start with http:// or https://")
-        
+
         # TODO: Validate URL is reachable (optional, could test later)
-        
+
         subscription = WebhookSubscription(
             tenant_id=tenant_id,
             event_type=event_type,
@@ -489,7 +489,7 @@ class CreateWebhookSubscriptionUseCase:
             secret=secret,
             is_active=True,
         )
-        
+
         return {
             "id": subscription.id,
             "event_type": subscription.event_type,
@@ -501,7 +501,7 @@ class CreateWebhookSubscriptionUseCase:
 
 class UpdateWebhookSubscriptionUseCase:
     """Update existing webhook subscription."""
-    
+
     def execute(
         self,
         *,
@@ -514,7 +514,7 @@ class UpdateWebhookSubscriptionUseCase:
     ) -> Dict[str, Any]:
         """
         Update webhook subscription.
-        
+
         Args:
             webhook_id: Which webhook to update
             tenant_id: Verify ownership
@@ -522,13 +522,13 @@ class UpdateWebhookSubscriptionUseCase:
             secret: New secret (optional)
             is_active: Enable/disable (optional)
             retry_count: New retry count (optional)
-            
+
         Returns:
             Updated subscription details
         """
         # TODO: Query DB, check ownership, update fields
         # Pattern is same as other update use cases
-        
+
         return {
             "id": webhook_id,
             "message": "Webhook updated"
@@ -537,7 +537,7 @@ class UpdateWebhookSubscriptionUseCase:
 
 class DeleteWebhookSubscriptionUseCase:
     """Delete a webhook subscription."""
-    
+
     def execute(
         self,
         *,
@@ -546,22 +546,22 @@ class DeleteWebhookSubscriptionUseCase:
     ) -> Dict[str, str]:
         """
         Delete webhook subscription.
-        
+
         Args:
             webhook_id: Which webhook to delete
             tenant_id: Verify ownership
-            
+
         Returns:
             Confirmation
         """
         # TODO: Query DB, check ownership, delete
-        
+
         return {"message": "Webhook deleted"}
 
 
 class ListWebhooksUseCase:
     """List all webhook subscriptions for a tenant."""
-    
+
     def execute(
         self,
         *,
@@ -571,17 +571,17 @@ class ListWebhooksUseCase:
     ) -> Dict[str, Any]:
         """
         List tenant's webhooks.
-        
+
         Args:
             tenant_id: Which tenant
             skip: Pagination offset
             limit: Max results
-            
+
         Returns:
             List of webhooks
         """
         # TODO: Query DB with filters and pagination
-        
+
         return {
             "items": [],
             "total": 0,
@@ -593,11 +593,11 @@ class ListWebhooksUseCase:
 class TriggerWebhookEventUseCase:
     """
     Trigger a webhook event.
-    
+
     Called when something happens (invoice created, etc).
     Finds all matching subscriptions and queues deliveries.
     """
-    
+
     def execute(
         self,
         *,
@@ -606,11 +606,11 @@ class TriggerWebhookEventUseCase:
     ) -> Dict[str, Any]:
         """
         Trigger webhook event and queue deliveries.
-        
+
         Args:
             event: Event that occurred
             db_session: Database session
-            
+
         Returns:
             Count of subscriptions triggered
         """
@@ -620,9 +620,9 @@ class TriggerWebhookEventUseCase:
             WebhookSubscription.tenant_id == event.tenant_id,
             WebhookSubscription.is_active == True,
         ).all()
-        
+
         logger.info(f"Found {len(subscriptions)} active webhooks for {event.event_type}")
-        
+
         # Queue delivery for each subscription
         for subscription in subscriptions:
             # TODO: Queue to Redis/Celery for async delivery
@@ -633,9 +633,9 @@ class TriggerWebhookEventUseCase:
                 attempt_number=1,
             )
             db_session.add(delivery)
-        
+
         db_session.commit()
-        
+
         return {
             "event_id": event.event_id,
             "event_type": event.event_type,
@@ -645,7 +645,7 @@ class TriggerWebhookEventUseCase:
 
 class GetWebhookDeliveryHistoryUseCase:
     """Retrieve delivery history for a webhook."""
-    
+
     def execute(
         self,
         *,
@@ -655,17 +655,17 @@ class GetWebhookDeliveryHistoryUseCase:
     ) -> Dict[str, Any]:
         """
         Get delivery history.
-        
+
         Args:
             webhook_id: Which webhook
             tenant_id: Verify ownership
             limit: Max deliveries to return
-            
+
         Returns:
             List of deliveries
         """
         # TODO: Query DB, return paginated deliveries
-        
+
         return {
             "webhook_id": webhook_id,
             "items": [],
@@ -675,7 +675,7 @@ class GetWebhookDeliveryHistoryUseCase:
 
 class RetryFailedDeliveryUseCase:
     """Manually retry a failed delivery."""
-    
+
     def execute(
         self,
         *,
@@ -684,22 +684,22 @@ class RetryFailedDeliveryUseCase:
     ) -> Dict[str, str]:
         """
         Retry a failed delivery.
-        
+
         Args:
             delivery_id: Which delivery to retry
             tenant_id: Verify ownership
-            
+
         Returns:
             Confirmation
         """
         # TODO: Find delivery, queue for retry
-        
+
         return {"message": "Delivery queued for retry"}
 
 
 class TestWebhookSubscriptionUseCase:
     """Test a webhook by sending sample event."""
-    
+
     def execute(
         self,
         *,
@@ -709,17 +709,17 @@ class TestWebhookSubscriptionUseCase:
     ) -> Dict[str, Any]:
         """
         Test webhook with sample event.
-        
+
         Args:
             webhook_id: Which webhook to test
             tenant_id: Verify ownership
             event_type: Override event type
-            
+
         Returns:
             Delivery result
         """
         # TODO: Find webhook, create sample event, deliver synchronously
-        
+
         return {
             "delivery_id": "test-delivery-id",
             "status_code": None,
@@ -783,7 +783,7 @@ async def create_webhook(
 ):
     """
     Create a webhook subscription.
-    
+
     Example:
     ```bash
     curl -X POST http://localhost:8000/webhooks \
@@ -818,7 +818,7 @@ async def list_webhooks(
 ):
     """
     List all webhook subscriptions for current tenant.
-    
+
     Query params:
     - skip: Pagination offset (default: 0)
     - limit: Max results (default: 100, max: 1000)
@@ -943,27 +943,27 @@ logger = logging.getLogger(__name__)
 
 class WebhookDeliveryService:
     """Handle webhook HTTP delivery with retry logic."""
-    
+
     # Retry configuration
     BASE_DELAY_SECONDS = 1  # Start with 1 second
     BACKOFF_MULTIPLIER = 2  # Double each time: 1s, 2s, 4s, 8s, 16s
     MAX_ATTEMPTS = 5
-    
+
     def __init__(self, timeout_seconds: int = 30):
         self.timeout_seconds = timeout_seconds
-    
+
     @staticmethod
     def _sign_payload(payload: dict, secret: str) -> str:
         """
         Create HMAC-SHA256 signature for webhook payload.
-        
+
         This allows the receiving endpoint to verify the webhook
         came from GestiqCloud by computing the same signature.
-        
+
         Args:
             payload: JSON payload to sign
             secret: Shared secret
-            
+
         Returns:
             Hex-encoded HMAC signature
         """
@@ -974,7 +974,7 @@ class WebhookDeliveryService:
             hashlib.sha256
         ).hexdigest()
         return signature
-    
+
     async def deliver(
         self,
         delivery: WebhookDelivery,
@@ -983,25 +983,25 @@ class WebhookDeliveryService:
     ) -> bool:
         """
         Attempt to deliver a webhook.
-        
+
         Args:
             delivery: WebhookDelivery record
             target_url: URL to deliver to
             secret: HMAC secret
-            
+
         Returns:
             True if successful (200-299)
         """
         payload = delivery.payload
         signature = self._sign_payload(payload, secret)
-        
+
         headers = {
             "Content-Type": "application/json",
             "X-Webhook-Signature": f"sha256={signature}",
             "X-Webhook-ID": str(delivery.id),
             "X-Event-Type": delivery.event_type,
         }
-        
+
         try:
             async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
                 response = await client.post(
@@ -1009,10 +1009,10 @@ class WebhookDeliveryService:
                     json=payload,
                     headers=headers,
                 )
-            
+
             delivery.status_code = response.status_code
             delivery.response_body = response.text[:4096]  # Truncate long responses
-            
+
             if 200 <= response.status_code < 300:
                 # Success!
                 delivery.completed_at = datetime.utcnow()
@@ -1027,21 +1027,21 @@ class WebhookDeliveryService:
                     f"(status: {response.status_code})"
                 )
                 return False
-        
+
         except asyncio.TimeoutError:
             delivery.error_message = "Timeout"
             logger.warning(f"Webhook timeout: {delivery.id} → {target_url}")
             return False
-        
+
         except Exception as e:
             delivery.error_message = str(e)
             logger.exception(f"Webhook delivery error: {delivery.id} → {target_url}")
             return False
-    
+
     def calculate_next_retry(self, attempt_number: int) -> Optional[datetime]:
         """
         Calculate when to retry based on exponential backoff.
-        
+
         Retry schedule:
         - Attempt 1: Initial delivery (no retry)
         - Attempt 2: +1 second
@@ -1049,16 +1049,16 @@ class WebhookDeliveryService:
         - Attempt 4: +4 seconds
         - Attempt 5: +8 seconds
         - Attempt 6: +16 seconds (then give up)
-        
+
         Args:
             attempt_number: Current attempt (1-based)
-            
+
         Returns:
             Datetime of next retry, or None if max attempts reached
         """
         if attempt_number >= self.MAX_ATTEMPTS:
             return None
-        
+
         delay_seconds = self.BASE_DELAY_SECONDS * (
             self.BACKOFF_MULTIPLIER ** (attempt_number - 1)
         )
@@ -1085,12 +1085,12 @@ logger = logging.getLogger(__name__)
 
 class WebhookEventQueue:
     """Redis-based queue for webhook deliveries."""
-    
+
     def __init__(self, redis_url: str = "redis://localhost:6379/0"):
         self.redis_url = redis_url
         self.redis_client = redis.from_url(redis_url)
         self.queue_key = "webhooks:deliveries"
-    
+
     def enqueue(
         self,
         delivery_id: UUID,
@@ -1101,14 +1101,14 @@ class WebhookEventQueue:
     ) -> bool:
         """
         Enqueue a webhook delivery.
-        
+
         Args:
             delivery_id: Webhook delivery record ID
             subscription_id: Subscription ID
             target_url: Target URL
             secret: HMAC secret
             payload: Event payload
-            
+
         Returns:
             True if enqueued successfully
         """
@@ -1120,23 +1120,23 @@ class WebhookEventQueue:
                 "secret": secret,
                 "payload": payload,
             }
-            
+
             self.redis_client.rpush(
                 self.queue_key,
                 json.dumps(message)
             )
-            
+
             logger.info(f"Enqueued webhook delivery: {delivery_id}")
             return True
-        
+
         except Exception as e:
             logger.exception(f"Failed to enqueue webhook: {e}")
             return False
-    
+
     def dequeue(self) -> Dict[str, Any]:
         """
         Dequeue next pending delivery.
-        
+
         Returns:
             Message dict, or None if queue empty
         """
@@ -1145,11 +1145,11 @@ class WebhookEventQueue:
             if message:
                 return json.loads(message)
             return None
-        
+
         except Exception as e:
             logger.exception(f"Failed to dequeue webhook: {e}")
             return None
-    
+
     def queue_size(self) -> int:
         """Get number of pending deliveries."""
         return self.redis_client.llen(self.queue_key)

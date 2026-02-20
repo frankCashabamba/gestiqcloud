@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from app.modules.imports.domain.interfaces import DocType, LearningStore
 
@@ -19,14 +19,16 @@ class InMemoryLearningStore(LearningStore):
         corrected_doc_type: DocType,
         confidence_was: float,
     ) -> None:
-        self.corrections.append({
-            "batch_id": batch_id,
-            "item_idx": item_idx,
-            "original_doc_type": original_doc_type.value,
-            "corrected_doc_type": corrected_doc_type.value,
-            "confidence_was": confidence_was,
-            "timestamp": datetime.utcnow().isoformat(),
-        })
+        self.corrections.append(
+            {
+                "batch_id": batch_id,
+                "item_idx": item_idx,
+                "original_doc_type": original_doc_type.value,
+                "corrected_doc_type": corrected_doc_type.value,
+                "confidence_was": confidence_was,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
 
         key = f"{original_doc_type.value}_to_{corrected_doc_type.value}"
         self.misclassifications[key] = self.misclassifications.get(key, 0) + 1
@@ -46,11 +48,13 @@ class InMemoryLearningStore(LearningStore):
         if fingerprint not in self.fingerprints:
             self.fingerprints[fingerprint] = []
 
-        self.fingerprints[fingerprint].append({
-            "doc_type": doc_type.value,
-            "raw_data_keys": list(raw_data.keys()),
-            "timestamp": datetime.utcnow().isoformat(),
-        })
+        self.fingerprints[fingerprint].append(
+            {
+                "doc_type": doc_type.value,
+                "raw_data_keys": list(raw_data.keys()),
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
 
     def get_corrections_by_batch(self, batch_id: str) -> list[dict]:
         return [c for c in self.corrections if c["batch_id"] == batch_id]
@@ -67,7 +71,7 @@ class JsonFilelearningStore(LearningStore):
 
     def _load(self) -> None:
         try:
-            with open(self.file_path, "r") as f:
+            with open(self.file_path) as f:
                 self.data = json.load(f)
         except FileNotFoundError:
             self.data = {"corrections": [], "fingerprints": {}, "stats": {}}
@@ -89,14 +93,16 @@ class JsonFilelearningStore(LearningStore):
         corrected_doc_type: DocType,
         confidence_was: float,
     ) -> None:
-        self.data["corrections"].append({
-            "batch_id": batch_id,
-            "item_idx": item_idx,
-            "original_doc_type": original_doc_type.value,
-            "corrected_doc_type": corrected_doc_type.value,
-            "confidence_was": confidence_was,
-            "timestamp": datetime.utcnow().isoformat(),
-        })
+        self.data["corrections"].append(
+            {
+                "batch_id": batch_id,
+                "item_idx": item_idx,
+                "original_doc_type": original_doc_type.value,
+                "corrected_doc_type": corrected_doc_type.value,
+                "confidence_was": confidence_was,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
 
         key = f"{original_doc_type.value}_to_{corrected_doc_type.value}"
         if "stats" not in self.data:
@@ -128,10 +134,12 @@ class JsonFilelearningStore(LearningStore):
         if fingerprint not in self.data["fingerprints"]:
             self.data["fingerprints"][fingerprint] = []
 
-        self.data["fingerprints"][fingerprint].append({
-            "doc_type": doc_type.value,
-            "raw_data_keys": list(raw_data.keys()),
-            "timestamp": datetime.utcnow().isoformat(),
-        })
+        self.data["fingerprints"][fingerprint].append(
+            {
+                "doc_type": doc_type.value,
+                "raw_data_keys": list(raw_data.keys()),
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
 
         self._save()

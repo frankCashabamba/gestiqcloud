@@ -9,7 +9,7 @@
   - Masks secret in response
   - Validates event name format
   - Validates secret length (8-500 chars)
-  
+
 - ✅ `GET /subscriptions` - List with event filtering
   - Query parameter: `?event=invoice.created`
   - Masks secrets in response
@@ -81,7 +81,7 @@
   - secret (VARCHAR 500, nullable)
   - active (BOOLEAN, default true)
   - created_at, updated_at (timestamps)
-  
+
 - ✅ `webhook_deliveries` table
   - id (UUID PK)
   - tenant_id (UUID FK → empresas)
@@ -156,13 +156,13 @@
   - Invalid signature detection
   - Tampered payload detection
   - Payload ordering consistency
-  
+
 - ✅ `TestWebhookValidation` - Input validation
   - Request validation
   - Event normalization
   - URL validation
   - Secret validation
-  
+
 - ✅ `TestWebhookIntegration` - Integration tests (stubs)
 - ✅ `TestWebhookDeliveryStatus` - Status enum tests
 
@@ -346,6 +346,6 @@ The webhooks module is fully implemented with professional standards:
 
 ---
 
-Date: 2024-02-14  
-Version: 1.0.0  
+Date: 2024-02-14
+Version: 1.0.0
 Status: Ready for Production

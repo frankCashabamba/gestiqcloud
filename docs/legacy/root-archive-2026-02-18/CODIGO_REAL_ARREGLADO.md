@@ -1,6 +1,6 @@
 # Reality-Checked Status: POS Document ID Types
 
-**Date:** February 18, 2026  
+**Date:** February 18, 2026
 **Scope:** `apps/tenant/src/modules/pos/POSView.tsx` and HR lookup API wiring
 
 ## Current State (Verified)

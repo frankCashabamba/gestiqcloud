@@ -1,8 +1,8 @@
 # ⏳ TAREA 6 - Atajos de Teclado
 ## Instrucciones para Completar SPRINT 2 al 100%
 
-**Duración:** 30 minutos  
-**Dificultad:** Baja  
+**Duración:** 30 minutos
+**Dificultad:** Baja
 **Prioridad:** Alta
 
 ---
@@ -159,7 +159,7 @@ export function useKeyboardShortcuts(options: {
       }
       // ... resto ...
     }
-    
+
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
   }, [options])
@@ -192,10 +192,10 @@ useKeyboardShortcuts({
 describe('useKeyboardShortcuts - F5/F6', () => {
   it('should call onF5 when F5 pressed', () => {
     const onF5 = jest.fn()
-    const { rerender } = renderHook(() => 
+    const { rerender } = renderHook(() =>
       useKeyboardShortcuts({ onF5 })
     )
-    
+
     fireEvent.keyDown(window, { key: 'F5' })
     expect(onF5).toHaveBeenCalled()
   })
@@ -203,7 +203,7 @@ describe('useKeyboardShortcuts - F5/F6', () => {
   it('should call onF6 when F6 pressed', () => {
     const onF6 = jest.fn()
     renderHook(() => useKeyboardShortcuts({ onF6 }))
-    
+
     fireEvent.keyDown(window, { key: 'F6' })
     expect(onF6).toHaveBeenCalled()
   })
@@ -211,10 +211,10 @@ describe('useKeyboardShortcuts - F5/F6', () => {
   it('should prevent default F5 behavior', () => {
     const onF5 = jest.fn()
     renderHook(() => useKeyboardShortcuts({ onF5 }))
-    
+
     const event = new KeyboardEvent('keydown', { key: 'F5' })
     const preventDefaultSpy = jest.spyOn(event, 'preventDefault')
-    
+
     window.dispatchEvent(event)
     expect(preventDefaultSpy).toHaveBeenCalled()
   })
@@ -239,15 +239,15 @@ describe('useKeyboardShortcuts - F5/F6', () => {
 ## 🚨 Posibles Errores
 
 ### Error 1: "onF5 is not a function"
-**Causa:** Callback no pasado correctamente  
+**Causa:** Callback no pasado correctamente
 **Solución:** Verificar que POSView pase `onF5: () => ...` al hook
 
 ### Error 2: "F5 no abre modal"
-**Causa:** Hook no reacciona a keydown  
+**Causa:** Hook no reacciona a keydown
 **Solución:** Verificar `useEffect` dependencies, agregar log en handler
 
 ### Error 3: "Modal no cierra"
-**Causa:** ESC no funciona correctamente  
+**Causa:** ESC no funciona correctamente
 **Solución:** Verificar que modal tenga `onKeyDown={handleKeyDown}`
 
 ---
@@ -339,6 +339,6 @@ SPRINT 2: 100% COMPLETADO ✅
 
 ---
 
-**Instrucciones creadas:** Febrero 16, 2026  
-**Estimado:** 30 minutos  
+**Instrucciones creadas:** Febrero 16, 2026
+**Estimado:** 30 minutos
 **Siguiente:** Testing + Code Review + Deployment

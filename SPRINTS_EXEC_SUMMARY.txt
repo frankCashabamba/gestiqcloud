@@ -19,13 +19,13 @@ Delivered:
   ✓ BatchService with state management
   ✓ Field alias normalization (ES/EN/PT)
   ✓ Clear ingest (soft) vs promote (strict) workflow
-  
+
 Files: 8 | Classes: 8 | Test Cases: 10
 KPI Met: All uploads through same router, no legacy bypass routes
 
 ────────────────────────────────────────────────────────────────────────────
 
-SPRINT 2: CLASSIFICATION & CONFIDENCE  
+SPRINT 2: CLASSIFICATION & CONFIDENCE
 ──────────────────────────────────────
 Focus: Intelligent doc type detection with confidence scoring
 Delivered:
@@ -138,20 +138,20 @@ PRE-DEPLOYMENT:
 
 RUN SETUP SCRIPTS:
   $ python scripts/run_sprint_setup.py
-  
+
 RUN TESTS:
   $ pytest tests/test_sprints_integration.py -v
-  
+
 Expected: All tests pass (50+)
 
 VERIFY ENDPOINTS:
   $ curl http://localhost:8000/api/v2/imports/health
-  
+
 Response: {"status": "healthy", "version": "2.0"}
 
 VALIDATE INTEGRATION:
   $ python -m app.modules.imports.examples_sprints
-  
+
 Output: 6 working examples (Sprint1-4 + E2E)
 
 ================================================================================
@@ -186,21 +186,21 @@ DOCUMENT CLASSIFIER NEEDS:
   ✓ Explainable decisions
   ✓ Support 5+ countries
   ✓ Custom validation per country
-  
+
 OPERATIONS TEAM NEEDS:
   ✓ Clear item statuses
   ✓ Manual review queue (NEEDS_REVIEW)
   ✓ Correction recording
   ✓ Quality metrics dashboard
   ✓ Quick rollback capability
-  
+
 BUSINESS INTELLIGENCE NEEDS:
   ✓ Misclassification tracking
   ✓ Weekly improvement metrics
   ✓ Per-doctype KPIs
   ✓ Regression test datasets
   ✓ Learning pipeline status
-  
+
 ENGINEERING NEEDS:
   ✓ Clean interfaces (no spaghetti)
   ✓ Backward compatible
@@ -240,17 +240,17 @@ SPRINT 1:
   • 0 errors 500 on valid files ................... ✓ (by design)
   • Reduced classification errors .................. ✓ (tracked)
   • All files through orchestrator ................. ✓ (enforced)
-  
+
 SPRINT 2:
   • Precision > 85% ................................. ✓ (quality gate)
   • <100ms classification time ....................... ✓ (benchmarked)
   • Confidence visible to users ....................... ✓ (API response)
-  
+
 SPRINT 3:
   • Support EC/ES/PE/MX/BR without code changes .... ✓ (pluggable)
   • Country-specific validators active .............. ✓ (enforced)
   • Multi-language support ........................... ✓ (3 languages)
-  
+
 SPRINT 4:
   • Auto-retraining enabled .......................... ✓ (triggered)
   • Weekly improvement tracking ...................... ✓ (metrics)

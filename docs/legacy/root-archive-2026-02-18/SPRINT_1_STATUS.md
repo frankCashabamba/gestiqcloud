@@ -1,8 +1,8 @@
 # SPRINT 1 STATUS REPORT
 
-**Date:** 2026-02-16  
-**Branch:** sprint-0-cleanup  
-**Objective:** TIER 1 (5 módulos) producción-ready  
+**Date:** 2026-02-16
+**Branch:** sprint-0-cleanup
+**Objective:** TIER 1 (5 módulos) producción-ready
 
 ---
 

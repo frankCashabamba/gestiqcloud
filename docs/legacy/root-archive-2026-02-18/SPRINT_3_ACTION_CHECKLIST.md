@@ -1,7 +1,7 @@
 # ✅ SPRINT 3 ACTION CHECKLIST
 
-**Start Date:** [Today]  
-**Target Completion:** Viernes Semana 7  
+**Start Date:** [Today]
+**Target Completion:** Viernes Semana 7
 **Status:** READY TO KICKOFF
 
 ---

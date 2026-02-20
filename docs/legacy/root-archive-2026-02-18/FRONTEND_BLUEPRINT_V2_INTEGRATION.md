@@ -1,6 +1,6 @@
 # Frontend Blueprint V2 Integration — COMPLETADO
 
-**Fecha**: 2026-02-14  
+**Fecha**: 2026-02-14
 **Status**: ✅ CONECTADOS
 
 ---
@@ -75,7 +75,7 @@ export async function triggerRecalculation(
 - Sigue mostrando: Top by profit, Worst by margin, Alerts
 
 ### PerdidasGanancias.tsx
-- Reemplaza `useMovimientos()` hardcodeado con `getProfitReport()` 
+- Reemplaza `useMovimientos()` hardcodeado con `getProfitReport()`
 - Obtiene datos de profit snapshots (últimos 30 días)
 - Muestra: Total Sales, COGS, Gross Profit, Expenses, Net Profit, Net Margin %
 - Error handling y loading states mejorados

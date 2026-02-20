@@ -273,7 +273,7 @@ errors = normalizer.validate_normalization(normalized, "expense")
 **Expense**:
 ```python
 # Date field priorities
-["invoice_date", "expense_date", "transaction_date", 
+["invoice_date", "expense_date", "transaction_date",
  "posting_date", "document_date", "date_created",
  "fecha", "fecha_emisión", "fecha_operacion"]
 
@@ -332,13 +332,13 @@ for row in parse_result["rows"]:
         row,
         "sales_invoice",
     )
-    
+
     # 3b. Validate
     is_valid, errors = universal_validator.validate_document_complete(
         normalized,
         "sales_invoice",
     )
-    
+
     # 3c. Calculate confidence
     mapping_confidence = mapping_learner.get_mapping_confidence(
         tenant_id,
@@ -354,17 +354,17 @@ for row in parse_result["rows"]:
         mapping_confidence=mapping_confidence,
         validation_confidence=1.0 if is_valid else 0.0,
     )
-    
+
     # 3d. Apply gating policy
     decision = default_confidence_policy.evaluate(gate)
-    
+
     if decision["action"] == "auto_approve":
         promote_document(row)
     elif decision["action"] == "confirm":
         ask_user_confirmation(row, decision)
     else:  # block
         hold_for_review(row, decision)
-    
+
     # 3e. Record telemetry
     quality_telemetry.record_validation_result(
         tenant_id,

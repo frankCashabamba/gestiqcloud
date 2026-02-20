@@ -1,7 +1,7 @@
 # 🚀 Webhooks Module - Complete Implementation
 
-**Status:** ✅ **PRODUCTION READY**  
-**Date:** 2024-02-14  
+**Status:** ✅ **PRODUCTION READY**
+**Date:** 2024-02-14
 **Version:** 1.0.0
 
 ---
@@ -363,7 +363,7 @@ WEBHOOK_USER_AGENT=GestiqCloud-Webhooks/1.0
 
 ### Pending Deliveries
 ```sql
-SELECT COUNT(*) FROM webhook_deliveries 
+SELECT COUNT(*) FROM webhook_deliveries
 WHERE status IN ('PENDING', 'SENDING');
 ```
 
@@ -375,7 +375,7 @@ WHERE status = 'FAILED' ORDER BY created_at DESC;
 
 ### Success Rate
 ```sql
-SELECT 
+SELECT
   status,
   COUNT(*) as count,
   ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER ())::int as percentage
@@ -419,7 +419,7 @@ def trigger_webhook(db, tenant_id, event, payload):
              "WHERE tenant_id = :tid AND event = :event AND active"),
         {"tid": tenant_id, "event": event}
     ).fetchall()
-    
+
     for url, secret in subs:
         db.execute(
             text("INSERT INTO webhook_deliveries(...) VALUES(...)"),
@@ -569,7 +569,7 @@ The webhooks module is **fully implemented**, **production-ready**, and **ready 
 
 ---
 
-**Version:** 1.0.0  
-**Status:** ✅ Production Ready  
-**Date:** 2024-02-14  
+**Version:** 1.0.0
+**Status:** ✅ Production Ready
+**Date:** 2024-02-14
 **Maintainer:** GestiqCloud Team

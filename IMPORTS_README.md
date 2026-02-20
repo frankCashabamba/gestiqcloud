@@ -1,7 +1,7 @@
 # GestiqCloud Imports - Complete Implementation
 
-**Status**: ✅ **COMPLETE & READY FOR DEPLOYMENT**  
-**Phases**: P0 (Critical) + P1 (High) + P2 (Medium) = **6 weeks**  
+**Status**: ✅ **COMPLETE & READY FOR DEPLOYMENT**
+**Phases**: P0 (Critical) + P1 (High) + P2 (Medium) = **6 weeks**
 **Code**: **6,800+ lines** (production + tests + docs)
 
 ---
@@ -55,13 +55,13 @@ from app.modules.imports.domain import (
     get_schema,
     universal_validator,
     robust_parser,
-    
+
     # P1: Learning
     mapping_learner,
     default_confidence_policy,
     accounting_normalizer,
     quality_telemetry,
-    
+
     # P2: Enterprise
     streaming_parser,
     country_rules_registry,

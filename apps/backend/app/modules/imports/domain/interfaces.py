@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 
 class DocType(str, Enum):
@@ -36,7 +36,7 @@ class AnalyzeResult:
     raw_data: dict[str, Any]
     errors: list[dict[str, str]]
     metadata: dict[str, Any]
-    fingerprint: Optional[str] = None
+    fingerprint: str | None = None
 
 
 @dataclass
@@ -59,7 +59,7 @@ class ParseResult:
 
 class ParserAdapter(ABC):
     @abstractmethod
-    def can_parse(self, file_path: str, content_type: Optional[str] = None) -> bool:
+    def can_parse(self, file_path: str, content_type: str | None = None) -> bool:
         pass
 
     @abstractmethod
@@ -89,9 +89,7 @@ class ValidatorStrategy(ABC):
 
 class MapperStrategy(ABC):
     @abstractmethod
-    def map_fields(
-        self, raw_data: dict[str, Any], doc_type: DocType
-    ) -> MappingResult:
+    def map_fields(self, raw_data: dict[str, Any], doc_type: DocType) -> MappingResult:
         pass
 
 
@@ -101,11 +99,11 @@ class CountryRulePack(ABC):
         pass
 
     @abstractmethod
-    def validate_tax_id(self, tax_id: str) -> tuple[bool, Optional[str]]:
+    def validate_tax_id(self, tax_id: str) -> tuple[bool, str | None]:
         pass
 
     @abstractmethod
-    def validate_date_format(self, date_str: str) -> tuple[bool, Optional[str]]:
+    def validate_date_format(self, date_str: str) -> tuple[bool, str | None]:
         pass
 
     @abstractmethod
@@ -117,9 +115,7 @@ class CountryRulePack(ABC):
         pass
 
     @abstractmethod
-    def validate_fiscal_fields(
-        self, data: dict[str, Any]
-    ) -> list[dict[str, str]]:
+    def validate_fiscal_fields(self, data: dict[str, Any]) -> list[dict[str, str]]:
         pass
 
 

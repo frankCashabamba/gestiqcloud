@@ -4,11 +4,11 @@
 
 Se ha implementado un **sistema completo de logging, análisis y recuperación automática** de errores de IA que:
 
-✅ **Registra todos los requests/responses** en BD para auditoría  
-✅ **Analiza patrones de error** automáticamente  
-✅ **Intenta recuperarse** de errores automáticamente  
-✅ **Proporciona métricas** y recomendaciones  
-✅ **Sugiere fixes** para problemas conocidos  
+✅ **Registra todos los requests/responses** en BD para auditoría
+✅ **Analiza patrones de error** automáticamente
+✅ **Intenta recuperarse** de errores automáticamente
+✅ **Proporciona métricas** y recomendaciones
+✅ **Sugiere fixes** para problemas conocidos
 
 ---
 
@@ -400,14 +400,14 @@ response = await AIService.query(
 ## 🔐 Privacidad y Seguridad
 
 ### Qué se loguea
-✅ Request metadata (task, provider, tiempo)  
-✅ Response metadata (tokens, status)  
-✅ Error messages (para debugging)  
+✅ Request metadata (task, provider, tiempo)
+✅ Response metadata (tokens, status)
+✅ Error messages (para debugging)
 
 ### Qué NO se loguea
-❌ Contenido completo del prompt (solo hash)  
-❌ Contenido completo de respuesta  
-❌ Datos sensibles del usuario  
+❌ Contenido completo del prompt (solo hash)
+❌ Contenido completo de respuesta
+❌ Datos sensibles del usuario
 
 ### Limpieza automática
 ```python
@@ -518,5 +518,5 @@ GET /api/v1/ai/logs/analysis/summary?hours=24
 
 ---
 
-**Implementado**: Sistema completo de error handling y recovery  
+**Implementado**: Sistema completo de error handling y recovery
 **Status**: ✅ Listo para usar

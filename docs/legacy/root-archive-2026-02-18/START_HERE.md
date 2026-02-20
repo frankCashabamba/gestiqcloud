@@ -450,4 +450,3 @@ python cleanup_and_validate.py
 **ÚLTIMA COSA:** No te apresures. Lee los documentos con calma. Entender el plan = 10 horas menos de desarrollo.
 
 **DALE.** 🚀
-

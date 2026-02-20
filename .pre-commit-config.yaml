@@ -23,6 +23,7 @@ repos:
       - id: ruff
         args: ["--line-length=100", "--fix"]
       - id: ruff-format
+        args: ["--line-length=100"]
 
   # Disabled temporarily - too many type errors to resolve at once
   # Run manually with: pre-commit run --hook-stage manual mypy

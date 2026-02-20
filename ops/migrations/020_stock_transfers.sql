@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS stock_transfers (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     started_at TIMESTAMP WITH TIME ZONE,
     completed_at TIMESTAMP WITH TIME ZONE,
-    
+
     -- Indexes for common queries
     CONSTRAINT chk_different_warehouses CHECK (from_warehouse_id != to_warehouse_id),
     CONSTRAINT chk_positive_quantity CHECK (quantity > 0)

@@ -91,7 +91,7 @@ def create_invoice(self, data: dict, tenant_id: UUID) -> Invoice:
     invoice = Invoice(...)
     self.db.add(invoice)
     self.db.flush()
-    
+
     # Trigger webhook
     webhook_service = InvoicingWebhookService(self.db)
     webhook_service.trigger_invoice_created(
@@ -103,7 +103,7 @@ def create_invoice(self, data: dict, tenant_id: UUID) -> Invoice:
         customer_name=invoice.customer_name,
         customer_id=invoice.customer_id,
     )
-    
+
     self.db.commit()
     return invoice
 ```
@@ -280,10 +280,10 @@ webhook_service.trigger_invoice_created(
 ### 3. Verify Deliveries
 
 ```sql
-SELECT 
-  event, 
-  status, 
-  attempts, 
+SELECT
+  event,
+  status,
+  attempts,
   target_url,
   created_at
 FROM webhook_deliveries
@@ -337,7 +337,7 @@ Automatic with webhook module:
 
 2. Verify subscription exists:
    ```sql
-   SELECT * FROM webhook_subscriptions 
+   SELECT * FROM webhook_subscriptions
    WHERE event = 'invoice.created' AND active = true;
    ```
 
@@ -350,14 +350,14 @@ Automatic with webhook module:
 
 1. Check delivery status:
    ```sql
-   SELECT * FROM webhook_deliveries 
-   WHERE event = 'invoice.created' 
+   SELECT * FROM webhook_deliveries
+   WHERE event = 'invoice.created'
    ORDER BY created_at DESC LIMIT 5;
    ```
 
 2. Check last_error:
    ```sql
-   SELECT last_error FROM webhook_deliveries 
+   SELECT last_error FROM webhook_deliveries
    WHERE status = 'FAILED' LIMIT 1;
    ```
 
@@ -437,8 +437,8 @@ Automatic with webhook module:
 
 ---
 
-**Version:** 1.0.0  
-**Date:** 2024-02-14  
+**Version:** 1.0.0
+**Date:** 2024-02-14
 **Status:** Ready for Production
 
 All components implemented. Ready to integrate with business modules.

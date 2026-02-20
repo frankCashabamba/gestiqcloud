@@ -27,7 +27,7 @@
 
 ### 1. 404 Not Found en GET /webhooks/subscriptions
 
-**Problema:** 
+**Problema:**
 ```
 GET /webhooks/subscriptions HTTP/1.1" 404 Not Found
 ```
@@ -247,17 +247,17 @@ import json
 def verify_signature(request_body: bytes, signature_header: str, secret: str) -> bool:
     """Verify webhook signature"""
     # El signature_header viene como: "sha256=abc123..."
-    
+
     # Recalcular firma del body raw
     calculated_sig = hmac.new(
         secret.encode('utf-8'),
         request_body,  # IMPORTANTE: usar el body raw, no parseado
         hashlib.sha256
     ).hexdigest()
-    
+
     # Extraer hex del header
     _, header_hex = signature_header.split('=')
-    
+
     # Comparar con constant-time comparison
     return hmac.compare_digest(calculated_sig, header_hex)
 
@@ -269,14 +269,14 @@ async def receive_webhook(request: Request):
     # Obtener headers
     signature = request.headers.get("X-Signature")
     secret = "my-secret-key"
-    
+
     # Obtener body raw
     body = await request.body()
-    
+
     # Verificar
     if not verify_signature(body, signature, secret):
         raise HTTPException(status_code=401, detail="Invalid signature")
-    
+
     # Procesar webhook
     payload = json.loads(body)
     return {"status": "ok"}
@@ -292,10 +292,10 @@ async def receive_webhook(request: Request):
     signature = request.headers.get("X-Signature")
     body = await request.body()
     secret = "my-secret-key"
-    
+
     if not WebhookSignature.verify_raw(secret, body, signature):
         raise HTTPException(status_code=401, detail="Invalid signature")
-    
+
     payload = json.loads(body)
     return {"status": "ok"}
 ```
@@ -417,7 +417,7 @@ WEBHOOK_USER_AGENT=MyApp-Webhooks/2.0
 
 ### Ver webhooks pendientes
 ```sql
-SELECT COUNT(*) FROM webhook_deliveries 
+SELECT COUNT(*) FROM webhook_deliveries
 WHERE tenant_id = 'abc123' AND status = 'PENDING';
 ```
 
@@ -430,7 +430,7 @@ ORDER BY created_at DESC LIMIT 10;
 
 ### Ver estadísticas
 ```sql
-SELECT 
+SELECT
   status,
   COUNT(*) as count,
   AVG(attempts) as avg_attempts
@@ -441,8 +441,8 @@ GROUP BY status;
 
 ### Ver webhook más lento
 ```sql
-SELECT 
-  id, 
+SELECT
+  id,
   target_url,
   EXTRACT(EPOCH FROM (updated_at - created_at)) as duration_seconds,
   attempts
@@ -475,7 +475,7 @@ curl -X POST http://localhost:8000/api/v1/tenant/webhooks/deliveries \
     "event": "test",
     "payload": {"test": true}
   }'
-  
+
 # Terminal 3 (opcional): Cambiar URL de suscripción
 curl -X DELETE http://localhost:8000/api/v1/tenant/webhooks/subscriptions/{id} \
   -H "Authorization: Bearer TOKEN"
@@ -547,5 +547,5 @@ Si necesitas:
 
 ---
 
-**Última actualización:** 2024-02-14  
+**Última actualización:** 2024-02-14
 **Versión:** 1.0.0

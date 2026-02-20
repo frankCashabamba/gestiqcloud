@@ -12,12 +12,10 @@ Output:
     ⚠️ ISSUES FOUND - Fix them before deployment
 """
 
-import os
-import re
-import sys
 import json
+import sys
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
 
 # Colors
 GREEN = "\033[92m"
@@ -53,7 +51,7 @@ class Validator:
     def print_summary(self):
         """Print final summary."""
         print("\n" + "=" * 80)
-        
+
         if not self.issues:
             print(f"{GREEN}{BOLD}✅ ALL CHECKS PASSED - READY FOR DEPLOYMENT{RESET}")
             print(f"   Total checks passed: {self.passed}")
@@ -64,7 +62,7 @@ class Validator:
             print(f"{RED}{BOLD}⚠️  ISSUES FOUND - FIX BEFORE DEPLOYMENT{RESET}")
             print(f"   Passed: {self.passed}")
             print(f"   Failed: {len(self.issues)}")
-            print(f"\n   Issues:")
+            print("\n   Issues:")
             for issue in self.issues:
                 print(f"   - {issue}")
             return False
@@ -73,21 +71,22 @@ class Validator:
 def validate_code_quality(v: Validator):
     """Validate code quality (linting, formatting)."""
     print(f"\n{BOLD}📋 Code Quality Checks{RESET}")
-    
+
     # Check for common issues
     issues = {
         "TODO comments": ("TODO|FIXME|XXX|HACK", "apps/"),
-        "Hardcoded secrets": ("password|api_key|secret", "apps/", exclude=["test", "mock"]),
+        "Hardcoded secrets": (
+            "password|api_key|secret",
+            "apps/",
+            {"exclude": ["test", "mock"]},
+        ),
         "Print statements": (r"^\s*print\(", "apps/"),
     }
-    
-    for check_name, (pattern, *paths) in issues.items():
-        pattern_re = re.compile(pattern, re.IGNORECASE)
-        exclude = None
+
+    for check_name, (_pattern, *paths) in issues.items():
         if len(paths) > 1 and isinstance(paths[-1], dict):
-            exclude = paths[-1].get("exclude", [])
             paths = paths[:-1]
-        
+
         # Simple check - just verify files exist
         v.check(f"Code quality - No obvious {check_name}", True)
 
@@ -95,11 +94,15 @@ def validate_code_quality(v: Validator):
 def validate_tests(v: Validator):
     """Validate test status."""
     print(f"\n{BOLD}🧪 Tests Validation{RESET}")
-    
+
     test_dir = Path("apps/backend/app/tests")
     if test_dir.exists():
         test_files = list(test_dir.glob("test_*.py"))
-        v.check(f"Test files found", len(test_files) > 0, f"Found {len(test_files)} test files")
+        v.check(
+            "Test files found",
+            len(test_files) > 0,
+            f"Found {len(test_files)} test files",
+        )
     else:
         v.warn("Tests", "Test directory not found - run tests manually")
 
@@ -107,11 +110,11 @@ def validate_tests(v: Validator):
 def validate_environment(v: Validator):
     """Validate environment setup."""
     print(f"\n{BOLD}🔐 Environment Validation{RESET}")
-    
+
     # Check .env files
     env_example = Path(".env.example")
     v.check(".env.example exists", env_example.exists())
-    
+
     # Check env vars
     env_files = [".env", ".env.example", ".env.render.example"]
     for f in env_files:
@@ -119,80 +122,91 @@ def validate_environment(v: Validator):
             with open(f) as file:
                 content = file.read()
                 v.check(f"{f} has DATABASE_URL", "DATABASE_URL" in content)
-                v.check(f"{f} has SECRET_KEY", "SECRET_KEY" in content or "SECRET_KEY_HERE" in content)
-                v.check(f"{f} has JWT_SECRET", "JWT_SECRET" in content or "jwt" in content.lower())
+                v.check(
+                    f"{f} has SECRET_KEY",
+                    "SECRET_KEY" in content or "SECRET_KEY_HERE" in content,
+                )
+                v.check(
+                    f"{f} has JWT_SECRET",
+                    "JWT_SECRET" in content or "jwt" in content.lower(),
+                )
 
 
 def validate_render_config(v: Validator):
     """Validate Render configuration."""
     print(f"\n{BOLD}🚀 Render Configuration{RESET}")
-    
+
     render_yaml = Path("render.yaml")
     v.check("render.yaml exists", render_yaml.exists())
-    
+
     if render_yaml.exists():
         with open(render_yaml) as f:
             content = f.read()
             v.check("render.yaml has services", "services:" in content)
-            v.check("render.yaml has buildCommand", "buildCommand" in content or "build" in content)
-            v.check("render.yaml has startCommand", "startCommand" in content or "start" in content)
+            v.check(
+                "render.yaml has buildCommand",
+                "buildCommand" in content or "build" in content,
+            )
+            v.check(
+                "render.yaml has startCommand",
+                "startCommand" in content or "start" in content,
+            )
 
 
 def validate_migrations(v: Validator):
     """Validate database migrations."""
     print(f"\n{BOLD}🗄️  Migrations Validation{RESET}")
-    
+
     migrations_dir = Path("ops/migrations")
     v.check("ops/migrations directory exists", migrations_dir.exists())
-    
+
     if migrations_dir.exists():
         sql_files = list(migrations_dir.glob("*.sql"))
-        v.check(f"SQL migrations found", len(sql_files) > 0, f"Found {len(sql_files)} files")
+        v.check("SQL migrations found", len(sql_files) > 0, f"Found {len(sql_files)} files")
 
 
 def validate_python_structure(v: Validator):
     """Validate Python package structure."""
     print(f"\n{BOLD}📦 Python Structure{RESET}")
-    
+
     # Check main packages
     packages = [
         "apps/backend",
         "apps/tenant",
         "apps/admin",
     ]
-    
+
     for pkg in packages:
         pkg_path = Path(pkg)
-        has_init = (pkg_path / "__init__.py").exists() or (pkg_path / "main.py").exists()
         v.check(f"Package {pkg} exists", pkg_path.exists())
 
 
 def validate_frontend_build(v: Validator):
     """Validate frontend setup."""
     print(f"\n{BOLD}🎨 Frontend Validation{RESET}")
-    
+
     # Check if frontend exists
     package_json = Path("package.json")
     v.check("package.json exists", package_json.exists())
-    
+
     if package_json.exists():
         with open(package_json) as f:
             try:
                 data = json.load(f)
                 v.check("package.json has valid JSON", True)
                 v.check("package.json has build script", "build" in data.get("scripts", {}))
-            except:
+            except Exception:
                 v.warn("package.json", "Could not parse JSON")
 
 
 def validate_git_status(v: Validator):
     """Validate git status."""
     print(f"\n{BOLD}📝 Git Status{RESET}")
-    
+
     # Check if .git exists
     git_dir = Path(".git")
     v.check(".git directory exists", git_dir.exists())
-    
+
     # Check for common files
     gitignore = Path(".gitignore")
     v.check(".gitignore exists", gitignore.exists())
@@ -201,12 +215,12 @@ def validate_git_status(v: Validator):
 def validate_documentation(v: Validator):
     """Validate documentation."""
     print(f"\n{BOLD}📚 Documentation{RESET}")
-    
+
     docs = [
         ("README.md", "Main README"),
         ("RENDER_DEPLOY_GUIDE.md", "Render deployment guide"),
     ]
-    
+
     for doc_file, desc in docs:
         doc_path = Path(doc_file)
         v.check(f"{desc} ({doc_file})", doc_path.exists())
@@ -215,14 +229,7 @@ def validate_documentation(v: Validator):
 def validate_security(v: Validator):
     """Validate security aspects."""
     print(f"\n{BOLD}🔒 Security Checks{RESET}")
-    
-    # Check for exposed keys (basic check)
-    dangerous_patterns = [
-        "password=",
-        "api_key=",
-        "secret=",
-    ]
-    
+
     # Check .gitignore has important ignores
     gitignore = Path(".gitignore")
     if gitignore.exists():
@@ -236,11 +243,11 @@ def validate_security(v: Validator):
 def main():
     """Run all validations."""
     print(f"\n{BOLD}{'=' * 80}")
-    print(f"🔍 PRE-DEPLOYMENT VALIDATION - GestiqCloud v1.0.0")
+    print("🔍 PRE-DEPLOYMENT VALIDATION - GestiqCloud v1.0.0")
     print(f"{'=' * 80}{RESET}\n")
-    
+
     v = Validator()
-    
+
     # Run all validations
     validate_code_quality(v)
     validate_tests(v)
@@ -252,23 +259,23 @@ def main():
     validate_git_status(v)
     validate_documentation(v)
     validate_security(v)
-    
+
     # Print summary
     success = v.print_summary()
-    
+
     print("\n" + "=" * 80)
     if success:
         print(f"{GREEN}🚀 Ready to deploy to Render!{RESET}")
-        print(f"\nNext steps:")
-        print(f"  1. git commit -m 'FINAL: 100% ready for production'")
-        print(f"  2. git tag -a v1.0.0 -m 'Production release'")
-        print(f"  3. git push origin main --tags")
-        print(f"  4. Render auto-deploys from main")
+        print("\nNext steps:")
+        print("  1. git commit -m 'FINAL: 100% ready for production'")
+        print("  2. git tag -a v1.0.0 -m 'Production release'")
+        print("  3. git push origin main --tags")
+        print("  4. Render auto-deploys from main")
         return 0
     else:
         print(f"{RED}⚠️  Fix the issues above before deploying.{RESET}")
         if v.warnings:
-            print(f"\nWarnings to review:")
+            print("\nWarnings to review:")
             for w in v.warnings:
                 print(f"  - {w}")
         return 1

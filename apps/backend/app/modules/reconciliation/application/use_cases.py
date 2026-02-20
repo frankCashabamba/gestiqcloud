@@ -1,27 +1,20 @@
 """Business logic / use cases for reconciliation module."""
 
 import logging
-from datetime import timedelta
 from decimal import Decimal
-from typing import List, Tuple
 from uuid import UUID
 
-from sqlalchemy import func, text
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.modules.reconciliation.domain.exceptions import (
     AlreadyReconciled,
     LineNotFound,
-    MatchingFailed,
     StatementNotFound,
 )
-from app.modules.reconciliation.domain.models import (
-    ReconciliationBankStatement as BankStatement,
-    ReconciliationStatementLine as StatementLine,
-)
-from app.modules.reconciliation.infrastructure.reconciliation_service import (
-    ReconciliationService,
-)
+from app.modules.reconciliation.domain.models import ReconciliationBankStatement as BankStatement
+from app.modules.reconciliation.domain.models import ReconciliationStatementLine as StatementLine
+from app.modules.reconciliation.infrastructure.reconciliation_service import ReconciliationService
 
 logger = logging.getLogger(__name__)
 
@@ -69,9 +62,7 @@ class ImportStatementUseCase:
         db_session.commit()
         db_session.refresh(statement)
 
-        logger.info(
-            f"Imported statement {statement.id} with {len(transactions)} transactions"
-        )
+        logger.info(f"Imported statement {statement.id} with {len(transactions)} transactions")
         return statement
 
 
@@ -85,10 +76,12 @@ class ListStatementsUseCase:
         skip: int = 0,
         limit: int = 50,
         db_session: Session,
-    ) -> Tuple[List[BankStatement], int]:
-        query = db_session.query(BankStatement).filter(
-            BankStatement.tenant_id == tenant_id
-        ).order_by(BankStatement.created_at.desc())
+    ) -> tuple[list[BankStatement], int]:
+        query = (
+            db_session.query(BankStatement)
+            .filter(BankStatement.tenant_id == tenant_id)
+            .order_by(BankStatement.created_at.desc())
+        )
 
         total = query.count()
         items = query.offset(skip).limit(limit).all()
@@ -105,10 +98,14 @@ class GetStatementDetailUseCase:
         tenant_id: UUID,
         db_session: Session,
     ) -> BankStatement:
-        statement = db_session.query(BankStatement).filter(
-            BankStatement.id == statement_id,
-            BankStatement.tenant_id == tenant_id,
-        ).first()
+        statement = (
+            db_session.query(BankStatement)
+            .filter(
+                BankStatement.id == statement_id,
+                BankStatement.tenant_id == tenant_id,
+            )
+            .first()
+        )
 
         if not statement:
             raise StatementNotFound(f"Statement {statement_id} not found")
@@ -126,18 +123,26 @@ class AutoMatchUseCase:
         tenant_id: UUID,
         db_session: Session,
     ) -> BankStatement:
-        statement = db_session.query(BankStatement).filter(
-            BankStatement.id == statement_id,
-            BankStatement.tenant_id == tenant_id,
-        ).first()
+        statement = (
+            db_session.query(BankStatement)
+            .filter(
+                BankStatement.id == statement_id,
+                BankStatement.tenant_id == tenant_id,
+            )
+            .first()
+        )
 
         if not statement:
             raise StatementNotFound(f"Statement {statement_id} not found")
 
-        unmatched_lines = db_session.query(StatementLine).filter(
-            StatementLine.statement_id == statement_id,
-            StatementLine.match_status == "unmatched",
-        ).all()
+        unmatched_lines = (
+            db_session.query(StatementLine)
+            .filter(
+                StatementLine.statement_id == statement_id,
+                StatementLine.match_status == "unmatched",
+            )
+            .all()
+        )
 
         matched = 0
 
@@ -209,9 +214,7 @@ class AutoMatchUseCase:
         db_session.commit()
         db_session.refresh(statement)
 
-        logger.info(
-            f"Auto-match on statement {statement_id}: {matched} new matches"
-        )
+        logger.info(f"Auto-match on statement {statement_id}: {matched} new matches")
         return statement
 
 
@@ -226,18 +229,20 @@ class ManualMatchUseCase:
         tenant_id: UUID,
         db_session: Session,
     ) -> StatementLine:
-        line = db_session.query(StatementLine).filter(
-            StatementLine.id == line_id,
-            StatementLine.tenant_id == tenant_id,
-        ).first()
+        line = (
+            db_session.query(StatementLine)
+            .filter(
+                StatementLine.id == line_id,
+                StatementLine.tenant_id == tenant_id,
+            )
+            .first()
+        )
 
         if not line:
             raise LineNotFound(f"Statement line {line_id} not found")
 
         if line.match_status != "unmatched":
-            raise AlreadyReconciled(
-                f"Line {line_id} is already matched ({line.match_status})"
-            )
+            raise AlreadyReconciled(f"Line {line_id} is already matched ({line.match_status})")
 
         # Verify invoice exists for this tenant
         invoice = db_session.execute(
@@ -258,9 +263,13 @@ class ManualMatchUseCase:
         line.match_confidence = Decimal("100.00")
 
         # Update statement counts
-        statement = db_session.query(BankStatement).filter(
-            BankStatement.id == line.statement_id,
-        ).first()
+        statement = (
+            db_session.query(BankStatement)
+            .filter(
+                BankStatement.id == line.statement_id,
+            )
+            .first()
+        )
 
         if statement:
             statement.matched_count = (
@@ -271,9 +280,7 @@ class ManualMatchUseCase:
                 )
                 .count()
             ) + 1  # include current line being matched
-            statement.unmatched_count = (
-                statement.total_transactions - statement.matched_count
-            )
+            statement.unmatched_count = statement.total_transactions - statement.matched_count
 
             if statement.unmatched_count == 0:
                 statement.status = "reconciled"
@@ -296,30 +303,50 @@ class GetReconciliationSummaryUseCase:
         tenant_id: UUID,
         db_session: Session,
     ) -> dict:
-        total_statements = db_session.query(BankStatement).filter(
-            BankStatement.tenant_id == tenant_id,
-        ).count()
+        total_statements = (
+            db_session.query(BankStatement)
+            .filter(
+                BankStatement.tenant_id == tenant_id,
+            )
+            .count()
+        )
 
-        total_lines = db_session.query(StatementLine).filter(
-            StatementLine.tenant_id == tenant_id,
-        ).count()
+        total_lines = (
+            db_session.query(StatementLine)
+            .filter(
+                StatementLine.tenant_id == tenant_id,
+            )
+            .count()
+        )
 
-        matched = db_session.query(StatementLine).filter(
-            StatementLine.tenant_id == tenant_id,
-            StatementLine.match_status != "unmatched",
-        ).count()
+        matched = (
+            db_session.query(StatementLine)
+            .filter(
+                StatementLine.tenant_id == tenant_id,
+                StatementLine.match_status != "unmatched",
+            )
+            .count()
+        )
 
         unmatched = total_lines - matched
 
-        auto_matched = db_session.query(StatementLine).filter(
-            StatementLine.tenant_id == tenant_id,
-            StatementLine.match_status == "auto_matched",
-        ).count()
+        auto_matched = (
+            db_session.query(StatementLine)
+            .filter(
+                StatementLine.tenant_id == tenant_id,
+                StatementLine.match_status == "auto_matched",
+            )
+            .count()
+        )
 
-        manual_matched = db_session.query(StatementLine).filter(
-            StatementLine.tenant_id == tenant_id,
-            StatementLine.match_status == "manual_matched",
-        ).count()
+        manual_matched = (
+            db_session.query(StatementLine)
+            .filter(
+                StatementLine.tenant_id == tenant_id,
+                StatementLine.match_status == "manual_matched",
+            )
+            .count()
+        )
 
         return {
             "total_statements": total_statements,

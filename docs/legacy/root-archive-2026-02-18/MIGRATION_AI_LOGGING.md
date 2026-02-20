@@ -327,14 +327,14 @@ from app.models.ai_log import AIRequestLog
 def cleanup_old_logs(days=7):
     db = SessionLocal()
     cutoff = datetime.utcnow() - timedelta(days=days)
-    
+
     deleted = db.query(AIRequestLog).filter(
         AIRequestLog.created_at < cutoff
     ).delete()
-    
+
     db.commit()
     db.close()
-    
+
     print(f"Eliminated {deleted} logs older than {days} days")
 
 if __name__ == "__main__":
@@ -352,7 +352,7 @@ celery beat
 
 ### Monitorear tamaño de tablas
 ```sql
-SELECT 
+SELECT
     schemaname,
     tablename,
     pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
@@ -425,5 +425,5 @@ psql -U postgres -d your_database < backup_20250216_143022.sql
 
 ---
 
-**Implementado**: Sistema completo de logging en BD  
+**Implementado**: Sistema completo de logging en BD
 **Status**: ✅ Listo para migración

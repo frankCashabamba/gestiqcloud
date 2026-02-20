@@ -1,12 +1,10 @@
-from typing import Optional
-
 from app.modules.imports.domain.interfaces import (
     AnalyzeResult,
     ConfidenceLevel,
     DocType,
     MappingResult,
-    ParseResult,
     ParserAdapter,
+    ParseResult,
 )
 
 
@@ -32,8 +30,8 @@ class SmartRouter:
     def ingest(
         self,
         file_path: str,
-        hinted_doc_type: Optional[str] = None,
-        content_type: Optional[str] = None,
+        hinted_doc_type: str | None = None,
+        content_type: str | None = None,
     ) -> ParseResult:
         parser = self._select_parser(file_path, content_type, hinted_doc_type)
         if not parser:
@@ -66,7 +64,7 @@ class SmartRouter:
         self,
         analyze_result: AnalyzeResult,
         mapping_result: MappingResult,
-    ) -> tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         if analyze_result.confidence == ConfidenceLevel.HIGH:
             validation_errors = self.validate(
                 mapping_result.normalized_data, analyze_result.doc_type
@@ -81,8 +79,8 @@ class SmartRouter:
         return False, "confidence_too_low"
 
     def _select_parser(
-        self, file_path: str, content_type: Optional[str], hinted_doc_type: Optional[str]
-    ) -> Optional[ParserAdapter]:
+        self, file_path: str, content_type: str | None, hinted_doc_type: str | None
+    ) -> ParserAdapter | None:
         for parser in self.parsers.values():
             if parser.can_parse(file_path, content_type):
                 return parser

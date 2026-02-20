@@ -218,7 +218,7 @@ def create_invoice(self, data: dict, tenant_id: UUID):
     invoice = Invoice(...)
     self.db.add(invoice)
     self.db.flush()
-    
+
     # Trigger webhook
     webhook_service = InvoicingWebhookService(self.db)
     webhook_service.trigger_invoice_created(
@@ -230,7 +230,7 @@ def create_invoice(self, data: dict, tenant_id: UUID):
         customer_name=invoice.customer_name,
         customer_id=invoice.customer_id,
     )
-    
+
     self.db.commit()
     return invoice
 ```
@@ -710,13 +710,13 @@ curl http://localhost:8000/api/v1/tenant/webhooks/deliveries \
 
 ### Check webhook logs
 ```sql
-SELECT 
-  id, 
-  event, 
-  status, 
-  attempts, 
-  last_error, 
-  created_at 
+SELECT
+  id,
+  event,
+  status,
+  attempts,
+  last_error,
+  created_at
 FROM webhook_deliveries
 WHERE event = 'invoice.created'
 ORDER BY created_at DESC
@@ -725,9 +725,9 @@ LIMIT 20;
 
 ### Monitor failed deliveries
 ```sql
-SELECT 
-  target_url, 
-  last_error, 
+SELECT
+  target_url,
+  last_error,
   COUNT(*) as count
 FROM webhook_deliveries
 WHERE status = 'FAILED'

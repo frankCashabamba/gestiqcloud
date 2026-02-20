@@ -7,7 +7,7 @@
 
 Total de Hardcodeados Identificados: 50+
   🔴 Críticos: 11
-  🟠 Alto Riesgo: 7  
+  🟠 Alto Riesgo: 7
   🟡 Medio Riesgo: 6
 
 Distribución:
@@ -142,9 +142,9 @@ IMMEDIATE (Esta semana):
   1. Leer documentos de análisis
      - ANALISIS_HARDCODEADOS.md
      - HARDCODEADOS_IMPLEMENTACION_RAPIDA.md
-  
+
   2. Validar env vars obligatorias en startup
-  
+
   3. Crear .env.example con TODAS las variables requeridas
 
 SEMANA 1:
@@ -171,14 +171,14 @@ SEMANA 3:
    ✓ Análisis completo con detalles de cada hardcodeado
    ✓ Categorización por riesgo
    ✓ Plan de remediación por fases
-   
+
 2. HARDCODEADOS_IMPLEMENTACION_RAPIDA.md
    ✓ Code snippets listos para implementar
    ✓ Ejemplos backend (Python)
    ✓ Ejemplos frontend (TypeScript)
    ✓ Migraciones SQL
    ✓ Seed data
-   
+
 3. HARDCODEADOS_RESUMEN.txt (este archivo)
    ✓ Resumen ejecutivo
    ✓ Estadísticas

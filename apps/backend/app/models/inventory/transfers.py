@@ -4,7 +4,8 @@ from datetime import datetime
 from enum import Enum
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Enum as SQLEnum
+from sqlalchemy import DateTime
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import String, Text
 from sqlalchemy import text as sa_text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -42,12 +43,8 @@ class StockTransfer(Base):
         server_default=sa_text("gen_random_uuid()"),
     )
     tenant_id: Mapped[str] = mapped_column(_uuid_col(), index=True, nullable=False)
-    from_warehouse_id: Mapped[str] = mapped_column(
-        _uuid_col(), index=True, nullable=False
-    )
-    to_warehouse_id: Mapped[str] = mapped_column(
-        _uuid_col(), index=True, nullable=False
-    )
+    from_warehouse_id: Mapped[str] = mapped_column(_uuid_col(), index=True, nullable=False)
+    to_warehouse_id: Mapped[str] = mapped_column(_uuid_col(), index=True, nullable=False)
     product_id: Mapped[str] = mapped_column(_uuid_col(), index=True, nullable=False)
     quantity: Mapped[float] = mapped_column(nullable=False)
     status: Mapped[str] = mapped_column(

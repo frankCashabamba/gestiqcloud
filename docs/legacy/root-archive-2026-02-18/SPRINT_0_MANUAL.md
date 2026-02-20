@@ -1,7 +1,7 @@
 # 🔥 SPRINT 0 MANUAL - SIN SCRIPTS, PURO MANUAL
 
-**Objetivo:** Limpiar sistema, tests 100% pass, listo para SPRINT 1  
-**Duración:** 5 días  
+**Objetivo:** Limpiar sistema, tests 100% pass, listo para SPRINT 1
+**Duración:** 5 días
 **Método:** Comandos directos, nada automático
 
 ---

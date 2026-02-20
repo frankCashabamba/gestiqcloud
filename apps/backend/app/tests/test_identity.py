@@ -1,18 +1,19 @@
 """Tests for Identity module use cases."""
 
-import pytest
 from unittest.mock import MagicMock
 from uuid import uuid4
 
-pytestmark = pytest.mark.no_db
+import pytest
 
 from app.modules.identity.application.use_cases import (
-    LoginUseCase,
-    RefreshTokenUseCase,
-    LogoutUseCase,
     ChangePasswordUseCase,
+    LoginUseCase,
+    LogoutUseCase,
+    RefreshTokenUseCase,
 )
 from app.modules.identity.infrastructure.passwords import PasslibPasswordHasher
+
+pytestmark = pytest.mark.no_db
 
 
 class TestPasslibPasswordHasher:

@@ -1,6 +1,6 @@
-from fastapi import APIRouter, UploadFile, File, Query, HTTPException
-from typing import Optional
 from uuid import UUID
+
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
 from app.modules.imports.routes.analysis import router as analysis_router
 from app.modules.imports.routes.country import router as country_router
@@ -22,7 +22,7 @@ async def health_check():
 async def create_ingest_batch(
     source_type: str = Query(...),
     origin: str = Query(...),
-    file_key: Optional[str] = Query(None),
+    file_key: str | None = Query(None),
 ):
     from app.modules.imports.application.ingest_service import IngestService
 
@@ -59,11 +59,12 @@ async def get_batch_status(batch_id: UUID):
 async def ingest_file_to_batch(
     batch_id: UUID,
     file: UploadFile = File(...),
-    hinted_doc_type: Optional[str] = Query(None),
+    hinted_doc_type: str | None = Query(None),
 ):
-    from app.modules.imports.application.smart_router import SmartRouter
-    from app.modules.imports.application.ingest_service import IngestService
     import tempfile
+
+    from app.modules.imports.application.ingest_service import IngestService
+    from app.modules.imports.application.smart_router import SmartRouter
 
     try:
         service = IngestService()
@@ -74,9 +75,7 @@ async def ingest_file_to_batch(
             tmp.write(content)
             tmp_path = tmp.name
 
-        parse_result = router_instance.ingest(
-            tmp_path, hinted_doc_type=hinted_doc_type
-        )
+        parse_result = router_instance.ingest(tmp_path, hinted_doc_type=hinted_doc_type)
 
         item_ids = service.ingest_parse_result(str(batch_id), parse_result)
 
@@ -116,9 +115,7 @@ async def process_batch(
 
     for item in batch_items:
         if classify and item["raw"]:
-            classify_result = router_instance.classify(
-                item["raw"], item.get("doc_type", "generic")
-            )
+            classify_result = router_instance.classify(item["raw"], item.get("doc_type", "generic"))
             service.update_item_after_classify(item["id"], classify_result)
             results["classified"] += 1
 

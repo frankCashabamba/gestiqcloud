@@ -1,9 +1,9 @@
 /**
  * Customer ID Type Select Component
- * 
+ *
  * Replaces hardcoded DEFAULT_ID_TYPES with dynamic values from API
  * Usage:
- *   <CustomerIDTypeSelect 
+ *   <CustomerIDTypeSelect
  *     value={selectedIdType}
  *     onChange={handleIdTypeChange}
  *   />
@@ -36,7 +36,7 @@ export function CustomerIDTypeSelect({
       <label htmlFor="id-type" className="text-sm font-medium text-gray-700">
         {t('pos:customer.idType')}
       </label>
-      
+
       <select
         id="id-type"
         value={value || ''}
@@ -52,7 +52,7 @@ export function CustomerIDTypeSelect({
         <option value="">
           {loading ? t('common:loading') : t('pos:selectIDType')}
         </option>
-        
+
         {idTypes.map((idType) => (
           <option key={idType.code} value={idType.code}>
             {idType.name_es || idType.name_en} ({idType.code})
