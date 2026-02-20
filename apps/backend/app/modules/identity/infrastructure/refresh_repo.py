@@ -17,10 +17,12 @@ class SqlRefreshTokenRepo(RefreshTokenRepo):
 
         family_id = str(uuid4())
         self.db.execute(
-            text("""
+            text(
+                """
                 INSERT INTO auth_refresh_family (id, user_id, tenant_id, created_at, revoked_at)
                 VALUES (:id, :user_id, :tenant_id, :created_at, NULL)
-                """),
+                """
+            ),
             {
                 "id": family_id,
                 "user_id": user_id,
@@ -43,12 +45,14 @@ class SqlRefreshTokenRepo(RefreshTokenRepo):
 
         jti = str(uuid4())
         self.db.execute(
-            text("""
+            text(
+                """
                 INSERT INTO auth_refresh_token
                   (id, family_id, jti, prev_jti, used_at, revoked_at, ua_hash, ip_hash, created_at)
                 VALUES
                   (:id, :family_id, :jti, :prev_jti, NULL, NULL, :ua_hash, :ip_hash, :created_at)
-                """),
+                """
+            ),
             {
                 "id": str(uuid4()),
                 "family_id": family_id,
@@ -64,11 +68,13 @@ class SqlRefreshTokenRepo(RefreshTokenRepo):
 
     def mark_used(self, *, jti: str) -> None:
         self.db.execute(
-            text("""
+            text(
+                """
                 UPDATE auth_refresh_token
                    SET used_at = :ts
                  WHERE jti = :jti
-                """),
+                """
+            ),
             {"jti": jti, "ts": _utcnow()},
         )
         self.db.commit()
@@ -76,12 +82,14 @@ class SqlRefreshTokenRepo(RefreshTokenRepo):
     def is_reused_or_revoked(self, *, jti: str) -> bool:
         row = (
             self.db.execute(
-                text("""
+                text(
+                    """
                     SELECT used_at, revoked_at
                       FROM auth_refresh_token
                      WHERE jti = :jti
                      LIMIT 1
-                    """),
+                    """
+                ),
                 {"jti": jti},
             )
             .mappings()
@@ -94,19 +102,23 @@ class SqlRefreshTokenRepo(RefreshTokenRepo):
     def revoke_family(self, *, family_id: str) -> None:
         now = _utcnow()
         self.db.execute(
-            text("""
+            text(
+                """
                 UPDATE auth_refresh_family
                    SET revoked_at = :ts
                  WHERE id = :fid
-                """),
+                """
+            ),
             {"fid": family_id, "ts": now},
         )
         self.db.execute(
-            text("""
+            text(
+                """
                 UPDATE auth_refresh_token
                    SET revoked_at = :ts
                  WHERE family_id = :fid
-                """),
+                """
+            ),
             {"fid": family_id, "ts": now},
         )
         self.db.commit()
@@ -114,12 +126,14 @@ class SqlRefreshTokenRepo(RefreshTokenRepo):
     def get_family(self, *, jti: str) -> str | None:
         row = (
             self.db.execute(
-                text("""
+                text(
+                    """
                     SELECT family_id
                       FROM auth_refresh_token
                      WHERE jti = :jti
                      LIMIT 1
-                    """),
+                    """
+                ),
                 {"jti": jti},
             )
             .mappings()

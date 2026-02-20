@@ -27,7 +27,8 @@ def _resolve_tenant_currency(db: Session, tenant_id: str) -> str:
         raise HTTPException(status_code=400, detail="invalid_tenant_id")
 
     row = db.execute(
-        text("""
+        text(
+            """
             SELECT COALESCE(
                 NULLIF(UPPER(TRIM(cs.currency)), ''),
                 NULLIF(UPPER(TRIM(cur.code)), '')
@@ -36,7 +37,8 @@ def _resolve_tenant_currency(db: Session, tenant_id: str) -> str:
             LEFT JOIN currencies cur ON cur.id = cs.currency_id
             WHERE cs.tenant_id = :tid
             LIMIT 1
-            """).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+            """
+        ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
         {"tid": tenant_uuid},
     ).first()
     if row:

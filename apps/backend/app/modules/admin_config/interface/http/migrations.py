@@ -61,7 +61,8 @@ async def get_migration_history(
     """
     result = (
         db.execute(
-            text("""
+            text(
+                """
             SELECT
                 id, version, name, status, mode,
                 started_at, completed_at, executed_by,
@@ -70,7 +71,8 @@ async def get_migration_history(
             FROM schema_migrations
             ORDER BY applied_order DESC NULLS LAST, created_at DESC
             LIMIT :limit
-        """),
+        """
+            ),
             {"limit": limit},
         )
         .mappings()
@@ -89,15 +91,26 @@ async def get_migration_status(
     """
     Get current migration system status.
     """
-    stats = db.execute(text("""
+    stats = (
+        db.execute(
+            text(
+                """
             SELECT
                 status,
                 COUNT(*) as count
             FROM schema_migrations
             GROUP BY status
-        """)).mappings().all()
+        """
+            )
+        )
+        .mappings()
+        .all()
+    )
 
-    last_migration = db.execute(text("""
+    last_migration = (
+        db.execute(
+            text(
+                """
                 SELECT version, name, completed_at, status
                 FROM schema_migrations
                 WHERE status = 'success'
@@ -105,7 +118,12 @@ async def get_migration_status(
                     applied_order DESC NULLS LAST,
                     COALESCE(completed_at, updated_at, created_at) DESC NULLS LAST
                 LIMIT 1
-                """)).mappings().first()
+                """
+            )
+        )
+        .mappings()
+        .first()
+    )
 
     pending_count = db.execute(
         text("SELECT COUNT(*) FROM schema_migrations WHERE status = 'pending'")
@@ -184,13 +202,15 @@ async def execute_migrations(
                             parts = version.split("_", 2)
                             friendly = parts[2] if len(parts) >= 3 else version
                             db.execute(
-                                text("""
+                                text(
+                                    """
                                     INSERT INTO schema_migrations(version, name, status, created_at, updated_at, applied_order)
                                     VALUES (:v, :n, 'pending', NOW(), NOW(), (
                                       SELECT COALESCE(MAX(applied_order), 0) + 1 FROM schema_migrations
                                     ))
                                     ON CONFLICT (version) DO NOTHING
-                                    """),
+                                    """
+                                ),
                                 {"v": version, "n": friendly},
                             )
                         db.commit()
@@ -198,11 +218,13 @@ async def execute_migrations(
                     logger.warning(f"Could not pre-register migrations: {e}")
 
                 db.execute(
-                    text("""
+                    text(
+                        """
                         UPDATE schema_migrations
                         SET status = 'running', started_at = NOW(), executed_by = :user
                         WHERE status = 'pending'
-                    """),
+                    """
+                    ),
                     {"user": user_email},
                 )
                 db.commit()
@@ -220,22 +242,28 @@ async def execute_migrations(
                 )
 
                 if result.returncode == 0:
-                    db.execute(text("""
+                    db.execute(
+                        text(
+                            """
                             UPDATE schema_migrations
                             SET status = 'success', completed_at = NOW()
                             WHERE status = 'running'
-                        """))
+                        """
+                        )
+                    )
                     db.commit()
                     logger.info(f"Migrations executed successfully by {user_email}")
                 else:
                     db.execute(
-                        text("""
+                        text(
+                            """
                             UPDATE schema_migrations
                             SET status = 'failed',
                                 completed_at = NOW(),
                                 error_message = :error
                             WHERE status = 'running'
-                        """),
+                        """
+                        ),
                         {"error": result.stderr[:1000]},
                     )
                     db.commit()
@@ -261,12 +289,20 @@ async def get_pending_migrations(
     _: None = Depends(require_scope("admin")),
 ):
     """Get pending migrations."""
-    result = db.execute(text("""
+    result = (
+        db.execute(
+            text(
+                """
             SELECT version, name, created_at
             FROM schema_migrations
             WHERE status = 'pending'
             ORDER BY version
-        """)).mappings().all()
+        """
+            )
+        )
+        .mappings()
+        .all()
+    )
 
     return [dict(row) for row in result]
 
@@ -317,7 +353,8 @@ async def mark_migration_status(
 
     try:
         db.execute(
-            text("""
+            text(
+                """
                 INSERT INTO schema_migrations(version, name, status, started_at, completed_at, updated_at, error_message)
                 VALUES (:v, :n, :s, CASE WHEN :s = 'running' THEN NOW() END, CASE WHEN :s = 'success' THEN NOW() END, NOW(), :note)
                 ON CONFLICT (version) DO UPDATE SET
@@ -327,7 +364,8 @@ async def mark_migration_status(
                     completed_at = CASE WHEN EXCLUDED.status = 'success' THEN NOW() ELSE schema_migrations.completed_at END,
                     started_at = CASE WHEN EXCLUDED.status = 'running' THEN NOW() ELSE schema_migrations.started_at END,
                     error_message = COALESCE(EXCLUDED.error_message, schema_migrations.error_message)
-                """),
+                """
+            ),
             {"v": version, "n": friendly, "s": st, "note": (body.note or None)},
         )
         db.commit()

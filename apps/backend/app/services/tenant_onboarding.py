@@ -58,11 +58,13 @@ def auto_setup_tenant(
                 logger.info("ℹ️ Registro POS ya existía")
                 result["pos_register_id"] = existing
             else:
-                create_register_sql = text("""
+                create_register_sql = text(
+                    """
                     INSERT INTO pos_registers (tenant_id, name, active, created_at)
                     VALUES (:tenant_id, :name, TRUE, NOW())
                     RETURNING id
-                """)
+                """
+                )
 
                 reg_result = db.execute(
                     create_register_sql,
@@ -154,10 +156,12 @@ def ensure_tenant_ready(db: Session, tenant_id: str) -> bool:
     """
     try:
         # Verificar si existe al menos 1 registro POS
-        check_sql = text("""
+        check_sql = text(
+            """
             SELECT COUNT(*) FROM pos_registers
             WHERE tenant_id = :tenant_id
-        """)
+        """
+        )
 
         result = db.execute(check_sql, {"tenant_id": tenant_id}).scalar()
 
@@ -175,10 +179,12 @@ def ensure_tenant_ready(db: Session, tenant_id: str) -> bool:
             from app.services.numbering import create_default_series
 
             backoffice_count = db.execute(
-                text("""
+                text(
+                    """
                     SELECT COUNT(*) FROM doc_series
                     WHERE tenant_id = :tenant_id AND register_id IS NULL
-                """),
+                """
+                ),
                 {"tenant_id": tenant_id},
             ).scalar()
 
@@ -193,10 +199,12 @@ def ensure_tenant_ready(db: Session, tenant_id: str) -> bool:
             for row in registers:
                 reg_id = row[0]
                 reg_count = db.execute(
-                    text("""
+                    text(
+                        """
                         SELECT COUNT(*) FROM doc_series
                         WHERE tenant_id = :tenant_id AND register_id = :register_id
-                    """),
+                    """
+                    ),
                     {"tenant_id": tenant_id, "register_id": reg_id},
                 ).scalar()
                 if reg_count == 0:

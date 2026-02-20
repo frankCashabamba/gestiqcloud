@@ -157,13 +157,15 @@ def get_invoice_from_order(order_id: int, request: Request, db: Session = Depend
 
     # Buscar factura vinculada a la orden
     result = db.execute(
-        text("""
+        text(
+            """
             SELECT id::text, numero, fecha_creacion
             FROM invoices
             WHERE metadata::jsonb->>'sales_order_id' = :order_id
             AND tenant_id = :tid
             LIMIT 1
-        """),
+        """
+        ),
         {"order_id": str(order_id), "tid": str(tenant_id)},
     ).first()
 

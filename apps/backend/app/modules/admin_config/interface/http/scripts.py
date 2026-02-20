@@ -155,11 +155,13 @@ def _seed_pan_tapado(db: Session, tenant_id: str) -> None:
         recipe_id = str(rec[0])
     else:
         recipe_id = db.execute(
-            text("""
+            text(
+                """
                 INSERT INTO recipes (tenant_id, product_id, name, yield_qty, total_cost, prep_time_minutes, instructions, is_active)
                 VALUES (:tid, :pid, :name, :yield_qty, 0, NULL, NULL, TRUE)
                 RETURNING id::text
-                """),
+                """
+            ),
             {"tid": tenant_id, "pid": prod_final_id, "name": "Pan Tapado", "yield_qty": 144},
         ).scalar()
 
@@ -179,7 +181,8 @@ def _seed_pan_tapado(db: Session, tenant_id: str) -> None:
     for idx, (nombre, qty, uom, pres, qpres, upres, cpres) in enumerate(ingredientes):
         pid = ensure_product(nombre, unit=uom, category="Bakery")
         db.execute(
-            text("""
+            text(
+                """
                 INSERT INTO recipe_ingredients (
                     recipe_id, product_id, qty, unit,
                     purchase_packaging, qty_per_package, package_unit, package_cost,
@@ -189,7 +192,8 @@ def _seed_pan_tapado(db: Session, tenant_id: str) -> None:
                     :pres, :qpres, :upres, :cpres,
                     NULL, :line_order
                 )
-                """),
+                """
+            ),
             {
                 "rid": recipe_id,
                 "pid": pid,

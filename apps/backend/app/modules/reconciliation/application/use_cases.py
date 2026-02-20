@@ -150,13 +150,15 @@ class AutoMatchUseCase:
             # Try match by reference first
             if line.reference:
                 invoice = db_session.execute(
-                    text("""
+                    text(
+                        """
                         SELECT id, total FROM invoices
                         WHERE tenant_id = :tenant_id
                         AND (numero = :reference
                              OR metadata::jsonb->>'reference' = :reference)
                         LIMIT 1
-                        """),
+                        """
+                    ),
                     {"tenant_id": str(tenant_id), "reference": line.reference},
                 ).first()
 
@@ -169,14 +171,16 @@ class AutoMatchUseCase:
 
             # Try match by amount + date proximity (±3 days)
             invoice = db_session.execute(
-                text("""
+                text(
+                    """
                     SELECT id, total FROM invoices
                     WHERE tenant_id = :tenant_id
                     AND ABS(total - :amount) < 0.01
                     AND estado NOT IN ('cancelled', 'draft', 'paid')
                     AND ABS(fecha_emision - :txn_date) <= 3
                     LIMIT 1
-                    """),
+                    """
+                ),
                 {
                     "tenant_id": str(tenant_id),
                     "amount": float(line.amount),
@@ -242,10 +246,12 @@ class ManualMatchUseCase:
 
         # Verify invoice exists for this tenant
         invoice = db_session.execute(
-            text("""
+            text(
+                """
                 SELECT id FROM invoices
                 WHERE id = :invoice_id AND tenant_id = :tenant_id
-                """),
+                """
+            ),
             {"invoice_id": str(invoice_id), "tenant_id": str(tenant_id)},
         ).first()
 

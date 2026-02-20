@@ -387,7 +387,8 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
     db = SessionLocal()
     try:
         # 1. Obtener datos de invoice
-        query = text("""
+        query = text(
+            """
         SELECT
         f.id, f.numero, f.fecha, f.subtotal, f.iva, f.total,
         t.name as empresa_nombre, t.tax_id as empresa_ruc,
@@ -399,21 +400,24 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
 
         JOIN clientes c ON c.id = f.cliente_id
             WHERE f.id = :invoice_id AND f.tenant_id = :tenant_id
-        """)
+        """
+        )
 
         invoice = db.execute(query, {"invoice_id": invoice_id, "tenant_id": tenant_id}).first()
         if not invoice:
             raise ValueError(f"Invoice {invoice_id} not found")
 
         # 2. Obtener líneas
-        lines_query = text("""
+        lines_query = text(
+            """
         SELECT
         fl.cantidad, fl.precio_unitario, fl.total,
         p.name as descripcion, p.sku
         FROM invoice_lines fl
         LEFT JOIN products p ON p.id = fl.producto_id
         WHERE fl.invoice_id = :invoice_id
-        """)
+        """
+        )
 
         lines = db.execute(lines_query, {"invoice_id": invoice_id}).fetchall()
 
@@ -482,7 +486,8 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
         # 8. Guardar resultado
         clave_acceso = generate_clave_acceso(invoice_data)
 
-        insert_submission = text("""
+        insert_submission = text(
+            """
         INSERT INTO sri_submissions (
         tenant_id, invoice_id, payload, receipt_number,
         status, error_message
@@ -491,7 +496,8 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
         :tenant_id, :invoice_id, :payload, :receipt_number,
         :status, :error_message
         )
-        """)
+        """
+        )
 
         db.execute(
             insert_submission,
@@ -507,10 +513,12 @@ def sign_and_send_sri_task(invoice_id: str, tenant_id: str, env: str = "sandbox"
 
         # 9. Actualizar invoice
         if result["status"] == "authorized":
-            update_invoice = text("""
+            update_invoice = text(
+                """
                 UPDATE invoices SET status = 'einvoice_sent'
                 WHERE id = :invoice_id
-            """)
+            """
+            )
             db.execute(update_invoice, {"invoice_id": invoice_id})
 
         db.commit()
@@ -546,7 +554,8 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
         logger.info(f"Facturae task started: {invoice_id} for tenant {tenant_id}")
 
         # 1. Obtener datos de invoice
-        query = text("""
+        query = text(
+            """
             SELECT
                 f.id, f.numero, f.fecha, f.subtotal, f.iva, f.total,
                 t.name as empresa_nombre, t.tax_id as empresa_ruc,
@@ -558,7 +567,8 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
 
             JOIN clientes c ON c.id = f.cliente_id
             WHERE f.id = :invoice_id AND f.tenant_id = :tenant_id
-        """)
+        """
+        )
 
         invoice = db.execute(query, {"invoice_id": invoice_id, "tenant_id": tenant_id}).first()
         if not invoice:
@@ -617,22 +627,26 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
         period = datetime.now().strftime("%Y%m")
 
         # Insertar en batch
-        batch_query = text("""
+        batch_query = text(
+            """
             INSERT INTO sii_batches (tenant_id, period, status)
             VALUES (:tenant_id, :period, 'PENDING')
             ON CONFLICT (tenant_id, period) DO NOTHING
             RETURNING id
-        """)
+        """
+        )
 
         batch_result = db.execute(batch_query, {"tenant_id": tenant_id, "period": period}).first()
 
         # Si no hay retorno, obtener el batch existente
         if not batch_result:
             existing_batch = db.execute(
-                text("""
+                text(
+                    """
                 SELECT id FROM sii_batches
                 WHERE tenant_id = :tenant_id AND period = :period
-            """),
+            """
+                ),
                 {"tenant_id": tenant_id, "period": period},
             ).first()
             batch_id = existing_batch[0] if existing_batch else None
@@ -641,13 +655,15 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
 
         # Insertar item en el batch
         if batch_id:
-            item_query = text("""
+            item_query = text(
+                """
                 INSERT INTO sii_batch_items (
                     tenant_id, batch_id, invoice_id, status
                 ) VALUES (
                     :tenant_id, :batch_id, :invoice_id, :status
                 )
-            """)
+            """
+            )
 
             db.execute(
                 item_query,
@@ -661,11 +677,13 @@ def sign_and_send_facturae_task(invoice_id: str, tenant_id: str, env: str = "san
 
         # 6. Actualizar invoice
         if result["status"] == "ACCEPTED":
-            update_query = text("""
+            update_query = text(
+                """
                 UPDATE invoices
                 SET status = 'posted'
                 WHERE id = :invoice_id
-            """)
+            """
+            )
             db.execute(update_query, {"invoice_id": invoice_id})
 
         db.commit()

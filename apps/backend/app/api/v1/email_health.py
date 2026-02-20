@@ -68,13 +68,17 @@ def smtp_test(payload: EmailTestIn, background: BackgroundTasks):
         raise HTTPException(status_code=403, detail="email_test_disabled_in_production")
 
     subject = payload.subject or "GestiqCloud: correo de prueba"
-    html = payload.html or ("""
+    html = payload.html or (
+        """
     <html><body>
       <h3>Correo de prueba</h3>
       <p>Este es un correo de prueba enviado por el endpoint /email/test.</p>
       <p>Fecha servidor: {}</p>
     </body></html>
-    """.format(__import__("datetime").datetime.utcnow().isoformat() + "Z"))
+    """.format(
+            __import__("datetime").datetime.utcnow().isoformat() + "Z"
+        )
+    )
 
     try:
         background.add_task(send_email_mailtrap, str(payload.to), subject, html)

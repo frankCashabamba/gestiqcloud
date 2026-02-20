@@ -264,10 +264,12 @@ class InvoicingWebhookService:
 
             # Check if there are active subscriptions for this event
             result = self.db.execute(
-                text("""
+                text(
+                    """
                     SELECT COUNT(*) FROM webhook_subscriptions
                     WHERE tenant_id = CAST(:tid AS uuid) AND event = :event AND active = true
-                    """),
+                    """
+                ),
                 {"tid": tenant_id_str, "event": event},
             ).scalar()
 
@@ -277,10 +279,12 @@ class InvoicingWebhookService:
 
             # Get all subscriptions for this event
             subs = self.db.execute(
-                text("""
+                text(
+                    """
                     SELECT url, secret FROM webhook_subscriptions
                     WHERE tenant_id = CAST(:tid AS uuid) AND event = :event AND active = true
-                    """),
+                    """
+                ),
                 {"tid": tenant_id_str, "event": event},
             ).fetchall()
 
@@ -290,12 +294,14 @@ class InvoicingWebhookService:
 
             for url, secret in subs:
                 self.db.execute(
-                    text("""
+                    text(
+                        """
                         INSERT INTO webhook_deliveries(
                             tenant_id, event, payload, target_url, secret, status
                         )
                         VALUES (CAST(:tid AS uuid), :event, :payload::jsonb, :url, :secret, 'PENDING')
-                        """),
+                        """
+                    ),
                     {
                         "tid": tenant_id_str,
                         "event": event,

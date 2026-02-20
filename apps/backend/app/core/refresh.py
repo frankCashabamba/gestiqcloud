@@ -66,10 +66,12 @@ def family_create(user_id: str, tenant_id: str | None) -> str:
     family_id = str(uuid4())
     with _with_session() as db:
         db.execute(
-            text("""
+            text(
+                """
                 INSERT INTO auth_refresh_family (id, user_id, tenant_id, created_at, revoked_at)
                 VALUES (:id, :user_id, :tenant_id, :created_at, NULL)
-            """),
+            """
+            ),
             {
                 "id": family_id,
                 "user_id": user_id,
@@ -92,12 +94,14 @@ def token_issue(
     jti = str(uuid4())
     with _with_session() as db:
         db.execute(
-            text("""
+            text(
+                """
                 INSERT INTO auth_refresh_token
                   (id, family_id, jti, prev_jti, used_at, revoked_at, ua_hash, ip_hash, created_at)
                 VALUES
                   (:id, :family_id, :jti, :prev_jti, NULL, NULL, :ua_hash, :ip_hash, :created_at)
-            """),
+            """
+            ),
             {
                 "id": str(uuid4()),
                 "family_id": family_id,
@@ -115,11 +119,13 @@ def token_mark_used(jti: str) -> None:
     """Marca un refresh token como usado (rotado)."""
     with _with_session() as db:
         db.execute(
-            text("""
+            text(
+                """
                 UPDATE auth_refresh_token
                    SET used_at = :ts
                  WHERE jti = :jti
-            """),
+            """
+            ),
             {"jti": jti, "ts": _utcnow()},
         )
 
@@ -134,12 +140,14 @@ def token_is_reused_or_revoked(jti: str) -> bool:
     with _with_session() as db:
         row = (
             db.execute(
-                text("""
+                text(
+                    """
                 SELECT used_at, revoked_at
                   FROM auth_refresh_token
                  WHERE jti = :jti
                  LIMIT 1
-            """),
+            """
+                ),
                 {"jti": jti},
             )
             .mappings()
@@ -156,19 +164,23 @@ def family_revoke(family_id: str) -> None:
     now = _utcnow()
     with _with_session() as db:
         db.execute(
-            text("""
+            text(
+                """
                 UPDATE auth_refresh_family
                    SET revoked_at = :ts
                  WHERE id = :fid
-            """),
+            """
+            ),
             {"fid": family_id, "ts": now},
         )
         db.execute(
-            text("""
+            text(
+                """
                 UPDATE auth_refresh_token
                    SET revoked_at = :ts
                  WHERE family_id = :fid
-            """),
+            """
+            ),
             {"fid": family_id, "ts": now},
         )
 
@@ -178,12 +190,14 @@ def token_get_family(jti: str) -> str | None:
     with _with_session() as db:
         row = (
             db.execute(
-                text("""
+                text(
+                    """
                 SELECT family_id
                   FROM auth_refresh_token
                  WHERE jti = :jti
                  LIMIT 1
-            """),
+            """
+                ),
                 {"jti": jti},
             )
             .mappings()
@@ -199,12 +213,14 @@ def token_fingerprint_matches_request(jti: str, user_agent: str, ip: str) -> boo
     with _with_session() as db:
         row = (
             db.execute(
-                text("""
+                text(
+                    """
                 SELECT ua_hash, ip_hash
                   FROM auth_refresh_token
                  WHERE jti = :jti
                  LIMIT 1
-                """),
+                """
+                ),
                 {"jti": jti},
             )
             .mappings()

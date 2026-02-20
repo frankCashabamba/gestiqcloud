@@ -51,7 +51,8 @@ def crear_estructura_modulo(nombre: str):
         panel_path = os.path.join(base_path, "Panel.tsx")
         if not os.path.exists(panel_path):
             with open(panel_path, "w", encoding="utf-8") as f:
-                f.write(f"""// Auto-generado para el módulo: {nombre}
+                f.write(
+                    f"""// Auto-generado para el módulo: {nombre}
 import React from 'react';
 
 const Panel = () => {{
@@ -59,7 +60,8 @@ const Panel = () => {{
 }};
 
 export default Panel;
-""")
+"""
+                )
             print(f"Panel.tsx created at: {_asciify(panel_path)}")
         else:
             print(f"Panel.tsx already exists: {_asciify(panel_path)} (skipped)")
