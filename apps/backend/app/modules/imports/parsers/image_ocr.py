@@ -32,14 +32,14 @@ def parse_image_ocr(file_path: str) -> dict[str, Any]:
             from app.modules.imports.extractores.extractor_factura import extract_invoice
 
             for doc in extract_invoice(text):
-                rows.append(_documento_to_row(doc, "invoice"))
+                rows.append(_canonical_to_row(doc, "invoice"))
             detected_type = "invoices"
 
         elif doc_type == "receipt":
             from app.modules.imports.extractores.extractor_recibo import extract_receipt
 
             for doc in extract_receipt(text):
-                rows.append(_documento_to_row(doc, "receipt"))
+                rows.append(_canonical_to_row(doc, "receipt"))
             detected_type = "expenses"
 
         elif doc_type == "transfer":

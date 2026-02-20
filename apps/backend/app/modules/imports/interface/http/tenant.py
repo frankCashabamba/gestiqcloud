@@ -276,6 +276,82 @@ def _resolve_best_column_mapping(
     return (None, None, 0.0)
 
 
+def _normalize_import_alias_doc_type(doc_type: str | None) -> str:
+    raw = str(doc_type or "").strip().lower()
+    if raw in ("invoice", "invoices", "factura", "facturas"):
+        return "invoices"
+    if raw in ("bank", "bank_tx", "bank_transactions", "transfer", "transfers"):
+        return "bank_transactions"
+    if raw in ("product", "products", "producto", "productos"):
+        return "products"
+    if raw in ("expense", "expenses", "receipt", "receipts", "gasto", "gastos"):
+        return "expenses"
+    return "generic"
+
+
+def _load_import_alias_synonyms(
+    db: Session,
+    *,
+    tenant_id: str | UUID,
+    doc_type: str | None,
+) -> dict[str, list[str]]:
+    module = f"imports_{_normalize_import_alias_doc_type(doc_type)}"
+    rows = (
+        db.query(TenantFieldConfig)
+        .filter(TenantFieldConfig.tenant_id == tenant_id, TenantFieldConfig.module == module)
+        .all()
+    )
+    out: dict[str, list[str]] = {}
+    for r in rows:
+        field = str(getattr(r, "field", "") or "").strip()
+        if not field:
+            continue
+        aliases_raw = getattr(r, "aliases", None) or []
+        aliases: list[str] = []
+        if isinstance(aliases_raw, list):
+            aliases = [str(a).strip() for a in aliases_raw if str(a).strip()]
+        elif isinstance(aliases_raw, str):
+            aliases = [a.strip() for a in aliases_raw.split(",") if a.strip()]
+        elif isinstance(aliases_raw, dict):
+            aliases = [str(v).strip() for v in aliases_raw.values() if str(v).strip()]
+        out[field] = aliases
+    return out
+
+
+def _infer_import_doc_type_from_headers(headers: list[str] | None) -> str:
+    if not headers:
+        return "generic"
+
+    def _norm_token(value: object) -> str:
+        if value is None:
+            return ""
+        s = str(value).strip()
+        if not s:
+            return ""
+        s = unicodedata.normalize("NFKD", s)
+        s = "".join(ch for ch in s if not unicodedata.combining(ch))
+        s = s.lower()
+        s = re.sub(r"[^a-z0-9]+", "_", s).strip("_")
+        return s
+
+    tokens = {_norm_token(h) for h in headers if _norm_token(h)}
+    if not tokens:
+        return "generic"
+
+    def has_any(candidates: set[str]) -> bool:
+        return any(any(c in t for c in candidates) for t in tokens)
+
+    if has_any({"invoice", "factura", "iva", "subtotal", "vendor", "proveedor", "ruc"}):
+        return "invoices"
+    if has_any({"iban", "saldo", "balance", "transaction", "transfer", "narrative"}):
+        return "bank_transactions"
+    if has_any({"sku", "producto", "product", "stock", "precio", "price"}):
+        return "products"
+    if has_any({"expense", "gasto", "receipt", "recibo", "payment_method"}):
+        return "expenses"
+    return "generic"
+
+
 # ------------------------------
 # Large file uploads (local chunked)
 # ------------------------------
@@ -540,7 +616,21 @@ def create_batch_from_upload(
             file_path = _file_path_from_key(dto.file_key)
             headers = _extract_headers_from_file_key(dto.file_key)
             if headers:
-                mapping, transforms, defaults, _confidence = suggest_mapping(headers)
+                inferred_doc_type = _infer_import_doc_type_from_headers(headers)
+                effective_doc_type = (
+                    dto.source_type
+                    if str(dto.source_type or "").strip().lower() not in ("", "generic", "unknown")
+                    else inferred_doc_type
+                )
+                alias_synonyms = _load_import_alias_synonyms(
+                    db,
+                    tenant_id=tenant_id,
+                    doc_type=effective_doc_type,
+                )
+                mapping, transforms, defaults, _confidence = suggest_mapping(
+                    headers,
+                    custom_synonyms=alias_synonyms,
+                )
                 if mapping:
                     safe_name = f"auto:{original_filename or dto.file_key}"
                     if len(safe_name) > 120:
@@ -790,6 +880,7 @@ def start_excel_import(batch_id: UUID, request: Request, db: Session = Depends(g
 
 class SuggestIn(BaseModel):
     headers: list[str] | None = None
+    doc_type: str | None = None
 
 
 @router.post("/mappings/suggest")
@@ -797,6 +888,8 @@ async def suggest_mapping_endpoint(
     request: Request,
     body: SuggestIn | None = None,
     file: UploadFile | None = File(default=None),
+    doc_type: str | None = Query(default=None),
+    db: Session = Depends(get_db),
 ):
     """Suggest a column mapping + transforms for a given Excel or headers list.
 
@@ -808,6 +901,11 @@ async def suggest_mapping_endpoint(
     from app.modules.imports.application.transform_suggest import suggest_mapping
     from app.services.excel_analyzer import analyze_excel_stream
 
+    claims = _get_claims(request)
+    tenant_id = claims.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="tenant_id_missing")
+
     headers: list[str] | None = None
     if file is not None:
         data = await file.read()
@@ -818,7 +916,18 @@ async def suggest_mapping_endpoint(
     else:
         raise HTTPException(status_code=400, detail="file_or_headers_required")
 
-    mapping, transforms, defaults, confidence = suggest_mapping(headers)
+    effective_doc_type = (body.doc_type if body else None) or doc_type
+    if str(effective_doc_type or "").strip().lower() in ("", "generic", "unknown", "auto"):
+        effective_doc_type = _infer_import_doc_type_from_headers(headers)
+    alias_synonyms = _load_import_alias_synonyms(
+        db=db,
+        tenant_id=tenant_id,
+        doc_type=effective_doc_type,
+    )
+    mapping, transforms, defaults, confidence = suggest_mapping(
+        headers,
+        custom_synonyms=alias_synonyms,
+    )
 
     # Optional: refine with Ollama if configured (best effort)
     try:
@@ -855,6 +964,7 @@ async def suggest_mapping_endpoint(
 
     return {
         "headers": headers,
+        "doc_type": effective_doc_type,
         "mapping": mapping,
         "transforms": transforms,
         "defaults": defaults,

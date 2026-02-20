@@ -257,8 +257,6 @@ def _create_expense_for_completed_production(
         )
         .first()
     )
-    if existing:
-        return
 
     recipe_name = "Production"
     try:
@@ -277,15 +275,25 @@ def _create_expense_for_completed_production(
     )
     unit_cost_by_product: dict[UUID, Decimal] = {}
     for ing in recipe_ingredients:
+        ing_qty = Decimal(str(ing.qty or 0))
+        ingredient_cost = Decimal(str(ing.ingredient_cost or 0))
         qty_per_package = Decimal(str(ing.qty_per_package or 0))
         package_cost = Decimal(str(ing.package_cost or 0))
-        unit_cost_by_product[ing.product_id] = (
-            (package_cost / qty_per_package) if qty_per_package > 0 else Decimal("0")
-        )
+        unit_cost = Decimal("0")
+        if ing_qty > 0 and ingredient_cost > 0:
+            unit_cost = ingredient_cost / ing_qty
+        elif qty_per_package > 0 and package_cost >= 0:
+            unit_cost = package_cost / qty_per_package
+        unit_cost_by_product[ing.product_id] = unit_cost
 
     total_cost = Decimal("0")
     for line in order.lines:
-        qty = Decimal(str(line.qty_consumed or line.qty_required or 0))
+        qty_source = line.qty_consumed
+        if qty_source is None or qty_source <= 0:
+            qty_source = line.qty_required
+        qty = Decimal(str(qty_source or 0))
+        if qty <= 0:
+            continue
         unit_cost = unit_cost_by_product.get(
             line.ingredient_product_id, Decimal(str(line.cost_unit or 0))
         )
@@ -297,6 +305,21 @@ def _create_expense_for_completed_production(
         f"Auto-generated from production order {getattr(order, 'order_number', '') or getattr(order, 'numero', '')}. "
         f"Recipe: {recipe_name}. Qty produced: {qty}."
     )
+
+    if existing:
+        existing.date = datetime.utcnow().date()
+        existing.concept = concept
+        existing.category = "production"
+        existing.subcategory = "manufacturing"
+        existing.amount = total_cost
+        existing.vat = Decimal("0")
+        existing.total = total_cost
+        existing.supplier_id = None
+        existing.payment_method = None
+        existing.status = "paid"
+        existing.user_id = user_id
+        existing.notes = notes
+        return
 
     expense = Expense(
         tenant_id=tenant_id,
@@ -378,6 +401,11 @@ async def create_production_order(
     db.flush()
     if order_in.lines:
         for line_in in order_in.lines:
+            if line_in.qty_required <= 0:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Cada linea debe tener qty_required > 0",
+                )
             line = ProductionOrderLine(
                 order_id=order.id,
                 ingredient_product_id=line_in.ingredient_product_id,
@@ -392,23 +420,42 @@ async def create_production_order(
         ingredients_stmt = select(RecipeIngredient).where(RecipeIngredient.recipe_id == recipe.id)
         ingredients_result = db.execute(ingredients_stmt)
         ingredients = ingredients_result.scalars().all()
-        yield_qty = float(recipe.yield_qty) if recipe.yield_qty else 1.0
-        scale_factor = float(order_in.qty_planned) / yield_qty if yield_qty > 0 else 1.0
+        yield_qty = Decimal(str(recipe.yield_qty or 0))
+        if yield_qty <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La receta tiene rendimiento invalido (yield_qty <= 0)",
+            )
+        scale_factor = Decimal(str(order_in.qty_planned)) / yield_qty
+        created_lines = 0
         for ing in ingredients:
-            qty_required = float(ing.qty) * scale_factor
+            ing_qty = Decimal(str(ing.qty or 0))
+            qty_required = (ing_qty * scale_factor).quantize(Decimal("0.001"))
+            if qty_required <= 0:
+                continue
             qty_per_package = Decimal(str(ing.qty_per_package or 0))
             package_cost = Decimal(str(ing.package_cost or 0))
-            unit_cost = (package_cost / qty_per_package) if qty_per_package > 0 else Decimal("0")
+            ingredient_cost = Decimal(str(ing.ingredient_cost or 0))
+            if ing_qty > 0 and ingredient_cost > 0:
+                unit_cost = ingredient_cost / ing_qty
+            else:
+                unit_cost = (package_cost / qty_per_package) if qty_per_package > 0 else Decimal("0")
             line = ProductionOrderLine(
                 order_id=order.id,
                 ingredient_product_id=ing.product_id,
-                qty_required=Decimal(str(qty_required)),
+                qty_required=qty_required,
                 qty_consumed=Decimal("0"),
                 unit=ing.unit or "unit",
                 cost_unit=unit_cost,
             )
             line.cost_total = line.qty_required * line.cost_unit
             db.add(line)
+            created_lines += 1
+        if created_lines == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La receta no tiene ingredientes validos para la cantidad solicitada",
+            )
     db.commit()
     db.refresh(order)
     return order

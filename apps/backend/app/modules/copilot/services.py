@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import json
+import logging
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+
+from app.services.ai.service import AIService
+from app.services.ai.base import AITask
+
+logger = logging.getLogger(__name__)
 
 
 def _tenant_where(alias: str | None = None) -> str:
@@ -263,3 +270,137 @@ def suggest_overlay_fields(db: Session) -> dict[str, Any]:
         }
     }
     return overlay
+
+
+async def query_readonly_enhanced(
+    db: Session,
+    topic: str,
+    params: dict[str, Any] | None = None,
+    with_ai_insights: bool = True,
+) -> dict[str, Any]:
+    """Query curada + análisis IA opcional (insights inteligentes)"""
+    p = params or {}
+
+    # 1. Obtener datos base (igual que query_readonly)
+    result = query_readonly(db, topic, p)
+
+    # 2. Si no hay datos, retornar sin análisis
+    if not result.get("cards") or not result["cards"][0].get("data"):
+        return result
+
+    # 3. Mejorar con IA si se solicita
+    if with_ai_insights:
+        try:
+            summary = json.dumps(result["cards"], indent=2, ensure_ascii=False)
+            topic_display = topic.replace("_", " ").title()
+
+            ai_response = await AIService.query(
+                task=AITask.ANALYSIS,
+                prompt=f"""Analiza estos datos de {topic_display}:
+
+{summary}
+
+Proporciona SOLO JSON válido con:
+1. findings: [str] - Hallazgos clave en puntos
+2. trends: [str] - Tendencias detectadas
+3. recommendations: [str] - Recomendaciones de acción
+4. alerts: [dict] - Alertas si hay anomalías""",
+                temperature=0.3,
+                max_tokens=1000,
+            )
+
+            if not ai_response.is_error:
+                try:
+                    insights = json.loads(ai_response.content)
+                    result["ai_insights"] = insights
+                    result["ai_model"] = ai_response.model
+                except json.JSONDecodeError:
+                    logger.debug(f"JSON parse error in AI response: {ai_response.content}")
+                    result["ai_insights"] = {"raw": ai_response.content}
+                    result["ai_model"] = ai_response.model
+            else:
+                logger.warning(f"AI analysis failed for {topic}: {ai_response.error}")
+
+        except Exception as e:
+            logger.error(f"Error in query_readonly_enhanced: {e}", exc_info=True)
+            # Continue sin insights si falla IA
+
+    return result
+
+
+async def get_smart_suggestions(db: Session) -> list[dict[str, Any]]:
+    """Genera sugerencias contextuales inteligentes usando IA"""
+    suggestions = []
+
+    try:
+        # 1. Stock bajo - con sugerencia de acción
+        low_stock = query_readonly(db, "stock_bajo", {"threshold": 5})
+        if low_stock["cards"][0]["data"]:
+            items_count = len(low_stock["cards"][0]["data"])
+            context = f"Hay {items_count} productos con stock bajo"
+
+            suggestion_text = await AIService.generate_suggestion(
+                context=context, suggestion_type="inventory"
+            )
+            if suggestion_text:
+                suggestions.append(
+                    {
+                        "type": "inventory",
+                        "priority": "high" if items_count > 3 else "medium",
+                        "content": suggestion_text,
+                        "action": "review_stock",
+                        "count": items_count,
+                    }
+                )
+
+    except Exception as e:
+        logger.warning(f"Error generating inventory suggestions: {e}")
+
+    try:
+        # 2. Oportunidades de venta cruzada
+        top_products = query_readonly(db, "top_productos", {})
+        if top_products["cards"][0]["data"]:
+            top_5 = top_products["cards"][0]["data"][:5]
+            product_names = ", ".join(p.get("name", f"Producto {p.get('id')}") for p in top_5)
+            context = f"Tus productos más vendidos son: {product_names}"
+
+            suggestion_text = await AIService.generate_suggestion(
+                context=context, suggestion_type="upsell"
+            )
+            if suggestion_text:
+                suggestions.append(
+                    {
+                        "type": "sales",
+                        "priority": "medium",
+                        "content": suggestion_text,
+                        "action": "review_bundles",
+                    }
+                )
+
+    except Exception as e:
+        logger.warning(f"Error generating sales suggestions: {e}")
+
+    try:
+        # 3. Patrones de cobros/pagos
+        payments = query_readonly(db, "cobros_pagos", {})
+        if payments["cards"][0]["data"]:
+            payment_data = payments["cards"][0]["data"]
+            context = f"Transacciones bancarias: {len(payment_data)} registros con datos de tipo y estado"
+
+            suggestion_text = await AIService.generate_suggestion(
+                context=context, suggestion_type="cash_flow"
+            )
+            if suggestion_text:
+                suggestions.append(
+                    {
+                        "type": "finance",
+                        "priority": "medium",
+                        "content": suggestion_text,
+                        "action": "review_cash_flow",
+                    }
+                )
+
+    except Exception as e:
+        logger.warning(f"Error generating finance suggestions: {e}")
+
+    return suggestions

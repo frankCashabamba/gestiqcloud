@@ -62,14 +62,14 @@ def parse_pdf_ocr(file_path: str) -> dict[str, Any]:
 
             documentos = extract_invoice(ocr_text)
             for doc in documentos:
-                rows.append(_documento_to_row(doc, "invoice"))
+                rows.append(_canonical_to_row(doc, "invoice"))
 
         elif layout == "receipt":
             from app.modules.imports.extractores.extractor_recibo import extract_receipt
 
             documentos = extract_receipt(ocr_text)
             for doc in documentos:
-                rows.append(_documento_to_row(doc, "receipt"))
+                rows.append(_canonical_to_row(doc, "receipt"))
 
         elif layout == "bank_statement":
             from app.modules.imports.extractores.extractor_transferencia import extract_transfers

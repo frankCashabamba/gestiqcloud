@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import os
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -14,9 +16,13 @@ from app.modules.copilot.services import (
     create_invoice_draft,
     create_order_draft,
     create_transfer_draft,
+    get_smart_suggestions,
     query_readonly,
+    query_readonly_enhanced,
     suggest_overlay_fields,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _feature_enabled() -> bool:
@@ -61,15 +67,30 @@ class AskIn(BaseModel):
         description="ventas_mes|ventas_por_almacen|top_productos|stock_bajo|pendientes_sri_sii|cobros_pagos"
     )
     params: dict[str, Any] | None = None
+    with_ai_insights: bool = Field(default=True, description="Enable AI analysis insights")
 
 
 @router.post("/ask", response_model=dict[str, Any])
-def ai_ask(payload: AskIn, db: Session = Depends(get_db)):
+async def ai_ask(payload: AskIn, db: Session = Depends(get_db)):
     if not _feature_enabled():
         raise HTTPException(status_code=403, detail="copilot_disabled")
-    out = query_readonly(db, payload.topic, payload.params or {})
-    # Masking is done inside service for PII fields
-    return out
+
+    try:
+        if payload.with_ai_insights:
+            # Obtener datos + análisis IA
+            out = await query_readonly_enhanced(
+                db, payload.topic, payload.params or {}, with_ai_insights=True
+            )
+        else:
+            # Solo datos sin análisis
+            out = query_readonly(db, payload.topic, payload.params or {})
+
+        # Masking is done inside service for PII fields
+        return out
+    except Exception as e:
+        logger.error(f"Error in /ask endpoint: {e}", exc_info=True)
+        # Fallback a datos sin análisis
+        return query_readonly(db, payload.topic, payload.params or {})
 
 
 class ActIn(BaseModel):
@@ -115,3 +136,31 @@ def ai_act(payload: ActIn, request: Request, db: Session = Depends(get_db)):
         return suggest_overlay_fields(db)
 
     raise HTTPException(status_code=400, detail="unknown_action")
+
+
+class SuggestionsOut(BaseModel):
+    suggestions: list[dict[str, Any]]
+    generated_at: datetime
+    ai_enabled: bool
+
+
+@router.get("/suggestions", response_model=SuggestionsOut)
+async def ai_suggestions(db: Session = Depends(get_db)):
+    """Obtiene sugerencias inteligentes generadas por IA basadas en datos empresariales"""
+    if not _feature_enabled():
+        raise HTTPException(status_code=403, detail="copilot_disabled")
+
+    try:
+        suggestions = await get_smart_suggestions(db)
+        return {
+            "suggestions": suggestions,
+            "generated_at": datetime.utcnow(),
+            "ai_enabled": True,
+        }
+    except Exception as e:
+        logger.error(f"Error generating suggestions: {e}", exc_info=True)
+        return {
+            "suggestions": [],
+            "generated_at": datetime.utcnow(),
+            "ai_enabled": False,
+        }

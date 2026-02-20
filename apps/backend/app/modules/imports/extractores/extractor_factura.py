@@ -72,13 +72,18 @@ def _find_tax_rate(text: str, *, default_rate: float | None = None) -> float | N
 def _extract_invoice_lines(text: str) -> list[dict[str, Any]]:
     lines: list[dict[str, Any]] = []
     # Example OCR line (EC invoices):
-    # PT-HARINA-00006 0788... 50.00 HARINA ... 42.90 2,145.00
-    patterns = [
-        # qty at start
-        r"^\s*(\d+(?:[.,]\d+)?)\s+(.{6,}?)\s+(\d+(?:[.,]\d+)?)\s+(\d[\d.,]*)\b",
-        # allow up to 3 leading tokens (codes/barcodes)
-        r"(?:\S+\s+){0,3}(\d+(?:[.,]\d+)?)\s+(.{6,}?)\s+(\d+(?:[.,]\d+)?)\s+(\d[\d.,]*)\b",
-    ]
+    # PT-HARINA-00006 0788115386881 50.00 HARINA TRADICION PREMIUM 50 KG F/ 42.90 2,145.00
+    # Support optional product/barcode columns before quantity.
+    line_pattern = re.compile(
+        r"^\s*"
+        r"(?:(?P<sku>[A-Z0-9][A-Z0-9\-_/]{2,})\s+)?"
+        r"(?:(?P<altcode>\d{6,})\s+)?"
+        r"(?P<qty>\d+(?:[.,]\d+)?)\s+"
+        r"(?P<desc>[A-Za-z][A-Za-z0-9\s.,/%()\-]{4,}?)\s+"
+        r"(?P<unit>\d+(?:[.,]\d+)?)\s+"
+        r"(?P<total>\d[\d.,]*)\s*$",
+        flags=re.IGNORECASE,
+    )
 
     for raw_line in text.splitlines():
         line = " ".join(raw_line.split())
@@ -88,18 +93,15 @@ def _extract_invoice_lines(text: str) -> list[dict[str, Any]]:
         if re.search(r"\b(codigo|cantidad|descripcion|p/?unit|precio)\b", line, re.IGNORECASE):
             continue
 
-        m = None
-        for pat in patterns:
-            m = re.search(pat, line, flags=re.IGNORECASE)
-            if m:
-                break
+        m = line_pattern.search(line)
         if not m:
             continue
 
-        qty = _to_float_locale(m.group(1))
-        desc = m.group(2).strip()
-        unit_price = _to_float_locale(m.group(3))
-        total = _to_float_locale(m.group(4))
+        qty = _to_float_locale(m.group("qty"))
+        desc = m.group("desc").strip()
+        unit_price = _to_float_locale(m.group("unit"))
+        total = _to_float_locale(m.group("total"))
+        sku = (m.group("sku") or "").strip() or None
 
         # Basic sanity: require some letters in description
         if not re.search(r"[A-Za-z]", desc):
@@ -113,6 +115,7 @@ def _extract_invoice_lines(text: str) -> list[dict[str, Any]]:
                 "qty": qty if qty > 0 else 1.0,
                 "unit_price": unit_price,
                 "total": total if total > 0 else unit_price,
+                "sku": sku,
             }
         )
 
@@ -243,3 +246,14 @@ def extract_invoice(text: str, country: str = "EC") -> list[dict[str, Any]]:
     except Exception as e:
         print("Error in extract_invoice:", e)
         return []
+
+
+def extraer(documento: dict[str, Any]) -> dict[str, Any]:
+    """Compat wrapper for task_extract (expects extractor_factura.extraer)."""
+    if not isinstance(documento, dict):
+        return {}
+    texto = str(documento.get("texto") or "")
+    if not texto.strip():
+        return {}
+    docs = extract_invoice(texto, country="EC")
+    return docs[0] if docs else {}

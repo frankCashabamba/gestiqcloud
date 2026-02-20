@@ -14,6 +14,14 @@ export interface ActPayload {
   payload?: Record<string, any>
 }
 
+export interface AIInsights {
+  findings?: string[]
+  trends?: string[]
+  recommendations?: string[]
+  alerts?: Array<{ message: string; severity?: string }>
+  raw?: string
+}
+
 export interface QueryResult {
   cards: Array<{
     title: string
@@ -22,6 +30,22 @@ export interface QueryResult {
   }>
   sql?: string | null
   note?: string
+  ai_insights?: AIInsights
+  ai_model?: string
+}
+
+export interface Suggestion {
+  type: 'inventory' | 'sales' | 'finance'
+  priority: 'high' | 'medium' | 'low'
+  content: string
+  action: string
+  count?: number
+}
+
+export interface SuggestionsResult {
+  suggestions: Suggestion[]
+  generated_at: string
+  ai_enabled: boolean
 }
 
 export interface ActionResult {
@@ -108,4 +132,30 @@ export async function queryPendingSubmissions(): Promise<QueryResult> {
 
 export async function queryPaymentMovements(): Promise<QueryResult> {
   return askCopilot({ topic: 'cobros_pagos' })
+}
+
+export async function getSuggestions(): Promise<SuggestionsResult> {
+  return api.get('/api/v1/tenant/ai/suggestions').then(r => r.data)
+}
+
+// Variantes con insights de IA
+export async function querySalesByMonthWithInsights(): Promise<QueryResult> {
+  return askCopilot({ topic: 'ventas_mes', params: {} }).catch(() => ({
+    cards: [{ title: 'Ventas por Mes', series: [] }]
+  }))
+}
+
+export async function queryTopProductsWithInsights(): Promise<QueryResult> {
+  return askCopilot({ topic: 'top_productos' }).catch(() => ({
+    cards: [{ title: 'Top Productos', data: [] }]
+  }))
+}
+
+export async function queryLowStockWithInsights(threshold: number = 5): Promise<QueryResult> {
+  return askCopilot({
+    topic: 'stock_bajo',
+    params: { threshold }
+  }).catch(() => ({
+    cards: [{ title: 'Stock Bajo', data: [] }]
+  }))
 }

@@ -70,15 +70,28 @@ def _score(header: str, target: str, syns: list[str]) -> int:
 
 def suggest_mapping(
     headers: list[str],
+    custom_synonyms: dict[str, list[str]] | None = None,
 ) -> tuple[dict[str, str], dict[str, Any], dict[str, Any], dict[str, float]]:
     mapping: dict[str, str] = {}
     confidence: dict[str, float] = {}
+    synonyms = dict(_SYN)
+    if custom_synonyms:
+        for field, extra_aliases in custom_synonyms.items():
+            key = str(field or "").strip()
+            if not key:
+                continue
+            merged = list(synonyms.get(key, []))
+            for alias in extra_aliases or []:
+                alias_str = str(alias or "").strip()
+                if alias_str and alias_str not in merged:
+                    merged.append(alias_str)
+            synonyms[key] = merged
 
     # Assign each header to the best canonical field based on synonyms
     for h in headers:
         best_field = None
         best_score = 0
-        for field, syns in _SYN.items():
+        for field, syns in synonyms.items():
             sc = _score(h, field, syns)
             if sc > best_score:
                 best_score = sc

@@ -29,6 +29,7 @@ from app.modules.imports.application.sku_utils import sanitize_sku
 from app.modules.imports.application.transform_dsl import _to_number as dsl_to_number
 from app.modules.imports.application.transform_dsl import eval_expr
 from app.modules.imports.domain.canonical_schema import validate_canonical
+from app.modules.imports.domain.mapping_feedback import MappingFeedback, mapping_learner
 from app.modules.imports.parsers import registry as parsers_registry
 
 _MONTHS_MAP = {
@@ -1313,6 +1314,7 @@ def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id
             items_validated = 0
             items_failed = 0
             mapping_applied_count = 0
+            successful_mapped_count = 0
 
             for item_data in items_data:
                 processed += 1
@@ -1388,6 +1390,8 @@ def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id
 
                 if is_valid:
                     items_validated += 1
+                    if mapped:
+                        successful_mapped_count += 1
                 else:
                     items_failed += 1
 
@@ -1422,6 +1426,25 @@ def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id
                     mapping_row.use_count = int(getattr(mapping_row, "use_count", 0) or 0) + 1
                     mapping_row.last_used_at = datetime.utcnow()
                     db.add(mapping_row)
+                except Exception:
+                    pass
+            # Auto-learn mapping when imports succeed, so future files map better without manual setup.
+            if mapping_cfg and successful_mapped_count > 0:
+                try:
+                    feedback = MappingFeedback(
+                        tenant_id=tenant_id,
+                        doc_type=doc_type,
+                        headers=list((mapping_cfg or {}).keys()),
+                    )
+                    for source_field, canonical_field in (mapping_cfg or {}).items():
+                        if canonical_field and str(canonical_field).lower() != "ignore":
+                            feedback.mark_field_correct(
+                                str(source_field),
+                                str(canonical_field),
+                                confidence=0.8,
+                            )
+                    if feedback.field_feedbacks:
+                        mapping_learner.record_feedback(feedback)
                 except Exception:
                     pass
             batch.status = "READY" if items_failed == 0 else "PARTIAL"
