@@ -62,7 +62,8 @@ def _log_started(
             return None
         # Ensure table exists when running inline (dev environments may not have applied Alembic yet)
         try:
-            db.execute(sql_text("""
+            db.execute(
+                sql_text("""
                     CREATE EXTENSION IF NOT EXISTS "pgcrypto";
                     CREATE TABLE IF NOT EXISTS public.admin_migration_runs (
                       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -77,7 +78,8 @@ def _log_started(
                       triggered_by text
                     );
                     CREATE INDEX IF NOT EXISTS ix_admin_migration_runs_started ON public.admin_migration_runs (started_at DESC);
-                    """))
+                    """)
+            )
             try:
                 db.commit()
             except Exception:
@@ -397,12 +399,14 @@ def migrate_status_details(db: Session = Depends(get_db)):
     # Last run (if table exists)
     last_run = None
     try:
-        res = db.execute(sql_text("""
+        res = db.execute(
+            sql_text("""
                 SELECT id::text, started_at, finished_at, mode, ok, error, job_id
                 FROM public.admin_migration_runs
                 ORDER BY started_at DESC
                 LIMIT 1
-                """)).first()
+                """)
+        ).first()
         if res:
             last_run = {
                 "id": res[0],

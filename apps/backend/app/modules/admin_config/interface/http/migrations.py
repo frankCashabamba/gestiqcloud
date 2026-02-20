@@ -89,15 +89,23 @@ async def get_migration_status(
     """
     Get current migration system status.
     """
-    stats = db.execute(text("""
+    stats = (
+        db.execute(
+            text("""
             SELECT
                 status,
                 COUNT(*) as count
             FROM schema_migrations
             GROUP BY status
-        """)).mappings().all()
+        """)
+        )
+        .mappings()
+        .all()
+    )
 
-    last_migration = db.execute(text("""
+    last_migration = (
+        db.execute(
+            text("""
                 SELECT version, name, completed_at, status
                 FROM schema_migrations
                 WHERE status = 'success'
@@ -105,7 +113,11 @@ async def get_migration_status(
                     applied_order DESC NULLS LAST,
                     COALESCE(completed_at, updated_at, created_at) DESC NULLS LAST
                 LIMIT 1
-                """)).mappings().first()
+                """)
+        )
+        .mappings()
+        .first()
+    )
 
     pending_count = db.execute(
         text("SELECT COUNT(*) FROM schema_migrations WHERE status = 'pending'")
@@ -220,11 +232,13 @@ async def execute_migrations(
                 )
 
                 if result.returncode == 0:
-                    db.execute(text("""
+                    db.execute(
+                        text("""
                             UPDATE schema_migrations
                             SET status = 'success', completed_at = NOW()
                             WHERE status = 'running'
-                        """))
+                        """)
+                    )
                     db.commit()
                     logger.info(f"Migrations executed successfully by {user_email}")
                 else:
@@ -261,12 +275,18 @@ async def get_pending_migrations(
     _: None = Depends(require_scope("admin")),
 ):
     """Get pending migrations."""
-    result = db.execute(text("""
+    result = (
+        db.execute(
+            text("""
             SELECT version, name, created_at
             FROM schema_migrations
             WHERE status = 'pending'
             ORDER BY version
-        """)).mappings().all()
+        """)
+        )
+        .mappings()
+        .all()
+    )
 
     return [dict(row) for row in result]
 

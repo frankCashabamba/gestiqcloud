@@ -223,9 +223,7 @@ class PayrollService:
         )
         mutual = PayrollService.calculate_social_security(
             gross, employee.country, year, employee=True
-        ) * Decimal(
-            "0.25"
-        )  # Promedio 1.25%
+        ) * Decimal("0.25")  # Promedio 1.25%
 
         total_deductions = irpf + ss_employee + mutual
         net = gross - total_deductions

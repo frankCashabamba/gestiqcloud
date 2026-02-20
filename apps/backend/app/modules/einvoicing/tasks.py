@@ -119,13 +119,15 @@ def scheduled_retry() -> dict:
     # SRI: find failed submissions and re-send
     with SessionLocal() as db:
         db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_id)})
-        sri_rows = db.execute(text("""
+        sri_rows = db.execute(
+            text("""
                 SELECT DISTINCT invoice_id
                 FROM sri_submissions
                 WHERE status IN ('ERROR','REJECTED')
                 ORDER BY updated_at DESC
                 LIMIT :lim
-                """).bindparams(lim=max_items)).fetchall()
+                """).bindparams(lim=max_items)
+        ).fetchall()
 
     for r in sri_rows:
         try:

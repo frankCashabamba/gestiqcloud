@@ -228,9 +228,7 @@ def _resolve_best_column_mapping(
     """Resolve best mapping by file pattern first, then by header similarity."""
     mappings = (
         db.query(ImportColumnMapping)
-        .filter(
-            ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active
-        )  # noqa: E712
+        .filter(ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active)  # noqa: E712
         .order_by(
             ImportColumnMapping.last_used_at.desc().nullslast(),
             ImportColumnMapping.use_count.desc(),
@@ -2227,9 +2225,7 @@ def analyze_file_endpoint(
     # Load saved mappings for this tenant
     mappings = (
         db.query(ImportColumnMapping)
-        .filter(
-            ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active
-        )  # noqa: E712
+        .filter(ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active)  # noqa: E712
         .order_by(
             ImportColumnMapping.last_used_at.desc().nullslast(),
             ImportColumnMapping.created_at.desc(),
@@ -2283,9 +2279,7 @@ def list_column_mappings_endpoint(request: Request, db: Session = Depends(get_db
 
     mappings = (
         db.query(ImportColumnMapping)
-        .filter(
-            ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active
-        )  # noqa: E712
+        .filter(ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active)  # noqa: E712
         .order_by(ImportColumnMapping.name.asc())
         .all()
     )
@@ -3385,9 +3379,7 @@ def list_mappings(request: Request, db: Session = Depends(get_db), source_type: 
 
     items = (
         db.query(ImportColumnMapping)
-        .filter(
-            ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active
-        )  # noqa: E712
+        .filter(ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active)  # noqa: E712
         .order_by(ImportColumnMapping.created_at.desc())
         .all()
     )
