@@ -129,8 +129,7 @@ def _resolve_tenant_currency(db: Session, tenant_id: UUID) -> str:
     No se usa tenants.base_currency; si no hay configuración, devolvemos error.
     """
     row = db.execute(
-        text(
-            """
+        text("""
             SELECT COALESCE(
                 NULLIF(UPPER(TRIM(cs.currency)), ''),
                 NULLIF(UPPER(TRIM(cur.code)), '')
@@ -139,8 +138,7 @@ def _resolve_tenant_currency(db: Session, tenant_id: UUID) -> str:
             LEFT JOIN currencies cur ON cur.id = cs.currency_id
             WHERE cs.tenant_id = :tid
             LIMIT 1
-            """
-        ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+            """).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
         {"tid": tenant_id},
     ).first()
     if row and row[0]:
@@ -2034,9 +2032,9 @@ def checkout(
             invoice_result = service.create_invoice_from_receipt(
                 receipt_uuid,
                 customer_id=None,
-                invoice_series=payload.invoice_series
-                if hasattr(payload, "invoice_series")
-                else "A",
+                invoice_series=(
+                    payload.invoice_series if hasattr(payload, "invoice_series") else "A"
+                ),
             )
             if invoice_result:
                 documents_created["invoice"] = invoice_result
@@ -3606,8 +3604,7 @@ def upsert_numbering_counter(
 
     row = (
         db.execute(
-            text(
-                """
+            text("""
             INSERT INTO doc_number_counters (
                 tenant_id, doc_type, year, series, current_no, created_at, updated_at
             )
@@ -3617,8 +3614,7 @@ def upsert_numbering_counter(
                 current_no = EXCLUDED.current_no,
                 updated_at = now()
             RETURNING doc_type, year, series, current_no, updated_at
-            """
-            ),
+            """),
             {
                 "tenant_id": tenant_id,
                 "doc_type": doc_type,
@@ -3707,8 +3703,7 @@ def upsert_doc_series(
     if payload.id:
         row = (
             db.execute(
-                text(
-                    """
+                text("""
                 UPDATE doc_series
                 SET current_no = :current_no,
                     reset_policy = :reset_policy,
@@ -3716,8 +3711,7 @@ def upsert_doc_series(
                 WHERE id = CAST(:id AS uuid)
                   AND tenant_id = :tenant_id
                 RETURNING id, register_id, doc_type, name, current_no, reset_policy, active, created_at
-                """
-                ),
+                """),
                 {
                     "id": payload.id,
                     "tenant_id": tenant_id,
@@ -3731,32 +3725,28 @@ def upsert_doc_series(
         )
     else:
         existing = db.execute(
-            text(
-                """
+            text("""
                 SELECT id FROM doc_series
                 WHERE tenant_id = :tenant_id
                   AND doc_type = :doc_type
                   AND name = :name
                   AND (register_id IS NOT DISTINCT FROM CAST(:register_id AS uuid))
                 LIMIT 1
-                """
-            ),
+                """),
             params,
         ).scalar()
 
         if existing:
             row = (
                 db.execute(
-                    text(
-                        """
+                    text("""
                     UPDATE doc_series
                     SET current_no = :current_no,
                         reset_policy = :reset_policy,
                         active = :active
                     WHERE id = CAST(:id AS uuid)
                     RETURNING id, register_id, doc_type, name, current_no, reset_policy, active, created_at
-                    """
-                    ),
+                    """),
                     {
                         "id": existing,
                         "current_no": payload.current_no,
@@ -3770,8 +3760,7 @@ def upsert_doc_series(
         else:
             row = (
                 db.execute(
-                    text(
-                        """
+                    text("""
                     INSERT INTO doc_series (
                         id, tenant_id, register_id, doc_type, name, current_no, reset_policy, active, created_at
                     )
@@ -3780,8 +3769,7 @@ def upsert_doc_series(
                         :doc_type, :name, :current_no, :reset_policy, :active, now()
                     )
                     RETURNING id, register_id, doc_type, name, current_no, reset_policy, active, created_at
-                    """
-                    ),
+                    """),
                     {
                         "tenant_id": tenant_id,
                         "register_id": reg_id,
@@ -3823,14 +3811,12 @@ def reset_yearly_series(
     """Resetea a 0 las series con reset_policy=yearly."""
     tenant_id = _get_tenant_id(request)
     result = db.execute(
-        text(
-            """
+        text("""
             UPDATE doc_series
             SET current_no = 0
             WHERE tenant_id = :tenant_id
               AND reset_policy = 'yearly'
-            """
-        ),
+            """),
         {"tenant_id": tenant_id},
     )
     db.commit()

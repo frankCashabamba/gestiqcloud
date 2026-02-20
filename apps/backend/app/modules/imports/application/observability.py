@@ -75,9 +75,11 @@ class MetricsCollector:
                     "total_processed": bucket.total_processed,
                     "success_count": bucket.success_count,
                     "error_count": bucket.error_count,
-                    "success_rate": bucket.success_count / bucket.total_processed
-                    if bucket.total_processed > 0
-                    else 0.0,
+                    "success_rate": (
+                        bucket.success_count / bucket.total_processed
+                        if bucket.total_processed > 0
+                        else 0.0
+                    ),
                     "avg_confidence": bucket.avg_confidence,
                     "avg_processing_time_ms": bucket.avg_processing_time_ms,
                     "errors_by_reason": bucket.errors_by_reason,
@@ -96,9 +98,9 @@ class MetricsCollector:
             "total_processed": bucket.total_processed,
             "success_count": bucket.success_count,
             "error_count": bucket.error_count,
-            "success_rate": bucket.success_count / bucket.total_processed
-            if bucket.total_processed > 0
-            else 0.0,
+            "success_rate": (
+                bucket.success_count / bucket.total_processed if bucket.total_processed > 0 else 0.0
+            ),
             "avg_confidence": bucket.avg_confidence,
             "avg_processing_time_ms": bucket.avg_processing_time_ms,
             "errors_by_reason": bucket.errors_by_reason,

@@ -165,9 +165,9 @@ def get_order(
         status=order.status,
         customer_id=str(order.customer_id) if order.customer_id else None,
         customer_name=customer_name,
-        pos_receipt_id=str(order.pos_receipt_id)
-        if getattr(order, "pos_receipt_id", None)
-        else None,
+        pos_receipt_id=(
+            str(order.pos_receipt_id) if getattr(order, "pos_receipt_id", None) else None
+        ),
         currency=order.currency,
         subtotal=float(order.subtotal or 0),
         tax=float(order.tax or 0),

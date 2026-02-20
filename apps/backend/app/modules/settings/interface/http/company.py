@@ -100,9 +100,11 @@ def get_company_settings(tenant_id: str = Depends(ensure_tenant), db: Session = 
             locale=None,
             timezone=None,
             currency=None,
-            sector_id=getattr(tenant, "sector_id", None)
-            if isinstance(getattr(tenant, "sector_id", None), int)
-            else getattr(tenant, "sector_template_name", None),
+            sector_id=(
+                getattr(tenant, "sector_id", None)
+                if isinstance(getattr(tenant, "sector_id", None), int)
+                else getattr(tenant, "sector_template_name", None)
+            ),
             sector_template_name=getattr(tenant, "sector_template_name", None),
             sector_plantilla_name=getattr(tenant, "sector_template_name", None),
             inventory=None,
@@ -147,9 +149,11 @@ def get_company_settings(tenant_id: str = Depends(ensure_tenant), db: Session = 
         locale=company_settings.default_language,
         timezone=company_settings.timezone,
         currency=company_settings.currency,
-        sector_id=getattr(tenant, "sector_id", None)
-        if isinstance(getattr(tenant, "sector_id", None), int)
-        else getattr(tenant, "sector_template_name", None),
+        sector_id=(
+            getattr(tenant, "sector_id", None)
+            if isinstance(getattr(tenant, "sector_id", None), int)
+            else getattr(tenant, "sector_template_name", None)
+        ),
         sector_template_name=getattr(tenant, "sector_template_name", None),
         sector_plantilla_name=getattr(tenant, "sector_template_name", None),  # Backward compat
         inventory=inventory_cfg,
@@ -368,9 +372,11 @@ def update_company_settings(
         sector_id=sector_id_value,
         sector_template_name=sector_template,
         sector_plantilla_name=sector_template,
-        inventory=(company_settings.settings or {}).get("inventory")
-        if isinstance(company_settings.settings, dict)
-        else None,
+        inventory=(
+            (company_settings.settings or {}).get("inventory")
+            if isinstance(company_settings.settings, dict)
+            else None
+        ),
         pos_config=company_settings.pos_config,
         invoice_config=company_settings.invoice_config,
         settings=company_settings.settings or {},

@@ -123,17 +123,19 @@ def extraer_ticket(texto: str, country: str = "EC") -> list[dict[str, Any]]:
                 }
             ],
         },
-        "lines": lineas_productos
-        if lineas_productos
-        else [
-            {
-                "desc": "Ticket POS",
-                "qty": 1.0,
-                "unit_price": total,
-                "total": total,
-                "tax_code": f"IVA{12 if country == 'EC' else 21}",
-            }
-        ],
+        "lines": (
+            lineas_productos
+            if lineas_productos
+            else [
+                {
+                    "desc": "Ticket POS",
+                    "qty": 1.0,
+                    "unit_price": total,
+                    "total": total,
+                    "tax_code": f"IVA{12 if country == 'EC' else 21}",
+                }
+            ]
+        ),
         "payment": {
             "method": "cash",
         },

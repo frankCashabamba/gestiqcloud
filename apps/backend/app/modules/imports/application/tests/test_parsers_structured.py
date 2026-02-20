@@ -34,15 +34,13 @@ def test_parse_csv_invoices(tmp_path):
 def test_parse_xml_invoice_generic(tmp_path):
     from app.modules.imports.parsers.xml_invoice import parse_xml_invoice
 
-    xml = textwrap.dedent(
-        """\
+    xml = textwrap.dedent("""\
         <Invoice>
           <invoice_number>INV-1</invoice_number>
           <date>2024-01-01</date>
           <vendor_name>ACME</vendor_name>
         </Invoice>
-        """
-    )
+        """)
     path = tmp_path / "invoice.xml"
     path.write_text(xml, encoding="utf-8")
 
@@ -56,8 +54,7 @@ def test_parse_xml_invoice_generic(tmp_path):
 def test_parse_xml_camt053(tmp_path):
     from app.modules.imports.parsers.xml_camt053_bank import parse_xml_camt053_bank
 
-    xml = textwrap.dedent(
-        """\
+    xml = textwrap.dedent("""\
         <Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
           <BkToCstmrStmt>
             <Stmt>
@@ -73,8 +70,7 @@ def test_parse_xml_camt053(tmp_path):
             </Stmt>
           </BkToCstmrStmt>
         </Document>
-        """
-    )
+        """)
     path = tmp_path / "camt.xml"
     path.write_text(xml, encoding="utf-8")
 

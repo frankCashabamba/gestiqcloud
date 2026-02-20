@@ -35,14 +35,12 @@ class AssignIn(BaseModel):
 @router.post("/assign", response_model=dict)
 def assign_template(payload: AssignIn, request: Request, db: Session = Depends(get_db)):
     db.execute(
-        text(
-            """
+        text("""
             INSERT INTO tenant_templates(tenant_id, template_key, version, active)
             VALUES (CAST(:tid AS uuid), :key, :ver, true)
             ON CONFLICT (tenant_id, template_key)
             DO UPDATE SET version = EXCLUDED.version, active = true
-            """
-        ),
+            """),
         {"tid": payload.tenant_id, "key": payload.template_key, "ver": payload.version},
     )
     db.commit()
@@ -86,13 +84,11 @@ def create_overlay(payload: OverlayIn, request: Request, db: Session = Depends(g
         raise HTTPException(status_code=400, detail=str(e))
 
     row = db.execute(
-        text(
-            """
+        text("""
             INSERT INTO template_overlays(tenant_id, name, config, active)
             VALUES (CAST(:tid AS uuid), :name, :cfg::jsonb, :active)
             RETURNING id
-            """
-        ),
+            """),
         {
             "tid": payload.tenant_id,
             "name": payload.name,

@@ -54,9 +54,9 @@ def get_profit_report(
             "total_sales": total_sales,
             "total_cogs": total_cogs,
             "gross_profit": gross_profit,
-            "gross_margin_pct": round(gross_profit / total_sales * 100, 2)
-            if total_sales > 0
-            else 0,
+            "gross_margin_pct": (
+                round(gross_profit / total_sales * 100, 2) if total_sales > 0 else 0
+            ),
             "total_expenses": total_expenses,
             "net_profit": net_profit,
             "net_margin_pct": round(net_profit / total_sales * 100, 2) if total_sales > 0 else 0,

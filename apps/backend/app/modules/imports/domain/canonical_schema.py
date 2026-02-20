@@ -186,9 +186,10 @@ def _is_tax_id(val: Any) -> tuple[bool, str | None]:
     """Check if value looks like a tax ID (RUC, NIT, CIF, etc)."""
     s = str(val).strip()
     # At least 5 chars, alphanumeric
-    return len(s) >= 5 and s.replace("-", "").replace(
-        " ", ""
-    ).isalnum(), "Tax ID must be at least 5 characters"
+    return (
+        len(s) >= 5 and s.replace("-", "").replace(" ", "").isalnum(),
+        "Tax ID must be at least 5 characters",
+    )
 
 
 # Schemas for each document type

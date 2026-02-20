@@ -195,12 +195,12 @@ def parse_xlsx_costing_products(file_path: str) -> dict[str, Any]:
                 "sku": str(name).strip(),  # sanitized later in import pipeline
                 "price": float(price_unit or 0.0),
                 "precio": float(price_unit or 0.0),
-                "category": str(classification).strip()
-                if classification not in (None, "")
-                else None,
-                "categoria": str(classification).strip()
-                if classification not in (None, "")
-                else None,
+                "category": (
+                    str(classification).strip() if classification not in (None, "") else None
+                ),
+                "categoria": (
+                    str(classification).strip() if classification not in (None, "") else None
+                ),
                 "ingredients": ingredients,
                 "materials": materials,
                 "source": "xlsx_costing",

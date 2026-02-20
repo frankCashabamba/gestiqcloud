@@ -250,9 +250,9 @@ async def test_webhook(
             status_code=delivery.status_code,
             response_body=delivery.response_body,
             success=delivery.is_successful,
-            message="Test webhook queued for delivery"
-            if delivery.id
-            else "Failed to queue delivery",
+            message=(
+                "Test webhook queued for delivery" if delivery.id else "Failed to queue delivery"
+            ),
         )
     except WebhookNotFound as e:
         raise HTTPException(status_code=404, detail=str(e))

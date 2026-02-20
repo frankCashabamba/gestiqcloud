@@ -71,15 +71,13 @@ def _sector_kpis_payload(
         # COUNTER SALES (from pos_receipts + invoices)
         sales_today = (
             db.execute(
-                text(
-                    f"""
+                text(f"""
             SELECT COALESCE(SUM(gross_total), 0) as total
             FROM pos_receipts
             WHERE {tenant_clause('tenant_id::text')}
             AND DATE(created_at) = :today
             AND status IN ('paid', 'invoiced')
-        """
-                ),
+        """),
                 tenant_params(today=today),
             ).scalar()
             or 0.0
@@ -87,15 +85,13 @@ def _sector_kpis_payload(
 
         sales_yesterday = (
             db.execute(
-                text(
-                    f"""
+                text(f"""
             SELECT COALESCE(SUM(gross_total), 0) as total
             FROM pos_receipts
             WHERE {tenant_clause('tenant_id::text')}
             AND DATE(created_at) = :yesterday
             AND status IN ('paid', 'invoiced')
-        """
-                ),
+        """),
                 tenant_params(yesterday=yesterday),
             ).scalar()
             or 0.0
@@ -109,8 +105,7 @@ def _sector_kpis_payload(
 
         # CRITICAL STOCK (products with low stock)
         critical_stock = db.execute(
-            text(
-                f"""
+            text(f"""
             SELECT
                 COUNT(DISTINCT p.id) as items,
                 ARRAY_AGG(DISTINCT p.name) FILTER (WHERE p.name IS NOT NULL) as names
@@ -119,15 +114,13 @@ def _sector_kpis_payload(
             WHERE {tenant_clause('p.tenant_id::text')}
             AND COALESCE(si.qty, 0) < 10
             LIMIT 10
-        """
-            ),
+        """),
             tenant_params(),
         ).first()
 
         # WASTE (stock_moves with negative 'adjustment' type for the day)
         waste = db.execute(
-            text(
-                f"""
+            text(f"""
             SELECT
                 COALESCE(SUM(ABS(qty)), 0) as total_qty,
                 COUNT(*) as count
@@ -136,15 +129,13 @@ def _sector_kpis_payload(
             AND kind = 'adjustment'
             AND qty < 0
             AND DATE(created_at) = :today
-        """
-            ),
+        """),
             tenant_params(today=today),
         ).first()
 
         # TOP PRODUCTS (best sellers of the month)
         top_products = db.execute(
-            text(
-                f"""
+            text(f"""
             SELECT
                 p.name as name,
                 SUM(prl.qty) as units,
@@ -158,8 +149,7 @@ def _sector_kpis_payload(
             GROUP BY p.id, p.name
             ORDER BY revenue DESC
             LIMIT 3
-        """
-            ),
+        """),
             tenant_params(month_start=month_start),
         ).fetchall()
 
@@ -205,15 +195,13 @@ def _sector_kpis_payload(
         # MONTHLY REVENUE (invoices + tickets)
         monthly_revenue = (
             db.execute(
-                text(
-                    f"""
+                text(f"""
             SELECT COALESCE(SUM(total), 0) as total
             FROM invoices
             WHERE {tenant_clause('tenant_id::text')}
             AND DATE(fecha) >= :month_start
             AND estado IN ('posted', 'einvoice_sent', 'paid')
-        """
-                ),
+        """),
                 tenant_params(month_start=month_start),
             ).scalar()
             or 0.0
@@ -222,14 +210,12 @@ def _sector_kpis_payload(
         # COMPLETED JOBS
         jobs_today = (
             db.execute(
-                text(
-                    f"""
+                text(f"""
             SELECT COUNT(*) FROM invoices
             WHERE {tenant_clause('tenant_id::text')}
             AND DATE(fecha) = :today
             AND estado IN ('posted', 'einvoice_sent', 'paid')
-        """
-                ),
+        """),
                 tenant_params(today=today),
             ).scalar()
             or 0
@@ -237,14 +223,12 @@ def _sector_kpis_payload(
 
         jobs_month = (
             db.execute(
-                text(
-                    f"""
+                text(f"""
             SELECT COUNT(*) FROM invoices
             WHERE {tenant_clause('tenant_id::text')}
             AND DATE(fecha) >= :month_start
             AND estado IN ('posted', 'einvoice_sent', 'paid')
-        """
-                ),
+        """),
                 tenant_params(month_start=month_start),
             ).scalar()
             or 0
@@ -252,8 +236,7 @@ def _sector_kpis_payload(
 
         # LOW STOCK SPARE PARTS
         spare_parts = db.execute(
-            text(
-                f"""
+            text(f"""
             SELECT
                 COUNT(DISTINCT p.id) as items,
                 ARRAY_AGG(DISTINCT p.name) FILTER (WHERE p.name IS NOT NULL) as names
@@ -262,8 +245,7 @@ def _sector_kpis_payload(
             WHERE {tenant_clause('p.tenant_id::text')}
             AND COALESCE(si.qty_on_hand, 0) < 5
             LIMIT 10
-        """
-            ),
+        """),
             tenant_params(),
         ).first()
 
@@ -277,9 +259,9 @@ def _sector_kpis_payload(
             "monthly_revenue": {
                 "current": float(monthly_revenue),
                 "target": 6000.00,
-                "progress": round((monthly_revenue / 6000.00 * 100), 1)
-                if monthly_revenue > 0
-                else 0.0,
+                "progress": (
+                    round((monthly_revenue / 6000.00 * 100), 1) if monthly_revenue > 0 else 0.0
+                ),
                 "currency": currency,
             },
             "low_stock_spare_parts": {
@@ -297,8 +279,7 @@ def _sector_kpis_payload(
     elif sector == "todoa100" or sector == "retail":
         # DAILY SALES
         daily_sales = db.execute(
-            text(
-                f"""
+            text(f"""
             SELECT
                 COALESCE(SUM(gross_total), 0) as total,
                 COUNT(*) as tickets
@@ -306,8 +287,7 @@ def _sector_kpis_payload(
             WHERE {tenant_clause('tenant_id::text')}
             AND DATE(created_at) = :today
             AND status IN ('paid', 'invoiced')
-        """
-            ),
+        """),
             tenant_params(today=today),
         ).first()
 
@@ -318,15 +298,13 @@ def _sector_kpis_payload(
         # WEEKLY COMPARISON
         weekly_sales = (
             db.execute(
-                text(
-                    f"""
+                text(f"""
             SELECT COALESCE(SUM(gross_total), 0) as total
             FROM pos_receipts
             WHERE {tenant_clause('tenant_id::text')}
             AND DATE(created_at) >= :week_ago
             AND status IN ('paid', 'invoiced')
-        """
-                ),
+        """),
                 tenant_params(week_ago=week_ago),
             ).scalar()
             or 0.0
@@ -334,8 +312,7 @@ def _sector_kpis_payload(
 
         # STOCK ROTATION (ventas últimas 4 semanas + stock disponible)
         rotation_counts = db.execute(
-            text(
-                f"""
+            text(f"""
         WITH sales AS (
             SELECT prl.product_id, SUM(prl.qty) AS units
             FROM pos_receipt_lines prl
@@ -354,15 +331,13 @@ def _sector_kpis_payload(
         SELECT COALESCE(high_rotation, 0) AS high_rotation,
                COALESCE(low_rotation, 0) AS low_rotation
         FROM buckets
-        """
-            ),
+        """),
             tenant_params(month_start=month_start, high_threshold=20),
         ).first()
 
         replenish_needed = (
             db.execute(
-                text(
-                    f"""
+                text(f"""
             SELECT COUNT(*) FROM (
               SELECT product_id, COALESCE(SUM(qty), 0) AS qty
               FROM stock_items
@@ -370,8 +345,7 @@ def _sector_kpis_payload(
               GROUP BY product_id
             ) s
             WHERE qty < :min_stock
-        """
-                ),
+        """),
                 tenant_params(min_stock=5),
             ).scalar()
             or 0
@@ -401,15 +375,13 @@ def _sector_kpis_payload(
         # Total daily sales (POS + Invoices)
         pos_sales = (
             db.execute(
-                text(
-                    f"""
+                text(f"""
             SELECT COALESCE(SUM(gross_total), 0)
             FROM pos_receipts
             WHERE {tenant_clause('tenant_id::text')}
             AND DATE(created_at) = :today
             AND status IN ('paid', 'invoiced')
-        """
-                ),
+        """),
                 tenant_params(today=today),
             ).scalar()
             or 0.0
@@ -417,15 +389,13 @@ def _sector_kpis_payload(
 
         invoice_sales = (
             db.execute(
-                text(
-                    f"""
+                text(f"""
             SELECT COALESCE(SUM(total), 0)
             FROM invoices
             WHERE {tenant_clause('tenant_id::text')}
             AND DATE(fecha) = :today
             AND estado IN ('posted', 'einvoice_sent', 'paid')
-        """
-                ),
+        """),
                 tenant_params(today=today),
             ).scalar()
             or 0.0
@@ -433,15 +403,13 @@ def _sector_kpis_payload(
 
         tickets_count = (
             db.execute(
-                text(
-                    f"""
+                text(f"""
             SELECT COUNT(*)
             FROM pos_receipts
             WHERE {tenant_clause('tenant_id::text')}
             AND DATE(created_at) = :today
             AND status IN ('paid', 'invoiced')
-        """
-                ),
+        """),
                 tenant_params(today=today),
             ).scalar()
             or 0

@@ -191,9 +191,11 @@ def extract_invoice(text: str, country: str = "EC") -> list[dict[str, Any]]:
                 "tax_breakdown": (
                     [
                         {
-                            "rate": float(tax_rate)
-                            if tax_rate is not None
-                            else (15.0 if country == "EC" else 21.0),
+                            "rate": (
+                                float(tax_rate)
+                                if tax_rate is not None
+                                else (15.0 if country == "EC" else 21.0)
+                            ),
                             "amount": tax,
                             "code": f"{tax_code}-{country}",
                             "base": subtotal,

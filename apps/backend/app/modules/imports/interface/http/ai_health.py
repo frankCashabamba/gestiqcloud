@@ -118,9 +118,11 @@ async def ai_status(request: Request) -> dict[str, Any]:
             "status": "available",
             "provider": provider.name,
             "model": getattr(provider, "default_model", "unknown"),
-            "supported_models": [m.value for m in provider.get_supported_models()]
-            if hasattr(provider, "get_supported_models")
-            else [],
+            "supported_models": (
+                [m.value for m in provider.get_supported_models()]
+                if hasattr(provider, "get_supported_models")
+                else []
+            ),
             "telemetry": telemetry,
         }
 

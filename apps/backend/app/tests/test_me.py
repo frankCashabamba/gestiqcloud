@@ -10,7 +10,9 @@ def test_me_admin_requires_bearer(client: TestClient):
 
 def test_me_admin_ok(client: TestClient, db, superuser_factory):
     test_password = secrets.token_urlsafe(12)  # Random password for testing
-    su = superuser_factory(email="root@admin.com", username="root", password=test_password)  # noqa: F841
+    su = superuser_factory(
+        email="root@admin.com", username="root", password=test_password
+    )  # noqa: F841
     # Login admin
     r = client.post(
         "/api/v1/admin/auth/login",
@@ -29,7 +31,9 @@ def test_me_admin_ok(client: TestClient, db, superuser_factory):
 
 def test_me_tenant_ok(client: TestClient, db, usuario_empresa_factory):
     test_password = secrets.token_urlsafe(12)  # Random password for testing
-    u = usuario_empresa_factory(email="t@x.com", username="tenant", password=test_password)  # noqa: F841
+    u = usuario_empresa_factory(
+        email="t@x.com", username="tenant", password=test_password
+    )  # noqa: F841
 
     # Login tenant
     r = client.post(

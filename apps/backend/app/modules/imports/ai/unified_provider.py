@@ -160,9 +160,9 @@ class UnifiedServiceAIProvider(AIProvider):
         return ClassificationResult(
             suggested_parser=suggested,
             confidence=confidence,
-            probabilities=self._build_probabilities(parsers, suggested, confidence)
-            if parsers
-            else {},
+            probabilities=(
+                self._build_probabilities(parsers, suggested, confidence) if parsers else {}
+            ),
             reasoning=reason,
             provider=self.provider_name,
             enhanced_by_ai=False,

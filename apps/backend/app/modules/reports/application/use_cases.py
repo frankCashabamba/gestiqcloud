@@ -92,11 +92,9 @@ class ListReportsUseCase:
     def execute(self, db: Session, tenant_id: str) -> dict:
         try:
             rows = db.execute(
-                text(
-                    """SELECT id, name, report_type, format, status, row_count, created_at
+                text("""SELECT id, name, report_type, format, status, row_count, created_at
                     FROM reports WHERE tenant_id = :tenant_id
-                    ORDER BY created_at DESC LIMIT 100"""
-                ),
+                    ORDER BY created_at DESC LIMIT 100"""),
                 {"tenant_id": tenant_id},
             ).fetchall()
 
@@ -242,10 +240,8 @@ class DeleteScheduledReportUseCase:
 
     def execute(self, db: Session, tenant_id: str, schedule_id: str) -> bool:
         result = db.execute(
-            text(
-                """DELETE FROM scheduled_reports
-                WHERE id = :id AND tenant_id = :tenant_id"""
-            ),
+            text("""DELETE FROM scheduled_reports
+                WHERE id = :id AND tenant_id = :tenant_id"""),
             {"id": schedule_id, "tenant_id": tenant_id},
         )
         db.commit()

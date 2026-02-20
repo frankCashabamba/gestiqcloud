@@ -182,7 +182,9 @@ async def list_import_templates(
 
     templates = (
         db.query(ImportColumnMapping)
-        .filter(ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active)  # noqa: E712
+        .filter(
+            ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active
+        )  # noqa: E712
         .order_by(ImportColumnMapping.created_at.desc())
         .all()
     )

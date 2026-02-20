@@ -175,9 +175,11 @@ class WebhookDispatcher:
                         webhook_id=endpoint.id,
                         event_id=payload.id,
                         attempt_number=attempt,
-                        status=DeliveryStatus.DELIVERED
-                        if response.status_code < 400
-                        else DeliveryStatus.FAILED,
+                        status=(
+                            DeliveryStatus.DELIVERED
+                            if response.status_code < 400
+                            else DeliveryStatus.FAILED
+                        ),
                         http_status_code=response.status_code,
                         response_body=response.text[:1000],  # Store first 1000 chars
                         request_timestamp=datetime.now(),

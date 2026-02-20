@@ -194,9 +194,9 @@ def get_tenant_config(
             else template_pos.get("enable_batch_tracking", False)
         ),
         "pos_receipt_width_mm": int(pos_receipt_width) if pos_receipt_width is not None else None,
-        "pos_return_window_days": int(pos_return_window_days)
-        if pos_return_window_days is not None
-        else None,
+        "pos_return_window_days": (
+            int(pos_return_window_days) if pos_return_window_days is not None else None
+        ),
         "price_includes_tax": price_includes_tax,
         "tax_rate": default_tax_rate,
     }

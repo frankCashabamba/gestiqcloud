@@ -268,7 +268,7 @@ def preprocess_image(img) -> Any:
                 angle = -angle
 
             if abs(angle) > 0.5:  # Only rotate if angle significant
-                (h, w) = gray.shape[:2]
+                h, w = gray.shape[:2]
                 center = (w // 2, h // 2)
                 M = cv2.getRotationMatrix2D(center, angle, 1.0)
                 gray = cv2.warpAffine(

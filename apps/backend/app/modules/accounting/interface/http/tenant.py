@@ -406,18 +406,20 @@ async def get_pos_accounting_settings(
     return {
         "cash_account_id": str(cfg.cash_account_id),
         "bank_account_id": str(cfg.bank_account_id),
-        "sales_bakery_account_id": str(cfg.sales_bakery_account_id)
-        if cfg.sales_bakery_account_id
-        else None,
+        "sales_bakery_account_id": (
+            str(cfg.sales_bakery_account_id) if cfg.sales_bakery_account_id else None
+        ),
         "vat_output_account_id": str(cfg.vat_output_account_id),
         "loss_account_id": str(cfg.loss_account_id) if cfg.loss_account_id else None,
         "ap_account_id": str(cfg.ap_account_id) if getattr(cfg, "ap_account_id", None) else None,
-        "vat_input_account_id": str(cfg.vat_input_account_id)
-        if getattr(cfg, "vat_input_account_id", None)
-        else None,
-        "default_expense_account_id": str(cfg.default_expense_account_id)
-        if getattr(cfg, "default_expense_account_id", None)
-        else None,
+        "vat_input_account_id": (
+            str(cfg.vat_input_account_id) if getattr(cfg, "vat_input_account_id", None) else None
+        ),
+        "default_expense_account_id": (
+            str(cfg.default_expense_account_id)
+            if getattr(cfg, "default_expense_account_id", None)
+            else None
+        ),
     }
 
 
@@ -461,9 +463,9 @@ async def upsert_pos_accounting_settings(
         "loss_account_id": str(cfg.loss_account_id) if cfg.loss_account_id else None,
         "ap_account_id": str(cfg.ap_account_id) if cfg.ap_account_id else None,
         "vat_input_account_id": str(cfg.vat_input_account_id) if cfg.vat_input_account_id else None,
-        "default_expense_account_id": str(cfg.default_expense_account_id)
-        if cfg.default_expense_account_id
-        else None,
+        "default_expense_account_id": (
+            str(cfg.default_expense_account_id) if cfg.default_expense_account_id else None
+        ),
     }
 
 
