@@ -73,7 +73,7 @@ export default function ImportadosList() {
 
   useEffect(() => {
     load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [token, profile?.tenant_id])
 
   const onEditChange = (id: string, key: keyof Editable, value: string) => {
@@ -99,7 +99,7 @@ export default function ImportadosList() {
     setRowStatus(item.id, { saving: true })
     try {
       for (const [field, value] of Object.entries(pendingChanges)) {
-        // eslint-disable-next-line no-await-in-loop
+
         await patchItem(item.batch_id, item.id, field, value)
       }
       setMessage('Changes saved successfully')

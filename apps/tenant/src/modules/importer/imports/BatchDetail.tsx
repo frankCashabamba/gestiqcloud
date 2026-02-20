@@ -86,7 +86,7 @@ export default function BatchDetail() {
 
   useEffect(() => {
     load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [id, filters.status])
 
   async function onValidate() {

@@ -418,4 +418,6 @@ const ShiftManager = React.forwardRef<ShiftManagerHandle, ShiftManagerProps>(
     }
 )
 
+ShiftManager.displayName = 'ShiftManager'
+
 export default ShiftManager

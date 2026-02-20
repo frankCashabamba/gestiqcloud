@@ -623,7 +623,7 @@ export default function ImportadorPage() {
 
         for (const item of pendings) {
 
-            // eslint-disable-next-line no-await-in-loop
+
 
             await processItem(item)
 
@@ -751,7 +751,7 @@ export default function ImportadorPage() {
 
         for (const item of readyItems) {
 
-            // eslint-disable-next-line no-await-in-loop
+
 
             const ok = await saveItem(item)
 
@@ -1352,7 +1352,7 @@ export default function ImportadorPage() {
                         setMappingTargetId(null)
                         setMappingFile(null)
                         if (target) {
-                            // eslint-disable-next-line @typescript-eslint/no-floating-promises
+
                             processItem({ ...target, mappingId: saved.id })
                         }
                     }

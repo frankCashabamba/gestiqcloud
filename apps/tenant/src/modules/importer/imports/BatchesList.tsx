@@ -51,7 +51,7 @@ export default function BatchesList() {
 
   useEffect(() => {
     load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [status])
 
   const empty = !loading && rows.length === 0

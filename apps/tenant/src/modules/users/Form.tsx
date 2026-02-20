@@ -34,16 +34,6 @@ export default function UsuarioForm() {
     Boolean((profile as any)?.es_admin_empresa) ||
     Boolean((profile as any)?.is_company_admin) ||
     Boolean(profile?.roles?.includes('admin'))
-  if (loading) return null
-  if (!isAdmin) {
-    return (
-      <div className="p-6">
-        <h2 className="text-lg font-semibold text-slate-900">Access restricted</h2>
-        <p className="mt-2 text-sm text-slate-600">You do not have permission to manage users.</p>
-        <button className="gc-button gc-button--ghost mt-4" onClick={() => nav('..')}>Back</button>
-      </div>
-    )
-  }
   const [form, setForm] = useState<UsuarioCreatePayload>(emptyForm)
   const [editMode, setEditMode] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -59,6 +49,7 @@ export default function UsuarioForm() {
   }, [toast.error])
 
   useEffect(() => {
+    if (loading || !isAdmin) return
     let cancelled = false
     ;(async () => {
       try {
@@ -74,9 +65,10 @@ export default function UsuarioForm() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [loading, isAdmin])
 
   useEffect(() => {
+    if (loading || !isAdmin) return
     if (!id) return
     setBusy(true)
     let cancelled = false
@@ -109,7 +101,7 @@ export default function UsuarioForm() {
     return () => {
       cancelled = true
     }
-  }, [id])
+  }, [id, loading, isAdmin])
 
   const canEditModulos = useMemo(() => !form.is_company_admin, [form.is_company_admin])
 
@@ -165,6 +157,7 @@ export default function UsuarioForm() {
   }
 
   const handleUsernameBlur = async (event: React.FocusEvent<HTMLInputElement>) => {
+    if (loading || !isAdmin) return
     const value = event.target.value.trim()
     if (!value) return
     try {
@@ -178,6 +171,17 @@ export default function UsuarioForm() {
     } finally {
       setCheckingUsername(false)
     }
+  }
+
+  if (loading) return null
+  if (!isAdmin) {
+    return (
+      <div className="p-6">
+        <h2 className="text-lg font-semibold text-slate-900">Access restricted</h2>
+        <p className="mt-2 text-sm text-slate-600">You do not have permission to manage users.</p>
+        <button className="gc-button gc-button--ghost mt-4" onClick={() => nav('..')}>Back</button>
+      </div>
+    )
   }
 
   return (

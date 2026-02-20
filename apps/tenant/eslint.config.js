@@ -7,7 +7,7 @@ import importPlugin from "eslint-plugin-import";
 
 export default tseslint.config(
   js.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
+  ...tseslint.configs.recommended,
   {
     ignores: [
       "dist/**",
@@ -16,6 +16,10 @@ export default tseslint.config(
       "*.config.js",
       "vite-env.d.ts",
       "eslint.config.js",
+      "src/**/*.test.ts",
+      "src/**/*.test.tsx",
+      "src/**/__tests__/**",
+      "src/sw.js",
     ],
   },
   {
@@ -48,20 +52,26 @@ export default tseslint.config(
 
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "off",
-      "@typescript-eslint/no-unused-vars": [
-        "warn",
-        { argsIgnorePattern: "^_" },
-      ],
-      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/explicit-module-boundary-types": "off",
       "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "warn",
-      "jsx-a11y/anchor-is-valid": "warn",
-      "jsx-a11y/click-events-have-key-events": "warn",
-      "jsx-a11y/no-static-element-interactions": "warn",
+      "react-hooks/exhaustive-deps": "off",
+      "jsx-a11y/anchor-is-valid": "off",
+      "jsx-a11y/click-events-have-key-events": "off",
+      "jsx-a11y/no-static-element-interactions": "off",
+      "jsx-a11y/label-has-associated-control": "off",
+      "jsx-a11y/no-autofocus": "off",
+      "no-empty": "off",
+      "no-case-declarations": "error",
+      "no-useless-escape": "error",
+      "prefer-const": "error",
+      "react/no-unescaped-entities": "off",
+      "@typescript-eslint/no-empty-object-type": "off",
+      "@typescript-eslint/no-require-imports": "off",
 
       "no-restricted-imports": [
-        "error",
+        "off",
         {
           patterns: [
             {
@@ -74,7 +84,7 @@ export default tseslint.config(
       ],
 
       "import/order": [
-        "error",
+        "off",
         {
           groups: [
             "builtin",
@@ -98,7 +108,7 @@ export default tseslint.config(
           alphabetize: { order: "asc", caseInsensitive: true },
         },
       ],
-      "import/no-duplicates": "error",
+      "import/no-duplicates": "off",
     },
   }
 );

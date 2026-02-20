@@ -44,7 +44,7 @@ export default function EinvoiceStatus({ invoiceId, country, canSend = true, ena
   useEffect(() => {
     if (!enabled) return
     loadStatus()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [invoiceId, enabled])
 
   const handleSend = async () => {

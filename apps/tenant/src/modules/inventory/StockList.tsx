@@ -87,7 +87,7 @@ export default function StockList() {
     }
 
     const filtered = useMemo(() => {
-        let result = items.filter((item) => {
+        const result = items.filter((item) => {
             const matchesSearch =
                 (item.product?.name || '').toLowerCase().includes(q.toLowerCase()) ||
                 (item.product?.sku || '').toLowerCase().includes(q.toLowerCase())

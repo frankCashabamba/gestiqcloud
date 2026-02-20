@@ -221,20 +221,22 @@ export class BarcodeGenerator {
 export function validateBarcode(barcode: string, format: BarcodeFormat): boolean {
   try {
     switch (format) {
-      case 'EAN13':
+      case 'EAN13': {
         if (barcode.length !== 13 || !/^\d+$/.test(barcode)) return false
         const ean13Check = calculateEAN13Checksum(barcode.slice(0, 12))
         return barcode[12] === ean13Check
+      }
 
-      case 'EAN8':
+      case 'EAN8': {
         if (barcode.length !== 8 || !/^\d+$/.test(barcode)) return false
         const ean8Check = calculateEAN8Checksum(barcode.slice(0, 7))
         return barcode[7] === ean8Check
+      }
 
       case 'CODE128':
       case 'CODE39':
         // Validación básica de caracteres
-        return /^[A-Z0-9\-]+$/.test(barcode)
+        return /^[A-Z0-9-]+$/.test(barcode)
 
       default:
         return false

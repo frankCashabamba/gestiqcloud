@@ -94,7 +94,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         setLoading(false)
       }
     })()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [])
 
   useEffect(() => {
