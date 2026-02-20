@@ -49,11 +49,13 @@ def _fetch_all(db: Session, sql: str, params: dict[str, Any]) -> list[dict[str, 
 
 def _table_columns(db: Session, table_name: str) -> set[str]:
     rows = db.execute(
-        text("""
+        text(
+            """
             SELECT column_name
             FROM information_schema.columns
             WHERE table_schema = 'public' AND table_name = :table
-            """),
+            """
+        ),
         {"table": table_name},
     ).fetchall()
     return {str(r[0]).lower() for r in rows}
@@ -172,11 +174,13 @@ def create_invoice_draft(
     iva = float(payload.get("iva") or 0)
     total = float(payload.get("total") or (subtotal + iva))
     row = db.execute(
-        text("""
+        text(
+            """
             INSERT INTO facturas (numero, proveedor, fecha_emision, monto, estado, tenant_id, cliente_id, subtotal, iva, total)
             VALUES ('DRAFT', :prov, now()::date, :total, 'borrador', :emp, :cli, :sub, :iva, :tot)
             RETURNING id
-            """),
+            """
+        ),
         {
             "prov": proveedor,
             "emp": int(tenant_empresa_id),

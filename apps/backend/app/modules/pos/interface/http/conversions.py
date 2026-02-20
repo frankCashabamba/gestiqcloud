@@ -111,11 +111,13 @@ def create_invoice_from_pos_receipt(
     from sqlalchemy import text
 
     customer = db.execute(
-        text("""
+        text(
+            """
             SELECT id, name, identificacion, email
             FROM clients
             WHERE id = :cid AND tenant_id = :tid
-        """),
+        """
+        ),
         {"cid": customer_uuid, "tid": str(tenant_id)},
     ).first()
 
@@ -200,7 +202,8 @@ def get_invoice_from_receipt(receipt_id: str, request: Request, db: Session = De
 
     # Buscar recibo y su factura
     result = db.execute(
-        text("""
+        text(
+            """
             SELECT
                 r.id::text as receipt_id,
                 r.number as receipt_number,
@@ -210,7 +213,8 @@ def get_invoice_from_receipt(receipt_id: str, request: Request, db: Session = De
             FROM pos_receipts r
             LEFT JOIN invoices i ON i.id = r.invoice_id
             WHERE r.id = :rid AND r.tenant_id = :tid
-        """),
+        """
+        ),
         {"rid": receipt_uuid, "tid": str(tenant_id)},
     ).first()
 
@@ -252,12 +256,14 @@ def unlink_invoice_from_receipt(receipt_id: str, request: Request, db: Session =
 
     # Verificar estado de la factura
     result = db.execute(
-        text("""
+        text(
+            """
             SELECT i.estado
             FROM pos_receipts r
             JOIN invoices i ON i.id = r.invoice_id
             WHERE r.id = :rid AND r.tenant_id = :tid
-        """),
+        """
+        ),
         {"rid": receipt_uuid, "tid": str(tenant_id)},
     ).first()
 
@@ -272,11 +278,13 @@ def unlink_invoice_from_receipt(receipt_id: str, request: Request, db: Session =
 
     # Desvincular
     db.execute(
-        text("""
+        text(
+            """
             UPDATE pos_receipts
             SET invoice_id = NULL, status = 'paid'
             WHERE id = :rid AND tenant_id = :tid
-        """),
+        """
+        ),
         {"rid": receipt_uuid, "tid": str(tenant_id)},
     )
 

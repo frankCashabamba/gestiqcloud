@@ -19,20 +19,24 @@ def sign_and_send(invoice_id: int, tenant_id: str | None = None) -> dict:
         db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_id)})
         # Insert PENDING submission if not exists
         db.execute(
-            text("""
+            text(
+                """
                 INSERT INTO sri_submissions(tenant_id, invoice_id, status)
                 VALUES (:tid, :iid, 'PENDING')
                 ON CONFLICT DO NOTHING
-                """),
+                """
+            ),
             {"tid": str(tenant_id), "iid": invoice_id},
         )
         # Simulate success
         db.execute(
-            text("""
+            text(
+                """
                 UPDATE sri_submissions
                    SET status='AUTHORIZED', authorization_number = gen_random_uuid()::text
                  WHERE invoice_id=:iid AND tenant_id=:tid
-                """),
+                """
+            ),
             {"iid": invoice_id, "tid": str(tenant_id)},
         )
         db.commit()
@@ -49,11 +53,13 @@ def build_and_send_sii(period: str, tenant_id: str | None = None) -> dict:
     with SessionLocal() as db:
         db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_id)})
         res = db.execute(
-            text("""
+            text(
+                """
                 INSERT INTO sii_batches(tenant_id, period, status)
                 VALUES (:tid, :p, 'PENDING')
                 RETURNING id
-                """),
+                """
+            ),
             {"tid": str(tenant_id), "p": period},
         )
         batch_id = res.scalar()
@@ -120,13 +126,15 @@ def scheduled_retry() -> dict:
     with SessionLocal() as db:
         db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_id)})
         sri_rows = db.execute(
-            text("""
+            text(
+                """
                 SELECT DISTINCT invoice_id
                 FROM sri_submissions
                 WHERE status IN ('ERROR','REJECTED')
                 ORDER BY updated_at DESC
                 LIMIT :lim
-                """).bindparams(lim=max_items)
+                """
+            ).bindparams(lim=max_items)
         ).fetchall()
 
     for r in sri_rows:

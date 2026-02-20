@@ -49,7 +49,8 @@ def _collect_fk_tables(
     db: Session, referenced_table: str, schema: str = "public"
 ) -> list[tuple[str, str]]:
     rows = db.execute(
-        text("""
+        text(
+            """
             SELECT kcu.table_name, kcu.column_name
             FROM information_schema.table_constraints tc
             JOIN information_schema.key_column_usage kcu
@@ -61,7 +62,8 @@ def _collect_fk_tables(
             WHERE tc.constraint_type = 'FOREIGN KEY'
               AND ccu.table_name = :ref_table
               AND tc.table_schema = :schema
-            """),
+            """
+        ),
         {"ref_table": referenced_table, "schema": schema},
     ).all()
     return [(row[0], row[1]) for row in rows]
@@ -178,7 +180,8 @@ def admin_list_pos_backfill_candidates(
             pass
 
     tenant_currency_row = db.execute(
-        text("""
+        text(
+            """
             SELECT COALESCE(
                 NULLIF(UPPER(TRIM(cs.currency)), ''),
                 NULLIF(UPPER(TRIM(cur.code)), '')
@@ -187,7 +190,8 @@ def admin_list_pos_backfill_candidates(
             LEFT JOIN currencies cur ON cur.id = cs.currency_id
             WHERE cs.tenant_id = :tid
             LIMIT 1
-            """).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+            """
+        ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
         {"tid": tenant_uuid},
     ).first()
     tenant_currency: str | None = None
@@ -214,7 +218,8 @@ def admin_list_pos_backfill_candidates(
         where_parts.append("(r.invoice_id IS NULL OR so.id IS NULL)")
 
     rows = db.execute(
-        text(f"""
+        text(
+            f"""
             SELECT
               r.id,
               r.number,
@@ -231,7 +236,8 @@ def admin_list_pos_backfill_candidates(
             WHERE {" AND ".join(where_parts)}
             ORDER BY r.paid_at DESC NULLS LAST, r.created_at DESC
             LIMIT :limit OFFSET :offset
-            """).bindparams(
+            """
+        ).bindparams(
             bindparam("tid", type_=PGUUID(as_uuid=True)),
         ),
         params,
@@ -316,13 +322,15 @@ def admin_backfill_pos_receipt_documents(
             pass
 
     receipt = db.execute(
-        text("""
+        text(
+            """
             SELECT status
             FROM pos_receipts
             WHERE id = :id
               AND tenant_id = :tid
             FOR UPDATE
-            """).bindparams(
+            """
+        ).bindparams(
             bindparam("id", type_=PGUUID(as_uuid=True)),
             bindparam("tid", type_=PGUUID(as_uuid=True)),
         ),

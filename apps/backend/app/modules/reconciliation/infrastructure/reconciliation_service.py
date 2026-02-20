@@ -45,11 +45,13 @@ class ReconciliationService:
         try:
             # Get invoice
             invoice = self.db.execute(
-                text("""
+                text(
+                    """
                     SELECT id, numero, total, estado, metadata
                     FROM invoices
                     WHERE id = :invoice_id AND tenant_id = :tenant_id
-                """),
+                """
+                ),
                 {"invoice_id": str(invoice_id), "tenant_id": str(tenant_id)},
             ).first()
 
@@ -63,11 +65,13 @@ class ReconciliationService:
 
             # Check if already paid
             existing_payment = self.db.execute(
-                text("""
+                text(
+                    """
                     SELECT id, amount FROM payments
                     WHERE invoice_id = :invoice_id AND status = 'confirmed'
                     ORDER BY created_at DESC LIMIT 1
-                """),
+                """
+                ),
                 {"invoice_id": str(invoice_id)},
             ).first()
 
@@ -81,7 +85,8 @@ class ReconciliationService:
 
             # Record payment
             payment_id = self.db.execute(
-                text("""
+                text(
+                    """
                     INSERT INTO payments (
                         id, invoice_id, tenant_id, amount, payment_date,
                         payment_reference, payment_method, status, created_at
@@ -90,7 +95,8 @@ class ReconciliationService:
                         :payment_reference, :payment_method, 'pending', NOW()
                     )
                     RETURNING id
-                """),
+                """
+                ),
                 {
                     "id": str(UUID()),
                     "invoice_id": str(invoice_id),
@@ -117,21 +123,25 @@ class ReconciliationService:
 
             # Update payment status
             self.db.execute(
-                text("""
+                text(
+                    """
                     UPDATE payments
                     SET status = :status, confirmed_at = NOW()
                     WHERE id = :payment_id
-                """),
+                """
+                ),
                 {"status": payment_status, "payment_id": str(payment_id)},
             )
 
             # Update invoice status
             self.db.execute(
-                text("""
+                text(
+                    """
                     UPDATE invoices
                     SET estado = :status, updated_at = NOW()
                     WHERE id = :invoice_id
-                """),
+                """
+                ),
                 {"status": invoice_payment_status, "invoice_id": str(invoice_id)},
             )
 
@@ -161,7 +171,8 @@ class ReconciliationService:
         """Get current reconciliation status for an invoice"""
         try:
             result = self.db.execute(
-                text("""
+                text(
+                    """
                     SELECT
                         inv.numero,
                         inv.total,
@@ -172,7 +183,8 @@ class ReconciliationService:
                     LEFT JOIN payments p ON inv.id = p.invoice_id
                     WHERE inv.id = :invoice_id AND inv.tenant_id = :tenant_id
                     GROUP BY inv.id, inv.numero, inv.total, inv.estado
-                """),
+                """
+                ),
                 {"invoice_id": str(invoice_id), "tenant_id": str(tenant_id)},
             ).first()
 
@@ -233,12 +245,14 @@ class ReconciliationService:
 
                 # Try to match by reference first
                 matched = self.db.execute(
-                    text("""
+                    text(
+                        """
                         SELECT id, numero, total FROM invoices
                         WHERE tenant_id = :tenant_id
                         AND (numero = :reference OR metadata::jsonb->>'reference' = :reference)
                         LIMIT 1
-                    """),
+                    """
+                    ),
                     {"tenant_id": str(tenant_id), "reference": reference},
                 ).first()
 
@@ -268,7 +282,8 @@ class ReconciliationService:
         """Get all invoices pending reconciliation"""
         try:
             pending = self.db.execute(
-                text("""
+                text(
+                    """
                     SELECT
                         inv.id,
                         inv.numero,
@@ -283,7 +298,8 @@ class ReconciliationService:
                     GROUP BY inv.id
                     HAVING COALESCE(SUM(p.amount), 0) < inv.total
                     ORDER BY inv.fecha_emision ASC
-                """),
+                """
+                ),
                 {"tenant_id": str(tenant_id)},
             ).fetchall()
 

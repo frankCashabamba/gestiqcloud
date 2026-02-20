@@ -207,7 +207,8 @@ def log_conflict_resolution(
         conflict_data_json = json.dumps(original_conflict, default=str)
 
         db.execute(
-            text("""
+            text(
+                """
                 INSERT INTO sync_conflict_log (
                     tenant_id, entity_type, entity_id,
                     conflict_data, resolution
@@ -215,7 +216,8 @@ def log_conflict_resolution(
                     :tenant_id, :entity_type, :entity_id,
                     :conflict_data::jsonb, :resolution
                 )
-                """),
+                """
+            ),
             {
                 "tenant_id": tenant_id,
                 "entity_type": original_conflict.get("table"),

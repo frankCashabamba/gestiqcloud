@@ -252,19 +252,23 @@ def apply_sector_template(
                 for category_name in config.defaults.categories:
                     # Verificar si ya existe
                     exists = db.execute(
-                        text("""
+                        text(
+                            """
                             SELECT id FROM categories
                             WHERE tenant_id = :tid AND name = :name
-                        """),
+                        """
+                        ),
                         {"tid": tenant_id, "name": category_name},
                     ).scalar()
 
                     if not exists:
                         db.execute(
-                            text("""
+                            text(
+                                """
                                 INSERT INTO categories (tenant_id, name, created_at)
                                 VALUES (:tenant_id, :name, NOW())
-                            """),
+                            """
+                            ),
                             {"tenant_id": tenant_id, "name": category_name},
                         )
                         result["categories_created"].append(category_name)

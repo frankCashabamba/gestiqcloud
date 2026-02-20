@@ -34,7 +34,8 @@ class CRMService:
 
     def _resolve_tenant_currency(self, tenant_id: UUID) -> str:
         row = self.db.execute(
-            text("""
+            text(
+                """
                 SELECT COALESCE(
                     NULLIF(UPPER(TRIM(cs.currency)), ''),
                     NULLIF(UPPER(TRIM(cur.code)), '')
@@ -43,7 +44,8 @@ class CRMService:
                 LEFT JOIN currencies cur ON cur.id = cs.currency_id
                 WHERE cs.tenant_id = :tid
                 LIMIT 1
-                """).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+                """
+            ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
             {"tid": tenant_id},
         ).first()
         if row:

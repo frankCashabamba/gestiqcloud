@@ -54,14 +54,16 @@ class PaymentLinkResponse(BaseModel):
 def get_provider_config(provider: str, tenant_id: str, db: Session) -> dict[str, Any]:
     """Get provider configuration from DB"""
 
-    query = text("""
+    query = text(
+        """
         SELECT config
         FROM payment_providers
         WHERE tenant_id = :tenant_id
           AND provider = :provider
           AND active = true
         LIMIT 1
-    """)
+    """
+    )
 
     result = db.execute(query, {"tenant_id": tenant_id, "provider": provider}).first()
 
@@ -97,7 +99,8 @@ def get_provider_config(provider: str, tenant_id: str, db: Session) -> dict[str,
 def get_invoice_data(invoice_id: UUID, db: Session) -> dict[str, Any]:
     """Get invoice data"""
 
-    query = text("""
+    query = text(
+        """
         SELECT
             i.id, i.numero, i.total, i.estado,
             c.name as customer_name,
@@ -105,7 +108,8 @@ def get_invoice_data(invoice_id: UUID, db: Session) -> dict[str, Any]:
         FROM invoices i
         LEFT JOIN clientes c ON c.id = i.cliente_id
         WHERE i.id = :invoice_id
-    """)
+    """
+    )
 
     result = db.execute(query, {"invoice_id": str(invoice_id)}).first()
 
@@ -147,7 +151,8 @@ def create_payment_link(
     provider = get_provider(data.provider, config)
 
     tenant_currency = db.execute(
-        text("""
+        text(
+            """
             SELECT COALESCE(
                 NULLIF(UPPER(TRIM(cs.currency)), ''),
                 NULLIF(UPPER(TRIM(cur.code)), '')
@@ -156,7 +161,8 @@ def create_payment_link(
             LEFT JOIN currencies cur ON cur.id = cs.currency_id
             WHERE cs.tenant_id = :tid
             LIMIT 1
-            """).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+            """
+        ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
         {"tid": tenant_id},
     ).scalar()
     payment_currency = tenant_currency or "USD"
@@ -179,7 +185,8 @@ def create_payment_link(
             },
         )
 
-        insert_query = text("""
+        insert_query = text(
+            """
             INSERT INTO payment_links (
                 id, tenant_id, invoice_id, provider,
                 session_id, payment_url, status, created_by
@@ -188,7 +195,8 @@ def create_payment_link(
                 gen_random_uuid(), :tenant_id, :invoice_id, :provider,
                 :session_id, :payment_url, 'pending', :created_by
             )
-        """)
+        """
+        )
 
         db.execute(
             insert_query,
@@ -243,21 +251,25 @@ async def handle_webhook(provider: str, request: Request, db: Session = Depends(
             invoice_id = result.get("invoice_id")
 
             if invoice_id:
-                update_query = text("""
+                update_query = text(
+                    """
                     UPDATE invoices
                     SET estado = 'paid'
                     WHERE id = :invoice_id
                       AND estado != 'paid'
-                """)
+                """
+                )
 
                 db.execute(update_query, {"invoice_id": invoice_id})
 
-                update_link = text("""
+                update_link = text(
+                    """
                     UPDATE payment_links
                     SET status = 'completed', completed_at = NOW()
                     WHERE invoice_id = :invoice_id
                       AND status = 'pending'
-                """)
+                """
+                )
 
                 db.execute(update_link, {"invoice_id": invoice_id})
 
@@ -291,13 +303,15 @@ async def handle_webhook(provider: str, request: Request, db: Session = Depends(
             invoice_id = result.get("invoice_id")
 
             if invoice_id:
-                update_link = text("""
+                update_link = text(
+                    """
                     UPDATE payment_links
                     SET status = 'failed',
                         error_message = :error
                     WHERE invoice_id = :invoice_id
                       AND status = 'pending'
-                """)
+                """
+                )
 
                 db.execute(
                     update_link,
@@ -351,7 +365,8 @@ def get_payment_status(
 ):
     """Get payment status"""
 
-    query = text("""
+    query = text(
+        """
         SELECT
             pl.id, pl.provider, pl.status, pl.payment_url,
             pl.created_at, pl.completed_at, pl.error_message,
@@ -362,7 +377,8 @@ def get_payment_status(
           AND pl.tenant_id = :tenant_id
         ORDER BY pl.created_at DESC
         LIMIT 1
-    """)
+    """
+    )
 
     result = db.execute(query, {"invoice_id": str(invoice_id), "tenant_id": tenant_id}).first()
 
@@ -392,14 +408,16 @@ def refund_payment(
 ):
     """Refund payment"""
 
-    query = text("""
+    query = text(
+        """
         SELECT pl.provider, pl.session_id, i.total
         FROM payment_links pl
         JOIN invoices i ON i.id = pl.invoice_id
         WHERE pl.session_id = :payment_id
           AND pl.tenant_id = :tenant_id
           AND pl.status = 'completed'
-    """)
+    """
+    )
 
     payment = db.execute(query, {"payment_id": payment_id, "tenant_id": tenant_id}).first()
 
@@ -414,7 +432,8 @@ def refund_payment(
 
         result = provider.refund(payment_id, refund_amount)
 
-        insert_refund = text("""
+        insert_refund = text(
+            """
             INSERT INTO payment_refunds (
                 id, payment_link_id, amount, status,
                 refund_id, created_by
@@ -428,7 +447,8 @@ def refund_payment(
                 :created_by
             FROM payment_links pl
             WHERE pl.session_id = :payment_id
-        """)
+        """
+        )
 
         db.execute(
             insert_refund,

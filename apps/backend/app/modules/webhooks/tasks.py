@@ -64,13 +64,15 @@ def deliver(self, delivery_id: str) -> dict:
     with SessionLocal() as db:
         # Fetch delivery record
         delivery_row = db.execute(
-            text("""
+            text(
+                """
                 SELECT
                     id::text, event, payload, target_url, secret, status, attempts, tenant_id::text
                 FROM webhook_deliveries
                 WHERE id = CAST(:id AS uuid)
                 LIMIT 1
-                """),
+                """
+            ),
             {"id": delivery_id},
         ).first()
 

@@ -750,7 +750,8 @@ def _ensure_sqlite_stub_tables(engine):
     if str(engine.url).startswith("sqlite"):
         with engine.connect() as conn:
             conn.execute(
-                text("""
+                text(
+                    """
                     CREATE TABLE IF NOT EXISTS bank_accounts (
                         id INTEGER PRIMARY KEY,
                         tenant_id TEXT,
@@ -759,10 +760,12 @@ def _ensure_sqlite_stub_tables(engine):
                         currency TEXT,
                         balance REAL
                     )
-                    """)
+                    """
+                )
             )
             conn.execute(
-                text("""
+                text(
+                    """
                     CREATE TABLE IF NOT EXISTS bank_transactions (
                         id INTEGER PRIMARY KEY,
                         tenant_id TEXT,
@@ -771,10 +774,12 @@ def _ensure_sqlite_stub_tables(engine):
                         transaction_date TEXT,
                         description TEXT
                     )
-                    """)
+                    """
+                )
             )
             conn.execute(
-                text("""
+                text(
+                    """
                     CREATE TABLE IF NOT EXISTS modulos_modulo (
                         id TEXT PRIMARY KEY,
                         name TEXT,
@@ -788,10 +793,12 @@ def _ensure_sqlite_stub_tables(engine):
                         filtros_contexto TEXT,
                         categoria TEXT
                     )
-                    """)
+                    """
+                )
             )
             conn.execute(
-                text("""
+                text(
+                    """
                     CREATE TABLE IF NOT EXISTS modulos_empresamodulo (
                         id TEXT PRIMARY KEY,
                         tenant_id TEXT,
@@ -801,10 +808,12 @@ def _ensure_sqlite_stub_tables(engine):
                         fecha_expiracion TEXT,
                         plantilla_inicial TEXT
                     )
-                    """)
+                    """
+                )
             )
             conn.execute(
-                text("""
+                text(
+                    """
                     CREATE TABLE IF NOT EXISTS modulos_moduloasignado (
                         id TEXT PRIMARY KEY,
                         tenant_id TEXT,
@@ -813,10 +822,12 @@ def _ensure_sqlite_stub_tables(engine):
                         fecha_asignacion TEXT,
                         ver_modulo_auto BOOLEAN
                     )
-                    """)
+                    """
+                )
             )
             conn.execute(
-                text("""
+                text(
+                    """
                     CREATE TABLE IF NOT EXISTS core_rolempresa (
                         id TEXT PRIMARY KEY,
                         tenant_id TEXT,
@@ -826,10 +837,12 @@ def _ensure_sqlite_stub_tables(engine):
                         rol_base_id TEXT,
                         creado_por_empresa BOOLEAN
                     )
-                    """)
+                    """
+                )
             )
             conn.execute(
-                text("""
+                text(
+                    """
                     CREATE TABLE IF NOT EXISTS pos_shifts (
                         id TEXT PRIMARY KEY,
                         register_id TEXT,
@@ -840,10 +853,12 @@ def _ensure_sqlite_stub_tables(engine):
                         closing_total REAL,
                         status TEXT
                     )
-                    """)
+                    """
+                )
             )
             conn.execute(
-                text("""
+                text(
+                    """
                     CREATE TABLE IF NOT EXISTS pos_receipt_lines (
                         id TEXT PRIMARY KEY,
                         receipt_id TEXT,
@@ -860,7 +875,8 @@ def _ensure_sqlite_stub_tables(engine):
                         gross_profit REAL,
                         gross_margin_pct REAL
                     )
-                    """)
+                    """
+                )
             )
             conn.commit()
 

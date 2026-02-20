@@ -74,11 +74,13 @@ class DocumentConverter:
 
         # Verificar si ya tiene factura
         existing_invoice = self.db.execute(
-            text("""
+            text(
+                """
                 SELECT id FROM invoices
                 WHERE metadata::jsonb->>'sales_order_id' = :order_id
                 AND tenant_id = :tid
-            """),
+            """
+            ),
             {"order_id": str(sales_order_id), "tid": str(tenant_id)},
         ).first()
 
@@ -365,12 +367,14 @@ class DocumentConverter:
 
                 # Get payments
                 payments = self.db.execute(
-                    text("""
+                    text(
+                        """
                         SELECT id, amount, payment_date, payment_method, status
                         FROM payments
                         WHERE invoice_id = :invoice_id
                         ORDER BY payment_date DESC
-                    """),
+                    """
+                    ),
                     {"invoice_id": str(invoice.id)},
                 ).fetchall()
 
@@ -400,12 +404,14 @@ class DocumentConverter:
 
                 # Check if has invoice
                 invoice = self.db.execute(
-                    text("""
+                    text(
+                        """
                         SELECT id, numero, estado, fecha_emision
                         FROM invoices
                         WHERE metadata::jsonb->>'sales_order_id' = :order_id
                         LIMIT 1
-                    """),
+                    """
+                    ),
                     {"order_id": str(order.id)},
                 ).first()
 

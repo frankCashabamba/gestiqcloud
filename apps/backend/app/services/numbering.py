@@ -43,7 +43,8 @@ def assign_doc_number(
     # Transacción anidada para locks
     with db.begin_nested():
         # Buscar serie activa con lock FOR UPDATE
-        query = text("""
+        query = text(
+            """
             SELECT id, name, current_no, reset_policy
             FROM doc_series
             WHERE tenant_id = :tenant_id
@@ -55,7 +56,8 @@ def assign_doc_number(
               created_at DESC
             LIMIT 1
             FOR UPDATE
-        """)
+        """
+        )
 
         result = db.execute(
             query,
@@ -77,12 +79,14 @@ def assign_doc_number(
         # Verificar si reset anual
         if reset_policy == "yearly":
             # Buscar último número del año
-            check_query = text("""
+            check_query = text(
+                """
                 SELECT MAX(CAST(SPLIT_PART(numero, '-', 2) AS INTEGER)) as last_no
                 FROM invoices
                 WHERE series = :series_id
                   AND EXTRACT(YEAR FROM fecha) = :year
-            """)
+            """
+            )
             last_no_result = db.execute(check_query, {"series_id": series_id, "year": year}).first()
 
             if last_no_result and last_no_result[0]:
@@ -93,11 +97,13 @@ def assign_doc_number(
             next_no = current_no + 1
 
         # Actualizar contador
-        update_query = text("""
+        update_query = text(
+            """
             UPDATE doc_series
             SET current_no = :next_no
             WHERE id = :series_id
-        """)
+        """
+        )
         db.execute(update_query, {"next_no": next_no, "series_id": series_id})
 
         # Formatear número: SERIE-NNNN
@@ -142,13 +148,15 @@ def create_default_series(db: Session, tenant_id: str, register_id: UUID | None 
 
     for series_data in default_series:
         # Verificar si ya existe para este tenant/doc_type/registro
-        check_query = text("""
+        check_query = text(
+            """
             SELECT id FROM doc_series
             WHERE tenant_id = :tenant_id
               AND doc_type = :doc_type
               AND (:register_id IS NULL OR register_id = CAST(:register_id AS uuid) OR register_id IS NULL)
               AND name = :name
-        """)
+        """
+        )
 
         exists = db.execute(
             check_query,
@@ -164,14 +172,16 @@ def create_default_series(db: Session, tenant_id: str, register_id: UUID | None 
             import uuid
 
             series_id = uuid.uuid4()
-            insert_query = text("""
+            insert_query = text(
+                """
                 INSERT INTO doc_series (
                     id, tenant_id, register_id, doc_type, name, current_no, reset_policy, active, created_at
                 )
                 VALUES (
                     :id, :tenant_id, CAST(:register_id AS uuid), :doc_type, :name, 0, 'yearly', true, NOW()
                 )
-            """)
+            """
+            )
 
             db.execute(
                 insert_query,
@@ -202,7 +212,8 @@ def validate_receipt_number_unique(
     Returns:
         bool: True si es único, False si ya existe
     """
-    query = text("""
+    query = text(
+        """
         SELECT EXISTS(
             SELECT 1 FROM pos_receipts
             WHERE tenant_id = :tenant_id
@@ -210,7 +221,8 @@ def validate_receipt_number_unique(
               AND shift_id = :shift_id
               AND number = :number
         )
-    """)
+    """
+    )
 
     result = db.execute(
         query,

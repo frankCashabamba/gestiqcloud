@@ -63,7 +63,8 @@ def _log_started(
         # Ensure table exists when running inline (dev environments may not have applied Alembic yet)
         try:
             db.execute(
-                sql_text("""
+                sql_text(
+                    """
                     CREATE EXTENSION IF NOT EXISTS "pgcrypto";
                     CREATE TABLE IF NOT EXISTS public.admin_migration_runs (
                       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -78,7 +79,8 @@ def _log_started(
                       triggered_by text
                     );
                     CREATE INDEX IF NOT EXISTS ix_admin_migration_runs_started ON public.admin_migration_runs (started_at DESC);
-                    """)
+                    """
+                )
             )
             try:
                 db.commit()
@@ -91,11 +93,13 @@ def _log_started(
             except Exception:
                 pass
         res = db.execute(
-            sql_text("""
+            sql_text(
+                """
                 INSERT INTO public.admin_migration_runs (mode, job_id, pending_count, revisions, triggered_by)
                 VALUES (:mode, :job_id, :pending_count, COALESCE(:revisions::jsonb, '[]'::jsonb), :triggered_by)
                 RETURNING id
-                """),
+                """
+            ),
             {
                 "mode": mode,
                 "job_id": job_id,
@@ -121,11 +125,13 @@ def _log_finished(
         if db is None or not run_id:
             return
         db.execute(
-            sql_text("""
+            sql_text(
+                """
                 UPDATE public.admin_migration_runs
                 SET finished_at = now(), ok = :ok, error = :error
                 WHERE id = :id
-                """),
+                """
+            ),
             {"id": run_id, "ok": ok, "error": error},
         )
         try:
@@ -400,12 +406,14 @@ def migrate_status_details(db: Session = Depends(get_db)):
     last_run = None
     try:
         res = db.execute(
-            sql_text("""
+            sql_text(
+                """
                 SELECT id::text, started_at, finished_at, mode, ok, error, job_id
                 FROM public.admin_migration_runs
                 ORDER BY started_at DESC
                 LIMIT 1
-                """)
+                """
+            )
         ).first()
         if res:
             last_run = {
@@ -461,12 +469,14 @@ def migrate_status():
 def migrate_history(limit: int = 20, db: Session = Depends(get_db)):
     try:
         res = db.execute(
-            sql_text("""
+            sql_text(
+                """
                 SELECT id, started_at, finished_at, mode, ok, error, job_id, pending_count, revisions, triggered_by
                 FROM public.admin_migration_runs
                 ORDER BY started_at DESC
                 LIMIT :limit
-                """),
+                """
+            ),
             {"limit": max(1, min(200, int(limit or 20)))},
         )
         rows = [dict(zip(list(res.keys()), r, strict=False)) for r in res.fetchall()]

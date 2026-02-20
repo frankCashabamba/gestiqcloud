@@ -67,14 +67,16 @@ class POSInvoicingService:
             return self._enabled_slugs
 
         rows = self.db.execute(
-            text("""
+            text(
+                """
                 SELECT m.url, m.name
                 FROM company_modules cm
                 JOIN modules m ON m.id = cm.module_id
                 WHERE cm.tenant_id = :tid
                   AND cm.active = TRUE
                   AND m.active = TRUE
-                """).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+                """
+            ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
             {"tid": self.tenant_id},
         ).fetchall()
 
@@ -108,7 +110,8 @@ class POSInvoicingService:
         """
         try:
             row = self.db.execute(
-                text("""
+                text(
+                    """
                     SELECT id
                     FROM clients
                     WHERE tenant_id = :tid
@@ -117,7 +120,8 @@ class POSInvoicingService:
                         OR tax_id IN ('9999999999','9999999999999','0000000000')
                       )
                     LIMIT 1
-                    """).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+                    """
+                ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
                 {"tid": self.tenant_id},
             ).first()
             if row and row[0]:
@@ -129,10 +133,12 @@ class POSInvoicingService:
         try:
             new_id = uuid4()
             self.db.execute(
-                text("""
+                text(
+                    """
                     INSERT INTO clients (id, name, tax_id, tenant_id)
                     VALUES (:id, :name, :tax_id, :tid)
-                    """).bindparams(
+                    """
+                ).bindparams(
                     bindparam("id", type_=PGUUID(as_uuid=True)),
                     bindparam("tid", type_=PGUUID(as_uuid=True)),
                 ),
@@ -170,13 +176,15 @@ class POSInvoicingService:
             savepoint = self.db.begin_nested()
 
             receipt = self.db.execute(
-                text("""
+                text(
+                    """
                     SELECT id, customer_id, number, status, gross_total, tax_total, created_at, invoice_id
                     FROM pos_receipts
                     WHERE id = :rid
                       AND tenant_id = :tid
                     FOR UPDATE
-                    """).bindparams(
+                    """
+                ).bindparams(
                     bindparam("rid", type_=PGUUID(as_uuid=True)),
                     bindparam("tid", type_=PGUUID(as_uuid=True)),
                 ),
@@ -259,7 +267,8 @@ class POSInvoicingService:
             # Schema: id, number, supplier, issue_date, amount, status, created_at, tenant_id,
             #         customer_id, subtotal, vat, total
             self.db.execute(
-                text("""
+                text(
+                    """
                     INSERT INTO invoices (
                         id, tenant_id, customer_id,
                         number, supplier, issue_date,
@@ -271,7 +280,8 @@ class POSInvoicingService:
                         :amount, :status, :created_at,
                         :subtotal, :vat, :total
                     )
-                    """).bindparams(
+                    """
+                ).bindparams(
                     bindparam("id", type_=PGUUID(as_uuid=True)),
                     bindparam("tenant_id", type_=PGUUID(as_uuid=True)),
                     bindparam("customer_id", type_=PGUUID(as_uuid=True)),
@@ -294,12 +304,14 @@ class POSInvoicingService:
 
             # Link receipt to invoice
             self.db.execute(
-                text("""
+                text(
+                    """
                     UPDATE pos_receipts
                     SET invoice_id = :invoice_id
                     WHERE id = :receipt_id
                       AND tenant_id = :tid
-                    """).bindparams(
+                    """
+                ).bindparams(
                     bindparam("invoice_id", type_=PGUUID(as_uuid=True)),
                     bindparam("receipt_id", type_=PGUUID(as_uuid=True)),
                     bindparam("tid", type_=PGUUID(as_uuid=True)),
@@ -308,12 +320,14 @@ class POSInvoicingService:
             )
 
             lines = self.db.execute(
-                text("""
+                text(
+                    """
                     SELECT rl.id, rl.product_id, rl.qty, rl.unit_price, rl.tax_rate, rl.discount_pct, p.name
                     FROM pos_receipt_lines rl
                     LEFT JOIN products p ON p.id = rl.product_id
                     WHERE rl.receipt_id = :rid
-                    """).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
+                    """
+                ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
                 {"rid": receipt_uuid},
             ).fetchall()
 
@@ -337,7 +351,8 @@ class POSInvoicingService:
 
                 line_id = uuid4()
                 self.db.execute(
-                    text("""
+                    text(
+                        """
                         INSERT INTO invoice_lines (
                             id, invoice_id, sector, description,
                             quantity, unit_price, vat
@@ -345,7 +360,8 @@ class POSInvoicingService:
                             :id, :invoice_id, :sector, :description,
                             :quantity, :unit_price, :vat
                         )
-                    """).bindparams(
+                    """
+                    ).bindparams(
                         bindparam("id", type_=PGUUID(as_uuid=True)),
                         bindparam("invoice_id", type_=PGUUID(as_uuid=True)),
                     ),
@@ -361,10 +377,12 @@ class POSInvoicingService:
                 )
                 # Insert subclass row for POS polymorphic identity
                 self.db.execute(
-                    text("""
+                    text(
+                        """
                         INSERT INTO pos_invoice_lines (id, pos_receipt_line_id)
                         VALUES (:id, :receipt_line_id)
-                        """).bindparams(
+                        """
+                    ).bindparams(
                         bindparam("id", type_=PGUUID(as_uuid=True)),
                         bindparam("receipt_line_id", type_=PGUUID(as_uuid=True)),
                     ),
@@ -430,13 +448,15 @@ class POSInvoicingService:
             # Note: SQLAlchemy session may already be in a transaction.
             # The savepoint pattern allows nested transaction semantics.
             receipt = self.db.execute(
-                text("""
+                text(
+                    """
                     SELECT id, customer_id, number, status, gross_total, tax_total, created_at
                     FROM pos_receipts
                     WHERE id = :rid
                       AND tenant_id = :tid
                     FOR UPDATE
-                    """).bindparams(
+                    """
+                ).bindparams(
                     bindparam("rid", type_=PGUUID(as_uuid=True)),
                     bindparam("tid", type_=PGUUID(as_uuid=True)),
                 ),
@@ -469,12 +489,14 @@ class POSInvoicingService:
                 return None
 
             existing = self.db.execute(
-                text("""
+                text(
+                    """
                     SELECT id, number, total, status
                     FROM sales_orders
                     WHERE tenant_id = :tid AND pos_receipt_id = :rid
                     LIMIT 1
-                    """).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+                    """
+                ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
                 {"tid": self.tenant_id, "rid": receipt_uuid},
             ).first()
             if existing:
@@ -488,7 +510,8 @@ class POSInvoicingService:
 
             # Fetch tenant currency from operational settings (company_settings / currencies)
             tenant_currency = self.db.execute(
-                text("""
+                text(
+                    """
                     SELECT COALESCE(
                         NULLIF(UPPER(TRIM(cs.currency)), ''),
                         NULLIF(UPPER(TRIM(cur.code)), '')
@@ -497,7 +520,8 @@ class POSInvoicingService:
                     LEFT JOIN company_settings cs ON cs.tenant_id = t.id
                     LEFT JOIN currencies cur ON cur.id = cs.currency_id
                     WHERE t.id = :tid
-                    """).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+                    """
+                ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
                 {"tid": self.tenant_id},
             ).scalar()
 
@@ -521,7 +545,8 @@ class POSInvoicingService:
             notes = f"POS receipt {receipt_number}"
 
             self.db.execute(
-                text("""
+                text(
+                    """
                     INSERT INTO sales_orders (
                         id, tenant_id, number, customer_id, pos_receipt_id,
                         order_date, subtotal, tax, total, currency,
@@ -531,7 +556,8 @@ class POSInvoicingService:
                         :order_date, :subtotal, :tax, :total, :currency,
                         :status, :notes, now(), now()
                     )
-                    """).bindparams(
+                    """
+                ).bindparams(
                     bindparam("id", type_=PGUUID(as_uuid=True)),
                     bindparam("tenant_id", type_=PGUUID(as_uuid=True)),
                     bindparam("customer_id", type_=PGUUID(as_uuid=True)),
@@ -554,11 +580,13 @@ class POSInvoicingService:
             )
 
             lines = self.db.execute(
-                text("""
+                text(
+                    """
                     SELECT product_id, qty, unit_price, tax_rate, discount_pct
                     FROM pos_receipt_lines
                     WHERE receipt_id = :rid
-                    """).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
+                    """
+                ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
                 {"rid": receipt_uuid},
             ).fetchall()
 
@@ -568,7 +596,8 @@ class POSInvoicingService:
                 disc = Decimal(str(discount_pct or 0)) / Decimal("100")
                 base = (q * up * (Decimal("1") - disc)).quantize(Decimal("0.01"))
                 self.db.execute(
-                    text("""
+                    text(
+                        """
                         INSERT INTO sales_order_items (
                             id, sales_order_id, product_id, quantity, unit_price,
                             tax_rate, discount_percent, line_total, created_at
@@ -576,7 +605,8 @@ class POSInvoicingService:
                             :id, :order_id, :product_id, :qty, :unit_price,
                             :tax_rate, :discount_percent, :line_total, now()
                         )
-                        """).bindparams(
+                        """
+                    ).bindparams(
                         bindparam("id", type_=PGUUID(as_uuid=True)),
                         bindparam("order_id", type_=PGUUID(as_uuid=True)),
                         bindparam("product_id", type_=PGUUID(as_uuid=True)),
@@ -651,11 +681,13 @@ class POSInvoicingService:
             receipt_uuid, receipt_number, cashier_id = receipt
 
             refund_total = self.db.execute(
-                text("""
+                text(
+                    """
                     SELECT COALESCE(SUM(ABS(line_total)), 0)
                     FROM pos_receipt_lines
                     WHERE receipt_id = :rid AND qty < 0
-                    """).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
+                    """
+                ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
                 {"rid": receipt_uuid},
             ).scalar()
 
@@ -672,7 +704,8 @@ class POSInvoicingService:
                 pm = payment_method
 
             self.db.execute(
-                text("""
+                text(
+                    """
                     INSERT INTO expenses (
                         id, tenant_id, date, concept, category,
                         amount, vat, total, supplier_id,
@@ -682,7 +715,8 @@ class POSInvoicingService:
                         :amount, :vat, :total, :supplier_id,
                         :payment_method, :invoice_number, :status, :user_id, :notes, :created_at
                     )
-                    """).bindparams(
+                    """
+                ).bindparams(
                     bindparam("id", type_=PGUUID(as_uuid=True)),
                     bindparam("tenant_id", type_=PGUUID(as_uuid=True)),
                     bindparam("supplier_id", type_=PGUUID(as_uuid=True)),
