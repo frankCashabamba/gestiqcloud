@@ -76,5 +76,21 @@
     "packsHelp": "Define equivalencias por presentación para cálculos posteriores.",
     "minByPackPlaceholder": "Formato: caja=1, bulto=1",
     "minByPackHelp": "Si vendes por presentación, aplica estos mínimos."
+  },
+  "mergeDuplicates": {
+    "open": "Unificar similares",
+    "title": "Unificar productos similares",
+    "subtitle": "Selecciona qu? producto conservar y cu?les fusionar.",
+    "empty": "No se encontraron nombres similares para unificar.",
+    "groupTitle": "Grupo {{number}}",
+    "keep": "Conservar",
+    "merge": "Fusionar",
+    "mergeNow": "Unificar ({{count}})",
+    "pickAtLeastOne": "Selecciona al menos un producto para fusionar.",
+    "mergeOk": "Se unificaron {{count}} productos.",
+    "matchModeLabel": "Nivel de coincidencia",
+    "modeStrict": "Solo casi exactos",
+    "modeBalanced": "Balanceado",
+    "modeWide": "Mas amplio"
   }
 }

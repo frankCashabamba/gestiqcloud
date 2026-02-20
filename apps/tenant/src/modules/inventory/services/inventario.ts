@@ -47,7 +47,9 @@ export async function updateReorderPoint(productId: string, stockMinimo: number)
 }
 
 export async function listStockAlerts(): Promise<StockAlert[]> {
-  const { data } = await tenantApi.get<any[]>(`/api/v1/notifications/alerts`, { params: { estado: 'active', limit: 100 } })
+  const { data } = await tenantApi.get<any[]>(`/api/v1/incidents/stock-alerts`, {
+    params: { status: 'active', limit: 100 },
+  })
   return (data || []).map((a: any) => ({
     id: String(a.id),
     producto_id: String(a.product_id),
@@ -62,14 +64,14 @@ export async function listStockAlerts(): Promise<StockAlert[]> {
 }
 
 export async function resolveAlert(alertId: string): Promise<void> {
-  await tenantApi.post(`/api/v1/notifications/alerts/${alertId}/resolve`)
+  await tenantApi.post(`/api/v1/incidents/stock-alerts/${alertId}/resolve`)
 }
 
 export async function configureNotificationChannel(
   tipo: NotificationChannel,
   config: { enabled: boolean; config: any }
 ): Promise<void> {
-  await tenantApi.post(`/api/v1/notifications/channels`, {
+  await tenantApi.post(`/api/v1/incidents/notifications/channels`, {
     tipo,
     name: tipo.toUpperCase(),
     description: `Canal ${tipo}`,
@@ -84,12 +86,12 @@ export async function configureNotificationChannel(
 export async function testNotification(tipo: NotificationChannel, details?: any): Promise<void> {
   const destinatario = tipo === 'email' ? details?.email : tipo === 'whatsapp' ? details?.phone : details?.chat_id
   if (!destinatario) throw new Error('Falta destinatario de prueba')
-  await tenantApi.post(`/api/v1/notifications/send`, {
-    tipo,
-    destinatario,
-    asunto: 'Prueba de Notificación',
-    mensaje: '<b>Prueba</b> desde GestiQCloud',
-    config_override: details || {},
-    ref_type: 'stock_alert',
+  await tenantApi.post(`/api/v1/tenant/notifications/send`, {
+    channel: tipo,
+    recipient: destinatario,
+    subject: 'Prueba de Notificacion',
+    body: '<b>Prueba</b> desde GestiQCloud',
+    metadata: details || {},
+    priority: 'normal',
   })
 }

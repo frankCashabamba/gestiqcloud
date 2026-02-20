@@ -51,20 +51,24 @@ let dbInitialized = false
  */
 async function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1)
+    const request = indexedDB.open(DB_NAME, 2)
 
     request.onerror = () => reject(request.error)
     request.onsuccess = () => resolve(request.result)
 
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result
-      // Create stores if they don't exist
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'key' })
+      // v2 migration: use key-value stores without inline keyPath so idb-keyval
+      // can pass explicit keys safely.
+      if (db.objectStoreNames.contains(STORE_NAME)) {
+        db.deleteObjectStore(STORE_NAME)
       }
-      if (!db.objectStoreNames.contains(METADATA_STORE)) {
-        db.createObjectStore(METADATA_STORE, { keyPath: 'key' })
+      db.createObjectStore(STORE_NAME)
+
+      if (db.objectStoreNames.contains(METADATA_STORE)) {
+        db.deleteObjectStore(METADATA_STORE)
       }
+      db.createObjectStore(METADATA_STORE)
     }
   })
 }

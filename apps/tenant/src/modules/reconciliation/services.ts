@@ -47,7 +47,7 @@ export interface StatementImportPayload {
   }[]
 }
 
-const BASE = '/reconciliation'
+const BASE = '/api/v1/tenant/reconciliation'
 
 export async function listStatements(): Promise<{ items: BankStatement[]; total: number }> {
   return api.get(`${BASE}/statements`).then(r => r.data)

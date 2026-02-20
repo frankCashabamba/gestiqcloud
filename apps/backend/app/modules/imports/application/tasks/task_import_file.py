@@ -6,6 +6,7 @@ import os
 import re
 import unicodedata
 from datetime import datetime
+from difflib import SequenceMatcher
 from typing import Any
 
 from celery import states
@@ -21,6 +22,7 @@ from decimal import Decimal
 from app.config.database import session_scope
 from app.db.rls import set_tenant_guc
 from app.models.core.modelsimport import ImportBatch, ImportItem
+from app.models.core.product_category import ProductCategory
 from app.models.core.products import Product
 from app.models.recipes import Recipe, RecipeIngredient
 from app.modules.imports.application.sku_utils import sanitize_sku
@@ -108,8 +110,17 @@ def _parse_month_name_date(s: str) -> date | None:
     return None
 
 
+def _json_safe(value: Any):
+    """Recursively convert values to JSON-safe primitives."""
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(v) for v in value]
+    return _to_serializable(value)
+
+
 def _dedupe_hash(obj: dict[str, Any]) -> str:
-    s = json.dumps(obj, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    s = json.dumps(_json_safe(obj), sort_keys=True, ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(s).hexdigest()
 
 
@@ -127,6 +138,10 @@ def _file_path_from_key(file_key: str) -> str:
 def _to_serializable(val):
     """Convert values to JSON-serializable primitives."""
     try:
+        if isinstance(val, dict):
+            return {str(k): _to_serializable(v) for k, v in val.items()}
+        if isinstance(val, (list, tuple, set)):
+            return [_to_serializable(v) for v in val]
         if isinstance(val, datetime | date | time):
             return val.isoformat()
         if isinstance(val, Decimal):
@@ -434,6 +449,8 @@ def _normalize_doc_type(doc_type: str | None) -> str:
         return "expenses"
     if doc in ("product", "products", "productos"):
         return "products"
+    if doc in ("recipe", "recipes", "receta", "recetas"):
+        return "recipes"
     return doc
 
 
@@ -863,9 +880,59 @@ def _build_canonical_from_item(
         }
 
 
+def _normalize_product_name(value: str | None) -> str:
+    if not value:
+        return ""
+    txt = unicodedata.normalize("NFKD", str(value))
+    txt = "".join(ch for ch in txt if not unicodedata.combining(ch))
+    txt = txt.lower().strip()
+    txt = re.sub(r"[^a-z0-9\s]+", " ", txt)
+    txt = re.sub(r"\s+", " ", txt).strip()
+    return txt
+
+
+def _normalize_product_tokens(value: str | None) -> list[str]:
+    base = _normalize_product_name(value)
+    if not base:
+        return []
+    out: list[str] = []
+    for tok in base.split(" "):
+        if len(tok) > 3 and tok.endswith("s"):
+            out.append(tok[:-1])
+        else:
+            out.append(tok)
+    return out
+
+
+def _is_similar_product_name(left: str | None, right: str | None) -> bool:
+    a_tokens = _normalize_product_tokens(left)
+    b_tokens = _normalize_product_tokens(right)
+    if not a_tokens or not b_tokens:
+        return False
+    a = " ".join(a_tokens)
+    b = " ".join(b_tokens)
+    if a == b:
+        return True
+    if a in b or b in a:
+        min_len = min(len(a), len(b))
+        max_len = max(len(a), len(b))
+        if min_len >= 4 and (min_len / max_len) >= 0.6:
+            return True
+    if SequenceMatcher(None, a, b).ratio() >= 0.88:
+        return True
+    a_set = set(a_tokens)
+    b_set = set(b_tokens)
+    overlap = len(a_set.intersection(b_set))
+    return overlap > 0 and (overlap / max(min(len(a_set), len(b_set)), 1)) >= 0.75
+
+
 def _find_product_by_name(db, tenant_id: str, name: str) -> Product | None:
+    target = _normalize_product_name(name)
+    if not target:
+        return None
     try:
-        return (
+        # Fast path: case-insensitive exact match.
+        by_name_ci = (
             db.query(Product)
             .filter(
                 Product.tenant_id == tenant_id,
@@ -873,8 +940,51 @@ def _find_product_by_name(db, tenant_id: str, name: str) -> Product | None:
             )
             .first()
         )
+        if by_name_ci:
+            return by_name_ci
+
+        # Fuzzy fallback to avoid creating near-duplicates.
+        probe = target.split(" ")[0]
+        query = db.query(Product).filter(Product.tenant_id == tenant_id)
+        if probe:
+            query = query.filter(Product.name.ilike(f"%{probe}%"))
+        candidates = query.limit(2000).all()
+        for cand in candidates:
+            if _normalize_product_name(cand.name) == target:
+                return cand
+            if _is_similar_product_name(cand.name, name):
+                return cand
     except Exception:
         return None
+    return None
+
+
+def _resolve_or_create_category_id(
+    db, tenant_id: str, category_name: str | None
+):
+    if not category_name or str(category_name).strip() == "":
+        return None
+
+    normalized = str(category_name).strip()
+    existing = (
+        db.query(ProductCategory)
+        .filter(
+            ProductCategory.tenant_id == tenant_id,
+            ProductCategory.name == normalized,
+        )
+        .first()
+    )
+    if existing:
+        return existing.id
+
+    created = ProductCategory(
+        tenant_id=tenant_id,
+        name=normalized,
+        description=None,
+    )
+    db.add(created)
+    db.flush()
+    return created.id
 
 
 def _get_or_create_product(
@@ -892,12 +1002,15 @@ def _get_or_create_product(
     existing = _find_product_by_name(db, tenant_id, normalized)
     if existing:
         return existing, False
+    category_id = _resolve_or_create_category_id(db, tenant_id, category)
     product = Product(
         tenant_id=tenant_id,
         name=normalized,
         description=description,
-        category=category,
+        category_id=category_id,
         active=True,
+        price=0.0,
+        stock=0.0,
         unit="unit",
     )
     db.add(product)
@@ -1010,6 +1123,39 @@ def _persist_recipes(db, tenant_id: str, parsed_result: dict[str, Any]) -> dict[
     }
 
 
+def _build_recipe_preview_items(parsed_result: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build recipe preview rows without persisting into production tables."""
+    recipes_data = parsed_result.get("recipes", []) or []
+    ingredients_rows = parsed_result.get("rows", []) or []
+    materials_rows = parsed_result.get("materials", []) or []
+    preview_items: list[dict[str, Any]] = []
+
+    for recipe in recipes_data:
+        name = recipe.get("name")
+        if not name:
+            continue
+        recipe_ingredients = [r for r in ingredients_rows if r.get("recipe_name") == name]
+        recipe_materials = [r for r in materials_rows if r.get("recipe_name") == name]
+        normalized = {
+            "name": name,
+            "nombre": name,
+            "recipe_type": recipe.get("recipe_type"),
+            "classification": recipe.get("classification"),
+            "portions": recipe.get("portions") or 1,
+            "total_ingredients_cost": recipe.get("total_ingredients_cost") or 0,
+            "ingredients_count": len(recipe_ingredients),
+            "materials_count": len(recipe_materials),
+            "doc_type": "recipes",
+        }
+        raw = {
+            "recipe": recipe,
+            "ingredients": recipe_ingredients,
+            "materials": recipe_materials,
+        }
+        preview_items.append({"raw": raw, "normalized": normalized})
+    return preview_items
+
+
 @celery_app.task(name="imports.import_file", bind=True)
 def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id: str):
     """Generic file import task using registered parsers.
@@ -1071,15 +1217,29 @@ def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id
                 )
                 if inferred_doc != "generic":
                     doc_type = inferred_doc
-            batch.source_type = batch.source_type or doc_type
+            current_source_type = _normalize_doc_type(getattr(batch, "source_type", None))
+            if doc_type and doc_type != "generic" and current_source_type in ("generic", "unknown"):
+                batch.source_type = doc_type
+            elif not batch.source_type:
+                batch.source_type = doc_type
 
-            # Special handling for recipes: persist to Recipe/RecipeIngredient
+            # Special handling for recipes: create preview items only.
+            # Actual persistence to recipes tables happens on explicit promote.
             if doc_type == "recipes":
-                persisted = _persist_recipes(db, tenant_id, parsed_result)
-                batch.status = "READY" if persisted["errors"] == 0 else "PARTIAL"
+                items_data = _build_recipe_preview_items(parsed_result)
+                created_preview = len(items_data)
+                batch.status = "READY" if created_preview > 0 else "EMPTY"
                 db.add(batch)
                 db.commit()
-                return {"ok": True, **persisted, "doc_type": doc_type, "parser_id": parser_id}
+                return {
+                    "ok": True,
+                    "processed": created_preview,
+                    "created": created_preview,
+                    "validated": created_preview,
+                    "failed": 0,
+                    "doc_type": doc_type,
+                    "parser_id": parser_id,
+                }
 
             # Optional column mapping (ImportColumnMapping)
             mapping_cfg = None
@@ -1278,7 +1438,17 @@ def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id
             }
 
         except Exception as e:
-            batch.status = "ERROR"
-            db.add(batch)
-            db.commit()
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            try:
+                batch.status = "ERROR"
+                db.add(batch)
+                db.commit()
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
             raise RuntimeError(str(e)) from e

@@ -1,8 +1,15 @@
-import React from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { usePanaderiaKPIs } from '../hooks/useDashboardKPIs'
 import { useMisModulos } from '../hooks/useMisModulos'
 import DashboardPro from './components/DashboardPro'
+import { listRecipes, type Recipe } from '../services/api/recetas'
+import {
+  createProductionOrder,
+  startProductionOrder,
+  completeProductionOrder,
+} from '../modules/productions/services'
+import { listWarehouses } from '../modules/inventory/services'
 import './dashboard_pro.css'
 
 interface KPIData {
@@ -55,6 +62,15 @@ const PanaderiaDashboard: React.FC = () => {
   const produccion = kpis.produccion || {}
   const ingredientes = kpis.ingredientes_caducar || {}
   const topProductos = kpis.top_productos || []
+  const [quickOpen, setQuickOpen] = useState(false)
+  const [quickLoading, setQuickLoading] = useState(false)
+  const [quickSaving, setQuickSaving] = useState(false)
+  const [quickError, setQuickError] = useState<string | null>(null)
+  const [quickSuccess, setQuickSuccess] = useState<string | null>(null)
+  const [recipes, setRecipes] = useState<Recipe[]>([])
+  const [selectedRecipeId, setSelectedRecipeId] = useState('')
+  const [qtyMode, setQtyMode] = useState<'same' | 'other'>('same')
+  const [otherQty, setOtherQty] = useState<string>('')
 
   const isModuleEnabled = (moduleName: string) => {
     return modules.some(
@@ -63,13 +79,103 @@ const PanaderiaDashboard: React.FC = () => {
         (m.name || '').toLowerCase().includes(moduleName.toLowerCase())
     )
   }
+  const isProductionEnabled = () =>
+    modules.some((m) => {
+      const slug = (m.slug || '').toLowerCase()
+      const name = (m.name || '').toLowerCase()
+      return (
+        slug === 'produccion' ||
+        slug === 'production' ||
+        slug === 'productions' ||
+        slug === 'manufacturing' ||
+        name.includes('produccion') ||
+        name.includes('production') ||
+        name.includes('manufacturing')
+      )
+    })
 
   const prefix = empresa ? `/${empresa}` : ''
   const customLinks = [
-    isModuleEnabled('produccion') && { label: 'Recipes', href: `${prefix}/produccion/recetas`, icon: 'R' },
+    isProductionEnabled() && { label: 'Recipes', href: `${prefix}/produccion/recetas`, icon: 'R' },
     isModuleEnabled('inventario') && { label: 'Inventory', href: `${prefix}/inventory`, icon: 'I' },
     isModuleEnabled('compras') && { label: 'Purchasing', href: `${prefix}/purchases`, icon: 'P' },
   ].filter(Boolean) as Array<{ label: string; href: string; icon: string }>
+
+  useEffect(() => {
+    if (!quickOpen) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        setQuickLoading(true)
+        setQuickError(null)
+        const data = await listRecipes({ limit: 500, activo: true })
+        if (cancelled) return
+        const list = Array.isArray(data) ? data : []
+        setRecipes(list)
+        if (!selectedRecipeId && list.length > 0) {
+          setSelectedRecipeId(list[0].id)
+          setOtherQty(String(Number(list[0].yield_qty || 1)))
+        }
+      } catch (e: any) {
+        if (!cancelled) setQuickError(e?.message || 'Could not load recipes')
+      } finally {
+        if (!cancelled) setQuickLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [quickOpen])
+
+  const selectedRecipe = useMemo(
+    () => recipes.find((r) => r.id === selectedRecipeId) || null,
+    [recipes, selectedRecipeId]
+  )
+
+  const effectiveQty = useMemo(() => {
+    if (!selectedRecipe) return 0
+    if (qtyMode === 'same') return Number(selectedRecipe.yield_qty || 0)
+    return Number(otherQty || 0)
+  }, [selectedRecipe, qtyMode, otherQty])
+
+  const handleQuickProduction = async () => {
+    if (!selectedRecipe) {
+      setQuickError('Select a recipe')
+      return
+    }
+    if (!effectiveQty || effectiveQty <= 0) {
+      setQuickError('Quantity must be greater than 0')
+      return
+    }
+
+    try {
+      setQuickSaving(true)
+      setQuickError(null)
+      setQuickSuccess(null)
+
+      const whs = await listWarehouses().catch(() => [])
+      const wh = Array.isArray(whs) ? (whs.find((w) => w.is_active) || whs[0]) : null
+
+      const order = await createProductionOrder({
+        recipe_id: selectedRecipe.id,
+        product_id: selectedRecipe.product_id,
+        warehouse_id: wh ? String(wh.id) : undefined,
+        qty_planned: effectiveQty,
+        scheduled_date: new Date().toISOString(),
+        status: 'draft',
+      } as any)
+
+      await startProductionOrder(order.id)
+      await completeProductionOrder(order.id, { qty_produced: effectiveQty, waste_qty: 0 })
+
+      setQuickSuccess(`Production completed. Inventory updated with qty ${effectiveQty}.`)
+      setQuickOpen(false)
+    } catch (e: any) {
+      setQuickError(e?.message || 'Quick production failed')
+    } finally {
+      setQuickSaving(false)
+    }
+  }
 
   return (
     <DashboardPro sectorName="Bakery ERP" sectorIcon="B" customLinks={customLinks}>
@@ -110,10 +216,25 @@ const PanaderiaDashboard: React.FC = () => {
                 Open POS
               </a>
             )}
-            {isModuleEnabled('produccion') && <a className="link" href={`${prefix}/produccion/recetas`}>Recipes</a>}
+            {isProductionEnabled() && (
+              <button
+                type="button"
+                className="link"
+                onClick={() => {
+                  setQuickSuccess(null)
+                  setQuickError(null)
+                  setQuickOpen(true)
+                }}
+              >
+                New production
+              </button>
+            )}
+            {isProductionEnabled() && <a className="link" href={`${prefix}/produccion/recetas`}>Recipes</a>}
             {isModuleEnabled('ventas') && <a className="link" href={`${prefix}/sales`}>Sales</a>}
             {isModuleEnabled('clientes') && <a className="link" href={`${prefix}/clients`}>Customers</a>}
           </div>
+          {quickSuccess && <p className="text-sm mt-2" style={{ color: '#166534' }}>{quickSuccess}</p>}
+          {quickError && <p className="text-sm mt-2" style={{ color: '#b91c1c' }}>{quickError}</p>}
         </section>
 
         {isModuleEnabled('ventas') && (
@@ -169,7 +290,7 @@ const PanaderiaDashboard: React.FC = () => {
           </section>
         )}
 
-        {isModuleEnabled('produccion') && (
+        {isProductionEnabled() && (
           <section className="card col-4">
             <h3>Production batches</h3>
             <div className="progress-stat">
@@ -265,6 +386,112 @@ const PanaderiaDashboard: React.FC = () => {
           </div>
         </section>
       </div>
+
+      {quickOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 3000,
+            padding: 16,
+          }}
+          onClick={() => !quickSaving && setQuickOpen(false)}
+        >
+          <div
+            className="card"
+            style={{ width: '100%', maxWidth: 520 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Quick production</h3>
+            {quickLoading ? (
+              <p>Loading recipes...</p>
+            ) : (
+              <>
+                <label style={{ display: 'block', fontSize: 14, marginBottom: 6 }}>Recipe</label>
+                <select
+                  style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #d1d5db', marginBottom: 12 }}
+                  value={selectedRecipeId}
+                  onChange={(e) => {
+                    const rid = e.target.value
+                    setSelectedRecipeId(rid)
+                    const rec = recipes.find((r) => r.id === rid)
+                    if (rec) setOtherQty(String(Number(rec.yield_qty || 1)))
+                  }}
+                  disabled={quickSaving}
+                >
+                  {recipes.length === 0 && <option value="">No recipes</option>}
+                  {recipes.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+
+                <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                  <label style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      type="radio"
+                      checked={qtyMode === 'same'}
+                      onChange={() => setQtyMode('same')}
+                      disabled={quickSaving}
+                    />
+                    Same recipe quantity ({selectedRecipe?.yield_qty || 0})
+                  </label>
+                  <label style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      type="radio"
+                      checked={qtyMode === 'other'}
+                      onChange={() => setQtyMode('other')}
+                      disabled={quickSaving}
+                    />
+                    Other quantity
+                  </label>
+                </div>
+
+                {qtyMode === 'other' && (
+                  <input
+                    type="number"
+                    min={0.01}
+                    step={0.01}
+                    value={otherQty}
+                    onChange={(e) => setOtherQty(e.target.value)}
+                    disabled={quickSaving}
+                    style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #d1d5db', marginBottom: 12 }}
+                  />
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 13, color: '#4b5563' }}>
+                    Final qty: <strong>{effectiveQty || 0}</strong>
+                  </span>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      className="action-btn"
+                      onClick={() => setQuickOpen(false)}
+                      disabled={quickSaving}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="action-btn action-btn--primary"
+                      onClick={handleQuickProduction}
+                      disabled={quickSaving || !effectiveQty || effectiveQty <= 0}
+                    >
+                      {quickSaving ? 'Processing...' : 'Produce now'}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </DashboardPro>
   )
 }

@@ -855,7 +855,8 @@
     },
     "messages": {
       "promoteSuccess": "Lote promovido correctamente (creados: {{created}}, omitidos: {{skipped}}, fallidos: {{failed}})",
-      "promoteRecipesSuccess": "Recetas promovidas correctamente (creadas: {{created}}, omitidas: {{skipped}}, fallidas: {{failed}})"
+      "promoteRecipesSuccess": "Recetas promovidas correctamente (creadas: {{created}}, omitidas: {{skipped}}, fallidas: {{failed}})",
+      "duplicatesSkipped": "Se omitieron {{count}} registro(s) porque ya existen o son duplicados."
     },
     "confirm": {
       "promoteProducts": "¿Promover este lote a produccion? Esto creara/actualizara productos en el sistema.",

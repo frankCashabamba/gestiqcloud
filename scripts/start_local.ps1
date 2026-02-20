@@ -110,6 +110,35 @@ function Wait-Port {
     return $false
 }
 
+function Stop-ListenersOnPort {
+    param([int]$Port)
+    try {
+        $lines = netstat -ano | Select-String -Pattern "^\s*TCP\s+.*:$Port\s+.*LISTENING\s+(\d+)\s*$"
+        if (-not $lines) { return }
+        $pids = @()
+        foreach ($line in $lines) {
+            $parts = ($line.ToString() -split "\s+") | Where-Object { $_ -and $_.Trim() -ne "" }
+            if ($parts.Count -ge 5) {
+                $pid = $parts[-1]
+                if ($pid -match "^\d+$" -and $pid -ne "0") {
+                    $pids += [int]$pid
+                }
+            }
+        }
+        $pids = $pids | Sort-Object -Unique
+        foreach ($pid in $pids) {
+            try {
+                Stop-Process -Id $pid -Force -ErrorAction Stop
+                Write-Host "Proceso PID=$pid detenido en puerto $Port" -ForegroundColor Yellow
+            } catch {
+                Write-Host "No se pudo detener PID=$pid en puerto $Port (quizá sin permisos)." -ForegroundColor DarkYellow
+            }
+        }
+    } catch {
+        Write-Host "No se pudo inspeccionar puerto $Port" -ForegroundColor DarkYellow
+    }
+}
+
 $adminEnvVars = @{
     "VITE_API_URL"       = $apiUrl
     "VITE_ADMIN_ORIGIN"  = $frontendUrl
@@ -128,6 +157,15 @@ $backendEnvVars = @{
     "CELERY_RESULT_EXPIRES" = "3600"
     "CELERY_IGNORE_RESULT"  = "false"
     "ENV_FILE"              = $rootEnvPath
+    # Permite header usado para confirmación destructiva desde el Admin (CORS preflight).
+    "CORS_ALLOW_HEADERS"    = '["Authorization","Content-Type","X-CSRF-Token","X-CSRFToken","X-CSRF","X-Client-Version","X-Client-Revision","X-Confirm-Delete-Tenant"]'
+}
+
+$cleanupPorts = Read-Host "¿Cerrar procesos previos en puertos 8000/$adminPort/$tenantPort antes de iniciar? (S/n)"
+if (-not $cleanupPorts -or $cleanupPorts.Trim().ToLower() -in @("s", "si", "sí", "y", "yes")) {
+    Stop-ListenersOnPort -Port 8000
+    Stop-ListenersOnPort -Port $adminPort
+    Stop-ListenersOnPort -Port $tenantPort
 }
 
 Write-Host "[4/7] Aplicando migraciones..." -ForegroundColor Yellow
@@ -210,3 +248,13 @@ Write-Host "Tips: Usa 'Get-Job' y 'Receive-Job -Name backend|admin|tenant -Keep'
 Write-Host "Para detener: Stop-Job -Name backend,admin,tenant; Remove-Job -Name backend,admin,tenant" -ForegroundColor DarkGray
 Write-Host "Redis (opcional): docker stop redis; docker rm redis" -ForegroundColor DarkGray
 Write-Host "`nLos servicios quedan ejecutandose en segundo plano en esta sesion." -ForegroundColor Green
+
+$showBackendTail = Read-Host "¿Ver backend.log en vivo ahora? (S/n)"
+if (-not $showBackendTail -or $showBackendTail.Trim().ToLower() -in @("s", "si", "sí", "y", "yes")) {
+    if (Test-Path $backendLog) {
+        Write-Host "`nMostrando backend.log en vivo. Presiona Ctrl+C para salir del seguimiento (los jobs siguen activos)." -ForegroundColor Cyan
+        Get-Content $backendLog -Tail 80 -Wait
+    } else {
+        Write-Host "No se encontró backend.log en: $backendLog" -ForegroundColor Yellow
+    }
+}

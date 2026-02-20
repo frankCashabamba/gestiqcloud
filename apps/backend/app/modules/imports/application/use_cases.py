@@ -1009,6 +1009,14 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
             )
 
             if res.skipped:
+                if getattr(res, "domain_id", None):
+                    it.promoted_to = (
+                        "expenses" if batch.source_type == "invoices" else batch.source_type
+                    )
+                    it.promoted_id = _to_uuid(res.domain_id)
+                    it.promoted_at = datetime.utcnow()
+                    it.status = ImportItemStatus.PROMOTED
+                    db.add(it)
                 skipped += 1
                 continue
             # Defensive: some handlers were returning domain_id=None on errors. That must not
@@ -1063,6 +1071,20 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
             ]
             db.add(it)
             failed += 1
+
+    # Batch-level status after promotion attempt.
+    promotable_total = sum(1 for it in items if it.status in (ImportItemStatus.OK, ImportItemStatus.PROMOTED))
+    if failed > 0:
+        batch.status = ImportBatchStatus.PARTIAL if (created + skipped) > 0 else ImportBatchStatus.ERROR
+    else:
+        if promotable_total > 0 and (created + skipped) > 0:
+            batch.status = ImportBatchStatus.PROMOTED
+        elif created == 0 and skipped == 0:
+            # Nothing promoted and nothing skipped: keep ready state (e.g. all non-OK items)
+            batch.status = ImportBatchStatus.READY
+        else:
+            batch.status = ImportBatchStatus.PROMOTED
+    db.add(batch)
 
     # Flush pending changes to catch any remaining errors before final commit
     try:

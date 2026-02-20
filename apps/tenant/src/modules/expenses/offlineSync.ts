@@ -18,20 +18,20 @@ export const ExpensesAdapter: SyncAdapter = {
 
   async create(data: any): Promise<any> {
     const payload = stripOfflineMeta(data || {})
-    const response = await tenantApi.post<any>(TENANT_EXPENSES.base, payload, { headers: { 'X-Offline-Managed': '1' } })
+    const response = await tenantApi.post<any>(TENANT_EXPENSES.base, payload)
     if (isOfflineQueuedResponse(response)) throw new Error('Expense still queued')
     return response.data
   },
 
   async update(id: string, data: any): Promise<any> {
     const payload = stripOfflineMeta(data || {})
-    const response = await tenantApi.put<any>(TENANT_EXPENSES.byId(id), payload, { headers: { 'X-Offline-Managed': '1' } })
+    const response = await tenantApi.put<any>(TENANT_EXPENSES.byId(id), payload)
     if (isOfflineQueuedResponse(response)) throw new Error('Expense still queued')
     return response.data
   },
 
   async delete(id: string): Promise<void> {
-    const response = await tenantApi.delete(TENANT_EXPENSES.byId(id), { headers: { 'X-Offline-Managed': '1' } })
+    const response = await tenantApi.delete(TENANT_EXPENSES.byId(id))
     if (isOfflineQueuedResponse(response)) throw new Error('Expense deletion still queued')
   },
 

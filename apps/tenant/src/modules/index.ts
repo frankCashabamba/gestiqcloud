@@ -1,15 +1,15 @@
 // MÓDULOS GESTIQCLOUD - Sistema completo
 import { manifest as pos } from './pos/manifest'
-import { manifest as produccion } from './produccion/manifest'
+import { manifest as productions } from './productions/manifest'
 import { inventarioManifest } from './inventory/manifest'
 import { manifest as sales } from './sales/manifest'
 import { manifest as purchases } from './purchases/manifest'
 import { manifest as suppliers } from './suppliers/manifest'
 import { manifest as expenses } from './expenses/manifest'
-import { manifest as usuarios } from './users/manifest'
+import { manifest as users } from './users/manifest'
 import { productosManifest } from './products/manifest'
 import { crmManifest } from './crm/manifest'
-import { manifest as reportes } from './reportes/manifest'
+import { manifest as reports } from './reports/manifest'
 import { manifest as copilot } from './copilot/manifest'
 import { manifest as templates } from './templates/manifest'
 import { manifest as webhooks } from './webhooks/manifest'
@@ -21,14 +21,14 @@ export const MODULES = [
   productosManifest,   // 0 - Productos
   inventarioManifest,  // 1 - Inventario
   pos,                 // 2 - Punto de Venta
-  produccion,          // 3 - Recetas y Costos
+  productions,         // 3 - Recetas y Costos
   sales,               // 4 - Ventas y Reportes
   purchases,           // 5 - Compras de Insumos
   suppliers,           // 6 - Proveedores
   expenses,            // 7 - Gastos Diarios
-  usuarios,            // 8 - Usuarios
+  users,               // 8 - Usuarios
   crmManifest,         // 9 - CRM
-  reportes,            // 10 - Reportes
+  reports,             // 10 - Reportes
   copilot,             // 11 - Copilot
   templates,           // 12 - Templates
   webhooks,            // 13 - Webhooks

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.middleware.tenant import ensure_tenant
 from app.models.company.company_settings import CompanySettings
+from app.models.core.module import CompanyModule, Module
 from app.modules.settings.application.modules_catalog import (
     AVAILABLE_MODULES,
     get_available_modules,
@@ -209,6 +210,19 @@ def list_modules(
     base = settings.settings if settings and isinstance(settings.settings, dict) else {}
     enabled_modules = set(base.get("enabled_modules", []) if isinstance(base, dict) else [])
 
+    # Fallback: when company_settings has not been synchronized yet, derive enabled
+    # modules from real tenant assignments (company_modules -> modules).
+    if not enabled_modules:
+        assigned_names = (
+            db.query(Module.name)
+            .join(CompanyModule, CompanyModule.module_id == Module.id)
+            .filter(CompanyModule.tenant_id == UUID(tenant_id), CompanyModule.active == True)  # noqa: E712
+            .all()
+        )
+        for (name,) in assigned_names:
+            if name:
+                enabled_modules.add(str(name).strip().lower())
+
     # Use the official catalog to keep names/icons/deps aligned
     modules_catalog = get_available_modules()
 
@@ -228,8 +242,6 @@ def list_modules(
         }
 
     # Solo devolver módulos contratados/habilitados para el tenant
-    modules = [
-        map_module(m) for m in modules_catalog if (m.get("id") or m.get("code")) in enabled_modules
-    ]
+    modules = [map_module(m) for m in modules_catalog if (m.get("id") or m.get("code")) in enabled_modules]
 
     return {"modules": modules, "total": len(modules)}

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
-from app.db.rls import ensure_rls, tenant_id_from_request, tenant_id_sql_expr
+from app.db.rls import ensure_rls, tenant_id_from_request, tenant_id_sql_expr_text
 from app.modules.templates.services import deep_merge
 
 router = APIRouter(
@@ -32,7 +32,7 @@ def ui_config(request: Request, db: Session = Depends(get_db)):
             FROM tenant_templates tt
             JOIN template_packages tp ON tp.template_key = tt.template_key AND tp.version = tt.version
             WHERE tt.tenant_id = """
-            + tenant_id_sql_expr()
+            + tenant_id_sql_expr_text()
             + """ AND tt.active
             """
         ),
@@ -44,7 +44,7 @@ def ui_config(request: Request, db: Session = Depends(get_db)):
     overs = db.execute(
         text(
             "SELECT config FROM template_overlays WHERE tenant_id = "
-            + tenant_id_sql_expr()
+            + tenant_id_sql_expr_text()
             + " AND active ORDER BY created_at ASC"
         ),
         {"tid": tid},

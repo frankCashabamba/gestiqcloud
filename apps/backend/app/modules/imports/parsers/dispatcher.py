@@ -217,12 +217,19 @@ def _detect_excel_parser(file_path: str, *, hinted_doc_type: str | None = None) 
     strong_bank_hits = _kw_score(("iban", "saldo", "cuenta", "importe", "monto", "debit", "credit"))
 
     if any(k in haystack for k in recipe_kw):
-        if hint in ("recipes", "recipe") and registry.get_parser("xlsx_recipes"):
-            return "xlsx_recipes", registry.get_parser("xlsx_recipes")["doc_type"]
-        if registry.get_parser("xlsx_costing_products"):
-            return "xlsx_costing_products", registry.get_parser("xlsx_costing_products")["doc_type"]
+        # Default behavior for recipe-like workbooks should be recipes flow.
+        # Only use costing-as-products when the caller explicitly hints products/inventory.
+        if hint in ("products", "product", "productos", "inventario"):
+            if registry.get_parser("xlsx_costing_products"):
+                return "xlsx_costing_products", registry.get_parser("xlsx_costing_products")[
+                    "doc_type"
+                ]
         if registry.get_parser("xlsx_recipes"):
             return "xlsx_recipes", registry.get_parser("xlsx_recipes")["doc_type"]
+        if registry.get_parser("xlsx_costing_products"):
+            return "xlsx_costing_products", registry.get_parser("xlsx_costing_products")[
+                "doc_type"
+            ]
     if (
         registry.get_parser("xlsx_bank")
         and bank_score >= 2

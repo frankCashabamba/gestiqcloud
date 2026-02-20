@@ -4,17 +4,28 @@
   "empty": "Sin registros",
   "stats": {
     "total": "Total",
-    "pending": "Pendiente"
+    "pending": "Pendiente",
+    "production": "Produccion",
+    "manual": "Manual"
   },
   "filters": {
     "from": "Desde",
     "to": "Hasta",
-    "conceptPlaceholder": "Concepto..."
+    "conceptPlaceholder": "Concepto...",
+    "source": "Origen",
+    "sourceAll": "Todos",
+    "sourceManual": "Manual",
+    "sourceProduction": "Produccion"
   },
   "table": {
     "date": "Fecha",
     "concept": "Concepto",
+    "source": "Origen",
     "amount": "Monto"
+  },
+  "source": {
+    "production": "Auto from production",
+    "manual": "Manual"
   },
   "messages": {
     "deleted": "Gasto eliminado"

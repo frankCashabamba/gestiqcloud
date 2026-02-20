@@ -7,6 +7,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 
+def _tenant_where(alias: str | None = None) -> str:
+    col = f"{alias}.tenant_id" if alias else "tenant_id"
+    return f"CAST({col}::text AS uuid) = NULLIF(current_setting('app.tenant_id', true), '')::uuid"
+
+
 def _mask_email(val: str | None) -> str | None:
     if not val or "@" not in val:
         return val
@@ -86,7 +91,8 @@ def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None
     if topic == "ventas_mes":
         sql = (
             "SELECT date_trunc('month', so.created_at)::date AS mes, count(*) AS pedidos "
-            "FROM sales_orders so GROUP BY 1 ORDER BY 1 DESC LIMIT 12"
+            f"FROM sales_orders so WHERE {_tenant_where('so')} "
+            "GROUP BY 1 ORDER BY 1 DESC LIMIT 12"
         )
         rows = _fetch_all(db, sql, {})
         return {"cards": [{"title": "Pedidos por mes", "series": rows}], "sql": sql}
@@ -95,7 +101,7 @@ def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None
         sql = (
             "SELECT w.code AS almacen, sum(sm.qty) AS unidades "
             "FROM stock_moves sm JOIN warehouses w ON w.id=sm.warehouse_id "
-            "WHERE sm.kind='issue' GROUP BY 1 ORDER BY 2 DESC"
+            f"WHERE {_tenant_where('sm')} AND sm.kind='issue' GROUP BY 1 ORDER BY 2 DESC"
         )
         rows = _fetch_all(db, sql, {})
         return {"cards": [{"title": "Salidas por almacén", "data": rows}], "sql": sql}
@@ -114,6 +120,7 @@ def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None
             f"SELECT p.id, p.name, sum(soi.{qty_col}) AS uds, "
             f"sum(soi.{qty_col}*soi.{price_col}) AS importe "
             "FROM sales_order_items soi JOIN products p ON p.id=soi.product_id "
+            f"WHERE {_tenant_where('soi')} "
             "GROUP BY 1,2 ORDER BY importe DESC NULLS LAST LIMIT 10"
         )
         return _safe_topic("Top productos", sql, lambda: _fetch_all(db, sql, {}))
@@ -122,16 +129,18 @@ def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None
         threshold = float(p.get("threshold", 5))
         sql = (
             "SELECT w.code AS almacen, si.product_id, si.qty FROM stock_items si "
-            "JOIN warehouses w ON w.id=si.warehouse_id WHERE si.qty < :th ORDER BY si.qty ASC LIMIT 50"
+            f"JOIN warehouses w ON w.id=si.warehouse_id WHERE {_tenant_where('si')} AND si.qty < :th ORDER BY si.qty ASC LIMIT 50"
         )
         rows = _fetch_all(db, sql, {"th": threshold})
         return {"cards": [{"title": "Stock bajo", "data": rows}], "sql": sql}
 
     if topic == "pendientes_sri_sii":
         sql_sri = (
-            "SELECT count(*) AS pendientes FROM sri_submissions WHERE status NOT IN ('AUTHORIZED')"
+            f"SELECT count(*) AS pendientes FROM sri_submissions WHERE {_tenant_where()} AND status NOT IN ('AUTHORIZED')"
         )
-        sql_sii = "SELECT count(*) AS pendientes FROM sii_batches WHERE status NOT IN ('ACCEPTED')"
+        sql_sii = (
+            f"SELECT count(*) AS pendientes FROM sii_batches WHERE {_tenant_where()} AND status NOT IN ('ACCEPTED')"
+        )
         sri = _fetch_all(db, sql_sri, {})
         sii = _fetch_all(db, sql_sii, {})
         return {
@@ -156,7 +165,7 @@ def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None
         sql = (
             f"SELECT {type_col}::text AS tipo, {status_col}::text AS estado, "
             f"count(*) AS n, sum({amount_col}) AS importe "
-            "FROM bank_transactions GROUP BY 1,2 ORDER BY 4 DESC NULLS LAST"
+            f"FROM bank_transactions WHERE {_tenant_where()} GROUP BY 1,2 ORDER BY 4 DESC NULLS LAST"
         )
         return _safe_topic("Cobros/Pagos", sql, lambda: _fetch_all(db, sql, {}))
 

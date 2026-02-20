@@ -331,6 +331,7 @@ function ImportadorWizard() {
 
       const batch = await createBatch(batchPayload, token || undefined)
       setBatchId(batch.id)
+      const resolvedDocType = String((batch as any)?.source_type || effectiveDocType || 'products').toLowerCase()
 
       if (batch.requires_confirmation && effectiveParser) {
         await confirmBatch(batch.id, { parser_id: effectiveParser }, token || undefined)
@@ -340,7 +341,7 @@ function ImportadorWizard() {
 
       // Professional UX: for non-products, promotion should happen in Preview so the user can
       // choose paid/pending and accounting options in one place (avoid multiple promote UIs).
-      if (effectiveDocType !== 'products' && effectiveDocType !== 'productos') {
+      if (resolvedDocType !== 'products' && resolvedDocType !== 'productos' && resolvedDocType !== 'product') {
         navigate(`../preview?batch_id=${encodeURIComponent(batch.id)}`)
         return
       }

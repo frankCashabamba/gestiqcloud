@@ -26,5 +26,15 @@
         }
       }
     }
+  },
+  "926b7e83-61ff-44d5-be80-77e368cd6869": {
+    "recipes": {
+      "formato de costeo y generacion de pvp sugerido": {
+        "price": {
+          "correct": 4,
+          "total": 4
+        }
+      }
+    }
   }
 }

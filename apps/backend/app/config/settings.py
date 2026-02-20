@@ -152,6 +152,7 @@ class Settings(BaseSettings):
         "X-CSRF",
         "X-Client-Version",
         "X-Client-Revision",
+        "X-Confirm-Delete-Tenant",
     ]
     # Permite string con comas o lista JSON
     ALLOWED_HOSTS: str | list[str] = Field(default_factory=list)

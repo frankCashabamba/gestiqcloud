@@ -54,6 +54,8 @@ const MODULE_NAME_KEYS: Record<string, string> = {
   imports: 'modules.importer',
   importaciones: 'modules.importer',
   produccion: 'modules.production',
+  production: 'modules.production',
+  productions: 'modules.production',
   manufacturing: 'modules.production',
   finanzas: 'modules.finances',
   finance: 'modules.finances',

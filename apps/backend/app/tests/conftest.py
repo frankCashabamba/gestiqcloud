@@ -22,9 +22,28 @@ def _ensure_test_env():
     os.environ.setdefault("FRONTEND_URL", "http://localhost:5173")
     default_sqlite_url = f"sqlite:///{(REPO_ROOT / 'apps' / 'backend' / 'test.db').as_posix()}"
     # Safety guard: tests must run against an isolated DB.
-    # If TEST_DATABASE_URL is not provided, default to local SQLite test DB.
-    # This prevents accidental execution against development databases.
-    test_db_url = os.environ.get("TEST_DATABASE_URL", default_sqlite_url)
+    # By default we force SQLite to avoid accidental writes/deletes in Postgres.
+    # Set ALLOW_TEST_NON_SQLITE_DB=1 only when you intentionally want a non-SQLite test DB.
+    requested_test_db_url = os.environ.get("TEST_DATABASE_URL", "").strip()
+    allow_non_sqlite = os.environ.get("ALLOW_TEST_NON_SQLITE_DB", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    if requested_test_db_url:
+        if requested_test_db_url.startswith("sqlite"):
+            test_db_url = requested_test_db_url
+        elif allow_non_sqlite:
+            test_db_url = requested_test_db_url
+            print(f"[tests] WARNING: Using non-SQLite TEST_DATABASE_URL: {test_db_url!r}")
+        else:
+            print(
+                "[tests] Ignoring non-SQLite TEST_DATABASE_URL without "
+                "ALLOW_TEST_NON_SQLITE_DB=1"
+            )
+            test_db_url = default_sqlite_url
+    else:
+        test_db_url = default_sqlite_url
     current_db_url = os.environ.get("DATABASE_URL", "")
     if current_db_url and current_db_url != test_db_url:
         print(

@@ -182,6 +182,13 @@ export async function getBatch(id: string, authToken?: string) {
   return apiFetch<ImportBatch>(IMPORTS.batches.byId(id), { authToken })
 }
 
+export async function getBatchRecipesPreview(batchId: string, authToken?: string) {
+  return apiFetch<{ items: ImportItem[]; total?: number }>(
+    `/api/v1/tenant/imports/batches/${encodeURIComponent(batchId)}/recipes-preview`,
+    { authToken }
+  )
+}
+
 /** Accepts optional filters (status, q). */
 export async function listItems(
   batchId: string,

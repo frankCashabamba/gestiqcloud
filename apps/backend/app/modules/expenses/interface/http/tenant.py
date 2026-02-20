@@ -7,6 +7,7 @@ from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
+from app.models.expenses.expense import Expense
 
 from ...infrastructure.repositories import ExpenseRepo
 from .schemas import ExpenseCreate, ExpenseOut, ExpenseUpdate
@@ -20,6 +21,13 @@ router = APIRouter(
         Depends(ensure_rls),
     ],
 )
+
+
+def _is_locked_production_expense(expense: Expense) -> bool:
+    return bool(
+        (expense.category == "production")
+        or str(getattr(expense, "invoice_number", "") or "").startswith("PROD-")
+    )
 
 
 @router.get("", response_model=list[ExpenseOut])
@@ -52,7 +60,8 @@ def create_expense(
     claims: dict = Depends(with_access_claims),
 ):
     tenant_id = claims["tenant_id"]
-    return ExpenseRepo(db).create(tenant_id, **payload.model_dump())
+    user_id = claims["user_id"]
+    return ExpenseRepo(db).create(tenant_id, user_id=user_id, **payload.model_dump())
 
 
 @router.put("/{expense_id}", response_model=ExpenseOut)
@@ -63,6 +72,11 @@ def update_expense(
     claims: dict = Depends(with_access_claims),
 ):
     tenant_id = claims["tenant_id"]
+    current = ExpenseRepo(db).get(tenant_id, expense_id)
+    if not current:
+        raise HTTPException(404, "Not found")
+    if _is_locked_production_expense(current):
+        raise HTTPException(403, "Production expenses are system-generated and cannot be edited")
     try:
         return ExpenseRepo(db).update(tenant_id, expense_id, **payload.model_dump())
     except ValueError:

@@ -1,6 +1,13 @@
-{
+﻿{
+  "actionsLabel": "Actions",
+  "edit": "Edit",
+  "delete": "Delete",
+  "search": "Search",
+  "loadingText": "Loading...",
+  "perPage": "Per page:",
+  "exportCsv": "Export CSV",
   "loading": {
-    "module": "Loading module…"
+    "module": "Loading module..."
   },
   "table": {
     "movimientos": "Accounting movements"

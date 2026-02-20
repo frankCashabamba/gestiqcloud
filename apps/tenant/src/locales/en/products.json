@@ -76,5 +76,21 @@
     "packsHelp": "Define pack equivalences for later calculations.",
     "minByPackPlaceholder": "Format: box=1, bundle=1",
     "minByPackHelp": "If selling by pack, enforce these minimums."
+  },
+  "mergeDuplicates": {
+    "open": "Merge similar",
+    "title": "Merge similar products",
+    "subtitle": "Choose which product to keep and which ones to merge.",
+    "empty": "No similar names were found to merge.",
+    "groupTitle": "Group {{number}}",
+    "keep": "Keep",
+    "merge": "Merge",
+    "mergeNow": "Merge ({{count}})",
+    "pickAtLeastOne": "Select at least one product to merge.",
+    "mergeOk": "{{count}} products were merged.",
+    "matchModeLabel": "Match level",
+    "modeStrict": "Almost exact only",
+    "modeBalanced": "Balanced",
+    "modeWide": "Wider match"
   }
 }

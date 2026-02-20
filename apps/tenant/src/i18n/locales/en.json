@@ -840,7 +840,8 @@
     },
     "messages": {
       "promoteSuccess": "Batch promoted successfully (created: {{created}}, skipped: {{skipped}}, failed: {{failed}})",
-      "promoteRecipesSuccess": "Recipes promoted successfully (created: {{created}}, skipped: {{skipped}}, failed: {{failed}})"
+      "promoteRecipesSuccess": "Recipes promoted successfully (created: {{created}}, skipped: {{skipped}}, failed: {{failed}})",
+      "duplicatesSkipped": "{{count}} record(s) were skipped because they already exist or are duplicates."
     },
     "confirm": {
       "promoteProducts": "Promote this batch to production? This will create/update products in the system.",

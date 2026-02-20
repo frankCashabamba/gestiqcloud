@@ -72,7 +72,7 @@ export async function getGasto(id: number | string): Promise<Gasto> {
 export async function createGasto(payload: Omit<Gasto, 'id'>): Promise<Gasto> {
   const apiPayload = stripOfflineMeta(toApiPayload(payload) as any)
   try {
-    const response = await tenantApi.post<Gasto>(TENANT_EXPENSES.base, apiPayload, { headers: { 'X-Offline-Managed': '1' } })
+    const response = await tenantApi.post<Gasto>(TENANT_EXPENSES.base, apiPayload)
 
     if (isOfflineQueuedResponse(response)) {
       const tempId = createOfflineTempId('expense')
@@ -106,7 +106,7 @@ export async function createGasto(payload: Omit<Gasto, 'id'>): Promise<Gasto> {
 export async function updateGasto(id: number | string, payload: Partial<Omit<Gasto, 'id'>>): Promise<Gasto> {
   const apiPayload = stripOfflineMeta(toApiPayload(payload) as any)
   try {
-    const response = await tenantApi.put<Gasto>(TENANT_EXPENSES.byId(id), apiPayload, { headers: { 'X-Offline-Managed': '1' } })
+    const response = await tenantApi.put<Gasto>(TENANT_EXPENSES.byId(id), apiPayload)
 
     if (isOfflineQueuedResponse(response)) {
       await storeEntity('expense', String(id), { ...apiPayload, _op: 'update' }, 'pending')
@@ -133,7 +133,7 @@ export async function updateGasto(id: number | string, payload: Partial<Omit<Gas
 
 export async function removeGasto(id: number | string): Promise<void> {
   try {
-    const response = await tenantApi.delete(TENANT_EXPENSES.byId(id), { headers: { 'X-Offline-Managed': '1' } })
+    const response = await tenantApi.delete(TENANT_EXPENSES.byId(id))
     if (isOfflineQueuedResponse(response)) {
       await queueDeletion('expense', String(id))
     }

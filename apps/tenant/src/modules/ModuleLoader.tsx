@@ -16,7 +16,7 @@ const ALIASES: Record<string, string> = {
   // Rutas legacy -> carpeta real
   imports: 'importer',
   importador: 'importer',
-  reports: 'reportes',
+  reportes: 'reports',
   clientes: 'customers',
   clients: 'customers',
   contabilidad: 'accounting',
@@ -32,8 +32,9 @@ const ALIASES: Record<string, string> = {
   productos: 'products',
   proveedores: 'suppliers',
   importaciones: 'importer',
-  users: 'usuarios',
-  manufacturing: 'produccion',
+  usuarios: 'users',
+  manufacturing: 'productions',
+  produccion: 'productions',
 }
 
 export default function ModuleLoader() {

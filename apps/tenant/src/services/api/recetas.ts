@@ -39,6 +39,7 @@ export interface RecipeUpdate {
   prep_time_minutes?: number;
   instructions?: string;
   is_active?: boolean;
+  ingredients?: RecipeIngredient[];
 }
 
 export interface Recipe {
@@ -221,7 +222,30 @@ export async function getCostBreakdown(
   recipeId: string
 ): Promise<CostBreakdown> {
   const response = await apiClient.get(TENANT_RECIPES.costBreakdown(recipeId));
-  return response.data;
+  const raw = response.data || {};
+  const rowsRaw = Array.isArray(raw.desglose)
+    ? raw.desglose
+    : Array.isArray(raw.breakdown)
+    ? raw.breakdown
+    : [];
+
+  return {
+    recipe_id: String(raw.recipe_id ?? ''),
+    name: String(raw.name ?? ''),
+    rendimiento: Number(raw.rendimiento ?? raw.yield_qty ?? 0),
+    costo_total: Number(raw.costo_total ?? raw.total_cost ?? 0),
+    costo_por_unidad: Number(raw.costo_por_unidad ?? raw.unit_cost ?? 0),
+    ingredientes_count: Number(raw.ingredientes_count ?? raw.ingredients_count ?? rowsRaw.length ?? 0),
+    desglose: rowsRaw.map((item: any) => ({
+      producto_id: String(item?.producto_id ?? item?.product_id ?? ''),
+      producto: String(item?.producto ?? item?.product ?? '-'),
+      qty: Number(item?.qty ?? 0),
+      unidad: String(item?.unidad ?? item?.unit ?? ''),
+      presentacion_compra: String(item?.presentacion_compra ?? item?.purchase_packaging ?? ''),
+      costo: Number(item?.costo ?? item?.cost ?? 0),
+      porcentaje: Number(item?.porcentaje ?? item?.percentage ?? 0),
+    })),
+  };
 }
 
 /**

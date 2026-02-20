@@ -306,14 +306,7 @@ def register_modules(payload: dict | None = None, db: Session = Depends(get_db))
 
             # Aceptar si existe cualquier archivo .tsx en la carpeta (adem├ís de Panel/Routes)
 
-            if not (
-                os.path.exists(panel_path)
-                or os.path.exists(routes_path)
-                or any(
-                    fn.lower().endswith(".tsx")
-                    for fn in os.listdir(os.path.join(modules_dir, carpeta))
-                )
-            ):
+            if not (os.path.exists(panel_path) or os.path.exists(routes_path)):
                 ignored.append(carpeta)
 
                 continue
@@ -348,11 +341,10 @@ def register_modules(payload: dict | None = None, db: Session = Depends(get_db))
                     plantilla_detectada = None
 
                     try:
-                        for _fn in os.listdir(os.path.join(modules_dir, carpeta)):
-                            if _fn.lower().endswith(".tsx"):
-                                plantilla_detectada = _fn.rsplit(".", 1)[0]
-
-                                break
+                        if os.path.exists(panel_path):
+                            plantilla_detectada = "Panel"
+                        elif os.path.exists(routes_path):
+                            plantilla_detectada = "Routes"
 
                     except Exception:
                         pass
@@ -431,11 +423,10 @@ def register_modules(payload: dict | None = None, db: Session = Depends(get_db))
             plantilla_detectada = None
 
             try:
-                for _fn in os.listdir(os.path.join(modules_dir, carpeta)):
-                    if _fn.lower().endswith(".tsx"):
-                        plantilla_detectada = _fn.rsplit(".", 1)[0]
-
-                        break
+                if os.path.exists(panel_path):
+                    plantilla_detectada = "Panel"
+                elif os.path.exists(routes_path):
+                    plantilla_detectada = "Routes"
 
             except Exception:
                 pass

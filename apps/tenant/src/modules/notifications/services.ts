@@ -23,17 +23,19 @@ export interface UnreadCount {
 }
 
 export async function listNotifications(skip = 0, limit = 200): Promise<NotificationListResponse> {
-  return api.get('/notifications', { params: { skip, limit } }).then(r => r.data)
+  return api.get('/api/v1/tenant/notifications', { params: { skip, limit } }).then(r => r.data)
 }
 
 export async function getUnreadCount(): Promise<UnreadCount> {
-  return api.get('/notifications/unread-count').then(r => r.data)
+  return api.get('/api/v1/tenant/notifications/unread-count').then(r => r.data)
 }
 
 export async function markAsRead(ids: string[]): Promise<{ updated: number }> {
-  return api.post('/notifications/mark-read', { notification_ids: ids }).then(r => r.data)
+  return api
+    .post('/api/v1/tenant/notifications/mark-read', { notification_ids: ids })
+    .then(r => r.data)
 }
 
 export async function archiveNotification(id: string): Promise<Notification> {
-  return api.post(`/notifications/${id}/archive`).then(r => r.data)
+  return api.post(`/api/v1/tenant/notifications/${id}/archive`).then(r => r.data)
 }

@@ -6,7 +6,6 @@ import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import { usePermission } from '../../hooks/usePermission'
 import PermissionDenied from '../../components/PermissionDenied'
-import StatusBadge from '../sales/components/StatusBadge'
 import StatsCard from './components/StatsCard'
 
 export default function GastosList() {
@@ -25,6 +24,7 @@ export default function GastosList() {
   const [sortKey, setSortKey] = useState<'date' | 'amount'>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [per, setPer] = useState(10)
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'manual' | 'production'>('all')
 
   useEffect(() => {
     (async () => {
@@ -46,18 +46,37 @@ export default function GastosList() {
     })()
   }, [desde, hasta])
 
+  const isProductionExpense = (expense: Gasto) =>
+    expense.category === 'production' || String(expense.invoice_number || '').startsWith('PROD-')
+
   const filtered = useMemo(() => items.filter(v => {
     if (desde && v.date < desde) return false
     if (hasta && v.date > hasta) return false
+    if (sourceFilter === 'production' && !isProductionExpense(v)) return false
+    if (sourceFilter === 'manual' && isProductionExpense(v)) return false
     if (q) {
       const search = q.toLowerCase()
       const matches =
         String(v.id).includes(search) ||
-        (v.concept || '').toLowerCase().includes(search)
+        (v.concept || '').toLowerCase().includes(search) ||
+        String(v.invoice_number || '').toLowerCase().includes(search)
       if (!matches) return false
     }
     return true
-  }), [items, desde, hasta, q])
+  }), [items, desde, hasta, q, sourceFilter])
+
+  const totals = useMemo(() => {
+    let all = 0
+    let production = 0
+    let manual = 0
+    for (const expense of filtered) {
+      const amount = Number(expense.amount || 0)
+      all += amount
+      if (isProductionExpense(expense)) production += amount
+      else manual += amount
+    }
+    return { all, production, manual }
+  }, [filtered])
 
   const sorted = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1
@@ -122,7 +141,7 @@ export default function GastosList() {
                className="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
                onClick={() => exportCSV(view)}
              >
-               {t('common.exportCsv')}
+               {t('exportCsv', { ns: 'common' })}
              </button>
            )}
            {can('expenses:create') && (
@@ -137,7 +156,7 @@ export default function GastosList() {
        </div>
 
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           <StatsCard
             title={t('expenses:stats.total')}
             value={`$${stats.total.toFixed(2)}`}
@@ -147,6 +166,16 @@ export default function GastosList() {
             title={t('expenses:stats.pending')}
             value={`$${stats.pending.toFixed(2)}`}
             color="red"
+          />
+          <StatsCard
+            title={t('expenses:stats.production')}
+            value={`$${totals.production.toFixed(2)}`}
+            color="green"
+          />
+          <StatsCard
+            title={t('expenses:stats.manual')}
+            value={`$${totals.manual.toFixed(2)}`}
+            color="yellow"
           />
         </div>
       )}
@@ -171,7 +200,7 @@ export default function GastosList() {
           />
         </div>
         <div>
-          <label className="text-sm mr-2">{t('common.search')}</label>
+          <label className="text-sm mr-2">{t('search', { ns: 'common' })}</label>
           <input
             placeholder={t('expenses:filters.conceptPlaceholder')}
             value={q}
@@ -179,13 +208,25 @@ export default function GastosList() {
             className="border px-2 py-1 rounded text-sm"
           />
         </div>
+        <div>
+          <label className="text-sm mr-2">{t('expenses:filters.source')}</label>
+          <select
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value as 'all' | 'manual' | 'production')}
+            className="border px-2 py-1 rounded text-sm"
+          >
+            <option value="all">{t('expenses:filters.sourceAll')}</option>
+            <option value="manual">{t('expenses:filters.sourceManual')}</option>
+            <option value="production">{t('expenses:filters.sourceProduction')}</option>
+          </select>
+        </div>
       </div>
 
-      {loading && <div className="text-sm text-gray-500">{t('common.loading')}</div>}
+      {loading && <div className="text-sm text-gray-500">{t('loadingText', { ns: 'common' })}</div>}
       {errMsg && <div className="bg-red-100 text-red-700 px-3 py-2 rounded mb-3">{errMsg}</div>}
 
       <div className="flex items-center gap-3 mb-2 text-sm">
-        <label>{t('common.perPage')}</label>
+        <label>{t('perPage', { ns: 'common' })}</label>
         <select
           value={per}
           onChange={(e) => setPer(Number(e.target.value))}
@@ -207,12 +248,13 @@ export default function GastosList() {
                 </button>
               </th>
               <th className="py-2 px-2">{t('expenses:table.concept')}</th>
+              <th className="py-2 px-2">{t('expenses:table.source')}</th>
               <th className="py-2 px-2">
                 <button className="underline" onClick={() => toggleSort('amount')}>
                   {t('expenses:table.amount')} {sortKey === 'amount' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
-              <th className="py-2 px-2">{t('common.actions')}</th>
+              <th className="py-2 px-2">{t('actionsLabel', { ns: 'common' })}</th>
             </tr>
           </thead>
           <tbody>
@@ -220,11 +262,22 @@ export default function GastosList() {
               <tr key={v.id} className="border-b hover:bg-gray-50">
                 <td className="py-2 px-2">{v.date}</td>
                 <td className="py-2 px-2">{v.concept || '-'}</td>
+                <td className="py-2 px-2">
+                  {isProductionExpense(v) ? (
+                    <span className="inline-flex rounded-full px-2 py-1 text-xs font-medium bg-green-100 text-green-700 border border-green-200">
+                      {t('expenses:source.production')}
+                    </span>
+                  ) : (
+                    <span className="inline-flex rounded-full px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+                      {t('expenses:source.manual')}
+                    </span>
+                  )}
+                </td>
                 <td className="py-2 px-2 font-medium">${v.amount.toFixed(2)}</td>
                 <td className="py-2 px-2">
-                  {can('expenses:update') && (
+                  {!isProductionExpense(v) && can('expenses:update') && (
                     <Link to={`${v.id}/editar`} className="text-blue-600 hover:underline mr-3">
-                      {t('common.edit')}
+                      {t('edit', { ns: 'common' })}
                     </Link>
                   )}
                   {can('expenses:delete') && (
@@ -241,7 +294,7 @@ export default function GastosList() {
                         }
                       }}
                     >
-                      {t('common.delete')}
+                      {t('delete', { ns: 'common' })}
                     </button>
                   )}
                 </td>
@@ -249,7 +302,7 @@ export default function GastosList() {
             ))}
             {!loading && view.length === 0 && (
               <tr>
-                <td className="py-3 px-3 text-center text-gray-500" colSpan={4}>
+                <td className="py-3 px-3 text-center text-gray-500" colSpan={5}>
                   {t('expenses:empty')}
                 </td>
               </tr>

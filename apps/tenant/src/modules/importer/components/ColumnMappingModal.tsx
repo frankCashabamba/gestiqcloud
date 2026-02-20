@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useToast } from '../../../shared/toast'
 import { useSectorPlaceholder } from '../../../hooks/useSectorPlaceholders'
 import { useCompany } from '../../../contexts/CompanyContext'
 
@@ -53,6 +54,7 @@ export default function ColumnMappingModal({
   fileName
 }: ColumnMappingModalProps) {
   const { t } = useTranslation('importer')
+  const toast = useToast()
   const [mapping, setMapping] = useState<Record<string, string>>(suggestedMapping)
   const [saveName, setSaveName] = useState('')
   const [shouldSave, setShouldSave] = useState(false)
@@ -101,7 +103,7 @@ export default function ColumnMappingModal({
     // Ensure name is mapped
     const hasName = Object.values(mapping).includes('name')
     if (!hasName) {
-      alert(t('columnMappingModal.alerts.mustMapProductName'))
+      toast.warning(t('columnMappingModal.alerts.mustMapProductName'))
       return
     }
 

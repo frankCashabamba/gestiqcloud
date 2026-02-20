@@ -8,6 +8,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useToast } from '../../../shared/toast'
 import { getSuggestions, type ColumnSuggestion } from '../utils/levenshtein'
 import { getAliasSugeridos } from '../utils/aliasCampos'
 import type { EntityTypeConfig } from '../config/entityTypes'
@@ -34,6 +35,7 @@ export default function MapeoCampos({
   fieldConfig,
 }: Props) {
   const { t } = useTranslation('importer')
+  const toast = useToast()
   const [suggestions, setSuggestions] = useState<Record<string, ColumnSuggestion[]>>({})
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null)
   const [showTemplateManager, setShowTemplateManager] = useState(false)
@@ -82,12 +84,12 @@ export default function MapeoCampos({
 
   const handleLoadTemplate = (template: ImportTemplate) => {
     onChange(template.mappings)
-    alert(t('mapeoCampos.alerts.templateLoaded', { name: template.name }))
+    toast.success(t('mapeoCampos.alerts.templateLoaded', { name: template.name }))
   }
 
   const handleSaveTemplate = async () => {
     if (!templateName.trim()) {
-      alert(t('mapeoCampos.alerts.enterTemplateName'))
+      toast.warning(t('mapeoCampos.alerts.enterTemplateName'))
       return
     }
 
@@ -98,11 +100,11 @@ export default function MapeoCampos({
         source_type: sourceType,
         mappings: mapa as Record<string, string>,
       })
-      alert(t('mapeoCampos.alerts.templateSaved', { name: templateName }))
+      toast.success(t('mapeoCampos.alerts.templateSaved', { name: templateName }))
       setShowSaveTemplate(false)
       setTemplateName('')
     } catch (err: any) {
-      alert(err?.message || t('mapeoCampos.alerts.errorSavingTemplate'))
+      toast.error(err?.message || t('mapeoCampos.alerts.errorSavingTemplate'))
     } finally {
       setSaving(false)
     }

@@ -18,6 +18,8 @@ export const ADMIN_MODULES = {
 export const ADMIN_COMPANIES = {
   base: '/v1/admin/companies',
   createFull: '/v1/admin/companies/full-json',
+  deleteAll: '/v1/admin/companies/bulk/delete-all',
+  purgeOrphans: '/v1/admin/companies/purge-orphans',
   byId: (id: number | string) => `/v1/admin/companies/${id}`,
 }
 

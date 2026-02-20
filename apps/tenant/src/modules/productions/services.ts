@@ -41,64 +41,64 @@ export type RecipeIngredient = {
 }
 
 export async function listProductionOrders(): Promise<ProductionOrder[]> {
-    const { data } = await tenantApi.get<ProductionOrder[] | { items?: ProductionOrder[] }>('/api/v1/production/orders')
+    const { data } = await tenantApi.get<ProductionOrder[] | { items?: ProductionOrder[] }>('/api/v1/tenant/production/orders')
     return ensureArray<ProductionOrder>(data)
 }
 
 export async function getProductionOrder(id: string): Promise<ProductionOrder> {
-    const { data } = await tenantApi.get<ProductionOrder>(`/api/v1/production/orders/${id}`)
+    const { data } = await tenantApi.get<ProductionOrder>(`/api/v1/tenant/production/orders/${id}`)
     return data
 }
 
 export async function createProductionOrder(payload: Omit<ProductionOrder, 'id'>): Promise<ProductionOrder> {
-    const { data } = await tenantApi.post<ProductionOrder>('/api/v1/production/orders', payload)
+    const { data } = await tenantApi.post<ProductionOrder>('/api/v1/tenant/production/orders', payload)
     return data
 }
 
 export async function updateProductionOrder(id: string, payload: Partial<ProductionOrder>): Promise<ProductionOrder> {
-    const { data } = await tenantApi.put<ProductionOrder>(`/api/v1/production/orders/${id}`, payload)
+    const { data } = await tenantApi.put<ProductionOrder>(`/api/v1/tenant/production/orders/${id}`, payload)
     return data
 }
 
 export async function removeProductionOrder(id: string): Promise<void> {
-    await tenantApi.delete(`/api/v1/production/orders/${id}`)
+    await tenantApi.delete(`/api/v1/tenant/production/orders/${id}`)
 }
 
 export async function startProductionOrder(id: string): Promise<ProductionOrder> {
-    const { data } = await tenantApi.post<ProductionOrder>(`/api/v1/production/orders/${id}/start`, {})
+    const { data } = await tenantApi.post<ProductionOrder>(`/api/v1/tenant/production/orders/${id}/start`, {})
     return data
 }
 
 export async function completeProductionOrder(id: string, payload: { qty_produced: number; waste_qty?: number }): Promise<ProductionOrder> {
-    const { data } = await tenantApi.post<ProductionOrder>(`/api/v1/production/orders/${id}/complete`, payload)
+    const { data } = await tenantApi.post<ProductionOrder>(`/api/v1/tenant/production/orders/${id}/complete`, payload)
     return data
 }
 
 export async function cancelProductionOrder(id: string): Promise<ProductionOrder> {
-    const { data } = await tenantApi.post<ProductionOrder>(`/api/v1/production/orders/${id}/cancel`, {})
+    const { data } = await tenantApi.post<ProductionOrder>(`/api/v1/tenant/production/orders/${id}/cancel`, {})
     return data
 }
 
 export async function listRecipes(): Promise<Recipe[]> {
-    const { data } = await tenantApi.get<Recipe[] | { items?: Recipe[] }>('/api/v1/production/recipes')
+    const { data } = await tenantApi.get<Recipe[] | { items?: Recipe[] }>('/api/v1/tenant/production/recipes')
     return ensureArray<Recipe>(data)
 }
 
 export async function getRecipe(id: string): Promise<Recipe> {
-    const { data } = await tenantApi.get<Recipe>(`/api/v1/production/recipes/${id}`)
+    const { data } = await tenantApi.get<Recipe>(`/api/v1/tenant/production/recipes/${id}`)
     return data
 }
 
 export async function createRecipe(payload: Omit<Recipe, 'id'>): Promise<Recipe> {
-    const { data } = await tenantApi.post<Recipe>('/api/v1/production/recipes', payload)
+    const { data } = await tenantApi.post<Recipe>('/api/v1/tenant/production/recipes', payload)
     return data
 }
 
 export async function updateRecipe(id: string, payload: Partial<Recipe>): Promise<Recipe> {
-    const { data } = await tenantApi.put<Recipe>(`/api/v1/production/recipes/${id}`, payload)
+    const { data } = await tenantApi.put<Recipe>(`/api/v1/tenant/production/recipes/${id}`, payload)
     return data
 }
 
 export async function removeRecipe(id: string): Promise<void> {
-    await tenantApi.delete(`/api/v1/production/recipes/${id}`)
+    await tenantApi.delete(`/api/v1/tenant/production/recipes/${id}`)
 }

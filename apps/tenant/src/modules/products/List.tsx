@@ -10,6 +10,7 @@ import {
   listCategorias,
   type Producto,
 } from './productsApi'
+import SimilarProductsMergeModal from './SimilarProductsMergeModal'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { useTranslation } from 'react-i18next'
 import { usePagination, Pagination } from '../../shared/pagination'
@@ -71,6 +72,7 @@ export default function ProductosList() {
   const [filterActivo, setFilterActivo] = useState<'all' | 'activo' | 'inactivo'>('all')
   const [filterCategoria, setFilterCategoria] = useState<string>('all')
   const [showCategoriesModal, setShowCategoriesModal] = useState(false)
+  const [showMergeModal, setShowMergeModal] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [categorias, setCategorias] = useState<Array<{ id: string; name: string }>>([])
   const { open: openPrintLabels, PrintModal, updateModalExtras } = usePrintBarcodeLabels()
@@ -384,20 +386,22 @@ export default function ProductosList() {
     })()
   }, [])
 
+  const reloadProducts = useCallback(async () => {
+    try {
+      setLoading(true)
+      setItems(await listProductos())
+    } catch (e: any) {
+      const m = getErrorMessage(e)
+      setErrMsg(m)
+      toastError(m)
+    } finally {
+      setLoading(false)
+    }
+  }, [toastError])
+
   useEffect(() => {
-    ;(async () => {
-      try {
-        setLoading(true)
-        setItems(await listProductos())
-      } catch (e: any) {
-        const m = getErrorMessage(e)
-        setErrMsg(m)
-        toastError(m)
-      } finally {
-        setLoading(false)
-      }
-    })()
-  }, [])
+    void reloadProducts()
+  }, [reloadProducts])
 
   const [sortKey, setSortKey] = useState<'name' | 'sku' | 'price'>('name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
@@ -594,6 +598,16 @@ export default function ProductosList() {
               title={t('products:printLabelsTitle')}
             >
               {t('products:printLabels')}
+            </ProtectedButton>
+          )}
+          {can('products:update') && (
+            <ProtectedButton
+              permission="products:update"
+              className="bg-white border border-indigo-300 text-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-50 transition-colors font-medium"
+              onClick={() => setShowMergeModal(true)}
+              title={t('products:mergeDuplicates.open')}
+            >
+              {t('products:mergeDuplicates.open')}
             </ProtectedButton>
           )}
           {items.length > 0 && can('products:delete') && (
@@ -974,6 +988,11 @@ export default function ProductosList() {
         />
       )}
       {PrintModal}
+      <SimilarProductsMergeModal
+        open={showMergeModal}
+        onClose={() => setShowMergeModal(false)}
+        onMerged={reloadProducts}
+      />
     </div>
   )
 }

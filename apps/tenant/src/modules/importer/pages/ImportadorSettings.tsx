@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../../../auth/AuthContext'
 import PermissionDenied from '../../../components/PermissionDenied'
@@ -45,6 +46,7 @@ function fromAliasText(text: string): string[] {
 }
 
 export default function ImportadorSettings() {
+  const navigate = useNavigate()
   const { token, profile } = useAuth()
   const canManageImporterSettings = isCompanyAdmin(profile, token)
 
@@ -131,6 +133,15 @@ export default function ImportadorSettings() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
+      <div className="flex items-center gap-4 mb-4">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium transition"
+        >
+          <span>←</span>
+          Volver atrás
+        </button>
+      </div>
       <h1 className="text-3xl font-bold mb-2">Configuracion del Importador</h1>
       <p className="text-gray-600 mb-6">
         Ajusta IA y reglas dinamicas de aliases para no tocar codigo por formato.

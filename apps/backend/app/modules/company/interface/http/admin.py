@@ -427,6 +427,7 @@ def impersonate_tenant(tenant_id: str, db: Session = Depends(get_db)):
 def delete_company(
     tenant_id: str,
     request: Request,
+    confirm_tenant_id: str | None = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(with_access_claims),
 ):
@@ -449,11 +450,14 @@ def delete_company(
             "yes",
         )
         confirm_header = (request.headers.get("X-Confirm-Delete-Tenant") or "").strip()
-        if not allow_delete and confirm_header != str(tenant_id):
+        confirm_query = (confirm_tenant_id or "").strip()
+        confirmed = confirm_header == str(tenant_id) or confirm_query == str(tenant_id)
+        if not allow_delete and not confirmed:
             raise HTTPException(
                 status_code=403,
                 detail=(
                     "destructive_delete_blocked: set header X-Confirm-Delete-Tenant=<tenant_id> "
+                    "or query confirm_tenant_id=<tenant_id> "
                     "or ALLOW_DANGEROUS_COMPANY_DELETE=1 in controlled environments"
                 ),
             )
@@ -585,6 +589,16 @@ def delete_company(
     try:
         dialect = getattr(db.get_bind().dialect, "name", "")
         role_changed = False
+        # Ensure RLS context matches the tenant being deleted; otherwise company_users
+        # deletes can be filtered out and leave orphan rows.
+        try:
+            db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_uuid)})
+            uid = current_user.get("user_id")
+            if uid:
+                db.execute(text("SET LOCAL app.user_id = :uid"), {"uid": str(uid)})
+            db.info["tenant_id"] = str(tenant_uuid)
+        except Exception:
+            pass
         if dialect == "postgresql":
             # Temporarily disable triggers that can block admin deletion.
             # En entornos gestionados (Render, RDS, etc.) la credencial app no es superuser
@@ -599,9 +613,42 @@ def delete_company(
 
         if dialect == "postgresql":
             _delete_company_data_postgres(db, uuid.UUID(tenant_uuid), excluded_tables)
+            # Explicit tenant deletes for robustness when FK metadata is incomplete/missing.
             db.execute(
-                text('DELETE FROM "public"."company_users" WHERE tenant_id = :tenant_id'),
-                {"tenant_id": uuid.UUID(tenant_uuid)},
+                text(
+                    'DELETE FROM "public"."assigned_modules" '
+                    "WHERE tenant_id = :tenant_id OR tenant_id::text = :tenant_id_text"
+                ),
+                {"tenant_id": uuid.UUID(tenant_uuid), "tenant_id_text": str(tenant_uuid)},
+            )
+            db.execute(
+                text(
+                    'DELETE FROM "public"."company_user_roles" '
+                    "WHERE tenant_id = :tenant_id OR tenant_id::text = :tenant_id_text"
+                ),
+                {"tenant_id": uuid.UUID(tenant_uuid), "tenant_id_text": str(tenant_uuid)},
+            )
+            db.execute(
+                text(
+                    'DELETE FROM "public"."company_roles" '
+                    "WHERE tenant_id = :tenant_id OR tenant_id::text = :tenant_id_text"
+                ),
+                {"tenant_id": uuid.UUID(tenant_uuid), "tenant_id_text": str(tenant_uuid)},
+            )
+            db.execute(
+                text(
+                    'DELETE FROM "public"."company_modules" '
+                    "WHERE tenant_id = :tenant_id OR tenant_id::text = :tenant_id_text"
+                ),
+                {"tenant_id": uuid.UUID(tenant_uuid), "tenant_id_text": str(tenant_uuid)},
+            )
+            # Double condition (uuid + text cast) to be robust across legacy states.
+            db.execute(
+                text(
+                    'DELETE FROM "public"."company_users" '
+                    "WHERE tenant_id = :tenant_id OR tenant_id::text = :tenant_id_text"
+                ),
+                {"tenant_id": uuid.UUID(tenant_uuid), "tenant_id_text": str(tenant_uuid)},
             )
             db.execute(
                 text('DELETE FROM "public"."tenants" WHERE id = :tenant_id'),

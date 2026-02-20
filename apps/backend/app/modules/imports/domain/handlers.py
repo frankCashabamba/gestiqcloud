@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import logging
+import re
+import unicodedata
+from difflib import SequenceMatcher
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import func
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -44,13 +48,15 @@ class InvoiceHandler:
         from app.models.core.invoiceLine import LineaFactura
 
         try:
-            # Extraer número de factura
-            invoice_number = str(
+            raw_invoice_number = (
                 normalized.get("invoice_number")
                 or normalized.get("numero")
                 or normalized.get("numero_factura")
                 or normalized.get("number")
-                or f"INV-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+            )
+            # Extraer número de factura
+            invoice_number = str(
+                raw_invoice_number or f"INV-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
             ).strip()
 
             # Fecha de emisión
@@ -125,6 +131,32 @@ class InvoiceHandler:
                 )
                 db.add(cliente)
                 db.flush()
+
+            # Dedupe de negocio para facturas:
+            # 1) número de factura (+proveedor si existe)
+            # 2) fallback por proveedor+fecha+total cuando no hay número confiable
+            existing_invoice = None
+            if raw_invoice_number and str(raw_invoice_number).strip():
+                q = db.query(Invoice).filter(
+                    Invoice.tenant_id == tenant_id,
+                    func.lower(Invoice.number) == invoice_number.lower(),
+                )
+                if vendor_name and vendor_name != "Unknown vendor":
+                    q = q.filter(func.lower(Invoice.supplier) == vendor_name.lower())
+                existing_invoice = q.first()
+            else:
+                existing_invoice = (
+                    db.query(Invoice)
+                    .filter(
+                        Invoice.tenant_id == tenant_id,
+                        func.lower(Invoice.supplier) == vendor_name.lower(),
+                        Invoice.issue_date == tx_date_emision,
+                        Invoice.total == total,
+                    )
+                    .first()
+                )
+            if existing_invoice:
+                return PromoteResult(domain_id=str(existing_invoice.id), skipped=True)
 
             # Crear factura
             invoice = Invoice(
@@ -326,6 +358,34 @@ class BankHandler:
             type_str = str(normalized.get("tipo") or normalized.get("type") or "other").lower()
             tx_type = type_map.get(type_str, TransactionType.OTHER)
 
+            # Dedupe de negocio para movimientos bancarios:
+            # 1) referencia (+fecha/monto cuando existen)
+            # 2) fallback por fecha+monto+concepto
+            existing_tx = None
+            if reference:
+                q = db.query(BankTransaction).filter(
+                    BankTransaction.tenant_id == tenant_id,
+                    func.lower(BankTransaction.reference) == reference.lower(),
+                )
+                if tx_date:
+                    q = q.filter(BankTransaction.date == tx_date)
+                if amount is not None:
+                    q = q.filter(BankTransaction.amount == amount)
+                existing_tx = q.first()
+            if not existing_tx:
+                existing_tx = (
+                    db.query(BankTransaction)
+                    .filter(
+                        BankTransaction.tenant_id == tenant_id,
+                        BankTransaction.date == tx_date,
+                        BankTransaction.amount == amount,
+                        func.lower(BankTransaction.concept) == concept.lower(),
+                    )
+                    .first()
+                )
+            if existing_tx:
+                return PromoteResult(domain_id=str(existing_tx.id), skipped=True)
+
             # Crear transacción
             transaction = BankTransaction(
                 id=uuid4(),
@@ -510,6 +570,32 @@ class ExpenseHandler:
             if desired_status == "paid" and not payment_method_override:
                 # Keep the extracted/default method if not provided
                 payment_method_override = forma_pago_raw if forma_pago_raw else None
+
+            # Dedupe de negocio para gastos/recibos:
+            # 1) número de factura/recibo (+proveedor cuando exista)
+            # 2) fallback por fecha+concepto+total
+            existing_expense = None
+            if factura_numero:
+                q = db.query(Expense).filter(
+                    Expense.tenant_id == tenant_id,
+                    func.lower(Expense.invoice_number) == factura_numero.lower(),
+                )
+                if supplier_id:
+                    q = q.filter(Expense.supplier_id == supplier_id)
+                existing_expense = q.first()
+            if not existing_expense:
+                existing_expense = (
+                    db.query(Expense)
+                    .filter(
+                        Expense.tenant_id == tenant_id,
+                        Expense.date == tx_date,
+                        func.lower(Expense.concept) == concept.lower(),
+                        Expense.total == Decimal(str(total)),
+                    )
+                    .first()
+                )
+            if existing_expense:
+                return PromoteResult(domain_id=str(existing_expense.id), skipped=True)
 
             # Create expense
             expense = Expense(
@@ -702,6 +788,105 @@ class ProductHandler:
         return ProductHandler._to_dec(0, "0.000001")
 
     @staticmethod
+    def _normalize_name(value: str | None) -> str:
+        if not value:
+            return ""
+        txt = unicodedata.normalize("NFKD", str(value))
+        txt = "".join(ch for ch in txt if not unicodedata.combining(ch))
+        txt = txt.lower().strip()
+        txt = re.sub(r"[^a-z0-9\s]+", " ", txt)
+        txt = re.sub(r"\s+", " ", txt).strip()
+        return txt
+
+    @staticmethod
+    def _normalize_name_tokens(value: str | None) -> list[str]:
+        base = ProductHandler._normalize_name(value)
+        if not base:
+            return []
+        tokens = [t for t in base.split(" ") if t]
+        out: list[str] = []
+        for tok in tokens:
+            if len(tok) > 3 and tok.endswith("s"):
+                out.append(tok[:-1])
+            else:
+                out.append(tok)
+        return out
+
+    @staticmethod
+    def _is_similar_product_name(left: str | None, right: str | None) -> bool:
+        a_tokens = ProductHandler._normalize_name_tokens(left)
+        b_tokens = ProductHandler._normalize_name_tokens(right)
+        if not a_tokens or not b_tokens:
+            return False
+        a = " ".join(a_tokens)
+        b = " ".join(b_tokens)
+        if a == b:
+            return True
+        if a in b or b in a:
+            # Accept inclusions when strings are close enough.
+            min_len = min(len(a), len(b))
+            max_len = max(len(a), len(b))
+            if min_len >= 4 and (min_len / max_len) >= 0.6:
+                return True
+        ratio = SequenceMatcher(None, a, b).ratio()
+        if ratio >= 0.88:
+            return True
+        # Token overlap fallback (e.g. "pan tapado" vs "tapados")
+        a_set = set(a_tokens)
+        b_set = set(b_tokens)
+        overlap = len(a_set.intersection(b_set))
+        return overlap > 0 and (overlap / max(min(len(a_set), len(b_set)), 1)) >= 0.75
+
+    @staticmethod
+    def _find_existing_product(
+        db: Session,
+        tenant_id: UUID,
+        *,
+        sku: str | None,
+        name: str,
+    ) -> Product | None:
+        if sku:
+            by_sku = (
+                db.query(Product)
+                .filter(
+                    Product.tenant_id == tenant_id,
+                    Product.sku == sku,
+                )
+                .first()
+            )
+            if by_sku:
+                return by_sku
+
+        # Fast path: case-insensitive exact name match in DB.
+        by_name_ci = (
+            db.query(Product)
+            .filter(
+                Product.tenant_id == tenant_id,
+                func.lower(Product.name) == name.lower(),
+            )
+            .first()
+        )
+        if by_name_ci:
+            return by_name_ci
+
+        # Robust fallback: normalize accents/punctuation/spacing and match in Python.
+        target = ProductHandler._normalize_name(name)
+        if not target:
+            return None
+
+        probe = target.split(" ")[0]
+        query = db.query(Product).filter(Product.tenant_id == tenant_id)
+        if probe:
+            query = query.filter(Product.name.ilike(f"%{probe}%"))
+        candidates = query.limit(2000).all()
+        for cand in candidates:
+            if ProductHandler._normalize_name(cand.name) == target:
+                return cand
+            if ProductHandler._is_similar_product_name(cand.name, name):
+                return cand
+        return None
+
+    @staticmethod
     def promote(
         db: Session,
         tenant_id: UUID,
@@ -791,17 +976,17 @@ class ProductHandler:
             sku = f"{prefix}-{next_num:04d}"
         sku = sanitize_sku(sku)
 
-        # Upsert-like: look up existing by tenant + (sku or name)
-        existing = (
-            db.query(Product)
-            .filter(
-                Product.tenant_id == tenant_id,
-                (Product.sku == sku) | (Product.name == name),
-            )
-            .first()
+        # Upsert-like: look up existing by tenant + sku/name (normalized for name).
+        existing = ProductHandler._find_existing_product(
+            db,
+            tenant_id,
+            sku=sku,
+            name=name,
         )
 
         if existing:
+            if sku and not existing.sku:
+                existing.sku = sku
             existing.price = price
             existing.stock = stock
             if unit_cost > 0:

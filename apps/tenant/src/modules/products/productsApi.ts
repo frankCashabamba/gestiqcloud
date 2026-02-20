@@ -20,6 +20,8 @@ const ENDPOINTS = {
     purge: '/api/v1/tenant/products/purge',
     bulkActive: '/api/v1/tenant/products/bulk/active',
     bulkCategory: '/api/v1/tenant/products/bulk/category',
+    similarDuplicates: '/api/v1/tenant/products/duplicates/similar',
+    mergeDuplicates: '/api/v1/tenant/products/duplicates/merge',
   },
   categories: {
     list: '/api/v1/tenant/products/product-categories',
@@ -57,6 +59,20 @@ export type Categoria = {
   name: string
   description?: string | null
   parent_id?: string | null
+}
+
+export type SimilarProductCandidate = {
+  id: string
+  name: string
+  sku?: string | null
+  price: number
+  stock: number
+  refs: number
+}
+
+export type SimilarProductGroup = {
+  winner: SimilarProductCandidate
+  candidates: SimilarProductCandidate[]
 }
 
 // ============================================================================
@@ -276,6 +292,30 @@ export async function purgeProductosConfirm(options?: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ include_stock, include_categories, confirm, dry_run: false }),
+  }) as any
+}
+
+export async function listSimilarProductDuplicates(
+  threshold: number = 0.9,
+  limit: number = 12,
+): Promise<{ groups: SimilarProductGroup[]; total_groups: number }> {
+  const params = new URLSearchParams({
+    threshold: String(threshold),
+    limit: String(limit),
+  })
+  return apiFetch<{ groups: SimilarProductGroup[]; total_groups: number }>(
+    `${ENDPOINTS.products.similarDuplicates}?${params.toString()}`,
+  )
+}
+
+export async function mergeSimilarProducts(
+  winnerId: string,
+  loserIds: string[],
+): Promise<{ merged: number; winner_id: string; moved_refs: Record<string, number>; deleted_ids: string[] }> {
+  return apiFetch(ENDPOINTS.products.mergeDuplicates, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ winner_id: winnerId, loser_ids: loserIds }),
   }) as any
 }
 

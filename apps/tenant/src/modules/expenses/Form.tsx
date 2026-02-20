@@ -49,12 +49,17 @@ export default function GastoForm() {
   })
 
   const [loading, setLoading] = useState(false)
+  const isProductionExpense = (expense: Gasto) =>
+    expense.category === 'production' || String(expense.invoice_number || '').startsWith('PROD-')
 
   useEffect(() => {
     if (id) {
       setLoading(true)
       getGasto(id)
         .then((x) => {
+          if (isProductionExpense(x)) {
+            throw new Error('Production expenses are system-generated and cannot be edited')
+          }
           setForm({
             date: x.date,
             category: x.category,
@@ -69,10 +74,13 @@ export default function GastoForm() {
             notes: x.notes || ''
           })
         })
-        .catch((e) => error(getErrorMessage(e)))
+        .catch((e) => {
+          error(getErrorMessage(e))
+          nav('..')
+        })
         .finally(() => setLoading(false))
     }
-  }, [id])
+  }, [id, nav, error])
 
   const onSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault()

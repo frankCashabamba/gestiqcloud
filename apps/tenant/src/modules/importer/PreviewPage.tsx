@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../auth/AuthContext'
+import { useToast } from '../../shared/toast'
 import ImportadorLayout from './components/ImportadorLayout'
+import ConfirmActionModal from './components/ConfirmActionModal'
 import {
     listBatchesByCompany,
     listCategories,
@@ -13,8 +15,8 @@ import {
     validateBatch,
     getBatchStatus,
     getBatch,
+    getBatchRecipesPreview,
     patchItem,
-    ingestBatch,
     resetBatch,
     deleteBatch,
     cancelBatch,
@@ -27,6 +29,8 @@ interface Batch {
     id: string
     status: string
     source_type: string
+    parser_id?: string | null
+    suggested_parser?: string | null
     created_at: string
     item_count: number
     mapping_id?: string
@@ -62,6 +66,7 @@ interface Category {
 export default function PreviewPage() {
     const { token, profile } = useAuth()
     const { t } = useTranslation()
+    const toast = useToast()
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
 
@@ -72,7 +77,27 @@ export default function PreviewPage() {
     [batches, selectedBatch]
   )
   const [productos, setProductos] = useState<ProductoPreview[]>([])
+  const isRecipeBatch = useMemo(() => {
+    const sourceType = String(selectedBatchObj?.source_type || '').toLowerCase()
+    const parserId = String((selectedBatchObj as any)?.parser_id || '').toLowerCase()
+    const suggestedParser = String((selectedBatchObj as any)?.suggested_parser || '').toLowerCase()
+    if (sourceType === 'recipes' || sourceType === 'recipe') return true
+    if (parserId === 'xlsx_recipes' || suggestedParser === 'xlsx_recipes') return true
+    // Fallback for legacy/stale batches that got typed as products.
+    return productos.some((p: any) => {
+      const merged = { ...((p?.raw as any)?.datos || {}), ...(p?.raw || {}), ...(p?.normalized || {}) }
+      return Boolean(
+        merged.ingredient ||
+        merged.ingredients ||
+        merged.recipe ||
+        merged.receta ||
+        merged.materials ||
+        merged.insumos
+      )
+    })
+  }, [selectedBatchObj?.source_type, (selectedBatchObj as any)?.parser_id, (selectedBatchObj as any)?.suggested_parser, productos])
   const inferredBatchType = useMemo(() => {
+    if (isRecipeBatch) return 'recipes'
     const sourceType = String(selectedBatchObj?.source_type || '').toLowerCase()
     if (sourceType !== 'generic') return sourceType
     if (!Array.isArray(productos) || productos.length === 0) return sourceType
@@ -90,7 +115,7 @@ export default function PreviewPage() {
       )
     }).length
     return productLike / Math.max(productos.length, 1) >= 0.6 ? 'products' : sourceType
-  }, [selectedBatchObj?.source_type, productos])
+  }, [isRecipeBatch, selectedBatchObj?.source_type, productos])
   const isProductsBatch = inferredBatchType === 'products'
     const [totalProductos, setTotalProductos] = useState<number>(0)
     const [page, setPage] = useState<number>(1)
@@ -115,6 +140,17 @@ export default function PreviewPage() {
   >('bank')
   const [promotePaidAt, setPromotePaidAt] = useState<string>(() => new Date().toISOString().slice(0, 10))
   const [deletingAllProcesses, setDeletingAllProcesses] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmMessage, setConfirmMessage] = useState('')
+  const confirmResolverRef = useRef<((ok: boolean) => void) | null>(null)
+
+  const askConfirm = useCallback((message: string) => {
+    setConfirmMessage(message)
+    setConfirmOpen(true)
+    return new Promise<boolean>((resolve) => {
+      confirmResolverRef.current = resolve
+    })
+  }, [])
 
     // Detected categories in the batch (by frequency)
     const detectedCategories = useMemo(() => {
@@ -166,7 +202,8 @@ export default function PreviewPage() {
         try {
             setLoading(true)
             const data = await listBatchesByCompany(profile.tenant_id, token || undefined)
-            const items = Array.isArray(data) ? data : (data as any).items || []
+            const itemsRaw = Array.isArray(data) ? data : (data as any).items || []
+            const items = (itemsRaw as any[]).filter((b) => String(b?.status || '') !== 'PROMOTED')
 
             // If coming from a deep-link (?batch_id=...), ensure that batch exists in the list
             // so source_type-based UI works (products vs other) even if list endpoint is truncated.
@@ -175,7 +212,7 @@ export default function PreviewPage() {
             if (urlBatchId && !items.some((b: any) => String(b?.id) === String(urlBatchId))) {
                 try {
                     const b = await getBatch(urlBatchId, token || undefined)
-                    if (b && (b as any).id) {
+                    if (b && (b as any).id && String((b as any).status || '') !== 'PROMOTED') {
                         nextItems = [b as any, ...items]
                     }
                 } catch {
@@ -223,6 +260,11 @@ export default function PreviewPage() {
                 const items = (data as any).items || []
                 setProductos(items)
                 setTotalProductos(Number((data as any).total ?? items.length))
+            } else if (sourceType === 'recipes') {
+                const data = await getBatchRecipesPreview(selectedBatch, token || undefined)
+                const items = (data as any).items || []
+                setProductos(items)
+                setTotalProductos(Number((data as any).total ?? items.length))
             } else {
                 // For non-products, show all rows (OK + ERROR_VALIDATION + ERROR) to avoid partial previews.
                 const items = await listItems(selectedBatch, { authToken: token || undefined })
@@ -246,6 +288,10 @@ export default function PreviewPage() {
         if (!selectedBatch) return
         const current = batches.find(b => b.id === selectedBatch)
         if (!current) return
+        const isRecipeLikeCurrent =
+            String((current as any).source_type || '').toLowerCase() === 'recipes' ||
+            String((current as any).parser_id || '').toLowerCase() === 'xlsx_recipes' ||
+            String((current as any).suggested_parser || '').toLowerCase() === 'xlsx_recipes'
         // Solo lanzar start-excel si el batch tiene file_key (lotes creados desde upload)
         const hasFile = Boolean((current as any).file_key)
         // Auto-iniciar importaciÃ³n si el lote estÃ¡ PENDING y aÃºn no lo hemos intentado
@@ -265,22 +311,10 @@ export default function PreviewPage() {
                 }
             })()
         }
-        // Para recipes con archivo: si estÃ¡ PENDING/EMPTY y no hay items, dispara ingest vacÃ­o (fast-path recetas)
-        if (
-            hasFile &&
-            (current as any).source_type === 'recipes' &&
-            (current.status === 'PENDING' || current.status === 'EMPTY') &&
-            kickStarted === selectedBatch // ya intentamos start-excel
-        ) {
-            ; (async () => {
-                try {
-                    await ingestBatch(selectedBatch, { rows: [] }, token || undefined)
-                } catch (err) {
-                    console.warn('ingestBatch recipes failed', err)
-                }
-            })()
+        if (isTerminalStatus(current.status) && !(current.status === 'EMPTY' && isRecipeLikeCurrent)) {
+            setBatchStatus(null)
+            return
         }
-        if (isTerminalStatus(current.status)) { setBatchStatus(null); return }
         let cancelled = false
         let lastProgress = -1
         const interval = setInterval(async () => {
@@ -348,7 +382,7 @@ export default function PreviewPage() {
             setSelectedIds(new Set())
             setCategoryAssignment('')
         } catch (err: any) {
-            alert(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
+            toast.error(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
         }
     }
 
@@ -356,10 +390,10 @@ export default function PreviewPage() {
     const handlePromote = async () => {
         if (!selectedBatch) return
 
-        const sourceType = selectedBatchObj?.source_type || ''
+        const sourceType = String(inferredBatchType || selectedBatchObj?.source_type || '').toLowerCase()
 
         // For recipes, show the special modal
-        if (sourceType === 'recipes') {
+        if (sourceType === 'recipes' || isRecipeBatch) {
             setShowRecipePromoteModal(true)
             return
         }
@@ -387,13 +421,16 @@ export default function PreviewPage() {
                 ? t('importerPreviewPage.confirm.promoteInvoices')
                 : t('importerPreviewPage.confirm.promoteGeneric')
 
-        const confirmed = confirm(confirmMsg)
+        const confirmed = await askConfirm(confirmMsg)
         if (!confirmed) return
 
         setPromoting(true)
         try {
             const res = await promoteBatch(selectedBatch)
-            alert(t('importerPreviewPage.messages.promoteSuccess', { created: res.created, skipped: res.skipped, failed: res.failed }))
+            toast.success(t('importerPreviewPage.messages.promoteSuccess', { created: res.created, skipped: res.skipped, failed: res.failed }))
+            if ((res.skipped || 0) > 0) {
+                toast.info(t('importerPreviewPage.messages.duplicatesSkipped', { count: res.skipped }))
+            }
             if (targetPath) {
                 navigate(targetPath)
             } else {
@@ -401,7 +438,7 @@ export default function PreviewPage() {
                 await fetchProductos()
             }
         } catch (err: any) {
-            alert(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
+            toast.error(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
         } finally {
             setPromoting(false)
         }
@@ -416,13 +453,15 @@ export default function PreviewPage() {
                 opts['save_as_products'] = 'true'
             }
             const res = await promoteBatch(selectedBatch, opts)
-            alert(t('importerPreviewPage.messages.promoteRecipesSuccess', { created: res.created, skipped: res.skipped, failed: res.failed }))
+            toast.success(t('importerPreviewPage.messages.promoteRecipesSuccess', { created: res.created, skipped: res.skipped, failed: res.failed }))
+            if ((res.skipped || 0) > 0) {
+                toast.info(t('importerPreviewPage.messages.duplicatesSkipped', { count: res.skipped }))
+            }
             setShowRecipePromoteModal(false)
             setRecipeAlsoSaveAsProducts(false)
-            await fetchBatches()
-            await fetchProductos()
+            navigate('../production/recipes')
         } catch (err: any) {
-            alert(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
+            toast.error(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
         } finally {
             setPromoting(false)
         }
@@ -438,11 +477,14 @@ export default function PreviewPage() {
                 paymentMethod: promotePaymentStatus === 'paid' ? promotePaymentMethod : undefined,
                 paidAt: promotePaymentStatus === 'paid' ? promotePaidAt : undefined,
             })
-            alert(t('importerPreviewPage.messages.promoteSuccess', { created: res.created, skipped: res.skipped, failed: res.failed }))
+            toast.success(t('importerPreviewPage.messages.promoteSuccess', { created: res.created, skipped: res.skipped, failed: res.failed }))
+            if ((res.skipped || 0) > 0) {
+                toast.info(t('importerPreviewPage.messages.duplicatesSkipped', { count: res.skipped }))
+            }
             setShowPromoteModal(false)
             navigate('../expenses')
         } catch (err: any) {
-            alert(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
+            toast.error(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
         } finally {
             setPromoting(false)
         }
@@ -454,7 +496,7 @@ export default function PreviewPage() {
             await validateBatch(selectedBatch)
             await fetchProductos()
         } catch (err: any) {
-            alert(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
+            toast.error(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
         }
     }
 
@@ -464,7 +506,7 @@ export default function PreviewPage() {
             await patchItem(selectedBatch, itemId, field, value)
             await fetchProductos()
         } catch (err: any) {
-            alert(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
+            toast.error(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
         }
     }
 
@@ -479,7 +521,7 @@ export default function PreviewPage() {
             setNewCategory('')
             await fetchProductos()
         } catch (err: any) {
-            alert(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
+            toast.error(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
         }
     }
 
@@ -631,7 +673,7 @@ export default function PreviewPage() {
                                     checked={recipeAlsoSaveAsProducts}
                                     onChange={(e) => setRecipeAlsoSaveAsProducts(e.target.checked)}
                                 />
-                                <span>También guardar ingredientes como productos en el inventario</span>
+                                <span>¿Guardar también los ingredientes como productos para inventario?</span>
                             </label>
                             <div className="rounded-md bg-blue-50 p-3 text-xs text-blue-700">
                                 <strong>{t('importerPreviewPage.recipeModal.noteLabel')}</strong> {t('importerPreviewPage.recipeModal.noteText')}
@@ -822,7 +864,7 @@ export default function PreviewPage() {
                                         className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50"
                                         onClick={async () => {
                                             if (!selectedBatch) return
-                                            const ok = confirm(t('importerPreviewPage.confirm.forceDeleteBatch'))
+                                            const ok = await askConfirm(t('importerPreviewPage.confirm.forceDeleteBatch'))
                                             if (!ok) return
                                             await deleteBatch(selectedBatch, token || undefined)
                                             await fetchBatches(); setSelectedBatch(null); setProductos([])
@@ -934,7 +976,7 @@ export default function PreviewPage() {
                             className="rounded-md border border-rose-300 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50"
                             onClick={async () => {
                                 if (!selectedBatch) return
-                                const ok = confirm(t('importerPreviewPage.confirm.deleteBatchWithItems'))
+                                const ok = await askConfirm(t('importerPreviewPage.confirm.deleteBatchWithItems'))
                                 if (!ok) return
                                 try {
                                     await deleteBatch(selectedBatch, token || undefined)
@@ -943,7 +985,7 @@ export default function PreviewPage() {
                                     setProductos([])
                                     setSelectedBatch(null)
                                 } catch (err: any) {
-                                    alert(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
+                                    toast.error(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
                                 }
                             }}
                             disabled={!selectedBatch}
@@ -953,7 +995,7 @@ export default function PreviewPage() {
                         <button
                             className="rounded-md border border-rose-300 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50"
                             onClick={async () => {
-                                const ok = confirm(t('importerPreviewPage.confirm.deleteAllProcesses'))
+                                const ok = await askConfirm(t('importerPreviewPage.confirm.deleteAllProcesses'))
                                 if (!ok) return
                                 setDeletingAllProcesses(true)
                                 try {
@@ -963,7 +1005,7 @@ export default function PreviewPage() {
                                     setProductos([])
                                     setSelectedBatch(null)
                                 } catch (err: any) {
-                                    alert(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
+                                    toast.error(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
                                 } finally {
                                     setDeletingAllProcesses(false)
                                 }
@@ -987,7 +1029,7 @@ export default function PreviewPage() {
                                     className="rounded-md border border-rose-300 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50"
                                     onClick={async () => {
                                         if (!selectedBatch) return
-                                        const ok = confirm(t('importerPreviewPage.confirm.forceDeleteProcessingBatch'))
+                                        const ok = await askConfirm(t('importerPreviewPage.confirm.forceDeleteProcessingBatch'))
                                         if (!ok) return
                                         await deleteBatch(selectedBatch, token || undefined)
                                         await fetchBatches(); setProductos([]); setSelectedBatch(null)
@@ -1331,7 +1373,9 @@ export default function PreviewPage() {
                     {productos.length > 0 && selectedBatchObj && !isProductsBatch && (
                         <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
                             <div className="bg-amber-50 px-4 py-2 text-xs text-amber-700 border-b border-amber-200">
-                                {inferredBatchType === 'invoices'
+                                {inferredBatchType === 'recipes'
+                                    ? `Lote de tipo ${inferredBatchType || selectedBatchObj.source_type || 'unknown'}: vista previa de recetas.`
+                                    : inferredBatchType === 'invoices'
                                     ? t('importerPreview.bannerInvoice', { type: inferredBatchType || selectedBatchObj.source_type || 'unknown' })
                                     : t('importerPreview.bannerGeneric', { type: inferredBatchType || selectedBatchObj.source_type || 'unknown' })}
                             </div>
@@ -1340,7 +1384,17 @@ export default function PreviewPage() {
                                     <thead className="bg-slate-50">
                                         <tr>
                                             <th className="px-3 py-3 text-left font-medium text-slate-600">#</th>
-                                            {inferredBatchType === 'invoices' ? (
+                                            {inferredBatchType === 'recipes' ? (
+                                                <>
+                                                    <th className="px-3 py-3 text-left font-medium text-slate-600">Receta</th>
+                                                    <th className="px-3 py-3 text-left font-medium text-slate-600">Tipo</th>
+                                                    <th className="px-3 py-3 text-left font-medium text-slate-600">Clasificacion</th>
+                                                    <th className="px-3 py-3 text-left font-medium text-slate-600">Porciones</th>
+                                                    <th className="px-3 py-3 text-left font-medium text-slate-600">Costo ingredientes</th>
+                                                    <th className="px-3 py-3 text-left font-medium text-slate-600">Ingredientes</th>
+                                                    <th className="px-3 py-3 text-left font-medium text-slate-600">Materiales</th>
+                                                </>
+                                            ) : inferredBatchType === 'invoices' ? (
                                                 <>
                                                     <th className="px-3 py-3 text-left font-medium text-slate-600">{t('importerPreview.invoiceHeaders.date')}</th>
                                                     <th className="px-3 py-3 text-left font-medium text-slate-600">{t('importerPreview.invoiceHeaders.type')}</th>
@@ -1376,10 +1430,35 @@ export default function PreviewPage() {
                                     <tbody className="divide-y divide-slate-100 bg-white">
                                         {visibleProductos.map((p, i) => {
                                             const isInvoiceBatch = inferredBatchType === 'invoices'
+                                            const isRecipesTable = inferredBatchType === 'recipes'
                                             const merged: Record<string, any> = { ...(p.raw?.datos || {}), ...(p.raw || {}), ...(p.normalized || {}) }
                                             const mergedTotals = (merged.totals || {}) as Record<string, any>
                                             const firstLine =
                                                 Array.isArray(merged.lines) && merged.lines.length > 0 ? merged.lines[0] : null
+                                            const recipeName = merged.name || merged.nombre || merged.recipe?.name || '-'
+                                            const recipeType = merged.recipe_type || merged.recipe?.recipe_type || '-'
+                                            const recipeClass = merged.classification || merged.recipe?.classification || '-'
+                                            const recipePortions = merged.portions ?? merged.recipe?.portions ?? '-'
+                                            const recipeCost =
+                                                merged.total_ingredients_cost ?? merged.recipe?.total_ingredients_cost ?? 0
+                                            const recipeIngredients =
+                                                merged.ingredients_count ??
+                                                (Array.isArray(merged.ingredients) ? merged.ingredients.length : 0)
+                                            const recipeMaterials =
+                                                merged.materials_count ??
+                                                (Array.isArray(merged.materials) ? merged.materials.length : 0)
+                                            const recipeIngredientsRows = Array.isArray(merged.ingredients)
+                                                ? merged.ingredients
+                                                : Array.isArray((p.raw as any)?.ingredients)
+                                                ? (p.raw as any).ingredients
+                                                : []
+                                            const recipeMaterialsRows = Array.isArray(merged.materials)
+                                                ? merged.materials
+                                                : Array.isArray((p.raw as any)?.materials)
+                                                ? (p.raw as any).materials
+                                                : []
+                                            const hasRecipeDetails =
+                                                recipeIngredientsRows.length > 0 || recipeMaterialsRows.length > 0
                                             const getAny = (...keys: string[]) => {
                                                 for (const key of keys) {
                                                     const value = merged[key]
@@ -1459,7 +1538,30 @@ export default function PreviewPage() {
                                                 <React.Fragment key={p.id}>
                                                     <tr key={p.id} className="hover:bg-slate-50">
                                                         <td className="px-3 py-2 text-slate-500">{i + 1}</td>
-                                                        {isInvoiceBatch ? (
+                                                        {isRecipesTable ? (
+                                                            <>
+                                                                <td className="px-3 py-2">
+                                                                    <div>{recipeName}</div>
+                                                                    {hasRecipeDetails ? (
+                                                                        <button
+                                                                            type="button"
+                                                                            className="mt-1 text-xs text-blue-600 hover:text-blue-700"
+                                                                            onClick={() => setExpandedDetails(expandedDetails === p.id ? null : p.id)}
+                                                                        >
+                                                                            {expandedDetails === p.id
+                                                                                ? t('importerPreviewPage.actions.hideSupplies')
+                                                                                : t('importerPreviewPage.actions.viewSupplies')}
+                                                                        </button>
+                                                                    ) : null}
+                                                                </td>
+                                                                <td className="px-3 py-2">{recipeType}</td>
+                                                                <td className="px-3 py-2">{recipeClass}</td>
+                                                                <td className="px-3 py-2">{recipePortions}</td>
+                                                                <td className="px-3 py-2">{recipeCost}</td>
+                                                                <td className="px-3 py-2">{recipeIngredients}</td>
+                                                                <td className="px-3 py-2">{recipeMaterials}</td>
+                                                            </>
+                                                        ) : isInvoiceBatch ? (
                                                             <>
                                                                 <td className="px-3 py-2">{fecha}</td>
                                                                 <td className="px-3 py-2">{tipo}</td>
@@ -1517,7 +1619,7 @@ export default function PreviewPage() {
                                                     </tr>
                                                     {expandedErrors === p.id && (
                                                         <tr>
-                                                            <td colSpan={isInvoiceBatch ? 21 : 8} className="bg-rose-50 px-6 py-3 text-xs text-rose-700">
+                                                            <td colSpan={isRecipesTable ? 10 : (isInvoiceBatch ? 21 : 8)} className="bg-rose-50 px-6 py-3 text-xs text-rose-700">
                                                                 <ul className="list-disc pl-5">
                                                                     {(p.errors || []).map((e: any, idx2: number) => {
                                                                         const msg = typeof e === 'string' ? e : (e?.msg || e?.message || JSON.stringify(e))
@@ -1525,6 +1627,72 @@ export default function PreviewPage() {
                                                                         return <li key={idx2}>{msg}{field}</li>
                                                                     })}
                                                                 </ul>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                    {isRecipesTable && expandedDetails === p.id && (
+                                                        <tr>
+                                                            <td colSpan={10} className="bg-slate-50 px-6 py-4 text-xs text-slate-700">
+                                                                <div className="grid gap-4 md:grid-cols-2">
+                                                                    <div>
+                                                                        <div className="mb-2 font-semibold text-slate-800">{t('importerPreviewPage.details.ingredients')}</div>
+                                                                        {recipeIngredientsRows.length > 0 ? (
+                                                                            <div className="overflow-x-auto">
+                                                                                <table className="min-w-full divide-y divide-slate-200">
+                                                                                    <thead className="bg-white">
+                                                                                        <tr>
+                                                                                            <th className="px-2 py-1 text-left font-medium text-slate-600">{t('importerPreviewPage.details.ingredient')}</th>
+                                                                                            <th className="px-2 py-1 text-right font-medium text-slate-600">{t('importerPreviewPage.details.qty')}</th>
+                                                                                            <th className="px-2 py-1 text-left font-medium text-slate-600">{t('importerPreviewPage.details.unit')}</th>
+                                                                                            <th className="px-2 py-1 text-right font-medium text-slate-600">{t('importerPreviewPage.details.amount')}</th>
+                                                                                        </tr>
+                                                                                    </thead>
+                                                                                    <tbody className="divide-y divide-slate-100 bg-white">
+                                                                                        {recipeIngredientsRows.map((it: any, j: number) => (
+                                                                                            <tr key={j}>
+                                                                                                <td className="px-2 py-1">{String(it?.ingredient ?? '')}</td>
+                                                                                                <td className="px-2 py-1 text-right">{it?.quantity ?? ''}</td>
+                                                                                                <td className="px-2 py-1">{String(it?.unit ?? '')}</td>
+                                                                                                <td className="px-2 py-1 text-right">{typeof it?.amount === 'number' ? `$${it.amount.toFixed(3)}` : ''}</td>
+                                                                                            </tr>
+                                                                                        ))}
+                                                                                    </tbody>
+                                                                                </table>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="text-slate-500">{t('importerPreviewPage.details.noIngredients')}</div>
+                                                                        )}
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="mb-2 font-semibold text-slate-800">{t('importerPreviewPage.details.materials')}</div>
+                                                                        {recipeMaterialsRows.length > 0 ? (
+                                                                            <div className="overflow-x-auto">
+                                                                                <table className="min-w-full divide-y divide-slate-200">
+                                                                                    <thead className="bg-white">
+                                                                                        <tr>
+                                                                                            <th className="px-2 py-1 text-left font-medium text-slate-600">Descripción</th>
+                                                                                            <th className="px-2 py-1 text-right font-medium text-slate-600">{t('importerPreviewPage.details.qty')}</th>
+                                                                                            <th className="px-2 py-1 text-left font-medium text-slate-600">{t('importerPreviewPage.details.purchaseUnit')}</th>
+                                                                                            <th className="px-2 py-1 text-right font-medium text-slate-600">{t('importerPreviewPage.details.amount')}</th>
+                                                                                        </tr>
+                                                                                    </thead>
+                                                                                    <tbody className="divide-y divide-slate-100 bg-white">
+                                                                                        {recipeMaterialsRows.map((it: any, j: number) => (
+                                                                                            <tr key={j}>
+                                                                                                <td className="px-2 py-1">{String(it?.description ?? '')}</td>
+                                                                                                <td className="px-2 py-1 text-right">{it?.quantity ?? ''}</td>
+                                                                                                <td className="px-2 py-1">{String(it?.purchase_unit ?? '')}</td>
+                                                                                                <td className="px-2 py-1 text-right">{typeof it?.amount === 'number' ? `$${it.amount.toFixed(3)}` : ''}</td>
+                                                                                            </tr>
+                                                                                        ))}
+                                                                                    </tbody>
+                                                                                </table>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="text-slate-500">{t('importerPreviewPage.details.noMaterials')}</div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
                                                             </td>
                                                         </tr>
                                                     )}
@@ -1558,6 +1726,20 @@ export default function PreviewPage() {
                     </div>
                 </div>
             )}
+            <ConfirmActionModal
+                open={confirmOpen}
+                message={confirmMessage}
+                onCancel={() => {
+                    setConfirmOpen(false)
+                    confirmResolverRef.current?.(false)
+                    confirmResolverRef.current = null
+                }}
+                onConfirm={() => {
+                    setConfirmOpen(false)
+                    confirmResolverRef.current?.(true)
+                    confirmResolverRef.current = null
+                }}
+            />
         </ImportadorLayout>
     )
 }
@@ -1565,6 +1747,7 @@ export default function PreviewPage() {
 function ReassignMappingInline({ batchId, onAfter }: { batchId: string; onAfter?: () => void }) {
     const { token } = useAuth() as any
     const { t } = useTranslation()
+    const toast = useToast()
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
     const [mappings, setMappings] = useState<{ id: string; name: string }[]>([])
@@ -1591,7 +1774,7 @@ function ReassignMappingInline({ batchId, onAfter }: { batchId: string; onAfter?
             if (onAfter) onAfter()
         } catch (err: any) {
             console.error('Reasignar mapping fallÃ³', err)
-            alert(err?.message || t('importerPreviewPage.errors.reassignMappingFailed'))
+            toast.error(err?.message || t('importerPreviewPage.errors.reassignMappingFailed'))
         } finally {
             setLoading(false)
         }

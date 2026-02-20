@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import re
+import unicodedata
+from difflib import SequenceMatcher
 from uuid import UUID
+
+from sqlalchemy import select, text
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -115,6 +119,88 @@ class ProductOut(BaseModel):
     product_metadata: dict | None = None
 
     model_config = {"from_attributes": True}
+
+
+def _normalize_product_name(value: str | None) -> str:
+    if not value:
+        return ""
+    txt = unicodedata.normalize("NFKD", str(value))
+    txt = "".join(ch for ch in txt if not unicodedata.combining(ch))
+    txt = txt.lower().strip()
+    txt = re.sub(r"[^a-z0-9\s]+", " ", txt)
+    txt = re.sub(r"\s+", " ", txt).strip()
+    return txt
+
+
+def _normalize_product_tokens(value: str | None) -> list[str]:
+    base = _normalize_product_name(value)
+    if not base:
+        return []
+    out: list[str] = []
+    for tok in base.split(" "):
+        if len(tok) > 3 and tok.endswith("s"):
+            out.append(tok[:-1])
+        else:
+            out.append(tok)
+    return out
+
+
+def _is_similar_product_name(left: str | None, right: str | None, threshold: float = 0.88) -> bool:
+    a_tokens = _normalize_product_tokens(left)
+    b_tokens = _normalize_product_tokens(right)
+    if not a_tokens or not b_tokens:
+        return False
+
+    a_num = {t for t in a_tokens if any(ch.isdigit() for ch in t)}
+    b_num = {t for t in b_tokens if any(ch.isdigit() for ch in t)}
+    if a_num and b_num and a_num != b_num:
+        return False
+
+    a = " ".join(a_tokens)
+    b = " ".join(b_tokens)
+    if a == b:
+        return True
+    if a in b or b in a:
+        min_len = min(len(a), len(b))
+        max_len = max(len(a), len(b))
+        if min_len >= 4 and (min_len / max_len) >= 0.6:
+            return True
+    if SequenceMatcher(None, a, b).ratio() >= threshold:
+        return True
+    a_set = set(a_tokens)
+    b_set = set(b_tokens)
+    if len(a_set) == 1 or len(b_set) == 1:
+        return False
+    overlap = len(a_set.intersection(b_set))
+    if overlap == 0:
+        return False
+    min_side = overlap / max(min(len(a_set), len(b_set)), 1)
+    jaccard = overlap / max(len(a_set.union(b_set)), 1)
+    return min_side >= 0.8 and jaccard >= 0.55
+
+
+def _to_product_out_row(row: Product) -> ProductOut:
+    """Normalize nullable DB values to satisfy ProductOut response contract."""
+    return ProductOut(
+        id=row.id,
+        name=row.name or "",
+        price=float(row.price or 0),
+        stock=float(row.stock or 0),
+        unit=row.unit or "unit",
+        sku=row.sku,
+        category=row.category,
+        categoria=row.category,
+        category_id=row.category_id,
+        description=row.description,
+        descripcion=row.description,
+        tax_rate=float(row.tax_rate) if row.tax_rate is not None else None,
+        iva_tasa=float(row.tax_rate) if row.tax_rate is not None else None,
+        cost_price=float(row.cost_price) if row.cost_price is not None else None,
+        precio_compra=float(row.cost_price) if row.cost_price is not None else None,
+        active=bool(row.active) if row.active is not None else True,
+        activo=bool(row.active) if row.active is not None else True,
+        product_metadata=row.product_metadata,
+    )
 
 
 # CATEGORÍAS - DEBEN IR ANTES DE LAS RUTAS DINÁMICAS /{product_id}
@@ -281,7 +367,259 @@ def list_products(
 
     query = query.order_by(Product.name.asc()).limit(limit).offset(offset)
     rows = db.execute(query).scalars().all()
-    return rows
+    return [_to_product_out_row(row) for row in rows]
+
+
+class SimilarProductCandidateOut(BaseModel):
+    id: UUID
+    name: str
+    sku: str | None = None
+    price: float
+    stock: float
+    refs: int = 0
+
+
+class SimilarProductGroupOut(BaseModel):
+    winner: SimilarProductCandidateOut
+    candidates: list[SimilarProductCandidateOut]
+
+
+class SimilarProductsResponse(BaseModel):
+    groups: list[SimilarProductGroupOut]
+    total_groups: int
+
+
+class MergeSimilarProductsIn(BaseModel):
+    winner_id: UUID
+    loser_ids: list[UUID] = Field(default_factory=list)
+
+
+class MergeSimilarProductsOut(BaseModel):
+    merged: int
+    winner_id: UUID
+    moved_refs: dict[str, int]
+    deleted_ids: list[UUID]
+
+
+def _quote_ident(name: str) -> str:
+    return '"' + name.replace('"', '""') + '"'
+
+
+def _find_product_fk_tables(db: Session) -> list[tuple[str, bool]]:
+    rows = db.execute(
+        text(
+            """
+            SELECT c.table_name
+            FROM information_schema.columns c
+            WHERE c.table_schema='public'
+              AND c.column_name='product_id'
+              AND c.table_name <> 'products'
+            ORDER BY c.table_name
+            """
+        )
+    ).fetchall()
+    tables = [str(r[0]) for r in rows]
+    out: list[tuple[str, bool]] = []
+    for table in tables:
+        has_tenant = (
+            db.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_schema='public'
+                      AND table_name=:tbl
+                      AND column_name='tenant_id'
+                    LIMIT 1
+                    """
+                ),
+                {"tbl": table},
+            ).first()
+            is not None
+        )
+        out.append((table, has_tenant))
+    return out
+
+
+def _count_product_refs(db: Session, tenant_id: str, product_id: UUID, tables: list[tuple[str, bool]]) -> int:
+    total = 0
+    for table, has_tenant in tables:
+        qtable = _quote_ident(table)
+        if has_tenant:
+            count = db.execute(
+                text(
+                    f"SELECT COUNT(*) FROM public.{qtable} "
+                    "WHERE tenant_id=:tid AND product_id=:pid"
+                ),
+                {"tid": tenant_id, "pid": str(product_id)},
+            ).scalar() or 0
+        else:
+            count = db.execute(
+                text(f"SELECT COUNT(*) FROM public.{qtable} WHERE product_id=:pid"),
+                {"pid": str(product_id)},
+            ).scalar() or 0
+        total += int(count)
+    return total
+
+
+@router.get("/duplicates/similar", response_model=SimilarProductsResponse, dependencies=protected)
+def list_similar_products(
+    request: Request,
+    db: Session = Depends(get_db),
+    threshold: float = Query(default=0.9, ge=0.7, le=1.0),
+    limit: int = Query(default=12, ge=1, le=100),
+):
+    tenant_id = _empresa_id_from_request(request)
+    if tenant_id is None:
+        raise HTTPException(status_code=400, detail="missing_tenant")
+
+    products = (
+        db.query(Product)
+        .filter(Product.tenant_id == tenant_id)
+        .order_by(Product.name.asc())
+        .all()
+    )
+    if not products:
+        return SimilarProductsResponse(groups=[], total_groups=0)
+
+    tables = _find_product_fk_tables(db)
+    refs_by_id: dict[UUID, int] = {}
+    for p in products:
+        refs_by_id[p.id] = _count_product_refs(db, tenant_id, p.id, tables)
+
+    groups: list[SimilarProductGroupOut] = []
+    used: set[UUID] = set()
+    n = len(products)
+    for i in range(n):
+        base = products[i]
+        if base.id in used:
+            continue
+        similar: list[Product] = []
+        for j in range(i + 1, n):
+            other = products[j]
+            if other.id in used:
+                continue
+            if _is_similar_product_name(base.name, other.name, threshold):
+                similar.append(other)
+        if not similar:
+            continue
+        cluster = [base, *similar]
+        winner = sorted(
+            cluster,
+            key=lambda p: (
+                0 if (p.sku and p.sku.strip()) else 1,
+                -(refs_by_id.get(p.id, 0)),
+                p.created_at or p.updated_at,
+                str(p.id),
+            ),
+        )[0]
+        candidates = [p for p in cluster if p.id != winner.id]
+        for c in cluster:
+            used.add(c.id)
+
+        groups.append(
+            SimilarProductGroupOut(
+                winner=SimilarProductCandidateOut(
+                    id=winner.id,
+                    name=winner.name or "",
+                    sku=winner.sku,
+                    price=float(winner.price or 0),
+                    stock=float(winner.stock or 0),
+                    refs=refs_by_id.get(winner.id, 0),
+                ),
+                candidates=[
+                    SimilarProductCandidateOut(
+                        id=c.id,
+                        name=c.name or "",
+                        sku=c.sku,
+                        price=float(c.price or 0),
+                        stock=float(c.stock or 0),
+                        refs=refs_by_id.get(c.id, 0),
+                    )
+                    for c in candidates
+                ],
+            )
+        )
+
+    groups = groups[:limit]
+    return SimilarProductsResponse(groups=groups, total_groups=len(groups))
+
+
+@router.post("/duplicates/merge", response_model=MergeSimilarProductsOut, dependencies=protected)
+def merge_similar_products(
+    payload: MergeSimilarProductsIn,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    tenant_id = _empresa_id_from_request(request)
+    if tenant_id is None:
+        raise HTTPException(status_code=400, detail="missing_tenant")
+    loser_ids = [pid for pid in payload.loser_ids if pid != payload.winner_id]
+    if not loser_ids:
+        raise HTTPException(status_code=400, detail="empty_loser_ids")
+
+    winner = (
+        db.query(Product)
+        .filter(Product.tenant_id == tenant_id, Product.id == payload.winner_id)
+        .first()
+    )
+    if not winner:
+        raise HTTPException(status_code=404, detail="winner_not_found")
+
+    losers = (
+        db.query(Product)
+        .filter(Product.tenant_id == tenant_id, Product.id.in_(loser_ids))
+        .all()
+    )
+    if not losers:
+        raise HTTPException(status_code=404, detail="losers_not_found")
+
+    tables = _find_product_fk_tables(db)
+    moved_refs: dict[str, int] = {}
+    deleted_ids: list[UUID] = []
+
+    for loser in losers:
+        for table, has_tenant in tables:
+            qtable = _quote_ident(table)
+            if has_tenant:
+                res = db.execute(
+                    text(
+                        f"UPDATE public.{qtable} "
+                        "SET product_id=:winner "
+                        "WHERE tenant_id=:tid AND product_id=:loser"
+                    ),
+                    {
+                        "winner": str(winner.id),
+                        "loser": str(loser.id),
+                        "tid": tenant_id,
+                    },
+                )
+            else:
+                res = db.execute(
+                    text(
+                        f"UPDATE public.{qtable} "
+                        "SET product_id=:winner "
+                        "WHERE product_id=:loser"
+                    ),
+                    {
+                        "winner": str(winner.id),
+                        "loser": str(loser.id),
+                    },
+                )
+            updated = int(res.rowcount or 0)
+            if updated > 0:
+                moved_refs[table] = moved_refs.get(table, 0) + updated
+
+        db.delete(loser)
+        deleted_ids.append(loser.id)
+
+    db.commit()
+    return MergeSimilarProductsOut(
+        merged=len(deleted_ids),
+        winner_id=winner.id,
+        moved_refs=moved_refs,
+        deleted_ids=deleted_ids,
+    )
 
 
 @router.get("/{product_id}", response_model=ProductOut)
@@ -297,7 +635,7 @@ def get_product(
     obj = db.query(Product).filter(Product.id == product_id, Product.tenant_id == tenant_id).first()
     if not obj:
         raise HTTPException(status_code=404, detail="product_not_found")
-    return obj
+    return _to_product_out_row(obj)
 
 
 def _generate_next_sku(db: Session, tenant_id: str, categoria: str | None) -> str:

@@ -21,6 +21,13 @@ interface RecetaFormProps {
   onClose: () => void;
 }
 
+const normalizeRecipeUnit = (unit?: string | null): string => {
+  const u = String(unit || '').trim().toLowerCase();
+  if (!u || u === 'unit' || u === 'units') return 'uds';
+  if (u === 'unidad' || u === 'unid') return 'unidades';
+  return u;
+};
+
 export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
   const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(false);
@@ -55,10 +62,10 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
         setIngredientes(recipe.ingredients.map(ing => ({
           product_id: ing.product_id,
           qty: ing.qty,
-          unit: ing.unit,
+          unit: normalizeRecipeUnit(ing.unit),
           purchase_packaging: ing.purchase_packaging,
           qty_per_package: ing.qty_per_package,
-          package_unit: ing.package_unit,
+          package_unit: normalizeRecipeUnit(ing.package_unit),
           package_cost: ing.package_cost,
           notes: ing.notes,
           line_order: ing.line_order || 0
@@ -114,7 +121,8 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
       if (producto) {
         // Autocompletar con valores del producto
         updated[index].unit = producto.unit || 'kg';
-        updated[index].package_unit = producto.unit || 'kg';
+        updated[index].unit = normalizeRecipeUnit(producto.unit);
+        updated[index].package_unit = normalizeRecipeUnit(producto.unit);
 
         // Valores por defecto según la unidad
         const defaultPresentaciones: Record<string, { qty: number, desc: string }> = {
@@ -127,7 +135,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
           'unidades': { qty: 24, desc: 'Caja 24 unidades' }
         };
 
-        const unit = (producto.unit || 'kg').toLowerCase();
+        const unit = normalizeRecipeUnit(producto.unit);
         const defaultPres = defaultPresentaciones[unit] || { qty: 1, desc: 'Unidad' };
 
         updated[index].qty_per_package = defaultPres.qty;

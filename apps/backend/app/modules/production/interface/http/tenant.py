@@ -18,18 +18,20 @@ MIGRADO DE:
 - app/routers/recipes.py
 """
 
+import logging
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
+from app.models.expenses.expense import Expense
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.production.production_order import ProductionOrder, ProductionOrderLine
 from app.models.recipes import Recipe, RecipeIngredient
@@ -80,23 +82,28 @@ router = APIRouter(
         Depends(ensure_rls),
     ],
 )
+logger = logging.getLogger(__name__)
 
 
 # HELPERS
 def _generate_next_numero(db: Session, tenant_id: UUID) -> str:
     year = datetime.utcnow().year
     prefix = f"OP-{year}-"
-    stmt = (
-        select(ProductionOrder)
-        .where(ProductionOrder.tenant_id == tenant_id, ProductionOrder.numero.like(f"{prefix}%"))
-        .order_by(ProductionOrder.numero.desc())
-        .limit(1)
+    table_name = ProductionOrder.__table__.fullname
+    stmt = text(
+        f"""
+        SELECT order_number
+        FROM {table_name}
+        WHERE tenant_id = :tenant_id
+          AND order_number LIKE :prefix
+        ORDER BY order_number DESC
+        LIMIT 1
+        """
     )
-    result = db.execute(stmt)
-    last_order = result.scalar_one_or_none()
-    if last_order and last_order.numero:
+    last_numero = db.execute(stmt, {"tenant_id": str(tenant_id), "prefix": f"{prefix}%"}).scalar()
+    if last_numero:
         try:
-            last_num = int(last_order.numero.split("-")[-1])
+            last_num = int(str(last_numero).split("-")[-1])
             next_num = last_num + 1
         except (ValueError, IndexError):
             next_num = 1
@@ -109,19 +116,22 @@ def _generate_batch_number(db: Session, tenant_id: UUID) -> str:
     year = datetime.utcnow().year
     month = datetime.utcnow().month
     prefix = f"LOT-{year}{month:02d}-"
-    stmt = (
-        select(ProductionOrder)
-        .where(
-            ProductionOrder.tenant_id == tenant_id, ProductionOrder.batch_number.like(f"{prefix}%")
-        )
-        .order_by(ProductionOrder.batch_number.desc())
-        .limit(1)
+    table_name = ProductionOrder.__table__.fullname
+    stmt = text(
+        f"""
+        SELECT batch_number
+        FROM {table_name}
+        WHERE tenant_id = :tenant_id
+          AND batch_number IS NOT NULL
+          AND batch_number LIKE :prefix
+        ORDER BY batch_number DESC
+        LIMIT 1
+        """
     )
-    result = db.execute(stmt)
-    last_order = result.scalar_one_or_none()
-    if last_order and last_order.batch_number:
+    last_batch = db.execute(stmt, {"tenant_id": str(tenant_id), "prefix": f"{prefix}%"}).scalar()
+    if last_batch:
         try:
-            last_num = int(last_order.batch_number.split("-")[-1])
+            last_num = int(str(last_batch).split("-")[-1])
             next_num = last_num + 1
         except (ValueError, IndexError):
             next_num = 1
@@ -133,6 +143,8 @@ def _generate_batch_number(db: Session, tenant_id: UUID) -> str:
 async def _create_stock_moves_for_ingredients(
     db: Session, order: ProductionOrder, warehouse_id: UUID | None = None
 ) -> list[UUID]:
+    if not warehouse_id:
+        raise ValueError("Warehouse is required to consume ingredients")
     stock_move_ids = []
     for line in order.lines:
         stock_move = StockMove(
@@ -141,9 +153,9 @@ async def _create_stock_moves_for_ingredients(
             product_id=line.ingredient_product_id,
             qty=-abs(float(line.qty_consumed)),
             warehouse_id=warehouse_id,
-            ref_doc_type="production_order",
-            ref_doc_id=order.id,
-            posted_at=datetime.utcnow(),
+            ref_type="production_order",
+            ref_id=str(order.id),
+            occurred_at=datetime.utcnow(),
         )
         db.add(stock_move)
         db.flush()
@@ -158,13 +170,13 @@ async def _create_stock_moves_for_ingredients(
         result = db.execute(stmt)
         stock_item = result.scalar_one_or_none()
         if stock_item:
-            stock_item.qty_on_hand -= abs(float(line.qty_consumed))
+            stock_item.qty = float(stock_item.qty or 0) - abs(float(line.qty_consumed))
         else:
             new_stock_item = StockItem(
                 tenant_id=order.tenant_id,
                 product_id=line.ingredient_product_id,
                 warehouse_id=warehouse_id,
-                qty_on_hand=-abs(float(line.qty_consumed)),
+                qty=-abs(float(line.qty_consumed)),
             )
             db.add(new_stock_item)
     return stock_move_ids
@@ -173,15 +185,17 @@ async def _create_stock_moves_for_ingredients(
 async def _create_stock_move_for_output(
     db: Session, order: ProductionOrder, warehouse_id: UUID | None = None
 ) -> UUID:
+    if not warehouse_id:
+        raise ValueError("Warehouse is required to receive produced stock")
     stock_move = StockMove(
         tenant_id=order.tenant_id,
         kind="production_output",
         product_id=order.product_id,
         qty=abs(float(order.qty_produced)),
         warehouse_id=warehouse_id,
-        ref_doc_type="production_order",
-        ref_doc_id=order.id,
-        posted_at=datetime.utcnow(),
+        ref_type="production_order",
+        ref_id=str(order.id),
+        occurred_at=datetime.utcnow(),
     )
     db.add(stock_move)
     db.flush()
@@ -194,7 +208,7 @@ async def _create_stock_move_for_output(
     result = db.execute(stmt)
     stock_item = result.scalar_one_or_none()
     if stock_item:
-        stock_item.qty_on_hand += abs(float(order.qty_produced))
+        stock_item.qty = float(stock_item.qty or 0) + abs(float(order.qty_produced))
         if order.batch_number:
             stock_item.lot = order.batch_number
     else:
@@ -202,11 +216,105 @@ async def _create_stock_move_for_output(
             tenant_id=order.tenant_id,
             product_id=order.product_id,
             warehouse_id=warehouse_id,
-            qty_on_hand=abs(float(order.qty_produced)),
+            qty=abs(float(order.qty_produced)),
             lot=order.batch_number,
         )
         db.add(new_stock_item)
     return stock_move.id
+
+
+def _resolve_warehouse_id(db: Session, tenant_id: UUID, preferred: UUID | None = None) -> UUID:
+    if preferred:
+        return preferred
+    stmt = (
+        select(StockItem.warehouse_id)
+        .where(StockItem.tenant_id == tenant_id)
+        .order_by(StockItem.warehouse_id.asc())
+        .limit(1)
+    )
+    warehouse_id = db.execute(stmt).scalar_one_or_none()
+    if not warehouse_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No warehouse available. Create inventory stock first or select a warehouse.",
+        )
+    return warehouse_id
+
+
+def _create_expense_for_completed_production(
+    db: Session,
+    order: ProductionOrder,
+    tenant_id: UUID,
+    user_id: UUID,
+) -> None:
+    # Idempotency: avoid duplicate expenses for the same production order.
+    invoice_number = f"PROD-{getattr(order, 'order_number', '') or getattr(order, 'numero', '')}"
+    existing = (
+        db.query(Expense)
+        .filter(
+            Expense.tenant_id == tenant_id,
+            Expense.invoice_number == invoice_number,
+        )
+        .first()
+    )
+    if existing:
+        return
+
+    recipe_name = "Production"
+    try:
+        recipe = db.execute(select(Recipe).where(Recipe.id == order.recipe_id)).scalar_one_or_none()
+        if recipe and recipe.name:
+            recipe_name = str(recipe.name)
+    except Exception:
+        pass
+
+    # Recompute from recipe ingredient unit costs to avoid inflated totals when
+    # line cost_unit was stored as package cost by legacy logic.
+    recipe_ingredients = (
+        db.execute(select(RecipeIngredient).where(RecipeIngredient.recipe_id == order.recipe_id))
+        .scalars()
+        .all()
+    )
+    unit_cost_by_product: dict[UUID, Decimal] = {}
+    for ing in recipe_ingredients:
+        qty_per_package = Decimal(str(ing.qty_per_package or 0))
+        package_cost = Decimal(str(ing.package_cost or 0))
+        unit_cost_by_product[ing.product_id] = (
+            (package_cost / qty_per_package) if qty_per_package > 0 else Decimal("0")
+        )
+
+    total_cost = Decimal("0")
+    for line in order.lines:
+        qty = Decimal(str(line.qty_consumed or line.qty_required or 0))
+        unit_cost = unit_cost_by_product.get(
+            line.ingredient_product_id, Decimal(str(line.cost_unit or 0))
+        )
+        total_cost += qty * unit_cost
+
+    qty = Decimal(str(order.qty_produced or 0))
+    concept = f"Production cost - {recipe_name} ({qty})"
+    notes = (
+        f"Auto-generated from production order {getattr(order, 'order_number', '') or getattr(order, 'numero', '')}. "
+        f"Recipe: {recipe_name}. Qty produced: {qty}."
+    )
+
+    expense = Expense(
+        tenant_id=tenant_id,
+        date=datetime.utcnow().date(),
+        concept=concept,
+        category="production",
+        subcategory="manufacturing",
+        amount=total_cost,
+        vat=Decimal("0"),
+        total=total_cost,
+        supplier_id=None,
+        payment_method=None,
+        invoice_number=invoice_number,
+        status="paid",
+        user_id=user_id,
+        notes=notes,
+    )
+    db.add(expense)
 
 
 # ÓRDENES DE PRODUCCIÓN
@@ -288,13 +396,16 @@ async def create_production_order(
         scale_factor = float(order_in.qty_planned) / yield_qty if yield_qty > 0 else 1.0
         for ing in ingredients:
             qty_required = float(ing.qty) * scale_factor
+            qty_per_package = Decimal(str(ing.qty_per_package or 0))
+            package_cost = Decimal(str(ing.package_cost or 0))
+            unit_cost = (package_cost / qty_per_package) if qty_per_package > 0 else Decimal("0")
             line = ProductionOrderLine(
                 order_id=order.id,
                 ingredient_product_id=ing.product_id,
                 qty_required=Decimal(str(qty_required)),
                 qty_consumed=Decimal("0"),
                 unit=ing.unit or "unit",
-                cost_unit=ing.package_cost or Decimal("0"),
+                cost_unit=unit_cost,
             )
             line.cost_total = line.qty_required * line.cost_unit
             db.add(line)
@@ -420,6 +531,11 @@ async def complete_production(
     claims: dict = Depends(with_access_claims),
 ):
     tenant_id = UUID(claims["tenant_id"])
+    raw_user_id = claims.get("user_id")
+    try:
+        user_id = UUID(str(raw_user_id)) if raw_user_id else UUID(str(order_id))
+    except Exception:
+        user_id = UUID(str(order_id))
     stmt = select(ProductionOrder).where(
         ProductionOrder.id == order_id,
         ProductionOrder.tenant_id == tenant_id,
@@ -442,14 +558,25 @@ async def complete_production(
     order.status = "COMPLETED"
     if not order.batch_number:
         order.batch_number = request.batch_number or _generate_batch_number(db, tenant_id)
+    warehouse_id = _resolve_warehouse_id(db, tenant_id, order.warehouse_id)
+    order.warehouse_id = warehouse_id
     if request.notes:
         order.notes = (order.notes or "") + f"\n[Completado] {request.notes}"
     for line in order.lines:
         if not line.qty_consumed or line.qty_consumed == 0:
             line.qty_consumed = line.qty_required
     try:
-        await _create_stock_moves_for_ingredients(db, order, order.warehouse_id)
-        await _create_stock_move_for_output(db, order, order.warehouse_id)
+        await _create_stock_moves_for_ingredients(db, order, warehouse_id)
+        await _create_stock_move_for_output(db, order, warehouse_id)
+        try:
+            _create_expense_for_completed_production(db, order, tenant_id, user_id)
+        except Exception as expense_exc:
+            # Do not block production completion if expense posting fails.
+            logger.exception(
+                "Production completed but expense auto-post failed for order %s: %s",
+                order.id,
+                expense_exc,
+            )
         db.commit()
         db.refresh(order)
         return order
@@ -515,7 +642,7 @@ async def calculate_production(
     can_produce = True
     for ing in ingredients:
         qty_required = Decimal(str(float(ing.qty) * scale_factor))
-        stock_stmt = select(func.sum(StockItem.qty_on_hand)).where(
+        stock_stmt = select(func.sum(StockItem.qty)).where(
             StockItem.tenant_id == tenant_id,
             StockItem.product_id == ing.product_id,
         )
@@ -523,7 +650,9 @@ async def calculate_production(
         stock_available = stock_result.scalar() or Decimal("0")
         stock_sufficient = stock_available >= qty_required
         qty_to_purchase = max(Decimal("0"), qty_required - stock_available)
-        cost_unit = ing.package_cost or Decimal("0")
+        qty_per_package = Decimal(str(ing.qty_per_package or 0))
+        package_cost = Decimal(str(ing.package_cost or 0))
+        cost_unit = (package_cost / qty_per_package) if qty_per_package > 0 else Decimal("0")
         total_cost += qty_required * cost_unit
         ingredient_req = IngredientRequirement(
             ingredient_id=ing.product_id,
@@ -542,7 +671,7 @@ async def calculate_production(
     if missing_ingredients:
         min_ratio = float("inf")
         for ing_data in ingredients:
-            stock_stmt = select(func.sum(StockItem.qty_on_hand)).where(
+            stock_stmt = select(func.sum(StockItem.qty)).where(
                 StockItem.tenant_id == tenant_id,
                 StockItem.product_id == ing_data.product_id,
             )
@@ -694,8 +823,34 @@ def update_recipe(
     if not recipe:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
     update_data = recipe_data.dict(exclude_unset=True)
+    ingredients_payload = update_data.pop("ingredients", None)
+
     for key, value in update_data.items():
         setattr(recipe, key, value)
+
+    # If ingredients are provided on update, replace current recipe ingredients
+    # with the submitted list (full-sync behavior from UI form).
+    if ingredients_payload is not None:
+        (
+            db.query(RecipeIngredient)
+            .filter(RecipeIngredient.recipe_id == recipe_id)
+            .delete(synchronize_session=False)
+        )
+        for idx, ing_data in enumerate(ingredients_payload):
+            ingrediente = RecipeIngredient(
+                recipe_id=recipe.id,
+                product_id=ing_data["product_id"],
+                qty=ing_data["qty"],
+                unit=ing_data["unit"],
+                purchase_packaging=ing_data["purchase_packaging"],
+                qty_per_package=ing_data["qty_per_package"],
+                package_unit=ing_data["package_unit"],
+                package_cost=ing_data["package_cost"],
+                notes=ing_data.get("notes"),
+                line_order=ing_data.get("line_order", idx),
+            )
+            db.add(ingrediente)
+
     db.commit()
     db.refresh(recipe)
     try:

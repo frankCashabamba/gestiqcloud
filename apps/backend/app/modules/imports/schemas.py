@@ -79,6 +79,7 @@ class BatchOut(BaseModel):
     status: str
     file_key: str | None = None
     mapping_id: UUID | None = None
+    parser_id: str | None = None
     created_at: datetime
     # Fase A - Clasificación persistida
     suggested_parser: str | None = None

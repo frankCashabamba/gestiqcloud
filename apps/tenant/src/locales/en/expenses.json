@@ -4,17 +4,28 @@
   "empty": "No records",
   "stats": {
     "total": "Total",
-    "pending": "Pending"
+    "pending": "Pending",
+    "production": "Production",
+    "manual": "Manual"
   },
   "filters": {
     "from": "From",
     "to": "To",
-    "conceptPlaceholder": "Concept..."
+    "conceptPlaceholder": "Concept...",
+    "source": "Source",
+    "sourceAll": "All",
+    "sourceManual": "Manual",
+    "sourceProduction": "Production"
   },
   "table": {
     "date": "Date",
     "concept": "Concept",
+    "source": "Source",
     "amount": "Amount"
+  },
+  "source": {
+    "production": "Auto from production",
+    "manual": "Manual"
   },
   "messages": {
     "deleted": "Expense deleted"

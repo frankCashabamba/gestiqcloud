@@ -1,6 +1,13 @@
-{
+﻿{
+  "actionsLabel": "Acciones",
+  "edit": "Editar",
+  "delete": "Eliminar",
+  "search": "Buscar",
+  "loadingText": "Cargando...",
+  "perPage": "Por pagina:",
+  "exportCsv": "Exportar CSV",
   "loading": {
-    "module": "Cargando módulo…"
+    "module": "Cargando modulo..."
   },
   "table": {
     "movimientos": "Movimientos contables"

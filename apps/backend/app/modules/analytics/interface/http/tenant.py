@@ -135,7 +135,7 @@ def _sector_kpis_payload(
             WHERE {tenant_clause('tenant_id::text')}
             AND kind = 'adjustment'
             AND qty < 0
-            AND DATE(created_at) = :today
+            AND DATE(occurred_at) = :today
         """
             ),
             tenant_params(today=today),

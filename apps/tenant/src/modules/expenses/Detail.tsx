@@ -12,6 +12,8 @@ export default function GastoDetail() {
   const [gasto, setGasto] = useState<Gasto | null>(null)
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
+  const isProductionExpense = (expense: Gasto) =>
+    expense.category === 'production' || String(expense.invoice_number || '').startsWith('PROD-')
 
   useEffect(() => {
     if (!id) return
@@ -64,7 +66,7 @@ export default function GastoDetail() {
               {processing ? 'Processing...' : 'Mark as Paid'}
             </button>
           )}
-          {gasto.status === 'pending' && (
+          {gasto.status === 'pending' && !isProductionExpense(gasto) && (
             <button
               onClick={() => nav('editar')}
               className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"

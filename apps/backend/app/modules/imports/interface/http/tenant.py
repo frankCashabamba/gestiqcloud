@@ -77,6 +77,15 @@ def _get_claims(request: Request) -> dict:
     return claims
 
 
+def _is_company_admin(claims: dict[str, Any]) -> bool:
+    return bool(
+        claims.get("is_company_admin")
+        or claims.get("is_admin_company")
+        or claims.get("es_admin_empresa")
+        or claims.get("is_admin_empresa")
+    )
+
+
 # Public router (no auth) for lightweight health checks
 public_router = APIRouter(
     prefix="/imports",
@@ -1584,31 +1593,6 @@ def ingest_rows_endpoint(
             status_code=413, detail=f"Too many rows: {len(payload.rows)} > {max_items}"
         )
 
-    # Recipe fast-path: parse server-side file and persist recipes/ingredients
-    if batch.source_type == "recipes" or batch.parser_id == "xlsx_recipes":
-        from app.modules.imports.application.tasks.task_import_file import (
-            _file_path_from_key,
-            _persist_recipes,
-        )
-        from app.modules.imports.parsers.xlsx_recipes import parse_xlsx_recipes
-
-        file_path = _file_path_from_key(batch.file_key) if batch.file_key else None
-        if not file_path or not os.path.exists(file_path):
-            raise HTTPException(status_code=400, detail="Recipe file not found for batch")
-
-        parsed = parse_xlsx_recipes(file_path)
-        result = _persist_recipes(db, tenant_id, parsed)
-        batch.status = "READY" if result.get("errors", 0) == 0 else "PARTIAL"
-        db.add(batch)
-        db.commit()
-        return [
-            {
-                "batch_id": str(batch.id),
-                "doc_type": "recipes",
-                "summary": result,
-            }
-        ]
-
     items = use_cases.ingest_rows(
         db,
         tenant_id,  # <-- pasa el tenant_id tal cual (int o string, segÃƒÆ’Ã‚Âºn tu modelo)
@@ -1645,6 +1629,53 @@ def get_batch_endpoint(batch_id: UUID, request: Request, db: Session = Depends(g
     if str(batch.tenant_id) != str(claims.get("tenant_id")):
         raise HTTPException(status_code=403, detail="No autorizado")
     return batch
+
+
+@router.get("/batches/{batch_id}/recipes-preview")
+def get_batch_recipes_preview(batch_id: UUID, request: Request, db: Session = Depends(get_db)):
+    """Build recipe preview directly from source file without persisting import_items."""
+    from app.modules.imports.application.tasks.task_import_file import (
+        _build_recipe_preview_items,
+        _file_path_from_key,
+    )
+    from app.modules.imports.parsers.xlsx_recipes import parse_xlsx_recipes
+
+    claims = _get_claims(request)
+    tenant_id = claims.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="tenant_id_missing")
+
+    batch = (
+        db.query(ImportBatch)
+        .filter(ImportBatch.id == batch_id, ImportBatch.tenant_id == tenant_id)
+        .first()
+    )
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch no encontrado")
+
+    is_recipe_batch = (batch.source_type == "recipes") or (batch.parser_id == "xlsx_recipes")
+    if not is_recipe_batch:
+        return {"items": [], "total": 0}
+
+    file_path = _file_path_from_key(batch.file_key) if batch.file_key else None
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(status_code=400, detail="Recipe file not found for batch")
+
+    parsed = parse_xlsx_recipes(file_path)
+    preview_items = _build_recipe_preview_items(parsed)
+    items = []
+    for idx, preview in enumerate(preview_items, start=1):
+        items.append(
+            {
+                "id": f"preview-{idx}",
+                "idx": idx,
+                "status": "OK",
+                "errors": [],
+                "raw": preview.get("raw") or {},
+                "normalized": preview.get("normalized") or {},
+            }
+        )
+    return {"items": items, "total": len(items)}
 
 
 @router.get("/batches/{batch_id}/status")
@@ -1687,12 +1718,27 @@ def get_batch_status_endpoint(batch_id: UUID, request: Request, db: Session = De
 
     from datetime import datetime as _dt
 
+    is_recipe_batch = (getattr(batch, "source_type", "") == "recipes") or (
+        getattr(batch, "parser_id", "") == "xlsx_recipes"
+    )
+
     # Si no quedan pendientes/en proceso, actualizar estado del batch según resultado
     if (total == 0) or (pending == 0 and processing == 0):
         if completed == total and total > 0:
             target_status = ImportBatchStatus.PROMOTED
         elif total == 0:
-            target_status = ImportBatchStatus.EMPTY
+            if is_recipe_batch:
+                # Recipe fast-path guarda directo en tablas recipe/ingredients y puede no crear import_items.
+                if str(batch.status) in (
+                    ImportBatchStatus.PARTIAL,
+                    ImportBatchStatus.ERROR,
+                    ImportBatchStatus.PROMOTED,
+                ):
+                    target_status = batch.status
+                else:
+                    target_status = ImportBatchStatus.READY
+            else:
+                target_status = ImportBatchStatus.EMPTY
         elif failed > 0 and completed == 0:
             target_status = ImportBatchStatus.ERROR
         elif failed > 0 and completed > 0:
@@ -1706,6 +1752,12 @@ def get_batch_status_endpoint(batch_id: UUID, request: Request, db: Session = De
                 db.commit()
             except Exception:
                 db.rollback()
+        if total == 0 and is_recipe_batch and str(batch.status) in (
+            ImportBatchStatus.READY,
+            ImportBatchStatus.PARTIAL,
+            ImportBatchStatus.PROMOTED,
+        ):
+            progress_pct = 100.0
 
     return {
         "batch_id": str(batch_id),
@@ -2350,7 +2402,7 @@ def get_import_field_aliases(
     db: Session = Depends(get_db),
 ):
     claims = _get_claims(request)
-    if not bool(claims.get("is_admin_company")):
+    if not _is_company_admin(claims):
         raise HTTPException(status_code=403, detail="admin_company_required")
     tenant_id = claims.get("tenant_id")
     if not tenant_id:
@@ -2385,7 +2437,7 @@ def put_import_field_aliases(
     db: Session = Depends(get_db),
 ):
     claims = _get_claims(request)
-    if not bool(claims.get("is_admin_company")):
+    if not _is_company_admin(claims):
         raise HTTPException(status_code=403, detail="admin_company_required")
     tenant_id = claims.get("tenant_id")
     if not tenant_id:
@@ -2950,7 +3002,7 @@ def promote_batch_endpoint(
     if not batch_uuid:
         raise HTTPException(status_code=400, detail="Invalid batch_id format")
     batch = repo.get_batch(db, tenant_id, batch_uuid)
-    if batch and batch.source_type == "recipes":
+    if batch and (batch.source_type == "recipes" or batch.parser_id == "xlsx_recipes"):
         from app.modules.imports.application.tasks.task_import_file import (
             _file_path_from_key,
             _persist_recipes,
@@ -2969,7 +3021,7 @@ def promote_batch_endpoint(
             # Already handled by _persist_recipes
             pass
 
-        batch.status = "READY" if result.get("errors", 0) == 0 else "PARTIAL"
+        batch.status = "PROMOTED" if result.get("errors", 0) == 0 else "PARTIAL"
         db.add(batch)
         db.commit()
         return {

@@ -4,6 +4,8 @@
 
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useToast } from '../../../shared/toast'
+import ConfirmActionModal from './ConfirmActionModal'
 import {
     listImportTemplates,
     deleteImportTemplate,
@@ -19,10 +21,12 @@ interface Props {
 
 export default function TemplateManager({ isOpen, onClose, onSelect, sourceType }: Props) {
     const { t } = useTranslation('importer')
+    const toast = useToast()
     const [templates, setTemplates] = useState<ImportTemplate[]>([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
     useEffect(() => {
         if (isOpen) {
@@ -45,20 +49,25 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
 
     const handleDelete = async (id: string, isSystem: boolean) => {
         if (isSystem) {
-            alert(t('templateManager.errors.cannotDeleteSystemTemplate'))
+            toast.warning(t('templateManager.errors.cannotDeleteSystemTemplate'))
             return
         }
 
-        if (!confirm(t('templateManager.confirm.deleteTemplate'))) return
+        setConfirmDeleteId(id)
+    }
 
-        setDeletingId(id)
+    const confirmDelete = async () => {
+        if (!confirmDeleteId) return
+
+        setDeletingId(confirmDeleteId)
         try {
-            await deleteImportTemplate(id)
+            await deleteImportTemplate(confirmDeleteId)
             await loadTemplates() // Recargar lista
         } catch (err: any) {
-            alert(err?.message || t('templateManager.errors.deleteFailed'))
+            toast.error(err?.message || t('templateManager.errors.deleteFailed'))
         } finally {
             setDeletingId(null)
+            setConfirmDeleteId(null)
         }
     }
 
@@ -169,6 +178,13 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
                         {t('common.close')}
                     </button>
                 </div>
+                <ConfirmActionModal
+                    open={Boolean(confirmDeleteId)}
+                    message={t('templateManager.confirm.deleteTemplate')}
+                    loading={Boolean(deletingId)}
+                    onCancel={() => setConfirmDeleteId(null)}
+                    onConfirm={confirmDelete}
+                />
             </div>
         </div>
     )

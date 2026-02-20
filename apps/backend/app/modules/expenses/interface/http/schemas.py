@@ -9,6 +9,12 @@ class ExpenseBase(BaseModel):
     amount: float
     supplier_id: UUID | None = None
     concept: str | None = None
+    category: str | None = None
+    subcategory: str | None = None
+    payment_method: str | None = None
+    invoice_number: str | None = None
+    status: str | None = None
+    notes: str | None = None
 
 
 class ExpenseCreate(ExpenseBase):
@@ -21,5 +27,7 @@ class ExpenseUpdate(ExpenseBase):
 
 class ExpenseOut(ExpenseBase):
     id: UUID
+    vat: float | None = None
+    total: float | None = None
 
     model_config = ConfigDict(from_attributes=True)

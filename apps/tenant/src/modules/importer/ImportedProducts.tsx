@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../auth/AuthContext'
+import { useToast } from '../../shared/toast'
 import ImportadorLayout from './components/ImportadorLayout'
+import ConfirmActionModal from './components/ConfirmActionModal'
 import { apiFetch } from '../../lib/http'
 import { deleteMultipleItems, listAllProductItems, listProductItems, patchItem } from './services/importsApi'
 import { PURCHASING_DEFAULTS } from '../../constants/defaults'
@@ -39,6 +41,7 @@ interface ProductosResponse {
 const ProductosImportados: React.FC = () => {
     const { token, profile } = useAuth()
     const { t } = useTranslation('importer')
+    const toast = useToast()
     const [searchParams, setSearchParams] = useSearchParams()
 
     const [productos, setProductos] = useState<ProductoImportado[]>([])
@@ -51,6 +54,17 @@ const ProductosImportados: React.FC = () => {
     const [editingId, setEditingId] = useState<string | null>(null)
     const [editValues, setEditValues] = useState<Partial<ProductoImportado>>({})
     const [showZeroStockNotice, setShowZeroStockNotice] = useState(false)
+    const [confirmOpen, setConfirmOpen] = useState(false)
+    const [confirmMessage, setConfirmMessage] = useState('')
+    const confirmResolverRef = useRef<((ok: boolean) => void) | null>(null)
+
+    const askConfirm = useCallback((message: string) => {
+        setConfirmMessage(message)
+        setConfirmOpen(true)
+        return new Promise<boolean>((resolve) => {
+            confirmResolverRef.current = resolve
+        })
+    }, [])
 
     const batchId = searchParams.get('batch_id')
     const statusParam = searchParams.get('status')
@@ -150,7 +164,7 @@ const ProductosImportados: React.FC = () => {
     const handleSaveEdit = async () => {
         if (!editingId) return
         if (!editingBatchId) {
-            alert(t('importedProducts.alerts.couldNotDetermineBatch'))
+            toast.error(t('importedProducts.alerts.couldNotDetermineBatch'))
             return
         }
 
@@ -163,7 +177,7 @@ const ProductosImportados: React.FC = () => {
             setEditValues({})
             fetchProductos()
         } catch (err: any) {
-            alert(t('importedProducts.alerts.errorWithMessage', { message: err.message }))
+            toast.error(t('importedProducts.alerts.errorWithMessage', { message: err.message }))
         }
     }
 
@@ -174,35 +188,35 @@ const ProductosImportados: React.FC = () => {
 
     const handleEliminar = async () => {
         if (selectedIds.size === 0) {
-            alert(t('importedProducts.alerts.selectAtLeastOne'))
+            toast.warning(t('importedProducts.alerts.selectAtLeastOne'))
             return
         }
 
-        if (!confirm(t('importedProducts.confirm.deleteProducts', { count: selectedIds.size }))) return
+        if (!(await askConfirm(t('importedProducts.confirm.deleteProducts', { count: selectedIds.size })))) return
 
         try {
             const result = await deleteMultipleItems({ item_ids: Array.from(selectedIds) }, token || undefined)
-            alert(t('importedProducts.alerts.productsDeleted', { count: result.deleted }))
+            toast.success(t('importedProducts.alerts.productsDeleted', { count: result.deleted }))
 
             setSelectedIds(new Set())
             fetchProductos()
         } catch (err: any) {
-            alert(t('importedProducts.alerts.errorWithMessage', { message: err.message }))
+            toast.error(t('importedProducts.alerts.errorWithMessage', { message: err.message }))
         }
     }
 
     const handlePromover = async () => {
         if (selectedIds.size === 0) {
-            alert(t('importedProducts.alerts.selectAtLeastOne'))
+            toast.warning(t('importedProducts.alerts.selectAtLeastOne'))
             return
         }
 
         const zeroStockSelected = productos.filter((p) => selectedIds.has(p.id) && (p.stock ?? 0) <= 0).length
         if (zeroStockSelected > 0) {
-            if (!confirm(t('importedProducts.confirm.zeroStockPromoteAnyway', { count: zeroStockSelected }))) return
+            if (!(await askConfirm(t('importedProducts.confirm.zeroStockPromoteAnyway', { count: zeroStockSelected })))) return
         }
 
-        if (!confirm(t('importedProducts.confirm.promoteProducts', { count: selectedIds.size }))) return
+        if (!(await askConfirm(t('importedProducts.confirm.promoteProducts', { count: selectedIds.size })))) return
 
         try {
             const endpoint = batchId
@@ -229,15 +243,21 @@ const ProductosImportados: React.FC = () => {
 
             if (result.errors && result.errors.length > 0) {
                 console.error('Promotion errors:', result.errors.slice(0, 5))
-                alert(t('importedProducts.alerts.promotedWithErrors', { promoted: result.promoted, total: result.total, errors: result.errors.length }))
+                toast.warning(
+                    t('importedProducts.alerts.promotedWithErrors', {
+                        promoted: result.promoted,
+                        total: result.total,
+                        errors: result.errors.length,
+                    })
+                )
             } else {
-                alert(t('importedProducts.alerts.promotedSuccessfully', { count: result.promoted }))
+                toast.success(t('importedProducts.alerts.promotedSuccessfully', { count: result.promoted }))
             }
 
             setSelectedIds(new Set())
             fetchProductos()
         } catch (err: any) {
-            alert(t('importedProducts.alerts.errorWithMessage', { message: err.message }))
+            toast.error(t('importedProducts.alerts.errorWithMessage', { message: err.message }))
         }
     }
 
@@ -577,6 +597,20 @@ const ProductosImportados: React.FC = () => {
                         </div>
                     </div>
                 )}
+                <ConfirmActionModal
+                    open={confirmOpen}
+                    message={confirmMessage}
+                    onCancel={() => {
+                        setConfirmOpen(false)
+                        confirmResolverRef.current?.(false)
+                        confirmResolverRef.current = null
+                    }}
+                    onConfirm={() => {
+                        setConfirmOpen(false)
+                        confirmResolverRef.current?.(true)
+                        confirmResolverRef.current = null
+                    }}
+                />
             </div>
         </ImportadorLayout>
     )

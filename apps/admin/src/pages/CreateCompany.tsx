@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import ModuloSelector from '../modulos/ModuloSelector'
 import { useCrearEmpresa } from '../hooks/useCrearEmpresa'
 import type { FormularioEmpresa } from '../typesall/empresa'
@@ -44,6 +44,7 @@ export const CrearEmpresa: React.FC = () => {
   const [monedas, setMonedas] = useState<Moneda[]>([])
   const [locales, setLocales] = useState<Locale[]>([])
   const [timezones, setTimezones] = useState<Timezone[]>([])
+  const errorAlertRef = useRef<HTMLDivElement | null>(null)
   const { crear, loading, error, success, fieldErrors, needSecondSurname } = useCrearEmpresa()
 
   // Habilitar el submit solo cuando los campos mínimos estén completos
@@ -108,6 +109,14 @@ export const CrearEmpresa: React.FC = () => {
       active = false
     }
   }, [])
+
+  useEffect(() => {
+    if (!localError && !error && !catalogError) return
+    const id = window.setTimeout(() => {
+      errorAlertRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [localError, error, catalogError])
 
   function onChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -207,6 +216,11 @@ export const CrearEmpresa: React.FC = () => {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLocalError(null)
+    if (!canSubmit) {
+      return setLocalError(
+        'Complete required fields: company, admin, valid email, country, language, timezone, currency, sector, and at least 1 module.',
+      )
+    }
     const v = validate()
     if (v) return setLocalError(v)
     const res = await crear(formData)
@@ -253,7 +267,11 @@ export const CrearEmpresa: React.FC = () => {
 
         <form onSubmit={onSubmit} className="px-6 py-6 space-y-10">
           {(localError || error || catalogError) && (
-            <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <div
+              ref={errorAlertRef}
+              role="alert"
+              className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+            >
               {localError || error || catalogError}
             </div>
           )}
@@ -441,9 +459,9 @@ export const CrearEmpresa: React.FC = () => {
           <div className="sticky bottom-0 left-0 right-0 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-t border-slate-200 px-4 py-4 mt-6 flex items-center justify-between gap-4">
             <button
               type="submit"
-              disabled={loading || !canSubmit}
+              disabled={loading}
               className={`inline-flex items-center justify-center rounded-xl px-6 py-3 font-semibold text-white shadow-sm transition ${
-                loading || !canSubmit ? 'bg-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
+                loading ? 'bg-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
               }`}
             >
               {loading && (

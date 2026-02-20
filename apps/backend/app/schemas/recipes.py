@@ -74,9 +74,20 @@ class RecipeIngredientUpdate(BaseModel):
     line_order: int | None = Field(None, ge=0)
 
 
-class RecipeIngredientResponse(RecipeIngredientBase):
+class RecipeIngredientResponse(BaseModel):
+    """Respuesta tolerante para ingredientes legacy ya guardados en BD."""
+
     id: UUID
     recipe_id: UUID
+    product_id: UUID
+    qty: float = Field(..., ge=0)
+    unit: str | None = None
+    purchase_packaging: str | None = None
+    qty_per_package: float | None = Field(default=None, ge=0)
+    package_unit: str | None = None
+    package_cost: float | None = Field(default=None, ge=0)
+    notes: str | None = None
+    line_order: int = Field(default=0, ge=0)
     ingredient_cost: float | None = 0
     created_at: datetime
 

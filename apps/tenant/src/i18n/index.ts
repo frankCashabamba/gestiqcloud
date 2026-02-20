@@ -4,12 +4,32 @@ import LanguageDetector from 'i18next-browser-languagedetector'
 
 import en from './locales/en.json'
 import es from './locales/es.json'
-import posEn from '../locales/en/pos.json'
-import posEs from '../locales/es/pos.json'
 import commonEn from '../locales/en/common.json'
 import commonEs from '../locales/es/common.json'
 import importerEn from '../locales/en/importer.json'
 import importerEs from '../locales/es/importer.json'
+import crmEn from '../locales/en/crm.json'
+import crmEs from '../locales/es/crm.json'
+import customersEn from '../locales/en/customers.json'
+import customersEs from '../locales/es/customers.json'
+import expensesEn from '../locales/en/expenses.json'
+import expensesEs from '../locales/es/expenses.json'
+import financesEn from '../locales/en/finances.json'
+import financesEs from '../locales/es/finances.json'
+import inventoryEn from '../locales/en/inventory.json'
+import inventoryEs from '../locales/es/inventory.json'
+import permissionsEn from '../locales/en/permissions.json'
+import permissionsEs from '../locales/es/permissions.json'
+import posEn from '../locales/en/pos.json'
+import posEs from '../locales/es/pos.json'
+import productsEn from '../locales/en/products.json'
+import productsEs from '../locales/es/products.json'
+import reportesEn from '../locales/en/reportes.json'
+import reportesEs from '../locales/es/reportes.json'
+import settingsEn from '../locales/en/settings.json'
+import settingsEs from '../locales/es/settings.json'
+import suppliersEn from '../locales/en/suppliers.json'
+import suppliersEs from '../locales/es/suppliers.json'
 
 type BuiltInLang = 'en' | 'es'
 const BUILTIN_LANGS: BuiltInLang[] = ['en', 'es']
@@ -36,15 +56,35 @@ export function normalizeLang(value?: string | null): SupportedLang {
 const resources = {
   en: {
     translation: en,
-    pos: posEn,
     common: commonEn,
+    crm: crmEn,
+    customers: customersEn,
+    expenses: expensesEn,
+    finances: financesEn,
     importer: importerEn,
+    inventory: inventoryEn,
+    permissions: permissionsEn,
+    pos: posEn,
+    products: productsEn,
+    reportes: reportesEn,
+    settings: settingsEn,
+    suppliers: suppliersEn,
   },
   es: {
     translation: es,
-    pos: posEs,
     common: commonEs,
+    crm: crmEs,
+    customers: customersEs,
+    expenses: expensesEs,
+    finances: financesEs,
     importer: importerEs,
+    inventory: inventoryEs,
+    permissions: permissionsEs,
+    pos: posEs,
+    products: productsEs,
+    reportes: reportesEs,
+    settings: settingsEs,
+    suppliers: suppliersEs,
   },
 }
 
@@ -53,7 +93,22 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    ns: ['translation', 'pos', 'common', 'importer'],
+    ns: [
+      'translation',
+      'common',
+      'crm',
+      'customers',
+      'expenses',
+      'finances',
+      'importer',
+      'inventory',
+      'permissions',
+      'pos',
+      'products',
+      'reportes',
+      'settings',
+      'suppliers',
+    ],
     defaultNS: 'translation',
     fallbackNS: ['common'],
     supportedLngs: [...SUPPORTED_LANGS],

@@ -1,5 +1,6 @@
 import asyncio
 import importlib
+import json
 import logging
 import os
 import sys
@@ -338,6 +339,39 @@ if "*" not in allow_methods:
     for mandatory in ("OPTIONS", "HEAD"):
         if mandatory not in allow_methods:
             allow_methods.append(mandatory)
+
+raw_headers = getattr(
+    settings,
+    "CORS_ALLOW_HEADERS",
+    [
+        "Authorization",
+        "Content-Type",
+        "X-CSRF-Token",
+        "X-CSRFToken",
+        "X-CSRF",
+        "X-Client-Version",
+        "X-Client-Revision",
+    ],
+)
+if isinstance(raw_headers, str):
+    s = raw_headers.strip()
+    parsed = None
+    if s.startswith("[") and s.endswith("]"):
+        try:
+            parsed = json.loads(s)
+        except Exception:
+            parsed = None
+    if isinstance(parsed, list):
+        allow_headers = [str(h).strip() for h in parsed if str(h).strip()]
+    else:
+        allow_headers = [h.strip() for h in s.split(",") if h.strip()]
+else:
+    allow_headers = [str(h).strip() for h in raw_headers if str(h).strip()]
+
+_must_allow_headers = ["X-Confirm-Delete-Tenant"]
+for h in _must_allow_headers:
+    if h.lower() not in {x.lower() for x in allow_headers}:
+        allow_headers.append(h)
 try:
     environment = os.getenv("ENVIRONMENT", "development").lower()
 
@@ -367,7 +401,7 @@ app.add_middleware(
     allow_origin_regex=getattr(settings, "CORS_ALLOW_ORIGIN_REGEX", None),
     allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
     allow_methods=allow_methods,
-    allow_headers=settings.CORS_ALLOW_HEADERS,
+    allow_headers=allow_headers,
     max_age=86400,
 )
 
