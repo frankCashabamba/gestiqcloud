@@ -35,8 +35,7 @@ def find_missing_id_defaults(db: Session) -> list[dict[str, object]]:
 
     Useful to detect autoincrement issues after resets/migrations.
     """
-    sql = text(
-        """
+    sql = text("""
         SELECT kcu.table_name,
                c.data_type,
                c.is_identity,
@@ -56,8 +55,7 @@ def find_missing_id_defaults(db: Session) -> list[dict[str, object]]:
           AND kcu.column_name = 'id'
           AND c.data_type IN ('integer','bigint')
         ORDER BY kcu.table_name
-        """
-    )
+        """)
     rows = db.execute(sql).fetchall()
     out: list[dict[str, object]] = []
     for r in rows:

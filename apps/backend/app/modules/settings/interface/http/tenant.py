@@ -436,14 +436,12 @@ def put_tenant_module_mode(payload: dict, db: Session = Depends(get_db)):
     from sqlalchemy import text
 
     db.execute(
-        text(
-            """
+        text("""
             INSERT INTO tenant_module_settings(tenant_id, module, form_mode)
             VALUES (:tid, :mod, :mode)
             ON CONFLICT (tenant_id, module)
             DO UPDATE SET form_mode = EXCLUDED.form_mode, updated_at = NOW()
-            """
-        ),
+            """),
         {"tid": tenant_id, "mod": module, "mode": form_mode},
     )
     db.commit()

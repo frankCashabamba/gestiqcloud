@@ -145,15 +145,13 @@ def generar_numero_fallback(
     # Buscar último número en la tabla
     try:
         result = db.execute(
-            text(
-                f"""
+            text(f"""
                 SELECT numero FROM {tabla}
                 WHERE tenant_id = :tid
                 AND numero LIKE :pattern
                 ORDER BY created_at DESC, id DESC
                 LIMIT 1
-            """
-            ),
+            """),
             {"tid": tenant_id, "pattern": f"%-{year}-%"},
         ).scalar()
 
@@ -205,15 +203,13 @@ def validar_numero_unico(
 
     try:
         existe = db.execute(
-            text(
-                f"""
+            text(f"""
                 SELECT EXISTS(
                     SELECT 1 FROM {tabla}
                     WHERE numero = :numero
                     AND tenant_id = :tid
                 )
-            """
-            ),
+            """),
             {"numero": numero, "tid": tenant_uuid},
         ).scalar()
 

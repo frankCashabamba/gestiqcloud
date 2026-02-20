@@ -77,12 +77,10 @@ class AuditService:
             "props": json.dumps(props, cls=AuditJSONEncoder),
         }
 
-        sql = text(
-            """
+        sql = text("""
             INSERT INTO audit_log (tenant_id, source, name, user_id, ip, props)
             VALUES (:tenant_id, :source, :name, :user_id, :ip, CAST(:props AS jsonb))
-            """
-        )
+            """)
 
         try:
             db.execute(sql, payload)
