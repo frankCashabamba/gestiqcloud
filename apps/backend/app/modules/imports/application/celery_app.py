@@ -8,13 +8,15 @@ import warnings
 from celery import Celery
 from kombu import Queue
 
+from app.config import env_loader as _env_loader  # noqa: F401
+
 
 def _get_redis_url_for_imports() -> str:
     """
     Get Redis URL for imports Celery broker with validation.
 
-    In production: Fails explicitly if REDIS_URL is not configured
-    In development: Warns if using localhost fallback
+    In production: REDIS_URL is required.
+    In development: REDIS_URL or DEV_REDIS_URL is required.
     """
     redis_url = os.getenv("REDIS_URL", "").strip()
     if redis_url:
@@ -27,15 +29,23 @@ def _get_redis_url_for_imports() -> str:
             "Example: REDIS_URL=redis://cache.internal:6379/1"
         )
 
-    warnings.warn(
-        "REDIS_URL not configured. Using development fallback (localhost).", RuntimeWarning
+    dev_redis_url = os.getenv("DEV_REDIS_URL", "").strip()
+    if dev_redis_url:
+        warnings.warn(
+            "REDIS_URL not configured. Using DEV_REDIS_URL for development.",
+            RuntimeWarning,
+        )
+        return dev_redis_url
+
+    raise RuntimeError(
+        "REDIS_URL is not configured. "
+        "Set REDIS_URL (all environments) or DEV_REDIS_URL (development only)."
     )
-    return "redis://localhost:6379/0"
 
 
 def _get_redis_result_url() -> str:
     """Get Redis URL for Celery result backend with validation."""
-    # Try REDIS_RESULT_URL first, then fall back to REDIS_URL pattern
+    # Try REDIS_RESULT_URL first
     redis_url = os.getenv("REDIS_RESULT_URL", "").strip()
     if redis_url:
         return redis_url
@@ -48,6 +58,26 @@ def _get_redis_result_url() -> str:
             return redis_base[:-1] + "1"
         return redis_base
 
+    # Development-specific explicit result URL
+    dev_redis_result_url = os.getenv("DEV_REDIS_RESULT_URL", "").strip()
+    if dev_redis_result_url:
+        warnings.warn(
+            "REDIS_RESULT_URL not configured. Using DEV_REDIS_RESULT_URL for development.",
+            RuntimeWarning,
+        )
+        return dev_redis_result_url
+
+    # Fallback to DEV_REDIS_URL in development
+    dev_redis_url = os.getenv("DEV_REDIS_URL", "").strip()
+    if dev_redis_url:
+        warnings.warn(
+            "REDIS_RESULT_URL not configured. Deriving from DEV_REDIS_URL for development.",
+            RuntimeWarning,
+        )
+        if dev_redis_url.endswith("/0"):
+            return dev_redis_url[:-1] + "1"
+        return dev_redis_url
+
     environment = os.getenv("ENVIRONMENT", "development").lower()
     if environment == "production":
         raise RuntimeError(
@@ -55,31 +85,45 @@ def _get_redis_result_url() -> str:
             "Required for imports Celery result backend."
         )
 
-    warnings.warn(
-        "REDIS_RESULT_URL not configured. Using development fallback (localhost/1).", RuntimeWarning
+    raise RuntimeError(
+        "REDIS_RESULT_URL is not configured. "
+        "Set REDIS_RESULT_URL/REDIS_URL (all environments) or "
+        "DEV_REDIS_RESULT_URL/DEV_REDIS_URL (development only)."
     )
-    return "redis://localhost:6379/1"
 
 
 REDIS_URL = _get_redis_url_for_imports()
 REDIS_RESULT_URL = _get_redis_result_url()
 RUNNER_MODE = os.getenv("IMPORTS_RUNNER_MODE", "celery")
+IMPORTS_WORKER_PROFILE = os.getenv("IMPORTS_WORKER_PROFILE", "clean").strip().lower()
+
+
+def _get_task_includes() -> list[str]:
+    """Celery task includes by worker profile.
+
+    - clean: only new pipeline/core tasks (no legacy OCR/extract tasks)
+    - legacy: includes old task_ocr/task_extract modules
+    """
+    core = [
+        "app.modules.imports.application.tasks.task_preprocess",
+        "app.modules.imports.application.tasks.task_classify",
+        "app.modules.imports.application.tasks.task_validate",
+        "app.modules.imports.application.tasks.task_publish",
+        "app.modules.imports.application.tasks.task_import_file",
+        "app.modules.imports.application.tasks.task_import_excel",  # backward compatibility
+        "app.modules.imports.application.tasks.task_ocr_job",
+    ]
+    if IMPORTS_WORKER_PROFILE == "legacy":
+        core.insert(1, "app.modules.imports.application.tasks.task_ocr")
+        core.insert(3, "app.modules.imports.application.tasks.task_extract")
+    return core
+
 
 celery_app = Celery(
     "gestiq_imports",
     broker=REDIS_URL,
     backend=REDIS_RESULT_URL,
-    include=[
-        "app.modules.imports.application.tasks.task_preprocess",
-        "app.modules.imports.application.tasks.task_ocr",
-        "app.modules.imports.application.tasks.task_classify",
-        "app.modules.imports.application.tasks.task_extract",
-        "app.modules.imports.application.tasks.task_validate",
-        "app.modules.imports.application.tasks.task_publish",
-        "app.modules.imports.application.tasks.task_import_file",
-        "app.modules.imports.application.tasks.task_import_excel",  # Keep for backward compatibility
-        "app.modules.imports.application.tasks.task_ocr_job",
-    ],
+    include=_get_task_includes(),
 )
 
 celery_app.conf.update(

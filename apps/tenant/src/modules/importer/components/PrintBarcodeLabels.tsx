@@ -1,8 +1,8 @@
 /**
- * Componente de impresiÃ³n de etiquetas con cÃ³digos de barras
+ * Componente de impresión de etiquetas con códigos de barras
  *
- * Permite configurar formato (ancho, alto, separaciÃ³n), controlar copias, y decidir quÃ© campos se muestran.
- * Incluye un modal de impresiÃ³n para seleccionar la impresora, guardar la configuraciÃ³n y lanzar la tirada.
+ * Permite configurar formato (ancho, alto, separación), controlar copias, y decidir qué campos se muestran.
+ * Incluye un modal de impresión para seleccionar la impresora, guardar la configuración y lanzar la tirada.
  */
 import React, { useMemo, useRef, useState } from 'react'
 import JsBarcode from 'jsbarcode'
@@ -234,7 +234,7 @@ export default function PrintBarcodeLabels({
             Imprimir etiquetas ({labels.length} total)
           </h2>
           <p className="text-sm text-gray-500 mt-1">
-            {products.length} productos Ã— {Math.max(1, localConfig.copies)} copia(s) = {labels.length} etiquetas
+            {products.length} productos × {Math.max(1, localConfig.copies)} copia(s) = {labels.length} etiquetas
           </p>
         </div>
         <button
@@ -275,7 +275,7 @@ export default function PrintBarcodeLabels({
                   <option value="">
                     {savedConfigs.length === 0
                       ? configsLoading
-                        ? 'Cargandoâ€¦'
+                        ? 'Cargando…'
                         : 'No hay configuraciones guardadas'
                       : 'Selecciona un perfil'}
                   </option>
@@ -331,7 +331,7 @@ export default function PrintBarcodeLabels({
               />
             </label>
             <label className="text-xs text-gray-500">
-              SeparaciÃ³n (mm)
+              Separación (mm)
               <input
                 type="number"
                 min={1}
@@ -411,7 +411,7 @@ export default function PrintBarcodeLabels({
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-xs text-gray-500">
-              Ancho del cÃ³digo de barras
+              Ancho del código de barras
               <input
                 type="number"
                 min={1}
@@ -423,7 +423,7 @@ export default function PrintBarcodeLabels({
               />
             </label>
             <label className="text-xs text-gray-500">
-              AlineaciÃ³n del precio
+              Alineación del precio
               <select
                 value={localConfig.priceAlignment}
                 onChange={(event) =>
@@ -449,7 +449,7 @@ export default function PrintBarcodeLabels({
               value={localConfig.headerText}
               onChange={(event) => updateConfigAndResetSelection({ headerText: event.target.value })}
               className="mt-1 w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Texto que aparece arriba del artÃ­culo"
+              placeholder="Texto que aparece arriba del artículo"
             />
           </label>
           <label className="text-xs text-gray-500 block">
@@ -479,16 +479,16 @@ export default function PrintBarcodeLabels({
                 onChange={(event) => updateConfigAndResetSelection({ showCategory: event.target.checked })}
                 className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
-              Mostrar categorÃ­a
+              Mostrar categoría
             </label>
           </div>
         </div>
 
         <div className="text-sm text-gray-600 space-y-1">
-          <p>{`${products.length} productos Ã— ${Math.max(1, localConfig.copies)} copia(s) = ${labels.length} etiquetas`}</p>
-          <p>TamaÃ±o actual: <strong>{`${localConfig.widthMm}Ã—${localConfig.heightMm} mm`}</strong></p>
-          <p>Precio visible: <strong>{localConfig.showPrice ? 'SÃ­' : 'No'}</strong></p>
-          <p>CategorÃ­a visible: <strong>{localConfig.showCategory ? 'SÃ­' : 'No'}</strong></p>
+          <p>{`${products.length} productos × ${Math.max(1, localConfig.copies)} copia(s) = ${labels.length} etiquetas`}</p>
+          <p>Tamaño actual: <strong>{`${localConfig.widthMm}×${localConfig.heightMm} mm`}</strong></p>
+          <p>Precio visible: <strong>{localConfig.showPrice ? 'Sí' : 'No'}</strong></p>
+          <p>Categoría visible: <strong>{localConfig.showCategory ? 'Sí' : 'No'}</strong></p>
         </div>
       </div>
 

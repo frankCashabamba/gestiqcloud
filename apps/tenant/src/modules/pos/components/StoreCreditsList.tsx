@@ -5,8 +5,10 @@
 import React, { useState, useEffect } from 'react'
 import { listStoreCredits, getStoreCreditByCode } from '../services'
 import type { StoreCredit } from '../../../types/pos'
+import { useToast } from '../../../shared/toast'
 
 export default function StoreCreditsList() {
+  const toast = useToast()
   const [credits, setCredits] = useState<StoreCredit[]>([])
   const [searchCode, setSearchCode] = useState('')
   const [loading, setLoading] = useState(false)
@@ -38,7 +40,7 @@ export default function StoreCreditsList() {
       const credit = await getStoreCreditByCode(searchCode)
       setCredits([credit])
     } catch (error: any) {
-      alert(error.response?.data?.detail || 'Vale no encontrado')
+      toast.error(error.response?.data?.detail || 'Vale no encontrado')
       setCredits([])
     } finally {
       setLoading(false)

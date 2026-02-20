@@ -135,9 +135,7 @@ DROP TABLE IF EXISTS tenants;
     # Generate CREATE TABLE for each table
     for table_name, table in sorted(metadata.tables.items()):
         try:
-            create_sql = str(
-                CreateTable(table).compile(compile_kwargs={"literal_binds": True})
-            )
+            create_sql = str(CreateTable(table).compile(compile_kwargs={"literal_binds": True}))
             sql_statements.append(f"-- Table: {table_name}")
             sql_statements.append(create_sql + ";\n")
         except Exception as e:

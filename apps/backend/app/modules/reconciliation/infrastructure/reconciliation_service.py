@@ -205,11 +205,9 @@ class ReconciliationService:
                 "total_paid": float(total_paid),
                 "remaining_balance": float(remaining),
                 "payment_count": payment_count,
-                "reconciliation_status": "paid"
-                if remaining <= 0
-                else "partial"
-                if total_paid > 0
-                else "pending",
+                "reconciliation_status": (
+                    "paid" if remaining <= 0 else "partial" if total_paid > 0 else "pending"
+                ),
                 "invoice_status": status,
             }
 

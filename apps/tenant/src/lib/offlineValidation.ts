@@ -54,6 +54,14 @@ const ENTITY_SCHEMAS: Record<EntityType, {
     requiredFields: ['id', 'lineas'],
     maxSize: 1024 * 120,
   },
+  expense: {
+    requiredFields: ['id', 'amount'],
+    maxSize: 1024 * 80,
+  },
+  inventory: {
+    requiredFields: ['id'],
+    maxSize: 1024 * 120,
+  },
 }
 
 // =============================================================================
@@ -209,7 +217,7 @@ export function validateBatch(entity: EntityType, items: any[]): { valid: any[];
 // =============================================================================
 
 export function isEntityType(value: unknown): value is EntityType {
-  const validEntities: EntityType[] = ['receipt', 'shift', 'product', 'customer', 'sale', 'purchase']
+  const validEntities: EntityType[] = ['receipt', 'shift', 'product', 'customer', 'sale', 'purchase', 'invoice', 'expense', 'inventory']
   return validEntities.includes(value as EntityType)
 }
 

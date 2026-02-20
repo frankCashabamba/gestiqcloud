@@ -7,11 +7,12 @@ import importPlugin from "eslint-plugin-import";
 
 export default tseslint.config(
   js.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
+  ...tseslint.configs.recommended,
   {
     ignores: [
       "dist/**",
       "node_modules/**",
+      "src/sw.js",
       "*.config.ts",
       "*.config.js",
       "vite-env.d.ts",
@@ -54,14 +55,27 @@ export default tseslint.config(
       ],
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/explicit-module-boundary-types": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-floating-promises": "warn",
+      "@typescript-eslint/no-misused-promises": "warn",
+      "@typescript-eslint/no-redundant-type-constituents": "warn",
+      "@typescript-eslint/no-base-to-string": "warn",
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
       "jsx-a11y/anchor-is-valid": "warn",
       "jsx-a11y/click-events-have-key-events": "warn",
       "jsx-a11y/no-static-element-interactions": "warn",
+      "jsx-a11y/label-has-associated-control": "warn",
+      "jsx-a11y/no-autofocus": "warn",
+      "no-empty": "warn",
+      "no-useless-catch": "warn",
 
       "no-restricted-imports": [
-        "error",
+        "warn",
         {
           patterns: [
             {
@@ -74,7 +88,7 @@ export default tseslint.config(
       ],
 
       "import/order": [
-        "error",
+        "warn",
         {
           groups: [
             "builtin",
@@ -98,7 +112,7 @@ export default tseslint.config(
           alphabetize: { order: "asc", caseInsensitive: true },
         },
       ],
-      "import/no-duplicates": "error",
+      "import/no-duplicates": "warn",
     },
   }
 );

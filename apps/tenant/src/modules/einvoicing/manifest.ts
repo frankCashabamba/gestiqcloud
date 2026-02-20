@@ -9,8 +9,8 @@ export const manifest = {
   routes: [
     {
       path: '',
-      label: 'Facturación Electrónica',
-      component: lazy(() => import('./Placeholder'))
+      label: 'Dashboard',
+      component: lazy(() => import('./EInvoicingDashboard'))
     }
   ]
 }

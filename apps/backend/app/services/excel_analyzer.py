@@ -15,7 +15,6 @@ def detect_header_row(ws: Worksheet, max_rows: int = 10) -> int:
     """
     # Palabras que indican que NO es un header (instrucciones, notas, etc)
     exclude_keywords = [
-        "formato",
         "instrucciones",
         "como",
         "apuntar",

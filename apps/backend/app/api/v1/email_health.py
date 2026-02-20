@@ -75,7 +75,9 @@ def smtp_test(payload: EmailTestIn, background: BackgroundTasks):
       <p>Este es un correo de prueba enviado por el endpoint /email/test.</p>
       <p>Fecha servidor: {}</p>
     </body></html>
-    """.format(__import__("datetime").datetime.utcnow().isoformat() + "Z")
+    """.format(
+            __import__("datetime").datetime.utcnow().isoformat() + "Z"
+        )
     )
 
     try:

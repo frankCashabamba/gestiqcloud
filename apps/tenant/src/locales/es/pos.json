@@ -17,7 +17,10 @@
         "saleSupervisor": "Venta completada",
         "invoiceCreation": "Venta supera mínimo de facturación. Crear factura...",
         "heldTicketInfo": "Ticket en espera: {{id}}. Usa Recuperar para continuar.",
-        "heldTicketPick": "Tickets en espera:\n{{list}}\nEscribe ID para recuperar"
+        "heldTicketPick": "Tickets en espera:\n{{list}}\nEscribe ID para recuperar",
+        "partialWholesaleFrom": "Mayorista parcial desde {{threshold}}",
+        "wholesale": "Mayorista",
+        "completeBuyerDataQuick": "Completa los datos del cliente para facturar r?pido"
     },
     "table": {
         "date": "Fecha",
@@ -46,7 +49,29 @@
         "offline": "Offline",
         "cashierLabel": "Cajero",
         "warehouseLabel": "Almacén",
-        "syncing": "Sincronizar"
+        "syncing": "Sincronizar",
+        "backToDashboard": "Volver al panel",
+        "registerOpen": "Caja abierta",
+        "registerClosed": "Caja cerrada",
+        "open": "Abierta",
+        "closed": "Cerrada",
+        "register": "Caja",
+        "reviewClose": "Revisar cierre",
+        "openRegister": "Abrir caja",
+        "currentTime": "Hora actual",
+        "closeSettings": "Cerrar ajustes",
+        "settings": "Ajustes",
+        "customer": "Cliente",
+        "discountShort": "Desc.",
+        "moreActions": "M?s acciones",
+        "more": "M?s",
+        "themeLabel": "Tema visual",
+        "themeCorporate": "Tema corporativo",
+        "themeSoftDark": "Tema oscuro suave",
+        "themeLight": "Tema claro",
+        "printerStatus": "Estado de impresora",
+        "printerOk": "Impresora OK",
+        "printerUnavailable": "Impresora N/D"
     },
     "view": {
         "byCategories": "Por categorías",
@@ -100,7 +125,8 @@
         "selected": "Seleccionado",
         "wholesale": "Mayorista",
         "existingClient": "Cliente existente",
-        "saveForFuture": "Guardar este cliente para futuras ventas"
+        "saveForFuture": "Guardar este cliente para futuras ventas",
+        "noDocumentTypes": "No hay tipos de documento disponibles"
     },
     "createProduct": {
         "title": "Crear producto rápido",
@@ -113,11 +139,16 @@
         "tax": "IVA (%)",
         "category": "Categoría (opcional)",
         "existingAdded": "Producto existente agregado al carrito.",
-        "creationFailed": "No se pudo crear el producto"
+        "creationFailed": "No se pudo crear el producto",
+        "description": "Completa los campos obligatorios para guardar y agregar al carrito.",
+        "skuPlaceholder": "C?digo del producto",
+        "namePlaceholder": "Nombre del producto"
     },
     "print": {
         "format": "Formato de impresión",
-        "preview": "Vista previa del ticket"
+        "preview": "Vista previa del ticket",
+        "receipt80mm": "Recibo (80mm)",
+        "a4Paper": "Papel A4"
     },
     "register": {
         "noRegisters": "No hay cajas registradas",
@@ -162,6 +193,7 @@
         "currencyNotConfigured": "Moneda no configurada en empresa",
         "createTicketFailed": "No se pudo crear el ticket",
         "preparePaymentFailed": "No se pudo preparar el cobro",
-        "tooManyRequests": "Demasiadas solicitudes (429). Espera unos segundos y reintenta."
+        "tooManyRequests": "Demasiadas solicitudes (429). Espera unos segundos y reintenta.",
+        "saveThemeFailed": "No se pudo guardar el tema para esta empresa"
     }
 }

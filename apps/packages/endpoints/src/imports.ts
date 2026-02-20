@@ -1,7 +1,25 @@
 const BASE = '/api/v1/tenant/imports'
+const PUBLIC_BASE = '/api/v1/imports'
+const PUBLIC_V2_BASE = '/api/v2/imports'
 
 export const IMPORTS = {
   base: BASE,
+  public: {
+    base: PUBLIC_BASE,
+    preview: `${PUBLIC_BASE}/preview`,
+    uploadsAnalyze: `${PUBLIC_BASE}/uploads/analyze`,
+    filesClassify: `${PUBLIC_BASE}/files/classify`,
+    filesClassifyWithAI: `${PUBLIC_BASE}/files/classify-with-ai`,
+    aiHealth: `${PUBLIC_BASE}/ai/health`,
+    aiTelemetry: `${PUBLIC_BASE}/ai/telemetry`,
+  },
+  feedback: {
+    base: `${PUBLIC_V2_BASE}/feedback`,
+    stats: `${PUBLIC_V2_BASE}/feedback/stats`,
+  },
+  excel: {
+    parse: `${BASE}/excel/parse`,
+  },
   batches: {
     base: `${BASE}/batches`,
     byId: (id: string) => `${BASE}/batches/${id}`,
@@ -20,6 +38,11 @@ export const IMPORTS = {
     fromUpload: `${BASE}/batches/from-upload`,
     startExcel: (batchId: string) => `${BASE}/batches/${batchId}/start-excel-import`,
     status: (batchId: string) => `${BASE}/batches/${batchId}/status`,
+    retry: (batchId: string) => `${BASE}/batches/${batchId}/retry`,
+    reprocess: (batchId: string) => `${BASE}/batches/${batchId}/reprocess`,
+    classifyAndPersist: (batchId: string) => `${BASE}/batches/${batchId}/classify-and-persist`,
+    updateClassification: (batchId: string) => `${BASE}/batches/${batchId}/classification`,
+    bulkPatchItems: (batchId: string) => `${BASE}/batches/${batchId}/items/bulk-patch`,
     confirm: (batchId: string) => `${BASE}/batches/${batchId}/confirm`,
     confirmationStatus: (batchId: string) => `${BASE}/batches/${batchId}/confirmation-status`,
   },
@@ -35,6 +58,7 @@ export const IMPORTS = {
     validateSingle: (batchId: string, itemId: string) =>
       `${BASE}/batches/${batchId}/items/${itemId}/validate`,
     deleteMultiple: `${BASE}/items/delete-multiple`,
+    promote: `${BASE}/items/promote`,
   },
   uploads: {
     chunkInit: `${BASE}/uploads/chunk/init`,

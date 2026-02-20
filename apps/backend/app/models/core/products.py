@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Numeric, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Numeric, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -30,7 +30,9 @@ class Product(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     cost_price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
-    tax_rate: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True, default=None)
+    tax_rate: Mapped[float] = mapped_column(
+        Numeric(5, 2), nullable=False, default=0, server_default=text("0")
+    )
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     stock: Mapped[float] = mapped_column(Float, default=0)
     unit: Mapped[str] = mapped_column(Text, default="unit")

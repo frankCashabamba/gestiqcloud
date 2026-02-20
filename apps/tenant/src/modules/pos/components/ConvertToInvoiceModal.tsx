@@ -1,8 +1,9 @@
 /**
  * ConvertToInvoiceModal - Convertir ticket a factura
  */
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { convertToInvoice, createInvoiceFromReceipt, type POSReceipt } from '../services'
+import { useToast } from '../../../shared/toast'
 
 interface ConvertToInvoiceModalProps {
   receiptId: string
@@ -12,6 +13,7 @@ interface ConvertToInvoiceModalProps {
 }
 
 export default function ConvertToInvoiceModal({ receiptId, receipt, onSuccess, onCancel }: ConvertToInvoiceModalProps) {
+  const toast = useToast()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
@@ -19,14 +21,22 @@ export default function ConvertToInvoiceModal({ receiptId, receipt, onSuccess, o
     country: 'ES',
     address: '',
     email: '',
-    series: ''
+    series: '',
   })
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!formData.name.trim() || !formData.tax_id.trim()) {
-      alert('Nombre y NIF/CIF son obligatorios')
+      toast.warning('Nombre y NIF/CIF son obligatorios')
       return
     }
 
@@ -38,118 +48,107 @@ export default function ConvertToInvoiceModal({ receiptId, receipt, onSuccess, o
           tax_id: formData.tax_id,
           country: formData.country,
           address: formData.address || undefined,
-          email: formData.email || undefined
+          email: formData.email || undefined,
         },
-        series: formData.series || undefined
+        series: formData.series || undefined,
       }
 
-      // Intentar crear en ambos sistemas para garantizar sincronización
-      // Primero en invoicing (sistema principal de Billing)
       const invoiceResult = await createInvoiceFromReceipt(receiptId, receipt as any, payload)
 
-      // Luego en documents (para e-invoicing)
       try {
         await convertToInvoice(receiptId, payload)
       } catch (docError) {
-        console.warn('Error creando documento electrónico:', docError)
-        // No fallar si hay error en documents
+        console.warn('Error creando documento electronico:', docError)
       }
 
-      alert(`✅ Factura generada: ${invoiceResult.id || invoiceResult.numero || 'Sin número'}`)
+      toast.success(`Factura generada: ${invoiceResult.id || invoiceResult.numero || 'Sin numero'}`)
       onSuccess(invoiceResult)
     } catch (error: any) {
-      alert(error.response?.data?.detail || 'Error al generar factura')
+      toast.error(error.response?.data?.detail || 'Error al generar factura')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4">Convertir a Factura</h2>
+    <div className="pos-modal-overlay" onClick={onCancel}>
+      <div className="pos-modal-card" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
+        <h2 className="pos-modal-title" style={{ fontSize: 18, marginBottom: 10 }}>
+          Convertir a Factura
+        </h2>
 
         <form onSubmit={handleSubmit}>
           <div className="mb-3">
-            <label className="block text-sm font-medium mb-1">Nombre/Razón Social *</label>
+            <label className="pos-modal-label">Nombre/Razon Social *</label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border rounded"
+              className="pos-modal-input"
               required
               autoFocus
             />
           </div>
 
           <div className="mb-3">
-            <label className="block text-sm font-medium mb-1">NIF/CIF/RUC/Cédula *</label>
+            <label className="pos-modal-label">NIF/CIF/RUC/Cedula *</label>
             <input
               type="text"
               value={formData.tax_id}
               onChange={(e) => setFormData({ ...formData, tax_id: e.target.value })}
-              className="w-full px-3 py-2 border rounded"
+              className="pos-modal-input"
               required
             />
           </div>
 
           <div className="mb-3">
-            <label className="block text-sm font-medium mb-1">País</label>
+            <label className="pos-modal-label">Pais</label>
             <select
               value={formData.country}
               onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-              className="w-full px-3 py-2 border rounded"
+              className="pos-modal-select"
             >
-              <option value="ES">España</option>
+              <option value="ES">Espana</option>
               <option value="EC">Ecuador</option>
             </select>
           </div>
 
           <div className="mb-3">
-            <label className="block text-sm font-medium mb-1">Dirección</label>
+            <label className="pos-modal-label">Direccion</label>
             <input
               type="text"
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              className="w-full px-3 py-2 border rounded"
+              className="pos-modal-input"
             />
           </div>
 
           <div className="mb-3">
-            <label className="block text-sm font-medium mb-1">Email</label>
+            <label className="pos-modal-label">Email</label>
             <input
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-3 py-2 border rounded"
+              className="pos-modal-input"
             />
           </div>
 
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Serie (opcional)</label>
+            <label className="pos-modal-label">Serie (opcional)</label>
             <input
               type="text"
               value={formData.series}
               onChange={(e) => setFormData({ ...formData, series: e.target.value })}
-              className="w-full px-3 py-2 border rounded"
-              placeholder="Dejar vacío para usar serie por defecto"
+              className="pos-modal-input"
+              placeholder="Dejar vacio para usar serie por defecto"
             />
           </div>
 
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-            >
-              {loading ? 'Generando...' : 'Generar Factura'}
+          <div className="pos-modal-actions">
+            <button type="submit" disabled={loading} className="pos-modal-btn primary" style={{ minWidth: 160 }}>
+              {loading ? 'Generando...' : 'Generar factura'}
             </button>
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={loading}
-              className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-            >
+            <button type="button" onClick={onCancel} disabled={loading} className="pos-modal-btn">
               Cancelar
             </button>
           </div>

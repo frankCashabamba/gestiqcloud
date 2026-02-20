@@ -14,7 +14,7 @@ from sqlalchemy import Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 
-class PaymentMethod(str, Enum):
+class CorePaymentMethod(str, Enum):
     """Supported payment methods."""
 
     CASH = "cash"
@@ -134,3 +134,7 @@ class PaymentBase:
 #
 #     # Campos específicos de POS
 #     # (ninguno adicional necesario actualmente)
+
+
+# Backward-compatible alias for older imports.
+PaymentMethod = CorePaymentMethod

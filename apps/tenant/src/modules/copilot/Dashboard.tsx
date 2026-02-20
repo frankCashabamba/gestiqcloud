@@ -68,8 +68,8 @@ export default function CopilotDashboard() {
             <div className="space-y-2">
               {topProducts.cards[0]?.data?.slice(0, 5).map((item: any, idx: number) => (
                 <div key={idx} className="flex justify-between text-sm">
-                  <span>{item.name}</span>
-                  <span className="font-bold">${item.importe?.toFixed(2) || 0}</span>
+                  <span>{item.name || item.producto || `Item ${idx + 1}`}</span>
+                  <span className="font-bold">${formatMoney(item?.importe)}</span>
                 </div>
               ))}
             </div>
@@ -102,6 +102,16 @@ export default function CopilotDashboard() {
       </div>
     </div>
   )
+}
+
+function formatMoney(value: unknown): string {
+  if (typeof value === 'number' && Number.isFinite(value)) return value.toFixed(2)
+  if (typeof value === 'string') {
+    const normalized = value.replace(',', '.').trim()
+    const parsed = Number(normalized)
+    if (Number.isFinite(parsed)) return parsed.toFixed(2)
+  }
+  return '0.00'
 }
 
 function Card({

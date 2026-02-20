@@ -1,0 +1,30 @@
+{
+  "5276962c-5af3-478a-99ac-58bac8125189": {
+    "invoices": {
+      "producto": {
+        "name": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "cantidad": {
+        "stock": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "precio unitario venta": {
+        "price": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "venta diaria": {
+        "price": {
+          "correct": 1,
+          "total": 1
+        }
+      }
+    }
+  }
+}

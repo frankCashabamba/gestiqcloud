@@ -110,9 +110,7 @@ def record_migration(conn, migration_name: str, content_hash: str) -> bool:
         return False
 
 
-def apply_migration(
-    conn, migration_dir: Path, sql_content: str, dry_run: bool = False
-) -> bool:
+def apply_migration(conn, migration_dir: Path, sql_content: str, dry_run: bool = False) -> bool:
     """Apply a single migration."""
     migration_name = migration_dir.name
 
@@ -157,9 +155,7 @@ def apply_migration(
 
 def main():
     parser = argparse.ArgumentParser(description="Apply SQL migrations with tracking")
-    parser.add_argument(
-        "--dry-run", action="store_true", help="Print SQL without executing"
-    )
+    parser.add_argument("--dry-run", action="store_true", help="Print SQL without executing")
     parser.add_argument(
         "--database-url",
         default=os.getenv("DATABASE_URL"),
@@ -170,9 +166,7 @@ def main():
 
     # Validate database URL
     if not args.database_url:
-        print(
-            "ERROR: DATABASE_URL not set. Use --database-url or set DATABASE_URL env var."
-        )
+        print("ERROR: DATABASE_URL not set. Use --database-url or set DATABASE_URL env var.")
         sys.exit(1)
 
     # Get migrations
@@ -257,9 +251,7 @@ def main():
                 record_migration(conn, migration_dir.name, get_file_hash(sql_content))
                 continue
 
-            success = apply_migration(
-                conn, migration_dir, sql_content, dry_run=args.dry_run
-            )
+            success = apply_migration(conn, migration_dir, sql_content, dry_run=args.dry_run)
             if not success:
                 failed.append(migration_dir.name)
         except Exception as e:

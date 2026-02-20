@@ -2,7 +2,7 @@
 
 ## 📋 Descripción
 
-Módulo profesional de gestión de productos con configuración dinámica de campos por sector (Panadería, Retail/Bazar, Taller Mecánico). Sigue el mismo patrón arquitectónico del módulo de Clientes (referencia 100%).
+Módulo profesional de gestión de productos con configuración dinámica de campos por sector (Panadería, Retail/Bazar, Taller Mecánico). Sigue el mismo patrón arquitectónico del módulo de Clientes.
 
 ## 🏗️ Arquitectura
 
@@ -11,7 +11,7 @@ apps/tenant/src/modules/products/
 ├── List.tsx                    ✅ Lista con filtros, paginación, ordenamiento, export CSV
 ├── Form.tsx                    ✅ Formulario dinámico con config por sector
 ├── Routes.tsx                  ✅ Rutas configuradas (lista, nuevo, editar)
-├── services.ts                 ✅ API client con tipos TypeScript completos
+├── productsApi.ts              ✅ API client principal con tipos TypeScript completos
 ├── manifest.ts                 ✅ Configuración del módulo
 └── README.md                   📄 Este archivo
 ```
@@ -52,7 +52,7 @@ apps/tenant/src/modules/products/
 - ✅ Layout responsive con grid 2 columnas
 - ✅ Estilos profesionales con focus states
 
-### **services.ts** - API Client
+### **productsApi.ts** - API Client
 - ✅ Tipos TypeScript completos con 30+ campos
 - ✅ CRUD completo:
   - `listProductos()`: GET /api/v1/tenant/products
@@ -61,9 +61,9 @@ apps/tenant/src/modules/products/
   - `updateProducto(id, data)`: PUT /api/v1/tenant/products/:id
   - `removeProducto(id)`: DELETE /api/v1/tenant/products/:id
 - ✅ **Función de importación Excel**:
-  - `importProductosExcel(file)`: POST /api/v1/imports/upload
-  - Retorna batch_id e items_count
-  - Integración directa con módulo importador
+  - `importProductosExcel(file)`: pipeline real de imports
+  - Usa `POST /api/v1/tenant/imports/excel/parse` + `POST /api/v1/tenant/imports/batches` + `POST /api/v1/tenant/imports/batches/{id}/ingest`
+  - Retorna `batch_id` e `items_count`
 
 ## 🎯 Configuración de Campos por Sector
 
@@ -174,7 +174,7 @@ WHERE tenant_id = 'uuid-tenant' AND module = 'productos';
 ### Función integrada con módulo importador (110% completitud)
 
 ```typescript
-import { importProductosExcel } from './services'
+import { importProductosExcel } from './productsApi'
 
 const handleFileUpload = async (file: File) => {
   try {
@@ -317,10 +317,10 @@ if (producto.receta_id) {
 ### Métricas de calidad del módulo:
 | Métrica | Objetivo | Estado |
 |---------|----------|--------|
-| Cobertura TypeScript | 100% | ✅ |
+| Cobertura TypeScript | Alta | ✅ |
 | Campos configurables | ≥70% | ✅ (85%) |
-| Loading states | 100% | ✅ |
-| Error handling | 100% | ✅ |
+| Loading states | Implementado | ✅ |
+| Error handling | Implementado | ✅ |
 | Documentación | ≥80 líneas | ✅ (240+ líneas) |
 | Accesibilidad | aria-labels | ✅ |
 | Responsive design | Mobile + Desktop | ✅ |
@@ -394,11 +394,13 @@ if (producto.receta_id) {
 |--------|----------|-------------|
 | GET | `/fields?module=productos&empresa={slug}` | Configuración de campos |
 
-### Base URL: `/api/v1/imports`
+### Base URL: `/api/v1/tenant/imports`
 
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
-| POST | `/upload` | Importar Excel (multipart/form-data) |
+| POST | `/excel/parse` | Parsear Excel (multipart/form-data) |
+| POST | `/batches` | Crear lote de importación |
+| POST | `/batches/{id}/ingest` | Ingerir filas parseadas al lote |
 
 ## 🚀 Próximas Mejoras
 
@@ -419,6 +421,6 @@ if (producto.receta_id) {
 ---
 
 **Versión del módulo:** 1.0.0
-**Última actualización:** Octubre 2025
+**Última revisión documental:** Febrero 2026
 **Mantenedor:** Equipo GestiQCloud
-**Estado:** ✅ Production Ready
+**Estado:** Activo (validar cobertura con tests en CI)

@@ -48,9 +48,7 @@ def _collect_be_paths() -> set[str]:
     # Minimal env for app import
     os.environ.setdefault("DATABASE_URL", "sqlite://")
     os.environ.setdefault("FRONTEND_URL", "http://localhost:8081")
-    os.environ.setdefault(
-        "TENANT_NAMESPACE_UUID", "0280249e-6707-40fb-8d60-1e8f3aea0f8e"
-    )
+    os.environ.setdefault("TENANT_NAMESPACE_UUID", "0280249e-6707-40fb-8d60-1e8f3aea0f8e")
     os.environ.setdefault("JWT_ALGORITHM", "HS256")
     os.environ.setdefault("JWT_SECRET_KEY", "devsecretdevsecretdevsecret")
     sys.path.insert(0, str((REPO / "backend").resolve()))

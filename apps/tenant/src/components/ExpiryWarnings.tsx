@@ -33,21 +33,17 @@ export function ExpiryWarnings({
   onProductClick
 }: ExpiryWarningsProps) {
   const features = useCompanyFeatures()
-  const sector = useCompanySector()
+  useCompanySector()
 
   const [products, setProducts] = useState<ExpiringProduct[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState(false)
 
-  // Only load if feature is enabled
-  if (!features.inventory_expiry_tracking) {
-    return null
-  }
-
   useEffect(() => {
+    if (!features.inventory_expiry_tracking) return
     loadExpiringProducts()
-  }, [warningDays])
+  }, [features.inventory_expiry_tracking, warningDays, maxItems])
 
   const loadExpiringProducts = async () => {
     try {
@@ -77,6 +73,11 @@ export function ExpiryWarnings({
     if (days === 0) return 'TODAY!'
     if (days === 1) return 'Tomorrow'
     return `${days} days`
+  }
+
+  // Only render if feature is enabled
+  if (!features.inventory_expiry_tracking) {
+    return null
   }
 
   if (loading) {

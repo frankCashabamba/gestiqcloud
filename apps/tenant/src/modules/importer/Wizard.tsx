@@ -5,6 +5,8 @@
  * - promote batch with flags
  */
 import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../auth/AuthContext'
 
 import VistaPreviaTabla from './components/VistaPreviaTabla'
@@ -12,6 +14,8 @@ import ResumenImportacion from './components/ResumenImportacion'
 import { ClassificationSuggestion } from './components/ClassificationSuggestion'
 import { AnalysisResult } from './components/AnalysisResult'
 import { AIProviderSettings } from './components/AIProviderSettings'
+import { AIHealthIndicator } from './components/AIHealthIndicator'
+import { AITelemetryDashboard } from './components/AITelemetryDashboard'
 import { ImportProgressIndicator } from './components/ImportProgressIndicator'
 import { ConfirmParserModal } from './components/ConfirmParserModal'
 import ImportadorLayout from './components/ImportadorLayout'
@@ -22,11 +26,13 @@ import { autoMapeoColumnas } from './services/autoMapeoColumnas'
 import { detectarTipoDocumento, type ImportDocType } from './utils/detectarTipoDocumento'
 import { normalizarDocumento } from './utils/normalizarDocumento'
 import { createBatch, ingestBatch, confirmBatch, processDocument, pollOcrJob } from './services/importsApi'
+import { IMPORTS } from '@endpoints/imports'
 import { useClassifyFile } from './hooks/useClassifyFile'
 import { useAnalyzeFile } from './hooks/useAnalyzeFile'
 import { useParserRegistry } from './hooks/useParserRegistry'
 import { useEntityConfig } from './hooks/useEntityConfig'
 import { parseCSV } from './services/parseCSVFile'
+import { parseExcelFile } from './services/parseExcelFile'
 
 type Row = Record<string, string>
 type Step = 'upload' | 'preview' | 'mapping' | 'validate' | 'summary' | 'importing'
@@ -34,19 +40,21 @@ type DocType = ImportDocType
 
 const CAMPOS_OBJETIVO = ['nombre', 'precio'] as const
 const STEP_ORDER: Step[] = ['upload', 'preview', 'mapping', 'validate', 'summary', 'importing']
-const STEPS: Array<{ key: Step; label: string; helper: string }> = [
-  { key: 'upload', label: 'Upload', helper: 'Select a file' },
-  { key: 'preview', label: 'Preview', helper: 'Review rows' },
-  { key: 'mapping', label: 'Mapping', helper: 'Match fields' },
-  { key: 'validate', label: 'Validate', helper: 'Check issues' },
-  { key: 'summary', label: 'Summary', helper: 'Confirm settings' },
-  { key: 'importing', label: 'Import', helper: 'Processing' },
+const STEPS: Array<{ key: Step; labelKey: string; helperKey: string }> = [
+  { key: 'upload', labelKey: 'wizard.steps.upload.label', helperKey: 'wizard.steps.upload.helper' },
+  { key: 'preview', labelKey: 'wizard.steps.preview.label', helperKey: 'wizard.steps.preview.helper' },
+  { key: 'mapping', labelKey: 'wizard.steps.mapping.label', helperKey: 'wizard.steps.mapping.helper' },
+  { key: 'validate', labelKey: 'wizard.steps.validate.label', helperKey: 'wizard.steps.validate.helper' },
+  { key: 'summary', labelKey: 'wizard.steps.summary.label', helperKey: 'wizard.steps.summary.helper' },
+  { key: 'importing', labelKey: 'wizard.steps.importing.label', helperKey: 'wizard.steps.importing.helper' },
 ]
 const MAX_ROWS = 10000
 const PREVIEW_LIMIT = 50
 
 function ImportadorWizard() {
   const { token } = useAuth() as { token: string | null }
+  const { t } = useTranslation('importer')
+  const navigate = useNavigate()
   const {
     classify,
     loading: classifying,
@@ -93,12 +101,10 @@ function ImportadorWizard() {
 
   // Confirmation modal state
   const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [showTelemetry, setShowTelemetry] = useState(false)
 
-  // Sprint 3: WebSocket progress
-  const { progress, progressPercent, isConnected, error: wsError } = useImportProgress({
-    batchId: batchId || undefined,
-    token: token || undefined,
-  })
+  // Progreso por polling al endpoint /status
+  const { progress, progressPercent, isConnected, error: wsError } = useImportProgress(batchId)
 
   // OCR state for PDFs/images
   const [ocrLoading, setOcrLoading] = useState(false)
@@ -114,6 +120,17 @@ function ImportadorWizard() {
       type === 'application/pdf' ||
       type.startsWith('image/') ||
       /\.(png|jpg|jpeg|tiff|bmp|gif)$/i.test(name)
+    )
+  }
+
+  const isExcelFile = (file: File) => {
+    const name = file.name.toLowerCase()
+    const type = file.type.toLowerCase()
+    return (
+      name.endsWith('.xlsx') ||
+      name.endsWith('.xls') ||
+      type.includes('spreadsheetml') ||
+      type.includes('ms-excel')
     )
   }
 
@@ -153,7 +170,7 @@ function ImportadorWizard() {
             tipo: doc.tipo || doc.documentoTipo || 'ticket_pos',
             fecha: doc.fecha || doc.issue_date || '',
             importe: doc.importe || doc.total || 0,
-            concepto: doc.concepto || doc.description || 'OCR Document',
+            concepto: doc.concepto || doc.description || t('wizard.messages.ocrDocument'),
             invoice: doc.invoice || doc.invoice_number || '',
             categoria: doc.categoria || 'sales',
             ...doc,
@@ -167,11 +184,11 @@ function ImportadorWizard() {
           const sugeridos = autoMapeoColumnas(ocrHeaders, getAliasSugeridos(entityConfig || undefined))
           setMapa(sugeridos as any)
         } else {
-          throw new Error('OCR did not return documents')
+          throw new Error(t('wizard.errors.ocrNoDocuments'))
         }
       } catch (err: any) {
         console.error('OCR failed:', err)
-        setOcrError(err?.message || 'Error processing PDF/image')
+        setOcrError(err?.message || t('wizard.errors.ocrProcessFailed'))
         setHeaders([])
         setRows([])
       } finally {
@@ -181,14 +198,38 @@ function ImportadorWizard() {
       return
     }
 
-    const text = await f.text()
-    const { headers: hs, rows: rs } = parseCSV(text)
-    setHeaders(hs)
-    setRows(rs)
+    let parsedHeaders: string[] = []
+    let parsedRows: Row[] = []
+    try {
+      if (isExcelFile(f)) {
+        const parsed = await parseExcelFile(f, token || undefined)
+        parsedHeaders = parsed.headers
+        parsedRows = parsed.rows as Row[]
+      } else {
+        const text = await f.text()
+        const { headers: hs, rows: rs } = parseCSV(text)
+        parsedHeaders = hs
+        parsedRows = rs
+      }
+    } catch (parseError: any) {
+      const detail = parseError?.data?.detail || parseError?.message || t('wizard.errors.unknownError')
+      if (f.name.toLowerCase().endsWith('.xls')) {
+        setOcrError(t('wizard.errors.oldXlsReadFailed', { file: f.name, detail }))
+      } else {
+        setOcrError(t('wizard.errors.fileReadFailed', { file: f.name, detail }))
+      }
+      setHeaders([])
+      setRows([])
+      setStep('preview')
+      return
+    }
 
-    const sugeridos = autoMapeoColumnas(hs, getAliasSugeridos(entityConfig || undefined))
+    setHeaders(parsedHeaders)
+    setRows(parsedRows)
+
+    const sugeridos = autoMapeoColumnas(parsedHeaders, getAliasSugeridos(entityConfig || undefined))
     setMapa(sugeridos as any)
-    setDocType(detectarTipoDocumento(hs) || 'products')
+    setDocType(detectarTipoDocumento(parsedHeaders) || 'products')
 
     try {
       const result = await analyze(f)
@@ -245,10 +286,10 @@ function ImportadorWizard() {
   const runValidation = () => {
     const errs: string[] = []
     camposObjetivo.forEach((c) => {
-      if (!mapa[c]) errs.push(`Missing mapping for: ${c}`)
+      if (!mapa[c]) errs.push(t('wizard.validation.missingMappingFor', { field: c }))
     })
-    if (rows.length === 0) errs.push('File has no rows')
-    if (rows.length > MAX_ROWS) errs.push(`Max ${MAX_ROWS.toLocaleString()} rows per import`)
+    if (rows.length === 0) errs.push(t('wizard.validation.fileHasNoRows'))
+    if (rows.length > MAX_ROWS) errs.push(t('wizard.validation.maxRowsPerImport', { max: MAX_ROWS.toLocaleString() }))
     setErrores(errs)
   }
 
@@ -267,8 +308,8 @@ function ImportadorWizard() {
     setSaving(true)
     setStep('importing')
     try {
-      const docs = normalizarDocumento(rows, mapa as any)
       const effectiveDocType = analysisResult?.suggested_doc_type || docType || 'products'
+      const docs = normalizarDocumento(rows, mapa as any, effectiveDocType)
       const effectiveParser = confirmedParser || selectedParser
       const batchPayload: any = {
         source_type: effectiveDocType,
@@ -297,8 +338,15 @@ function ImportadorWizard() {
 
       await ingestBatch(batch.id, { rows: docs }, token || undefined, null)
 
+      // Professional UX: for non-products, promotion should happen in Preview so the user can
+      // choose paid/pending and accounting options in one place (avoid multiple promote UIs).
+      if (effectiveDocType !== 'products' && effectiveDocType !== 'productos') {
+        navigate(`../preview?batch_id=${encodeURIComponent(batch.id)}`)
+        return
+      }
+
       try {
-        const url = new URL(`/api/v1/tenant/imports/batches/${batch.id}/promote`, window.location.origin)
+        const url = new URL(IMPORTS.batches.promote(batch.id), window.location.origin)
         if (autoMode) {
           url.searchParams.set('auto', '1')
           url.searchParams.set('target_warehouse', targetWarehouse || 'ALM-1')
@@ -315,7 +363,7 @@ function ImportadorWizard() {
         // ignore
       }
     } catch (e: any) {
-      setSaveError(e?.message || 'Import error')
+      setSaveError(e?.message || t('wizard.errors.importError'))
     } finally {
       setSaving(false)
     }
@@ -333,10 +381,28 @@ function ImportadorWizard() {
 
   return (
     <ImportadorLayout
-      title="Import Wizard"
-      description="Upload a file, map fields, validate data, and import in a guided flow."
-      actions={<AIProviderSettings />}
+      title={t('wizard.page.title')}
+      description={t('wizard.page.description')}
+      actions={
+        <div className="flex items-center gap-2">
+          <AIHealthIndicator showDetails={false} className="hidden md:flex" />
+          <button
+            type="button"
+            onClick={() => setShowTelemetry((prev) => !prev)}
+            className="px-3 py-2 rounded border border-gray-300 hover:border-gray-400 bg-white hover:bg-gray-50 transition text-sm"
+          >
+            {showTelemetry ? t('wizard.actions.hideAiTelemetry') : t('wizard.actions.showAiTelemetry')}
+          </button>
+          <AIProviderSettings />
+        </div>
+      }
     >
+      {showTelemetry && (
+        <div className="mb-6">
+          <AITelemetryDashboard />
+        </div>
+      )}
+
       {/* Steps */}
       <div className="mb-6">
         <div className="flex items-center justify-between text-sm">
@@ -359,11 +425,11 @@ function ImportadorWizard() {
                         : 'border-gray-300'
                     }`}
                   >
-                    {isComplete ? 'OK' : idx + 1}
+                    {isComplete ? t('wizard.steps.completed') : idx + 1}
                   </div>
                   <div className="hidden sm:block">
-                    <div>{s.label}</div>
-                    <div className="text-[11px] text-gray-400">{s.helper}</div>
+                    <div>{t(s.labelKey)}</div>
+                    <div className="text-[11px] text-gray-400">{t(s.helperKey)}</div>
                   </div>
                 </div>
                 {idx < STEPS.length - 1 && <div className="flex-1 h-0.5 bg-gray-300" />}
@@ -376,7 +442,7 @@ function ImportadorWizard() {
       {/* Upload */}
       {step === 'upload' && (
         <div className="space-y-4 max-w-xl">
-          <p className="text-gray-600">Select a file to import (CSV, Excel, PDF, or image).</p>
+          <p className="text-gray-600">{t('wizard.upload.selectFilePrompt')}</p>
           <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition">
             <input
               type="file"
@@ -390,14 +456,14 @@ function ImportadorWizard() {
               {ocrLoading ? (
                 <>
                   <div className="text-4xl mb-2 animate-spin">*</div>
-                  <div className="text-blue-600 font-medium">Processing with OCR...</div>
-                  <div className="text-sm text-gray-500 mt-1">This may take a moment</div>
+                  <div className="text-blue-600 font-medium">{t('wizard.upload.processingWithOcr')}</div>
+                  <div className="text-sm text-gray-500 mt-1">{t('wizard.upload.mayTakeMoment')}</div>
                 </>
               ) : (
                 <>
                   <div className="text-4xl mb-2">+</div>
-                  <div className="text-blue-600 font-medium">Click to choose a file</div>
-                  <div className="text-sm text-gray-500 mt-1">CSV, Excel, PDF, or images</div>
+                  <div className="text-blue-600 font-medium">{t('wizard.upload.clickChooseFile')}</div>
+                  <div className="text-sm text-gray-500 mt-1">{t('wizard.upload.acceptedFormats')}</div>
                 </>
               )}
             </label>
@@ -412,7 +478,11 @@ function ImportadorWizard() {
       {step === 'preview' && (
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-200 px-4 py-3 rounded">
-            File: <strong>{fileName}</strong> | {rows.length.toLocaleString()} rows | {headers.length} columns
+            {t('wizard.preview.fileSummary', {
+              file: fileName,
+              rows: rows.length.toLocaleString(),
+              columns: headers.length,
+            })}
           </div>
 
           {(analysisResult || analyzing || analysisError) ? (
@@ -436,10 +506,10 @@ function ImportadorWizard() {
           <VistaPreviaTabla headers={previewHeaders} rows={previewRows} />
           <div className="flex gap-2">
             <button className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded" onClick={volver}>
-              Back
+              {t('wizard.actions.back')}
             </button>
             <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded" onClick={continuar}>
-              Continue
+              {t('wizard.actions.continue')}
             </button>
           </div>
         </div>
@@ -449,7 +519,7 @@ function ImportadorWizard() {
       {step === 'mapping' && (
         <div className="space-y-4">
           <div className="bg-neutral-50 border px-4 py-3 rounded text-neutral-700 text-sm">
-            Review and adjust field mapping. Auto-mapping is already applied.
+            {t('wizard.mapping.reviewAdjust')}
           </div>
 
           <MapeoCampos
@@ -464,14 +534,14 @@ function ImportadorWizard() {
 
           {classificationResult && parserRegistry && (
             <div className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50">
-              <label className="block text-sm font-semibold text-gray-700 mb-3">Parser selection</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-3">{t('wizard.mapping.parserSelection')}</label>
               <div className="flex gap-3 items-start mb-3">
                 <select
                   value={selectedParser || classificationResult.suggested_parser || ''}
                   onChange={(e) => setSelectedParser(e.target.value || null)}
                   className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm font-medium"
                 >
-                  <option value="">Use suggestion: {classificationResult.suggested_parser}</option>
+                  <option value="">{t('wizard.mapping.useSuggestion', { parser: classificationResult.suggested_parser })}</option>
                   {Object.entries(parserRegistry.parsers as Record<string, { doc_type?: string; description?: string }>).map(
                     ([id, parser]) => (
                       <option key={id} value={id}>
@@ -482,7 +552,7 @@ function ImportadorWizard() {
                 </select>
                 {selectedParser && (
                   <span className="text-xs bg-amber-100 text-amber-800 px-3 py-2 rounded font-bold whitespace-nowrap">
-                    OVERRIDE
+                    {t('wizard.mapping.override')}
                   </span>
                 )}
               </div>
@@ -490,16 +560,16 @@ function ImportadorWizard() {
               {selectedParser &&
                 (parserRegistry.parsers as Record<string, { doc_type?: string; description?: string }>)[selectedParser] && (
                   <div className="bg-white border border-blue-200 rounded p-3 mb-2 text-xs">
-                    <strong>Selected:</strong> {selectedParser}
+                    <strong>{t('wizard.mapping.selected')}:</strong> {selectedParser}
                     <br />
-                    <strong>Type:</strong>{' '}
+                    <strong>{t('wizard.mapping.type')}:</strong>{' '}
                     {(parserRegistry.parsers as Record<string, { doc_type?: string; description?: string }>)[selectedParser]
                       .doc_type}
                     <br />
                     {(parserRegistry.parsers as Record<string, { doc_type?: string; description?: string }>)[selectedParser]
                       .description && (
                       <>
-                        <strong>Description:</strong>{' '}
+                        <strong>{t('wizard.mapping.description')}:</strong>{' '}
                         {(parserRegistry.parsers as Record<string, { doc_type?: string; description?: string }>)[selectedParser]
                           .description}
                       </>
@@ -508,18 +578,18 @@ function ImportadorWizard() {
                 )}
 
               <div className="text-xs text-gray-600 bg-white rounded p-2 border border-gray-200">
-                <strong>Confidence:</strong> {Math.round(classificationResult.confidence * 100)}% | Provider:{' '}
-                {classificationResult.enhanced_by_ai ? classificationResult.ai_provider || 'AI' : 'Heuristic'}
+                <strong>{t('wizard.mapping.confidence')}:</strong> {Math.round(classificationResult.confidence * 100)}% | {t('wizard.mapping.provider')}:{' '}
+                {classificationResult.enhanced_by_ai ? classificationResult.ai_provider || t('wizard.mapping.aiProviderFallback') : t('wizard.mapping.heuristic')}
               </div>
             </div>
           )}
 
           <div className="flex gap-2">
             <button className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded" onClick={volver}>
-              Back
+              {t('wizard.actions.back')}
             </button>
             <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded" onClick={continuar}>
-              Validate
+              {t('wizard.actions.validate')}
             </button>
           </div>
         </div>
@@ -529,7 +599,7 @@ function ImportadorWizard() {
         <div className="space-y-4">
           {errores.length > 0 ? (
             <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded">
-              <div className="font-semibold mb-2">Fix these issues before continuing:</div>
+              <div className="font-semibold mb-2">{t('wizard.validation.fixIssuesBeforeContinue')}</div>
               <ul className="list-disc ml-6 text-sm">
                 {errores.map((e, i) => (
                   <li key={i}>{e}</li>
@@ -538,19 +608,19 @@ function ImportadorWizard() {
             </div>
           ) : (
             <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded">
-              Validation passed.
+              {t('wizard.validation.passed')}
             </div>
           )}
           <div className="flex gap-2">
             <button className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded" onClick={volver}>
-              Back
+              {t('wizard.actions.back')}
             </button>
             <button
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
               onClick={continuar}
               disabled={errores.length > 0}
             >
-              Continue
+              {t('wizard.actions.continue')}
             </button>
           </div>
         </div>
@@ -569,13 +639,13 @@ function ImportadorWizard() {
           <div className="flex items-center gap-3 p-3 border rounded bg-neutral-50">
             <label className="flex items-center gap-2 text-sm text-neutral-700">
               <input type="checkbox" checked={autoMode} onChange={(e) => setAutoMode(e.target.checked)} />
-              Auto mode (recommended)
+              {t('wizard.summary.autoModeRecommended')}
             </label>
             <span className="text-xs text-neutral-500">
-              Activates products, creates ALM-1 if missing, and applies initial stock.
+              {t('wizard.summary.autoModeHelp')}
             </span>
             <div className="flex items-center gap-2 ml-auto">
-              <label className="text-sm text-neutral-700">Target warehouse:</label>
+              <label className="text-sm text-neutral-700">{t('wizard.summary.targetWarehouse')}:</label>
               <input
                 value={targetWarehouse}
                 onChange={(e) => setTargetWarehouse(e.target.value)}
@@ -586,22 +656,22 @@ function ImportadorWizard() {
           </div>
           <div className="flex gap-2">
             <button className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded" onClick={volver}>
-              Back
+              {t('wizard.actions.back')}
             </button>
             <button className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded" onClick={onImportAll}>
-              Import now
+              {t('wizard.actions.importNow')}
             </button>
           </div>
           {savedSummary && (
             <div className="mt-3 text-sm text-neutral-800">
-              <div>Promoted: {savedSummary.saved} | Errors: {savedSummary.errors}</div>
+              <div>{t('wizard.summary.promotedWithErrors', { promoted: savedSummary.saved, errors: savedSummary.errors })}</div>
               <div className="mt-1">
                 <a href="/products" className="text-blue-600 hover:underline">
-                  Go to Products
+                  {t('wizard.summary.goToProducts')}
                 </a>
                 <span className="mx-2">|</span>
                 <a href="/inventory" className="text-blue-600 hover:underline">
-                  Go to Inventory
+                  {t('wizard.summary.goToInventory')}
                 </a>
               </div>
             </div>
@@ -620,7 +690,7 @@ function ImportadorWizard() {
 
           {saveError && (
             <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded">
-              <strong>Error:</strong> {saveError}
+              <strong>{t('wizard.common.error')}:</strong> {saveError}
             </div>
           )}
         </div>

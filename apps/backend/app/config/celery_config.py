@@ -13,15 +13,14 @@ def _get_redis_url_for_celery() -> str:
     """
     Get Redis URL for Celery broker/backend with proper validation.
 
-    In production: Fails explicitly if REDIS_URL is not configured
-    In development: Warns if using localhost fallback
+    In production: REDIS_URL is required.
+    In development: REDIS_URL or DEV_REDIS_URL is required.
     """
     redis_url = os.getenv("REDIS_URL", "").strip()
 
     if redis_url:
         return redis_url
 
-    # No fallback to localhost - fail explicitly in production
     environment = os.getenv("ENVIRONMENT", "development").lower()
     if environment == "production":
         raise RuntimeError(
@@ -30,13 +29,18 @@ def _get_redis_url_for_celery() -> str:
             "Example: REDIS_URL=redis://cache.internal:6379/1"
         )
 
-    # Development fallback only
-    warnings.warn(
-        "REDIS_URL not configured. Using development fallback (localhost). "
-        "Set REDIS_URL=redis://... in production.",
-        RuntimeWarning,
+    dev_redis_url = os.getenv("DEV_REDIS_URL", "").strip()
+    if dev_redis_url:
+        warnings.warn(
+            "REDIS_URL not configured. Using DEV_REDIS_URL for development.",
+            RuntimeWarning,
+        )
+        return dev_redis_url
+
+    raise RuntimeError(
+        "REDIS_URL is not configured. "
+        "Set REDIS_URL (all environments) or DEV_REDIS_URL (development only)."
     )
-    return "redis://localhost:6379/0"
 
 
 # Configuración Redis

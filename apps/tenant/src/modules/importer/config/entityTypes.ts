@@ -4,6 +4,7 @@
  */
 
 import { apiFetch } from '../../../lib/http'
+import { IMPORTS } from '@endpoints/imports'
 
 export type EntityType =
   | 'products'
@@ -37,7 +38,7 @@ export type EntityTypeConfig = {
   allowedTemplates?: string[]
 }
 
-const BASE_ENDPOINT = '/api/v1/tenant/imports/batches'
+const BASE_ENDPOINT = IMPORTS.batches.base
 
 const BASE_ENTITY_CONFIG: Record<EntityType, EntityTypeConfig> = {
   products: {

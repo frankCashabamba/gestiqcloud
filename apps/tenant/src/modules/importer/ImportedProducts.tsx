@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../auth/AuthContext'
 import ImportadorLayout from './components/ImportadorLayout'
 import { apiFetch } from '../../lib/http'
-import { listAllProductItems, listProductItems, patchItem } from './services/importsApi'
+import { deleteMultipleItems, listAllProductItems, listProductItems, patchItem } from './services/importsApi'
 import { PURCHASING_DEFAULTS } from '../../constants/defaults'
+import { IMPORTS } from '@endpoints/imports'
 
 interface ProductoImportado {
     id: string
@@ -36,6 +38,7 @@ interface ProductosResponse {
 
 const ProductosImportados: React.FC = () => {
     const { token, profile } = useAuth()
+    const { t } = useTranslation('importer')
     const [searchParams, setSearchParams] = useSearchParams()
 
     const [productos, setProductos] = useState<ProductoImportado[]>([])
@@ -147,7 +150,7 @@ const ProductosImportados: React.FC = () => {
     const handleSaveEdit = async () => {
         if (!editingId) return
         if (!editingBatchId) {
-            alert('Could not determine batch for this item')
+            alert(t('importedProducts.alerts.couldNotDetermineBatch'))
             return
         }
 
@@ -160,7 +163,7 @@ const ProductosImportados: React.FC = () => {
             setEditValues({})
             fetchProductos()
         } catch (err: any) {
-            alert(`Error: ${err.message}`)
+            alert(t('importedProducts.alerts.errorWithMessage', { message: err.message }))
         }
     }
 
@@ -171,46 +174,40 @@ const ProductosImportados: React.FC = () => {
 
     const handleEliminar = async () => {
         if (selectedIds.size === 0) {
-            alert('Select at least one product')
+            alert(t('importedProducts.alerts.selectAtLeastOne'))
             return
         }
 
-        if (!confirm(`Delete ${selectedIds.size} products? This cannot be undone.`)) return
+        if (!confirm(t('importedProducts.confirm.deleteProducts', { count: selectedIds.size }))) return
 
         try {
-            const result = await apiFetch<{ deleted: number }>('/api/v1/tenant/imports/items/delete-multiple', {
-                method: 'POST',
-                authToken: token || undefined,
-                body: JSON.stringify({
-                    item_ids: Array.from(selectedIds),
-                }),
-            })
-            alert(`${result.deleted} products deleted`)
+            const result = await deleteMultipleItems({ item_ids: Array.from(selectedIds) }, token || undefined)
+            alert(t('importedProducts.alerts.productsDeleted', { count: result.deleted }))
 
             setSelectedIds(new Set())
             fetchProductos()
         } catch (err: any) {
-            alert(`Error: ${err.message}`)
+            alert(t('importedProducts.alerts.errorWithMessage', { message: err.message }))
         }
     }
 
     const handlePromover = async () => {
         if (selectedIds.size === 0) {
-            alert('Select at least one product')
+            alert(t('importedProducts.alerts.selectAtLeastOne'))
             return
         }
 
         const zeroStockSelected = productos.filter((p) => selectedIds.has(p.id) && (p.stock ?? 0) <= 0).length
         if (zeroStockSelected > 0) {
-            if (!confirm(`There are ${zeroStockSelected} products with zero stock. Promote anyway?`)) return
+            if (!confirm(t('importedProducts.confirm.zeroStockPromoteAnyway', { count: zeroStockSelected }))) return
         }
 
-        if (!confirm(`Promote ${selectedIds.size} products to the catalog?`)) return
+        if (!confirm(t('importedProducts.confirm.promoteProducts', { count: selectedIds.size }))) return
 
         try {
             const endpoint = batchId
-                ? `/api/v1/tenant/imports/batches/${batchId}/promote`
-                : '/api/v1/tenant/imports/items/promote'
+                ? IMPORTS.batches.promote(batchId)
+                : `${IMPORTS.base}/items/promote`
 
             const url = new URL(endpoint, window.location.origin)
             if (autoMode) {
@@ -232,15 +229,15 @@ const ProductosImportados: React.FC = () => {
 
             if (result.errors && result.errors.length > 0) {
                 console.error('Promotion errors:', result.errors.slice(0, 5))
-                alert(`Promoted: ${result.promoted}/${result.total}\nErrors: ${result.errors.length}\nCheck console for details.`)
+                alert(t('importedProducts.alerts.promotedWithErrors', { promoted: result.promoted, total: result.total, errors: result.errors.length }))
             } else {
-                alert(`${result.promoted} products promoted successfully`)
+                alert(t('importedProducts.alerts.promotedSuccessfully', { count: result.promoted }))
             }
 
             setSelectedIds(new Set())
             fetchProductos()
         } catch (err: any) {
-            alert(`Error: ${err.message}`)
+            alert(t('importedProducts.alerts.errorWithMessage', { message: err.message }))
         }
     }
 
@@ -258,7 +255,7 @@ const ProductosImportados: React.FC = () => {
         return (
             <ImportadorLayout>
                 <div className="flex items-center justify-center p-12">
-                    <div className="text-neutral-600">Loading products...</div>
+                    <div className="text-neutral-600">{t('importedProducts.states.loadingProducts')}</div>
                 </div>
             </ImportadorLayout>
         )
@@ -268,9 +265,9 @@ const ProductosImportados: React.FC = () => {
         return (
             <ImportadorLayout>
                 <div className="p-4">
-                    <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded">Error: {error}</div>
+                    <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded">{t('wizard.common.error')}: {error}</div>
                     <Link to="../" relative="path" className="text-blue-600 hover:underline mt-4 inline-block">
-                        Back to importer
+                        {t('importedProducts.actions.backToImporter')}
                     </Link>
                 </div>
             </ImportadorLayout>
@@ -286,10 +283,10 @@ const ProductosImportados: React.FC = () => {
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-2xl font-bold text-neutral-900">
-                            {batchId ? 'Batch products' : 'All imported products'}
+                            {batchId ? t('importedProducts.header.batchProducts') : t('importedProducts.header.allImportedProducts')}
                         </h1>
                         <p className="text-sm text-neutral-600 mt-1">
-                            {displayedTotal} products | {selectedIds.size} selected
+                            {t('importedProducts.header.countSummary', { products: displayedTotal, selected: selectedIds.size })}
                             {batchId && <span className="ml-2 text-xs font-mono text-neutral-500">({batchId.slice(0, 8)})</span>}
                         </p>
                     </div>
@@ -298,12 +295,12 @@ const ProductosImportados: React.FC = () => {
                             onClick={handleEliminar}
                             disabled={selectedIds.size === 0}
                             className="px-4 py-2 bg-rose-600 text-white rounded hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                            title="Delete selected products"
+                            title={t('importedProducts.actions.deleteSelectedTitle')}
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
-                            Delete ({selectedIds.size})
+                            {t('importedProducts.actions.deleteCount', { count: selectedIds.size })}
                         </button>
                         <button
                             onClick={handlePromover}
@@ -313,13 +310,13 @@ const ProductosImportados: React.FC = () => {
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            Promote ({selectedIds.size})
+                            {t('importedProducts.actions.promoteCount', { count: selectedIds.size })}
                         </button>
                     </div>
                 </div>
 
                 <div className="flex gap-2 items-center flex-wrap">
-                    <label className="text-sm font-medium text-neutral-700">Status:</label>
+                    <label className="text-sm font-medium text-neutral-700">{t('importedProducts.filters.status')}:</label>
                     <select
                         value={statusParam || 'OK'}
                         onChange={(e) => {
@@ -329,27 +326,27 @@ const ProductosImportados: React.FC = () => {
                         }}
                         className="border border-neutral-300 rounded px-3 py-1.5 text-sm"
                     >
-                        <option value="all">All</option>
+                        <option value="all">{t('importedProducts.filters.all')}</option>
                         <option value="OK">OK</option>
-                        <option value="READY">Ready</option>
-                        <option value="ERROR_VALIDATION">With errors</option>
-                        <option value="PROMOTED">Promoted</option>
-                        <option value="SIN_STOCK">Zero stock</option>
+                        <option value="READY">{t('importedProducts.filters.ready')}</option>
+                        <option value="ERROR_VALIDATION">{t('importedProducts.filters.withErrors')}</option>
+                        <option value="PROMOTED">{t('importedProducts.filters.promoted')}</option>
+                        <option value="SIN_STOCK">{t('importedProducts.filters.zeroStock')}</option>
                     </select>
 
-                    {!batchId && <span className="text-xs text-neutral-500 ml-2">Showing products from all batches</span>}
+                    {!batchId && <span className="text-xs text-neutral-500 ml-2">{t('importedProducts.filters.showingAllBatches')}</span>}
                 </div>
 
                 <div className="flex items-center gap-3 p-3 border rounded bg-neutral-50">
                     <label className="flex items-center gap-2 text-sm text-neutral-700">
                         <input type="checkbox" checked={autoMode} onChange={(e) => setAutoMode(e.target.checked)} />
-                        Auto mode (recommended)
+                        {t('importedProducts.autoMode.recommended')}
                     </label>
                     <span className="text-xs text-neutral-500">
-                        Activates products, creates ALM-1 if missing, and applies initial stock.
+                        {t('importedProducts.autoMode.help')}
                     </span>
                     <div className="flex items-center gap-2 ml-auto">
-                        <label className="text-sm text-neutral-700">Target warehouse:</label>
+                        <label className="text-sm text-neutral-700">{t('importedProducts.autoMode.targetWarehouse')}:</label>
                         <input
                             value={targetWarehouse}
                             onChange={(e) => setTargetWarehouse(e.target.value)}
@@ -361,9 +358,9 @@ const ProductosImportados: React.FC = () => {
 
                 {showZeroStockNotice && (
                     <div className="flex items-center justify-between gap-3 p-3 border border-amber-200 bg-amber-50 rounded">
-                        <div className="text-sm text-amber-800">There are {zeroStockCount} products with zero stock.</div>
+                        <div className="text-sm text-amber-800">{t('importedProducts.zeroStock.notice', { count: zeroStockCount })}</div>
                         <button type="button" onClick={() => setShowZeroStockNotice(false)} className="text-xs text-amber-800 hover:underline">
-                            Hide
+                            {t('importedProducts.actions.hide')}
                         </button>
                     </div>
                 )}
@@ -382,23 +379,23 @@ const ProductosImportados: React.FC = () => {
                                         />
                                     </th>
                                     <th className="p-3 text-left font-semibold text-neutral-700">#</th>
-                                    <th className="p-3 text-left font-semibold text-neutral-700">Code</th>
-                                    <th className="p-3 text-left font-semibold text-neutral-700">Name</th>
-                                    <th className="p-3 text-left font-semibold text-neutral-700">Price</th>
-                                    <th className="p-3 text-left font-semibold text-neutral-700">Cost</th>
-                                    <th className="p-3 text-left font-semibold text-neutral-700">Category</th>
-                                    <th className="p-3 text-left font-semibold text-neutral-700">Stock</th>
-                                    <th className="p-3 text-left font-semibold text-neutral-700">Unit</th>
-                                    <th className="p-3 text-left font-semibold text-neutral-700">Tax</th>
-                                    <th className="p-3 text-left font-semibold text-neutral-700">Status</th>
-                                    <th className="p-3 text-left font-semibold text-neutral-700">Actions</th>
+                                    <th className="p-3 text-left font-semibold text-neutral-700">{t('importedProducts.table.code')}</th>
+                                    <th className="p-3 text-left font-semibold text-neutral-700">{t('importedProducts.table.name')}</th>
+                                    <th className="p-3 text-left font-semibold text-neutral-700">{t('importedProducts.table.price')}</th>
+                                    <th className="p-3 text-left font-semibold text-neutral-700">{t('importedProducts.table.cost')}</th>
+                                    <th className="p-3 text-left font-semibold text-neutral-700">{t('importedProducts.table.category')}</th>
+                                    <th className="p-3 text-left font-semibold text-neutral-700">{t('importedProducts.table.stock')}</th>
+                                    <th className="p-3 text-left font-semibold text-neutral-700">{t('importedProducts.table.unit')}</th>
+                                    <th className="p-3 text-left font-semibold text-neutral-700">{t('importedProducts.table.tax')}</th>
+                                    <th className="p-3 text-left font-semibold text-neutral-700">{t('importedProducts.table.status')}</th>
+                                    <th className="p-3 text-left font-semibold text-neutral-700">{t('importedProducts.table.actions')}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-neutral-100">
                                 {displayedProductos.length === 0 && (
                                     <tr>
                                         <td colSpan={12} className="p-6 text-center text-neutral-500">
-                                            No products to show.
+                                            {t('importedProducts.table.noProductsToShow')}
                                         </td>
                                     </tr>
                                 )}
@@ -534,18 +531,18 @@ const ProductosImportados: React.FC = () => {
                                                             onClick={handleSaveEdit}
                                                             className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
                                                         >
-                                                            Save
+                                                            {t('importedProducts.actions.save')}
                                                         </button>
                                                         <button
                                                             onClick={handleCancelEdit}
                                                             className="px-2 py-1 border border-neutral-300 text-xs rounded hover:bg-neutral-50"
                                                         >
-                                                            Cancel
+                                                            {t('common.cancel')}
                                                         </button>
                                                     </div>
                                                 ) : (
                                                     <button onClick={() => handleEdit(producto)} className="px-2 py-1 text-blue-600 hover:underline text-xs">
-                                                        Edit
+                                                        {t('importedProducts.actions.edit')}
                                                     </button>
                                                 )}
                                             </td>
@@ -560,7 +557,7 @@ const ProductosImportados: React.FC = () => {
                 {displayedTotal > limit && (
                     <div className="flex items-center justify-between">
                         <div className="text-sm text-neutral-600">
-                            Showing {offset + 1}-{Math.min(offset + limit, displayedTotal)} of {displayedTotal}
+                            {t('importedProducts.pagination.showingRange', { from: offset + 1, to: Math.min(offset + limit, displayedTotal), total: displayedTotal })}
                         </div>
                         <div className="flex gap-2">
                             <button
@@ -568,14 +565,14 @@ const ProductosImportados: React.FC = () => {
                                 disabled={offset === 0}
                                 className="px-3 py-1.5 border border-neutral-300 rounded hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                Previous
+                                {t('importedProducts.pagination.previous')}
                             </button>
                             <button
                                 onClick={() => handlePageChange(offset + limit)}
                                 disabled={offset + limit >= total}
                                 className="px-3 py-1.5 border border-neutral-300 rounded hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                Next
+                                {t('importedProducts.pagination.next')}
                             </button>
                         </div>
                     </div>

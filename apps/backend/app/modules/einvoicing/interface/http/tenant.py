@@ -1,23 +1,20 @@
-from __future__ import annotations
+"""E-Invoicing Module - HTTP API (Tenant)"""
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.db.rls import ensure_rls
-
-try:
-    from apps.backend.celery_app import celery_app  # when root is repo
-except Exception:
-    celery_app = None
+from app.modules.einvoicing.application.sii_service import SIIService
 
 router = APIRouter(
     prefix="/einvoicing",
-    tags=["E-invoicing"],
+    tags=["E-Invoicing"],
     dependencies=[
         Depends(with_access_claims),
         Depends(require_scope("tenant")),
@@ -26,119 +23,203 @@ router = APIRouter(
 )
 
 
-class SendIn(BaseModel):
-    country: str  # 'EC' or 'ES'
-    period: str | None = None  # for ES
+# ============================================================================
+# SCHEMAS
+# ============================================================================
 
 
-def _resolve_tenant_uuid(request: Request, db: Session) -> str:
-    claims = getattr(request.state, "access_claims", {}) or {}
-    raw_tid = (
-        str(claims.get("tenant_id"))
-        if isinstance(claims, dict) and claims.get("tenant_id") is not None
-        else None
-    )
-    if not raw_tid:
-        raise HTTPException(status_code=403, detail="missing_tenant")
-    if raw_tid.isdigit():
-        row = db.execute(
-            text("SELECT id::text FROM public.tenants WHERE tenant_id =:eid"),
-            {"eid": int(raw_tid)},
-        ).first()
-        if not row or not row[0]:
-            raise HTTPException(status_code=403, detail="invalid_tenant")
-        return str(row[0])
-    return raw_tid
+class InvoiceLineRequest(BaseModel):
+    """Línea de factura."""
+
+    description: str
+    quantity: float
+    unit_price: float
+    total: float
 
 
-@router.post("/send/{invoice_id}", response_model=dict)
-def send(invoice_id: int, payload: SendIn, request: Request, db: Session = Depends(get_db)):
-    # Resolve tenant UUID to propagate to async task
-    tenant_uuid = _resolve_tenant_uuid(request, db)
-    if payload.country == "EC":
-        # enqueue SRI task
-        if not celery_app:
-            from app.modules.einvoicing.tasks import sign_and_send
+class SendInvoiceRequest(BaseModel):
+    """Solicitud para enviar factura a SII."""
 
-            return sign_and_send(invoice_id, tenant_uuid)
-        r = celery_app.send_task(
-            "apps.backend.app.modules.einvoicing.tasks.sign_and_send",
-            args=[invoice_id, tenant_uuid],
+    invoice_id: UUID
+    company_cif: str
+    company_name: str
+    customer_nif: str
+    customer_name: str
+    customer_address: str | None = None
+    invoice_number: str
+    issue_date: str
+    subtotal: float
+    total_vat: float
+    total: float
+    lines: list[InvoiceLineRequest]
+
+
+class EInvoiceStatusResponse(BaseModel):
+    """Estado de factura electrónica."""
+
+    id: UUID
+    status: str
+    fiscal_number: str | None = None
+    authorization_code: str | None = None
+    sent_at: str | None = None
+    accepted_at: str | None = None
+    retry_count: int
+    next_retry_at: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class SendInvoiceResponse(BaseModel):
+    """Respuesta de envío a SII."""
+
+    einvoice_id: UUID
+    status: str
+    fiscal_number: str | None = None
+    authorization_code: str | None = None
+    error: str | None = None
+
+
+# ============================================================================
+# ENDPOINTS
+# ============================================================================
+
+
+@router.post("/send-sii", response_model=SendInvoiceResponse, status_code=status.HTTP_201_CREATED)
+async def send_invoice_to_sii(
+    request: SendInvoiceRequest,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+) -> SendInvoiceResponse:
+    """
+    Envía factura a Agencia Tributaria (SII - España).
+
+    Body:
+    {
+        "invoice_id": "uuid",
+        "company_cif": "ES12345678A",
+        "company_name": "Mi Empresa S.L.",
+        "customer_nif": "12345678Z",
+        "customer_name": "Cliente",
+        "invoice_number": "FAC-2026-001",
+        "issue_date": "2026-02-15",
+        "subtotal": 1000.00,
+        "total_vat": 210.00,
+        "total": 1210.00,
+        "lines": [...]
+    }
+    """
+    tenant_id = claims["tenant_id"]
+
+    try:
+        # Convertir request a dict
+        invoice_data = {
+            "company_cif": request.company_cif,
+            "company_name": request.company_name,
+            "customer_nif": request.customer_nif,
+            "customer_name": request.customer_name,
+            "customer_address": request.customer_address or "",
+            "invoice_number": request.invoice_number,
+            "issue_date": request.issue_date,
+            "subtotal": request.subtotal,
+            "total_vat": request.total_vat,
+            "total": request.total,
+            "lines": [line.dict() for line in request.lines],
+        }
+
+        # Enviar a SII
+        result = SIIService.send_to_sii(db, tenant_id, request.invoice_id, invoice_data)
+
+        # Obtener einvoice creado
+        from sqlalchemy import select
+
+        from app.models.einvoicing.einvoice import EInvoice
+
+        einvoice = db.execute(
+            select(EInvoice).where(EInvoice.invoice_id == request.invoice_id)
+        ).scalar_one()
+
+        db.commit()
+
+        return SendInvoiceResponse(
+            einvoice_id=einvoice.id,
+            status=result.get("status"),
+            fiscal_number=result.get("fiscal_number"),
+            authorization_code=result.get("authorization_code"),
+            error=result.get("error"),
         )
-        return {"task_id": r.id}
-    elif payload.country == "ES":
-        # enqueue SII batch for period
-        per = payload.period or "0000Q0"
-        if not celery_app:
-            from app.modules.einvoicing.tasks import build_and_send_sii
-
-            return build_and_send_sii(per, tenant_uuid)
-        r = celery_app.send_task(
-            "apps.backend.app.modules.einvoicing.tasks.build_and_send_sii",
-            args=[per, tenant_uuid],
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
         )
-        return {"task_id": r.id}
-    else:
-        raise HTTPException(status_code=400, detail="unsupported_country")
 
 
-@router.get("/status/{kind}/{ref}", response_model=dict)
-def status(kind: str, ref: str, request: Request, db: Session = Depends(get_db)):
-    tenant_uuid = _resolve_tenant_uuid(request, db)
-    if kind == "sri":
-        row = db.execute(
-            text(
-                "SELECT id::text, status::text, error_message FROM sri_submissions "
-                "WHERE id::text=:id AND tenant_id=:tid"
-            ),
-            {"id": ref, "tid": tenant_uuid},
-        ).first()
-        if not row:
-            raise HTTPException(status_code=404, detail="not_found")
-        return {"id": row[0], "status": row[1], "error": row[2]}
-    if kind == "sii":
-        row = db.execute(
-            text(
-                "SELECT id::text, status::text, error_message FROM sii_batches "
-                "WHERE id::text=:id AND tenant_id=:tid"
-            ),
-            {"id": ref, "tid": tenant_uuid},
-        ).first()
-        if not row:
-            raise HTTPException(status_code=404, detail="not_found")
-        return {"id": row[0], "status": row[1], "error": row[2]}
-    raise HTTPException(status_code=400, detail="unsupported_kind")
+@router.get("/einvoice/{einvoice_id}/status", response_model=EInvoiceStatusResponse)
+async def get_einvoice_status(
+    einvoice_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+) -> EInvoiceStatusResponse:
+    """Obtiene estado de factura electrónica."""
+    tenant_id = claims["tenant_id"]
 
+    from app.models.einvoicing.einvoice import EInvoice
 
-class ExplainIn(BaseModel):
-    kind: str  # 'sri' or 'sii'
-    id: str
+    einvoice = db.get(EInvoice, einvoice_id)
+    if not einvoice or einvoice.tenant_id != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="EInvoice not found",
+        )
 
+    status_info = SIIService.get_status(db, einvoice_id)
 
-@router.post("/explain_error", response_model=dict)
-def explain_error(payload: ExplainIn, request: Request, db: Session = Depends(get_db)):
-    tenant_uuid = _resolve_tenant_uuid(request, db)
-    # Basic explanation based on last error message
-    if payload.kind == "sri":
-        row = db.execute(
-            text(
-                "SELECT error_code, error_message FROM sri_submissions "
-                "WHERE id::text=:id AND tenant_id=:tid"
-            ),
-            {"id": payload.id, "tid": tenant_uuid},
-        ).first()
-    elif payload.kind == "sii":
-        row = db.execute(
-            text("SELECT error_message FROM sii_batches WHERE id::text=:id AND tenant_id=:tid"),
-            {"id": payload.id, "tid": tenant_uuid},
-        ).first()
-    else:
-        raise HTTPException(status_code=400, detail="unsupported_kind")
-
-    msg = (
-        (row[0] if row and row[0] else None) if payload.kind == "sri" else (row[0] if row else None)
+    return EInvoiceStatusResponse(
+        id=einvoice_id,
+        status=status_info.get("status"),
+        fiscal_number=status_info.get("fiscal_number"),
+        authorization_code=status_info.get("authorization_code"),
+        sent_at=status_info.get("sent_at"),
+        accepted_at=status_info.get("accepted_at"),
+        retry_count=status_info.get("retry_count", 0),
+        next_retry_at=status_info.get("next_retry_at"),
     )
-    if not msg:
-        return {"explanation": "Sin errores registrados"}
-    # Placeholder NLP explanation (deterministic)
-    return {"explanation": f"Error del proveedor fiscal: {msg}. Revisa credenciales y formato XML."}
+
+
+@router.post("/einvoice/{einvoice_id}/retry", response_model=SendInvoiceResponse)
+async def retry_einvoice(
+    einvoice_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+) -> SendInvoiceResponse:
+    """Reintenta envío de factura a SII."""
+    tenant_id = claims["tenant_id"]
+
+    from app.models.einvoicing.einvoice import EInvoice
+
+    einvoice = db.get(EInvoice, einvoice_id)
+    if not einvoice or einvoice.tenant_id != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="EInvoice not found",
+        )
+
+    try:
+        result = SIIService.retry_send(db, einvoice_id)
+        db.commit()
+        db.refresh(einvoice)
+
+        return SendInvoiceResponse(
+            einvoice_id=einvoice_id,
+            status=result.get("status"),
+            fiscal_number=einvoice.fiscal_number,
+            authorization_code=einvoice.authorization_code,
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )

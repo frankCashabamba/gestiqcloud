@@ -2,7 +2,7 @@
 
 ## 📋 Descripción
 
-Terminal profesional de punto de venta (TPV) con diseño oscuro optimizado para uso intensivo. Integrado 100% con inventario, productos, pagos y facturación.
+Terminal profesional de punto de venta (TPV) con diseño oscuro optimizado para uso intensivo. Integrado con inventario, productos, pagos y facturación.
 
 ## 🏗️ Arquitectura
 
@@ -38,7 +38,7 @@ apps/backend/app/modules/pos/interface/http/tenant.py (900+ líneas)
 
 ---
 
-## ✨ Características 100%
+## ✨ Características principales
 
 ### **1. Diseño Profesional (Basado en tpv_pro.html)**
 
@@ -97,9 +97,9 @@ apps/backend/app/modules/pos/interface/http/tenant.py (900+ líneas)
 
 **Backend:**
 ```python
-POST /api/v1/pos/shifts
-POST /api/v1/pos/shifts/close
-GET  /api/v1/pos/shifts/current/:register_id
+POST /api/v1/tenant/pos/shifts
+POST /api/v1/tenant/pos/shifts/close
+GET  /api/v1/tenant/pos/shifts/current/:register_id
 ```
 
 ---
@@ -207,7 +207,7 @@ TOTAL = Base final + IVA
 
 ---
 
-### **6. Integración con Inventario (100% Automática)**
+### **6. Integración con Inventario (Automática)**
 
 #### Al finalizar venta (POST receipt):
 
@@ -240,8 +240,8 @@ TOTAL = Base final + IVA
 
 #### Endpoint backend ya operativo:
 ```python
-GET /api/v1/pos/receipts/{id}/print?width=58mm
-GET /api/v1/pos/receipts/{id}/print?width=80mm
+GET /api/v1/tenant/pos/receipts/{id}/print?width=58mm
+GET /api/v1/tenant/pos/receipts/{id}/print?width=80mm
 ```
 
 #### Plantillas HTML profesionales:
@@ -358,7 +358,7 @@ El diseño es **universal**. Solo cambian:
 
 ## 🔧 Backend - Endpoints
 
-### Base URL: `/api/v1/pos`
+### Base URL: `/api/v1/tenant/pos`
 
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
@@ -562,6 +562,6 @@ El diseño es **universal**. Solo cambian:
 ---
 
 **Versión:** 1.0.0
-**Estado:** ✅ 100% Production Ready
-**Última actualización:** Octubre 2025
+**Estado:** Activo (validar cobertura con tests en CI)
+**Última revisión documental:** Febrero 2026
 **Sectores soportados:** Panadería, Retail/Bazar

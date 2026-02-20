@@ -2,6 +2,83 @@ import re
 from datetime import date, datetime
 from typing import Any
 
+_MONTHS_MAP = {
+    "january": 1,
+    "jan": 1,
+    "enero": 1,
+    "ene": 1,
+    "february": 2,
+    "feb": 2,
+    "febrero": 2,
+    "march": 3,
+    "mar": 3,
+    "marzo": 3,
+    "april": 4,
+    "apr": 4,
+    "abril": 4,
+    "may": 5,
+    "mayo": 5,
+    "june": 6,
+    "jun": 6,
+    "junio": 6,
+    "july": 7,
+    "jul": 7,
+    "julio": 7,
+    "august": 8,
+    "aug": 8,
+    "agosto": 8,
+    "ago": 8,
+    "september": 9,
+    "sep": 9,
+    "sept": 9,
+    "septiembre": 9,
+    "setiembre": 9,
+    "october": 10,
+    "oct": 10,
+    "octubre": 10,
+    "november": 11,
+    "nov": 11,
+    "noviembre": 11,
+    "december": 12,
+    "dec": 12,
+    "diciembre": 12,
+    "dic": 12,
+}
+
+
+def _parse_month_name_date(s: str) -> bool:
+    txt = str(s or "").strip().lower()
+    if not txt:
+        return False
+    txt = re.sub(r"[,\.\s]+", " ", txt).strip()
+    pats = (
+        r"^([a-zA-Z\u00C0-\u017F]+)\s+(\d{1,2})\s+(\d{4})$",
+        r"^(\d{1,2})\s+([a-zA-Z\u00C0-\u017F]+)\s+(\d{4})$",
+        r"^([a-zA-Z\u00C0-\u017F]+)\s+(\d{4})$",
+    )
+    for idx, pat in enumerate(pats):
+        m = re.match(pat, txt)
+        if not m:
+            continue
+        try:
+            if idx == 0:
+                month = _MONTHS_MAP.get(m.group(1))
+                d, y = int(m.group(2)), int(m.group(3))
+            elif idx == 1:
+                month = _MONTHS_MAP.get(m.group(2))
+                d, y = int(m.group(1)), int(m.group(3))
+            else:
+                month = _MONTHS_MAP.get(m.group(1))
+                d, y = 1, int(m.group(2))
+            if not month:
+                return False
+            _ = date(y, int(month), d)
+            return True
+        except Exception:
+            return False
+    return False
+
+
 try:
     from .validators.country_validators import get_validator_for_country
     from .validators.error_catalog import ERROR_CATALOG
@@ -17,19 +94,45 @@ def _is_date_like(v: Any) -> bool:
     s = str(v or "").strip()
     if not s:
         return False
-    try:
-        date.fromisoformat(s)
-        return True
-    except Exception:
-        m = re.match(r"^(\d{2})[/-](\d{2})[/-](\d{4})$", s)
-        if m:
-            d, mth, y = m.groups()
-            try:
-                _ = datetime(int(y), int(mth), int(d)).date()
-                return True
-            except Exception:
-                return False
-    return False
+    # Accept common ISO variants produced by Excel/serializers:
+    # - YYYY-MM-DD
+    # - YYYY-MM-DD HH:MM:SS
+    # - YYYY-MM-DDTHH:MM:SS
+    # - YYYY-MM-DDTHH:MM:SSZ
+    candidates = [s]
+    if "T" in s:
+        candidates.append(s.split("T", 1)[0])
+    if " " in s:
+        candidates.append(s.split(" ", 1)[0])
+    if s.endswith("Z"):
+        candidates.append(s[:-1] + "+00:00")
+        if "T" in s:
+            candidates.append(s.split("T", 1)[0])
+
+    for candidate in candidates:
+        c = str(candidate).strip()
+        if not c:
+            continue
+        try:
+            date.fromisoformat(c)
+            return True
+        except Exception:
+            pass
+        try:
+            _ = datetime.fromisoformat(c)
+            return True
+        except Exception:
+            pass
+
+    m = re.match(r"^(\d{2})[/-](\d{2})[/-](\d{4})$", s)
+    if m:
+        d, mth, y = m.groups()
+        try:
+            _ = datetime(int(y), int(mth), int(d)).date()
+            return True
+        except Exception:
+            return False
+    return _parse_month_name_date(s)
 
 
 def _is_currency(v: Any) -> bool:

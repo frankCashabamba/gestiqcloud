@@ -1,33 +1,23 @@
-"""HR (Human Resources) module models"""
+"""HR Models - Sistema de Recursos Humanos
 
-import os
+Incluye:
+- Empleados
+- Configuración salarial
+- Nóminas
+- Deducciones
+- Boletos
+"""
 
-from .employee import Employee, Vacation
+from .employee import Employee, EmployeeDeduction, EmployeeSalary
+from .payroll import Payroll, PayrollDetail, PayrollTax
+from .payslip import PaymentSlip
 
-# Backward compatibility aliases
-Empleado = Employee
-Vacacion = Vacation
-
-# Feature flag: load payroll module only if enabled
-if os.getenv("ENABLE_PAYROLL_MODULE", "false").lower() == "true":
-    from .payroll import Payroll, PayrollConcept, PayrollTemplate
-
-    # Legacy Spanish aliases
-    Payroll = Payroll
-    PayrollConcepto = PayrollConcept
-    PayrollPlantilla = PayrollTemplate
-
-    __all__ = [
-        "Empleado",
-        "Vacacion",
-        "Employee",
-        "Vacation",
-        "Payroll",
-        "PayrollConcept",
-        "PayrollTemplate",
-        "Payroll",
-        "PayrollConcepto",
-        "PayrollPlantilla",
-    ]
-else:
-    __all__ = ["Empleado", "Vacacion", "Employee", "Vacation"]
+__all__ = [
+    "Employee",
+    "EmployeeSalary",
+    "EmployeeDeduction",
+    "Payroll",
+    "PayrollDetail",
+    "PayrollTax",
+    "PaymentSlip",
+]

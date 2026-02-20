@@ -9,17 +9,17 @@ test.describe('Authentication', () => {
   test('should show login form elements', async ({ page }) => {
     await page.goto('/login');
 
-    await expect(page.getByRole('textbox', { name: /email|usuario/i })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: /email|usuario|username/i })).toBeVisible();
     await expect(page.getByRole('textbox', { name: /password|contraseña/i }).or(page.locator('input[type="password"]'))).toBeVisible();
-    await expect(page.getByRole('button', { name: /login|iniciar|entrar/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /login|iniciar|entrar|sign in/i })).toBeVisible();
   });
 
   test('should attempt login with credentials', async ({ page }) => {
     await page.goto('/login');
 
-    const emailInput = page.getByRole('textbox', { name: /email|usuario/i }).or(page.locator('input[type="email"]'));
+    const emailInput = page.getByRole('textbox', { name: /email|usuario|username/i }).or(page.locator('input[type="email"]'));
     const passwordInput = page.locator('input[type="password"]');
-    const submitButton = page.getByRole('button', { name: /login|iniciar|entrar/i });
+    const submitButton = page.getByRole('button', { name: /login|iniciar|entrar|sign in/i });
 
     await emailInput.fill('test@example.com');
     await passwordInput.fill('testpassword');
@@ -31,9 +31,9 @@ test.describe('Authentication', () => {
   test('should show error on invalid credentials', async ({ page }) => {
     await page.goto('/login');
 
-    const emailInput = page.getByRole('textbox', { name: /email|usuario/i }).or(page.locator('input[type="email"]'));
+    const emailInput = page.getByRole('textbox', { name: /email|usuario|username/i }).or(page.locator('input[type="email"]'));
     const passwordInput = page.locator('input[type="password"]');
-    const submitButton = page.getByRole('button', { name: /login|iniciar|entrar/i });
+    const submitButton = page.getByRole('button', { name: /login|iniciar|entrar|sign in/i });
 
     await emailInput.fill('invalid@test.com');
     await passwordInput.fill('wrongpassword');

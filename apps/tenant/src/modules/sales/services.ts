@@ -1,6 +1,8 @@
 import tenantApi from '../../shared/api/client'
 import { ensureArray } from '../../shared/utils/array'
 import { TENANT_SALES } from '@shared/endpoints'
+import { queueDeletion, storeEntity } from '../../lib/offlineStore'
+import { createOfflineTempId, isNetworkIssue, isOfflineQueuedResponse, stripOfflineMeta } from '../../lib/offlineHttp'
 
 export type VentaLinea = {
     producto_id: number | string
@@ -106,17 +108,56 @@ export async function getVenta(id: number | string): Promise<Venta> {
 }
 
 export async function createVenta(payload: Omit<Venta, 'id'>): Promise<Venta> {
-    const { data } = await tenantApi.post<any>(TENANT_SALES.base, payload)
-    return mapToVenta(data)
+    const cleanPayload = stripOfflineMeta(payload as any)
+    try {
+        const response = await tenantApi.post<any>(TENANT_SALES.base, cleanPayload, { headers: { 'X-Offline-Managed': '1' } })
+        if (isOfflineQueuedResponse(response)) {
+            const tempId = createOfflineTempId('sale')
+            await storeEntity('sale', tempId, { ...cleanPayload, _op: 'create' }, 'pending')
+            return mapToVenta({ ...cleanPayload, id: tempId, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        }
+        return mapToVenta(response.data)
+    } catch (error) {
+        if (isNetworkIssue(error)) {
+            const tempId = createOfflineTempId('sale')
+            await storeEntity('sale', tempId, { ...cleanPayload, _op: 'create' }, 'pending')
+            return mapToVenta({ ...cleanPayload, id: tempId, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        }
+        throw error
+    }
 }
 
 export async function updateVenta(id: number | string, payload: Omit<Venta, 'id'>): Promise<Venta> {
-    const { data } = await tenantApi.put<any>(TENANT_SALES.byId(id), payload)
-    return mapToVenta(data)
+    const cleanPayload = stripOfflineMeta(payload as any)
+    try {
+        const response = await tenantApi.put<any>(TENANT_SALES.byId(id), cleanPayload, { headers: { 'X-Offline-Managed': '1' } })
+        if (isOfflineQueuedResponse(response)) {
+            await storeEntity('sale', String(id), { ...cleanPayload, _op: 'update' }, 'pending')
+            return mapToVenta({ ...cleanPayload, id, updated_at: new Date().toISOString() })
+        }
+        return mapToVenta(response.data)
+    } catch (error) {
+        if (isNetworkIssue(error)) {
+            await storeEntity('sale', String(id), { ...cleanPayload, _op: 'update' }, 'pending')
+            return mapToVenta({ ...cleanPayload, id, updated_at: new Date().toISOString() })
+        }
+        throw error
+    }
 }
 
 export async function removeVenta(id: number | string): Promise<void> {
-    await tenantApi.delete(TENANT_SALES.byId(id))
+    try {
+        const response = await tenantApi.delete(TENANT_SALES.byId(id), { headers: { 'X-Offline-Managed': '1' } })
+        if (isOfflineQueuedResponse(response)) {
+            await queueDeletion('sale', String(id))
+        }
+    } catch (error) {
+        if (isNetworkIssue(error)) {
+            await queueDeletion('sale', String(id))
+            return
+        }
+        throw error
+    }
 }
 
 export async function convertToInvoice(id: number | string): Promise<{ invoice_id: string }> {

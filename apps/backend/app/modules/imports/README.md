@@ -1,6 +1,6 @@
 Imports module — batch staging, validation and promotion
 
-## Parsers (Fase B - Completado)
+## Parsers
 
 Soporte para múltiples formatos de archivo mediante parsers registrados:
 
@@ -11,7 +11,11 @@ Soporte para múltiples formatos de archivo mediante parsers registrados:
 - **Excel Gastos**: xlsx_expenses (NUEVO)
 - **PDF QR**: pdf_qr (NUEVO)
 
-Ver `PARSER_REGISTRY.md` y `FASE_B_NUEVOS_PARSERS.md` para detalles.
+Ver `PARSER_REGISTRY.md` para detalles.
+
+## Documentacion
+- Canonica: `README.md`, `README_MODULE.md`, `PARSER_REGISTRY.md`, `PARSER_REGISTRY_GUIDE.md`, `spec_1_importador_documental_gestiq_cloud.md`.
+- Historial/planes anteriores: `_legacy_docs/`.
 
 ## Endpoints (prefix: /api/v1/imports)
 - POST `/batches` → create batch { source_type, origin, file_key?, mapping_id? }

@@ -277,9 +277,9 @@ def _sector_kpis_payload(
             "monthly_revenue": {
                 "current": float(monthly_revenue),
                 "target": 6000.00,
-                "progress": round((monthly_revenue / 6000.00 * 100), 1)
-                if monthly_revenue > 0
-                else 0.0,
+                "progress": (
+                    round((monthly_revenue / 6000.00 * 100), 1) if monthly_revenue > 0 else 0.0
+                ),
                 "currency": currency,
             },
             "low_stock_spare_parts": {

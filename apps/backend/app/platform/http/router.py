@@ -185,6 +185,8 @@ def build_api_router() -> APIRouter:
     include_router_safe(r, ("app.api.v1.telemetry", "router"))
     # Prometheus metrics
     include_router_safe(r, ("app.api.v1.metrics", "router"))
+    # AI providers health
+    include_router_safe(r, ("app.routers.ai_health", "router"))
     include_router_safe(r, ("app.api.v1.einvoicing", "router"))
     # Email health
     include_router_safe(r, ("app.api.v1.email_health", "router"))
@@ -249,6 +251,10 @@ def build_api_router() -> APIRouter:
     # Inventario
     include_router_safe(
         r, ("app.modules.inventory.interface.http.tenant", "router"), prefix="/tenant"
+    )
+    # Stock Transfers (inventario)
+    include_router_safe(
+        r, ("app.modules.inventory.interface.http.transfers", "router"), prefix="/tenant"
     )
     # Sales
     include_router_safe(r, ("app.modules.sales.interface.http.tenant", "router"), prefix="/tenant")
@@ -370,6 +376,9 @@ def build_api_router() -> APIRouter:
     # CRM
     include_router_safe(r, ("app.modules.crm.presentation.tenant", "router"), prefix="/tenant")
 
+    # HR lookups
+    include_router_safe(r, ("app.modules.hr.routes.lookups", "router"))
+
     # Settings (company)
     include_router_safe(
         r,
@@ -458,6 +467,16 @@ def build_api_router() -> APIRouter:
     # Notifications
     include_router_safe(
         r, ("app.modules.notifications.interface.http.tenant", "router"), prefix="/tenant"
+    )
+
+    # Reports
+    include_router_safe(
+        r, ("app.modules.reports.interface.http.tenant", "router"), prefix="/tenant"
+    )
+
+    # Reports - Profit analysis
+    include_router_safe(
+        r, ("app.modules.reports.interface.http.profit", "router"), prefix="/tenant"
     )
 
     # Final safeguard: ensure imports router is mounted in non-production envs

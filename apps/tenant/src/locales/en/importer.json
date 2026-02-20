@@ -14,17 +14,40 @@
   "reviewContinueBatches": "Review and continue with created batches",
   "preview": "Preview",
   "openDetailScreen": "Open the detail screen by passing ?batch_id=...",
+  "uploadFailed": "Failed to upload {{file}}: {{message}}",
+  "cleanupStuckFailed": "Error cleaning up stuck batches",
   "new": "New Import",
   "search": "Search imports",
   "empty": "No imports found",
   "edit": "Edit",
   "delete": "Delete",
   "confirmDelete": "Are you sure you want to delete this import?",
-  "actions": "Actions",
+  "actions": {
+    "processPending": "Process pending",
+    "sending": "Sending...",
+    "sendAllToPreview": "Send all to preview",
+    "uploadFile": "Upload file",
+    "uploadPhoto": "Upload photo",
+    "process": "Process",
+    "sendToPreview": "Send to preview",
+    "reprocess": "Reprocess",
+    "hidePreview": "Hide preview",
+    "showPreview": "Show preview",
+    "goToPending": "Go to pending",
+    "viewPreview": "View preview",
+    "openInNewTab": "Open in new tab"
+  },
   "messages": {
     "created": "Import created successfully",
     "updated": "Import updated successfully",
-    "deleted": "Import deleted successfully"
+    "deleted": "Import deleted successfully",
+    "usingTemplate": "Using template: {{name}}",
+    "processingWithoutTemplate": "Processing without mapping template",
+    "uploadingInChunks": "Uploading file in chunks...",
+    "uploadingPercent": "Uploading... {{pct}}%",
+    "backgroundProcessing": "Processing in background...",
+    "processingDocumentWait": "We are processing your document. This can take a few seconds.",
+    "mappingSaved": "Mapping saved: {{name}}"
   },
   "table": {
     "date": "Date",
@@ -42,8 +65,328 @@
     "pending": "Pending",
     "processing": "Processing...",
     "ready": "Ready",
+    "readyToSave": "Ready to save",
     "saving": "Saving...",
     "saved": "Saved",
+    "duplicate": "Duplicate",
     "error": "Error"
-  }
-}
+  },
+  "errors": {
+    "templatesLoadFailed": "Could not load templates",
+    "unsupportedFileType": "Unsupported file type",
+    "fileProcessFailed": "An error occurred while processing the file",
+    "saveDocumentFailed": "Error saving the document",
+    "someFilesCouldNotBeSaved": "Some files could not be saved. Review the queue for details."
+  },
+  "common": {
+    "close": "Close",
+    "cancel": "Cancel",
+    "notAvailable": "Not available"
+  },
+  "page": {
+    "title": "Import files",
+    "description": "Upload receipts, CSV or Excel files, and PDF documents. Review the preview and save records when ready."
+  },
+  "camera": {
+    "title": "Capture photo",
+    "starting": "Starting camera...",
+    "alignDocument": "Align the document before capture.",
+    "useUploadIfIssue": "If you have issues, use the upload file option.",
+    "capture": "Capture",
+    "openCamera": "Open camera",
+    "deviceWithoutCamera": "This device does not expose camera, file selector will open.",
+    "errors": {
+      "accessDenied": "Could not access camera",
+      "notReady": "Camera is not ready yet",
+      "imageProcessFailed": "Could not process image",
+      "captureFailed": "Could not capture photo"
+    }
+  },
+  "upload": {
+    "title": "Add files",
+    "description": "We accept CSV, Excel, PDF or images (JPG/PNG). You can drag them here or select them manually.",
+    "mappingTemplate": "Mapping template",
+    "loadingTemplates": "Loading templates...",
+    "noTemplate": "No template",
+    "noTemplatesConfigured": "No templates configured.",
+    "selectFiles": "Select files",
+    "maxFilesPerBatch": "Max. 10 files per batch",
+    "tipAutoDetectDocType": "We automatically detect document type.",
+    "tipApplyTemplatePerBatch": "Apply mapping templates when creating each batch.",
+    "tipReviewRowsBeforeSave": "Each file creates a row block you can review before saving."
+  },
+  "queue": {
+    "title": "Document queue",
+    "filesCount": "{{count}} file",
+    "filesCount_plural": "{{count}} files",
+    "empty": "No files in queue yet. Upload one to start.",
+    "fileFallbackType": "File",
+    "rowsDetected": "{{count}} rows detected",
+    "typeLabel": "Type: {{type}}",
+    "templateLabel": "Template:",
+    "analyzingDocument": "Analyzing document...",
+    "savingData": "Saving data..."
+  },
+  "previewTable": {
+    "showingRows": "Showing {{shown}} of {{total}} processed rows"
+  },
+  "summary": {
+    "savedToStaging": "Saved {{count}} file to staging",
+    "savedToStaging_plural": "Saved {{count}} files to staging",
+    "withErrors": "with {{count}} error",
+    "withErrors_plural": "with {{count}} errors"
+  },
+  "toast": {
+    "fileSaved": "File saved"
+  },
+  "wizard": {
+    "page": {
+      "title": "Import Wizard",
+      "description": "Upload a file, map fields, validate data, and import in a guided flow."
+    },
+    "actions": {
+      "hideAiTelemetry": "Hide AI telemetry",
+      "showAiTelemetry": "Show AI telemetry",
+      "back": "Back",
+      "continue": "Continue",
+      "validate": "Validate",
+      "importNow": "Import now"
+    },
+    "steps": {
+      "completed": "OK",
+      "upload": {
+        "label": "Upload",
+        "helper": "Select a file"
+      },
+      "preview": {
+        "label": "Preview",
+        "helper": "Review rows"
+      },
+      "mapping": {
+        "label": "Mapping",
+        "helper": "Match fields"
+      },
+      "validate": {
+        "label": "Validate",
+        "helper": "Check issues"
+      },
+      "summary": {
+        "label": "Summary",
+        "helper": "Confirm settings"
+      },
+      "importing": {
+        "label": "Import",
+        "helper": "Processing"
+      }
+    },
+    "messages": {
+      "ocrDocument": "OCR Document"
+    },
+    "errors": {
+      "ocrNoDocuments": "OCR did not return documents",
+      "ocrProcessFailed": "Error processing PDF/image",
+      "unknownError": "Unknown error",
+      "oldXlsReadFailed": "Could not read {{file}}. Old .xls files may require conversion to .xlsx or .csv. Detail: {{detail}}",
+      "fileReadFailed": "Could not read file {{file}}. Detail: {{detail}}",
+      "importError": "Import error"
+    },
+    "upload": {
+      "selectFilePrompt": "Select a file to import (CSV, Excel, PDF, or image).",
+      "processingWithOcr": "Processing with OCR...",
+      "mayTakeMoment": "This may take a moment",
+      "clickChooseFile": "Click to choose a file",
+      "acceptedFormats": "CSV, Excel, PDF, or images"
+    },
+    "preview": {
+      "fileSummary": "File: {{file}} | {{rows}} rows | {{columns}} columns"
+    },
+    "mapping": {
+      "reviewAdjust": "Review and adjust field mapping. Auto-mapping is already applied.",
+      "parserSelection": "Parser selection",
+      "useSuggestion": "Use suggestion: {{parser}}",
+      "override": "OVERRIDE",
+      "selected": "Selected",
+      "type": "Type",
+      "description": "Description",
+      "confidence": "Confidence",
+      "provider": "Provider",
+      "aiProviderFallback": "AI",
+      "heuristic": "Heuristic"
+    },
+    "validation": {
+      "missingMappingFor": "Missing mapping for: {{field}}",
+      "fileHasNoRows": "File has no rows",
+      "maxRowsPerImport": "Max {{max}} rows per import",
+      "fixIssuesBeforeContinue": "Fix these issues before continuing:",
+      "passed": "Validation passed."
+    },
+    "summary": {
+      "autoModeRecommended": "Auto mode (recommended)",
+      "autoModeHelp": "Activates products, creates ALM-1 if missing, and applies initial stock.",
+      "targetWarehouse": "Target warehouse",
+      "promotedWithErrors": "Promoted: {{promoted}} | Errors: {{errors}}",
+      "goToProducts": "Go to Products",
+      "goToInventory": "Go to Inventory"
+    },
+    "common": {
+      "error": "Error"
+    }
+  },
+  "importedProducts": {
+    "states": {
+      "loadingProducts": "Loading products..."
+    },
+    "alerts": {
+      "couldNotDetermineBatch": "Could not determine batch for this item",
+      "errorWithMessage": "Error: {{message}}",
+      "selectAtLeastOne": "Select at least one product",
+      "productsDeleted": "{{count}} products deleted",
+      "promotedWithErrors": "Promoted: {{promoted}}/{{total}}\nErrors: {{errors}}\nCheck console for details.",
+      "promotedSuccessfully": "{{count}} products promoted successfully"
+    },
+    "confirm": {
+      "deleteProducts": "Delete {{count}} products? This cannot be undone.",
+      "zeroStockPromoteAnyway": "There are {{count}} products with zero stock. Promote anyway?",
+      "promoteProducts": "Promote {{count}} products to the catalog?"
+    },
+    "actions": {
+      "backToImporter": "Back to importer",
+      "deleteSelectedTitle": "Delete selected products",
+      "deleteCount": "Delete ({{count}})",
+      "promoteCount": "Promote ({{count}})",
+      "hide": "Hide",
+      "save": "Save",
+      "edit": "Edit"
+    },
+    "header": {
+      "batchProducts": "Batch products",
+      "allImportedProducts": "All imported products",
+      "countSummary": "{{products}} products | {{selected}} selected"
+    },
+    "filters": {
+      "status": "Status",
+      "all": "All",
+      "ready": "Ready",
+      "withErrors": "With errors",
+      "promoted": "Promoted",
+      "zeroStock": "Zero stock",
+      "showingAllBatches": "Showing products from all batches"
+    },
+    "autoMode": {
+      "recommended": "Auto mode (recommended)",
+      "help": "Activates products, creates ALM-1 if missing, and applies initial stock.",
+      "targetWarehouse": "Target warehouse"
+    },
+    "zeroStock": {
+      "notice": "There are {{count}} products with zero stock."
+    },
+    "table": {
+      "code": "Code",
+      "name": "Name",
+      "price": "Price",
+      "cost": "Cost",
+      "category": "Category",
+      "stock": "Stock",
+      "unit": "Unit",
+      "tax": "Tax",
+      "status": "Status",
+      "actions": "Actions",
+      "noProductsToShow": "No products to show."
+    },
+    "pagination": {
+      "showingRange": "Showing {{from}}-{{to}} of {{total}}",
+      "previous": "Previous",
+      "next": "Next"
+    }
+  },
+  "mapeoCampos": {
+    "title": "Field mapping",
+    "actions": {
+      "autoDetect": "Auto-detect",
+      "loadTemplate": "Load template",
+      "saveTemplate": "Save template",
+      "save": "Save"
+    },
+    "alerts": {
+      "templateLoaded": "Template \"{{name}}\" loaded",
+      "enterTemplateName": "Enter a template name",
+      "templateSaved": "Template \"{{name}}\" saved",
+      "errorSavingTemplate": "Error saving template"
+    },
+    "unmappedFields": "{{count}} field(s) unmapped",
+    "selectColumn": "-- Select column --",
+    "match": "match",
+    "suggested": "Suggested",
+    "previewTitle": "Mapping preview (first 3 rows)",
+    "emptyValue": "(empty)",
+    "fileColumns": "File columns",
+    "dragHint": "Drag columns to target fields",
+    "saveModal": {
+      "title": "Save template",
+      "templateNamePlaceholder": "Template name...",
+      "saving": "Saving..."
+    }
+  },
+  "templateManager": {
+    "title": "Mapping templates",
+    "loading": "Loading templates...",
+    "errors": {
+      "loadFailed": "Error loading templates",
+      "cannotDeleteSystemTemplate": "System templates cannot be deleted",
+      "deleteFailed": "Error deleting template"
+    },
+    "confirm": {
+      "deleteTemplate": "Delete this template?"
+    },
+    "empty": {
+      "noTemplates": "No templates available for this import type.",
+      "createFromMapping": "Create one from field mapping."
+    },
+    "badges": {
+      "system": "System"
+    },
+    "actions": {
+      "useTemplate": "Use template"
+    }
+  },
+  "columnMappingModal": {
+    "title": "Column Mapping",
+    "fileLabel": "File",
+    "autoDetectedTitle": "Mapping detected automatically",
+    "autoDetectedProcessing": "Columns detected correctly. Processing in 1.5 seconds...",
+    "loadSavedMapping": "Load saved mapping:",
+    "manualOption": "Manual...",
+    "usedTimes": "(used {{count}} times)",
+    "mapColumnsPrompt": "Map your Excel columns to system fields:",
+    "example": "Example",
+    "selectField": "Select field...",
+    "previewTitle": "Preview (first 3 rows)",
+    "saveConfiguration": "Save this configuration to reuse",
+    "saveNamePlaceholder": "e.g. Dairy Supplier - Monthly",
+    "readyToContinue": "Ready to continue",
+    "mustMapProductNameFooter": "You must map \"Product Name\"",
+    "continueImport": "Continue Import",
+    "alerts": {
+      "mustMapProductName": "You must map at least the \"Product Name\" field"
+    },
+    "fields": {
+      "productName": "Product Name",
+      "salePrice": "Sale Price",
+      "stockQuantity": "Stock/Quantity",
+      "category": "Category",
+      "codeSku": "Code/SKU",
+      "purchaseCost": "Purchase Cost",
+      "supplier": "Supplier",
+      "unit": "Unit",
+      "ignoreColumn": "Ignore column"
+      }
+      },
+      "importerPreviewPage": {
+      "actions": {
+      "deleteAllProcesses": "Delete all processes"
+      },
+      "confirm": {
+      "deleteAllProcesses": "Are you sure you want to delete ALL processes? This cannot be undone."
+      }
+      }
+      }

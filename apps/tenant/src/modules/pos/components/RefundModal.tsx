@@ -7,6 +7,7 @@ import { refundReceipt } from '../services'
 import type { POSReceipt, RefundRequest } from '../../../types/pos'
 import { useSectorPlaceholder } from '../../../hooks/useSectorPlaceholders'
 import { useCompany } from '../../../contexts/CompanyContext'
+import { useToast } from '../../../shared/toast'
 
 interface RefundModalProps {
   receipt: POSReceipt | null
@@ -21,6 +22,7 @@ export default function RefundModal({
   onClose,
   onSuccess
 }: RefundModalProps) {
+  const toast = useToast()
   const [refundMethod, setRefundMethod] = useState<'original' | 'cash' | 'store_credit'>('original')
   const [reason, setReason] = useState('')
   const [linesToRefund, setLinesToRefund] = useState<string[]>([])
@@ -38,7 +40,7 @@ export default function RefundModal({
     if (!receipt) return
 
     if (!reason.trim()) {
-      alert('Debe indicar el motivo de devolución')
+      toast.warning('Debe indicar el motivo de devolución')
       return
     }
 
@@ -52,14 +54,14 @@ export default function RefundModal({
       }
 
       await refundReceipt(receipt.id!, payload)
-      alert('Devolución procesada exitosamente')
+      toast.success('Devolución procesada exitosamente')
       setReason('')
       setLinesToRefund([])
       setRefundMethod('original')
       onSuccess()
       onClose()
     } catch (error: any) {
-      alert(error.response?.data?.detail || 'Error al procesar devolución')
+      toast.error(error.response?.data?.detail || 'Error al procesar devolución')
     } finally {
       setLoading(false)
     }

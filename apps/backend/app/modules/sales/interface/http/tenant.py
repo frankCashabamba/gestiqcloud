@@ -54,6 +54,7 @@ class OrderItemIn(BaseModel):
     product_id: str
     qty: float = Field(gt=0)
     unit_price: float = 0
+    discount_pct: float = Field(default=0, ge=0, le=100)
 
 
 class OrderCreateIn(BaseModel):
@@ -164,9 +165,9 @@ def get_order(
         status=order.status,
         customer_id=str(order.customer_id) if order.customer_id else None,
         customer_name=customer_name,
-        pos_receipt_id=str(order.pos_receipt_id)
-        if getattr(order, "pos_receipt_id", None)
-        else None,
+        pos_receipt_id=(
+            str(order.pos_receipt_id) if getattr(order, "pos_receipt_id", None) else None
+        ),
         currency=order.currency,
         subtotal=float(order.subtotal or 0),
         tax=float(order.tax or 0),
@@ -192,17 +193,54 @@ def create_order(payload: OrderCreateIn, request: Request, db: Session = Depends
     )
     db.add(so)
     db.flush()
+    subtotal = Decimal("0")
     for it in payload.items:
+        line_sub = _dec(it.qty, "0.01") * _dec(it.unit_price, "0.01")
+        discount_amount = line_sub * _dec(it.discount_pct, "0.01") / Decimal("100")
+        line_total = line_sub - discount_amount
+        subtotal += line_total
         db.add(
             SalesOrderItem(
                 order_id=so.id,
                 product_id=_uuid_or_none(it.product_id),
                 qty=it.qty,
                 unit_price=it.unit_price,
+                discount_percent=it.discount_pct,
+                line_total=float(line_total),
             )
         )
+    so.subtotal = float(subtotal)
+    so.tax = float(subtotal * Decimal("0.21"))
+    so.total = float(subtotal + subtotal * Decimal("0.21"))
     db.commit()
     db.refresh(so)
+
+    # Trigger sales_order.created webhook
+    try:
+        from app.modules.sales.webhooks import SalesOrderWebhookService
+
+        customer_name = (
+            db.query(Client.name).filter(Client.id == so.customer_id).scalar()
+            if so.customer_id
+            else None
+        )
+        webhook_service = SalesOrderWebhookService(db)
+        webhook_service.trigger_sales_order_created(
+            tenant_id=tenant_uuid,
+            order_id=str(so.id),
+            order_number=so.number or str(so.id),
+            customer_id=str(so.customer_id) if so.customer_id else None,
+            customer_name=customer_name,
+            amount=float(so.total or 0),
+            currency=so.currency or "USD",
+            items_count=len(payload.items),
+        )
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error triggering sales_order.created webhook: {e}")
+
     return OrderOut(
         id=str(so.id),
         number=so.number,
@@ -220,6 +258,63 @@ def create_order(payload: OrderCreateIn, request: Request, db: Session = Depends
         subtotal=float(so.subtotal or 0),
         tax=float(so.tax or 0),
         total=float(so.total or 0),
+    )
+
+
+@router.post("/{order_id}/invoice", response_model=OrderOut)
+def create_invoice_from_order(
+    order_id: str = Path(
+        ..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    ),
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    """Create an invoice from a confirmed sales order."""
+    tid = _tenant_id_str(request)
+    tenant_uuid = UUID(str(tid)) if tid else None
+    if not tenant_uuid:
+        raise HTTPException(status_code=401, detail="tenant_id invalido")
+
+    order = (
+        db.query(SalesOrder)
+        .filter(
+            SalesOrder.id == UUID(order_id),
+            SalesOrder.tenant_id == tenant_uuid,
+        )
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    if order.status not in ("confirmed", "draft"):
+        raise HTTPException(
+            status_code=400, detail=f"No se puede facturar orden en estado {order.status}"
+        )
+
+    # Create invoice via invoicing module
+    try:
+        from app.modules.invoicing.crud import factura_crud
+
+        factura_crud.crear_desde_orden(db=db, order=order, tenant_id=tenant_uuid)
+        order.status = "invoiced"
+        db.commit()
+        db.refresh(order)
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).error(f"Error creating invoice from order: {e}")
+        raise HTTPException(status_code=500, detail="Error al crear factura desde orden")
+
+    return OrderOut(
+        id=str(order.id),
+        number=order.number,
+        order_date=order.order_date,
+        created_at=order.created_at.isoformat() if getattr(order, "created_at", None) else None,
+        status=order.status,
+        customer_id=str(order.customer_id) if order.customer_id else None,
+        currency=order.currency,
+        subtotal=float(order.subtotal or 0),
+        tax=float(order.tax or 0),
+        total=float(order.total or 0),
     )
 
 
@@ -278,6 +373,32 @@ def confirm_order(
     db.add(so)
     db.commit()
     db.refresh(so)
+
+    # Trigger sales_order.confirmed webhook
+    try:
+        from app.modules.sales.webhooks import SalesOrderWebhookService
+
+        customer_name = (
+            db.query(Client.name).filter(Client.id == so.customer_id).scalar()
+            if so.customer_id
+            else None
+        )
+        webhook_service = SalesOrderWebhookService(db)
+        webhook_service.trigger_sales_order_confirmed(
+            tenant_id=tenant_uuid,
+            order_id=str(so.id),
+            order_number=so.number or str(so.id),
+            customer_id=str(so.customer_id) if so.customer_id else None,
+            customer_name=customer_name,
+            amount=float(so.total or 0),
+            currency=so.currency or "USD",
+        )
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error triggering sales_order.confirmed webhook: {e}")
+
     return so
 
 
@@ -385,3 +506,83 @@ def do_delivery(
     db.add(so)
     db.commit()
     return {"delivery_id": delivery_id, "status": d.status}
+
+
+class CancelIn(BaseModel):
+    reason: str | None = None
+
+
+@router.put("/{order_id}/cancel", response_model=OrderOut)
+def cancel_order(
+    order_id: str = Path(
+        ..., regex="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    ),
+    payload: CancelIn | None = None,
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    """Cancel a sales order"""
+    if request is None:
+        raise HTTPException(status_code=401, detail="tenant_id invalido")
+
+    tid = _tenant_id_str(request)
+    tenant_uuid = UUID(str(tid)) if tid else None
+    if not tenant_uuid:
+        raise HTTPException(status_code=401, detail="tenant_id invalido")
+
+    try:
+        so_id = UUID(str(order_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid UUID format")
+
+    so = (
+        db.query(SalesOrder)
+        .filter(SalesOrder.id == so_id, SalesOrder.tenant_id == tenant_uuid)
+        .first()
+    )
+    if not so:
+        raise HTTPException(status_code=404, detail="order_not_found")
+
+    if so.status == "delivered":
+        raise HTTPException(status_code=400, detail="Cannot cancel delivered order")
+
+    so.status = "cancelled"
+    db.add(so)
+    db.commit()
+    db.refresh(so)
+
+    # Trigger sales_order.cancelled webhook
+    try:
+        from app.modules.sales.webhooks import SalesOrderWebhookService
+
+        webhook_service = SalesOrderWebhookService(db)
+        webhook_service.trigger_sales_order_cancelled(
+            tenant_id=tenant_uuid,
+            order_id=str(so.id),
+            order_number=so.number or str(so.id),
+            reason=payload.reason if payload else None,
+        )
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error triggering sales_order.cancelled webhook: {e}")
+
+    return OrderOut(
+        id=str(so.id),
+        number=so.number,
+        order_date=so.order_date,
+        created_at=so.created_at.isoformat() if getattr(so, "created_at", None) else None,
+        status=so.status,
+        customer_id=str(so.customer_id) if so.customer_id else None,
+        customer_name=(
+            db.query(Client.name).filter(Client.id == so.customer_id).scalar()
+            if so.customer_id
+            else None
+        ),
+        pos_receipt_id=str(so.pos_receipt_id) if getattr(so, "pos_receipt_id", None) else None,
+        currency=so.currency,
+        subtotal=float(so.subtotal or 0),
+        tax=float(so.tax or 0),
+        total=float(so.total or 0),
+    )

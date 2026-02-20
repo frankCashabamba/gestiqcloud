@@ -380,17 +380,23 @@
   },
   "modules": {
     "accounting": "Contabilidad",
+    "billing": "Facturación",
+    "copilot": "Copilot",
+    "crm": "CRM",
     "customers": "Clientes",
     "einvoicing": "Factura electrónica",
     "expenses": "Gastos",
     "finances": "Finanzas",
     "hr": "RRHH",
     "importer": "Importaciones",
+    "inventory": "Inventario",
+    "manufacturing": "Producción",
     "pos": "POS",
-    "production": "Producción",
+    "products": "Productos",
     "purchases": "Compras",
     "reconciliation": "Conciliación",
     "reports": "Reportes",
+    "sales": "Ventas",
     "settings": "Configuración",
     "suppliers": "Proveedores",
     "templates": "Plantillas",
@@ -591,6 +597,320 @@
     "import": "Importar",
     "preview": "Previsualizar",
     "batches": "Lotes",
-    "products": "Productos"
+    "products": "Productos",
+    "settings": "Configuracion"
+  },
+  "importerPreview": {
+    "bannerInvoice": "Lote de tipo {{type}}: vista de facturas de proveedor.",
+    "bannerGeneric": "Lote de tipo {{type}}: vista de gastos/factura de proveedor.",
+    "invoiceHeaders": {
+      "date": "Fecha",
+      "type": "Tipo",
+      "invoiceNumber": "Num. Factura",
+      "idType": "Tipo de Identificación",
+      "idNumber": "Número de identificación",
+      "customer": "Cliente",
+      "productCode": "Cod. Producto",
+      "product": "Producto",
+      "unitPrice": "Precio Unitario",
+      "quantity": "Cantidad",
+      "subtotal": "Subtotal",
+      "vat": "IVA",
+      "total": "Total",
+      "sector": "Sector",
+      "observation": "Observación",
+      "promotion": "Promoción",
+      "seller": "Vendedor"
+    },
+    "genericHeaders": {
+      "date": "Fecha",
+      "amount": "Importe",
+      "concept": "Concepto",
+      "account": "Cuenta",
+      "counterparty": "Cliente/Proveedor"
+    },
+    "common": {
+      "errors": "Errores",
+      "status": "Estado",
+      "noErrors": "Sin errores",
+      "errorCount_one": "{{count}} error",
+      "errorCount_other": "{{count}} errores"
+    }
+  },
+  "importerLayout": {
+    "badge": "Operaciones de importacion"
+  },
+  "importerBatches": {
+    "title": "Lotes de importacion",
+    "description": "Consulta el historial de lotes procesados, filtra por estado y abre el detalle para revalidar o promover registros.",
+    "actions": {
+      "refresh": "Actualizar",
+      "refreshing": "Actualizando..."
+    },
+    "errors": {
+      "noSession": "No hay sesion activa",
+      "fetchFailed": "No se pudieron obtener los lotes"
+    },
+    "statusOptions": {
+      "all": "Todos",
+      "ready": "Listos",
+      "validated": "Validados",
+      "promoted": "Promovidos",
+      "empty": "Vacios",
+      "error": "Con errores"
+    },
+    "statusLabels": {
+      "empty": "Vacio"
+    },
+    "totalBatches_one": "{{count}} lote",
+    "totalBatches_other": "{{count}} lotes",
+    "table": {
+      "batch": "Lote",
+      "origin": "Origen",
+      "status": "Estado",
+      "created": "Creado"
+    },
+    "withoutOrigin": "sin origen",
+    "loading": "Cargando lotes...",
+    "empty": "No se encontraron lotes con ese filtro."
+  },
+  "importerBatchDetail": {
+    "title": "Lote {{id}}",
+    "description": "Edita registros individuales, revisa errores y ejecuta acciones de validacion o promocion del lote.",
+    "actions": {
+      "revalidateBatch": "Revalidar lote",
+      "openInPreview": "Abrir en Preview",
+      "downloadErrorsCsv": "Descargar errors.csv",
+      "view": "Ver",
+      "uploading": "Subiendo...",
+      "uploadPhotos": "Subir fotos",
+      "saving": "Guardando..."
+    },
+    "messages": {
+      "batchRevalidated": "Lote revalidado correctamente",
+      "itemUpdated": "Item actualizado",
+      "batchPhotosUploaded": "Fotos del lote subidas correctamente",
+      "itemPhotosUploaded": "Fotos del item subidas correctamente"
+    },
+    "errors": {
+      "loadBatchFailed": "No se pudo cargar el lote",
+      "batchPhotosUploadFailed": "No se pudieron subir las fotos del lote",
+      "itemPhotosUploadFailed": "No se pudieron subir las fotos del item"
+    },
+    "summary": {
+      "origin": "Origen",
+      "withoutOrigin": "sin origen",
+      "type": "Tipo",
+      "currentStatus": "Estado actual"
+    },
+    "attachments": {
+      "attachmentAlt": "Adjunto",
+      "batchTitle": "Adjuntos del lote",
+      "batchDescription": "Sube evidencias o fotos desde movil para este lote.",
+      "noneLoaded": "Sin adjuntos cargados.",
+      "none": "Sin adjuntos"
+    },
+    "statusOptions": {
+      "all": "Todos",
+      "validationError": "Error validacion",
+      "promotionError": "Error promocion",
+      "promoted": "Promovidos"
+    },
+    "filters": {
+      "searchPlaceholder": "Buscar por texto",
+      "search": "Buscar"
+    },
+    "table": {
+      "status": "Estado",
+      "field": "Campo",
+      "value": "Valor",
+      "errors": "Errores",
+      "attachments": "Adjuntos",
+      "noErrors": "Sin errores",
+      "fieldFallback": "campo",
+      "reviewFallback": "revisar"
+    },
+    "loadingItems": "Cargando items...",
+    "empty": "No hay registros con el filtro seleccionado."
+  },
+  "importerPreviewPage": {
+    "title": "Previsualizar",
+    "description": "Valida y revisa lotes de importacion antes del procesamiento final.",
+    "loadingBatches": "Cargando lotes...",
+    "promote": "Promover",
+    "promoting": "Promoviendo...",
+    "noPendingBatches": "No hay lotes pendientes para validar.",
+    "importFiles": "Importar archivos",
+    "selectBatch": "Selecciona un lote para validar",
+    "promoteModal": {
+      "title": "Promover lote",
+      "description": "Define el estado de pago y, opcionalmente, genera asientos contables.",
+      "postAccounting": "Generar asiento contable",
+      "status": "Estado",
+      "method": "Metodo",
+      "paidAt": "Fecha de pago",
+      "paymentPending": "Pendiente de pago",
+      "paymentPaid": "Pagada"
+    },
+    "recipeModal": {
+      "title": "Promover Recetas",
+      "description": "Las recetas se guardaran en el modulo de recetas. Opcionalmente, tambien puedes guardar los productos base.",
+      "saveIngredientsAsProducts": "Tambien guardar ingredientes como productos en el inventario",
+      "noteLabel": "Nota:",
+      "noteText": "Los ingredientes extraidos de la receta se guardaran como productos individuales en el inventario si activas esta opcion."
+    },
+    "paymentMethods": {
+      "bank": "Banco",
+      "cash": "Efectivo",
+      "card": "Tarjeta",
+      "transfer": "Transferencia",
+      "directDebit": "Domiciliacion",
+      "check": "Cheque",
+      "other": "Otro"
+    },
+    "status": {
+      "empty": "VACIO",
+      "ready": "READY",
+      "parsing": "PARSING",
+      "pending": "PENDING",
+      "promoted": "PROMOTED",
+      "error": "ERROR"
+    },
+    "batchSummary": {
+      "title": "Resumen del lote",
+      "totalProducts": "Total productos",
+      "totalRecords": "Total registros",
+      "withoutCategory": "Sin categoria",
+      "uniqueCategories": "Categorias unicas",
+      "uniqueLabels": "Etiquetas unicas",
+      "detectedCategories": "Categorias detectadas"
+    },
+    "tooltips": {
+      "promoteRecipes": "Promover recetas",
+      "promoteBatch": "Promover lote (con estado de pago y asientos opcionales)"
+    },
+    "actions": {
+      "retry": "Reintentar",
+      "resetAndRelaunch": "Resetear y relanzar",
+      "forceDelete": "Eliminar forzado",
+      "cancelTask": "Cancelar tarea",
+      "assignToSelected": "Asignar a seleccionados",
+      "assignCategory": "Asignar categoria...",
+      "assignCategoryToSelected": "Asignar \"{{category}}\" a seleccionados",
+      "assignCategoriesBeforePromote": "Asigna categorias a todos los productos antes de promover",
+      "hideSupplies": "Ocultar insumos",
+      "viewSupplies": "Ver insumos",
+      "others": "OTROS",
+      "deleteBatch": "Eliminar lote",
+      "promoteToProduction": "Promover a produccion",
+      "reassignAndReprocess": "Reasignar mapeo + Reprocesar",
+      "selectMapping": "Selecciona un mapeo...",
+      "applying": "Aplicando...",
+      "applyAndReprocess": "Aplicar y reprocesar"
+    },
+    "processing": {
+      "message": "Procesando lote, esto puede tardar unos minutos...",
+      "lastUpdate": "Ultima actualizacion",
+      "stats": "Pendientes: {{pending}} · En proceso: {{processing}} · Completados: {{completed}}",
+      "stuckOptions": "Parece atascado. Opciones de recuperacion:"
+    },
+    "labels": {
+      "assignExistingCategory": "Asignar categoria existente",
+      "selectedCount": "Seleccionados: {{count}}"
+    },
+    "placeholders": {
+      "categoryExample": "p. ej. LECHES Y QUESOS"
+    },
+    "details": {
+      "ingredients": "Ingredientes",
+      "ingredient": "Ingrediente",
+      "qty": "Cant.",
+      "unit": "Unidad",
+      "amount": "Importe",
+      "materials": "Materiales / Insumos",
+      "description": "Descripcion",
+      "purchaseUnit": "Unidad compra",
+      "noIngredients": "Sin ingredientes detectados.",
+      "noMaterials": "Sin materiales detectados."
+    },
+    "productTable": {
+      "batchTypeNotice": "Lote de tipo {{type}}. La vista de tabla de productos se muestra solo para edicion/visualizacion; la promocion debe usarse para productos.",
+      "code": "Codigo",
+      "name": "Nombre",
+      "price": "Precio",
+      "cost": "Costo",
+      "category": "Categoria",
+      "stock": "Stock",
+      "noCategory": "Sin categoria"
+    },
+    "selectedProducts": "{{count}} producto seleccionado",
+    "selectedProducts_other": "{{count}} productos seleccionados",
+    "batchItems": "{{count}} items",
+    "productCount": "{{count}} producto",
+    "productCount_other": "{{count}} productos",
+    "pagination": {
+      "showing": "Mostrando {{from}} - {{to}} de {{total}}",
+      "previous": "Anterior",
+      "next": "Siguiente"
+    },
+    "messages": {
+      "promoteSuccess": "Lote promovido correctamente (creados: {{created}}, omitidos: {{skipped}}, fallidos: {{failed}})",
+      "promoteRecipesSuccess": "Recetas promovidas correctamente (creadas: {{created}}, omitidas: {{skipped}}, fallidas: {{failed}})"
+    },
+    "confirm": {
+      "promoteProducts": "¿Promover este lote a produccion? Esto creara/actualizara productos en el sistema.",
+      "promoteExpenses": "¿Promover este lote? Esto creara gastos en el sistema.",
+      "promoteInvoices": "¿Promover este lote? Esto creara facturas de proveedor como gastos (cuentas por pagar) en el sistema.",
+      "promoteGeneric": "¿Promover este lote?",
+      "forceDeleteBatch": "¿Eliminar lote forzado?",
+      "deleteBatchWithItems": "¿Eliminar este lote y todos sus items? Esta accion no se puede deshacer.",
+      "forceDeleteProcessingBatch": "¿Eliminar forzado este lote en procesamiento?"
+    },
+    "errors": {
+      "tenantNotFound": "tenant_id no encontrado",
+      "genericWithMessage": "Error: {{message}}",
+      "reassignMappingFailed": "No se pudo reasignar el mapeo. Revisa la consola para mas detalles."
+    }
+  },
+  "importerPrintLabels": {
+    "title": "Imprimir etiquetas ({{total}} total)",
+    "summary": "{{products}} productos x {{copies}} copia(s) = {{labels}} etiquetas",
+    "printer": "Impresora",
+    "selectPrinter": "Selecciona una impresora",
+    "savedConfigs": "Configuraciones guardadas",
+    "loading": "Cargando...",
+    "noSavedConfigs": "No hay configuraciones guardadas",
+    "selectProfile": "Selecciona un perfil",
+    "generating": "Generando...",
+    "printNow": "Imprimir ahora",
+    "activePrinter": "Impresora activa: {{printer}}",
+    "selectAndPrint": "Selecciona e imprime en tu impresora configurada.",
+    "formatTitle": "Formato de etiqueta",
+    "widthMm": "Ancho (mm)",
+    "heightMm": "Alto (mm)",
+    "gapMm": "Separacion (mm)",
+    "labelsPerRow": "Etiquetas por fila",
+    "horizontalGapMm": "Separacion horizontal (mm)",
+    "copiesPerProduct": "Copias por producto",
+    "offsetXMm": "Offset horizontal (mm)",
+    "offsetYMm": "Offset vertical (mm)",
+    "barcodeWidth": "Ancho del codigo de barras",
+    "priceAlignment": "Alineacion del precio",
+    "align": {
+      "left": "Izquierda",
+      "center": "Centrada",
+      "right": "Derecha"
+    },
+    "offsetHelp": "Usa valores negativos para mover el bloque hacia la izquierda o arriba; positivos para desplazarte a la derecha o abajo.",
+    "headerText": "Encabezado libre",
+    "headerPlaceholder": "Texto que aparece arriba del articulo",
+    "footerText": "Pie de etiqueta",
+    "footerPlaceholder": "Texto que aparece debajo del precio",
+    "showPrice": "Mostrar precio",
+    "showCategory": "Mostrar categoria",
+    "currentSize": "Tamano actual",
+    "priceVisible": "Precio visible",
+    "categoryVisible": "Categoria visible",
+    "sku": "SKU"
   }
 }

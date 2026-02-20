@@ -135,9 +135,6 @@ const PanaderiaDashboard: React.FC = () => {
                 </span>
               </div>
             </div>
-            <div className="card__footer">
-              <a className="link" href="#sales-detail">View details</a>
-            </div>
           </section>
         )}
 
@@ -155,9 +152,6 @@ const PanaderiaDashboard: React.FC = () => {
                 ))}
               </ul>
             )}
-            <div className="card__footer">
-              <a className="link" href="#stock">Review inventory</a>
-            </div>
           </section>
         )}
 
@@ -171,9 +165,6 @@ const PanaderiaDashboard: React.FC = () => {
             <div className="kpi">
               <span className="kpi__label">Estimated value</span>
               <span className="kpi__value">${mermas.valor_estimado?.toFixed(2) || '0.00'}</span>
-            </div>
-            <div className="card__footer">
-              <a className="link" href="#waste">View details</a>
             </div>
           </section>
         )}
@@ -263,24 +254,6 @@ const PanaderiaDashboard: React.FC = () => {
               <a href={`${prefix}/pos`} target="_blank" rel="noopener noreferrer" className="action-btn action-btn--primary">
                 <span className="action-btn__icon">P</span>
                 <span>Open POS</span>
-              </a>
-            )}
-            {isModuleEnabled('inventario') && (
-              <>
-                <a href="#waste" className="action-btn">
-                  <span className="action-btn__icon">W</span>
-                  <span>Record waste</span>
-                </a>
-                <a href="#stock-adjust" className="action-btn">
-                  <span className="action-btn__icon">S</span>
-                  <span>Stock adjustment</span>
-                </a>
-              </>
-            )}
-            {isModuleEnabled('produccion') && (
-              <a href="#new-batch" className="action-btn">
-                <span className="action-btn__icon">B</span>
-                <span>New batch</span>
               </a>
             )}
             {isModuleEnabled('clientes') && (

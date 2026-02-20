@@ -9,7 +9,7 @@ import os
 import tempfile
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel
 
 from app.core.access_guard import with_access_claims
@@ -53,6 +53,7 @@ def _get_claims(request: Request) -> dict[str, Any]:
 async def analyze_upload(
     request: Request,
     file: UploadFile = File(...),
+    provider: str | None = Query(None, description="Override AI provider"),
 ):
     """
     Analiza un archivo para determinar el mejor parser y mapeo.
@@ -83,7 +84,23 @@ async def analyze_upload(
         raise HTTPException(status_code=422, detail="Nombre de archivo requerido")
 
     ext = file.filename.lower().split(".")[-1]
-    allowed_extensions = ["xlsx", "xls", "xlsm", "xlsb", "csv", "xml", "pdf"]
+    allowed_extensions = [
+        "xlsx",
+        "xls",
+        "xlsm",
+        "xlsb",
+        "csv",
+        "xml",
+        "pdf",
+        "png",
+        "jpg",
+        "jpeg",
+        "tiff",
+        "bmp",
+        "gif",
+        "heic",
+        "heif",
+    ]
 
     if ext not in allowed_extensions:
         raise HTTPException(
@@ -104,6 +121,7 @@ async def analyze_upload(
                 filename=file.filename,
                 content_type=file.content_type,
                 tenant_id=tenant_id,
+                provider_name=provider,
             )
 
             logger.info(

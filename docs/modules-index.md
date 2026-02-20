@@ -1,6 +1,6 @@
 # Índice de módulos backend
 
-Referencias rápidas por dominio. Completar detalles en README de cada módulo.
+Referencias rápidas por dominio. Este índice no certifica cobertura funcional; la fuente de verdad es el código y los README específicos de cada módulo.
 
 ## Identidad y seguridad
 - `identity`: login/refresh, perfiles, tokens. (README pendiente)
@@ -63,6 +63,7 @@ modules/<nuevo_modulo>/
 └── README.md             # propósito, endpoints, componentes, notas
 ```
 
-## Pendientes
-- Añadir README en módulos marcados como "pendiente" arriba; incluir endpoints clave, modelos principales y migraciones relevantes (`alembic/versions`).
-- Enlazar contratos de API actualizados (`docs/api-contracts.md`) y tipos en `apps/packages/api-types` cuando existan.
+## Mantenimiento del índice
+- Mantener enlaces a carpetas activas de módulos.
+- Evitar etiquetas de estado absolutas (por ejemplo, "completo", "100%").
+- Documentar gaps concretos con fecha y evidencia cuando aplique.

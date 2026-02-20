@@ -1,5 +1,7 @@
 import tenantApi from '../../shared/api/client'
 import { TENANT_EXPENSES } from '@shared/endpoints'
+import { queueDeletion, storeEntity } from '../../lib/offlineStore'
+import { createOfflineTempId, isNetworkIssue, isOfflineQueuedResponse, stripOfflineMeta } from '../../lib/offlineHttp'
 
 export type Gasto = {
   id: string
@@ -68,17 +70,80 @@ export async function getGasto(id: number | string): Promise<Gasto> {
 }
 
 export async function createGasto(payload: Omit<Gasto, 'id'>): Promise<Gasto> {
-  const { data } = await tenantApi.post<Gasto>(TENANT_EXPENSES.base, toApiPayload(payload))
-  return normalizeGasto(data)
+  const apiPayload = stripOfflineMeta(toApiPayload(payload) as any)
+  try {
+    const response = await tenantApi.post<Gasto>(TENANT_EXPENSES.base, apiPayload, { headers: { 'X-Offline-Managed': '1' } })
+
+    if (isOfflineQueuedResponse(response)) {
+      const tempId = createOfflineTempId('expense')
+      await storeEntity('expense', tempId, { ...apiPayload, _op: 'create' }, 'pending')
+      return normalizeGasto({
+        id: tempId,
+        ...apiPayload,
+        estado: (apiPayload as any)?.estado || 'pending',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+    }
+
+    return normalizeGasto(response.data)
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      const tempId = createOfflineTempId('expense')
+      await storeEntity('expense', tempId, { ...apiPayload, _op: 'create' }, 'pending')
+      return normalizeGasto({
+        id: tempId,
+        ...apiPayload,
+        estado: (apiPayload as any)?.estado || 'pending',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+    }
+    throw error
+  }
 }
 
 export async function updateGasto(id: number | string, payload: Partial<Omit<Gasto, 'id'>>): Promise<Gasto> {
-  const { data } = await tenantApi.put<Gasto>(TENANT_EXPENSES.byId(id), toApiPayload(payload))
-  return normalizeGasto(data)
+  const apiPayload = stripOfflineMeta(toApiPayload(payload) as any)
+  try {
+    const response = await tenantApi.put<Gasto>(TENANT_EXPENSES.byId(id), apiPayload, { headers: { 'X-Offline-Managed': '1' } })
+
+    if (isOfflineQueuedResponse(response)) {
+      await storeEntity('expense', String(id), { ...apiPayload, _op: 'update' }, 'pending')
+      return normalizeGasto({
+        id: String(id),
+        ...apiPayload,
+        updated_at: new Date().toISOString(),
+      })
+    }
+
+    return normalizeGasto(response.data)
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      await storeEntity('expense', String(id), { ...apiPayload, _op: 'update' }, 'pending')
+      return normalizeGasto({
+        id: String(id),
+        ...apiPayload,
+        updated_at: new Date().toISOString(),
+      })
+    }
+    throw error
+  }
 }
 
 export async function removeGasto(id: number | string): Promise<void> {
-  await tenantApi.delete(TENANT_EXPENSES.byId(id))
+  try {
+    const response = await tenantApi.delete(TENANT_EXPENSES.byId(id), { headers: { 'X-Offline-Managed': '1' } })
+    if (isOfflineQueuedResponse(response)) {
+      await queueDeletion('expense', String(id))
+    }
+  } catch (error) {
+    if (isNetworkIssue(error)) {
+      await queueDeletion('expense', String(id))
+      return
+    }
+    throw error
+  }
 }
 
 export async function marcarPagado(id: number | string): Promise<Gasto> {

@@ -1,31 +1,40 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import ImportadorLayout from '../components/ImportadorLayout'
 import { listBatches, type ImportBatch } from '../services/importsApi'
 import { useAuth } from '../../../auth/AuthContext'
 
-const statusOptions = [
-  { value: '', label: 'Todos' },
-  { value: 'READY', label: 'Listos' },
-  { value: 'VALIDATED', label: 'Validados' },
-  { value: 'PROMOTED', label: 'Promovidos' },
-  { value: 'EMPTY', label: 'Vacíos' },
-  { value: 'ERROR', label: 'Con errores' },
-]
-const statusLabels: Record<string, string> = {
-  EMPTY: 'Vacío',
-}
-
 export default function BatchesList() {
   const { token, profile } = useAuth() as { token: string | null; profile: any }
+  const { t } = useTranslation()
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<ImportBatch[]>([])
 
+  const statusOptions = useMemo(
+    () => [
+      { value: '', label: t('importerBatches.statusOptions.all') },
+      { value: 'READY', label: t('importerBatches.statusOptions.ready') },
+      { value: 'VALIDATED', label: t('importerBatches.statusOptions.validated') },
+      { value: 'PROMOTED', label: t('importerBatches.statusOptions.promoted') },
+      { value: 'EMPTY', label: t('importerBatches.statusOptions.empty') },
+      { value: 'ERROR', label: t('importerBatches.statusOptions.error') },
+    ],
+    [t]
+  )
+
+  const statusLabels: Record<string, string> = useMemo(
+    () => ({
+      EMPTY: t('importerBatches.statusLabels.empty'),
+    }),
+    [t]
+  )
+
   async function load() {
     if (!token) {
-      setError('No hay sesión activa')
+      setError(t('importerBatches.errors.noSession'))
       return
     }
     setLoading(true)
@@ -34,7 +43,7 @@ export default function BatchesList() {
       const data = await listBatches(status || undefined, profile?.tenant_id)
       setRows(data)
     } catch (err: any) {
-      setError(err?.message || 'No se pudieron obtener los lotes')
+      setError(err?.message || t('importerBatches.errors.fetchFailed'))
     } finally {
       setLoading(false)
     }
@@ -42,7 +51,7 @@ export default function BatchesList() {
 
   useEffect(() => {
     load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [status])
 
   const empty = !loading && rows.length === 0
@@ -50,8 +59,8 @@ export default function BatchesList() {
 
   return (
     <ImportadorLayout
-      title="Lotes de importacion"
-      description="Consulta el historial de lotes procesados, filtra por estado y accede al detalle para revalidar o promover registros."
+      title={t('importerBatches.title')}
+      description={t('importerBatches.description')}
       actions={
         <button
           type="button"
@@ -59,7 +68,7 @@ export default function BatchesList() {
           onClick={load}
           disabled={loading}
         >
-          {loading ? 'Actualizando...' : 'Actualizar'}
+          {loading ? t('importerBatches.actions.refreshing') : t('importerBatches.actions.refresh')}
         </button>
       }
     >
@@ -84,7 +93,7 @@ export default function BatchesList() {
               )
             })}
           </div>
-          <span className="text-xs text-neutral-500">{total} lote{total === 1 ? '' : 's'}</span>
+          <span className="text-xs text-neutral-500">{t('importerBatches.totalBatches', { count: total })}</span>
         </div>
 
         {error && (
@@ -97,10 +106,10 @@ export default function BatchesList() {
           <table className="min-w-full text-sm">
             <thead className="bg-neutral-50 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">
               <tr>
-                <th className="px-4 py-3">Lote</th>
-                <th className="px-4 py-3">Origen</th>
-                <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3">Creado</th>
+                <th className="px-4 py-3">{t('importerBatches.table.batch')}</th>
+                <th className="px-4 py-3">{t('importerBatches.table.origin')}</th>
+                <th className="px-4 py-3">{t('importerBatches.table.status')}</th>
+                <th className="px-4 py-3">{t('importerBatches.table.created')}</th>
               </tr>
             </thead>
             <tbody>
@@ -113,22 +122,16 @@ export default function BatchesList() {
                   </td>
                   <td className="px-4 py-3 text-neutral-700">
                     <div className="font-medium text-neutral-900">{batch.source_type}</div>
-                    <div className="text-xs text-neutral-500">{batch.origin || 'sin origen'}</div>
+                    <div className="text-xs text-neutral-500">{batch.origin || t('importerBatches.withoutOrigin')}</div>
                   </td>
                   <td className="px-4 py-3 text-neutral-700">{statusLabels[batch.status] || batch.status}</td>
-                  <td className="px-4 py-3 text-neutral-700">
-                    {new Date(batch.created_at).toLocaleString()}
-                  </td>
+                  <td className="px-4 py-3 text-neutral-700">{new Date(batch.created_at).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {loading && (
-            <div className="px-4 py-6 text-center text-sm text-neutral-500">Loading batches...</div>
-          )}
-          {empty && (
-            <div className="px-4 py-6 text-center text-sm text-neutral-500">No se encontraron lotes con ese filtro.</div>
-          )}
+          {loading && <div className="px-4 py-6 text-center text-sm text-neutral-500">{t('importerBatches.loading')}</div>}
+          {empty && <div className="px-4 py-6 text-center text-sm text-neutral-500">{t('importerBatches.empty')}</div>}
         </div>
       </section>
     </ImportadorLayout>

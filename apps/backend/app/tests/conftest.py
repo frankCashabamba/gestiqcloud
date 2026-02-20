@@ -20,7 +20,19 @@ def _ensure_test_env():
     os.environ.setdefault("ENV", "development")
     os.environ.setdefault("ENVIRONMENT", "development")
     os.environ.setdefault("FRONTEND_URL", "http://localhost:5173")
-    os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
+    default_sqlite_url = f"sqlite:///{(REPO_ROOT / 'apps' / 'backend' / 'test.db').as_posix()}"
+    # Safety guard: tests must run against an isolated DB.
+    # If TEST_DATABASE_URL is not provided, default to local SQLite test DB.
+    # This prevents accidental execution against development databases.
+    test_db_url = os.environ.get("TEST_DATABASE_URL", default_sqlite_url)
+    current_db_url = os.environ.get("DATABASE_URL", "")
+    if current_db_url and current_db_url != test_db_url:
+        print(
+            f"[tests] Overriding DATABASE_URL for test isolation: "
+            f"{current_db_url!r} -> {test_db_url!r}"
+        )
+    os.environ["DATABASE_URL"] = test_db_url
+    os.environ["DB_DSN"] = test_db_url
     os.environ.setdefault("TENANT_NAMESPACE_UUID", str(uuid.uuid4()))
     os.environ["IMPORTS_ENABLED"] = "1"
     os.environ["IMPORTS_SKIP_NATIVE_PDF"] = "0"
@@ -29,6 +41,7 @@ def _ensure_test_env():
     os.environ["RATE_LIMIT_ENABLED"] = "0"
     os.environ["ENDPOINT_RATE_LIMIT_ENABLED"] = "0"
     os.environ["LOGIN_RATE_LIMIT_ENABLED"] = "0"
+    os.environ["ALLOW_DANGEROUS_COMPANY_DELETE"] = "1"
     # Disable Redis for tests (use in-memory fallback)
     os.environ["REDIS_URL"] = ""
     os.environ["DISABLE_REDIS"] = "1"
@@ -88,7 +101,17 @@ def _load_all_models():
         "app.models.tenant",
         # Imports pipeline models (UUID/JSON fields are SQLite-friendly in tests)
         "app.models.core.modelsimport",
+        "app.models.core.product_category",
+        "app.models.core.products",
         "app.models.inventory.warehouse",
+        "app.models.accounting.chart_of_accounts",
+        "app.models.einvoicing.country_settings",
+        "app.models.einvoicing.einvoice",
+        "app.models.finance.cash",
+        "app.models.finance.payment",
+        "app.models.hr.employee",
+        "app.models.hr.payroll",
+        "app.models.hr.payslip",
         # POS models
         "app.models.pos.receipt",
         "app.models.pos.register",
@@ -114,7 +137,6 @@ def _prune_pg_only_tables(metadata):
         "bank_transactions",
         "core_auditoria_importacion",
         "auditoria_importacion",
-        "product_categories",  # Uses JSONB
         "core_rolempresa",  # Uses tenant_id UUID
         "production_orders",  # Migrated separately, no SQLite support in tests
         "production_order_lines",  # Migrated separately, no SQLite support in tests
@@ -256,7 +278,14 @@ def db():
     # For PostgreSQL: tables already exist from migrate_all_migrations.py
     # For SQLite: create tables from metadata
     if engine.dialect.name != "postgresql":
-        Base.metadata.drop_all(bind=engine)
+        from sqlalchemy.exc import OperationalError
+
+        try:
+            Base.metadata.drop_all(bind=engine)
+        except OperationalError:
+            # SQLite can fail drop order when metadata includes partially-created graphs.
+            # Ignore and continue with clean create phase.
+            pass
         # Create tables in dependency order to avoid FK violations
         _create_tables_in_order(engine, Base.metadata)
         _ensure_sqlite_stub_tables(engine)
@@ -291,14 +320,21 @@ def db():
         raise
     finally:
         session.close()
-        # For SQLite only: cleanup after test (PostgreSQL uses persistent DB from migrate_all_migrations.py)
-        if engine.dialect.name != "postgresql":
-            Base.metadata.drop_all(bind=engine)
+        # Keep SQLite schema alive across tests because session-scoped fixtures
+        # (e.g. `client`) may execute after other tests and still need tables.
 
 
 @pytest.fixture(autouse=True)
-def seed_sector_config(db):
+def seed_sector_config(request):
     """Seed mínimo para sectores/templates cuando la BD de pruebas no tiene datos."""
+    if request.node.get_closest_marker("no_db"):
+        yield
+        return
+    fspath = str(getattr(request.node, "fspath", "")).replace("\\", "/").lower()
+    if "/apps/backend/tests/" in fspath:
+        yield
+        return
+    db = request.getfixturevalue("db")
     from sqlalchemy.orm.attributes import flag_modified
 
     from app.models.company.company import SectorTemplate
@@ -507,6 +543,7 @@ def seed_sector_config(db):
                     )
                 )
     db.commit()
+    yield
 
 
 @pytest.fixture
@@ -712,6 +749,34 @@ def _ensure_sqlite_stub_tables(engine):
 
     if str(engine.url).startswith("sqlite"):
         with engine.connect() as conn:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS bank_accounts (
+                        id INTEGER PRIMARY KEY,
+                        tenant_id TEXT,
+                        name TEXT,
+                        account_number TEXT,
+                        currency TEXT,
+                        balance REAL
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS bank_transactions (
+                        id INTEGER PRIMARY KEY,
+                        tenant_id TEXT,
+                        bank_account_id INTEGER,
+                        amount REAL,
+                        transaction_date TEXT,
+                        description TEXT
+                    )
+                    """
+                )
+            )
             conn.execute(
                 text(
                     """
@@ -925,8 +990,11 @@ def _ensure_pg_defaults(engine):
         "ALTER TABLE IF EXISTS sales_orders ALTER COLUMN tax SET DEFAULT 0",
         "ALTER TABLE IF EXISTS sales_orders ALTER COLUMN total SET DEFAULT 0",
         "ALTER TABLE IF EXISTS sales_orders ALTER COLUMN currency SET DEFAULT 'USD'",
-        "ALTER TABLE IF EXISTS sales_order_items ALTER COLUMN tax_rate SET DEFAULT 0.21",
+        "ALTER TABLE IF EXISTS sales_order_items ALTER COLUMN tax_rate SET DEFAULT 0",
         "ALTER TABLE IF EXISTS sales_order_items ALTER COLUMN discount_percent SET DEFAULT 0",
+        "ALTER TABLE IF EXISTS products ALTER COLUMN tax_rate SET DEFAULT 0",
+        "UPDATE products SET tax_rate = 0 WHERE tax_rate IS NULL",
+        "ALTER TABLE IF EXISTS products ALTER COLUMN tax_rate SET NOT NULL",
     ]
 
     with engine.connect() as conn:

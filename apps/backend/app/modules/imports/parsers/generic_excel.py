@@ -313,8 +313,11 @@ def parse_excel_generic(file_path: str, sheet_name: str | None = None) -> dict[s
     Returns:
         Dict con rows normalizadas y metadata
     """
-    wb = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
-    wb_full = openpyxl.load_workbook(file_path, data_only=True, read_only=False)
+    try:
+        wb = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
+        wb_full = openpyxl.load_workbook(file_path, data_only=True, read_only=False)
+    except Exception:
+        return _parse_excel_generic_pandas(file_path=file_path, sheet_name=sheet_name)
 
     if sheet_name:
         ws = wb[sheet_name]
@@ -361,5 +364,57 @@ def parse_excel_generic(file_path: str, sheet_name: str | None = None) -> dict[s
         "rows": data_rows,
         "headers": [h for h in normalized_headers if h is not None],
         "metadata": metadata,
+        "detected_type": detected_type,
+    }
+
+
+def _parse_excel_generic_pandas(file_path: str, sheet_name: str | None = None) -> dict[str, Any]:
+    """Fallback parser for formats not supported by openpyxl (e.g., legacy .xls)."""
+    try:
+        import pandas as pd
+    except Exception as e:
+        return {
+            "rows": [],
+            "headers": [],
+            "metadata": {"file_path": file_path, "error": f"pandas_not_available: {e}"},
+            "detected_type": "generic",
+            "errors": [f"pandas_not_available: {e}"],
+        }
+
+    engine = "xlrd" if file_path.lower().endswith(".xls") else None
+    try:
+        df = pd.read_excel(file_path, engine=engine, header=None, sheet_name=sheet_name or 0)
+    except Exception as e:
+        return {
+            "rows": [],
+            "headers": [],
+            "metadata": {"file_path": file_path, "error": str(e)},
+            "detected_type": "generic",
+            "errors": [str(e)],
+        }
+
+    df = df.fillna("")
+    rows = [tuple(row) for row in df.values.tolist()]
+    if not rows:
+        return {"rows": [], "headers": [], "metadata": {}, "detected_type": "empty"}
+
+    header_row_idx = _detect_header_row(rows)
+    header = rows[header_row_idx]
+    normalized_headers = _normalize_headers(header)
+    data_rows = _extract_rows(rows, header_row_idx, normalized_headers)
+    detected_type = _detect_document_type(normalized_headers)
+
+    return {
+        "rows": data_rows,
+        "headers": [h for h in normalized_headers if h is not None],
+        "metadata": {
+            "sheet_name": sheet_name or "sheet1",
+            "header_row": header_row_idx + 1,
+            "total_rows": len(data_rows),
+            "detected_type": detected_type,
+            "file_path": file_path,
+            "has_merged_cells": False,
+            "reader": "pandas",
+        },
         "detected_type": detected_type,
     }

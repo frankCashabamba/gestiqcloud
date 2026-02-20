@@ -1,0 +1,189 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                    ANÁLISIS DE HARDCODEADOS - RESUMEN EJECUTIVO              ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+📊 ESTADÍSTICAS GENERALES
+═════════════════════════════════════════════════════════════════════════════════
+
+Total de Hardcodeados Identificados: 50+
+  🔴 Críticos: 11
+  🟠 Alto Riesgo: 7
+  🟡 Medio Riesgo: 6
+
+Distribución:
+  Frontend (TypeScript): 25+ instancias
+  Backend (Python): 15+ instancias
+  Scripts: 3+ instancias
+  Documentación: 5+ referencias
+
+═════════════════════════════════════════════════════════════════════════════════
+
+🔴 CRÍTICOS - Requieren acción inmediata
+═════════════════════════════════════════════════════════════════════════════════
+
+1. DEFAULT_ID_TYPES = ['CEDULA', 'RUC', 'PASSPORT']
+   📍 Ubicación: apps/tenant/src/modules/pos/POSView.tsx:105
+   ⚠️  Riesgo: Array fijo, no soporta otros países ni tipos
+   ✅ Solución: API endpoint + BD configurables
+
+2. Payment Methods Enum (CASH, CARD, TRANSFER, ...)
+   📍 Ubicación: apps/backend/app/models/core/payment.py:17-28
+   ⚠️  Riesgo: Hardcodeado en código, redeploy para cambios
+   ✅ Solución: Tabla BD + Enum dinámico
+
+3. CRM Enums (LeadStatus, OpportunityStage, ActivityType)
+   📍 Ubicación: apps/tenant/src/modules/crm/types.ts
+   ⚠️  Riesgo: Estados de venta fijos, no personalizables
+   ✅ Solución: Configurables por tenant en BD
+
+4. Transaction Types (RECEIPT, TRANSFER, CARD, ...)
+   📍 Ubicación: apps/backend/app/models/core/facturacion.py:143-159
+   ⚠️  Riesgo: Tipos de transacción sin flexibilidad
+   ✅ Solución: Tabla BD con tipos personalizables
+
+5. Defaults Globales (USD, America/Guayaquil, 0% tax)
+   📍 Ubicación: apps/tenant/src/constants/defaults.ts
+   ⚠️  Riesgo: Configuración fija para un país/región
+   ✅ Solución: tenant_config BD por tenant
+
+6-11. URLs Hardcodeadas:
+   - Credenciales DB (alembic/.env.example)
+   - JWT Secrets (alembic/.env.example)
+   - Redis localhost (celery_config.py)
+   - Payphone URLs (payphone_provider.py)
+   - Kushki URLs (kushki_provider.py)
+   - SRI Endpoints (einvoicing_tasks.py)
+
+═════════════════════════════════════════════════════════════════════════════════
+
+🟠 ALTO RIESGO - Importante resolver en próximas semanas
+═════════════════════════════════════════════════════════════════════════════════
+
+1. OCR Keywords (Solo español, heurísticas fijas)
+   📍 Ubicación: apps/tenant/src/modules/importer/utils/detectarTipoDocumento.ts
+   ⚠️  Riesgo: No soporta otros idiomas
+   ✅ Solución: Tabla ocr_keywords configurables
+
+2. API Localhost Fallbacks
+   📍 Ubicación: vite.config.ts, wrangler.toml
+   ⚠️  Riesgo: Dev values pueden filtrarse a prod
+   ✅ Solución: Eliminar fallbacks, env vars obligatorias
+
+3. Servicios Externos (Ollama, OpenAI, Telegram)
+   ⚠️  Riesgo: URLs hardcodeadas, no parametrizables
+   ✅ Solución: external_integrations BD + API
+
+4. SUPPORTED_LANGS = ['en', 'es']
+   📍 Ubicación: apps/tenant/src/i18n/index.ts
+   ⚠️  Riesgo: Solo 2 idiomas, no extensible
+   ✅ Solución: Configurables por tenant
+
+5. Configuración POS (Print, Poll Intervals)
+   ⚠️  Riesgo: Intervalos y timeouts fijos
+   ✅ Solución: Env vars + BD config
+
+═════════════════════════════════════════════════════════════════════════════════
+
+📋 IMPACTO EN PRODUCCIÓN
+═════════════════════════════════════════════════════════════════════════════════
+
+Riesgos Inmediatos:
+  ❌ Contraseña "root" en código ejemplo
+  ❌ JWT secrets sin aleatorizar
+  ❌ Redis apunta a localhost en prod
+  ❌ URLs de pago hardcodeadas en código
+
+Riesgos a Mediano Plazo:
+  ⚠️  No soporta multi-país
+  ⚠️  No soporta multi-idioma
+  ⚠️  Tipos de documento no flexibles
+  ⚠️  Métodos de pago no extensibles
+  ⚠️  Flujos CRM no personalizables
+
+═════════════════════════════════════════════════════════════════════════════════
+
+⏱️ TIMELINE ESTIMADO
+═════════════════════════════════════════════════════════════════════════════════
+
+Fase 1 (Semana 1): Enums de Negocio
+  • Payment Methods Enum → BD    [1-2 días]
+  • Transaction Types → BD       [1 día]
+  Esfuerzo: 2-3 días
+
+Fase 2 (Semana 1-2): Configuración Global
+  • Tabla tenant_config          [2-3 días]
+  Esfuerzo: 2-3 días
+
+Fase 3 (Semana 2): Documentos & IDs
+  • document_id_types BD         [2 días]
+  • document_types BD            [1 día]
+  Esfuerzo: 2-3 días
+
+Fase 4 (Semana 2-3): Integraciones Externas
+  • external_integrations BD     [3-4 días]
+  Esfuerzo: 3-4 días
+
+Fase 5 (Semana 3): OCR & i18n
+  • ocr_keywords BD              [1-2 días]
+  Esfuerzo: 1-2 días
+
+Fase 6 (Semana 3): Refactor Frontend
+  • Reemplazar hardcodeados      [1-2 días]
+  Esfuerzo: 1-2 días
+
+TOTAL: 12-19 días (~3 semanas)
+
+═════════════════════════════════════════════════════════════════════════════════
+
+✅ PRÓXIMOS PASOS
+═════════════════════════════════════════════════════════════════════════════════
+
+IMMEDIATE (Esta semana):
+  1. Leer documentos de análisis
+     - ANALISIS_HARDCODEADOS.md
+     - HARDCODEADOS_IMPLEMENTACION_RAPIDA.md
+
+  2. Validar env vars obligatorias en startup
+
+  3. Crear .env.example con TODAS las variables requeridas
+
+SEMANA 1:
+  1. Crear migraciones para nuevas tablas
+  2. Implementar API endpoints
+  3. Seed data inicial
+
+SEMANA 2:
+  1. Refactor frontend para usar APIs
+  2. Reemplazar enums por fetch dinámico
+  3. Testing integración
+
+SEMANA 3:
+  1. Validación en ambiente staging
+  2. Rollback plan si es necesario
+  3. Documentación final
+
+═════════════════════════════════════════════════════════════════════════════════
+
+📚 DOCUMENTACIÓN GENERADA
+═════════════════════════════════════════════════════════════════════════════════
+
+1. ANALISIS_HARDCODEADOS.md
+   ✓ Análisis completo con detalles de cada hardcodeado
+   ✓ Categorización por riesgo
+   ✓ Plan de remediación por fases
+
+2. HARDCODEADOS_IMPLEMENTACION_RAPIDA.md
+   ✓ Code snippets listos para implementar
+   ✓ Ejemplos backend (Python)
+   ✓ Ejemplos frontend (TypeScript)
+   ✓ Migraciones SQL
+   ✓ Seed data
+
+3. HARDCODEADOS_RESUMEN.txt (este archivo)
+   ✓ Resumen ejecutivo
+   ✓ Estadísticas
+   ✓ Timeline
+   ✓ Próximos pasos
+
+═════════════════════════════════════════════════════════════════════════════════
+Generado: 2026-02-18

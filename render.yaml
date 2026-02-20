@@ -57,7 +57,9 @@ services:
       - key: TENANT_NAMESPACE_UUID
         value: 0280249e-6707-40fb-8d60-1e8f3aea0f8e
       - key: IMPORTS_ENABLED
-        value: "0"
+        value: "1"
+      - key: IMPORTS_RUNNER_MODE
+        value: celery
       - key: IMPORTS_EASYOCR_WARM_ON_START
         value: "0"
       - key: POOL_SIZE
@@ -117,6 +119,8 @@ services:
       - key: OTEL_SERVICE_NAME
         value: gestiqcloud-api
       - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+      - key: SENTRY_DSN
         sync: false
 
   # ------------ FRONTEND TENANT (Vite) ------------
@@ -232,6 +236,46 @@ services:
       - key: OTEL_EXPORTER_OTLP_ENDPOINT
         sync: false
 
+  # ------------ IMPORTS WORKER (Celery imports queues) ------------
+  - type: worker
+    name: gestiqcloud-imports-worker
+    runtime: python
+    branch: main
+    rootDir: apps/backend
+    buildCommand: |
+      pip install -U pip
+      pip install -r requirements.txt
+    startCommand: python -m app.modules.imports.application.worker_main
+    buildFilter:
+      paths:
+        - apps/backend/**
+        - ops/migrations/**
+        - scripts/**
+        - apps/packages/http-core/**
+      ignoredPaths:
+        - '**/*.md'
+        - .github/**
+        - docs/**
+    envVars:
+      - key: ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: REDIS_RESULT_URL
+        sync: false
+      - key: IMPORTS_ENABLED
+        value: "1"
+      - key: IMPORTS_RUNNER_MODE
+        value: celery
+      - key: OTEL_ENABLED
+        value: "1"
+      - key: OTEL_SERVICE_NAME
+        value: gestiqcloud-imports-worker
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+
   # ------------ BEAT (Celery) ------------
   - type: worker
     name: gestiqcloud-beat
@@ -282,15 +326,18 @@ services:
       pip install -r requirements.txt
     startCommand: |
       set -e
-      echo "⏳ Checking Alembic pending migrations..."
-      CURRENT=$(alembic current 2>/dev/null | awk '{print $1}' | tail -n1 || true)
-      HEADS=$(alembic heads 2>/dev/null | awk '{print $1}' | tr '\n' ' ' || true)
-      if [ -n "$HEADS" ] && echo "$HEADS" | grep -q "$CURRENT"; then
-        echo "✅ No Alembic migrations pending ($CURRENT is at heads: $HEADS)"
-      else
-        echo "🚀 Applying Alembic migrations to head"
-        alembic upgrade head
-      fi
+      echo "⏳ Running SQL migrations from ops/migrations..."
+      for dir in $(ls -d ../../ops/migrations/*/  2>/dev/null | sort); do
+        for sql in $(ls "$dir"*.sql 2>/dev/null | sort); do
+          echo "  → $sql"
+          psql "$DATABASE_URL" -f "$sql" || true
+        done
+      done
+      for sql in $(ls ../../ops/migrations/*.sql 2>/dev/null | sort); do
+        echo "  → $sql"
+        psql "$DATABASE_URL" -f "$sql" || true
+      done
+      echo "✅ Migrations complete"
       echo "🔐 Applying RLS defaults/policies (idempotent)"
       python ../scripts/py/apply_rls.py --schema public --set-default
     buildFilter:

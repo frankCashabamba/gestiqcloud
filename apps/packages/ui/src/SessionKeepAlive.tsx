@@ -39,6 +39,7 @@ export function SessionKeepAlive({
   const [open, setOpen] = useState(false)
   const [remaining, setRemaining] = useState(Math.floor(responseWindowMs / 1000))
   const [rev, setRev] = useState(0)
+  const [busy, setBusy] = useState(false)
 
   const warnTimer = useRef<number | null>(null)
   const autoTimer = useRef<number | null>(null)
@@ -56,16 +57,18 @@ export function SessionKeepAlive({
     clearAll()
     warnTimer.current = window.setTimeout(() => {
       setOpen(true)
+      setBusy(false)
       setRemaining(Math.floor(responseWindowMs / 1000))
       tickTimer.current = window.setInterval(() => setRemaining((s) => (s > 0 ? s - 1 : 0)), 1000)
       autoTimer.current = window.setTimeout(async () => {
         setOpen(false)
+        setBusy(false)
         clearAll()
         await logout()
       }, responseWindowMs)
     }, warnAfterMs)
     return clearAll
-  }, [token, warnAfterMs, responseWindowMs, logout])
+  }, [token, warnAfterMs, responseWindowMs, logout, rev])
 
   // Reinicia timers con actividad (throttle)
   useEffect(() => {
@@ -77,7 +80,7 @@ export function SessionKeepAlive({
       if (now - last < throttleMs) return
       last = now
       clearAll()
-      if (open) setOpen(false)
+      if (open) return
       setRemaining(Math.floor(responseWindowMs / 1000))
       setRev((x) => x + 1)
     }
@@ -87,13 +90,20 @@ export function SessionKeepAlive({
   }, [token, responseWindowMs, open])
 
   const onContinue = async () => {
+    setBusy(true)
     clearAll()
     const ok = await refresh()
-    if (!ok) return logout()
+    if (!ok) {
+      setBusy(false)
+      return logout()
+    }
     setOpen(false)
+    setBusy(false)
+    setRemaining(Math.floor(responseWindowMs / 1000))
     setRev((x) => x + 1)
   }
   const onExit = async () => {
+    setBusy(true)
     clearAll()
     setOpen(false)
     await logout()
@@ -110,10 +120,10 @@ export function SessionKeepAlive({
           {t.bodyPrefix} <span className="font-semibold">{remaining}{t.secondsSuffix}</span>. {t.question}
         </p>
         <div className="mt-6 flex justify-end gap-2">
-          <button onClick={onExit} className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm">
+          <button disabled={busy} onClick={onExit} className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm disabled:opacity-60">
             {t.exit}
           </button>
-          <button onClick={onContinue} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm">
+          <button disabled={busy} onClick={onContinue} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm disabled:opacity-60">
             {t.stay}
           </button>
         </div>

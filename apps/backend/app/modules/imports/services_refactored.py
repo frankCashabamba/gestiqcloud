@@ -6,6 +6,7 @@
 """
 
 import importlib
+import os
 import re
 import tempfile
 from collections.abc import Callable
@@ -69,13 +70,82 @@ def clean_ocr_text(text: str) -> str:
     return text
 
 
-def extract_ocr_text_hybrid_pages(file_bytes: bytes) -> list[str]:
+def _tesseract_langs_from_settings() -> str:
+    ocr_lang = os.getenv("IMPORTS_OCR_LANG", "").strip()
+    if ocr_lang:
+        return ocr_lang
+    raw = getattr(settings, "IMPORTS_OCR_LANGS", ["es", "en"]) or ["es", "en"]
+    mapped: list[str] = []
+    for lang in raw:
+        token = str(lang).strip().lower()
+        if token in ("es", "spa"):
+            mapped.append("spa")
+        elif token in ("en", "eng"):
+            mapped.append("eng")
+        elif token:
+            mapped.append(token)
+    return "+".join(mapped) if mapped else "spa+eng"
+
+
+def _ocr_text_from_image_path(img_path: str) -> str:
+    text = ""
+    if bool(getattr(settings, "IMPORTS_TESSERACT_ENABLED", True)):
+        try:
+            _Image = importlib.import_module("PIL.Image")  # type: ignore
+            _pytesseract = importlib.import_module("pytesseract")  # type: ignore
+        except Exception:
+            _Image = None  # type: ignore
+            _pytesseract = None  # type: ignore
+        if _Image is not None and _pytesseract is not None:
+            try:
+                tesseract_cmd = os.getenv("IMPORTS_TESSERACT_CMD", "").strip()
+                if tesseract_cmd:
+                    _pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+                image = _Image.open(img_path)  # type: ignore[attr-defined]
+                langs = _tesseract_langs_from_settings()
+                text = (
+                    _pytesseract.image_to_string(
+                        image,
+                        lang=langs,
+                        config="--psm 6",
+                    )
+                    or ""
+                )  # type: ignore[attr-defined]
+            except Exception:
+                text = ""
+    if not text and _get_easyocr_reader() is not None:
+        try:
+            reader = _get_easyocr_reader()
+            assert reader is not None
+            ocr_result = reader.readtext(img_path, detail=0, paragraph=True)  # type: ignore[attr-defined]
+            text = " ".join(ocr_result)
+        except Exception:
+            text = ""
+    return clean_ocr_text(text.strip()) if text else ""
+
+
+def extract_ocr_text_hybrid_pages(file_bytes: bytes, filename: str | None = None) -> list[str]:
     """Extracts text by page attempting Tesseract and fallback to EasyOCR.
 
     - If PyMuPDF/Pillow/Tesseract/EasyOCR is missing, degrades without breaking.
     - Returns list of strings (one per page) already cleaned.
     """
     pages: list[str] = []
+    lower_name = (filename or "").lower()
+    is_pdf = lower_name.endswith(".pdf") or file_bytes[:5] == b"%PDF-"
+
+    if not is_pdf:
+        suffix = Path(filename).suffix if filename else ".img"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix or ".img") as tmp:
+            tmp.write(file_bytes)
+            tmp_path = tmp.name
+        try:
+            image_text = _ocr_text_from_image_path(tmp_path)
+            if image_text:
+                pages.append(image_text)
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
+        return [t for t in pages if t]
 
     # Lazy import fitz (PyMuPDF) to avoid heavy import at startup
     if fitz is None:
@@ -124,10 +194,11 @@ def extract_ocr_text_hybrid_pages(file_bytes: bytes) -> list[str]:
                     _pytesseract = None  # type: ignore
                 if _Image is not None and _pytesseract is not None:
                     try:
+                        tesseract_cmd = os.getenv("IMPORTS_TESSERACT_CMD", "").strip()
+                        if tesseract_cmd:
+                            _pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
                         image = _Image.open(img_path)  # type: ignore[attr-defined]
-                        langs = "+".join(
-                            getattr(settings, "IMPORTS_OCR_LANGS", ["es", "en"]) or ["es", "en"]
-                        )
+                        langs = _tesseract_langs_from_settings()
                         # psm 6: assume a uniform block of text; works well for invoices/receipts
                         text_page = (
                             _pytesseract.image_to_string(
@@ -177,13 +248,28 @@ def _normalize_type_by_amount(doc: DocumentoProcesado) -> DocumentoProcesado:
         return doc
 
 
+def _resolve_document_type(total_text: str) -> str:
+    t = (total_text or "").lower()
+    # Strong heuristic for fiscal invoice docs (EC/ES)
+    if (
+        "factura" in t
+        or "ruc" in t
+        or "numero autorizacion" in t
+        or "fecha de emision" in t
+        or "subtotal" in t
+    ):
+        return "invoice"
+    detected = detect_document_type(total_text)
+    return str(detected)
+
+
 def process_document(file_bytes: bytes, filename: str) -> list[DocumentoProcesado]:
-    pages_ocr = extract_ocr_text_hybrid_pages(file_bytes)
+    pages_ocr = extract_ocr_text_hybrid_pages(file_bytes, filename)
     if not pages_ocr:  # fallback if we couldn't rasterize the PDF
         return []
 
     total_text = " ".join(pages_ocr)
-    document_type = detect_document_type(total_text)
+    document_type = _resolve_document_type(total_text)
     # Optional debug: uncomment only in development
     # print("Document type detected:", document_type)
 
@@ -203,9 +289,15 @@ def process_document(file_bytes: bytes, filename: str) -> list[DocumentoProcesad
     for page_text in pages_ocr:
         try:
             documents = extractor(page_text)
+            if not documents and extractor is not extract_by_combined_types:
+                # Fallback when specific extractor fails for noisy OCR text.
+                documents = extract_by_combined_types(page_text)
             results.extend(documents)
         except Exception:  # nosec B112
-            continue
+            try:
+                results.extend(extract_by_combined_types(page_text))
+            except Exception:
+                continue
 
     # Type normalization
     return [_normalize_type_by_amount(d) for d in results]

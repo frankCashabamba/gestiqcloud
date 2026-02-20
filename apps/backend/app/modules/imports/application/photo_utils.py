@@ -10,6 +10,7 @@ import tempfile
 import time
 import uuid
 from concurrent.futures import ProcessPoolExecutor
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +71,19 @@ def _ensure_tesseract() -> bool:
 
         pytesseract = _pytesseract
         Image = _Image
+        tesseract_cmd = os.getenv("IMPORTS_TESSERACT_CMD", "").strip()
+        if tesseract_cmd:
+            pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+        # Verify binary availability at startup so we can fallback to EasyOCR cleanly.
+        try:
+            _ = pytesseract.get_tesseract_version()
+        except Exception:
+            TESSERACT_AVAILABLE = False
+            logger.warning(
+                "Tesseract binary not available (set IMPORTS_TESSERACT_CMD or PATH). "
+                "Will try EasyOCR fallback."
+            )
+            return False
         # Optional HEIC/HEIF support (common on iPhone). If the extra
         # dependency is missing we keep operating for other formats.
         try:  # pragma: no cover - optional dependency
@@ -105,23 +119,60 @@ def _ensure_easyocr() -> bool:
 
 def exif_auto_orienta(content: bytes) -> bytes:
     """Auto-rotate image based on EXIF orientation."""
-    if not OPENCV_AVAILABLE:
-        return content
-
+    # Most real-world rotated OCR issues come from mobile EXIF orientation.
+    # Use Pillow's exif_transpose when available; keep bytes unchanged on failure.
     try:
-        import numpy as np
+        from io import BytesIO
 
-        nparr = np.frombuffer(content, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        if img is None:
+        # _ensure_tesseract() is our centralized place that sets up PIL + optional
+        # HEIF opener when possible.
+        if not _ensure_tesseract():
             return content
 
-        # Simple rotation detection (basic implementation)
-        # For full EXIF support, would need PIL/Pillow
-        return content
+        assert Image is not None
+        img = Image.open(BytesIO(content))
+
+        try:
+            from PIL import ImageOps
+
+            img = ImageOps.exif_transpose(img)
+        except Exception:
+            pass
+
+        fmt = (getattr(img, "format", None) or "JPEG").upper()
+        out = BytesIO()
+        save_kwargs: dict[str, Any] = {}
+        if fmt == "JPEG":
+            save_kwargs = {"quality": 95, "optimize": True}
+        img.save(out, format=fmt, **save_kwargs)
+        return out.getvalue()
     except Exception as e:
-        logger.warning(f"EXIF orientation failed: {e}")
+        logger.debug("EXIF orientation failed: %s", e)
         return content
+
+
+def _pil_basic_preprocess(pil_img) -> Any:
+    """Lightweight preprocessing path when OpenCV is not available."""
+    try:
+        from PIL import ImageEnhance, ImageOps
+
+        img = pil_img
+        try:
+            img = ImageOps.exif_transpose(img)
+        except Exception:
+            pass
+
+        img = img.convert("L")
+        img = ImageOps.autocontrast(img)
+        img = ImageEnhance.Sharpness(img).enhance(1.5)
+
+        # Upscale small images (common for chat exports / thumbnails)
+        w, h = img.size
+        if max(w, h) < 2000:
+            img = img.resize((w * 2, h * 2))
+        return img
+    except Exception:
+        return pil_img
 
 
 def guardar_adjunto_bytes(
@@ -217,7 +268,7 @@ def preprocess_image(img) -> Any:
                 angle = -angle
 
             if abs(angle) > 0.5:  # Only rotate if angle significant
-                (h, w) = gray.shape[:2]
+                h, w = gray.shape[:2]
                 center = (w // 2, h // 2)
                 M = cv2.getRotationMatrix2D(center, angle, 1.0)
                 gray = cv2.warpAffine(
@@ -302,6 +353,7 @@ def extract_text_from_image(content: bytes, file_sha: str | None = None) -> str:
                 from io import BytesIO
 
                 img = Image.open(BytesIO(content))
+                img = _pil_basic_preprocess(img)
 
         # Extract QR codes first (may contain useful data)
         qr_codes = []
@@ -312,6 +364,13 @@ def extract_text_from_image(content: bytes, file_sha: str | None = None) -> str:
 
         # Preprocess image
         if OPENCV_AVAILABLE and img is not None:
+            # Upscale small images before thresholding to preserve small fonts.
+            try:
+                h, w = img.shape[:2]
+                if max(w, h) < 2000:
+                    img = cv2.resize(img, (w * 2, h * 2), interpolation=cv2.INTER_CUBIC)
+            except Exception:
+                pass
             img = preprocess_image(img)
 
         # Tesseract (preferred)
@@ -325,10 +384,26 @@ def extract_text_from_image(content: bytes, file_sha: str | None = None) -> str:
                 else:
                     pil_img = img
 
-                custom_config = f"--psm {config.ocr_psm} --dpi {config.ocr_dpi}"
-                text = pytesseract.image_to_string(
-                    pil_img, lang=config.ocr_lang, config=custom_config
-                )
+                # Multi-pass OCR: photos with tables often do better with different PSMs.
+                psm_candidates = [config.ocr_psm, 4, 6, 11]
+                seen: set[int] = set()
+                best_text = ""
+                for psm in psm_candidates:
+                    if psm in seen:
+                        continue
+                    seen.add(psm)
+                    custom_config = f"--psm {psm} --dpi {config.ocr_dpi}"
+                    candidate = (
+                        pytesseract.image_to_string(
+                            pil_img, lang=config.ocr_lang, config=custom_config
+                        )
+                        or ""
+                    )
+                    if len(candidate) > len(best_text):
+                        best_text = candidate
+                    if len(best_text.strip()) >= 200:
+                        break
+                text = best_text
                 logger.info(f"Tesseract OCR completed: {len(text)} chars")
             except Exception as e:
                 logger.warning(f"Tesseract OCR failed: {e}, trying EasyOCR fallback")
@@ -528,13 +603,56 @@ def ocr_texto(content: bytes, filename: str = "") -> str:
 
 
 def _find_date(text: str) -> str | None:
-    """Find date in text (ISO or dd/mm/yyyy format)."""
+    """Find date in text (ISO, dd/mm/yyyy, and '16 de enero de 2026')."""
     m = re.search(r"\b\d{4}-\d{2}-\d{2}\b", text)
     if m:
         return m.group(0)
     m = re.search(r"\b\d{2}[/-]\d{2}[/-]\d{4}\b", text)
     if m:
         return m.group(0)
+    month_map = {
+        "enero": 1,
+        "febrero": 2,
+        "marzo": 3,
+        "abril": 4,
+        "mayo": 5,
+        "junio": 6,
+        "julio": 7,
+        "agosto": 8,
+        "septiembre": 9,
+        "setiembre": 9,
+        "octubre": 10,
+        "noviembre": 11,
+        "diciembre": 12,
+        "january": 1,
+        "february": 2,
+        "march": 3,
+        "april": 4,
+        "may": 5,
+        "june": 6,
+        "july": 7,
+        "august": 8,
+        "september": 9,
+        "october": 10,
+        "november": 11,
+        "december": 12,
+    }
+    m = re.search(
+        r"\b(?:lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)?\s*,?\s*"
+        r"(\d{1,2})\s+de\s+([a-zA-ZáéíóúÁÉÍÓÚñÑ]+)\s+de\s+(\d{4})\b",
+        text,
+        re.IGNORECASE,
+    )
+    if m:
+        day = int(m.group(1))
+        month_token = m.group(2).strip().lower()
+        year = int(m.group(3))
+        month = month_map.get(month_token)
+        if month:
+            try:
+                return date(year, month, day).isoformat()
+            except Exception:
+                pass
     return None
 
 

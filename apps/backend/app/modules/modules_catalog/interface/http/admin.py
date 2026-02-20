@@ -111,6 +111,33 @@ def _resolve_modules_dir() -> str:
     )
 
 
+def _normalize_module_name(folder_name: str) -> str:
+    """Normalize Spanish/other folder names to English.
+
+    This ensures all modules are registered with English names,
+    allowing the frontend to handle translations via i18n.
+    """
+    mapping = {
+        "compras": "purchases",
+        "ventas": "sales",
+        "facturacion": "billing",
+        "facturación": "billing",
+        "reportes": "reports",
+        "usuarios": "users",
+        "produccion": "manufacturing",
+        "producción": "manufacturing",
+        "clientes": "customers",
+        "proveedores": "suppliers",
+        "inventario": "inventory",
+        "gastos": "expenses",
+        "finanzas": "finances",
+        "contabilidad": "accounting",
+    }
+
+    normalized = folder_name.lower()
+    return mapping.get(normalized, normalized)
+
+
 def _guess_defaults(_slug: str) -> tuple[str | None, str | None]:
     """
 
@@ -291,7 +318,8 @@ def register_modules(payload: dict | None = None, db: Session = Depends(get_db))
 
                 continue
 
-            name = carpeta.lower()
+            # Normalize folder name to English (e.g., "compras" -> "purchases")
+            name = _normalize_module_name(carpeta)
 
             existente = db.query(Module).filter_by(name=name).first()
 

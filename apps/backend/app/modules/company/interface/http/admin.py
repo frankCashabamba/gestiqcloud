@@ -8,12 +8,12 @@ from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import bindparam, func, text
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.api.email.email_utils import enviar_correo_bienvenida
 from app.config.database import get_db
+from app.config.settings import settings
 from app.core.access_guard import with_access_claims
 from app.core.authz import require_scope
 from app.models.company.company import (
@@ -190,7 +190,7 @@ def admin_list_pos_backfill_candidates(
             WHERE cs.tenant_id = :tid
             LIMIT 1
             """
-        ).bindparams(bindparam("tid", type_=PGUUID(as_uuid=True))),
+        ),
         {"tid": tenant_uuid},
     ).first()
     tenant_currency: str | None = None
@@ -199,7 +199,7 @@ def admin_list_pos_backfill_candidates(
         if val:
             tenant_currency = str(val).strip().upper() or None
 
-    where_parts: list[str] = ["r.status = 'paid'"]
+    where_parts: list[str] = ["r.tenant_id = :tid", "r.status = 'paid'"]
     params: dict = {"tid": tenant_uuid, "limit": limit, "offset": offset}
 
     if since is not None:
@@ -236,8 +236,6 @@ def admin_list_pos_backfill_candidates(
             ORDER BY r.paid_at DESC NULLS LAST, r.created_at DESC
             LIMIT :limit OFFSET :offset
             """
-        ).bindparams(
-            bindparam("tid", type_=PGUUID(as_uuid=True)),
         ),
         params,
     ).fetchall()
@@ -261,9 +259,9 @@ def admin_list_pos_backfill_candidates(
             {
                 "receipt_id": str(receipt_id),
                 "number": number,
-                "paid_at": paid_at.isoformat()
-                if hasattr(paid_at, "isoformat") and paid_at
-                else None,
+                "paid_at": (
+                    paid_at.isoformat() if hasattr(paid_at, "isoformat") and paid_at else None
+                ),
                 "gross_total": float(gross_total or 0),
                 "tax_total": float(tax_total or 0),
                 # Nunca mostramos una moneda distinta a la configurada del tenant.
@@ -320,16 +318,18 @@ def admin_backfill_pos_receipt_documents(
         except Exception:
             pass
 
+    for_update = " FOR UPDATE" if getattr(db.get_bind().dialect, "name", "") != "sqlite" else ""
     receipt = db.execute(
         text(
-            """
+            f"""
             SELECT status
             FROM pos_receipts
             WHERE id = :id
-            FOR UPDATE
+              AND tenant_id = :tid
+            {for_update}
             """
-        ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
-        {"id": receipt_uuid},
+        ),
+        {"id": receipt_uuid, "tid": tenant_uuid},
     ).first()
     if not receipt:
         raise HTTPException(status_code=404, detail="receipt_not_found")
@@ -426,6 +426,7 @@ def impersonate_tenant(tenant_id: str, db: Session = Depends(get_db)):
 @router.delete("/{tenant_id}")
 def delete_company(
     tenant_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(with_access_claims),
 ):
@@ -438,6 +439,24 @@ def delete_company(
     company = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not company:
         raise HTTPException(status_code=404, detail="company_not_found")
+
+    # Safety guard in non-production environments:
+    # require explicit confirmation to prevent accidental destructive deletes.
+    if settings.ENVIRONMENT != "production":
+        allow_delete = str(os.getenv("ALLOW_DANGEROUS_COMPANY_DELETE", "0")).lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        confirm_header = (request.headers.get("X-Confirm-Delete-Tenant") or "").strip()
+        if not allow_delete and confirm_header != str(tenant_id):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "destructive_delete_blocked: set header X-Confirm-Delete-Tenant=<tenant_id> "
+                    "or ALLOW_DANGEROUS_COMPANY_DELETE=1 in controlled environments"
+                ),
+            )
 
     company_data = serialize_model(company)
 

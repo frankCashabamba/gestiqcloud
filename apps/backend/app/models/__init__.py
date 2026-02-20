@@ -34,21 +34,26 @@ from app.models.core.audit_event import AuditEvent
 from app.models.core.clients import Client, Cliente
 from app.models.core.country_catalogs import CountryIdType, CountryTaxCode
 from app.models.core.document import Document
+from app.models.core.document_storage import DocumentFile, DocumentVersion
+from app.models.core.event_outbox import EventOutbox
 from app.models.core.facturacion import (
     BankAccount,
     BankTransaction,
     InternalTransfer,
     Invoice,
     InvoiceTemp,
-    Payment,
     TransactionStatus,
     TransactionType,
 )
 from app.models.core.import_audit import ImportAudit
 from app.models.core.invoiceLine import BakeryLine, InvoiceLine, LineaFactura, WorkshopLine
+
+# Imports system
+from app.models.core.modelsimport import ImportResolution, PostingRegistry
 from app.models.core.module import AssignedModule, CompanyModule, Module
 from app.models.core.product_category import ProductCategory
 from app.models.core.products import Product
+from app.models.core.profit_snapshots import ProductProfitSnapshot, ProfitSnapshotDaily
 
 # UI Configuration (Sistema Sin Hardcodes)
 from app.models.core.ui_config import (
@@ -62,11 +67,9 @@ from app.models.core.ui_config import (
     UiWidget,
 )
 from app.models.expenses import Expense
-from app.models.finance import BankMovement, CashClosing, CashMovement
-from app.models.hr import Employee, Vacation
-from app.models.hr.payroll import Payroll, PayrollConcept, PayrollTemplate
-
-# Imports system
+from app.models.finance import BankMovement, CashClosing, CashMovement, Payment
+from app.models.hr import Employee
+from app.models.hr.payroll import Payroll, PayrollDetail, PayrollTax
 from app.models.imports import ImportColumnMapping
 
 # Inventory
@@ -119,8 +122,11 @@ __all__ = [
     "CountryIdType",
     "CountryTaxCode",
     "Document",
+    "DocumentFile",
+    "DocumentVersion",
     "AuditEvent",
     "ImportAudit",
+    "EventOutbox",
     "Client",
     # Company
     "CompanyRole",
@@ -162,7 +168,6 @@ __all__ = [
     "CashMovement",
     "CashClosing",
     "Employee",
-    "Vacation",
     # POS
     "POSRegister",
     "POSShift",
@@ -183,10 +188,12 @@ __all__ = [
     "Warehouse",
     # Imports
     "ImportColumnMapping",
+    "ImportResolution",
+    "PostingRegistry",
     # Payroll
     "Payroll",
-    "PayrollConcept",
-    "PayrollTemplate",
+    "PayrollDetail",
+    "PayrollTax",
     # Production
     "ProductionOrder",
     "ProductionOrderLine",
@@ -199,4 +206,7 @@ __all__ = [
     "UiForm",
     "UiFormField",
     "UiDashboard",
+    # Profit Snapshots
+    "ProfitSnapshotDaily",
+    "ProductProfitSnapshot",
 ]

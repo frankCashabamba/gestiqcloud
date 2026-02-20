@@ -39,6 +39,26 @@ const getModuleIcon = (slug: string): string => {
   return icons[slug.toLowerCase()] || '•'
 }
 
+const pickTextColorForBackground = (bgColor: string): string => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return '#ffffff'
+  const probe = document.createElement('span')
+  probe.style.color = bgColor
+  probe.style.display = 'none'
+  document.body.appendChild(probe)
+  const computed = window.getComputedStyle(probe).color
+  document.body.removeChild(probe)
+
+  const match = computed.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i)
+  if (!match) return '#ffffff'
+  const r = Number(match[1]) / 255
+  const g = Number(match[2]) / 255
+  const b = Number(match[3]) / 255
+
+  const toLinear = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+  const luminance = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b)
+
+  return luminance > 0.45 ? '#0f172a' : '#ffffff'
+}
 const DashboardPro: React.FC<DashboardProProps> = ({
   sectorName,
   sectorIcon,
@@ -65,7 +85,15 @@ const DashboardPro: React.FC<DashboardProProps> = ({
         if (themeData?.colors) {
           setTheme(themeData)
           const primaryColor = themeData.colors.primary || '#5B8CFF'
+          const focusColor =
+            themeData.colors.focus ||
+            themeData.colors.accent ||
+            themeData.colors.secondary ||
+            primaryColor
+          const onPrimaryColor = pickTextColorForBackground(primaryColor)
           document.documentElement.style.setProperty('--primary', primaryColor)
+          document.documentElement.style.setProperty('--focus', focusColor)
+          document.documentElement.style.setProperty('--on-primary', onPrimaryColor)
           document.documentElement.style.setProperty('--topbar-bg', primaryColor)
           document.documentElement.style.setProperty('--sidebar-active', primaryColor)
           document.documentElement.style.setProperty('--btn-primary', primaryColor)
@@ -79,7 +107,7 @@ const DashboardPro: React.FC<DashboardProProps> = ({
     loadTheme()
   }, [empresa])
 
-  // Lock content on mobile/tablet: solo menú de módulos
+  // Responsive behavior for drawer and layout
   useEffect(() => {
     const handleResize = () => setIsMobileView(window.innerWidth <= 1024)
     handleResize()
@@ -122,7 +150,7 @@ const DashboardPro: React.FC<DashboardProProps> = ({
       <header className="topbar">
         {isMobileView && (
           <button className="icon-btn" onClick={() => setIsMenuOpen(true)} aria-label={t('dashboardPro.openMenu')}>
-            ☰
+            <span className="menu-bars" aria-hidden />
           </button>
         )}
         <div className="brand">
@@ -132,21 +160,18 @@ const DashboardPro: React.FC<DashboardProProps> = ({
           </span>
         </div>
         <div className="search">
-          <input placeholder="Buscar (productos / clientes / docs)" />
+          <input placeholder="Buscar productos, clientes o documentos" aria-label="Buscar en el dashboard" />
           <span>/</span>
         </div>
-        <select>
+        <select aria-label="Seleccionar sucursal">
           <option>{t('dashboardPro.stores.main')}</option>
           <option>{t('dashboardPro.stores.branch', { n: 1 })}</option>
           <option>{t('dashboardPro.stores.branch', { n: 2 })}</option>
         </select>
-        <input type="date" defaultValue={new Date().toISOString().split('T')[0]} />
+        <input type="date" defaultValue={new Date().toISOString().split('T')[0]} aria-label="Seleccionar fecha" />
         <button className="btn" onClick={toggleTheme}>
           {darkMode ? t('dashboardPro.lightMode') : t('dashboardPro.darkMode')}
         </button>
-        <a className="btn btn--primary" href="#close-day">
-          {t('dashboardPro.closeDay')}
-        </a>
       </header>
 
       <aside className="sidebar">
@@ -211,7 +236,7 @@ const DashboardPro: React.FC<DashboardProProps> = ({
                 {sectorIcon} {sectorName}
               </span>
               <button className="icon-btn" onClick={() => setIsMenuOpen(false)} aria-label={t('dashboardPro.closeMenu')}>
-                ✕
+                X
               </button>
             </div>
             <div className="mobile-drawer__search">
@@ -274,7 +299,7 @@ const DashboardPro: React.FC<DashboardProProps> = ({
         </>
       )}
 
-      {!isMobileView && <main className="main-content">{children}</main>}
+      <main className="main-content">{children}</main>
     </div>
   )
 }

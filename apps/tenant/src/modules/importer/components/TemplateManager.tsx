@@ -3,6 +3,7 @@
  */
 
 import React, { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
     listImportTemplates,
     deleteImportTemplate,
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export default function TemplateManager({ isOpen, onClose, onSelect, sourceType }: Props) {
+    const { t } = useTranslation('importer')
     const [templates, setTemplates] = useState<ImportTemplate[]>([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -35,7 +37,7 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
             const data = await listImportTemplates(sourceType)
             setTemplates(data)
         } catch (err: any) {
-            setError(err?.message || 'Error al cargar plantillas')
+            setError(err?.message || t('templateManager.errors.loadFailed'))
         } finally {
             setLoading(false)
         }
@@ -43,18 +45,18 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
 
     const handleDelete = async (id: string, isSystem: boolean) => {
         if (isSystem) {
-            alert('No se pueden eliminar plantillas del sistema')
+            alert(t('templateManager.errors.cannotDeleteSystemTemplate'))
             return
         }
 
-        if (!confirm('¿Eliminar esta plantilla?')) return
+        if (!confirm(t('templateManager.confirm.deleteTemplate'))) return
 
         setDeletingId(id)
         try {
             await deleteImportTemplate(id)
             await loadTemplates() // Recargar lista
         } catch (err: any) {
-            alert(err?.message || 'Error al eliminar')
+            alert(err?.message || t('templateManager.errors.deleteFailed'))
         } finally {
             setDeletingId(null)
         }
@@ -72,9 +74,7 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
             <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                        📋 Plantillas de Mapeo
-                    </h3>
+                    <h3 className="text-lg font-semibold text-gray-900">{t('templateManager.title')}</h3>
                     <button
                         onClick={onClose}
                         className="text-gray-400 hover:text-gray-600 transition"
@@ -87,7 +87,7 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
                 <div className="flex-1 overflow-y-auto p-6">
                     {loading && (
                         <div className="text-center py-8 text-gray-600">
-                            Cargando plantillas...
+                            {t('templateManager.loading')}
                         </div>
                     )}
 
@@ -99,9 +99,9 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
 
                     {!loading && !error && templates.length === 0 && (
                         <div className="text-center py-8 text-gray-500">
-                            No hay plantillas disponibles para este tipo de importación.
+                            {t('templateManager.empty.noTemplates')}
                             <br />
-                            <span className="text-sm">Crea una nueva desde el mapeo de campos.</span>
+                            <span className="text-sm">{t('templateManager.empty.createFromMapping')}</span>
                         </div>
                     )}
 
@@ -119,7 +119,7 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
                                         </h4>
                                         {template.is_system && (
                                             <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded">
-                                                Sistema
+                                                {t('templateManager.badges.system')}
                                             </span>
                                         )}
                                     </div>
@@ -141,7 +141,7 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
                                             onClick={() => handleSelect(template)}
                                             className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-sm transition"
                                         >
-                                            ✓ Usar Plantilla
+                                            {t('templateManager.actions.useTemplate')}
                                         </button>
 
                                         {!template.is_system && (
@@ -166,7 +166,7 @@ export default function TemplateManager({ isOpen, onClose, onSelect, sourceType 
                         onClick={onClose}
                         className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded transition"
                     >
-                        Cerrar
+                        {t('common.close')}
                     </button>
                 </div>
             </div>

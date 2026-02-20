@@ -175,9 +175,11 @@ class WebhookDispatcher:
                         webhook_id=endpoint.id,
                         event_id=payload.id,
                         attempt_number=attempt,
-                        status=DeliveryStatus.DELIVERED
-                        if response.status_code < 400
-                        else DeliveryStatus.FAILED,
+                        status=(
+                            DeliveryStatus.DELIVERED
+                            if response.status_code < 400
+                            else DeliveryStatus.FAILED
+                        ),
                         http_status_code=response.status_code,
                         response_body=response.text[:1000],  # Store first 1000 chars
                         request_timestamp=datetime.now(),
@@ -252,7 +254,7 @@ class WebhookDispatcher:
             hashlib.sha256,
         ).hexdigest()
 
-        return signature
+        return f"sha256={signature}"
 
     @staticmethod
     def verify_signature(secret: str, payload: dict, signature: str) -> bool:
@@ -274,7 +276,11 @@ class WebhookDispatcher:
             hashlib.sha256,
         ).hexdigest()
 
-        return hmac.compare_digest(signature, expected_signature)
+        normalized = signature.strip()
+        if normalized.lower().startswith("sha256="):
+            normalized = normalized.split("=", 1)[1]
+
+        return hmac.compare_digest(normalized, expected_signature)
 
 
 class WebhookRegistry:

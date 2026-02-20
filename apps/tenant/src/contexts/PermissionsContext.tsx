@@ -52,6 +52,17 @@ export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({ childre
     }
   }
 
+  const parseTokenPayload = (tok: string | null): Record<string, any> => {
+    if (!tok) return {}
+    try {
+      const [, payload] = tok.split('.')
+      if (!payload) return {}
+      return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, any>
+    } catch {
+      return {}
+    }
+  }
+
   // Cargar permisos: primero del token, luego refetch del API si es necesario
   const loadPermisos = async () => {
     if (!token) {
@@ -92,6 +103,15 @@ export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({ childre
     loadPermisos()
   }, [token])
 
+  const tokenPayload = useMemo(() => parseTokenPayload(token), [token])
+  const isCompanyAdmin =
+    Boolean(profile?.es_admin_empresa) ||
+    Boolean((profile as any)?.is_company_admin) ||
+    Boolean((profile as any)?.is_admin_empresa) ||
+    Boolean(tokenPayload?.es_admin_empresa) ||
+    Boolean(tokenPayload?.is_company_admin) ||
+    Boolean(tokenPayload?.is_admin_empresa)
+
   // Refetch automático cada 10 minutos (cuando hay cambios de rol)
   useEffect(() => {
     if (!token) return
@@ -113,8 +133,8 @@ export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({ childre
 
   // Chequear permisos
   const hasPermission = (actionOrModule: string, action?: string): boolean => {
-    // Admin global de empresa: es_admin_empresa o is_company_admin
-    if (profile?.es_admin_empresa || (profile as any)?.is_company_admin || (profile as any)?.is_admin_empresa) {
+    // Admin global de empresa: bypass total (profile o JWT)
+    if (isCompanyAdmin) {
       return true
     }
 
@@ -154,7 +174,7 @@ export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({ childre
       error,
       refetch: loadPermisos,
     }),
-    [permisos, loading, error]
+    [permisos, loading, error, isCompanyAdmin]
   )
 
   return <PermissionsContext.Provider value={value}>{children}</PermissionsContext.Provider>

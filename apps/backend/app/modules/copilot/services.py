@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 
@@ -46,6 +47,39 @@ def _fetch_all(db: Session, sql: str, params: dict[str, Any]) -> list[dict[str, 
     return rows
 
 
+def _table_columns(db: Session, table_name: str) -> set[str]:
+    rows = db.execute(
+        text(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = :table
+            """
+        ),
+        {"table": table_name},
+    ).fetchall()
+    return {str(r[0]).lower() for r in rows}
+
+
+def _pick_column(columns: set[str], *candidates: str) -> str | None:
+    for c in candidates:
+        if c.lower() in columns:
+            return c
+    return None
+
+
+def _safe_topic(title: str, sql: str, fn) -> dict[str, Any]:
+    try:
+        rows = fn()
+        return {"cards": [{"title": title, "data": rows}], "sql": sql}
+    except SQLAlchemyError as e:
+        return {
+            "cards": [{"title": title, "data": []}],
+            "sql": sql,
+            "note": f"topic_unavailable:{type(e).__name__}",
+        }
+
+
 def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     p = params or {}
     # Only allow curated read-only queries (RLS enforced by DB)
@@ -67,13 +101,22 @@ def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None
         return {"cards": [{"title": "Salidas por almacén", "data": rows}], "sql": sql}
 
     if topic == "top_productos":
+        cols = _table_columns(db, "sales_order_items")
+        qty_col = _pick_column(cols, "quantity", "qty", "cantidad")
+        price_col = _pick_column(cols, "unit_price", "price", "precio_unitario")
+        if not qty_col or not price_col:
+            return {
+                "cards": [{"title": "Top productos", "data": []}],
+                "sql": None,
+                "note": "topic_unavailable:sales_order_items_columns",
+            }
         sql = (
-            "SELECT p.id, p.name, sum(soi.qty) AS uds, sum(soi.qty*soi.unit_price) AS importe "
+            f"SELECT p.id, p.name, sum(soi.{qty_col}) AS uds, "
+            f"sum(soi.{qty_col}*soi.{price_col}) AS importe "
             "FROM sales_order_items soi JOIN products p ON p.id=soi.product_id "
             "GROUP BY 1,2 ORDER BY importe DESC NULLS LAST LIMIT 10"
         )
-        rows = _fetch_all(db, sql, {})
-        return {"cards": [{"title": "Top productos", "data": rows}], "sql": sql}
+        return _safe_topic("Top productos", sql, lambda: _fetch_all(db, sql, {}))
 
     if topic == "stock_bajo":
         threshold = float(p.get("threshold", 5))
@@ -100,12 +143,22 @@ def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None
         }
 
     if topic == "cobros_pagos":
+        cols = _table_columns(db, "bank_transactions")
+        type_col = _pick_column(cols, "type", "tipo")
+        status_col = _pick_column(cols, "status", "estado")
+        amount_col = _pick_column(cols, "amount", "importe", "monto")
+        if not type_col or not status_col or not amount_col:
+            return {
+                "cards": [{"title": "Cobros/Pagos", "data": []}],
+                "sql": None,
+                "note": "topic_unavailable:bank_transactions_columns",
+            }
         sql = (
-            "SELECT tipo::text AS tipo, estado::text AS estado, count(*) AS n, sum(importe) AS importe "
+            f"SELECT {type_col}::text AS tipo, {status_col}::text AS estado, "
+            f"count(*) AS n, sum({amount_col}) AS importe "
             "FROM bank_transactions GROUP BY 1,2 ORDER BY 4 DESC NULLS LAST"
         )
-        rows = _fetch_all(db, sql, {})
-        return {"cards": [{"title": "Cobros/Pagos", "data": rows}], "sql": sql}
+        return _safe_topic("Cobros/Pagos", sql, lambda: _fetch_all(db, sql, {}))
 
     # Default: unsupported
     return {"cards": [], "sql": None, "note": "topic_unsupported"}

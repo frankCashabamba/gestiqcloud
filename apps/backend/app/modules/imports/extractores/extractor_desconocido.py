@@ -80,13 +80,75 @@ def extract_by_combined_types(text: str) -> list[DocumentoProcesado]:
         extract_transfers,
     ]
 
+    def _canonical_to_docproc(c: dict) -> DocumentoProcesado | None:
+        doc_type = (c.get("doc_type") or "").strip()
+        totals = c.get("totals") or {}
+        lines = c.get("lines") or []
+        first_line = lines[0] if isinstance(lines, list) and lines else {}
+        vendor = c.get("vendor") or {}
+        buyer = c.get("buyer") or {}
+        routing = c.get("routing_proposal") or {}
+
+        issue_date = (
+            c.get("issue_date")
+            or c.get("invoice_date")
+            or c.get("expense_date")
+            or c.get("value_date")
+        )
+        total = None
+        if isinstance(totals, dict):
+            total = totals.get("total")
+        if total is None:
+            total = c.get("total") or c.get("amount")
+        if total is None and isinstance(first_line, dict):
+            total = first_line.get("total") or first_line.get("unit_price")
+
+        concept = None
+        if isinstance(first_line, dict):
+            concept = first_line.get("desc")
+        concept = concept or c.get("description") or c.get("concept") or "Document without concept"
+
+        client = None
+        if isinstance(vendor, dict):
+            client = vendor.get("name")
+        if not client and isinstance(buyer, dict):
+            client = buyer.get("name")
+
+        category = routing.get("category_code") if isinstance(routing, dict) else None
+        account = routing.get("account") if isinstance(routing, dict) else None
+        invoice_no = c.get("invoice_number") or c.get("invoice")
+
+        try:
+            amount = float(total) if total is not None else 0.0
+        except Exception:
+            amount = 0.0
+
+        return DocumentoProcesado(
+            fecha=str(issue_date) if issue_date is not None else "unknown",
+            concepto=str(concept) if concept is not None else "Document without concept",
+            tipo="expense",
+            importe=amount,
+            cuenta=str(account) if account is not None else "unknown",
+            categoria=str(category) if category is not None else "otros",
+            cliente=str(client) if client is not None else "unknown",
+            invoice=str(invoice_no) if invoice_no is not None else None,
+            documentoTipo=doc_type or "unknown",
+            origen=str(c.get("source") or "ocr"),
+        )
+
     candidates: list[DocumentoProcesado] = []
 
     for extractor in extractors:
         try:
             documents = extractor(text)
             if documents:
-                candidates.extend(documents)
+                for d in documents:
+                    if isinstance(d, dict) and ("doc_type" in d or "totals" in d or "lines" in d):
+                        dp = _canonical_to_docproc(d)
+                        if dp is not None:
+                            candidates.append(dp)
+                    elif isinstance(d, DocumentoProcesado):
+                        candidates.append(d)
         except Exception as e:
             print(f"Error in extractor {extractor.__name__}: {e}")
             continue

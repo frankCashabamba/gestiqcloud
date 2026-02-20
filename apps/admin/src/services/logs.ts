@@ -50,7 +50,7 @@ export async function getLogStats(days: number = 30): Promise<LogStats> {
   const params = new URLSearchParams()
   params.append('days', days.toString())
 
-  const response = await fetch(`${API_BASE}/v1/notifications/log/stats?${params}`, {
+  const response = await fetch(`${API_BASE}/notifications/log/stats?${params}`, {
     headers: AUTH_HEADER()
   })
 

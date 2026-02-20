@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
+from app.models.company.company_settings import CompanySettings
 from app.models.company.settings import ConfiguracionEmpresa
 from app.models.core.ui_field_config import TenantFieldConfig
 from app.models.core.ui_template import UiTemplate
@@ -66,6 +67,19 @@ def _canonical_sector_slug(name: str | None) -> str | None:
     return s.replace(" ", "") or None
 
 
+def _first_non_empty(*values: str | None) -> str | None:
+    for value in values:
+        if value is None:
+            continue
+        if isinstance(value, str):
+            v = value.strip()
+            if v:
+                return v
+            continue
+        return value
+    return None
+
+
 @router.get("/theme")
 def get_theme_tokens(db: Session = Depends(get_db), empresa: str | None = Query(default=None)):
     """Return design tokens for theming the tenant UI.
@@ -89,15 +103,26 @@ def get_theme_tokens(db: Session = Depends(get_db), empresa: str | None = Query(
                 )
             except Exception:
                 cfg = None
+        company_settings = None
+        if emp:
+            try:
+                company_settings = (
+                    db.query(CompanySettings).filter(CompanySettings.tenant_id == emp.id).first()
+                )
+            except Exception:
+                company_settings = None
 
         brand_name = emp.name if emp else ""
-        logo_url = (
-            (getattr(cfg, "logo_empresa", None) or getattr(emp, "logo", None))
-            if (cfg or emp)
-            else None
+        logo_url = _first_non_empty(
+            company_settings.company_logo if company_settings else None,
+            getattr(cfg, "logo_empresa", None),
+            getattr(emp, "logo", None),
         )
-        color_primary = (
-            getattr(cfg, "color_primario", None) or getattr(emp, "primary_color", None) or "#0ea5e9"
+        color_primary = _first_non_empty(
+            company_settings.primary_color if company_settings else None,
+            getattr(cfg, "color_primario", None),
+            getattr(emp, "primary_color", None),
+            "#0ea5e9",
         )
 
         raw_sector = getattr(emp, "sector_template_name", None)

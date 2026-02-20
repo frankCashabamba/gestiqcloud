@@ -82,6 +82,34 @@ function To-WebsocketUrl {
     return $httpUrl -replace "^http", "ws"
 }
 
+function Test-PortOpen {
+    param([string]$TargetHost = "127.0.0.1", [int]$Port, [int]$TimeoutMs = 800)
+    try {
+        $client = New-Object System.Net.Sockets.TcpClient
+        $iar = $client.BeginConnect($TargetHost, $Port, $null, $null)
+        if (-not $iar.AsyncWaitHandle.WaitOne($TimeoutMs, $false)) {
+            $client.Close()
+            return $false
+        }
+        $client.EndConnect($iar) | Out-Null
+        $client.Close()
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Wait-Port {
+    param([string]$Name, [int]$Port, [int]$TimeoutSec = 45)
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        if (Test-PortOpen -Port $Port) { return $true }
+        Start-Sleep -Milliseconds 500
+    }
+    Write-Host ("Timeout esperando {0} en puerto {1}" -f $Name, $Port) -ForegroundColor Red
+    return $false
+}
+
 $adminEnvVars = @{
     "VITE_API_URL"       = $apiUrl
     "VITE_ADMIN_ORIGIN"  = $frontendUrl
@@ -154,21 +182,31 @@ $tenantJob = Start-Job -ScriptBlock {
     npx --yes vite --host 0.0.0.0 --port $port --strictPort
 } -Name tenant -ArgumentList $tenantPath, $tenantEnvVars, $tenantPort
 
+Write-Host "[6.5/7] Verificando puertos..." -ForegroundColor Yellow
+$okBackend = Wait-Port -Name "backend" -Port 8000
+$okAdmin = Wait-Port -Name "admin" -Port $adminPort
+$okTenant = Wait-Port -Name "tenant" -Port $tenantPort
+if (-not ($okBackend -and $okAdmin -and $okTenant)) {
+    Write-Host "`nAlguno de los servicios no levanto correctamente." -ForegroundColor Red
+    Write-Host "Estado de jobs:" -ForegroundColor Yellow
+    Get-Job -Name backend,admin,tenant | Select-Object Id, Name, State, HasMoreData | Format-Table -AutoSize | Out-Host
+    Write-Host "`nSalida de jobs (ultimas lineas):" -ForegroundColor Yellow
+    Receive-Job -Name backend,admin,tenant -Keep | Select-Object -Last 80 | Out-Host
+    if (Test-Path $backendLog) {
+        Write-Host "`nbackend.log (ultimas 80 lineas):" -ForegroundColor Yellow
+        Get-Content $backendLog -Tail 80 | Out-Host
+    }
+    Stop-Job -Name backend,admin,tenant -ErrorAction SilentlyContinue
+    Remove-Job -Name backend,admin,tenant -Force -ErrorAction SilentlyContinue
+    exit 1
+}
+
 Write-Host "`n[OK] Sistema listo (como en PRO)" -ForegroundColor Green
 Write-Host "API: http://localhost:8000/docs" -ForegroundColor White
 Write-Host "Admin: $frontendUrl" -ForegroundColor White
 Write-Host "Tenant: $tenantOrigin" -ForegroundColor White
 Write-Host ""
-Write-Host "Tips: Usa 'Get-Job' y 'Receive-Job backend|admin|tenant' para ver logs." -ForegroundColor DarkGray
-
-Write-Host "`nPresiona Enter para detener todo..."
-Read-Host
-
-# Detener jobs
-Write-Host "Deteniendo servicios..." -ForegroundColor Yellow
-Stop-Job -Name backend,admin,tenant
-Remove-Job -Name backend,admin,tenant
-docker stop redis
-docker rm redis
-
-Write-Host "Todo detenido." -ForegroundColor Green
+Write-Host "Tips: Usa 'Get-Job' y 'Receive-Job -Name backend|admin|tenant -Keep' para ver logs." -ForegroundColor DarkGray
+Write-Host "Para detener: Stop-Job -Name backend,admin,tenant; Remove-Job -Name backend,admin,tenant" -ForegroundColor DarkGray
+Write-Host "Redis (opcional): docker stop redis; docker rm redis" -ForegroundColor DarkGray
+Write-Host "`nLos servicios quedan ejecutandose en segundo plano en esta sesion." -ForegroundColor Green

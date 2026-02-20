@@ -2,10 +2,10 @@
  * ImportProgressIndicator - Real-time progress indicator
  */
 import React from 'react'
-import { ProgressUpdate } from '../hooks/useImportProgress'
+import { ImportProgress } from '../hooks/useImportProgress'
 
 interface ImportProgressIndicatorProps {
-  progress: ProgressUpdate | null
+  progress: ImportProgress
   progressPercent: number
   isConnected: boolean
   error?: string | null
@@ -24,20 +24,11 @@ export const ImportProgressIndicator: React.FC<ImportProgressIndicatorProps> = (
   isConnected,
   error,
 }) => {
-  if (!progress) {
-    return (
-      <div className="flex items-center gap-3 p-4 bg-gray-50 border border-gray-200 rounded">
-        <div className="spinner" />
-        <span className="text-gray-700">Connecting to server...</span>
-      </div>
-    )
-  }
-
   const getStatusColor = () => {
     switch (progress.status) {
       case 'completed':
         return 'bg-green-50 border-green-200'
-      case 'failed':
+      case 'error':
         return 'bg-red-50 border-red-200'
       case 'processing':
         return 'bg-blue-50 border-blue-200'
@@ -50,7 +41,7 @@ export const ImportProgressIndicator: React.FC<ImportProgressIndicatorProps> = (
     switch (progress.status) {
       case 'completed':
         return 'OK'
-      case 'failed':
+      case 'error':
         return 'X'
       case 'processing':
         return '*'
@@ -61,7 +52,7 @@ export const ImportProgressIndicator: React.FC<ImportProgressIndicatorProps> = (
 
   const getProgressBarColor = () => {
     if (progress.status === 'completed') return 'bg-green-500'
-    if (progress.status === 'failed') return 'bg-red-500'
+    if (progress.status === 'error') return 'bg-red-500'
     if (progressPercent > 75) return 'bg-blue-500'
     if (progressPercent > 50) return 'bg-indigo-500'
     if (progressPercent > 25) return 'bg-amber-500'
@@ -75,13 +66,13 @@ export const ImportProgressIndicator: React.FC<ImportProgressIndicatorProps> = (
           <span className="text-3xl">{getStatusIcon()}</span>
           <div>
             <h3 className="font-bold text-gray-900">Importing...</h3>
-            <p className="text-sm text-gray-600">{progress.currentStep}</p>
+            <p className="text-sm text-gray-600">{progress.message || 'Procesando lote...'}</p>
           </div>
         </div>
         <div className="text-right">
           <div className="text-2xl font-bold text-gray-900">{progressPercent}%</div>
           <div className="text-xs text-gray-600">
-            {progress.rowsProcessed} / {progress.totalRows} rows
+            {progress.current} / {progress.total} rows
           </div>
         </div>
       </div>
@@ -95,20 +86,17 @@ export const ImportProgressIndicator: React.FC<ImportProgressIndicatorProps> = (
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white rounded p-3 text-center">
-          <div className="text-xs text-gray-600">Speed</div>
-          <div className="text-lg font-bold text-gray-900">{Math.round(progress.speed)} rows/s</div>
-        </div>
-
-        <div className="bg-white rounded p-3 text-center">
           <div className="text-xs text-gray-600">Estimated time</div>
-          <div className="text-lg font-bold text-gray-900">{formatTime(progress.estimatedTime)}</div>
+          <div className="text-lg font-bold text-gray-900">
+            {typeof progress.estimated_time_remaining === 'number'
+              ? formatTime(progress.estimated_time_remaining)
+              : '--'}
+          </div>
         </div>
 
-        <div className={`rounded p-3 text-center ${progress.errorCount > 0 ? 'bg-red-100' : 'bg-green-100'}`}>
-          <div className="text-xs text-gray-600">Errors</div>
-          <div className={`text-lg font-bold ${progress.errorCount > 0 ? 'text-red-700' : 'text-green-700'}`}>
-            {progress.errorCount}
-          </div>
+        <div className="rounded p-3 text-center bg-white">
+          <div className="text-xs text-gray-600">State</div>
+          <div className="text-lg font-bold text-gray-900">{progress.status}</div>
         </div>
 
         <div className={`rounded p-3 text-center ${isConnected ? 'bg-green-100' : 'bg-amber-100'}`}>
@@ -130,46 +118,19 @@ export const ImportProgressIndicator: React.FC<ImportProgressIndicatorProps> = (
         </div>
       )}
 
-      {progress.errors && progress.errors.length > 0 && (
-        <div className="bg-white rounded p-3 border border-gray-200">
-          <div className="text-xs font-bold text-gray-700 mb-2">Recent errors ({progress.errors.length})</div>
-          <div className="space-y-1 max-h-24 overflow-y-auto">
-            {progress.errors.slice(-3).map((err, idx) => (
-              <div key={idx} className="text-xs text-gray-600 border-l-2 border-red-400 pl-2">
-                <strong>Row {err.row}:</strong> {err.message}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {progress.status === 'completed' && (
         <div className="bg-green-100 border border-green-300 rounded p-3 text-green-800 text-sm">
           <strong>Import completed successfully</strong>
         </div>
       )}
 
-      {progress.status === 'failed' && (
+      {progress.status === 'error' && (
         <div className="bg-red-100 border border-red-300 rounded p-3 text-red-800 text-sm">
           <strong>Import failed</strong>
           <p className="text-xs mt-1">Review the errors above for more details</p>
         </div>
       )}
 
-      <style>{`
-        .spinner {
-          width: 20px;
-          height: 20px;
-          border: 2px solid #e5e7eb;
-          border-top-color: #3b82f6;
-          border-radius: 50%;
-          animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   )
 }

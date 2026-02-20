@@ -17,7 +17,10 @@
         "saleSupervisor": "Sale completed",
         "invoiceCreation": "Sale exceeds minimum for invoicing. Create invoice...",
         "heldTicketInfo": "Held ticket: {{id}}. Use Resume to continue.",
-        "heldTicketPick": "Held tickets:\n{{list}}\nEnter ID to resume"
+        "heldTicketPick": "Held tickets:\n{{list}}\nEnter ID to resume",
+        "partialWholesaleFrom": "Partial wholesale from {{threshold}}",
+        "wholesale": "Wholesale",
+        "completeBuyerDataQuick": "Complete customer data to issue invoice quickly"
     },
     "table": {
         "date": "Date",
@@ -46,7 +49,29 @@
         "offline": "Offline",
         "cashierLabel": "Cashier",
         "warehouseLabel": "Warehouse",
-        "syncing": "Sync"
+        "syncing": "Sync",
+        "backToDashboard": "Back to dashboard",
+        "registerOpen": "Register open",
+        "registerClosed": "Register closed",
+        "open": "Open",
+        "closed": "Closed",
+        "register": "Register",
+        "reviewClose": "Review close",
+        "openRegister": "Open register",
+        "currentTime": "Current time",
+        "closeSettings": "Close settings",
+        "settings": "Settings",
+        "customer": "Customer",
+        "discountShort": "Disc.",
+        "moreActions": "More actions",
+        "more": "More",
+        "themeLabel": "Visual theme",
+        "themeCorporate": "Corporate theme",
+        "themeSoftDark": "Soft dark theme",
+        "themeLight": "Light theme",
+        "printerStatus": "Printer status",
+        "printerOk": "Printer OK",
+        "printerUnavailable": "Printer N/A"
     },
     "view": {
         "byCategories": "By categories",
@@ -100,7 +125,8 @@
         "selected": "Selected",
         "wholesale": "Wholesale",
         "existingClient": "Existing customer",
-        "saveForFuture": "Save this customer for future sales"
+        "saveForFuture": "Save this customer for future sales",
+        "noDocumentTypes": "No document types available"
     },
     "createProduct": {
         "title": "Create product quickly",
@@ -113,11 +139,16 @@
         "tax": "Tax (%)",
         "category": "Category (optional)",
         "existingAdded": "Existing product added to cart.",
-        "creationFailed": "Could not create product"
+        "creationFailed": "Could not create product",
+        "description": "Complete the required fields to save and add to cart.",
+        "skuPlaceholder": "Product code",
+        "namePlaceholder": "Product name"
     },
     "print": {
         "format": "Print format",
-        "preview": "Receipt preview"
+        "preview": "Receipt preview",
+        "receipt80mm": "Receipt (80mm)",
+        "a4Paper": "A4 Paper"
     },
     "register": {
         "noRegisters": "No registers found",
@@ -162,6 +193,7 @@
         "currencyNotConfigured": "Currency not configured in company",
         "createTicketFailed": "Could not create ticket",
         "preparePaymentFailed": "Payment preparation failed",
-        "tooManyRequests": "Too many requests (429). Please wait a few seconds and retry."
+        "tooManyRequests": "Too many requests (429). Please wait a few seconds and retry.",
+        "saveThemeFailed": "Could not save theme for this company"
     }
 }

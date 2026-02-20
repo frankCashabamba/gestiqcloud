@@ -49,11 +49,7 @@ const TallerDashboard: React.FC = () => {
     )
   }
 
-  const customLinks = [
-    isModuleEnabled('ventas') && { label: 'Work order', href: '#new-wo', icon: 'W' },
-    isModuleEnabled('facturacion') && { label: 'Quotes', href: '#quotes', icon: 'Q' },
-    isModuleEnabled('inventario') && { label: 'Quality control', href: '#quality', icon: 'C' },
-  ].filter(Boolean) as Array<{ label: string; href: string; icon: string }>
+  const customLinks: Array<{ label: string; href: string; icon: string }> = []
 
   return (
     <DashboardPro sectorName="Workshop ERP" sectorIcon="T" customLinks={customLinks}>
@@ -68,9 +64,6 @@ const TallerDashboard: React.FC = () => {
           <p style={{ marginTop: '12px', opacity: 0.9 }}>
             Start by adding your customers. Other modules will unlock as you progress.
           </p>
-          <a href="#customers" className="btn" style={{ marginTop: '20px', display: 'inline-block', background: '#fff', color: 'var(--primary)', fontWeight: 600 }}>
-            Go to Customers
-          </a>
         </section>
       )}
 
@@ -83,12 +76,6 @@ const TallerDashboard: React.FC = () => {
               <span className="pill">{reparaciones.total || 0} jobs in progress</span>
               <span className="pill pill--warn">{reparaciones.urgentes || 0} urgent</span>
             </div>
-          </div>
-          <div className="card__actions">
-            {isModuleEnabled('ventas') && <a className="link" href="#wo">New work order</a>}
-            {isModuleEnabled('facturacion') && <a className="link" href="#quote">New quote</a>}
-            {isModuleEnabled('inventario') && <a className="link" href="#parts">Order parts</a>}
-            {isModuleEnabled('clientes') && <a className="link" href="#customers">Customers</a>}
           </div>
         </section>
 
@@ -131,9 +118,6 @@ const TallerDashboard: React.FC = () => {
                 ))}
               </ul>
             )}
-            <div className="card__footer">
-              <a className="link" href="#parts">Order now</a>
-            </div>
           </section>
         )}
 
@@ -167,41 +151,6 @@ const TallerDashboard: React.FC = () => {
           </section>
         )}
 
-        <section className="card col-8">
-          <h3>Quick actions</h3>
-          <div className="action-grid">
-            {isModuleEnabled('ventas') && (
-              <a href="#new-wo" className="action-btn">
-                <span className="action-btn__icon">W</span>
-                <span>New work order</span>
-              </a>
-            )}
-            {isModuleEnabled('facturacion') && (
-              <a href="#quote" className="action-btn">
-                <span className="action-btn__icon">Q</span>
-                <span>New quote</span>
-              </a>
-            )}
-            {isModuleEnabled('ventas') && (
-              <a href="#diagnosis" className="action-btn">
-                <span className="action-btn__icon">D</span>
-                <span>Diagnosis</span>
-              </a>
-            )}
-            {isModuleEnabled('ventas') && (
-              <a href="#delivery" className="action-btn">
-                <span className="action-btn__icon">V</span>
-                <span>Vehicle delivery</span>
-              </a>
-            )}
-            {isModuleEnabled('clientes') && (
-              <a href="#customers" className="action-btn">
-                <span className="action-btn__icon">@</span>
-                <span>New customer</span>
-              </a>
-            )}
-          </div>
-        </section>
       </div>
     </DashboardPro>
   )

@@ -118,13 +118,13 @@ apps/tenant/src/modules/ventas/
 2. Rellenar fecha, cliente (opcional), estado
 3. Añadir líneas de venta (productos, cantidades, precios)
 4. Sistema calcula automáticamente totales
-5. Guardar → POST `/api/v1/sales`
+5. Guardar → POST `/api/v1/tenant/sales_orders`
 
 ### 2. Editar Venta
 1. Desde List → Click "Editar" → `Form.tsx` con ID
 2. Carga datos existentes incluyendo líneas
 3. Modificar campos/líneas
-4. Guardar → PUT `/api/v1/sales/:id`
+4. Guardar → PUT `/api/v1/tenant/sales_orders/:id`
 
 ### 3. Convertir a Factura
 1. Desde Detail → Click "Convertir a Factura"
@@ -153,15 +153,15 @@ apps/tenant/src/modules/ventas/
 ### Endpoints esperados
 
 ```
-GET    /api/v1/sales           → Listar ventas
-GET    /api/v1/sales/:id       → Obtener venta
-POST   /api/v1/sales           → Crear venta
-PUT    /api/v1/sales/:id       → Actualizar venta
-DELETE /api/v1/sales/:id       → Eliminar venta
-POST   /api/v1/sales/:id/to_invoice → Convertir a factura
+GET    /api/v1/tenant/sales_orders            → Listar ventas
+GET    /api/v1/tenant/sales_orders/:id        → Obtener venta
+POST   /api/v1/tenant/sales_orders            → Crear venta
+PUT    /api/v1/tenant/sales_orders/:id        → Actualizar venta
+DELETE /api/v1/tenant/sales_orders/:id        → Eliminar venta
+POST   /api/v1/tenant/sales_orders/:id/invoice → Convertir a factura
 ```
 
-### Respuesta esperada (GET /api/v1/sales)
+### Respuesta esperada (GET /api/v1/tenant/sales_orders)
 
 Opción 1 - Array directo:
 ```json
@@ -276,10 +276,10 @@ Al modificar este módulo:
 - API client: `apps/tenant/src/shared/api/client.ts`
 - Toast system: `apps/tenant/src/shared/toast.ts`
 - Paginación: `apps/tenant/src/shared/pagination.ts`
-- Backend: `apps/backend/app/routers/ventas.py` (por implementar)
+- Backend: `apps/backend/app/modules/sales/interface/http/tenant.py`
 
 ---
 
 **Versión**: 1.0.0
-**Última actualización**: Enero 2025
-**Estado**: ✅ Completado - Production Ready
+**Última revisión documental**: Febrero 2026
+**Estado**: Activo (validar cobertura con tests en CI)

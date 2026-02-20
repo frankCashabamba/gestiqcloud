@@ -1,0 +1,189 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                         SPRINT 3: TIER 3 MODULES                           ║
+║                        Semana 6-7 (2 weeks)                                ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+SEMANA 6: WEBHOOKS + NOTIFICATIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MON-TUE: WEBHOOKS (Domain, Schemas, Endpoints)
+├─ WebhookSubscription model
+├─ WebhookDelivery model
+├─ EventType enum (20+ events)
+├─ Create/Update/Delete/List endpoints
+└─ Test & History endpoints
+Status: 40%
+
+WED-THU: WEBHOOKS (Infrastructure, Delivery, Testing)
+├─ WebhookDeliveryService (HMAC + retry)
+├─ WebhookEventQueue (Redis)
+├─ Database repository
+├─ Unit & integration tests
+└─ Code quality check
+Status: 80%
+
+FRI: NOTIFICATIONS START
+├─ Domain models + schemas
+├─ SendGrid integration
+├─ Email + SMS + In-app channels
+└─ Endpoints & use cases
+Status: 30%
+
+DELIVERABLE: Working webhooks with retry + Start notifications
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SEMANA 7: RECONCILIATION + REPORTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MON: NOTIFICATIONS COMPLETE
+├─ Email templates (Jinja2)
+├─ Notification center
+├─ Event triggers (invoice to email)
+└─ All tests passing
+Status: 100%
+
+TUE: RECONCILIATION START
+├─ Bank statement import (CSV)
+├─ Supplier invoice import
+├─ Matching algorithm (AI-based)
+└─ Manual match UI
+Status: 40%
+
+WED-THU: RECONCILIATION COMPLETE + REPORTS START
+├─ Auto-reconciliation working
+├─ Difference resolution
+├─ Dynamic report builder
+├─ 6 report types (Sales, Inventory, Financial, etc.)
+└─ Excel/PDF/CSV export
+Status: 80%
+
+FRI: SPRINT 3 COMPLETE
+├─ Reports fully working
+├─ All tests passing
+├─ Code quality: 100%
+├─ Integration with Tier 1 + 2 complete
+└─ Merge to main
+Status: 100%
+
+DELIVERABLE: Complete Tier 3 system (12+ modules)
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                            ARCHITECTURE FLOW                               ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────┐
+│       APPLICATION EVENTS                         │
+│  (Invoice created, Payment received, etc.)       │
+└────────────────┬─────────────────────────────────┘
+                 │
+     ┌───────────┼───────────┬──────────┐
+     │           │           │          │
+     ▼           ▼           ▼          ▼
+  WEBHOOKS   NOTIFICATIONS RECONCILIATION REPORTS
+     │           │           │          │
+     ├─Queue     ├─SendGrid   ├─Matching├─Generate
+     ├─Retry     ├─SMS        ├─Import  ├─Export
+     ├─Deliver   ├─In-app     └─Resolve └─Cache
+     └─History   └─Dashboard
+
+  External Systems ←─ Notifications ──→ Users
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                        MODULES BEING CREATED                               ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+1. WEBHOOKS
+   ├─ 8 Use Cases
+   ├─ 6 Endpoints
+   ├─ HMAC-SHA256 Signing
+   ├─ Exponential Backoff (1s, 2s, 4s, 8s, 16s)
+   ├─ Redis Queue
+   └─ Delivery Tracking
+
+   Files: 7 modules (domain, application, interface, infrastructure)
+   Tests: 50+ test cases
+   Time:  3 days (MON-WED)
+
+2. NOTIFICATIONS
+   ├─ 7 Use Cases
+   ├─ 6 Endpoints
+   ├─ Email (SendGrid)
+   ├─ SMS (Twilio optional)
+   ├─ In-app (Database)
+   └─ Notification Center
+
+   Files: 7 modules + email templates
+   Tests: 40+ test cases
+   Time:  2 days (WED-FRI of week 6)
+
+3. RECONCILIATION
+   ├─ 7 Use Cases
+   ├─ 5 Endpoints
+   ├─ Bank Statement Import
+   ├─ Supplier Invoice Import
+   ├─ AI Matching Algorithm (95% accuracy)
+   └─ Difference Resolution
+
+   Files: 7 modules + importers
+   Tests: 35+ test cases
+   Time:  2 days (MON-TUE of week 7)
+
+4. REPORTS
+   ├─ 6 Use Cases
+   ├─ 7 Endpoints
+   ├─ 6 Report Types
+   │  ├─ Sales Report
+   │  ├─ Inventory Report
+   │  ├─ Financial Report (P&L, Balance Sheet)
+   │  ├─ Payroll Report
+   │  ├─ Customer Report
+   │  └─ Supplier Report
+   └─ 3 Export Formats (Excel, PDF, CSV)
+
+   Files: 7 modules + generators + exporters
+   Tests: 45+ test cases
+   Time:  3 days (WED-FRI of week 7)
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                         FINAL DELIVERABLE                                  ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+SPRINT 3 COMPLETE (Friday Semana 7)
+
+MODULES: 12+ Total
+├─ Tier 1 (5 modules):    Identity, POS, Invoicing, Inventory, Sales
+├─ Tier 2 (4 modules):    Accounting, Finance, HR, E-Invoicing
+└─ Tier 3 (4 modules):    Webhooks, Notifications, Reconciliation, Reports
+
+FEATURES:
+├─ Event-driven architecture
+├─ Multi-channel notifications
+├─ Smart reconciliation
+├─ Dynamic reporting
+└─ Full integration
+
+STATUS: Ready for SPRINT 4 (Frontend/E2E/Performance)
+TIMELINE: ON TRACK for production deployment Semana 10
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                         QUICK START (TODAY)                                ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+1. Read:   SPRINT_3_README.md (overview)
+2. Study:  SPRINT_3_WEBHOOKS_GUIDE.md (detailed implementation)
+3. Check:  SPRINT_3_ACTION_CHECKLIST.md (daily tasks)
+4. Do:     Create apps/webhooks directory structure
+5. Code:   Follow domain → application → interface → infrastructure pattern
+
+$ cd c:/Users/frank/OneDrive/Documentos/GitHub/gestiqcloud
+$ git checkout -b sprint-3-tier3
+$ mkdir -p apps/webhooks/{domain,application,interface/http,infrastructure}
+
+═══════════════════════════════════════════════════════════════════════════════
+
+                        LET'S BUILD THIS THING!
+                          2 WEEKS → 12+ MODULES
+                     Timeline: On Track for Production
+
+═══════════════════════════════════════════════════════════════════════════════

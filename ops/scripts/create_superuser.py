@@ -175,9 +175,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                     .first()
                 )
                 if other:
-                    print(
-                        f"ERROR: username '{username}' already in use by id={other.id}"
-                    )
+                    print(f"ERROR: username '{username}' already in use by id={other.id}")
                     return 3
                 existing.username = username
                 changed = True
@@ -241,9 +239,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             pass
         db.add(su)
         db.flush()
-        print(
-            f"OK Created SuperUser: id={su.id} username={su.username} email={su.email}"
-        )
+        print(f"OK Created SuperUser: id={su.id} username={su.username} email={su.email}")
         return 0
 
 

@@ -1,0 +1,470 @@
+{
+  "info": {
+    "name": "GESTIQCLOUD SPRINT 1 - Tier 1 Modules",
+    "description": "Complete test collection for Identity, POS, Invoicing, Inventory, Sales",
+    "version": "1.0.0"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api/v1/tenant",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "IDENTITY",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {},
+            "url": {
+              "raw": "{{base_url}}/auth/refresh",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "refresh"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"password123\",\n  \"new_password\": \"newpassword456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/password",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "password"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {},
+            "url": {
+              "raw": "{{base_url}}/auth/logout",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "logout"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "POS",
+      "item": [
+        {
+          "name": "Open Shift",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"register_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"opening_float\": 100.00\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/pos/shifts/open",
+              "host": ["{{base_url}}"],
+              "path": ["pos", "shifts", "open"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Receipt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shift_id\": \"550e8400-e29b-41d4-a716-446655440001\",\n  \"register_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"customer_id\": \"550e8400-e29b-41d4-a716-446655440002\",\n  \"lines\": [\n    {\n      \"product_id\": \"550e8400-e29b-41d4-a716-446655440003\",\n      \"product_name\": \"Product A\",\n      \"qty\": 2,\n      \"unit_price\": 100.00,\n      \"tax_rate\": 0.21,\n      \"discount_pct\": 10\n    }\n  ],\n  \"notes\": \"Test receipt\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/pos/receipts",
+              "host": ["{{base_url}}"],
+              "path": ["pos", "receipts"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Checkout Receipt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payments\": [\n    {\n      \"method\": \"cash\",\n      \"amount\": 250.00\n    }\n  ],\n  \"warehouse_id\": \"550e8400-e29b-41d4-a716-446655440004\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/pos/receipts/550e8400-e29b-41d4-a716-446655440005/checkout",
+              "host": ["{{base_url}}"],
+              "path": ["pos", "receipts", "550e8400-e29b-41d4-a716-446655440005", "checkout"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Receipt",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/pos/receipts/550e8400-e29b-41d4-a716-446655440005",
+              "host": ["{{base_url}}"],
+              "path": ["pos", "receipts", "550e8400-e29b-41d4-a716-446655440005"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Close Shift",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cash_count\": 350.00,\n  \"notes\": \"Shift closed normally\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/pos/shifts/550e8400-e29b-41d4-a716-446655440001/close",
+              "host": ["{{base_url}}"],
+              "path": ["pos", "shifts", "550e8400-e29b-41d4-a716-446655440001", "close"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "INVOICING",
+      "item": [
+        {
+          "name": "Create Invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"550e8400-e29b-41d4-a716-446655440002\",\n  \"lines\": [\n    {\n      \"description\": \"Product A\",\n      \"qty\": 2,\n      \"unit_price\": 100.00,\n      \"tax_rate\": 0.21,\n      \"amount\": 200.00\n    }\n  ],\n  \"notes\": \"Test invoice\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/invoicing/invoices",
+              "host": ["{{base_url}}"],
+              "path": ["invoicing", "invoices"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Send Invoice Email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipient_email\": \"customer@example.com\",\n  \"template\": \"default\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/invoicing/invoices/550e8400-e29b-41d4-a716-446655440006/send",
+              "host": ["{{base_url}}"],
+              "path": ["invoicing", "invoices", "550e8400-e29b-41d4-a716-446655440006", "send"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Invoice Paid",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paid_amount\": 242.00,\n  \"payment_method\": \"transfer\",\n  \"payment_ref\": \"TRF-001234\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/invoicing/invoices/550e8400-e29b-41d4-a716-446655440006/mark-paid",
+              "host": ["{{base_url}}"],
+              "path": ["invoicing", "invoices", "550e8400-e29b-41d4-a716-446655440006", "mark-paid"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Invoices",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invoicing/invoices",
+              "host": ["{{base_url}}"],
+              "path": ["invoicing", "invoices"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "INVENTORY",
+      "item": [
+        {
+          "name": "Receive Stock",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"warehouse_id\": \"550e8400-e29b-41d4-a716-446655440004\",\n  \"lines\": [\n    {\n      \"product_id\": \"550e8400-e29b-41d4-a716-446655440003\",\n      \"qty\": 100,\n      \"unit_cost\": 50.00\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/inventory/stock/receive",
+              "host": ["{{base_url}}"],
+              "path": ["inventory", "stock", "receive"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Adjust Stock",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"warehouse_id\": \"550e8400-e29b-41d4-a716-446655440004\",\n  \"product_id\": \"550e8400-e29b-41d4-a716-446655440003\",\n  \"qty_adjustment\": -5,\n  \"reason\": \"Damage\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/inventory/stock/adjust",
+              "host": ["{{base_url}}"],
+              "path": ["inventory", "stock", "adjust"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Inventory Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/inventory/summary",
+              "host": ["{{base_url}}"],
+              "path": ["inventory", "summary"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "SALES",
+      "item": [
+        {
+          "name": "Create Sales Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"550e8400-e29b-41d4-a716-446655440002\",\n  \"lines\": [\n    {\n      \"product_id\": \"550e8400-e29b-41d4-a716-446655440003\",\n      \"product_name\": \"Product A\",\n      \"qty\": 5,\n      \"unit_price\": 100.00,\n      \"discount_pct\": 5\n    }\n  ],\n  \"notes\": \"Test order\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/sales/orders",
+              "host": ["{{base_url}}"],
+              "path": ["sales", "orders"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Order",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/sales/orders/550e8400-e29b-41d4-a716-446655440007/approve",
+              "host": ["{{base_url}}"],
+              "path": ["sales", "orders", "550e8400-e29b-41d4-a716-446655440007", "approve"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Invoice From Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/sales/orders/550e8400-e29b-41d4-a716-446655440007/invoice",
+              "host": ["{{base_url}}"],
+              "path": ["sales", "orders", "550e8400-e29b-41d4-a716-446655440007", "invoice"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/sales/orders",
+              "host": ["{{base_url}}"],
+              "path": ["sales", "orders"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

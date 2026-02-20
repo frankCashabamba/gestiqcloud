@@ -206,10 +206,14 @@ self.addEventListener('fetch', (event) => {
     } else {
       event.respondWith(
         (async () => {
+          const offlineManaged = request.headers.get('X-Offline-Managed') === '1'
           try {
             const res = await fetch(withVersionHeader(request.clone()))
             return res
           } catch (_) {
+            if (offlineManaged) {
+              throw _
+            }
             if (isTelemetry) {
               return new Response(null, { status: 204 })
             }

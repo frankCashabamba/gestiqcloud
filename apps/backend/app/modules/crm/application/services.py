@@ -2,6 +2,7 @@
 CRM Application Services
 """
 
+import logging
 from datetime import datetime
 from uuid import UUID
 
@@ -23,6 +24,8 @@ from app.modules.crm.application.schemas import (
 )
 from app.modules.crm.domain.entities import ActivityStatus, LeadStatus, OpportunityStage
 from app.modules.crm.domain.models import Activity, Lead, Opportunity
+
+logger = logging.getLogger(__name__)
 
 
 class CRMService:
@@ -83,6 +86,23 @@ class CRMService:
         self.db.add(lead)
         self.db.commit()
         self.db.refresh(lead)
+
+        # Trigger customer.created webhook
+        try:
+            from app.modules.crm.webhooks import CustomerWebhookService
+
+            webhook_service = CustomerWebhookService(self.db)
+            webhook_service.trigger_customer_created(
+                tenant_id=tenant_id,
+                customer_id=str(lead.id),
+                customer_name=lead.name,
+                customer_email=getattr(lead, "email", None),
+                customer_phone=getattr(lead, "phone", None),
+                customer_type="lead",
+            )
+        except Exception as e:
+            logger.error(f"Error triggering customer.created webhook: {e}")
+
         return LeadOut.model_validate(lead)
 
     def update_lead(self, tenant_id: UUID, lead_id: UUID, data: LeadUpdate) -> LeadOut | None:
@@ -91,13 +111,36 @@ class CRMService:
         if not lead:
             return None
 
+        # Track changes for webhook
+        changes = {}
         update_data = data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
+            old_value = getattr(lead, field, None)
+            if old_value != value:
+                changes[field] = value
             setattr(lead, field, value)
 
         lead.updated_at = datetime.utcnow()
         self.db.commit()
         self.db.refresh(lead)
+
+        # Trigger customer.updated webhook only if there were changes
+        if changes:
+            try:
+                from app.modules.crm.webhooks import CustomerWebhookService
+
+                webhook_service = CustomerWebhookService(self.db)
+                webhook_service.trigger_customer_updated(
+                    tenant_id=tenant_id,
+                    customer_id=str(lead.id),
+                    customer_name=lead.name,
+                    customer_email=getattr(lead, "email", None),
+                    customer_phone=getattr(lead, "phone", None),
+                    changes=changes,
+                )
+            except Exception as e:
+                logger.error(f"Error triggering customer.updated webhook: {e}")
+
         return LeadOut.model_validate(lead)
 
     def delete_lead(self, tenant_id: UUID, lead_id: UUID) -> bool:

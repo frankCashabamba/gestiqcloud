@@ -1,137 +1,235 @@
-from __future__ import annotations
+"""Reconciliation endpoints - Tenant."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field
-from sqlalchemy import text
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.core.access_guard import with_access_claims
-from app.core.authz import require_scope
-from app.db.rls import ensure_rls, tenant_id_from_request
-
-router = APIRouter(
-    prefix="/reconciliation",
-    tags=["Reconciliation"],
-    dependencies=[
-        Depends(with_access_claims),
-        Depends(require_scope("tenant")),
-        Depends(ensure_rls),
-    ],
+from app.middleware.tenant import ensure_tenant, get_current_user
+from app.modules.reconciliation.application.schemas import (
+    ImportStatementRequest,
+    ManualMatchRequest,
+    ReconcilePaymentRequest,
+    ReconcilePaymentResponse,
+    ReconciliationSummaryResponse,
+    StatementLineResponse,
+    StatementListResponse,
+    StatementResponse,
+)
+from app.modules.reconciliation.application.use_cases import (
+    AutoMatchUseCase,
+    GetPendingReconciliationsUseCase,
+    GetReconciliationSummaryUseCase,
+    GetStatementDetailUseCase,
+    ImportStatementUseCase,
+    ListStatementsUseCase,
+    ManualMatchUseCase,
+    ReconcilePaymentUseCase,
+)
+from app.modules.reconciliation.domain.exceptions import (
+    AlreadyReconciled,
+    LineNotFound,
+    StatementNotFound,
 )
 
-
-class LinkIn(BaseModel):
-    bank_transaction_id: int
-    invoice_id: int
-    amount: float = Field(gt=0)
+router = APIRouter(prefix="/reconciliation", tags=["reconciliation"])
 
 
-@router.post("/link", response_model=dict)
-def link_payment(payload: LinkIn, request: Request, db: Session = Depends(get_db)):
-    tenant_id = tenant_id_from_request(request)
-    if tenant_id is None:
-        raise HTTPException(status_code=403, detail="missing_tenant")
-    # Ensure bank tx exists
-    tx = db.execute(
-        text("SELECT id, importe FROM bank_transactions WHERE id=:id AND tenant_id=:tid"),
-        {"id": payload.bank_transaction_id, "tid": tenant_id},
-    ).first()
-    if not tx:
-        raise HTTPException(status_code=404, detail="bank_tx_not_found")
-    # Ensure invoice exists and total
-    inv = db.execute(
-        text("SELECT id, total FROM facturas WHERE id=:id AND tenant_id=:tid"),
-        {"id": payload.invoice_id, "tid": tenant_id},
-    ).first()
-    if not inv:
-        raise HTTPException(status_code=404, detail="invoice_not_found")
-
-    # Create payment record
-    db.execute(
-        text(
-            "INSERT INTO payments(tenant_id, bank_tx_id, factura_id, fecha, importe_aplicado, notas) "
-            "SELECT f.tenant_id, :tx, :inv, now()::date, :amt, 'reconciled' FROM facturas f WHERE f.id=:inv"
-        ),
-        {
-            "tx": payload.bank_transaction_id,
-            "inv": payload.invoice_id,
-            "amt": payload.amount,
-        },
-    )
-
-    # Update invoice status based on sum payments
-    s = db.execute(
-        text(
-            "SELECT COALESCE(sum(importe_aplicado),0) "
-            "FROM payments WHERE factura_id=:inv AND tenant_id=:tid"
-        ),
-        {"inv": payload.invoice_id, "tid": tenant_id},
-    ).scalar()
-    tot = float(inv[1] or 0)
-    new_status = "pagada" if s + 1e-6 >= tot else "parcial"
-    db.execute(
-        text("UPDATE facturas SET estado=:st WHERE id=:id AND tenant_id=:tid"),
-        {"st": new_status, "id": payload.invoice_id, "tid": tenant_id},
-    )
-    db.commit()
-    return {
-        "ok": True,
-        "invoice_id": payload.invoice_id,
-        "paid_total": float(s),
-        "status": new_status,
-    }
-
-
-class SuggestOut(BaseModel):
-    bank_transaction_id: int
-    invoice_id: int
-    score: float
-    amount: float
-    days_diff: int
-
-
-@router.get("/suggestions", response_model=list[SuggestOut])
-def suggestions(
-    request: Request,
+@router.post("/statements", response_model=StatementResponse, status_code=201)
+def import_statement(
+    request: ImportStatementRequest,
     db: Session = Depends(get_db),
-    since: str | None = Query(default=None),
-    until: str | None = Query(default=None),
-    tolerance: float = Query(default=0.01),
+    tenant_id: str = Depends(ensure_tenant),
+    current_user: dict = Depends(get_current_user),
 ):
-    tenant_id = tenant_id_from_request(request)
-    if tenant_id is None:
-        raise HTTPException(status_code=403, detail="missing_tenant")
-    # Simple matching by amount with small tolerance and date proximity (+/- 7 days)
-    sql = """
-        WITH cand AS (
-          SELECT bt.id AS bank_id, bt.importe AS amt, f.id AS inv_id, f.total AS total,
-                 abs(bt.importe - f.total) AS diff,
-                 abs(EXTRACT(EPOCH FROM (bt.fecha::timestamp - f.fecha_emision::timestamp)))/86400.0 AS days
-            FROM bank_transactions bt
-            JOIN facturas f ON f.tenant_id = bt.tenant_id
-           WHERE bt.tenant_id = :tid
-             AND abs(bt.importe - f.total) <= :tol
-             AND ( :since::date IS NULL OR bt.fecha >= :since::date )
-             AND ( :until::date IS NULL OR bt.fecha <= :until::date )
+    """Import a bank statement with transactions."""
+    try:
+        use_case = ImportStatementUseCase()
+        statement = use_case.execute(
+            tenant_id=UUID(tenant_id),
+            bank_name=request.bank_name,
+            account_number=request.account_number,
+            statement_date=request.statement_date,
+            transactions=request.transactions,
+            db_session=db,
         )
-        SELECT bank_id, inv_id, (1.0/(1.0+diff)) + (1.0/(1.0+days)) AS score, amt, days::int
-          FROM cand
-         WHERE days <= 7
-         ORDER BY score DESC
-         LIMIT 50
-        """
-    rows = db.execute(
-        text(sql),
-        {"tid": tenant_id, "tol": tolerance, "since": since, "until": until},
-    ).fetchall()
-    return [
-        SuggestOut(
-            bank_transaction_id=int(r[0]),
-            invoice_id=int(r[1]),
-            score=float(r[2]),
-            amount=float(r[3]),
-            days_diff=int(r[4]),
+        return StatementResponse.model_validate(statement)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/statements", response_model=StatementListResponse)
+def list_statements(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
+    db: Session = Depends(get_db),
+    tenant_id: str = Depends(ensure_tenant),
+    current_user: dict = Depends(get_current_user),
+):
+    """List bank statements for current tenant."""
+    use_case = ListStatementsUseCase()
+    items, total = use_case.execute(
+        tenant_id=UUID(tenant_id),
+        skip=skip,
+        limit=limit,
+        db_session=db,
+    )
+    return StatementListResponse(
+        items=[StatementResponse.model_validate(s) for s in items],
+        total=total,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.get("/statements/{statement_id}", response_model=StatementResponse)
+def get_statement_detail(
+    statement_id: UUID,
+    db: Session = Depends(get_db),
+    tenant_id: str = Depends(ensure_tenant),
+    current_user: dict = Depends(get_current_user),
+):
+    """Get statement detail with its lines."""
+    try:
+        use_case = GetStatementDetailUseCase()
+        statement = use_case.execute(
+            statement_id=statement_id,
+            tenant_id=UUID(tenant_id),
+            db_session=db,
         )
-        for r in rows
-    ]
+        return StatementResponse.model_validate(statement)
+    except StatementNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get(
+    "/statements/{statement_id}/lines",
+    response_model=list[StatementLineResponse],
+)
+def get_statement_lines(
+    statement_id: UUID,
+    db: Session = Depends(get_db),
+    tenant_id: str = Depends(ensure_tenant),
+    current_user: dict = Depends(get_current_user),
+):
+    """Get lines for a specific statement."""
+    try:
+        use_case = GetStatementDetailUseCase()
+        statement = use_case.execute(
+            statement_id=statement_id,
+            tenant_id=UUID(tenant_id),
+            db_session=db,
+        )
+        return [StatementLineResponse.model_validate(line) for line in statement.lines]
+    except StatementNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/statements/{statement_id}/auto-match", response_model=StatementResponse)
+def auto_match_statement(
+    statement_id: UUID,
+    db: Session = Depends(get_db),
+    tenant_id: str = Depends(ensure_tenant),
+    current_user: dict = Depends(get_current_user),
+):
+    """Run auto-matching on a statement's unmatched lines."""
+    try:
+        use_case = AutoMatchUseCase()
+        statement = use_case.execute(
+            statement_id=statement_id,
+            tenant_id=UUID(tenant_id),
+            db_session=db,
+        )
+        return StatementResponse.model_validate(statement)
+    except StatementNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/match", response_model=StatementLineResponse)
+def manual_match(
+    request: ManualMatchRequest,
+    db: Session = Depends(get_db),
+    tenant_id: str = Depends(ensure_tenant),
+    current_user: dict = Depends(get_current_user),
+):
+    """Manually match a statement line to an invoice."""
+    try:
+        use_case = ManualMatchUseCase()
+        line = use_case.execute(
+            line_id=request.line_id,
+            invoice_id=request.invoice_id,
+            tenant_id=UUID(tenant_id),
+            db_session=db,
+        )
+        return StatementLineResponse.model_validate(line)
+    except LineNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except AlreadyReconciled as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/summary", response_model=ReconciliationSummaryResponse)
+def get_reconciliation_summary(
+    db: Session = Depends(get_db),
+    tenant_id: str = Depends(ensure_tenant),
+    current_user: dict = Depends(get_current_user),
+):
+    """Get aggregate reconciliation statistics."""
+    use_case = GetReconciliationSummaryUseCase()
+    result = use_case.execute(
+        tenant_id=UUID(tenant_id),
+        db_session=db,
+    )
+    return ReconciliationSummaryResponse(**result)
+
+
+@router.post("/payments", response_model=ReconcilePaymentResponse)
+def reconcile_payment(
+    request: ReconcilePaymentRequest,
+    db: Session = Depends(get_db),
+    tenant_id: str = Depends(ensure_tenant),
+    current_user: dict = Depends(get_current_user),
+):
+    """Reconcile a payment against an invoice."""
+    use_case = ReconcilePaymentUseCase()
+    result = use_case.execute(
+        tenant_id=UUID(tenant_id),
+        invoice_id=request.invoice_id,
+        payment_amount=request.payment_amount,
+        payment_date=request.payment_date,
+        payment_reference=request.payment_reference,
+        payment_method=request.payment_method,
+        notes=request.notes,
+        db_session=db,
+    )
+
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Reconciliation failed"))
+
+    return ReconcilePaymentResponse(**result)
+
+
+@router.get("/pending")
+def get_pending_reconciliations(
+    db: Session = Depends(get_db),
+    tenant_id: str = Depends(ensure_tenant),
+    current_user: dict = Depends(get_current_user),
+):
+    """Get all invoices pending reconciliation."""
+    use_case = GetPendingReconciliationsUseCase()
+    result = use_case.execute(
+        tenant_id=UUID(tenant_id),
+        db_session=db,
+    )
+
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=400, detail=result.get("error", "Failed to get pending reconciliations")
+        )
+
+    return result

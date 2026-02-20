@@ -8,6 +8,8 @@
  */
 
 import { apiFetch } from '../../../lib/http'
+import { IMPORTS } from '@endpoints/imports'
+import { withImportAIProvider } from './aiProviderPreference'
 
 export interface ClassifyResponse {
   /** Parser sugerido basado en análisis del archivo */
@@ -33,7 +35,7 @@ export async function classifyFileBasic(file: File, authToken?: string): Promise
   const formData = new FormData()
   formData.append('file', file)
 
-  return apiFetch<ClassifyResponse>('/api/v1/imports/files/classify', {
+  return apiFetch<ClassifyResponse>(IMPORTS.public.filesClassify, {
     method: 'POST',
     body: formData,
     authToken,
@@ -47,7 +49,7 @@ export async function classifyFileWithAI(file: File, authToken?: string): Promis
   const formData = new FormData()
   formData.append('file', file)
 
-  return apiFetch<ClassifyResponse>('/api/v1/imports/files/classify-with-ai', {
+  return apiFetch<ClassifyResponse>(withImportAIProvider(IMPORTS.public.filesClassifyWithAI), {
     method: 'POST',
     body: formData,
     authToken,

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { listProductMargins, listCustomerMargins, listProductLines, type ProductMargin, type CustomerMargin, type ProductLineMargin } from '../../services/api/margins'
+import { getProductMargins, getProfitReport, type ProductMarginRow } from '../../services/api/profit-reports'
 import { listProducts } from '../../services/api/products'
 import { fetchBodegas } from '../inventory/services/inventory'
 import { getCompanySettings, formatCurrency as formatCurrencyWithSettings, type CompanySettings } from '../../services/companySettings'
@@ -14,6 +14,15 @@ type Product = { id: string; name: string }
 
 const toISO = (d: Date) => d.toISOString().split('T')[0]
 const addDays = (d: Date, days: number) => new Date(d.getTime() + days * 86400000)
+
+// Map new API response to old format for backward compatibility
+const mapProductMarginRow = (row: ProductMarginRow) => ({
+  product_id: row.product_id,
+  sales_net: row.revenue,
+  cogs: row.cogs,
+  gross_profit: row.gross_profit,
+  margin_pct: row.margin_pct / 100, // Convert from percentage to decimal
+})
 
 const formatMoney = (v: number, settings?: CompanySettings | null) =>
   formatCurrencyWithSettings(v || 0, settings || undefined)
@@ -31,24 +40,15 @@ export default function MarginsDashboard() {
   const [threshold, setThreshold] = useState(0.15)
   const [products, setProducts] = useState<Product[]>([])
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
-  const [productRows, setProductRows] = useState<ProductMargin[]>([])
-  const [customerRows, setCustomerRows] = useState<CustomerMargin[]>([])
-  const [lines, setLines] = useState<ProductLineMargin[]>([])
-  const [selectedProduct, setSelectedProduct] = useState<string>('')
+  const [productRows, setProductRows] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'productos' | 'clientes' | 'detalle'>('productos')
   const [error, setError] = useState<string | null>(null)
 
-  const params = useMemo(() => {
-    const from = fromDate
-    const to = toISO(addDays(new Date(toDate), 1))
-    return {
-      from,
-      to,
-      warehouse_id: warehouseId || undefined,
-      limit: 200
-    }
-  }, [fromDate, toDate, warehouseId])
+  const dateParams = useMemo(() => ({
+    from: fromDate,
+    to: toISO(addDays(new Date(toDate), 1)),
+  }), [fromDate, toDate])
 
   useEffect(() => {
     let mounted = true
@@ -71,13 +71,13 @@ export default function MarginsDashboard() {
     setError(null)
     ;(async () => {
       try {
-        const [p, c] = await Promise.all([
-          listProductMargins(params),
-          listCustomerMargins(params)
-        ])
+        const data = await getProductMargins(dateParams.from, dateParams.to, {
+          limit: 200,
+          sort_by: 'revenue',
+        })
         if (!mounted) return
-        setProductRows(p)
-        setCustomerRows(c)
+        // Map API response to component format
+        setProductRows(data.products.map(mapProductMarginRow))
       } catch (e: any) {
         if (!mounted) return
         setError(e?.message || 'Error loading reports')
@@ -86,22 +86,7 @@ export default function MarginsDashboard() {
       }
     })()
     return () => { mounted = false }
-  }, [params])
-
-  useEffect(() => {
-    let mounted = true
-    if (!selectedProduct) {
-      setLines([])
-      return
-    }
-    ;(async () => {
-      try {
-        const data = await listProductLines(selectedProduct, params)
-        if (mounted) setLines(data)
-      } catch {}
-    })()
-    return () => { mounted = false }
-  }, [selectedProduct, params])
+  }, [dateParams])
 
   const productNameById = useMemo(() => {
     const map = new Map(products.map((p) => [p.id, p.name]))
@@ -219,15 +204,13 @@ export default function MarginsDashboard() {
        </div>
 
        <div className="tabs">
-         <button className={activeTab === 'productos' ? 'active' : ''} onClick={() => setActiveTab('productos')}>{t('reportes:margins.tabs.products')}</button>
-         <button className={activeTab === 'clientes' ? 'active' : ''} onClick={() => setActiveTab('clientes')}>{t('reportes:margins.tabs.customers')}</button>
-         <button className={activeTab === 'detalle' ? 'active' : ''} onClick={() => setActiveTab('detalle')}>{t('reportes:margins.tabs.detail')}</button>
-       </div>
+          <button className={activeTab === 'productos' ? 'active' : ''} onClick={() => setActiveTab('productos')}>{t('reportes:margins.tabs.products')}</button>
+        </div>
 
-       {loading ? <div className="panel">{t('common:loading')}</div> : null}
-      {error ? <div className="panel error">{error}</div> : null}
+        {loading ? <div className="panel">{t('common:loading')}</div> : null}
+       {error ? <div className="panel error">{error}</div> : null}
 
-      {!loading && !error && activeTab === 'productos' ? (
+       {!loading && !error && activeTab === 'productos' ? (
         <div className="panel table-panel">
           <table>
             <thead>
@@ -258,79 +241,7 @@ export default function MarginsDashboard() {
         </div>
       ) : null}
 
-      {!loading && !error && activeTab === 'clientes' ? (
-        <div className="panel table-panel">
-          <table>
-            <thead>
-              <tr>
-                <th>{t('reportes:margins.table.customer')}</th>
-                <th>{t('reportes:margins.table.netSales')}</th>
-                <th>{t('reportes:margins.table.cogs')}</th>
-                <th>{t('reportes:margins.table.profit')}</th>
-                <th>{t('reportes:margins.table.margin')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {customerRows.map((r, idx) => (
-                <tr key={r.customer_id || `c-${idx}`}>
-                  <td>{r.customer_id || t('reportes:noCustomer')}</td>
-                  <td>{formatMoney(r.sales_net, companySettings)}</td>
-                  <td>{formatMoney(r.cogs, companySettings)}</td>
-                  <td>{formatMoney(r.gross_profit, companySettings)}</td>
-                  <td>{formatPct(r.margin_pct)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
 
-      {!loading && !error && activeTab === 'detalle' ? (
-        <div className="panel">
-          <div className="detail-header">
-            <div className="field">
-              <label>{t('reportes:margins.table.product')}</label>
-              <select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
-                <option value="">{t('reportes:select')}</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="table-panel">
-            <table>
-              <thead>
-                <tr>
-                  <th>{t('common:date')}</th>
-                  <th>{t('reportes:qty')}</th>
-                  <th>{t('reportes:net')}</th>
-                  <th>{t('reportes:margins.table.cogs')}</th>
-                  <th>{t('reportes:margins.table.profit')}</th>
-                  <th>{t('reportes:margins.table.margin')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((l) => (
-                  <tr key={l.line_id}>
-                    <td>{l.created_at ? l.created_at.split('T')[0] : ''}</td>
-                    <td>{l.qty}</td>
-                    <td>{formatMoney(l.net_total, companySettings)}</td>
-                    <td>{formatMoney(l.cogs_total, companySettings)}</td>
-                    <td>{formatMoney(l.gross_profit, companySettings)}</td>
-                    <td>{formatPct(l.gross_margin_pct)}</td>
-                  </tr>
-                ))}
-                {!lines.length ? (
-                  <tr>
-                    <td colSpan={6} className="muted">{t('reportes:noLinesSelected')}</td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : null}
     </div>
   )
 }

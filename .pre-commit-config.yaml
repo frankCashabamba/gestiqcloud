@@ -15,6 +15,7 @@ repos:
     hooks:
       - id: isort
         args: ["--profile=black", "--line-length=100"]
+        files: ^apps/backend/app/
 
   # Ruff runs after isort so that both tools settle on the same import order.
   - repo: https://github.com/charliermarsh/ruff-pre-commit
@@ -22,7 +23,15 @@ repos:
     hooks:
       - id: ruff
         args: ["--line-length=100", "--fix"]
-      - id: ruff-format
+        files: ^apps/backend/app/
+
+  # Single source of truth for Python formatting (aligned with CI).
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        args: ["--line-length=100"]
+        files: ^apps/backend/app/
 
   # Disabled temporarily - too many type errors to resolve at once
   # Run manually with: pre-commit run --hook-stage manual mypy

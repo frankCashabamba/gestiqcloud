@@ -1,25 +1,51 @@
 /**
- * POSView - Professional Point of Sale terminal
- * Layout based on tpv_pro.html with full backend integration
+ * POSView - Professional Point of Sale terminal (REFACTORED)
+ * Now with keyboard shortcuts, toast notifications, and responsive layout
  */
-import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import {
+    ArrowLeft,
+    Clock3,
+    Menu,
+    NotebookPen,
+    Palette,
+    Percent,
+    PlusCircle,
+    Printer,
+    SearchCheck,
+    ShoppingCart,
+    Store,
+    UserRound,
+    Wifi,
+} from 'lucide-react'
 import { usePermission } from '../../hooks/usePermission'
+import { useDocumentIDTypes } from '../../hooks/useDocumentIDTypes'
 import PermissionDenied from '../../components/PermissionDenied'
 import ProtectedButton from '../../components/ProtectedButton'
 import ShiftManager, { type ShiftManagerHandle } from './components/ShiftManager'
 import PaymentModal from './components/PaymentModal'
 import ConvertToInvoiceModal from './components/ConvertToInvoiceModal'
+import { POSPaymentBar } from './components/POSPaymentBar'
+import { POSKeyboardHelp } from './components/POSKeyboardHelp'
+import { CatalogSection } from './components/CatalogSection'
+import { CartSection } from './components/CartSection'
+import { DiscountModal } from './components/DiscountModal'
+import { ResumeTicketModal } from './components/ResumeTicketModal'
+import { QuickInputModal } from './components/QuickInputModal'
 import useOfflineSync from './hooks/useOfflineSync'
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { useToast } from '../../shared/toast'
 import { useCurrency } from '../../hooks/useCurrency'
 import { useAuth } from '../../auth/AuthContext'
+import { usePermissions } from '../../contexts/PermissionsContext'
 import { POS_DRAFT_KEY } from '../../constants/storage'
 import { POS_DEFAULTS } from '../../constants/defaults'
 import { listWarehouses, adjustStock, type Warehouse } from '../inventory/services'
-import { listUsuarios } from '../usuarios/services'
-import type { Usuario } from '../usuarios/types'
-import { createCliente, listClientes, type Cliente } from '../customers/services'
+import { listUsuarios } from '../users/services'
+import type { Usuario } from '../users/types'
+import { createCliente as createCustomer, listClientes as listCustomers, type Cliente as Customer } from '../customers/services'
 import {
     listRegisters,
     createRegister,
@@ -32,8 +58,8 @@ import {
     type ReceiptTotals,
     type SaleDraft,
 } from './services'
-import { createProducto, listProductos, searchProductos, type Producto } from '../products/services'
-import { getCompanySettings, getDefaultReorderPoint, getDefaultTaxRate, shouldCreateInvoice } from '../../services/companySettings'
+import { createProducto as createProduct, listProductos as listProducts, searchProductos as searchProducts, updateProducto as updateProduct, type Producto as Product } from '../products/productsApi'
+import { getCompanySettings, getDefaultReorderPoint, getDefaultTaxRate, savePosTheme, shouldCreateInvoice } from '../../services/companySettings'
 import './pos-styles.css'
 import PendingReceiptsModal from './components/PendingReceiptsModal'
 import type { POSPayment } from '../../types/pos'
@@ -77,19 +103,29 @@ type PosDraftState = {
     selectedCustomerName: string | null
 }
 
-const DEFAULT_ID_TYPES = ['CEDULA', 'RUC', 'PASSPORT']
+// ID types now loaded from API via useDocumentIDTypes hook
+// Removed hardcoded default: ['CEDULA', 'RUC', 'PASSPORT']
+type PosTheme = 'corporate-dark' | 'soft-dark' | 'light'
+const POS_THEME_KEY = 'POS_THEME'
+
+const normalizePosTheme = (value?: string | null): PosTheme => {
+    if (value === 'soft-dark' || value === 'light' || value === 'corporate-dark') return value
+    return 'corporate-dark'
+}
 
 export default function POSView() {
     const navigate = useNavigate()
     const can = usePermission()
     const { t } = useTranslation(['pos', 'common'])
     const { symbol: currencySymbol } = useCurrency()
-    const { profile } = useAuth()
-    const esAdminEmpresa = !!(profile?.es_admin_empresa || (profile as any)?.is_company_admin)
+    const { token, loading: authLoading, profile } = useAuth()
+    const { loading: permissionsLoading } = usePermissions()
+    const toast = useToast()
+    const isCompanyAdmin = !!(profile?.es_admin_empresa || (profile as any)?.is_company_admin)
     const [registers, setRegisters] = useState<any[]>([])
     const [selectedRegister, setSelectedRegister] = useState<any>(null)
     const [currentShift, setCurrentShift] = useState<any>(null)
-    const [products, setProducts] = useState<Producto[]>([])
+    const [products, setProducts] = useState<Product[]>([])
     const [cart, setCart] = useState<CartItem[]>([])
     const [defaultTaxPct, setDefaultTaxPct] = useState<number>(0) // fallback neutral hasta cargar settings
     const [searchQuery, setSearchQuery] = useState('')
@@ -107,6 +143,17 @@ export default function POSView() {
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [showBuyerModal, setShowBuyerModal] = useState(false)
     const [showInvoiceModal, setShowInvoiceModal] = useState(false)
+    const [showDiscountModal, setShowDiscountModal] = useState(false)
+    const [showResumeTicketModal, setShowResumeTicketModal] = useState(false)
+    const [quickInputState, setQuickInputState] = useState<{
+        open: boolean
+        title: string
+        value: string
+        placeholder?: string
+        type?: 'text' | 'number'
+        multiline?: boolean
+        onConfirm?: (value: string) => void
+    }>({ open: false, title: '', value: '', type: 'text' })
     const [autoCreateInvoice, setAutoCreateInvoice] = useState(false)
     const [showCreateProductModal, setShowCreateProductModal] = useState(false)
     const [loading, setLoading] = useState(false)
@@ -116,6 +163,16 @@ export default function POSView() {
     const [showPendingModal, setShowPendingModal] = useState(false)
     const [showPrintPreview, setShowPrintPreview] = useState(false)
     const [printHtml, setPrintHtml] = useState('')
+    const [clock, setClock] = useState(() => new Date())
+    const [topSettingsOpen, setTopSettingsOpen] = useState(false)
+    const [topMoreOpen, setTopMoreOpen] = useState(false)
+    const [posTheme, setPosTheme] = useState<PosTheme>(() => {
+        try {
+            return normalizePosTheme(localStorage.getItem(POS_THEME_KEY))
+        } catch {
+            return 'corporate-dark'
+        }
+    })
     const printFrameRef = useRef<HTMLIFrameElement>(null)
     const [cashiers, setCashiers] = useState<Usuario[]>([])
     const [selectedCashierId, setSelectedCashierId] = useState<string | null>(null)
@@ -129,12 +186,12 @@ export default function POSView() {
     const [buyerName, setBuyerName] = useState('')
     const [buyerEmail, setBuyerEmail] = useState('')
     const [isWholesaleCustomer, setIsWholesaleCustomer] = useState(false)
-    const [clients, setClients] = useState<Cliente[]>([])
+    const [clients, setClients] = useState<Customer[]>([])
     const [clientsLoading, setClientsLoading] = useState(false)
     const [clientsLoadError, setClientsLoadError] = useState<string | null>(null)
     const clientsLoadAttemptedRef = useRef(false)
     const [clientQuery, setClientQuery] = useState('')
-    const [selectedClient, setSelectedClient] = useState<Cliente | null>(null)
+    const [selectedClient, setSelectedClient] = useState<Customer | null>(null)
     const [saveBuyerAsClient, setSaveBuyerAsClient] = useState(true)
     const [docPrintFormat, setDocPrintFormat] = useState<'THERMAL_80MM' | 'A4_PDF'>('THERMAL_80MM')
     const [createProductForm, setCreateProductForm] = useState({
@@ -149,13 +206,17 @@ export default function POSView() {
     const buyerAlertRef = useRef(false)
     const buyerContinueRef = useRef(false)
 
-    if (!can('pos:read')) {
-        return <PermissionDenied permission="pos:read" />
-    }
     const shiftManagerRef = useRef<ShiftManagerHandle | null>(null)
     const barcodeBufferRef = useRef('')
     const barcodeTimerRef = useRef<number | null>(null)
     const [skipPrint, setSkipPrint] = useState(false)
+    const searchInputRef = useRef<HTMLInputElement>(null)
+    const createProductNameInputRef = useRef<HTMLInputElement>(null)
+
+    useEffect(() => {
+        const timer = window.setInterval(() => setClock(new Date()), 1000)
+        return () => window.clearInterval(timer)
+    }, [])
 
     useEffect(() => {
         try {
@@ -191,7 +252,7 @@ export default function POSView() {
         return Array.isArray(roles) ? roles : []
     }, [profile])
     const hasRoles = roleList.length > 0
-    const isAdminRole = esAdminEmpresa || roleList.includes('admin') || roleList.includes('owner')
+    const isAdminRole = isCompanyAdmin || roleList.includes('admin') || roleList.includes('owner')
     const canViewReports = hasRoles ? (isAdminRole || roleList.includes('manager')) : true
     const canManagePending = hasRoles ? (isAdminRole || roleList.includes('manager')) : true
     const canDiscount = hasRoles ? (isAdminRole || roleList.includes('supervisor')) : true
@@ -202,7 +263,11 @@ export default function POSView() {
     }
 
     const { isOnline, pendingCount, syncNow } = useOfflineSync()
-    // Almacenes (para admins)
+    const dashboardPath = useMemo(() => {
+        const slug = (profile as any)?.empresa_slug
+        return slug ? `/${slug}` : '/'
+    }, [profile])
+    // Warehouses (admin users)
     const [warehouses, setWarehouses] = useState<Warehouse[]>([])
     const [headerWarehouseId, setHeaderWarehouseId] = useState<string | null>(null)
 
@@ -248,7 +313,7 @@ export default function POSView() {
     }, [profile, selectedCashierId])
 
     useEffect(() => {
-        if (!esAdminEmpresa) return
+        if (!isCompanyAdmin) return
             ; (async () => {
                 try {
                     const users = await listUsuarios()
@@ -258,7 +323,7 @@ export default function POSView() {
                     // silencioso
                 }
             })()
-    }, [esAdminEmpresa])
+    }, [isCompanyAdmin])
 
     useEffect(() => {
         if (buyerMode === 'CONSUMER_FINAL') {
@@ -271,7 +336,7 @@ export default function POSView() {
         setIsWholesaleCustomer(!!selectedClient?.is_wholesale)
     }, [selectedClient])
 
-    // Persistir tickets en espera en localStorage para sobrevivir recargas
+    // Persist held tickets in localStorage across reloads
     useEffect(() => {
         try {
             const raw = localStorage.getItem('posHeldTickets')
@@ -303,9 +368,9 @@ export default function POSView() {
             if (draft.selectedCustomerId) {
                 setSelectedClient({
                     id: draft.selectedCustomerId,
-                    name: draft.selectedCustomerName || draft.buyerName || 'Cliente',
+                    name: draft.selectedCustomerName || draft.buyerName || 'Customer',
                     is_wholesale: !!draft.isWholesaleCustomer,
-                } as Cliente)
+                } as Customer)
             }
         } catch {
             // ignore corrupted draft
@@ -352,6 +417,36 @@ export default function POSView() {
         selectedClient,
     ])
 
+    // Sistema de atajos de teclado
+    useKeyboardShortcuts({
+        onF2: () => {
+            searchInputRef.current?.focus()
+            setSearchExpanded(true)
+        },
+        onF4: () => {
+            setShowBuyerModal(true)
+        },
+        onF5: () => {
+            setShowResumeTicketModal(true)
+        },
+        onF6: () => {
+            setShowDiscountModal(true)
+        },
+        onF8: () => {
+            handleHoldTicket()
+        },
+        onF9: () => {
+            if (cart.length > 0) handleCheckout()
+        },
+        onEscape: () => {
+            setShowPaymentModal(false)
+            setShowBuyerModal(false)
+            setShowInvoiceModal(false)
+            setShowDiscountModal(false)
+            setShowResumeTicketModal(false)
+        },
+    })
+
     const loadRegisters = async () => {
         try {
             const data = await listRegisters()
@@ -377,6 +472,19 @@ export default function POSView() {
             const defaultTaxRate = getDefaultTaxRate(settings, 0)
             setCompanySettings(settings)
             setDocumentConfig(extractDocumentConfig(settings))
+            try {
+                const hasLocalTheme = !!localStorage.getItem(POS_THEME_KEY)
+                if (!hasLocalTheme) {
+                    const settingsAny = settings as any
+                    const themeFromSettings =
+                        settingsAny?.pos_config?.theme ||
+                        settingsAny?.settings?.pos_theme ||
+                        settingsAny?.ui?.pos_theme ||
+                        settingsAny?.branding?.pos_theme
+                    const normalized = normalizePosTheme(themeFromSettings)
+                    setPosTheme(normalized)
+                }
+            } catch { }
             setInventoryConfig({
                 reorderPoint: getDefaultReorderPoint(settings),
                 allowNegative: !!(
@@ -396,8 +504,8 @@ export default function POSView() {
 
     const loadProducts = async () => {
         try {
-            // Filtrar productos sin stock para POS
-            const data = await listProductos(true) // hideOutOfStock = true
+            // Filter out-of-stock products for POS
+            const data = await listProducts(true) // hideOutOfStock = true
             setProducts(data)
         } catch (error) {
             console.error('Error loading products:', error)
@@ -409,7 +517,7 @@ export default function POSView() {
         try {
             setClientsLoading(true)
             setClientsLoadError(null)
-            const data = await listClientes()
+            const data = await listCustomers()
             setClients(data)
         } catch (error) {
             console.error('Error loading clients:', error)
@@ -439,7 +547,7 @@ export default function POSView() {
                 return String(candidates[0].id)
             }
         } catch (err) {
-            console.error('No se pudo resolver almacen por defecto', err)
+            console.error('Could not resolve default warehouse', err)
         }
         return null
     }
@@ -456,7 +564,6 @@ export default function POSView() {
 
     const filteredProducts = useMemo(() => {
         let result = products
-        const globalReorderPoint = Number(inventoryConfig.reorderPoint || 0)
 
         // In categories view, filter by selected category
         if (viewMode === 'categories' && selectedCategory !== '*') {
@@ -465,14 +572,8 @@ export default function POSView() {
             )
         }
 
-        // Ocultar productos con stock por debajo del minimo de stock
-        result = result.filter((p) => {
-            const min = Number((p.product_metadata?.reorder_point ?? globalReorderPoint) || 0)
-            if (min > 0) {
-                return Number(p.stock ?? 0) >= min
-            }
-            return true
-        })
+        // No ocultar catalogo por stock minimo: el cajero debe poder ver/buscar
+        // all products and resolve final pricing at checkout.
 
         // Text search always active
         if (searchQuery.trim()) {
@@ -486,7 +587,7 @@ export default function POSView() {
         }
 
         return result
-    }, [products, selectedCategory, searchQuery, viewMode, inventoryConfig.reorderPoint])
+    }, [products, selectedCategory, searchQuery, viewMode])
 
     useEffect(() => {
         if (!showBuyerModal || buyerMode !== 'IDENTIFIED') return
@@ -517,13 +618,13 @@ export default function POSView() {
             .slice(0, 8)
     }, [clients, clientQuery])
 
-    const getReorderPoint = (product: Producto) => {
+    const getReorderPoint = (product: Product) => {
         const point = Number(product.product_metadata?.reorder_point ?? inventoryConfig.reorderPoint ?? 0)
         return Number.isFinite(point) ? point : 0
     }
 
     const violatesStockPolicy = (
-        product: Producto,
+        product: Product,
         desiredQty: number,
         opts?: { ignoreReorder?: boolean }
     ) => {
@@ -531,21 +632,21 @@ export default function POSView() {
         const remaining = stock - desiredQty
 
         if (!inventoryConfig.allowNegative && remaining < 0) {
-            alert(t('pos:errors.insufficientStockAmount', { stock: String(stock) }))
+            toast.warning(t('pos:errors.insufficientStockAmount', { stock: String(stock) }))
             return true
         }
 
         if (!opts?.ignoreReorder) {
             const reorderPoint = getReorderPoint(product)
             if (reorderPoint > 0 && remaining < reorderPoint) {
-                alert(t('pos:errors.lowStockMinimumAmount', { minimum: String(reorderPoint) }))
+                toast.warning(t('pos:errors.lowStockMinimumAmount', { minimum: String(reorderPoint) }))
                 return true
             }
         }
         return false
     }
 
-    const getWholesaleConfig = (product: Producto) => {
+    const getWholesaleConfig = (product: Product) => {
         const meta = (product.product_metadata || {}) as any
         const raw = (meta.wholesale || {}) as any
         if (!raw || raw.enabled === false) return null
@@ -566,7 +667,7 @@ export default function POSView() {
         return candidates.length ? Math.min(...candidates) : 0
     }
 
-    const getPricingForProduct = (product: Producto, qty: number, packKey = 'unit') => {
+    const getPricingForProduct = (product: Product, qty: number, packKey = 'unit') => {
         const basePrice = Number(product.price ?? 0) || 0
         const cfg = getWholesaleConfig(product)
         if (!cfg) return { unitPrice: basePrice, source: 'retail' as const }
@@ -584,12 +685,20 @@ export default function POSView() {
         if (!isActive) return { unitPrice: basePrice, source: 'retail' as const }
 
         if (cfg.apply_mode !== 'excess') {
-            return { unitPrice: cfg.price, source: 'wholesale' as const, note: 'Mayorista' }
+            return {
+                unitPrice: cfg.price,
+                source: 'wholesale' as const,
+                note: t('pos:messages.wholesale', { defaultValue: 'Wholesale' }),
+            }
         }
 
         const threshold = resolveWholesaleThreshold(cfg, packKey)
         if (threshold <= 0) {
-            return { unitPrice: cfg.price, source: 'wholesale' as const, note: 'Mayorista' }
+            return {
+                unitPrice: cfg.price,
+                source: 'wholesale' as const,
+                note: t('pos:messages.wholesale', { defaultValue: 'Wholesale' }),
+            }
         }
         if (qty <= threshold) {
             return { unitPrice: basePrice, source: 'retail' as const }
@@ -600,11 +709,14 @@ export default function POSView() {
         return {
             unitPrice,
             source: 'wholesale_mixed' as const,
-            note: `Mayorista parcial desde ${threshold}`,
+            note: t('pos:messages.partialWholesaleFrom', {
+                threshold: String(threshold),
+                defaultValue: 'Partial wholesale from {{threshold}}',
+            }),
         }
     }
 
-    const applyPricingToCartItem = (item: CartItem, product: Producto, qty: number) => {
+    const applyPricingToCartItem = (item: CartItem, product: Product, qty: number) => {
         const pricing = getPricingForProduct(product, qty)
         return {
             ...item,
@@ -615,21 +727,57 @@ export default function POSView() {
         }
     }
 
-    const addToCart = (product: Producto, opts?: { ignoreReorder?: boolean }) => {
+    const addToCart = (product: Product, opts?: { ignoreReorder?: boolean }) => {
+        const existing = cart.find((item) => item.product_id === product.id)
         let basePrice = Number(product.price ?? 0)
+        if ((!Number.isFinite(basePrice) || basePrice <= 0) && existing && existing.price > 0) {
+            basePrice = existing.price
+        }
         if (!Number.isFinite(basePrice) || basePrice <= 0) {
-            const fallbackName = product.name || t('posView.prompts.unnamedProduct')
-            const input = prompt(t('pos:prompts.enterPrice', { name: fallbackName })) || ''
-            const normalized = input.replace(',', '.').trim()
-            const parsed = Number(normalized)
-            if (!normalized || !Number.isFinite(parsed) || parsed <= 0) {
-                alert(t('pos:errors.invalidPrice'))
-                return
-            }
-            basePrice = parsed
+            openQuickInput({
+                title: t('pos:prompts.enterPriceForProduct', {
+                    defaultValue: `Price for ${product.name}`,
+                    name: product.name,
+                }),
+                value: '',
+                placeholder: '0.00',
+                type: 'number',
+                onConfirm: async (value) => {
+                    const enteredPrice = Number.parseFloat(value)
+                    if (!Number.isFinite(enteredPrice) || enteredPrice <= 0) {
+                        toast.error(t('pos:errors.invalidPrice'))
+                        return
+                    }
+
+                    closeQuickInput()
+                    const pricedProduct = { ...product, price: enteredPrice }
+                    setProducts((prev) =>
+                        prev.map((p) => (p.id === product.id ? { ...p, price: enteredPrice } : p))
+                    )
+                    addToCart(pricedProduct, opts)
+
+                    toast.info(t('pos:messages.priceEnteredForSale', { defaultValue: 'Price applied for this sale' }), {
+                        action: {
+                            label: t('common:save', { defaultValue: 'Save' }),
+                            onClick: async () => {
+                                try {
+                                    await updateProduct(product.id, { price: enteredPrice })
+                                    setProducts((prev) =>
+                                        prev.map((p) => (p.id === product.id ? { ...p, price: enteredPrice } : p))
+                                    )
+                                    toast.success(t('pos:messages.priceSavedInProduct', { defaultValue: 'Price saved on product' }))
+                                } catch (error) {
+                                    console.error('Could not save product price', error)
+                                    toast.error(t('pos:errors.savePriceFailed', { defaultValue: 'Could not save price' }))
+                                }
+                            },
+                        },
+                    })
+                },
+            })
+            return
         }
         const productWithPrice = { ...product, price: basePrice }
-        const existing = cart.find((item) => item.product_id === product.id)
         const nextQty = existing ? existing.qty + 1 : 1
         if (violatesStockPolicy(productWithPrice, nextQty, opts)) return
 
@@ -673,7 +821,7 @@ export default function POSView() {
         )
     }
 
-    const handleSelectClient = (client: Cliente) => {
+    const handleSelectClient = (client: Customer) => {
         setSelectedClient(client)
         setBuyerName(client.name || '')
         const doc = (client.identificacion || client.tax_id || '').toString()
@@ -714,7 +862,7 @@ export default function POSView() {
         }
 
         try {
-            const created = await createCliente({
+            const created = await createCustomer({
                 name,
                 identificacion: idNumber,
                 identificacion_tipo: normalizeIdType(buyerIdType, allowedIdTypes) || buyerIdType || undefined,
@@ -724,25 +872,75 @@ export default function POSView() {
             setClients((prev) => [created, ...prev])
             setSelectedClient(created)
         } catch (err) {
-            console.error('No se pudo guardar cliente:', err)
+            console.error('Could not save customer:', err)
         }
     }
 
+    const openQuickInput = (options: {
+        title: string
+        value?: string
+        placeholder?: string
+        type?: 'text' | 'number'
+        multiline?: boolean
+        onConfirm: (value: string) => void
+    }) => {
+        setQuickInputState({
+            open: true,
+            title: options.title,
+            value: options.value ?? '',
+            placeholder: options.placeholder,
+            type: options.type ?? 'text',
+            multiline: options.multiline ?? false,
+            onConfirm: options.onConfirm,
+        })
+    }
+
+    const closeQuickInput = () => {
+        setQuickInputState((prev) => ({ ...prev, open: false, onConfirm: undefined, multiline: false }))
+    }
+
     const removeItem = (index: number) => {
+        const removed = cart[index]
         setCart(cart.filter((_, i) => i !== index))
+        if (!removed) return
+        toast.info(t('pos:messages.itemRemoved', { defaultValue: 'Product removed' }), {
+            action: {
+                label: t('pos:common.undo', { defaultValue: 'Undo' }),
+                onClick: () => {
+                    setCart((prev) => {
+                        const next = [...prev]
+                        next.splice(index, 0, removed)
+                        return next
+                    })
+                },
+            },
+        })
     }
 
     const setLineDiscount = (index: number) => {
-        const value = prompt(t('pos:prompts.lineDiscountPercent'), String(cart[index].discount_pct))
-        if (value === null) return
-        const pct = Math.min(100, Math.max(0, parseFloat(value) || 0))
-        setCart(cart.map((item, i) => (i === index ? { ...item, discount_pct: pct } : item)))
+        openQuickInput({
+            title: t('pos:prompts.lineDiscountPercent'),
+            value: String(cart[index].discount_pct),
+            type: 'number',
+            onConfirm: (value) => {
+                const pct = Math.min(100, Math.max(0, parseFloat(value) || 0))
+                setCart((prev) => prev.map((item, i) => (i === index ? { ...item, discount_pct: pct } : item)))
+                closeQuickInput()
+            },
+        })
     }
 
     const setLineNote = (index: number) => {
-        const value = prompt(t('pos:prompts.lineNotes'), cart[index].notes || '')
-        if (value === null) return
-        setCart(cart.map((item, i) => (i === index ? { ...item, notes: value } : item)))
+        openQuickInput({
+            title: t('pos:prompts.lineNotes'),
+            value: cart[index].notes || '',
+            multiline: true,
+            placeholder: t('pos:prompts.lineNotes', { defaultValue: 'Line notes' }),
+            onConfirm: (value) => {
+                setCart((prev) => prev.map((item, i) => (i === index ? { ...item, notes: value } : item)))
+                closeQuickInput()
+            },
+        })
     }
 
     const normalizeCode = (value?: string | null) => {
@@ -775,18 +973,23 @@ export default function POSView() {
         } else {
             const code = normalizeCode(barcodeInput)
             if (code) {
-                const shouldCreate = confirm(`${t('pos:errors.productNotFound')}: ${code}\n${t('pos:errors.confirmCreate')}`)
-                if (shouldCreate) {
-                    setCreateProductForm({
-                        sku: code,
-                        name: '',
-                        price: 0,
-                        stock: 1,
-                        iva_tasa: defaultTaxPct,
-                        categoria: selectedCategory !== '*' ? selectedCategory : '',
-                    })
-                    setShowCreateProductModal(true)
-                }
+                toast.warning(`${t('pos:errors.productNotFound')}: ${code}`, {
+                    duration: 0,
+                    action: {
+                        label: t('common:create', { defaultValue: 'Create' }),
+                        onClick: () => {
+                            setCreateProductForm({
+                                sku: code,
+                                name: '',
+                                price: 0,
+                                stock: 1,
+                                iva_tasa: defaultTaxPct,
+                                categoria: selectedCategory !== '*' ? selectedCategory : '',
+                            })
+                            setShowCreateProductModal(true)
+                        },
+                    },
+                })
             }
         }
     }
@@ -831,18 +1034,27 @@ export default function POSView() {
         return true
     }, [buyerPolicy, totals.total])
 
+    const { data: documentIdTypes, loading: documentIdTypesLoading } = useDocumentIDTypes()
+
     const idTypeOptions = useMemo(() => {
         const raw = documentConfig?.id_types || documentConfig?.idTypes || []
         if (!Array.isArray(raw)) return []
         return raw.map((value: any) => String(value)).filter((value: string) => value.trim())
     }, [documentConfig])
 
+    const apiIdTypeOptions = useMemo(() => {
+        return documentIdTypes
+            .map((item) => String(item.code || '').trim())
+            .filter((value) => value && value.toUpperCase() !== 'NONE')
+    }, [documentIdTypes])
+
     const allowedIdTypes = useMemo(() => {
         const sanitized = idTypeOptions
             .map((value) => value.trim())
             .filter((value) => value && value.toUpperCase() !== 'NONE')
-        return sanitized.length > 0 ? sanitized : DEFAULT_ID_TYPES
-    }, [idTypeOptions])
+        if (sanitized.length > 0) return sanitized
+        return apiIdTypeOptions
+    }, [idTypeOptions, apiIdTypeOptions])
 
     const normalizeIdType = (value: string, options: string[]) => {
         const normalize = (input: string) =>
@@ -902,18 +1114,23 @@ export default function POSView() {
                     if (product) {
                         addToCart(product)
                     } else {
-                        const shouldCreate = confirm(`${t('pos:errors.productNotFound')}: ${code}\n${t('pos:errors.confirmCreate')}`)
-                        if (shouldCreate) {
-                            setCreateProductForm({
-                                sku: code,
-                                name: '',
-                                price: 0,
-                                stock: 1,
-                                iva_tasa: defaultTaxPct,
-                                categoria: selectedCategory !== '*' ? selectedCategory : '',
-                            })
-                            setShowCreateProductModal(true)
-                        }
+                        toast.warning(`${t('pos:errors.productNotFound')}: ${code}`, {
+                            duration: 0,
+                            action: {
+                                label: t('common:create', { defaultValue: 'Create' }),
+                                onClick: () => {
+                                    setCreateProductForm({
+                                        sku: code,
+                                        name: '',
+                                        price: 0,
+                                        stock: 1,
+                                        iva_tasa: defaultTaxPct,
+                                        categoria: selectedCategory !== '*' ? selectedCategory : '',
+                                    })
+                                    setShowCreateProductModal(true)
+                                },
+                            },
+                        })
                     }
                 }
                 resetBuffer()
@@ -958,7 +1175,7 @@ export default function POSView() {
         }
         if (!canUseConsumerFinal && !buyerAlertRef.current) {
             buyerAlertRef.current = true
-            alert(t('pos:errors.totalExceedsLimit'))
+            toast.warning(t('pos:errors.totalExceedsLimit'))
             setBuyerMode('IDENTIFIED')
         }
         if (canUseConsumerFinal) buyerAlertRef.current = false
@@ -970,7 +1187,7 @@ export default function POSView() {
         }
     }, [showBuyerModal])
 
-    // Calcular totales cuando cambia el carrito o descuento global
+    // Recalculate totals when cart or global discount changes
     useEffect(() => {
         if (cart.length === 0) {
             setTotals({
@@ -1130,7 +1347,7 @@ export default function POSView() {
             const receiptData = {
                 register_id: selectedRegister.id,
                 shift_id: currentShift.id,
-                cashier_id: esAdminEmpresa ? selectedCashierId || undefined : undefined,
+                cashier_id: isCompanyAdmin ? selectedCashierId || undefined : undefined,
                 customer_id: selectedClient ? String(selectedClient.id) : undefined,
                 lines: cart.map((item) => {
                     const line_total = item.price * item.qty * (1 - item.discount_pct / 100)
@@ -1154,9 +1371,9 @@ export default function POSView() {
             console.error('Error creating receipt:', e)
             const msg = String((e as any)?.message || '')
             if (msg.includes('currency_not_configured')) {
-                alert(t('pos:errors.currencyNotConfigured'))
+                toast.error(t('pos:errors.currencyNotConfigured'))
             } else {
-                alert(t('pos:errors.preparePaymentFailed'))
+                toast.error(t('pos:errors.preparePaymentFailed'))
             }
         } finally {
             setLoading(false)
@@ -1169,17 +1386,17 @@ export default function POSView() {
             setBuyerMode(nextMode)
         }
         if (mode == 'CONSUMER_FINAL' && !canUseConsumerFinal) {
-            alert(t('pos:errors.requiresBuyerData'))
+            toast.warning(t('pos:errors.requiresBuyerData'))
             return
         }
         if (mode == 'IDENTIFIED') {
             const normalized = normalizeIdType(buyerIdType, allowedIdTypes)
             if (!normalized) {
-                alert(t('pos:errors.selectIdentificationType'))
+                toast.warning(t('pos:errors.selectIdentificationType'))
                 return
             }
             if (!buyerIdNumber.trim() || !buyerName.trim()) {
-                alert(t('pos:errors.completeIdentification'))
+                toast.warning(t('pos:errors.completeIdentification'))
                 return
             }
         }
@@ -1190,22 +1407,95 @@ export default function POSView() {
         await startCheckout()
     }
 
+    useEffect(() => {
+        if (!showBuyerModal) return
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                e.preventDefault()
+                setShowBuyerModal(false)
+                return
+            }
+            if (e.key === 'Enter') {
+                const target = e.target as HTMLElement | null
+                const tag = target?.tagName?.toLowerCase()
+                if (tag === 'textarea') return
+                e.preventDefault()
+                void handleBuyerContinue()
+            }
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [showBuyerModal, handleBuyerContinue])
+
 
     const beginCheckout = (opts?: { skipPrint?: boolean }) => {
         if (cart.length === 0) {
-            alert(t('pos:errors.emptyCart'))
+            toast.warning(t('pos:errors.emptyCart'))
             return
         }
         if (!currentShift) {
-            alert(t('pos:errors.noShiftOpen'))
+            toast.warning(t('pos:errors.noShiftOpen'))
             return
         }
         setSkipPrint(!!opts?.skipPrint)
         setShowBuyerModal(true)
     }
 
+    const canStartCheckout = () => {
+        if (cart.length === 0) {
+            toast.warning(t('pos:errors.emptyCart'))
+            return false
+        }
+        if (!currentShift) {
+            toast.warning(t('pos:errors.noShiftOpen'))
+            return false
+        }
+        return true
+    }
+
+    const handleQuickConsumerFinal = async () => {
+        if (!canStartCheckout()) return
+        setSkipPrint(false)
+        if (!canUseConsumerFinal) {
+            setBuyerMode('IDENTIFIED')
+            setShowBuyerModal(true)
+            toast.warning(t('pos:errors.requiresBuyerData'))
+            return
+        }
+        await handleBuyerContinue('CONSUMER_FINAL')
+    }
+
+    const handleQuickNoTicket = async () => {
+        if (!canStartCheckout()) return
+        setSkipPrint(true)
+        if (!canUseConsumerFinal) {
+            setBuyerMode('IDENTIFIED')
+            setShowBuyerModal(true)
+            toast.warning(t('pos:errors.requiresBuyerData'))
+            return
+        }
+        await handleBuyerContinue('CONSUMER_FINAL')
+    }
+
+    const handleQuickInvoice = async () => {
+        if (!canStartCheckout()) return
+        setSkipPrint(false)
+        const normalized = normalizeIdType(buyerIdType, allowedIdTypes)
+        const hasBuyerData = !!normalized && !!buyerIdNumber.trim() && !!buyerName.trim()
+        if (!hasBuyerData) {
+            setBuyerMode('IDENTIFIED')
+            setShowBuyerModal(true)
+            toast.info(
+                t('pos:messages.completeBuyerDataQuick', {
+                    defaultValue: 'Complete customer data to issue invoice quickly',
+                })
+            )
+            return
+        }
+        await handleBuyerContinue('IDENTIFIED')
+    }
+
     const handleCheckout = () => beginCheckout({ skipPrint: false })
-    const handleCheckoutWithoutTicket = () => beginCheckout({ skipPrint: true })
 
 
     const handlePaymentSuccess = async (payments: POSPayment[]) => {
@@ -1244,7 +1534,7 @@ export default function POSView() {
                     if (buyerMode === 'IDENTIFIED') {
                         const msgDetail = detail?.detail ?? detail
                         const msg = msgDetail ? `\n\nDetalle:\n${typeof msgDetail === 'string' ? msgDetail : JSON.stringify(msgDetail, null, 2)}` : ''
-                        alert(`${t('pos:errors.documentIssueFailed')} ${msg}`)
+                        toast.error(`${t('pos:errors.documentIssueFailed')} ${msg}`)
                     }
                 }
             }
@@ -1278,33 +1568,27 @@ export default function POSView() {
             if (needsInvoice && currentReceiptId) {
                 setAutoCreateInvoice(true)
                 setShowInvoiceModal(true)
-            alert(t('pos:messages.invoiceCreation'))
+                toast.success(t('pos:messages.invoiceCreation'))
             } else {
-                alert(t('pos:messages.saleSupervisor'))
+                toast.success(t('pos:messages.saleSupervisor'))
             }
         } catch (error: any) {
             if (!isOnline) {
                 await addToOutbox({ type: 'receipt', data: { cart, totals } })
-            alert(t('pos:errors.offlineSync'))
+                toast.warning(t('pos:errors.offlineSync'))
                 setCart([])
                 setShowPaymentModal(false)
             } else {
-                alert(error.response?.data?.detail || t('pos:errors.createTicketFailed'))
+                toast.error(error.response?.data?.detail || t('pos:errors.createTicketFailed'))
             }
         } finally {
             setLoading(false)
         }
     }
 
-    const handleConvertToInvoice = () => {
-        if (!currentReceiptId) return
-        setShowPaymentModal(false)
-        setShowInvoiceModal(true)
-    }
-
     const handleHoldTicket = () => {
         if (cart.length === 0) {
-            alert(t('pos:errors.emptyCart'))
+            toast.warning(t('pos:errors.emptyCart'))
             return
         }
         const id = `T${String(Date.now()).slice(-6)}`
@@ -1319,21 +1603,24 @@ export default function POSView() {
         setGlobalDiscountPct(0)
         setTicketNotes('')
         setCurrentReceiptId(null)
-        alert(t('pos:messages.heldTicketInfo', { id }))
+        toast.success(t('pos:messages.heldTicketInfo', { id }), {
+            action: {
+                label: t('pos:common.undo'),
+                onClick: () => {
+                    // Undo: restaurar carrito
+                    setCart(snapshot.cart)
+                    setGlobalDiscountPct(snapshot.globalDiscountPct)
+                    setTicketNotes(snapshot.ticketNotes || '')
+                    setHeldTickets((prev) => prev.filter((t) => t.id !== id))
+                },
+            },
+        })
     }
 
-    const handleResumeTicket = () => {
-        if (heldTickets.length === 0) {
-            alert(t('pos:errors.heldTickets'))
-            return
-        }
-        const list = heldTickets.map((t) => t.id).join(', ')
-        const pick = prompt(t('pos:messages.heldTicketPick', { list }))
-        if (!pick) return
-        const trimmed = pick.trim()
-        const idx = heldTickets.findIndex((t) => t.id === trimmed)
+    const handleResumeTicketConfirm = (ticketId: string) => {
+        const idx = heldTickets.findIndex((t) => t.id === ticketId)
         if (idx < 0) {
-            alert(t('pos:errors.idNotFound'))
+            toast.error(t('pos:errors.idNotFound'))
             return
         }
         const ticket = heldTickets[idx]
@@ -1342,12 +1629,13 @@ export default function POSView() {
         setGlobalDiscountPct(ticket.globalDiscountPct || 0)
         setTicketNotes(ticket.ticketNotes || '')
         setCurrentReceiptId(null)
-        alert(t('pos:messages.ticketRecovered', { ticketId: trimmed }))
+        setShowResumeTicketModal(false)
+        toast.success(t('pos:messages.ticketRecovered', { ticketId }))
     }
 
     const handleReprintLast = async () => {
         if (!lastPrintJob) {
-            alert(t('pos:errors.nothingToReprint'))
+            toast.info(t('pos:errors.nothingToReprint'))
             return
         }
         try {
@@ -1363,7 +1651,7 @@ export default function POSView() {
             }
         } catch (err) {
             console.error('Error reimprimiendo:', err)
-            alert(t('pos:errors.reprintFailed'))
+            toast.error(t('pos:errors.reprintFailed'))
         } finally {
             setLoading(false)
         }
@@ -1371,17 +1659,136 @@ export default function POSView() {
 
     const handlePayPending = async () => {
         if (!currentShift) {
-            alert(t('pos:errors.noShiftOpen'))
+            toast.warning(t('pos:errors.noShiftOpen'))
             return
         }
         setShowPendingModal(true)
     }
 
+    const handleCreateProductQuickSave = useCallback(async () => {
+        if (!createProductForm.name.trim()) return
+        try {
+            setCreatingProduct(true)
+            const skuValue = createProductForm.sku.trim()
+            if (skuValue) {
+                const existing = findProductByCode(skuValue)
+                if (existing) {
+                    addToCart(existing)
+                    setBarcodeInput('')
+                    setShowCreateProductModal(false)
+                    toast.success(t('pos:createProduct.existingAdded'))
+                    return
+                }
+                const remoteMatches = await searchProducts(skuValue)
+                const remoteProduct = Array.isArray(remoteMatches)
+                    ? remoteMatches.find((p) => {
+                        return (
+                            normalizeCode(p.sku) === normalizeCode(skuValue) ||
+                            normalizeCode(p.product_metadata?.codigo_barras as string) ===
+                            normalizeCode(skuValue)
+                        )
+                    })
+                    : null
+                if (remoteProduct) {
+                    setProducts((prev) => [remoteProduct, ...prev])
+                    addToCart(remoteProduct)
+                    setBarcodeInput('')
+                    setShowCreateProductModal(false)
+                    toast.success(t('pos:createProduct.existingAdded'))
+                    return
+                }
+            }
+            const created = await createProduct({
+                sku: skuValue || undefined,
+                name: createProductForm.name.trim(),
+                price: Number(createProductForm.price) || 0,
+                stock: Number(createProductForm.stock) || 0,
+                iva_tasa: Number(createProductForm.iva_tasa) || 0,
+                categoria:
+                    createProductForm.categoria.trim() ||
+                    (selectedCategory !== '*' ? selectedCategory : undefined),
+                unit: 'unit',
+                active: true,
+            })
+            const stockQty = Number(createProductForm.stock) || 0
+            if (stockQty > 0) {
+                const warehouseId = await resolveWarehouseForStock()
+                if (warehouseId) {
+                    try {
+                        await adjustStock({
+                            warehouse_id: warehouseId,
+                            product_id: created.id,
+                            delta: stockQty,
+                            reason: 'POS quick add',
+                        })
+                    } catch (err) {
+                        console.error('Could not adjust stock', err)
+                    }
+                }
+            }
+            const enrichedProduct: Product = {
+                ...created,
+                stock: stockQty > 0 ? stockQty : Number(created.stock ?? 0),
+            }
+            setProducts((prev) => [enrichedProduct, ...prev])
+            addToCart(enrichedProduct, { ignoreReorder: true })
+            setBarcodeInput('')
+            setShowCreateProductModal(false)
+        } catch (err) {
+            toast.error(t('pos:createProduct.creationFailed'))
+        } finally {
+            setCreatingProduct(false)
+        }
+    }, [addToCart, createProductForm, resolveWarehouseForStock, selectedCategory, t, toast])
+
+    useEffect(() => {
+        if (!showCreateProductModal) return
+
+        const focusTimer = window.setTimeout(() => {
+            createProductNameInputRef.current?.focus()
+            createProductNameInputRef.current?.select()
+        }, 20)
+
+        const onKey = (e: KeyboardEvent) => {
+            if (!showCreateProductModal) return
+            if (e.key === 'Escape' && !creatingProduct) {
+                e.preventDefault()
+                setShowCreateProductModal(false)
+                return
+            }
+            if (e.key === 'Enter' && !creatingProduct) {
+                const target = e.target as HTMLElement | null
+                const tag = target?.tagName?.toLowerCase()
+                if (tag === 'textarea') return
+                e.preventDefault()
+                void handleCreateProductQuickSave()
+            }
+        }
+
+        window.addEventListener('keydown', onKey)
+        return () => {
+            window.clearTimeout(focusTimer)
+            window.removeEventListener('keydown', onKey)
+        }
+    }, [showCreateProductModal, creatingProduct, handleCreateProductQuickSave])
+
+    if (authLoading || permissionsLoading) {
+        return <div className="center">{t('common:loading', { defaultValue: 'Loading...' })}</div>
+    }
+
+    if (!token || !profile) {
+        return <Navigate to="/login" replace />
+    }
+
+    if (!can('pos:read')) {
+        return <PermissionDenied permission="pos:read" />
+    }
+
     if (!selectedRegister) {
-        const crearCajaRapida = async () => {
+        const createRegisterQuickly = async () => {
             try {
                 setLoading(true)
-                // Intentar obtener almacenes activos
+                // Try to fetch active warehouses
                 let ws = warehouses
                 if (!ws || ws.length === 0) {
                     try {
@@ -1400,10 +1807,10 @@ export default function POSView() {
                 const reg = await createRegister(payload)
                 await loadRegisters()
                 setSelectedRegister(reg)
-                alert(t('pos:register.createdSuccess') + `: ${payload.name}`)
+                toast.success(t('pos:register.createdSuccess') + `: ${payload.name}`)
             } catch (e) {
-                console.error('No se pudo crear la caja', e)
-                alert(t('pos:register.createdError'))
+                console.error('Could not create register', e)
+                toast.error(t('pos:register.createdError'))
             } finally {
                 setLoading(false)
             }
@@ -1416,7 +1823,7 @@ export default function POSView() {
                     <p className="text-sm text-gray-600 mb-4">
                         {t('pos:register.createDefault')}
                     </p>
-                    {!esAdminEmpresa && (
+                    {!isCompanyAdmin && (
                         <p className="text-sm text-amber-700 mb-4">
                             {t('pos:register.adminOnly')}
                         </p>
@@ -1428,8 +1835,8 @@ export default function POSView() {
                                 value={newRegisterName}
                                 onChange={(e) => setNewRegisterName(e.target.value)}
                                 className="border rounded px-3 py-2 w-full"
-                                placeholder="Caja Principal"
-                                disabled={!esAdminEmpresa}
+                                placeholder={t('pos:register.nameDefault')}
+                                disabled={!isCompanyAdmin}
                                 required
                             />
                         </div>
@@ -1440,7 +1847,7 @@ export default function POSView() {
                                 onChange={(e) => setNewRegisterCode(e.target.value)}
                                 className="border rounded px-3 py-2 w-full"
                                 placeholder={t('pos:register.codeDefault')}
-                                disabled={!esAdminEmpresa}
+                                disabled={!isCompanyAdmin}
                             />
                         </div>
                     </div>
@@ -1464,7 +1871,7 @@ export default function POSView() {
                     )}
                     <ProtectedButton
                         permission="pos:create"
-                        onClick={crearCajaRapida}
+                        onClick={createRegisterQuickly}
                         disabled={loading || !newRegisterName.trim() || (warehouses.length > 1 && !headerWarehouseId)}
                         className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-60"
                     >
@@ -1476,84 +1883,197 @@ export default function POSView() {
     }
 
     return (
-        <div className={cart.length > 0 ? 'tpv' : 'tpv tpv--no-cart'}>
+        <div className={`${cart.length > 0 ? 'tpv' : 'tpv tpv--no-cart'} tpv--theme-${posTheme}`}>
             {/* Top Bar */}
             <header className="top">
                 <div className="brand">
+                    <ProtectedButton
+                        permission="pos:read"
+                        className="btn sm ghost pos-action-btn"
+                        unstyled
+                        onClick={() => navigate(dashboardPath)}
+                        title={t('pos:header.backToDashboard', { defaultValue: 'Back to dashboard' })}
+                    >
+                        <ArrowLeft size={14} />
+                    </ProtectedButton>
                     <div className="brand__logo" aria-hidden="true"></div>
-                    <span>TPV - GestiQCloud</span>
-                    {userLabel && (
-                        <span className="badge" style={{ marginLeft: 8 }} title="Usuario conectado">
-                            {userLabel}
-                        </span>
-                    )}
+                    <span>POS</span>
                 </div>
-                {currentShift && (
-                    <div className="shift-pill" title={t('pos:header.shiftOpen')}>
-                        <span className="shift-title">{t('pos:header.shiftOpen')}</span>
-                        <span className="shift-meta">
-                            {t('pos:shift.opening')} {currencySymbol}{(Number(currentShift.opening_float) || 0).toFixed(2)}
-                        </span>
-                        {inventoryConfig.reorderPoint > 0 && (
-                            <span className="shift-meta">
-                                {t('pos:shift.minimumStock')}: {inventoryConfig.reorderPoint}
-                            </span>
-                        )}
-                        <ProtectedButton
-                            permission="pos:update"
-                            className="btn sm danger"
-                            onClick={() => shiftManagerRef.current?.openCloseModal()}
-                        >
-                            {t('pos:header.closingShift')}
-                        </ProtectedButton>
-                    </div>
-                )}
-                <div className="actions top-actions">
-                    <ProtectedButton permission="pos:update" className="btn sm" onClick={() => setTicketNotes(prompt(t('pos:cart.ticketNotes'), ticketNotes) || ticketNotes)}>
-                        {t('pos:header.notes')}
+                <div className={`shift-pill ${currentShift ? 'shift-pill-open' : 'shift-pill-closed'}`} title={currentShift ? t('pos:header.registerOpen', { defaultValue: 'Register open' }) : t('pos:header.registerClosed', { defaultValue: 'Register closed' })}>
+                    <span className={`shift-state ${currentShift ? 'is-open' : 'is-closed'}`}>
+                        {currentShift ? t('pos:header.open', { defaultValue: 'Open' }) : t('pos:header.closed', { defaultValue: 'Closed' })}
+                    </span>
+                    <span className="shift-title">{t('pos:header.register', { defaultValue: 'Register' })}</span>
+                    <span className="shift-meta shift-amount">
+                        {currencySymbol}{(Number(currentShift?.opening_float) || 0).toFixed(2)}
+                    </span>
+                    <ProtectedButton
+                        permission="pos:update"
+                        className={`btn sm ${currentShift ? 'danger' : 'primary'} pos-shift-close`}
+                        unstyled
+                        onClick={() => shiftManagerRef.current?.openCloseModal()}
+                        title={currentShift ? t('pos:header.reviewClose', { defaultValue: 'Review close' }) : t('pos:header.openRegister', { defaultValue: 'Open register' })}
+                    >
+                        {currentShift ? t('pos:header.reviewClose', { defaultValue: 'Review close' }) : t('pos:header.openRegister', { defaultValue: 'Open register' })}
                     </ProtectedButton>
-                    {canDiscount && (
-                        <ProtectedButton permission="pos:update" className="btn sm" onClick={() => setGlobalDiscountPct(parseFloat(prompt(t('pos:header.discount') + ' (%)', String(globalDiscountPct)) || String(globalDiscountPct)))}>
-                            {t('pos:header.discount')}
-                        </ProtectedButton>
-                    )}
-                    {canViewReports && (
-                        <ProtectedButton
-                            permission="pos:read"
-                            className="btn sm"
-                            onClick={() => {
-                                const url = selectedRegister ? `daily-counts?register_id=${selectedRegister.id}` : 'daily-counts'
-                                navigate(url)
-                            }}
-                        >
-                            {t('pos:header.dailyReports')}
-                        </ProtectedButton>
-                    )}
-                    <ProtectedButton permission="pos:read" className="btn sm" onClick={handleHoldTicket}>
-                        {t('pos:header.holdTicket')}
-                    </ProtectedButton>
-                    <ProtectedButton permission="pos:read" className="btn sm" onClick={handleResumeTicket}>
-                        {t('pos:header.resume')}
-                    </ProtectedButton>
-                    <ProtectedButton permission="pos:read" className="btn sm" onClick={handleReprintLast} title={t("pos:header.reprintTooltip")}>
-                        {t('pos:header.reprint')}
-                    </ProtectedButton>
-                    {canManagePending && (
-                        <ProtectedButton permission="pos:update" className="btn sm" onClick={handlePayPending}>
-                            {t('pos:header.pendingPayments')}
-                        </ProtectedButton>
-                    )}
                 </div>
-                <div className="top-meta">
+                <div className="top-live">
                     <span className={`badge ${isOnline ? 'ok' : 'off'}`}>
+                        <Wifi size={12} />
                         {isOnline ? t('pos:header.online') : t('pos:header.offline')}
                     </span>
+                    <span className="badge" title={t('pos:header.currentTime', { defaultValue: 'Current time' })}>
+                        <Clock3 size={12} />
+                        {clock.toLocaleTimeString()}
+                    </span>
+                    <ProtectedButton
+                        permission="pos:read"
+                        className="btn sm ghost pos-action-btn"
+                        unstyled
+                        onClick={() => setTopSettingsOpen((prev) => !prev)}
+                    >
+                        <Palette size={14} />
+                        <span className="pos-action-label">{topSettingsOpen
+                            ? t('pos:header.closeSettings', { defaultValue: 'Close settings' })
+                            : t('pos:header.settings', { defaultValue: 'Settings' })}</span>
+                    </ProtectedButton>
+                </div>
+                <div className="actions top-actions">
+                    <ProtectedButton permission="pos:update" className="btn sm pos-action-btn" unstyled onClick={() => setShowBuyerModal(true)} title={t('pos:header.customer', { defaultValue: 'Customer' })}>
+                        <UserRound size={14} />
+                        <span className="pos-action-label">{t('pos:header.customer', { defaultValue: 'Customer' })}</span>
+                    </ProtectedButton>
+                    <ProtectedButton
+                        permission="pos:update"
+                        className="btn sm pos-action-btn"
+                        unstyled
+                        onClick={() =>
+                            openQuickInput({
+                                title: t('pos:cart.ticketNotes'),
+                                value: ticketNotes,
+                                multiline: true,
+                                placeholder: t('pos:cart.ticketNotes', { defaultValue: 'Ticket notes' }),
+                                onConfirm: (value) => {
+                                    setTicketNotes(value)
+                                    closeQuickInput()
+                                },
+                            })
+                        }
+                        title={t('pos:header.notes')}
+                    >
+                        <NotebookPen size={14} />
+                        <span className="pos-action-label">{t('pos:header.notes')}</span>
+                    </ProtectedButton>
+                    {canDiscount && (
+                         <ProtectedButton permission="pos:update" className="btn sm pos-action-btn" unstyled onClick={() => setShowDiscountModal(true)} title={t('pos:header.discount')}>
+                             <Percent size={14} />
+                             <span className="pos-action-label">{t('pos:header.discountShort', { defaultValue: 'Disc.' })}</span>
+                         </ProtectedButton>
+                     )}
+                    <ProtectedButton
+                        permission="pos:update"
+                        className="btn sm pos-action-btn"
+                        unstyled
+                        onClick={() => {
+                            setCart([])
+                            setGlobalDiscountPct(0)
+                            setTicketNotes('')
+                            setCurrentReceiptId(null)
+                        }}
+                        title={t('pos:new', { defaultValue: 'New sale' })}
+                    >
+                        <PlusCircle size={14} />
+                        <span className="pos-action-label">{t('pos:new', { defaultValue: 'New sale' })}</span>
+                    </ProtectedButton>
+                    <ProtectedButton
+                        permission="pos:read"
+                        className="btn sm pos-action-btn"
+                        unstyled
+                        onClick={() => setTopMoreOpen((prev) => !prev)}
+                        title={t('pos:header.moreActions', { defaultValue: 'More actions' })}
+                    >
+                        <Menu size={14} />
+                        <span className="pos-action-label">{t('pos:header.more', { defaultValue: 'More' })}</span>
+                    </ProtectedButton>
+                </div>
+                {topMoreOpen && (
+                    <div className="top-more-panel">
+                        {canViewReports && (
+                            <ProtectedButton
+                                permission="pos:read"
+                                className="btn sm pos-action-btn"
+                                unstyled
+                                onClick={() => {
+                                    const url = selectedRegister ? `daily-counts?register_id=${selectedRegister.id}` : 'daily-counts'
+                                    navigate(url)
+                                    setTopMoreOpen(false)
+                                }}
+                            >
+                                <SearchCheck size={14} />
+                                {t('pos:header.dailyReports')}
+                            </ProtectedButton>
+                        )}
+                        <ProtectedButton permission="pos:read" className="btn sm pos-action-btn" unstyled onClick={() => { handleHoldTicket(); setTopMoreOpen(false) }}>
+                            <ShoppingCart size={14} />
+                            {t('pos:header.holdTicket')}
+                        </ProtectedButton>
+                        <ProtectedButton permission="pos:read" className="btn sm pos-action-btn" unstyled onClick={() => { setShowResumeTicketModal(true); setTopMoreOpen(false) }}>
+                            <Store size={14} />
+                            {t('pos:header.resume')}
+                        </ProtectedButton>
+                        <ProtectedButton permission="pos:read" className="btn sm pos-action-btn" unstyled onClick={() => { handleReprintLast(); setTopMoreOpen(false) }} title={t("pos:header.reprintTooltip")}>
+                            <Printer size={14} />
+                            {t('pos:header.reprint')}
+                        </ProtectedButton>
+                        {canManagePending && (
+                            <ProtectedButton permission="pos:update" className="btn sm pos-action-btn" unstyled onClick={() => { handlePayPending(); setTopMoreOpen(false) }}>
+                                <Clock3 size={14} />
+                                {t('pos:header.pendingPayments')}
+                            </ProtectedButton>
+                        )}
+                    </div>
+                )}
+                {topSettingsOpen && (
+                    <div className="top-settings-panel">
+                    <select
+                        value={posTheme}
+                        onChange={async (e) => {
+                            const next = normalizePosTheme(e.target.value)
+                            setPosTheme(next)
+                            try { localStorage.setItem(POS_THEME_KEY, next) } catch { }
+                            try {
+                                await savePosTheme(next, companySettings)
+                                setCompanySettings((prev: any) => ({
+                                    ...(prev || {}),
+                                    pos_config: {
+                                        ...((prev as any)?.pos_config || {}),
+                                        theme: next,
+                                    },
+                                }))
+                            } catch (err) {
+                                console.error('Could not save POS theme in backend', err)
+                                toast.error(t('pos:errors.saveThemeFailed', { defaultValue: 'Could not save theme for this company' }))
+                            }
+                        }}
+                        className="badge"
+                        style={{ cursor: 'pointer' }}
+                        title={t('pos:header.themeLabel', { defaultValue: 'Visual theme' })}
+                    >
+                        <option value="corporate-dark">{t('pos:header.themeCorporate', { defaultValue: 'Corporate theme' })}</option>
+                        <option value="soft-dark">{t('pos:header.themeSoftDark', { defaultValue: 'Soft dark theme' })}</option>
+                        <option value="light">{t('pos:header.themeLight', { defaultValue: 'Light theme' })}</option>
+                    </select>
+                    <span className="badge ok" title={t('pos:header.printerStatus', { defaultValue: 'Printer status' })}>
+                        {typeof window.print === 'function'
+                            ? t('pos:header.printerOk', { defaultValue: 'Printer OK' })
+                            : t('pos:header.printerUnavailable', { defaultValue: 'Printer N/A' })}
+                    </span>
                     {pendingCount > 0 && (
-                        <ProtectedButton permission="pos:read" className="badge" onClick={syncNow} title={t('pos:header.syncing')}>
-                            ⟳ {pendingCount} {t('pos:header.syncing')}
+                        <ProtectedButton permission="pos:read" className="badge" unstyled onClick={syncNow} title={t('pos:header.syncing')}>
+                            Sync {pendingCount}
                         </ProtectedButton>
                     )}
-                    {esAdminEmpresa && cashiers.length > 0 && (
+                    {isCompanyAdmin && cashiers.length > 0 && (
                         <select
                             value={selectedCashierId || ''}
                             onChange={(e) => setSelectedCashierId(e.target.value || null)}
@@ -1561,7 +2081,7 @@ export default function POSView() {
                             style={{ cursor: 'pointer' }}
                             title={t('pos:header.cashierLabel')}
                         >
-                            {!selectedCashierId && <option value="">{t('pos:header.cashierLabel')}…</option>}
+                            {!selectedCashierId && <option value="">{t('pos:header.cashierLabel')}...</option>}
                             {cashiers.map((u) => (
                                 <option key={u.id} value={u.id}>
                                     {formatCashierLabel(u)}
@@ -1569,6 +2089,7 @@ export default function POSView() {
                             ))}
                         </select>
                     )}
+                    {userLabel && <span className="badge">{userLabel}</span>}
                     <select
                         value={selectedRegister?.id || ''}
                         onChange={(e) => {
@@ -1584,7 +2105,7 @@ export default function POSView() {
                             </option>
                         ))}
                     </select>
-                    {esAdminEmpresa && warehouses.length > 1 && (
+                    {isCompanyAdmin && warehouses.length > 1 && (
                         <select
                             value={headerWarehouseId || ''}
                             onChange={(e) => setHeaderWarehouseId(e.target.value || null)}
@@ -1592,309 +2113,137 @@ export default function POSView() {
                             style={{ cursor: 'pointer' }}
                             title={t('pos:header.warehouseLabel')}
                         >
-                            <option value="">{t('pos:header.warehouseLabel')}…</option>
+                            <option value="">{t('pos:header.warehouseLabel')}...</option>
                             {warehouses.map((w) => (
                                 <option key={w.id} value={w.id}>
-                                    {w.code} — {w.name}
+                                    {w.code} - {w.name}
                                 </option>
                             ))}
                         </select>
                     )}
-                </div>
+                    </div>
+                )}
             </header>
 
-            {/* Left Column - Catalog */}
-            <section className="left">
+            {/* ShiftManager & Catalog & Cart */}
+            <>
                 {/* Shift Manager */}
                 <ShiftManager ref={shiftManagerRef} register={selectedRegister} onShiftChange={setCurrentShift} compact />
 
-                {/* Search */}
-                <div
-                    className={`search ${searchExpanded ? 'search--expanded' : 'search--collapsed'}`}
-                    role="search"
-                >
-                    <ProtectedButton
-                        permission="pos:read"
-                        className="btn sm ghost search-toggle"
-                        onClick={() => setSearchExpanded((prev) => !prev)}
-                        type="button"
-                    >
-                        {t('pos:search.button')}
-                    </ProtectedButton>
-                    <input
-                        id="search"
-                        placeholder={t('pos:search.placeholder')}
-                        aria-label={t('pos:search.placeholder')}
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        onFocus={() => setSearchExpanded(true)}
-                        onBlur={() => {
-                            if (!searchQuery.trim()) setSearchExpanded(false)
-                        }}
-                        onKeyDown={(e) => {
-                            if (e.key === 'F2') {
-                                e.currentTarget.focus()
-                                return
-                            }
-                            handleSearchEnter(e)
-                        }}
-                    />
-                    <input
-                        id="barcode"
-                        placeholder={t('pos:search.barcodeInput')}
-                        aria-label={t('pos:search.barcodeInput')}
-                        style={{ width: 180, borderLeft: '1px solid var(--border)', paddingLeft: 10 }}
-                        value={barcodeInput}
-                        onChange={(e) => setBarcodeInput(e.target.value)}
-                        onKeyDown={handleBarcodeEnter}
-                    />
-                    <ProtectedButton permission="pos:read" className="btn sm" onClick={() => setSearchQuery('')}>
-                        {t('common:clear')}
-                    </ProtectedButton>
-                </div>
+                {/* Catalog Section */}
+                <CatalogSection
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    barcodeInput={barcodeInput}
+                    setBarcodeInput={setBarcodeInput}
+                    searchExpanded={searchExpanded}
+                    setSearchExpanded={setSearchExpanded}
+                    selectedCategory={selectedCategory}
+                    setSelectedCategory={setSelectedCategory}
+                    viewMode={viewMode}
+                    setViewMode={setViewMode}
+                    filteredProducts={filteredProducts}
+                    categories={categories}
+                    searchInputRef={searchInputRef}
+                    onAddToCart={addToCart}
+                    onSearchEnter={handleSearchEnter}
+                    onBarcodeEnter={handleBarcodeEnter}
+                />
 
-                {/* View Mode Toggle */}
-                <div className="view-toggle">
-                    <ProtectedButton
-                        permission="pos:read"
-                        className={`btn sm ${viewMode === 'categories' ? 'primary' : ''}`}
-                        onClick={() => setViewMode('categories')}
-                    >
-                        {t('pos:view.byCategories')}
-                    </ProtectedButton>
-                    <ProtectedButton
-                        permission="pos:read"
-                        className={`btn sm ${viewMode === 'all' ? 'primary' : ''}`}
-                        onClick={() => setViewMode('all')}
-                    >
-                        {t('pos:view.all')}
-                    </ProtectedButton>
-                </div>
-
-                {/* Categories - only visible in categories mode */}
-                {viewMode === 'categories' && (
-                    <div className="cats" role="tablist" aria-label={t('pos:catalog.title')}>
-                        {categories.map((cat) => (
-                            <ProtectedButton
-                                permission="pos:read"
-                                key={cat}
-                                className={`cat ${selectedCategory === cat ? 'active' : ''}`}
-                                onClick={() => setSelectedCategory(cat)}
-                            >
-                                {cat === '*' ? t('pos:view.all') : cat}
-                            </ProtectedButton>
-                        ))}
-                    </div>
-                )}
-
-                {/* Product Grid */}
-                <div id="catalog" className="catalog" role="list" aria-label={t('pos:catalog.title')}>
-                    {filteredProducts.map((p) => (
-                        <ProtectedButton
-                            permission="pos:create"
-                            key={p.id}
-                            className="tile"
-                            role="listitem"
-                            title={p.sku || ''}
-                            onClick={() => addToCart(p)}
-                        >
-                            <strong>{p.name}</strong>
-                            <small>{p.price?.toFixed(2) || '0.00'}{currencySymbol}</small>
-                            {p.product_metadata?.tags && (
-                                <div className="tags">
-                                    {p.product_metadata.tags.map((tag: string) => (
-                                        <span key={tag} className="chip">
-                                            {tag}
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
-                        </ProtectedButton>
-                    ))}
-                    {filteredProducts.length === 0 && (
-                        <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
-                            {t('pos:catalog.empty')}
-                        </div>
-                    )}
-                </div>
-            </section>
-
-            {/* Right Column - Cart & Payment */}
-            <aside className="right">
-                <div className="cart" role="list" aria-label="Carrito">
-                    {cart.map((item, idx) => {
-                        const lineTotal = item.price * item.qty * (1 - item.discount_pct / 100)
-                        return (
-                            <div key={idx} className="row">
-                                <div>
-                                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'space-between' }}>
-                                        <strong>{item.name}</strong>
-                                        <div className="line-tools">
-                                             <ProtectedButton permission="pos:update" className="btn ghost" title={t('pos:cart.lineDiscount')} onClick={() => setLineDiscount(idx)}>
-                                                 -%
-                                             </ProtectedButton>
-                                             <ProtectedButton permission="pos:update" className="btn ghost" title={t('pos:cart.lineNotes')} onClick={() => setLineNote(idx)}>
-                                                 📝
-                                             </ProtectedButton>
-                                         </div>
-                                    </div>
-                                    <small style={{ color: 'var(--muted)' }}>
-                                        {item.price.toFixed(2)}{currencySymbol}
-                                        {item.discount_pct > 0 && ` · Desc ${item.discount_pct}%`}
-                                        {item.pricing_note && ` · ${item.pricing_note}`}
-                                        {item.notes && ` · ${item.notes}`}
-                                    </small>
-                                </div>
-                                <div className="qty">
-                                    <ProtectedButton permission="pos:update" aria-label="menos" onClick={() => updateQty(idx, -1)}>
-                                        –
-                                    </ProtectedButton>
-                                    <input
-                                        type="number"
-                                        min="0.01"
-                                        step="0.01"
-                                        aria-label="cantidad"
-                                        value={item.qty}
-                                        onChange={(e) => {
-                                            const newQty = parseFloat(e.target.value) || 0
-                                            if (newQty > 0) {
-                                                const updated = [...cart]
-                                                const product = products.find((p) => p.id === updated[idx].product_id)
-                                                if (product) {
-                                                    updated[idx] = applyPricingToCartItem(updated[idx], product, newQty)
-                                                } else {
-                                                    updated[idx].qty = newQty
-                                                }
-                                                setCart(updated)
-                                            }
-                                        }}
-                                        style={{ textAlign: 'center' }}
-                                    />
-                                    <ProtectedButton permission="pos:update" aria-label={t('pos:actions.increment')} onClick={() => updateQty(idx, 1)}>
-                                        +
-                                    </ProtectedButton>
-                                </div>
-                                <div className="sum">{lineTotal.toFixed(2)}{currencySymbol}</div>
-                                <ProtectedButton permission="pos:update" className="del" aria-label="Delete" onClick={() => removeItem(idx)}>
-                                    ✕
-                                </ProtectedButton>
-                            </div>
-                        )
-                    })}
-                </div>
-
-                {cart.length > 0 && (
-                    <div className="pay">
-                        <div className="totals">
-                            <div>{t('pos:totals.subtotal')}</div>
-                            <div className="sum">{totals.subtotal.toFixed(2)}{currencySymbol}</div>
-                            <div>{t('pos:totals.discount')}</div>
-                            <div className="sum">-{(totals.line_discounts + totals.global_discount).toFixed(2)}{currencySymbol}</div>
-                            <div>{t('pos:totals.tax')}</div>
-                            <div className="sum">{totals.tax.toFixed(2)}{currencySymbol}</div>
-                            <div className="big">{t('pos:totals.total')}</div>
-                            <div className="sum big">{totals.total.toFixed(2)}{currencySymbol}</div>
-                        </div>
-                    </div>
-                )}
-            </aside>
-
-            {/* Bottom Bar */}
-            {cart.length > 0 && (
-                <footer
-                    className="bottom"
-                    style={{
-                        position: 'fixed',
-                        left: 16,
-                        right: 16,
-                        bottom: 16,
-                        zIndex: 50,
-                        borderRadius: 12,
-                        boxShadow: '0 12px 28px rgba(0,0,0,0.18)',
-                        padding: '10px 12px',
-                        background: 'var(--panel, #111827)',
-                        width: 'min(520px, calc(100% - 32px))',
-                        marginRight: 'auto'
+                {/* Cart Section */}
+                <CartSection
+                    cart={cart}
+                    totals={totals}
+                    isLoading={loading}
+                    onUpdateQty={updateQty}
+                    onQtyChange={(idx, newQty) => {
+                        const updated = [...cart]
+                        const product = products.find((p) => p.id === updated[idx].product_id)
+                        if (product) {
+                            updated[idx] = applyPricingToCartItem(updated[idx], product, newQty)
+                        } else {
+                            updated[idx].qty = newQty
+                        }
+                        setCart(updated)
                     }}
-                >
-                    <div className="actions">
-                        <ProtectedButton
-                            permission="pos:update"
-                            className="btn"
-                            onClick={() => {
-                                if (confirm(t('pos:cart.confirmClear'))) {
-                                    setCart([])
-                                    setGlobalDiscountPct(0)
-                                    setTicketNotes('')
-                                }
-                            }}
-                        >
-                            {t('pos:cart.clearAll')}
-                        </ProtectedButton>
-                        <ProtectedButton permission="pos:update" className="btn" onClick={() => setTicketNotes(prompt(t('pos:cart.ticketNotes'), ticketNotes) || ticketNotes)}>
-                            {t('pos:header.notes')}
-                        </ProtectedButton>
-                    </div>
-                    <div className="actions">
-                        <ProtectedButton permission="pos:create" className="btn primary" onClick={handleCheckout} disabled={cart.length === 0 || !currentShift}>
-                            {cart.length > 0
-                                ? t('pos:actions.chargeWithTotal', { amount: totals.total.toFixed(2), currency: currencySymbol })
-                                : t('pos:actions.charge')}
-                        </ProtectedButton>
-                        <ProtectedButton permission="pos:create" className="btn" onClick={handleCheckoutWithoutTicket} disabled={cart.length === 0 || !currentShift}>
-                            {cart.length > 0
-                                ? t('pos:actions.chargeNoReceiptWithTotal', { amount: totals.total.toFixed(2), currency: currencySymbol })
-                                : t('pos:actions.chargeNoReceipt')}
-                        </ProtectedButton>
-                    </div>
-                </footer>
-            )}
+                    onRemoveItem={removeItem}
+                    onSetLineDiscount={setLineDiscount}
+                    onSetLineNote={setLineNote}
+                    onCheckout={handleCheckout}
+                    onQuickConsumerFinal={() => { void handleQuickConsumerFinal() }}
+                    onQuickInvoice={() => { void handleQuickInvoice() }}
+                    onQuickNoTicket={() => { void handleQuickNoTicket() }}
+                />
+
+                {/* Bottom Bar */}
+                {cart.length > 0 && (
+                    <footer className="bottom">
+                        <POSPaymentBar
+                            subtotal={totals.subtotal}
+                            discount={totals.line_discounts + totals.global_discount}
+                            tax={totals.tax}
+                            cartTotal={totals.total}
+                            cartIsEmpty={cart.length === 0 || !currentShift}
+                            onPayClick={handleCheckout}
+                            isLoading={loading}
+                        />
+                    </footer>
+                )}
+            </>
 
             {/* Modals */}
 
             {showBuyerModal && (
                 <div
-                    style={{
-                        position: 'fixed',
-                        inset: 0,
-                        background: 'rgba(0, 0, 0, 0.45)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 9999,
-                    }}
+                    className="pos-modal-overlay"
+                    onClick={() => setShowBuyerModal(false)}
                 >
                     <div
-                        style={{
-                            width: 'min(560px, 92vw)',
-                            background: '#fff',
-                            borderRadius: 12,
-                            padding: 16,
-                            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 12,
-                        }}
+                        className="pos-modal-card"
+                        style={{ maxWidth: 620, display: 'flex', flexDirection: 'column', gap: 12 }}
+                        onClick={(e) => e.stopPropagation()}
                     >
-                        <div style={{ fontWeight: 700 }}>{t('pos:buyer.documentType')}</div>
+                        <div className="pos-modal-title" style={{ fontSize: 18 }}>{t('pos:buyer.documentType')}</div>
                         {buyerPolicy.requireBuyerAboveAmount && buyerPolicy.consumerFinalMaxTotal > 0 && (
-                            <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                            <div className="pos-modal-subtitle">
                                 {t('pos:buyer.requiresInvoiceAbove', { amount: currencySymbol + buyerPolicy.consumerFinalMaxTotal.toFixed(2) })}
                             </div>
                         )}
                         <div style={{ display: 'flex', gap: 8 }}>
                             <ProtectedButton
                                 permission="pos:create"
-                                className={`btn sm ${buyerMode === 'CONSUMER_FINAL' ? 'primary' : ''}`}
+                                unstyled
                                 onClick={() => handleBuyerContinue('CONSUMER_FINAL')}
                                 disabled={buyerPolicy.consumerFinalEnabled === false}
+                                style={{
+                                    height: 34,
+                                    borderRadius: 10,
+                                    padding: '0 12px',
+                                    border: buyerMode === 'CONSUMER_FINAL' ? 'none' : '1px solid #cbd5e1',
+                                    background: buyerMode === 'CONSUMER_FINAL'
+                                        ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'
+                                        : '#e2e8f0',
+                                    color: buyerMode === 'CONSUMER_FINAL' ? '#fff' : '#1e293b',
+                                    fontWeight: 700,
+                                }}
                             >
                                 {t('pos:buyer.consumerFinal')}
                             </ProtectedButton>
                             <ProtectedButton
                                 permission="pos:create"
-                                className={`btn sm ${buyerMode === 'IDENTIFIED' ? 'primary' : ''}`}
+                                unstyled
                                 onClick={() => setBuyerMode('IDENTIFIED')}
+                                style={{
+                                    height: 34,
+                                    borderRadius: 10,
+                                    padding: '0 12px',
+                                    border: buyerMode === 'IDENTIFIED' ? 'none' : '1px solid #cbd5e1',
+                                    background: buyerMode === 'IDENTIFIED'
+                                        ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'
+                                        : '#e2e8f0',
+                                    color: buyerMode === 'IDENTIFIED' ? '#fff' : '#1e293b',
+                                    fontWeight: 700,
+                                }}
                             >
                                 {t('pos:buyer.invoiceWithData')}
                             </ProtectedButton>
@@ -1906,8 +2255,8 @@ export default function POSView() {
                         )}
                         {buyerMode === 'IDENTIFIED' && (
                             <div style={{ display: 'grid', gap: 8 }}>
-                                <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 8 }}>
-                                    <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', marginBottom: 6 }}>
+                                <div style={{ border: '1px solid #cbd5e1', borderRadius: 10, padding: 10, background: '#f8fafc' }}>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 6 }}>
                                         {t('pos:buyer.existingClient')}
                                     </div>
                                     <input
@@ -1915,9 +2264,10 @@ export default function POSView() {
                                         placeholder={t('pos:buyer.search')}
                                         value={clientQuery}
                                         onChange={(e) => setClientQuery(e.target.value)}
+                                        className="pos-modal-input"
                                     />
                                     {clientsLoading && (
-                                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>{t('common:loading')}</div>
+                                        <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>{t('common:loading')}</div>
                                     )}
                                     {!clientsLoading && clientsLoadError && (
                                         <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
@@ -1925,7 +2275,8 @@ export default function POSView() {
                                             <ProtectedButton
                                                 permission="pos:read"
                                                 type="button"
-                                                className="btn ghost"
+                                                unstyled
+                                                style={{ height: 32, borderRadius: 8, border: '1px solid #cbd5e1', background: '#e2e8f0', color: '#1e293b', fontWeight: 700 }}
                                                 onClick={() => {
                                                     clientsLoadAttemptedRef.current = false
                                                     loadClients()
@@ -1942,8 +2293,18 @@ export default function POSView() {
                                                     permission="pos:read"
                                                     key={String(c.id)}
                                                     type="button"
-                                                    className="btn ghost"
-                                                    style={{ justifyContent: 'space-between' }}
+                                                    unstyled
+                                                    style={{
+                                                        display: 'flex',
+                                                        width: '100%',
+                                                        justifyContent: 'space-between',
+                                                        alignItems: 'center',
+                                                        border: '1px solid #cbd5e1',
+                                                        background: '#ffffff',
+                                                        color: '#0f172a',
+                                                        borderRadius: 8,
+                                                        padding: '8px 10px',
+                                                    }}
                                                     onClick={() => handleSelectClient(c)}
                                                 >
                                                     <span>{c.name}</span>
@@ -1964,8 +2325,17 @@ export default function POSView() {
                                             <ProtectedButton
                                                 permission="pos:read"
                                                 type="button"
-                                                className="btn ghost"
-                                                style={{ marginLeft: 8 }}
+                                                unstyled
+                                                style={{
+                                                    marginLeft: 8,
+                                                    height: 30,
+                                                    borderRadius: 8,
+                                                    border: '1px solid #cbd5e1',
+                                                    background: '#e2e8f0',
+                                                    color: '#1e293b',
+                                                    padding: '0 10px',
+                                                    fontWeight: 700,
+                                                }}
                                                 onClick={clearSelectedClient}
                                             >
                                                 {t('common:remove')}
@@ -1984,23 +2354,29 @@ export default function POSView() {
                                     </label>
                                 )}
                                 <div style={{ display: 'grid', gap: 6 }}>
-                                    <div style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{t('pos:print.format')}</div>
+                                    <div className="pos-modal-label">{t('pos:print.format')}</div>
                                     <select
                                         value={docPrintFormat}
                                         onChange={(e) => setDocPrintFormat(e.target.value as any)}
-                                        className="badge"
-                                        style={{ cursor: 'pointer', padding: '6px 8px' }}
+                                        className="pos-modal-select"
                                     >
-                                        <option value="THERMAL_80MM">Recibo (80mm)</option>
-                                        <option value="A4_PDF">Papel A4</option>
+                                        <option value="THERMAL_80MM">{t('pos:print.receipt80mm', { defaultValue: 'Receipt (80mm)' })}</option>
+                                        <option value="A4_PDF">{t('pos:print.a4Paper', { defaultValue: 'A4 Paper' })}</option>
                                     </select>
                                 </div>
                                 <select
                                     value={buyerIdType}
                                     onChange={(e) => setBuyerIdType(e.target.value)}
-                                    className="badge"
-                                    style={{ cursor: 'pointer', padding: '6px 8px' }}
+                                    className="pos-modal-select"
+                                    disabled={documentIdTypesLoading}
                                 >
+                                    {allowedIdTypes.length === 0 && (
+                                        <option value="" disabled>
+                                            {documentIdTypesLoading
+                                                ? t('common:loading', { defaultValue: 'Loading...' })
+                                                : t('pos:buyer.noDocumentTypes', { defaultValue: 'No document types available' })}
+                                        </option>
+                                    )}
                                     {allowedIdTypes.map((opt) => (
                                         <option key={opt} value={opt}>
                                             {opt}
@@ -2009,29 +2385,32 @@ export default function POSView() {
                                 </select>
                                 <input
                                     type="text"
-                                    placeholder="Identificacion"
+                                    placeholder={t('pos:buyer.identification', { defaultValue: 'Identification' })}
                                     value={buyerIdNumber}
                                     onChange={(e) => setBuyerIdNumber(e.target.value)}
+                                    className="pos-modal-input"
                                 />
                                 <input
                                     type="text"
-                                    placeholder="Nombre"
+                                    placeholder={t('pos:buyer.name', { defaultValue: 'Name' })}
                                     value={buyerName}
                                     onChange={(e) => setBuyerName(e.target.value)}
+                                    className="pos-modal-input"
                                 />
                                 <input
                                     type="email"
-                                    placeholder="Email (opcional)"
+                                    placeholder={t('pos:buyer.email', { defaultValue: 'Email (optional)' })}
                                     value={buyerEmail}
                                     onChange={(e) => setBuyerEmail(e.target.value)}
+                                    className="pos-modal-input"
                                 />
                             </div>
                         )}
-                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                            <ProtectedButton permission="pos:read" className="btn ghost" onClick={() => setShowBuyerModal(false)}>
+                        <div className="pos-modal-actions">
+                            <ProtectedButton permission="pos:read" className="pos-modal-btn" unstyled onClick={() => setShowBuyerModal(false)}>
                                 {t('common:cancel')}
                             </ProtectedButton>
-                            <ProtectedButton permission="pos:update" className="btn primary" onClick={() => handleBuyerContinue()}>
+                            <ProtectedButton permission="pos:update" className="pos-modal-btn primary" unstyled onClick={() => handleBuyerContinue()}>
                                 {t('common:continue')}
                             </ProtectedButton>
                         </div>
@@ -2056,7 +2435,7 @@ export default function POSView() {
                         setShowInvoiceModal(false)
                         setCurrentReceiptId(null)
                         setAutoCreateInvoice(false)
-                        alert(t('pos:errors.invoiceGeneratedSuccess'))
+                        toast.success(t('pos:errors.invoiceGeneratedSuccess'))
                     }}
                     onCancel={() => {
                         setShowInvoiceModal(false)
@@ -2067,79 +2446,87 @@ export default function POSView() {
 
             {showCreateProductModal && (
                 <div
-                    style={{
-                        position: 'fixed',
-                        inset: 0,
-                        background: 'rgba(0, 0, 0, 0.45)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 9999,
-                    }}
+                    className="pos-modal-overlay"
+                    onClick={() => !creatingProduct && setShowCreateProductModal(false)}
                 >
                     <div
-                        style={{
-                            width: 'min(520px, 92vw)',
-                            background: '#fff',
-                            borderRadius: 12,
-                            padding: 16,
-                            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 12,
-                        }}
+                        className="pos-modal-card"
+                        style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+                        onClick={(e) => e.stopPropagation()}
                     >
-                        <div style={{ fontWeight: 700 }}>{t('pos:createProduct.title')}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <div style={{ fontWeight: 800, fontSize: 20, color: '#0f172a' }}>
+                                {t('pos:createProduct.title', { defaultValue: 'Create product quickly' })}
+                            </div>
+                            <div style={{ fontSize: 12, color: '#475569' }}>
+                                {t('pos:createProduct.description', { defaultValue: 'Complete the required fields to save and add to cart.' })}
+                            </div>
+                        </div>
                         <div style={{ display: 'grid', gap: 10 }}>
-                            <label style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>
+                            <label style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>
                                 {t('pos:createProduct.sku')}
                             </label>
                             <input
                                 type="text"
                                 style={{
-                                    border: '1px solid #cbd5f5',
-                                    padding: '8px 10px',
-                                    borderRadius: 8,
+                                    border: '1px solid #cbd5e1',
+                                    padding: '10px 12px',
+                                    borderRadius: 10,
                                     outline: 'none',
+                                    fontSize: 18,
+                                    fontWeight: 600,
+                                    color: '#334155',
+                                    background: '#fff',
                                 }}
                                 value={createProductForm.sku}
+                                placeholder={t('pos:createProduct.skuPlaceholder', { defaultValue: 'Product code' })}
                                 onChange={(e) =>
                                     setCreateProductForm((prev) => ({ ...prev, sku: e.target.value }))
                                 }
                             />
-                            <label style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>
-                                {t('pos:createProduct.name')} <span style={{ color: '#ef4444' }}>*</span>
+                            <label style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>
+                                {t('pos:createProduct.name')} <span style={{ color: '#dc2626' }}>*</span>
                             </label>
                             <input
                                 type="text"
+                                ref={createProductNameInputRef}
                                 style={{
                                     border: '2px solid #2563eb',
-                                    padding: '8px 10px',
-                                    borderRadius: 8,
+                                    padding: '10px 12px',
+                                    borderRadius: 10,
                                     outline: 'none',
                                     boxShadow: '0 0 0 2px rgba(37, 99, 235, 0.12)',
+                                    fontSize: 20,
+                                    fontWeight: 700,
+                                    color: '#0f172a',
+                                    background: '#fff',
                                 }}
                                 value={createProductForm.name}
+                                placeholder={t('pos:createProduct.namePlaceholder', { defaultValue: 'Product name' })}
                                 onChange={(e) =>
                                     setCreateProductForm((prev) => ({ ...prev, name: e.target.value }))
                                 }
                             />
                             {!createProductForm.name.trim() && (
-                                <div style={{ fontSize: 11, color: '#b91c1c' }}>
+                                <div style={{ fontSize: 12, color: '#b91c1c' }}>
                                     {t('pos:createProduct.nameRequired')}
                                 </div>
                             )}
-                            <label style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>
-                                {t('pos:createProduct.price')} <span style={{ color: '#ef4444' }}>*</span>
+                            <label style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>
+                                {t('pos:createProduct.price')} <span style={{ color: '#dc2626' }}>*</span>
                             </label>
                             <input
                                 type="number"
                                 style={{
                                     border: '2px solid #2563eb',
-                                    padding: '8px 10px',
-                                    borderRadius: 8,
+                                    padding: '10px 12px',
+                                    borderRadius: 10,
                                     outline: 'none',
                                     boxShadow: '0 0 0 2px rgba(37, 99, 235, 0.08)',
+                                    fontSize: 26,
+                                    fontWeight: 800,
+                                    color: '#0f172a',
+                                    background: '#fff',
                                 }}
                                 value={createProductForm.price}
                                 onChange={(e) =>
@@ -2152,49 +2539,79 @@ export default function POSView() {
                                 step="0.01"
                             />
                             {Number(createProductForm.price) <= 0 && (
-                                <div style={{ fontSize: 11, color: '#b91c1c' }}>
+                                <div style={{ fontSize: 12, color: '#b91c1c' }}>
                                     {t('pos:createProduct.priceMinimum')}
                                 </div>
                             )}
-                            <label style={{ fontSize: 12, fontWeight: 600, color: '#1f2937' }}>
-                                {t('pos:createProduct.stock')}
-                            </label>
-                            <input
-                                type="number"
-                                style={{ border: '1px solid #d1d5db', padding: '8px 10px', borderRadius: 8 }}
-                                value={createProductForm.stock}
-                                onChange={(e) =>
-                                    setCreateProductForm((prev) => ({
-                                        ...prev,
-                                        stock: Number(e.target.value) || 0,
-                                    }))
-                                }
-                                min={0}
-                                step="0.01"
-                            />
-                            <label style={{ fontSize: 12, fontWeight: 600, color: '#1f2937' }}>
-                                {t('pos:createProduct.tax')}
-                            </label>
-                            <input
-                                type="number"
-                                style={{ border: '1px solid #d1d5db', padding: '8px 10px', borderRadius: 8 }}
-                                value={createProductForm.iva_tasa}
-                                onChange={(e) =>
-                                    setCreateProductForm((prev) => ({
-                                        ...prev,
-                                        iva_tasa: Number(e.target.value) || 0,
-                                    }))
-                                }
-                                min={0}
-                                step="0.01"
-                            />
-                            <label style={{ fontSize: 12, fontWeight: 600, color: '#1f2937' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 10 }}>
+                                <div style={{ display: 'grid', gap: 6 }}>
+                                    <label style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>
+                                        {t('pos:createProduct.stock')}
+                                    </label>
+                                    <input
+                                        type="number"
+                                        style={{
+                                            border: '1px solid #cbd5e1',
+                                            padding: '10px 12px',
+                                            borderRadius: 10,
+                                            fontSize: 16,
+                                            fontWeight: 600,
+                                            color: '#0f172a',
+                                            background: '#fff',
+                                        }}
+                                        value={createProductForm.stock}
+                                        onChange={(e) =>
+                                            setCreateProductForm((prev) => ({
+                                                ...prev,
+                                                stock: Number(e.target.value) || 0,
+                                            }))
+                                        }
+                                        min={0}
+                                        step="0.01"
+                                    />
+                                </div>
+                                <div style={{ display: 'grid', gap: 6 }}>
+                                    <label style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>
+                                        {t('pos:createProduct.tax')}
+                                    </label>
+                                    <input
+                                        type="number"
+                                        style={{
+                                            border: '1px solid #cbd5e1',
+                                            padding: '10px 12px',
+                                            borderRadius: 10,
+                                            fontSize: 16,
+                                            fontWeight: 600,
+                                            color: '#0f172a',
+                                            background: '#fff',
+                                        }}
+                                        value={createProductForm.iva_tasa}
+                                        onChange={(e) =>
+                                            setCreateProductForm((prev) => ({
+                                                ...prev,
+                                                iva_tasa: Number(e.target.value) || 0,
+                                            }))
+                                        }
+                                        min={0}
+                                        step="0.01"
+                                    />
+                                </div>
+                            </div>
+                            <label style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>
                                 {t('pos:createProduct.category')}
                             </label>
                             <input
                                 type="text"
-                                style={{ border: '1px solid #d1d5db', padding: '8px 10px', borderRadius: 8 }}
+                                style={{
+                                    border: '1px solid #cbd5e1',
+                                    padding: '10px 12px',
+                                    borderRadius: 10,
+                                    fontSize: 15,
+                                    color: '#0f172a',
+                                    background: '#fff',
+                                }}
                                 value={createProductForm.categoria}
+                                placeholder="Opcional"
                                 onChange={(e) =>
                                     setCreateProductForm((prev) => ({
                                         ...prev,
@@ -2203,98 +2620,45 @@ export default function POSView() {
                                 }
                             />
                         </div>
-                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        <div className="pos-modal-actions">
                             <ProtectedButton
                                 permission="pos:read"
-                                className="btn ghost"
+                                unstyled
                                 onClick={() => setShowCreateProductModal(false)}
                                 disabled={creatingProduct}
+                                style={{
+                                    minWidth: 108,
+                                    height: 42,
+                                    borderRadius: 10,
+                                    border: '1px solid #94a3b8',
+                                    background: '#e2e8f0',
+                                    color: '#1e293b',
+                                    fontWeight: 700,
+                                    fontSize: 15,
+                                }}
                             >
                                 {t('common:cancel')}
                             </ProtectedButton>
                             <ProtectedButton
                                 permission="pos:create"
-                                className="btn primary"
+                                unstyled
                                 disabled={
                                     creatingProduct ||
                                     !createProductForm.name.trim() ||
                                     Number(createProductForm.price) <= 0
                                 }
-                                onClick={async () => {
-                                    if (!createProductForm.name.trim()) return
-                                    try {
-                                        setCreatingProduct(true)
-                                        const skuValue = createProductForm.sku.trim()
-                                        if (skuValue) {
-                                            const existing = findProductByCode(skuValue)
-                                            if (existing) {
-                                                addToCart(existing)
-                                                setBarcodeInput('')
-                                                setShowCreateProductModal(false)
-                                                alert(t('pos:createProduct.existingAdded'))
-                                                return
-                                            }
-                                            const remoteMatches = await searchProductos(skuValue)
-                                            const remoteProduct = Array.isArray(remoteMatches)
-                                                ? remoteMatches.find((p) => {
-                                                    return (
-                                                        normalizeCode(p.sku) === normalizeCode(skuValue) ||
-                                                        normalizeCode(p.product_metadata?.codigo_barras as string) ===
-                                                        normalizeCode(skuValue)
-                                                    )
-                                                })
-                                                : null
-                                            if (remoteProduct) {
-                                                setProducts((prev) => [remoteProduct, ...prev])
-                                                addToCart(remoteProduct)
-                                                setBarcodeInput('')
-                                                setShowCreateProductModal(false)
-                                                alert(t('pos:createProduct.existingAdded'))
-                                                return
-                                            }
-                                        }
-                                        const created = await createProducto({
-                                            sku: skuValue || undefined,
-                                            name: createProductForm.name.trim(),
-                                            price: Number(createProductForm.price) || 0,
-                                            stock: Number(createProductForm.stock) || 0,
-                                            iva_tasa: Number(createProductForm.iva_tasa) || 0,
-                                            categoria:
-                                                createProductForm.categoria.trim() ||
-                                                (selectedCategory !== '*' ? selectedCategory : undefined),
-                                            unit: 'unit',
-                                            active: true,
-                                        })
-                                        const stockQty = Number(createProductForm.stock) || 0
-                                        if (stockQty > 0) {
-                                            const warehouseId = await resolveWarehouseForStock()
-                                            if (warehouseId) {
-                                                try {
-                                                    await adjustStock({
-                                                        warehouse_id: warehouseId,
-                                                        product_id: created.id,
-                                                        delta: stockQty,
-                                                        reason: 'POS quick add',
-                                                    })
-                                                } catch (err) {
-                                                    console.error('No se pudo ajustar stock', err)
-                                                }
-                                            }
-                                        }
-                                        const enrichedProduct: Producto = {
-                                            ...created,
-                                            stock: stockQty > 0 ? stockQty : Number(created.stock ?? 0),
-                                        }
-                                        setProducts((prev) => [enrichedProduct, ...prev])
-                                        addToCart(enrichedProduct, { ignoreReorder: true })
-                                        setBarcodeInput('')
-                                        setShowCreateProductModal(false)
-                                    } catch (err) {
-                                        alert(t('pos:createProduct.creationFailed'))
-                                    } finally {
-                                        setCreatingProduct(false)
-                                    }
+                                style={{
+                                    minWidth: 170,
+                                    height: 42,
+                                    borderRadius: 10,
+                                    border: 'none',
+                                    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                                    color: '#fff',
+                                    fontWeight: 800,
+                                    fontSize: 15,
+                                    boxShadow: '0 8px 18px rgba(37, 99, 235, 0.35)',
                                 }}
+                                onClick={() => void handleCreateProductQuickSave()}
                             >
                                 {t('common:saveAndAdd')}
                             </ProtectedButton>
@@ -2306,34 +2670,24 @@ export default function POSView() {
 
             {showPrintPreview && (
                 <div
-                    style={{
-                        position: 'fixed',
-                        inset: 0,
-                        background: 'rgba(0, 0, 0, 0.45)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 9999,
+                    className="pos-modal-overlay"
+                    onClick={() => {
+                        setShowPrintPreview(false)
+                        setPrintHtml('')
                     }}
                 >
                     <div
-                        style={{
-                            width: 'min(900px, 95vw)',
-                            background: '#fff',
-                            borderRadius: 12,
-                            padding: 16,
-                            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 12,
-                        }}
+                        className="pos-modal-card lg"
+                        style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+                        onClick={(e) => e.stopPropagation()}
                     >
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <div style={{ fontWeight: 700 }}>{t('pos:print.preview')}</div>
+                            <div className="pos-modal-title" style={{ fontSize: 18 }}>{t('pos:print.preview')}</div>
                             <div style={{ display: 'flex', gap: 8 }}>
                                 <ProtectedButton
                                     permission="pos:read"
-                                    className="btn"
+                                    unstyled
+                                    className="pos-modal-btn primary"
                                     onClick={() => {
                                         const win = printFrameRef.current?.contentWindow
                                         if (win) {
@@ -2341,7 +2695,7 @@ export default function POSView() {
                                                 win.removeEventListener('afterprint', handleAfterPrint)
                                                 setShowPrintPreview(false)
                                                 setPrintHtml('')
-                                                alert(t('pos:errors.printingFinished'))
+                                                toast.success(t('pos:errors.printingFinished'))
                                             }
                                             win.addEventListener('afterprint', handleAfterPrint)
                                             win.focus()
@@ -2353,7 +2707,8 @@ export default function POSView() {
                                 </ProtectedButton>
                                 <ProtectedButton
                                     permission="pos:read"
-                                    className="btn ghost"
+                                    unstyled
+                                    className="pos-modal-btn"
                                     onClick={() => {
                                         setShowPrintPreview(false)
                                         setPrintHtml('')
@@ -2372,14 +2727,44 @@ export default function POSView() {
                     </div>
                 </div>
             )}
+            <POSKeyboardHelp />
             <PendingReceiptsModal
                 isOpen={showPendingModal}
                 shiftId={currentShift?.id || undefined}
                 onClose={() => setShowPendingModal(false)}
-                canManage={esAdminEmpresa}
+                canManage={isCompanyAdmin}
                 onPaid={() => {
-                    // Hook para refrescar datos si es necesario
+                    // Hook to refresh data if needed
                 }}
+            />
+
+            {/* Discount Modal (New) */}
+            <DiscountModal
+                isOpen={showDiscountModal}
+                currentValue={globalDiscountPct}
+                onConfirm={(value) => {
+                    setGlobalDiscountPct(value)
+                    setShowDiscountModal(false)
+                }}
+                onCancel={() => setShowDiscountModal(false)}
+            />
+
+            {/* Resume Ticket Modal (New) */}
+            <ResumeTicketModal
+                isOpen={showResumeTicketModal}
+                heldTickets={heldTickets}
+                onConfirm={handleResumeTicketConfirm}
+                onCancel={() => setShowResumeTicketModal(false)}
+            />
+            <QuickInputModal
+                isOpen={quickInputState.open}
+                title={quickInputState.title}
+                initialValue={quickInputState.value}
+                placeholder={quickInputState.placeholder}
+                type={quickInputState.type}
+                multiline={quickInputState.multiline}
+                onConfirm={(value) => quickInputState.onConfirm?.(value)}
+                onCancel={closeQuickInput}
             />
         </div>
     )

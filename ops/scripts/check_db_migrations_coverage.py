@@ -104,9 +104,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if not args.database_url:
-        raise SystemExit(
-            "ERROR: DATABASE_URL not set. Use --database-url or set DATABASE_URL."
-        )
+        raise SystemExit("ERROR: DATABASE_URL not set. Use --database-url or set DATABASE_URL.")
 
     sql_blobs = read_migration_sql()
     expected = expected_tables_from_migrations(sql_blobs)

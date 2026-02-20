@@ -656,11 +656,12 @@ def get_shift_summary(
     """Obtiene resumen del turno: ventas, productos vendidos y stock restante"""
     ensure_guc_from_request(request, db, persist=True)
     shift_uuid = _validate_uuid(shift_id, "Shift ID")
+    tenant_id = _get_tenant_id(request)
 
     cashier_uuid = _validate_uuid(cashier_id, "Cashier ID") if cashier_id else None
 
     base_filter = "shift_id = :sid"
-    params = {"sid": shift_uuid}
+    params = {"sid": shift_uuid, "tid": tenant_id}
     if cashier_uuid:
         base_filter += " AND cashier_id = :cid"
         params["cid"] = cashier_uuid
@@ -670,8 +671,11 @@ def get_shift_summary(
         pending_receipts = db.execute(
             text(
                 "SELECT COUNT(*) FROM pos_receipts "
-                f"WHERE {base_filter} AND status IN ('draft', 'unpaid')"
-            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
+                f"WHERE {base_filter} AND tenant_id = :tid AND status IN ('draft', 'unpaid')"
+            ).bindparams(
+                bindparam("sid", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
             params,
         ).scalar()
 
@@ -684,10 +688,13 @@ def get_shift_summary(
                 "FROM pos_receipt_lines rl "
                 "JOIN pos_receipts r ON r.id = rl.receipt_id "
                 "LEFT JOIN products p ON p.id = rl.product_id "
-                f"WHERE r.{base_filter} AND r.status = 'paid' "
-                "GROUP BY rl.product_id, p.name, p.sku "
+                f"WHERE r.{base_filter} AND r.tenant_id = :tid AND r.status = 'paid' "
+                "GROUP BY rl.product_id, p.id, p.name, p.sku "
                 "ORDER BY p.name"
-            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
+            ).bindparams(
+                bindparam("sid", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
             params,
         ).fetchall()
 
@@ -738,8 +745,11 @@ def get_shift_summary(
         sales_total = db.execute(
             text(
                 "SELECT COALESCE(SUM(gross_total), 0) "
-                f"FROM pos_receipts WHERE {base_filter} AND status = 'paid'"
-            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
+                f"FROM pos_receipts WHERE {base_filter} AND tenant_id = :tid AND status = 'paid'"
+            ).bindparams(
+                bindparam("sid", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
             params,
         ).scalar()
 
@@ -749,9 +759,12 @@ def get_shift_summary(
                 "SELECT pp.method, COALESCE(SUM(pp.amount), 0) as total "
                 "FROM pos_payments pp "
                 "JOIN pos_receipts pr ON pr.id = pp.receipt_id "
-                f"WHERE pr.{base_filter} AND pr.status = 'paid' "
+                f"WHERE pr.{base_filter} AND pr.tenant_id = :tid AND pr.status = 'paid' "
                 "GROUP BY pp.method"
-            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
+            ).bindparams(
+                bindparam("sid", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
             params,
         ).fetchall()
         payments_breakdown = {row[0]: float(row[1] or 0) for row in payments_breakdown_rows}
@@ -783,6 +796,7 @@ def close_shift(
     """Cierra un turno POS"""
     ensure_guc_from_request(request, db, persist=True)
     shift_uuid = _validate_uuid(shift_id, "Shift ID")
+    token_tenant_id = _get_tenant_id(request)
 
     try:
         # Verificar que el turno existe
@@ -804,9 +818,12 @@ def close_shift(
         pending = db.execute(
             text(
                 "SELECT COUNT(*) FROM pos_receipts "
-                "WHERE shift_id = :sid AND status IN ('draft', 'unpaid')"
-            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
-            {"sid": shift_uuid},
+                "WHERE shift_id = :sid AND tenant_id = :tid AND status IN ('draft', 'unpaid')"
+            ).bindparams(
+                bindparam("sid", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
+            {"sid": shift_uuid, "tid": token_tenant_id},
         ).scalar()
 
         if pending and pending > 0:
@@ -833,7 +850,6 @@ def close_shift(
         opened_at = shift_data[1]
         opening_float = float(shift_data[2] or 0)
         tenant_id = shift_data[3]
-        token_tenant_id = _get_tenant_id(request)
         if str(tenant_id) != str(token_tenant_id):
             logger.warning(
                 "Tenant mismatch closing shift: shift_tenant_id=%s token_tenant_id=%s shift_id=%s",
@@ -849,10 +865,13 @@ def close_shift(
                 "SELECT pp.method, COALESCE(SUM(pp.amount), 0) as total "
                 "FROM pos_payments pp "
                 "JOIN pos_receipts pr ON pr.id = pp.receipt_id "
-                "WHERE pr.shift_id = :sid AND pr.status = 'paid' "
+                "WHERE pr.shift_id = :sid AND pr.tenant_id = :tid AND pr.status = 'paid' "
                 "GROUP BY pp.method"
-            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
-            {"sid": shift_uuid},
+            ).bindparams(
+                bindparam("sid", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
+            {"sid": shift_uuid, "tid": tenant_id},
         ).fetchall()
 
         cash_sales = 0
@@ -876,9 +895,12 @@ def close_shift(
             db.execute(
                 text(
                     "SELECT COALESCE(SUM(tax_total), 0) FROM pos_receipts "
-                    "WHERE shift_id = :sid AND status = 'paid'"
-                ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
-                {"sid": shift_uuid},
+                    "WHERE shift_id = :sid AND tenant_id = :tid AND status = 'paid'"
+                ).bindparams(
+                    bindparam("sid", type_=PGUUID(as_uuid=True)),
+                    bindparam("tid", type_=PGUUID(as_uuid=True)),
+                ),
+                {"sid": shift_uuid, "tid": tenant_id},
             ).scalar()
             or 0
         )
@@ -1100,6 +1122,7 @@ def generate_accounting_for_closed_shift(
     """Genera asiento contable para un turno ya cerrado (no modifica el turno)."""
     ensure_guc_from_request(request, db, persist=True)
     shift_uuid = _validate_uuid(shift_id, "Shift ID")
+    token_tenant_id = _get_tenant_id(request)
 
     try:
         shift = db.execute(
@@ -1124,16 +1147,21 @@ def generate_accounting_for_closed_shift(
         if not shift_data:
             raise HTTPException(status_code=404, detail="Datos del turno no encontrados")
         tenant_id = shift_data[1]
+        if str(tenant_id) != str(token_tenant_id):
+            raise HTTPException(status_code=403, detail="tenant_mismatch")
 
         sales_by_method = db.execute(
             text(
                 "SELECT pp.method, COALESCE(SUM(pp.amount), 0) as total "
                 "FROM pos_payments pp "
                 "JOIN pos_receipts pr ON pr.id = pp.receipt_id "
-                "WHERE pr.shift_id = :sid AND pr.status = 'paid' "
+                "WHERE pr.shift_id = :sid AND pr.tenant_id = :tid AND pr.status = 'paid' "
                 "GROUP BY pp.method"
-            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
-            {"sid": shift_uuid},
+            ).bindparams(
+                bindparam("sid", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
+            {"sid": shift_uuid, "tid": tenant_id},
         ).fetchall()
 
         total_sales = 0.0
@@ -1144,9 +1172,12 @@ def generate_accounting_for_closed_shift(
             db.execute(
                 text(
                     "SELECT COALESCE(SUM(tax_total), 0) FROM pos_receipts "
-                    "WHERE shift_id = :sid AND status = 'paid'"
-                ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
-                {"sid": shift_uuid},
+                    "WHERE shift_id = :sid AND tenant_id = :tid AND status = 'paid'"
+                ).bindparams(
+                    bindparam("sid", type_=PGUUID(as_uuid=True)),
+                    bindparam("tid", type_=PGUUID(as_uuid=True)),
+                ),
+                {"sid": shift_uuid, "tid": tenant_id},
             ).scalar()
             or 0.0
         )
@@ -1376,6 +1407,7 @@ def shift_summary(shift_id: str, request: Request, db: Session = Depends(get_db)
     """Resumen de un turno POS"""
     ensure_guc_from_request(request, db, persist=True)
     shift_uuid = _validate_uuid(shift_id, "Shift ID")
+    tenant_id = _get_tenant_id(request)
 
     try:
         # Totales por mÃ©todo de pago
@@ -1384,11 +1416,14 @@ def shift_summary(shift_id: str, request: Request, db: Session = Depends(get_db)
                 "SELECT pp.method, COALESCE(SUM(pp.amount), 0) AS amount "
                 "FROM pos_payments pp "
                 "JOIN pos_receipts pr ON pr.id = pp.receipt_id "
-                "WHERE pr.shift_id = :sid "
+                "WHERE pr.shift_id = :sid AND pr.tenant_id = :tid "
                 "GROUP BY pp.method "
                 "ORDER BY amount DESC"
-            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
-            {"sid": shift_uuid},
+            ).bindparams(
+                bindparam("sid", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
+            {"sid": shift_uuid, "tid": tenant_id},
         ).fetchall()
 
         # Conteo de recibos
@@ -1397,9 +1432,12 @@ def shift_summary(shift_id: str, request: Request, db: Session = Depends(get_db)
                 "SELECT "
                 "COUNT(*) FILTER (WHERE status = 'paid') AS paid, "
                 "COUNT(*) FILTER (WHERE status = 'draft') AS draft "
-                "FROM pos_receipts WHERE shift_id = :sid"
-            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
-            {"sid": shift_uuid},
+                "FROM pos_receipts WHERE shift_id = :sid AND tenant_id = :tid"
+            ).bindparams(
+                bindparam("sid", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
+            {"sid": shift_uuid, "tid": tenant_id},
         ).first()
 
         # Totales
@@ -1409,9 +1447,12 @@ def shift_summary(shift_id: str, request: Request, db: Session = Depends(get_db)
                 "COALESCE(SUM(gross_total), 0) AS gross, "
                 "COALESCE(SUM(tax_total), 0) AS tax "
                 "FROM pos_receipts "
-                "WHERE shift_id = :sid AND status = 'paid'"
-            ).bindparams(bindparam("sid", type_=PGUUID(as_uuid=True))),
-            {"sid": shift_uuid},
+                "WHERE shift_id = :sid AND tenant_id = :tid AND status = 'paid'"
+            ).bindparams(
+                bindparam("sid", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
+            {"sid": shift_uuid, "tid": tenant_id},
         ).first()
 
         return {
@@ -1730,14 +1771,19 @@ def checkout(
     """Registra pagos y descuenta stock en una transacciÃ³n atÃ³mica"""
     ensure_guc_from_request(request, db, persist=True)
     receipt_uuid = _validate_uuid(receipt_id, "Receipt ID")
+    tenant_id = _get_tenant_id(request)
 
     try:
         # 1. Validar estado del recibo
         receipt = db.execute(
-            text("SELECT shift_id, status FROM pos_receipts WHERE id = :id FOR UPDATE").bindparams(
-                bindparam("id", type_=PGUUID(as_uuid=True))
+            text(
+                "SELECT shift_id, status FROM pos_receipts "
+                "WHERE id = :id AND tenant_id = :tid FOR UPDATE"
+            ).bindparams(
+                bindparam("id", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
             ),
-            {"id": receipt_uuid},
+            {"id": receipt_uuid, "tid": tenant_id},
         ).first()
 
         if not receipt:
@@ -1839,7 +1885,6 @@ def checkout(
         ).fetchall()
 
         costing = InventoryCostingService(db)
-        tenant_id = _get_tenant_id(request)
 
         for line in lines:
             line_id = line[0]
@@ -1968,9 +2013,12 @@ def checkout(
                 "UPDATE pos_receipts "
                 "SET status = 'paid', gross_total = :gt, tax_total = :tt, "
                 "warehouse_id = :wid, paid_at = NOW() "
-                "WHERE id = :id"
-            ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
-            {"id": receipt_uuid, "gt": total, "tt": tax, "wid": warehouse_uuid},
+                "WHERE id = :id AND tenant_id = :tid"
+            ).bindparams(
+                bindparam("id", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
+            {"id": receipt_uuid, "tid": tenant_id, "gt": total, "tt": tax, "wid": warehouse_uuid},
         )
 
         db.commit()
@@ -1986,9 +2034,9 @@ def checkout(
             invoice_result = service.create_invoice_from_receipt(
                 receipt_uuid,
                 customer_id=None,
-                invoice_series=payload.invoice_series
-                if hasattr(payload, "invoice_series")
-                else "A",
+                invoice_series=(
+                    payload.invoice_series if hasattr(payload, "invoice_series") else "A"
+                ),
             )
             if invoice_result:
                 documents_created["invoice"] = invoice_result
@@ -2079,9 +2127,13 @@ def refund_receipt(
     try:
         receipt = db.execute(
             text(
-                "SELECT status, warehouse_id FROM pos_receipts WHERE id = :id FOR UPDATE"
-            ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
-            {"id": receipt_uuid},
+                "SELECT status, warehouse_id FROM pos_receipts "
+                "WHERE id = :id AND tenant_id = :tid FOR UPDATE"
+            ).bindparams(
+                bindparam("id", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
+            {"id": receipt_uuid, "tid": tenant_id},
         ).first()
 
         if not receipt:
@@ -2240,10 +2292,14 @@ def refund_receipt(
         # Best-effort: mark receipt as refunded (status is used by UI filters)
         try:
             db.execute(
-                text("UPDATE pos_receipts SET status = 'refunded' WHERE id = :id").bindparams(
-                    bindparam("id", type_=PGUUID(as_uuid=True))
+                text(
+                    "UPDATE pos_receipts SET status = 'refunded' "
+                    "WHERE id = :id AND tenant_id = :tid"
+                ).bindparams(
+                    bindparam("id", type_=PGUUID(as_uuid=True)),
+                    bindparam("tid", type_=PGUUID(as_uuid=True)),
                 ),
-                {"id": receipt_uuid},
+                {"id": receipt_uuid, "tid": tenant_id},
             )
             db.commit()
         except Exception:
@@ -2322,12 +2378,13 @@ def backfill_receipt_documents(
     receipt_uuid = _validate_uuid(receipt_id, "Receipt ID")
     tenant_id = _get_tenant_id(request)
 
-    # Lock receipt row to prevent concurrent backfills
+    # Lock row in Postgres; SQLite doesn't support FOR UPDATE.
+    for_update = " FOR UPDATE" if getattr(db.get_bind().dialect, "name", "") != "sqlite" else ""
     receipt = db.execute(
-        text("SELECT status FROM pos_receipts WHERE id = :id FOR UPDATE").bindparams(
-            bindparam("id", type_=PGUUID(as_uuid=True))
+        text(
+            "SELECT status FROM pos_receipts " "WHERE id = :id AND tenant_id = :tid" f"{for_update}"
         ),
-        {"id": receipt_uuid},
+        {"id": receipt_uuid, "tid": tenant_id},
     ).first()
     if not receipt:
         raise HTTPException(status_code=404, detail="Recibo no encontrado")
@@ -2371,6 +2428,7 @@ def list_receipts(
 ):
     """Lista recibos con filtros opcionales"""
     ensure_guc_from_request(request, db, persist=True)
+    tenant_id = _get_tenant_id(request)
 
     sql_parts = [
         "SELECT r.id, r.shift_id, r.register_id, r.cashier_id, r.number, r.status, "
@@ -2378,9 +2436,9 @@ def list_receipts(
         "u.first_name, u.last_name, u.username, u.email "
         "FROM pos_receipts r "
         "LEFT JOIN company_users u ON u.id = r.cashier_id "
-        "WHERE 1=1"
+        "WHERE r.tenant_id = :tid"
     ]
-    params = {}
+    params = {"tid": tenant_id}
 
     if status:
         sql_parts.append("AND status = :st")
@@ -2440,6 +2498,7 @@ def get_receipt(receipt_id: str, request: Request, db: Session = Depends(get_db)
     """Obtiene un recibo con sus lÃ­neas y pagos"""
     ensure_guc_from_request(request, db, persist=True)
     rid = _validate_uuid(receipt_id, "Receipt ID")
+    tenant_id = _get_tenant_id(request)
 
     try:
         rec = db.execute(
@@ -2449,9 +2508,12 @@ def get_receipt(receipt_id: str, request: Request, db: Session = Depends(get_db)
                 "u.first_name, u.last_name, u.username, u.email "
                 "FROM pos_receipts r "
                 "LEFT JOIN company_users u ON u.id = r.cashier_id "
-                "WHERE r.id = :id"
-            ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
-            {"id": rid},
+                "WHERE r.id = :id AND r.tenant_id = :tid"
+            ).bindparams(
+                bindparam("id", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
+            {"id": rid, "tid": tenant_id},
         ).first()
 
         if not rec:
@@ -2536,13 +2598,15 @@ def delete_receipt(receipt_id: str, request: Request, db: Session = Depends(get_
     """Elimina un recibo en borrador o sin pagar."""
     ensure_guc_from_request(request, db, persist=True)
     rid = _validate_uuid(receipt_id, "Receipt ID")
+    tenant_id = _get_tenant_id(request)
 
     try:
         row = db.execute(
-            text("SELECT status FROM pos_receipts WHERE id = :id").bindparams(
-                bindparam("id", type_=PGUUID(as_uuid=True))
+            text("SELECT status FROM pos_receipts WHERE id = :id AND tenant_id = :tid").bindparams(
+                bindparam("id", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
             ),
-            {"id": rid},
+            {"id": rid, "tid": tenant_id},
         ).first()
 
         if not row:
@@ -2567,14 +2631,14 @@ def delete_receipt(receipt_id: str, request: Request, db: Session = Depends(get_
             {"id": rid},
         )
         db.execute(
-            text("DELETE FROM pos_receipts WHERE id = :id").bindparams(
-                bindparam("id", type_=PGUUID(as_uuid=True))
+            text("DELETE FROM pos_receipts WHERE id = :id AND tenant_id = :tid").bindparams(
+                bindparam("id", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
             ),
-            {"id": rid},
+            {"id": rid, "tid": tenant_id},
         )
         db.commit()
         try:
-            tenant_id = _get_tenant_id(request)
             claims = getattr(request.state, "access_claims", None)
             user_id = claims.get("user_id") if isinstance(claims, dict) else None
             audit_event(
@@ -2612,15 +2676,19 @@ def print_receipt(
     """Genera HTML para impresiÃ³n tÃ©rmica del ticket"""
     ensure_guc_from_request(request, db, persist=True)
     receipt_uuid = _validate_uuid(receipt_id, "Receipt ID")
+    tenant_id = _get_tenant_id(request)
 
     try:
         # Obtener datos del recibo
         receipt = db.execute(
             text(
                 "SELECT r.id, r.number, r.gross_total, r.tax_total, r.created_at, r.status "
-                "FROM pos_receipts r WHERE r.id = :id"
-            ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
-            {"id": receipt_uuid},
+                "FROM pos_receipts r WHERE r.id = :id AND r.tenant_id = :tid"
+            ).bindparams(
+                bindparam("id", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
+            {"id": receipt_uuid, "tid": tenant_id},
         ).fetchone()
 
         if not receipt:
@@ -2827,13 +2895,15 @@ def add_item(receipt_id: str, payload: ItemIn, request: Request, db: Session = D
     """
     ensure_guc_from_request(request, db, persist=True)
     receipt_uuid = _validate_uuid(receipt_id, "Receipt ID")
+    tenant_id = _get_tenant_id(request)
 
     try:
         rec = db.execute(
-            text("SELECT status FROM pos_receipts WHERE id = :id").bindparams(
-                bindparam("id", type_=PGUUID(as_uuid=True))
+            text("SELECT status FROM pos_receipts WHERE id = :id AND tenant_id = :tid").bindparams(
+                bindparam("id", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
             ),
-            {"id": receipt_uuid},
+            {"id": receipt_uuid, "tid": tenant_id},
         ).first()
 
         if not rec or rec[0] != "draft":
@@ -2882,13 +2952,15 @@ def remove_item(
     """
     ensure_guc_from_request(request, db, persist=True)
     receipt_uuid = _validate_uuid(receipt_id, "Receipt ID")
+    tenant_id = _get_tenant_id(request)
 
     try:
         rec = db.execute(
-            text("SELECT status FROM pos_receipts WHERE id = :id").bindparams(
-                bindparam("id", type_=PGUUID(as_uuid=True))
+            text("SELECT status FROM pos_receipts WHERE id = :id AND tenant_id = :tid").bindparams(
+                bindparam("id", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
             ),
-            {"id": receipt_uuid},
+            {"id": receipt_uuid, "tid": tenant_id},
         ).first()
 
         if not rec or rec[0] != "draft":
@@ -2930,13 +3002,15 @@ def take_payment(
     """
     ensure_guc_from_request(request, db, persist=True)
     receipt_uuid = _validate_uuid(receipt_id, "Receipt ID")
+    tenant_id = _get_tenant_id(request)
 
     try:
         rec = db.execute(
-            text("SELECT status FROM pos_receipts WHERE id = :id").bindparams(
-                bindparam("id", type_=PGUUID(as_uuid=True))
+            text("SELECT status FROM pos_receipts WHERE id = :id AND tenant_id = :tid").bindparams(
+                bindparam("id", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
             ),
-            {"id": receipt_uuid},
+            {"id": receipt_uuid, "tid": tenant_id},
         ).first()
 
         if not rec or rec[0] != "draft":
@@ -2965,9 +3039,13 @@ def take_payment(
         # Marcar como pagado (sin validaciÃ³n de monto)
         db.execute(
             text(
-                "UPDATE pos_receipts SET status = 'paid', paid_at = NOW() WHERE id = :id"
-            ).bindparams(bindparam("id", type_=PGUUID(as_uuid=True))),
-            {"id": receipt_uuid},
+                "UPDATE pos_receipts SET status = 'paid', paid_at = NOW() "
+                "WHERE id = :id AND tenant_id = :tid"
+            ).bindparams(
+                bindparam("id", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
+            {"id": receipt_uuid, "tid": tenant_id},
         )
 
         db.commit()
@@ -3004,10 +3082,13 @@ def post_receipt(
     try:
         # Validar estado
         rec = db.execute(
-            text("SELECT shift_id, status FROM pos_receipts WHERE id = :id").bindparams(
-                bindparam("id", type_=PGUUID(as_uuid=True))
+            text(
+                "SELECT shift_id, status FROM pos_receipts " "WHERE id = :id AND tenant_id = :tid"
+            ).bindparams(
+                bindparam("id", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
             ),
-            {"id": receipt_uuid},
+            {"id": receipt_uuid, "tid": tenant_id},
         ).first()
 
         if not rec or rec[1] != "draft":
@@ -3133,10 +3214,15 @@ def post_receipt(
         # Actualizar recibo (use 'paid' not 'posted' - valid statuses: draft, paid, voided, invoiced)
         db.execute(
             text(
-                "UPDATE pos_receipts SET status = 'paid', totals = :tot WHERE id = :rid"
-            ).bindparams(bindparam("rid", type_=PGUUID(as_uuid=True))),
+                "UPDATE pos_receipts SET status = 'paid', totals = :tot "
+                "WHERE id = :rid AND tenant_id = :tid"
+            ).bindparams(
+                bindparam("rid", type_=PGUUID(as_uuid=True)),
+                bindparam("tid", type_=PGUUID(as_uuid=True)),
+            ),
             {
                 "rid": receipt_uuid,
+                "tid": tenant_id,
                 "tot": Json({"subtotal": subtotal, "tax": tax, "total": total}),
             },
         )

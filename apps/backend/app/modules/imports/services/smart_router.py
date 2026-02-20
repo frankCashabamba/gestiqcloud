@@ -13,7 +13,11 @@ import openpyxl
 from app.config.settings import settings
 from app.modules.imports.ai.mapping_suggester import mapping_suggester
 from app.modules.imports.parsers import registry
-from app.modules.imports.parsers.dispatcher import select_parser_for_file
+from app.modules.imports.parsers.dispatcher import (
+    is_parser_compatible_with_extension,
+    select_fallback_parser_for_extension,
+    select_parser_for_file,
+)
 from app.modules.imports.services.classifier import FileClassifier
 from app.modules.imports.services.ocr_service import ocr_service
 from app.services.excel_analyzer import detect_header_row, extract_headers
@@ -138,6 +142,7 @@ class SmartRouter:
         filename: str,
         content_type: str | None = None,
         tenant_id: str | None = None,
+        provider_name: str | None = None,
     ) -> AnalysisResult:
         """
         Analiza un archivo y retorna sugerencias de parser, doc_type y mapeo.
@@ -260,6 +265,23 @@ class SmartRouter:
             base_confidence = classifier_confidence if classifier_confidence > 0 else 0.5
             base_doc_type = dispatcher_doc_type
 
+        if not is_parser_compatible_with_extension(base_parser, ext):
+            fallback_parser, fallback_doc_type = select_fallback_parser_for_extension(
+                ext,
+                content_type=content_type,
+            )
+            decision_log.append(
+                {
+                    "step": "base_parser_incompatible_with_extension",
+                    "extension": ext,
+                    "original_parser": base_parser,
+                    "fallback_parser": fallback_parser,
+                }
+            )
+            base_parser = fallback_parser
+            base_doc_type = fallback_doc_type
+            base_confidence = max(base_confidence, 0.6)
+
         decision_log.append(
             {
                 "step": "base_decision",
@@ -286,7 +308,11 @@ class SmartRouter:
             )
 
             try:
-                ai_result = await self.classifier.classify_file_with_ai(file_path, filename)
+                ai_result = await self.classifier.classify_file_with_ai(
+                    file_path,
+                    filename,
+                    provider_name=provider_name,
+                )
 
                 if ai_result.get("enhanced_by_ai"):
                     ai_enhanced = True
@@ -333,6 +359,23 @@ class SmartRouter:
                         "error": str(e),
                     }
                 )
+
+        if not is_parser_compatible_with_extension(final_parser, ext):
+            fallback_parser, fallback_doc_type = select_fallback_parser_for_extension(
+                ext,
+                content_type=content_type,
+            )
+            decision_log.append(
+                {
+                    "step": "final_parser_incompatible_with_extension",
+                    "extension": ext,
+                    "original_parser": final_parser,
+                    "fallback_parser": fallback_parser,
+                }
+            )
+            final_parser = fallback_parser
+            final_doc_type = fallback_doc_type
+            final_confidence = min(max(final_confidence, 0.65), 0.89)
 
         sample_rows = self._extract_sample_rows(file_path, ext, headers_sample)
         ai_mapping = await mapping_suggester.suggest_mapping(
@@ -438,7 +481,7 @@ class SmartRouter:
             wb.close()
             return headers
         except Exception:
-            return []
+            return self._extract_excel_headers_pandas(file_path)
 
     def _extract_excel_sample_rows(self, file_path: str, num_cols: int) -> list[list[Any]]:
         """Extrae filas de muestra de archivo Excel."""
@@ -461,6 +504,79 @@ class SmartRouter:
                         break
 
             wb.close()
+            return rows
+        except Exception:
+            return self._extract_excel_sample_rows_pandas(file_path, num_cols)
+
+    def _detect_header_row_pandas(self, df) -> int:
+        """Detecta fila de cabecera en DataFrame sin header."""
+        keywords = [
+            "fecha",
+            "factura",
+            "cliente",
+            "producto",
+            "cantidad",
+            "precio",
+            "subtotal",
+            "iva",
+            "total",
+            "tipo",
+            "codigo",
+            "descripcion",
+        ]
+        max_scan = min(len(df.index), 40)
+        best_idx = 0
+        best_score = -(10**9)
+        for idx in range(max_scan):
+            values = [str(v).strip() for v in df.iloc[idx].tolist()]
+            non_empty = [v for v in values if v and v.lower() != "nan"]
+            if len(non_empty) < 2:
+                continue
+            lowered = " ".join(v.lower() for v in non_empty)
+            kw_hits = sum(1 for kw in keywords if kw in lowered)
+            unnamed_penalty = sum(1 for v in non_empty if v.lower().startswith("unnamed"))
+            score = len(non_empty) + (kw_hits * 4) - (unnamed_penalty * 2)
+            if score > best_score:
+                best_score = score
+                best_idx = idx
+        return best_idx
+
+    def _extract_excel_headers_pandas(self, file_path: str) -> list[str]:
+        try:
+            import pandas as pd
+
+            engine = "xlrd" if file_path.lower().endswith(".xls") else None
+            df = pd.read_excel(file_path, engine=engine, header=None).fillna("")
+            if df.empty:
+                return []
+            header_row_idx = self._detect_header_row_pandas(df)
+            headers = []
+            for i, value in enumerate(df.iloc[header_row_idx].tolist()):
+                header = str(value).strip()
+                if not header or header.lower() == "nan" or header.lower().startswith("unnamed"):
+                    header = f"col_{i + 1}"
+                headers.append(header)
+            return headers
+        except Exception:
+            return []
+
+    def _extract_excel_sample_rows_pandas(self, file_path: str, num_cols: int) -> list[list[Any]]:
+        try:
+            import pandas as pd
+
+            engine = "xlrd" if file_path.lower().endswith(".xls") else None
+            df = pd.read_excel(file_path, engine=engine, header=None).fillna("")
+            if df.empty:
+                return []
+            header_row_idx = self._detect_header_row_pandas(df)
+            rows: list[list[Any]] = []
+            for idx in range(header_row_idx + 1, len(df.index)):
+                vals = df.iloc[idx].tolist()
+                if not any(str(v).strip() and str(v).lower() != "nan" for v in vals):
+                    continue
+                rows.append(vals[:num_cols] if num_cols else vals)
+                if len(rows) >= 3:
+                    break
             return rows
         except Exception:
             return []

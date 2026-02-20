@@ -80,7 +80,7 @@ export default function ModulosPanel() {
 
   useEffect(() => {
     loadModules()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [])
 
   // Categorías únicas

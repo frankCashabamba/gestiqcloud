@@ -7,7 +7,7 @@ import tempfile
 from io import BytesIO
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -48,6 +48,14 @@ class ConfirmImportRequest(BaseModel):
     column_mapping: dict[str, str]  # {"columna_excel": "campo_destino"}
     save_as_template: bool = False
     template_name: str = ""
+
+
+class SaveTemplateRequest(BaseModel):
+    """JSON payload for saving import templates."""
+
+    name: str
+    source_type: str
+    mappings: dict[str, str]
 
 
 def _get_claims(request: Request):
@@ -167,15 +175,17 @@ async def list_import_templates(
     """
     Lista templates de importación guardados para el tenant
     """
-    from app.models.core.modelsimport import ImportMapping
+    from app.models.imports import ImportColumnMapping
 
     claims = _get_claims(request)
     tenant_id = claims.get("tenant_id")
 
     templates = (
-        db.query(ImportMapping)
-        .filter(ImportMapping.tenant_id == tenant_id)
-        .order_by(ImportMapping.created_at.desc())
+        db.query(ImportColumnMapping)
+        .filter(
+            ImportColumnMapping.tenant_id == tenant_id, ImportColumnMapping.is_active
+        )  # noqa: E712
+        .order_by(ImportColumnMapping.created_at.desc())
         .all()
     )
 
@@ -184,8 +194,8 @@ async def list_import_templates(
             {
                 "id": str(t.id),
                 "name": t.name,
-                "source_type": t.source_type,
-                "mappings": t.mappings,
+                "source_type": "generic",
+                "mappings": t.mapping or {},
                 "created_at": t.created_at.isoformat(),
             }
             for t in templates
@@ -196,21 +206,39 @@ async def list_import_templates(
 @router.post("/save-template")
 async def save_import_template(
     request: Request,
-    name: str,
-    source_type: str,
-    mappings: dict[str, str],
+    payload: SaveTemplateRequest | None = Body(default=None),
+    name: str | None = None,
+    source_type: str | None = None,
+    mappings: dict[str, str] | None = None,
     db: Session = Depends(get_db),
 ):
     """
     Guarda un template de mapeo para reutilizar
     """
-    from app.models.core.modelsimport import ImportMapping
+    from uuid import uuid4
+
+    from app.models.imports import ImportColumnMapping
 
     claims = _get_claims(request)
     tenant_id = claims.get("tenant_id")
 
-    template = ImportMapping(
-        tenant_id=tenant_id, name=name, source_type=source_type, mappings=mappings, version=1
+    # Prefer JSON payload; keep query/body params for backward compatibility.
+    if payload is not None:
+        name = payload.name
+        source_type = payload.source_type
+        mappings = payload.mappings
+
+    if not name or not source_type or not isinstance(mappings, dict):
+        raise HTTPException(status_code=422, detail="name, source_type y mappings son requeridos")
+
+    template = ImportColumnMapping(
+        id=uuid4(),
+        tenant_id=tenant_id,
+        name=name,
+        description=f"compat:/preview/save-template source_type={source_type}",
+        mapping=mappings,
+        transforms={},
+        defaults={},
     )
 
     db.add(template)
@@ -306,6 +334,7 @@ async def classify_file(
 async def classify_file_with_ai(
     request: Request,
     file: UploadFile = File(...),
+    provider: str | None = Query(None, description="Override AI provider"),
 ):
     """
     Clasifica un archivo con enhancers de IA (Fase D).
@@ -364,7 +393,11 @@ async def classify_file_with_ai(
                 )
 
             # Clasificar con IA (estructurado)
-            result = await classifier.classify_file_with_ai(tmp_path, file.filename)
+            result = await classifier.classify_file_with_ai(
+                tmp_path,
+                file.filename,
+                provider_name=provider,
+            )
 
             return ClassifyResponse(**result)
 

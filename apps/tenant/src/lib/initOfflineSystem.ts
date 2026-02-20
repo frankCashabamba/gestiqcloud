@@ -7,11 +7,7 @@
 
 import { initOfflineStore } from './offlineStore'
 import { initSyncEventListener, getSyncManager } from './syncManager'
-import { registerPOSSyncAdapters } from '@/modules/pos/offlineSync'
-import { registerProductsSyncAdapter } from '@/modules/products/offlineSync'
-import { registerCustomersSyncAdapter } from '@/modules/customers/offlineSync'
-import { registerSalesSyncAdapter } from '@/modules/sales/offlineSync'
-import { registerBillingSyncAdapter } from '@/modules/billing/offlineSync'
+import { registerAllOfflineAdapters } from './offlineAdapters'
 
 export async function initializeOfflineSystem() {
   try {
@@ -28,11 +24,7 @@ export async function initializeOfflineSystem() {
     // Step 3: Register adapters
     const manager = getSyncManager()
 
-    registerPOSSyncAdapters()
-    registerProductsSyncAdapter()
-    registerCustomersSyncAdapter()
-    registerSalesSyncAdapter()
-    registerBillingSyncAdapter()
+    registerAllOfflineAdapters()
 
     console.log(`[offline] ${manager.getAdapterCount()} sync adapters registered`)
 

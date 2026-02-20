@@ -304,11 +304,7 @@ def print_summary(results: list[ShapeBenchmarkResult]) -> None:
         print(f"   P95:  {result.p95_ms:.2f}ms (target: {result.target_ms}ms) {status}")
 
     print(f"\n{'=' * 60}")
-    overall = (
-        "[PASS] ALL BENCHMARKS PASSED"
-        if all_passed
-        else "[FAIL] SOME BENCHMARKS FAILED"
-    )
+    overall = "[PASS] ALL BENCHMARKS PASSED" if all_passed else "[FAIL] SOME BENCHMARKS FAILED"
     print(overall)
     print(f"{'=' * 60}")
 

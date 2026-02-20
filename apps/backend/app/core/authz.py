@@ -31,7 +31,19 @@ def _extract_claims(request: Request) -> dict:
 def require_scope(scope: str):
     def dep(request: Request):
         claims = _extract_claims(request)
-        if claims.get("kind") != scope:
+        kind = claims.get("kind")
+        scope_claim = claims.get("scope")
+        scopes_claim = claims.get("scopes")
+
+        scopes: set[str] = set()
+        if isinstance(scopes_claim, (list, tuple, set)):
+            scopes.update(str(s) for s in scopes_claim if s)
+        elif isinstance(scopes_claim, str) and scopes_claim.strip():
+            scopes.add(scopes_claim.strip())
+
+        # Accept either modern claim shape (kind) or legacy variants (scope/scopes).
+        allowed = kind == scope or scope_claim == scope or scope in scopes
+        if not allowed:
             raise HTTPException(status_code=403, detail="forbidden")
         return claims
 

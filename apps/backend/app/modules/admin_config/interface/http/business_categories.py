@@ -40,9 +40,7 @@ async def list_business_categories(db: Session = Depends(get_db)):
     try:
         categories = (
             db.query(BusinessCategory)
-            .filter(
-                BusinessCategory.is_active == True  # noqa: E712
-            )
+            .filter(BusinessCategory.is_active == True)  # noqa: E712
             .all()
         )
 

@@ -1,10 +1,3 @@
-"""Scripts para automatización de importaciones (Fase E)."""
+from . import sprint1_setup, sprint2_setup, sprint3_setup, sprint4_setup
 
-from .batch_import import BatchImporter, BatchImportReport, FileImportResult, ImportStatus
-
-__all__ = [
-    "BatchImporter",
-    "BatchImportReport",
-    "FileImportResult",
-    "ImportStatus",
-]
+__all__ = ["sprint1_setup", "sprint2_setup", "sprint3_setup", "sprint4_setup"]
