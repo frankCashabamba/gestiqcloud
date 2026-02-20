@@ -230,6 +230,7 @@ jobs:
         pip install -r requirements.txt
 
     - name: Start backend API for E2E
+      working-directory: ./apps/backend
       env:
         ENVIRONMENT: development
         ENV: development
