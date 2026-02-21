@@ -420,8 +420,12 @@ class POSInvoicingService:
                     savepoint.rollback()
                 else:
                     self.db.rollback()
-            except Exception as rollback_error:
-                logger.error("Failed to rollback transaction: %s", rollback_error)
+            except Exception:
+                # Savepoint rollback failed; full rollback to reset session state
+                try:
+                    self.db.rollback()
+                except Exception as rollback_error:
+                    logger.error("Failed to rollback transaction: %s", rollback_error)
             logger.exception("Error creating invoice from receipt: %s", e)
             return None
 
@@ -639,10 +643,12 @@ class POSInvoicingService:
                     savepoint.rollback()
                 else:
                     self.db.rollback()
-            except Exception as rollback_error:
-                logger.error("Failed to rollback transaction: %s", rollback_error)
+            except Exception:
+                try:
+                    self.db.rollback()
+                except Exception as rollback_error:
+                    logger.error("Failed to rollback transaction: %s", rollback_error)
             logger.exception("Error creating sale from receipt: %s", e)
-            # Return None to indicate failure
             return None
 
     def create_expense_from_receipt(

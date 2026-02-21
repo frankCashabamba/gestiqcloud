@@ -2036,28 +2036,49 @@ def checkout(
             documents_created = {}
 
             # Create invoice if invoicing module enabled
-            invoice_result = service.create_invoice_from_receipt(
-                receipt_uuid,
-                customer_id=None,
-                invoice_series=(
-                    payload.invoice_series if hasattr(payload, "invoice_series") else "A"
-                ),
-            )
-            if invoice_result:
-                documents_created["invoice"] = invoice_result
+            try:
+                invoice_result = service.create_invoice_from_receipt(
+                    receipt_uuid,
+                    customer_id=None,
+                    invoice_series=(
+                        payload.invoice_series if hasattr(payload, "invoice_series") else "A"
+                    ),
+                )
+                if invoice_result:
+                    documents_created["invoice"] = invoice_result
+            except Exception as e:
+                logger.warning("Error creating invoice from receipt: %s", e)
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
 
             # Create sale if sales module enabled
-            sale_result = service.create_sale_from_receipt(receipt_uuid)
-            if sale_result:
-                documents_created["sale"] = sale_result
+            try:
+                sale_result = service.create_sale_from_receipt(receipt_uuid)
+                if sale_result:
+                    documents_created["sale"] = sale_result
+            except Exception as e:
+                logger.warning("Error creating sale from receipt: %s", e)
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
 
             # Create expense if expense module enabled and type is return
             if hasattr(payload, "type") and payload.type == "return":
-                expense_result = service.create_expense_from_receipt(
-                    receipt_uuid, expense_type="refund"
-                )
-                if expense_result:
-                    documents_created["expense"] = expense_result
+                try:
+                    expense_result = service.create_expense_from_receipt(
+                        receipt_uuid, expense_type="refund"
+                    )
+                    if expense_result:
+                        documents_created["expense"] = expense_result
+                except Exception as e:
+                    logger.warning("Error creating expense from receipt: %s", e)
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
 
         except Exception as e:
             logger.warning(f"Error creating complementary documents: {e}")

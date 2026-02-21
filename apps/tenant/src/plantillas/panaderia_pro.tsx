@@ -274,7 +274,7 @@ const PanaderiaDashboard: React.FC = () => {
           </div>
           <div className="card__actions">
             {isModuleEnabled('pos') && (
-              <a className="link" href={`${prefix}/pos`} target="_blank" rel="noopener noreferrer">
+              <a className="link" href={`${prefix}/pos`}>
                 Abrir POS
               </a>
             )}
@@ -434,7 +434,7 @@ const PanaderiaDashboard: React.FC = () => {
           <h3>Acciones rápidas</h3>
           <div className="action-grid">
             {isModuleEnabled('pos') && (
-              <a href={`${prefix}/pos`} target="_blank" rel="noopener noreferrer" className="action-btn action-btn--primary">
+              <a href={`${prefix}/pos`} className="action-btn action-btn--primary">
                 <span className="action-btn__icon">P</span>
                 <span>Abrir POS</span>
               </a>
