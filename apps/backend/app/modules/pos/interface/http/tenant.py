@@ -1513,27 +1513,32 @@ def calculate_receipt_totals(payload: CalculateTotalsIn):
     tax_total = Decimal("0")
 
     for line in payload.lines:
-        # Subtotal de línea
-        line_subtotal = _to_decimal(line.qty) * _to_decimal(line.unit_price)
+        # Subtotal de línea: no redondear qty ni unit_price antes de multiplicar
+        raw_qty = Decimal(str(line.qty))
+        raw_price = Decimal(str(line.unit_price))
+        line_subtotal = _to_decimal_q(raw_qty * raw_price, "0.01")
         subtotal += line_subtotal
 
         # Descuento de línea
-        line_discount = line_subtotal * (_to_decimal(line.discount_pct) / Decimal("100"))
+        line_discount = _to_decimal_q(
+            line_subtotal * (Decimal(str(line.discount_pct)) / Decimal("100")), "0.01"
+        )
         line_discounts += line_discount
 
         # Base neta de línea (después de descuento)
         line_net = line_subtotal - line_discount
 
         # Impuesto sobre base neta de línea
-        line_tax = line_net * _to_decimal(line.tax_rate)
+        line_tax = _to_decimal_q(line_net * Decimal(str(line.tax_rate)), "0.01")
         tax_total += line_tax
 
     # Base después de descuentos de línea
     base_after_line_discounts = subtotal - line_discounts
 
     # Descuento global sobre base
-    global_discount = base_after_line_discounts * (
-        _to_decimal(payload.global_discount_pct) / Decimal("100")
+    global_discount = _to_decimal_q(
+        base_after_line_discounts * (Decimal(str(payload.global_discount_pct)) / Decimal("100")),
+        "0.01",
     )
 
     # Base final después de todos los descuentos

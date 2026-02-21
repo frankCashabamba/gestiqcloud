@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { usePanaderiaKPIs } from '../hooks/useDashboardKPIs'
 import { useMisModulos } from '../hooks/useMisModulos'
 import DashboardPro from './components/DashboardPro'
-import { listRecipes, type Recipe } from '../services/api/recetas'
+import { listRecipes, getRecipe, type Recipe, type RecipeIngredientResponse } from '../services/api/recetas'
 import {
   createProductionOrder,
   startProductionOrder,
@@ -69,8 +69,12 @@ const PanaderiaDashboard: React.FC = () => {
   const [quickSuccess, setQuickSuccess] = useState<string | null>(null)
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [selectedRecipeId, setSelectedRecipeId] = useState('')
-  const [qtyMode, setQtyMode] = useState<'same' | 'other'>('same')
+  const [qtyMode, setQtyMode] = useState<'same' | 'other' | 'ingrediente'>('same')
   const [otherQty, setOtherQty] = useState<string>('')
+  const [recipeDetail, setRecipeDetail] = useState<Recipe | null>(null)
+  const [selectedIngredientId, setSelectedIngredientId] = useState('')
+  const [ingredientAmount, setIngredientAmount] = useState('')
+  const [ingredientInputUnit, setIngredientInputUnit] = useState('lb')
 
   const isModuleEnabled = (moduleName: string) => {
     return modules.some(
@@ -94,11 +98,27 @@ const PanaderiaDashboard: React.FC = () => {
       )
     })
 
+  const WEIGHT_UNITS = ['g', 'kg', 'lb', 'oz']
+  const isWeightUnit = (unit: string) => WEIGHT_UNITS.includes((unit || '').toLowerCase())
+  const convertToGrams = (amount: number, unit: string): number => {
+    switch ((unit || '').toLowerCase()) {
+      case 'kg': return amount * 1000
+      case 'lb': return amount * 453.592
+      case 'oz': return amount * 28.3495
+      default: return amount
+    }
+  }
+  const formatWeight = (grams: number) => {
+    const lb = grams / 453.592
+    const kg = grams / 1000
+    return `${grams.toFixed(0)} g (${lb.toFixed(2)} lb / ${kg.toFixed(2)} kg)`
+  }
+
   const prefix = empresa ? `/${empresa}` : ''
   const customLinks = [
-    isProductionEnabled() && { label: 'Recipes', href: `${prefix}/produccion/recetas`, icon: 'R' },
-    isModuleEnabled('inventario') && { label: 'Inventory', href: `${prefix}/inventory`, icon: 'I' },
-    isModuleEnabled('compras') && { label: 'Purchasing', href: `${prefix}/purchases`, icon: 'P' },
+    isProductionEnabled() && { label: 'Recetas', href: `${prefix}/produccion/recetas`, icon: 'R' },
+    isModuleEnabled('inventario') && { label: 'Inventario', href: `${prefix}/inventory`, icon: 'I' },
+    isModuleEnabled('compras') && { label: 'Compras', href: `${prefix}/purchases`, icon: 'P' },
   ].filter(Boolean) as Array<{ label: string; href: string; icon: string }>
 
   useEffect(() => {
@@ -117,7 +137,7 @@ const PanaderiaDashboard: React.FC = () => {
           setOtherQty(String(Number(list[0].yield_qty || 1)))
         }
       } catch (e: any) {
-        if (!cancelled) setQuickError(e?.message || 'Could not load recipes')
+        if (!cancelled) setQuickError(e?.message || 'No se pudieron cargar las recetas')
       } finally {
         if (!cancelled) setQuickLoading(false)
       }
@@ -127,24 +147,66 @@ const PanaderiaDashboard: React.FC = () => {
     }
   }, [quickOpen])
 
+  useEffect(() => {
+    if (!selectedRecipeId || !quickOpen) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const detail = await getRecipe(selectedRecipeId)
+        if (cancelled) return
+        setRecipeDetail(detail)
+        const ings = detail.ingredients || []
+        if (ings.length > 0) {
+          setSelectedIngredientId(ings[0].id)
+        }
+      } catch {}
+    })()
+    return () => { cancelled = true }
+  }, [selectedRecipeId, quickOpen])
+
   const selectedRecipe = useMemo(
     () => recipes.find((r) => r.id === selectedRecipeId) || null,
     [recipes, selectedRecipeId]
   )
 
+  const recipeIngredients = useMemo(
+    () => recipeDetail?.ingredients || selectedRecipe?.ingredients || [],
+    [recipeDetail, selectedRecipe]
+  )
+
+  const selectedIngredient = useMemo(
+    () => recipeIngredients.find((i) => i.id === selectedIngredientId) || null,
+    [recipeIngredients, selectedIngredientId]
+  )
+
   const effectiveQty = useMemo(() => {
     if (!selectedRecipe) return 0
     if (qtyMode === 'same') return Number(selectedRecipe.yield_qty || 0)
-    return Number(otherQty || 0)
-  }, [selectedRecipe, qtyMode, otherQty])
+    if (qtyMode === 'other') return Number(otherQty || 0)
+    if (qtyMode === 'ingrediente') {
+      if (!selectedIngredient || !ingredientAmount) return 0
+      const inputAmount = Number(ingredientAmount)
+      if (!inputAmount || inputAmount <= 0) return 0
+      let ratio: number
+      if (isWeightUnit(selectedIngredient.unit)) {
+        const recipeQtyGrams = convertToGrams(selectedIngredient.qty, selectedIngredient.unit)
+        const inputQtyGrams = convertToGrams(inputAmount, ingredientInputUnit)
+        ratio = inputQtyGrams / recipeQtyGrams
+      } else {
+        ratio = inputAmount / selectedIngredient.qty
+      }
+      return Math.floor(ratio * (selectedRecipe.yield_qty || 0))
+    }
+    return 0
+  }, [selectedRecipe, qtyMode, otherQty, selectedIngredient, ingredientAmount, ingredientInputUnit])
 
   const handleQuickProduction = async () => {
     if (!selectedRecipe) {
-      setQuickError('Select a recipe')
+      setQuickError('Seleccione una receta')
       return
     }
     if (!effectiveQty || effectiveQty <= 0) {
-      setQuickError('Quantity must be greater than 0')
+      setQuickError('La cantidad debe ser mayor a 0')
       return
     }
 
@@ -168,30 +230,30 @@ const PanaderiaDashboard: React.FC = () => {
       await startProductionOrder(order.id)
       await completeProductionOrder(order.id, { qty_produced: effectiveQty, waste_qty: 0 })
 
-      setQuickSuccess(`Production completed. Inventory updated with qty ${effectiveQty}.`)
+      setQuickSuccess(`Producción completada. Inventario actualizado con ${effectiveQty} uds.`)
       setQuickOpen(false)
     } catch (e: any) {
-      setQuickError(e?.message || 'Quick production failed')
+      setQuickError(e?.message || 'Error en producción rápida')
     } finally {
       setQuickSaving(false)
     }
   }
 
   return (
-    <DashboardPro sectorName="Bakery ERP" sectorIcon="B" customLinks={customLinks}>
-      <h1>Bakery overview</h1>
+    <DashboardPro sectorName="Panadería ERP" sectorIcon="B" customLinks={customLinks}>
+      <h1>Resumen de Panadería</h1>
 
       {modules.length === 1 && isModuleEnabled('clientes') && (
         <section
           className="card full-width"
           style={{ background: 'linear-gradient(135deg, var(--primary), var(--focus))', color: '#fff', padding: '40px', textAlign: 'center' }}
         >
-          <h2 style={{ margin: 0, fontSize: '24px' }}>Welcome to your ERP</h2>
+          <h2 style={{ margin: 0, fontSize: '24px' }}>Bienvenido a su ERP</h2>
           <p style={{ marginTop: '12px', opacity: 0.9 }}>
-            Start by adding your customers. Other modules will unlock as you progress.
+            Comience agregando sus clientes. Otros módulos se habilitarán a medida que avance.
           </p>
           <a href={`${prefix}/clients`} className="btn" style={{ marginTop: '20px', display: 'inline-block', background: '#fff', color: 'var(--primary)', fontWeight: 600 }}>
-            Go to Customers
+            Ir a Clientes
           </a>
         </section>
       )}
@@ -199,12 +261,12 @@ const PanaderiaDashboard: React.FC = () => {
       <div className="dashboard-grid">
         <section className="card full-width">
           <div className="card__header">
-            <h3>Today status</h3>
+            <h3>Estado del día</h3>
             <div className="pills">
-              <span className="pill pill--ok">Operational</span>
+              <span className="pill pill--ok">Operativo</span>
               {isModuleEnabled('ventas') && ventas.hoy && ventas.hoy > 0 && (
                 <span className="pill">
-                  Sales today: {ventas.moneda || '$'}
+                  Ventas hoy: {ventas.moneda || '$'}
                   {ventas.hoy.toFixed(2)}
                 </span>
               )}
@@ -213,7 +275,7 @@ const PanaderiaDashboard: React.FC = () => {
           <div className="card__actions">
             {isModuleEnabled('pos') && (
               <a className="link" href={`${prefix}/pos`} target="_blank" rel="noopener noreferrer">
-                Open POS
+                Abrir POS
               </a>
             )}
             {isProductionEnabled() && (
@@ -226,12 +288,12 @@ const PanaderiaDashboard: React.FC = () => {
                   setQuickOpen(true)
                 }}
               >
-                New production
+                Nueva producción
               </button>
             )}
-            {isProductionEnabled() && <a className="link" href={`${prefix}/produccion/recetas`}>Recipes</a>}
-            {isModuleEnabled('ventas') && <a className="link" href={`${prefix}/sales`}>Sales</a>}
-            {isModuleEnabled('clientes') && <a className="link" href={`${prefix}/clients`}>Customers</a>}
+            {isProductionEnabled() && <a className="link" href={`${prefix}/produccion/recetas`}>Recetas</a>}
+            {isModuleEnabled('ventas') && <a className="link" href={`${prefix}/sales`}>Ventas</a>}
+            {isModuleEnabled('clientes') && <a className="link" href={`${prefix}/clients`}>Clientes</a>}
           </div>
           {quickSuccess && <p className="text-sm mt-2" style={{ color: '#166534' }}>{quickSuccess}</p>}
           {quickError && <p className="text-sm mt-2" style={{ color: '#b91c1c' }}>{quickError}</p>}
@@ -239,14 +301,14 @@ const PanaderiaDashboard: React.FC = () => {
 
         {isModuleEnabled('ventas') && (
           <section className="card col-6">
-            <h3>Sales today</h3>
+            <h3>Ventas de hoy</h3>
             <div className="kpi-grid">
               <div className="kpi">
-                <span className="kpi__label">Today</span>
+                <span className="kpi__label">Hoy</span>
                 <span className="kpi__value">{kpisLoading ? '...' : `$${ventas.hoy?.toFixed(2) || '0.00'}`}</span>
               </div>
               <div className="kpi">
-                <span className="kpi__label">Yesterday</span>
+                <span className="kpi__label">Ayer</span>
                 <span className="kpi__value">${ventas.ayer?.toFixed(2) || '0.00'}</span>
               </div>
               <div className="kpi">
@@ -261,10 +323,10 @@ const PanaderiaDashboard: React.FC = () => {
 
         {isModuleEnabled('inventario') && (
           <section className="card col-3">
-            <h3>Critical stock</h3>
+            <h3>Stock crítico</h3>
             <div className="stat-large">
               <span className="stat-large__value">{stock.items || 0}</span>
-              <span className="stat-large__label">products</span>
+              <span className="stat-large__label">productos</span>
             </div>
             {stock.nombres && stock.nombres.length > 0 && (
               <ul className="list-compact">
@@ -278,13 +340,13 @@ const PanaderiaDashboard: React.FC = () => {
 
         {isModuleEnabled('inventario') && (
           <section className="card col-3">
-            <h3>Waste today</h3>
+            <h3>Merma de hoy</h3>
             <div className="stat-large">
               <span className="stat-large__value">{mermas.hoy || 0}</span>
               <span className="stat-large__label">kg</span>
             </div>
             <div className="kpi">
-              <span className="kpi__label">Estimated value</span>
+              <span className="kpi__label">Valor estimado</span>
               <span className="kpi__value">${mermas.valor_estimado?.toFixed(2) || '0.00'}</span>
             </div>
           </section>
@@ -292,7 +354,7 @@ const PanaderiaDashboard: React.FC = () => {
 
         {isProductionEnabled() && (
           <section className="card col-4">
-            <h3>Production batches</h3>
+            <h3>Hornadas de producción</h3>
             <div className="progress-stat">
               <div className="progress-stat__header">
                 <span>
@@ -305,18 +367,18 @@ const PanaderiaDashboard: React.FC = () => {
               </div>
             </div>
             <div className="pills">
-              <span className="pill pill--ok">On track</span>
-              <span className="pill">2 pending</span>
+              <span className="pill pill--ok">En curso</span>
+              <span className="pill">2 pendientes</span>
             </div>
           </section>
         )}
 
         {isModuleEnabled('inventario') && (
           <section className="card col-4">
-            <h3>Ingredients expiring</h3>
+            <h3>Ingredientes por vencer</h3>
             <div className="stat-large">
               <span className="stat-large__value">{ingredientes.proximos_7_dias || 0}</span>
-              <span className="stat-large__label">next 7 days</span>
+              <span className="stat-large__label">próximos 7 días</span>
             </div>
             {ingredientes.items && ingredientes.items.length > 0 && (
               <ul className="list-compact">
@@ -330,7 +392,7 @@ const PanaderiaDashboard: React.FC = () => {
 
         {isModuleEnabled('ventas') && (
           <section className="card col-4">
-            <h3>Top products</h3>
+            <h3>Productos más vendidos</h3>
             <div className="table-compact">
               {topProductos.length > 0 ? (
                 <table>
@@ -338,14 +400,14 @@ const PanaderiaDashboard: React.FC = () => {
                     {topProductos.map((prod: any, i: number) => (
                       <tr key={i}>
                         <td>{prod.name}</td>
-                        <td className="text-right">{prod.unidades} units</td>
+                        <td className="text-right">{prod.unidades} uds</td>
                         <td className="text-right">${prod.ingresos?.toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               ) : (
-                <p className="empty-state">No data</p>
+                <p className="empty-state">Sin datos</p>
               )}
             </div>
           </section>
@@ -353,34 +415,34 @@ const PanaderiaDashboard: React.FC = () => {
 
         {isModuleEnabled('ventas') && (
           <section className="card col-8">
-            <h3>Sales by hour</h3>
+            <h3>Ventas por hora</h3>
             <div className="chart-container">
               <div className="chart-placeholder">
                 <canvas id="salesChart" height="200"></canvas>
-                <p className="chart-empty">Chart in progress</p>
+                <p className="chart-empty">Gráfico en proceso</p>
               </div>
             </div>
             <div className="pills">
-              <span className="pill">Actual</span>
-              <span className="pill">Forecast</span>
-              <span className="pill">Target</span>
+              <span className="pill">Real</span>
+              <span className="pill">Pronóstico</span>
+              <span className="pill">Meta</span>
             </div>
           </section>
         )}
 
         <section className="card col-4">
-          <h3>Quick actions</h3>
+          <h3>Acciones rápidas</h3>
           <div className="action-grid">
             {isModuleEnabled('pos') && (
               <a href={`${prefix}/pos`} target="_blank" rel="noopener noreferrer" className="action-btn action-btn--primary">
                 <span className="action-btn__icon">P</span>
-                <span>Open POS</span>
+                <span>Abrir POS</span>
               </a>
             )}
             {isModuleEnabled('clientes') && (
               <a href={`${prefix}/clients`} className="action-btn">
                 <span className="action-btn__icon">@</span>
-                <span>New customer</span>
+                <span>Nuevo cliente</span>
               </a>
             )}
           </div>
@@ -399,19 +461,20 @@ const PanaderiaDashboard: React.FC = () => {
             zIndex: 3000,
             padding: 16,
           }}
-          onClick={() => !quickSaving && setQuickOpen(false)}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !quickSaving) setQuickOpen(false)
+          }}
         >
           <div
             className="card"
-            style={{ width: '100%', maxWidth: 520 }}
-            onClick={(e) => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: 560 }}
           >
-            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Quick production</h3>
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Producción rápida</h3>
             {quickLoading ? (
-              <p>Loading recipes...</p>
+              <p>Cargando recetas...</p>
             ) : (
               <>
-                <label style={{ display: 'block', fontSize: 14, marginBottom: 6 }}>Recipe</label>
+                <label style={{ display: 'block', fontSize: 14, marginBottom: 6 }}>Receta</label>
                 <select
                   style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #d1d5db', marginBottom: 12 }}
                   value={selectedRecipeId}
@@ -423,7 +486,7 @@ const PanaderiaDashboard: React.FC = () => {
                   }}
                   disabled={quickSaving}
                 >
-                  {recipes.length === 0 && <option value="">No recipes</option>}
+                  {recipes.length === 0 && <option value="">Sin recetas</option>}
                   {recipes.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name}
@@ -431,24 +494,33 @@ const PanaderiaDashboard: React.FC = () => {
                   ))}
                 </select>
 
-                <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
-                  <label style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
+                  <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 14 }}>
                     <input
                       type="radio"
                       checked={qtyMode === 'same'}
                       onChange={() => setQtyMode('same')}
                       disabled={quickSaving}
                     />
-                    Same recipe quantity ({selectedRecipe?.yield_qty || 0})
+                    Misma cantidad ({selectedRecipe?.yield_qty || 0})
                   </label>
-                  <label style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                  <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 14 }}>
                     <input
                       type="radio"
                       checked={qtyMode === 'other'}
                       onChange={() => setQtyMode('other')}
                       disabled={quickSaving}
                     />
-                    Other quantity
+                    Otra cantidad
+                  </label>
+                  <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 14 }}>
+                    <input
+                      type="radio"
+                      checked={qtyMode === 'ingrediente'}
+                      onChange={() => setQtyMode('ingrediente')}
+                      disabled={quickSaving}
+                    />
+                    Por ingrediente
                   </label>
                 </div>
 
@@ -460,13 +532,91 @@ const PanaderiaDashboard: React.FC = () => {
                     value={otherQty}
                     onChange={(e) => setOtherQty(e.target.value)}
                     disabled={quickSaving}
+                    placeholder="Cantidad de unidades a producir"
                     style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #d1d5db', marginBottom: 12 }}
                   />
                 )}
 
+                {qtyMode === 'ingrediente' && (
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                    {recipeIngredients.length === 0 ? (
+                      <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>Cargando ingredientes...</p>
+                    ) : (
+                      <>
+                        <label style={{ display: 'block', fontSize: 13, marginBottom: 4, color: '#475569' }}>Ingrediente</label>
+                        <select
+                          style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #d1d5db', marginBottom: 8 }}
+                          value={selectedIngredientId}
+                          onChange={(e) => {
+                            setSelectedIngredientId(e.target.value)
+                            setIngredientAmount('')
+                            const ing = recipeIngredients.find((i) => i.id === e.target.value)
+                            if (ing && isWeightUnit(ing.unit)) {
+                              setIngredientInputUnit('lb')
+                            } else if (ing) {
+                              setIngredientInputUnit(ing.unit)
+                            }
+                          }}
+                          disabled={quickSaving}
+                        >
+                          {recipeIngredients.map((ing) => (
+                            <option key={ing.id} value={ing.id}>
+                              {ing.product_name || ing.product_id} — {ing.qty} {ing.unit}
+                              {isWeightUnit(ing.unit) ? ` (${(convertToGrams(ing.qty, ing.unit) / 453.592).toFixed(2)} lb)` : ''}
+                            </option>
+                          ))}
+                        </select>
+
+                        {selectedIngredient && (
+                          <>
+                            <label style={{ display: 'block', fontSize: 13, marginBottom: 4, color: '#475569' }}>
+                              Cantidad disponible
+                            </label>
+                            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                              <input
+                                type="number"
+                                min={0.01}
+                                step={0.01}
+                                value={ingredientAmount}
+                                onChange={(e) => setIngredientAmount(e.target.value)}
+                                disabled={quickSaving}
+                                placeholder={`Ej: 10`}
+                                style={{ flex: 1, padding: 8, borderRadius: 6, border: '1px solid #d1d5db' }}
+                              />
+                              {isWeightUnit(selectedIngredient.unit) ? (
+                                <select
+                                  style={{ width: 70, padding: 8, borderRadius: 6, border: '1px solid #d1d5db' }}
+                                  value={ingredientInputUnit}
+                                  onChange={(e) => setIngredientInputUnit(e.target.value)}
+                                  disabled={quickSaving}
+                                >
+                                  <option value="lb">lb</option>
+                                  <option value="kg">kg</option>
+                                  <option value="g">g</option>
+                                </select>
+                              ) : (
+                                <span style={{ padding: '8px 12px', background: '#e2e8f0', borderRadius: 6, fontSize: 14 }}>
+                                  {selectedIngredient.unit}
+                                </span>
+                              )}
+                            </div>
+                            <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+                              Receta usa: <strong>{selectedIngredient.qty} {selectedIngredient.unit}</strong>
+                              {isWeightUnit(selectedIngredient.unit) &&
+                                ` (${(convertToGrams(selectedIngredient.qty, selectedIngredient.unit) / 453.592).toFixed(2)} lb)`
+                              }
+                              {' → '}{selectedRecipe?.yield_qty || 0} uds
+                            </p>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 13, color: '#4b5563' }}>
-                    Final qty: <strong>{effectiveQty || 0}</strong>
+                  <span style={{ fontSize: 14, color: '#4b5563' }}>
+                    Cantidad final: <strong style={{ fontSize: 18 }}>{effectiveQty || 0}</strong> uds
                   </span>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
@@ -475,7 +625,7 @@ const PanaderiaDashboard: React.FC = () => {
                       onClick={() => setQuickOpen(false)}
                       disabled={quickSaving}
                     >
-                      Cancel
+                      Cancelar
                     </button>
                     <button
                       type="button"
@@ -483,7 +633,7 @@ const PanaderiaDashboard: React.FC = () => {
                       onClick={handleQuickProduction}
                       disabled={quickSaving || !effectiveQty || effectiveQty <= 0}
                     >
-                      {quickSaving ? 'Processing...' : 'Produce now'}
+                      {quickSaving ? 'Procesando...' : 'Producir ahora'}
                     </button>
                   </div>
                 </div>

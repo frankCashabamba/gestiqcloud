@@ -669,6 +669,25 @@ export default function POSView() {
 
     const getPricingForProduct = (product: Product, qty: number, packKey = 'unit') => {
         const basePrice = Number(product.price ?? 0) || 0
+
+        // Check bulk pricing from company settings first
+        const bulkItems: any[] = (companySettings?.pos_config as any)?.bulk_pricing_items || []
+        const bulkCfg = bulkItems.find((b: any) => b.product_id === product.id)
+        if (bulkCfg && bulkCfg.quantity > 0) {
+            const bulkQty = Number(bulkCfg.quantity)
+            const bulkPrice = Number(bulkCfg.unit_price)
+            const fullSets = Math.floor(qty / bulkQty)
+            const remainder = qty % bulkQty
+            if (fullSets > 0) {
+                const total = fullSets * bulkPrice + remainder * basePrice
+                return {
+                    unitPrice: total / qty,
+                    source: 'wholesale' as const,
+                    note: `${fullSets}×${bulkQty} = $${(fullSets * bulkPrice).toFixed(2)}${remainder > 0 ? ` + ${remainder} und` : ''}`,
+                }
+            }
+        }
+
         const cfg = getWholesaleConfig(product)
         if (!cfg) return { unitPrice: basePrice, source: 'retail' as const }
 
@@ -1203,12 +1222,42 @@ export default function POSView() {
 
         const calculateTotals = async () => {
             try {
-                const lines = cart.map((item) => ({
-                    qty: item.qty,
-                    unit_price: item.price,
-                    tax_rate: item.iva_tasa / 100, // Convertir a decimal (15% -> 0.15)
-                    discount_pct: item.discount_pct,
-                }))
+                // For bulk pricing items, send as sets to avoid backend 2-decimal rounding
+                const bulkItems: any[] = (companySettings?.pos_config as any)?.bulk_pricing_items || []
+                const lines: { qty: number; unit_price: number; tax_rate: number; discount_pct: number }[] = []
+                for (const item of cart) {
+                    const bulkCfg = bulkItems.find((b: any) => b.product_id === item.product_id)
+                    if (bulkCfg && bulkCfg.quantity > 0) {
+                        const bulkQty = Number(bulkCfg.quantity)
+                        const bulkPrice = Number(bulkCfg.unit_price)
+                        const fullSets = Math.floor(item.qty / bulkQty)
+                        const remainder = item.qty % bulkQty
+                        if (fullSets > 0) {
+                            lines.push({
+                                qty: fullSets,
+                                unit_price: bulkPrice,
+                                tax_rate: item.iva_tasa / 100,
+                                discount_pct: item.discount_pct,
+                            })
+                            if (remainder > 0) {
+                                const basePrice = Number((products.find((p) => p.id === item.product_id) || {}).price || 0)
+                                lines.push({
+                                    qty: remainder,
+                                    unit_price: basePrice,
+                                    tax_rate: item.iva_tasa / 100,
+                                    discount_pct: item.discount_pct,
+                                })
+                            }
+                            continue
+                        }
+                    }
+                    lines.push({
+                        qty: item.qty,
+                        unit_price: item.price,
+                        tax_rate: item.iva_tasa / 100,
+                        discount_pct: item.discount_pct,
+                    })
+                }
 
                 const calculated = await calculateReceiptTotals({
                     lines,
@@ -1219,7 +1268,8 @@ export default function POSView() {
             } catch (error) {
                 console.error('Error calculando totales:', error)
                 // Fallback to local calculation on network error
-                const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0)
+                const r2 = (v: number) => Math.round(v * 100) / 100
+                const subtotal = cart.reduce((sum, item) => sum + r2(item.price * item.qty), 0)
                 const lineDiscounts = cart.reduce(
                     (sum, item) => sum + item.price * item.qty * (item.discount_pct / 100),
                     0
@@ -2155,6 +2205,7 @@ export default function POSView() {
                     cart={cart}
                     totals={totals}
                     isLoading={loading}
+                    bulkPricingItems={(companySettings?.pos_config as any)?.bulk_pricing_items || []}
                     onUpdateQty={updateQty}
                     onQtyChange={(idx, newQty) => {
                         const updated = [...cart]

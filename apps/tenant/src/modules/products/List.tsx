@@ -20,6 +20,7 @@ import {
   useSectorFeaturesFromConfig,
   useCompanySector,
 } from '../../contexts/CompanyConfigContext'
+import { listRecipes } from '../../services/api/recetas'
 import {
   usePrintBarcodeLabels,
   type ProductLabel,
@@ -100,6 +101,7 @@ export default function ProductosList() {
   const [selectedSavedConfigId, setSelectedSavedConfigId] = useState<string | null>(null)
   const [configsLoading, setConfigsLoading] = useState(false)
   const selectedSavedConfigIdRef = useRef<string | null>(null)
+  const [recipeByProduct, setRecipeByProduct] = useState<Map<string, string>>(new Map())
   const can = usePermission()
   const fetchPrinters = useCallback(async (): Promise<PrinterInfo[]> => {
     try {
@@ -389,7 +391,16 @@ export default function ProductosList() {
   const reloadProducts = useCallback(async () => {
     try {
       setLoading(true)
-      setItems(await listProductos())
+      const [prods, recipes] = await Promise.all([
+        listProductos(),
+        listRecipes({ limit: 5000 }).catch(() => []),
+      ])
+      setItems(prods)
+      const map = new Map<string, string>()
+      for (const r of recipes) {
+        if (r.product_id) map.set(r.product_id, r.id)
+      }
+      setRecipeByProduct(map)
     } catch (e: any) {
       const m = getErrorMessage(e)
       setErrMsg(m)
@@ -732,7 +743,7 @@ export default function ProductosList() {
             onChange={(e) => setFilterCategoria(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value="all">{t('products:category')} ({t('common.all')})</option>
+            <option value="all">{t('products:category')} ({t('common:all')})</option>
             {categorias.map((cat) => (
               <option key={cat.id} value={cat.name}>
                 {cat.name}
@@ -744,7 +755,7 @@ export default function ProductosList() {
             onChange={(e) => setFilterActivo(e.target.value as any)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value="all">{t('common.all')}</option>
+            <option value="all">{t('common:all')}</option>
             <option value="activo">{t('products:active')}</option>
             <option value="inactivo">{t('products:inactive')}</option>
           </select>
@@ -895,26 +906,36 @@ export default function ProductosList() {
                     <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                       {can('products:update') && (
                         <Link to={`${p.id}/editar`} className="text-blue-600 hover:text-blue-900 mr-4">
-                          {t('common.edit')}
+                          {t('common:edit')}
                         </Link>
                       )}
                       {(sectorFeatures?.recipes ||
                         sector.features?.recipes ||
                         sector.plantilla?.toLowerCase().includes('panaderia') ||
                         sector.plantilla?.toLowerCase().includes('bakery')) && (
-                        <button
-                          className="text-amber-600 hover:text-amber-800 mr-4"
-                          title="Crear receta desde este producto"
-                          onClick={() =>
-                            nav(
-                              `/${empresa || ''}/produccion/recetas/nueva?productId=${encodeURIComponent(
-                                p.id
-                              )}`
-                            )
-                          }
-                        >
-                          {t('products:makeRecipe')}
-                        </button>
+                        recipeByProduct.has(p.id) ? (
+                          <Link
+                            to={`/${empresa || ''}/produccion/recetas/${recipeByProduct.get(p.id)}`}
+                            className="text-green-600 hover:text-green-800 mr-4"
+                            title="Ver receta"
+                          >
+                            Ver receta
+                          </Link>
+                        ) : (
+                          <button
+                            className="text-amber-600 hover:text-amber-800 mr-4"
+                            title="Crear receta desde este producto"
+                            onClick={() =>
+                              nav(
+                                `/${empresa || ''}/produccion/recetas/nueva?productId=${encodeURIComponent(
+                                  p.id
+                                )}`
+                              )
+                            }
+                          >
+                            {t('products:makeRecipe')}
+                          </button>
+                        )
                       )}
                       {can('products:delete') && (
                         <ProtectedButton

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import tenantApi from '../../shared/api/client'
 import { clearCompanySettingsCache, getCompanySettings } from '../../services/companySettings'
@@ -94,6 +94,8 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
         quantity: 6,
         unit_price: 1.0,
     })
+
+    const shouldAutoSaveBulk = useRef(false)
 
     const loadSettings = async () => {
         try {
@@ -198,6 +200,13 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
             void loadProducts()
         }
     }, [variant])
+
+    useEffect(() => {
+        if (shouldAutoSaveBulk.current) {
+            shouldAutoSaveBulk.current = false
+            void save()
+        }
+    }, [pos.bulk_pricing_items])
 
     const parsedSettings = useMemo(() => {
         if (!isAdminView) {
@@ -652,6 +661,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                             return
                                         }
 
+                                        shouldAutoSaveBulk.current = true
                                         setPos((prev) => ({
                                             ...prev,
                                             bulk_pricing_items: [
@@ -665,8 +675,6 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                             quantity: 6,
                                             unit_price: 1.0,
                                         })
-
-                                        success('Producto agregado a bulk pricing')
                                     }}
                                     disabled={productsLoading || !bulkPricingForm.product_id}
                                 >
@@ -705,13 +713,13 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                                         <button
                                                             className="btn btn-sm ghost"
                                                             onClick={() => {
+                                                                shouldAutoSaveBulk.current = true
                                                                 setPos((prev) => ({
                                                                     ...prev,
                                                                     bulk_pricing_items: (
                                                                         prev.bulk_pricing_items || []
                                                                     ).filter((_, i) => i !== idx),
                                                                 }))
-                                                                success('Producto eliminado')
                                                             }}
                                                         >
                                                             Eliminar

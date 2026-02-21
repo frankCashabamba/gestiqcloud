@@ -114,7 +114,8 @@ class RecipeIngredient(BaseModel):
     # Relationships
     recipe = relationship("Recipe", back_populates="ingredients")
     product = relationship(
-        "Product", foreign_keys=[product_id], back_populates="used_in_ingredients"
+        "Product", foreign_keys=[product_id], back_populates="used_in_ingredients",
+        lazy="selectin",
     )
 
     # Constraints
@@ -123,6 +124,10 @@ class RecipeIngredient(BaseModel):
         Index("idx_recipe_ingredients_product", "product_id"),
         {"extend_existing": True},
     )
+
+    @property
+    def product_name(self) -> str | None:
+        return self.product.name if self.product else None
 
     def __repr__(self):
         return f"<RecipeIngredient {self.qty} {self.unit}>"

@@ -19,10 +19,17 @@ type CartItem = {
   pricing_note?: string
 }
 
+type BulkPricingItem = {
+  product_id: string
+  quantity: number
+  unit_price: number
+}
+
 interface CartSectionProps {
   cart: CartItem[]
   totals: ReceiptTotals
   isLoading: boolean
+  bulkPricingItems?: BulkPricingItem[]
   onUpdateQty: (index: number, delta: number) => void
   onQtyChange: (index: number, newQty: number) => void
   onRemoveItem: (index: number) => void
@@ -38,6 +45,7 @@ export function CartSection({
   cart,
   totals,
   isLoading,
+  bulkPricingItems = [],
   onUpdateQty,
   onQtyChange,
   onRemoveItem,
@@ -55,7 +63,8 @@ export function CartSection({
     <aside className="right">
       <div className="cart" role="list" aria-label="Carrito">
         {cart.map((item, idx) => {
-          const lineTotal = item.price * item.qty * (1 - item.discount_pct / 100)
+          const bulkCfg = bulkPricingItems.find((b) => b.product_id === item.product_id)
+          const lineTotal = Math.round(item.price * item.qty * (1 - item.discount_pct / 100) * 100) / 100
           return (
             <div key={idx} className="row">
               <div>
@@ -89,6 +98,34 @@ export function CartSection({
                   {item.pricing_note && ` | ${item.pricing_note}`}
                   {item.notes && ` | ${item.notes}`}
                 </small>
+                {bulkCfg && (
+                  <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                    {[1, 2, 3, 4, 5].map((mult) => {
+                      const qty = bulkCfg.quantity * mult
+                      const price = bulkCfg.unit_price * mult
+                      const isActive = item.qty === qty
+                      return (
+                        <button
+                          key={mult}
+                          onClick={() => onQtyChange(idx, qty)}
+                          style={{
+                            padding: '2px 6px',
+                            fontSize: 11,
+                            borderRadius: 6,
+                            border: isActive ? '1px solid var(--pos-accent, #3b82f6)' : '1px solid var(--pos-border)',
+                            background: isActive ? 'var(--pos-accent, #3b82f6)' : 'var(--pos-surface2)',
+                            color: isActive ? '#fff' : 'var(--pos-text)',
+                            cursor: 'pointer',
+                            fontWeight: isActive ? 700 : 400,
+                          }}
+                          title={`${qty} und = $${price.toFixed(2)}`}
+                        >
+                          {qty}×${price.toFixed(2)}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
               <div className="qty">
                 <ProtectedButton permission="pos:update" unstyled aria-label="menos" onClick={() => onUpdateQty(idx, -1)}>
