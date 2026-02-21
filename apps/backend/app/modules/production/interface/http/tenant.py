@@ -33,7 +33,7 @@ from app.core.authz import require_scope
 from app.db.rls import ensure_rls
 from app.models.expenses.expense import Expense
 from app.models.inventory.stock import StockItem, StockMove
-from app.models.production._cost_drivers import ProductionCostDriver, RecipeCostLine, ProductionOrderCost
+from app.models.production._cost_drivers import CostDriverUnitType, ProductionCostDriver, RecipeCostLine, ProductionOrderCost
 from app.models.production.production_order import ProductionOrder, ProductionOrderLine
 from app.models.recipes import Recipe, RecipeIngredient
 from app.schemas.production import (
@@ -1212,6 +1212,29 @@ def compare_recipes_costs(
             item["name"] = nombre
 
     return {"recipes": comparisons}
+
+
+# ============================================================================
+# COST DRIVER UNIT TYPES (lookup)
+# ============================================================================
+
+
+@router.get("/cost-driver-unit-types")
+def list_cost_driver_unit_types(
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    """List available unit types for cost drivers (from DB, not hardcoded)."""
+    tenant_id = UUID(claims["tenant_id"])
+    return (
+        db.query(CostDriverUnitType)
+        .filter(
+            CostDriverUnitType.tenant_id == tenant_id,
+            CostDriverUnitType.is_active == True,
+        )
+        .order_by(CostDriverUnitType.sort_order)
+        .all()
+    )
 
 
 # ============================================================================

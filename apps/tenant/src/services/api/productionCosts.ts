@@ -3,7 +3,7 @@
  */
 
 import { apiClient } from './client';
-import { TENANT_RECIPES, TENANT_COST_DRIVERS } from '@shared/endpoints';
+import { TENANT_RECIPES, TENANT_COST_DRIVERS, TENANT_COST_DRIVER_UNIT_TYPES } from '@shared/endpoints';
 
 // ============================================================================
 // TYPES
@@ -27,6 +27,15 @@ export interface CostDriverCreate {
   unit?: string;
   default_rate?: number;
   is_active?: boolean;
+}
+
+export interface CostDriverUnitType {
+  id: string;
+  code: string;
+  name_en: string;
+  name_es: string | null;
+  is_active: boolean;
+  sort_order: number;
 }
 
 export interface RecipeCostLine {
@@ -77,6 +86,11 @@ export interface FullCostSummary {
 
 export async function listCostDrivers(): Promise<CostDriver[]> {
   const res = await apiClient.get(TENANT_COST_DRIVERS.list);
+  return res.data;
+}
+
+export async function listCostDriverUnitTypes(): Promise<CostDriverUnitType[]> {
+  const res = await apiClient.get(TENANT_COST_DRIVER_UNIT_TYPES.list);
   return res.data;
 }
 

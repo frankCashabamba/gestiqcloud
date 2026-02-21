@@ -18,6 +18,34 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.config.database import Base
 
 
+class CostDriverUnitType(Base):
+    """Catalog of unit types for cost drivers (hour, kwh, unit, flat, etc.)."""
+
+    __tablename__ = "cost_driver_unit_types"
+    __table_args__ = {"extend_existing": True}
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), nullable=False, index=True
+    )
+    code: Mapped[str] = mapped_column(String(20), nullable=False)
+    name_en: Mapped[str] = mapped_column(String(100), nullable=False)
+    name_es: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default="now()"
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default="now()", onupdate=datetime.utcnow
+    )
+
+    def __repr__(self):
+        return f"<CostDriverUnitType {self.code} ({self.name_en})>"
+
+
 class ProductionCostDriver(Base):
     """Catalog of indirect cost types per tenant."""
 

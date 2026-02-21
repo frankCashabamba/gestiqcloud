@@ -7,11 +7,13 @@ from app.models.production import _cost_drivers, _production_order
 ProductionOrder = _production_order.ProductionOrder
 ProductionOrderLine = _production_order.ProductionOrderLine
 
+CostDriverUnitType = _cost_drivers.CostDriverUnitType
 ProductionCostDriver = _cost_drivers.ProductionCostDriver
 RecipeCostLine = _cost_drivers.RecipeCostLine
 ProductionOrderCost = _cost_drivers.ProductionOrderCost
 
 __all__ = [
+    "CostDriverUnitType",
     "ProductionOrder",
     "ProductionOrderLine",
     "ProductionCostDriver",

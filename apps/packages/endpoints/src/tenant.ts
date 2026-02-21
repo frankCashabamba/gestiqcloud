@@ -136,3 +136,7 @@ export const TENANT_COST_DRIVERS = {
   list: `${PRODUCTION_BASE}/cost-drivers`,
   byId: (id: string) => `${PRODUCTION_BASE}/cost-drivers/${id}`,
 }
+
+export const TENANT_COST_DRIVER_UNIT_TYPES = {
+  list: `${PRODUCTION_BASE}/cost-driver-unit-types`,
+}

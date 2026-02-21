@@ -196,15 +196,33 @@ def calculate_recipe_full_cost(db: Session, recipe_id: UUID) -> dict:
     other_total = Decimal("0")
     lines_detail = []
 
+    # Total active recipe time in hours (prep + baking) for LABOR auto-calculation
+    prep_mins = getattr(recipe, "prep_time_minutes", None) or 0
+    baking_mins = getattr(recipe, "baking_time_minutes", None) or 0
+    recipe_labor_hours = Decimal(str(prep_mins + baking_mins)) / Decimal("60")
+
     for line in cost_lines:
         driver = line.driver
         if not driver:
             continue
         effective_rate = line.rate_override if line.rate_override is not None else driver.default_rate
-        line_cost = Decimal(str(line.qty_standard)) * Decimal(str(effective_rate)) * Decimal(str(line.headcount))
-
         code_upper = (driver.code or "").upper()
-        if code_upper.startswith("LABOR"):
+
+        # For hour-based labor drivers: auto-calculate from recipe prep+baking time
+        is_labor = (
+            code_upper.startswith("LABOR")
+            or ((driver.unit or "").lower() == "hour"
+                and not code_upper.startswith("ENERGY")
+                and not code_upper.startswith("OVEN"))
+        )
+        if is_labor and recipe_labor_hours > 0:
+            qty = recipe_labor_hours
+        else:
+            qty = Decimal(str(line.qty_standard))
+
+        line_cost = qty * Decimal(str(effective_rate)) * Decimal(str(line.headcount))
+
+        if is_labor:
             labor_total += line_cost
         else:
             other_total += line_cost
@@ -213,7 +231,7 @@ def calculate_recipe_full_cost(db: Session, recipe_id: UUID) -> dict:
             "id": str(line.id),
             "recipe_id": str(line.recipe_id),
             "driver_id": str(line.driver_id),
-            "qty_standard": float(line.qty_standard),
+            "qty_standard": round(float(qty), 4),
             "headcount": line.headcount,
             "rate_override": float(line.rate_override) if line.rate_override is not None else None,
             "notes": line.notes,
@@ -225,6 +243,7 @@ def calculate_recipe_full_cost(db: Session, recipe_id: UUID) -> dict:
             "driver_default_rate": float(driver.default_rate),
             "effective_rate": float(effective_rate),
             "line_cost": round(float(line_cost), 4),
+            "_auto": is_labor and recipe_labor_hours > 0,
         })
 
     # Energy: auto-calculated from recipe baking_time_minutes × oven driver rate
@@ -541,4 +560,18 @@ def get_recipe_profitability(
     profit = selling_price - total_cost
     margin = (profit / selling_price * 100) if selling_price > 0 else 0
 
-  
+    # Punto de equilibrio (asumiendo costos fijos)
+    # Simplificado: si margen > 0, punto equilibrio = 1 unidad
+    breakeven_units = 1 if profit > 0 else 0
+
+    return {
+        "recipe_id": str(recipe_id),
+        "name": cost_data["name"],
+        "direct_cost": round(direct_cost, 4),
+        "indirect_cost": round(indirect_cost, 4),
+        "total_cost": round(total_cost, 4),
+        "selling_price": round(selling_price, 2),
+        "profit": round(profit, 4),
+        "margin_percentage": round(margin, 2),
+        "breakeven_units": breakeven_units,
+    }

@@ -246,8 +246,8 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
         oven_temp_celsius: prodParams.oven_temp_celsius ?? undefined,
         rest_time_minutes: prodParams.rest_time_minutes ?? undefined,
         waste_pct: prodParams.waste_pct ?? undefined,
-        trays_per_batch: prodParams.trays_per_batch ?? undefined,
-        units_per_tray: prodParams.units_per_tray ?? undefined,
+        trays_per_batch: (prodParams.trays_per_batch && prodParams.trays_per_batch >= 1) ? prodParams.trays_per_batch : undefined,
+        units_per_tray: (prodParams.units_per_tray && prodParams.units_per_tray >= 1) ? prodParams.units_per_tray : undefined,
         instructions: prodParams.instructions || undefined,
       });
 
@@ -299,7 +299,11 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
       await loadData();
       setIsEditing(false);
     } catch (err: any) {
-      setError(err?.message || L('Error saving ingredients', 'Error guardando ingredientes'));
+      const detail = err?.response?.data?.detail;
+      const msg = typeof detail === 'string' ? detail
+        : Array.isArray(detail) ? detail.map((d: any) => `${(d.loc || []).join('.')}: ${d.msg}`).join('; ')
+        : err?.message || L('Error saving ingredients', 'Error guardando ingredientes');
+      setError(msg);
     } finally {
       setUpdating(false);
     }
@@ -732,7 +736,16 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                 {costLinesDraft.map((cl, idx) => {
                   const driver = costDrivers.find((d) => d.id === cl.driver_id);
                   const rate = cl.rate_override ?? (driver?.default_rate || 0);
-                  const subtotal = Number(cl.qty_standard) * Number(rate) * (cl.headcount || 1);
+                  const driverCode = (driver?.code || '').toUpperCase();
+                  const isLaborAuto = driver && (
+                    driverCode.startsWith('LABOR')
+                    || ((driver.unit || '').toLowerCase() === 'hour'
+                        && !driverCode.startsWith('ENERGY')
+                        && !driverCode.startsWith('OVEN'))
+                  );
+                  const recipeLaborHours = ((prodParams.prep_time_minutes || 0) + (prodParams.baking_time_minutes || 0)) / 60;
+                  const effectiveQty = isLaborAuto && recipeLaborHours > 0 ? recipeLaborHours : Number(cl.qty_standard);
+                  const subtotal = effectiveQty * Number(rate) * (cl.headcount || 1);
                   return (
                     <TableRow key={idx}>
                       <TableCell>
@@ -766,7 +779,12 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                         )}
                       </TableCell>
                       <TableCell align="right">
-                        {isEditing ? (
+                        {isLaborAuto && recipeLaborHours > 0 ? (
+                          <Box>
+                            <Typography variant="body2">{effectiveQty.toFixed(2)}h</Typography>
+                            <Typography variant="caption" color="text.secondary">⚡ auto (prep+horn)</Typography>
+                          </Box>
+                        ) : isEditing ? (
                           <TextField
                             type="number"
                             value={cl.qty_standard}
