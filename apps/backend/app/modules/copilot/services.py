@@ -80,11 +80,13 @@ def _pick_column(columns: set[str], *candidates: str) -> str | None:
     return None
 
 
-def _safe_topic(title: str, sql: str, fn) -> dict[str, Any]:
+def _safe_topic(db: Session, title: str, sql: str, fn) -> dict[str, Any]:
     try:
         rows = fn()
         return {"cards": [{"title": title, "data": rows}], "sql": sql}
     except SQLAlchemyError as e:
+        # Ensure the session is usable after a failed statement.
+        db.rollback()
         return {
             "cards": [{"title": title, "data": []}],
             "sql": sql,
@@ -130,7 +132,7 @@ def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None
             f"WHERE {_tenant_where('soi')} "
             "GROUP BY 1,2 ORDER BY importe DESC NULLS LAST LIMIT 10"
         )
-        return _safe_topic("Top productos", sql, lambda: _fetch_all(db, sql, {}))
+        return _safe_topic(db, "Top productos", sql, lambda: _fetch_all(db, sql, {}))
 
     if topic == "stock_bajo":
         threshold = float(p.get("threshold", 5))
@@ -174,7 +176,7 @@ def query_readonly(db: Session, topic: str, params: dict[str, Any] | None = None
             f"count(*) AS n, sum({amount_col}) AS importe "
             f"FROM bank_transactions WHERE {_tenant_where()} GROUP BY 1,2 ORDER BY 4 DESC NULLS LAST"
         )
-        return _safe_topic("Cobros/Pagos", sql, lambda: _fetch_all(db, sql, {}))
+        return _safe_topic(db, "Cobros/Pagos", sql, lambda: _fetch_all(db, sql, {}))
 
     # Default: unsupported
     return {"cards": [], "sql": None, "note": "topic_unsupported"}
@@ -291,7 +293,8 @@ async def query_readonly_enhanced(
     # 3. Mejorar con IA si se solicita
     if with_ai_insights:
         try:
-            summary = json.dumps(result["cards"], indent=2, ensure_ascii=False)
+            # UUID/Decimal/datetime can appear in DB rows; stringify non-JSON-native values.
+            summary = json.dumps(result["cards"], indent=2, ensure_ascii=False, default=str)
             topic_display = topic.replace("_", " ").title()
 
             ai_response = await AIService.query(
@@ -354,6 +357,8 @@ async def get_smart_suggestions(db: Session) -> list[dict[str, Any]]:
                 )
 
     except Exception as e:
+        if isinstance(e, SQLAlchemyError):
+            db.rollback()
         logger.warning(f"Error generating inventory suggestions: {e}")
 
     try:
@@ -378,6 +383,8 @@ async def get_smart_suggestions(db: Session) -> list[dict[str, Any]]:
                 )
 
     except Exception as e:
+        if isinstance(e, SQLAlchemyError):
+            db.rollback()
         logger.warning(f"Error generating sales suggestions: {e}")
 
     try:
@@ -401,6 +408,8 @@ async def get_smart_suggestions(db: Session) -> list[dict[str, Any]]:
                 )
 
     except Exception as e:
+        if isinstance(e, SQLAlchemyError):
+            db.rollback()
         logger.warning(f"Error generating finance suggestions: {e}")
 
     return suggestions

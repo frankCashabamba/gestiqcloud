@@ -10,7 +10,7 @@ from typing import Any
 
 import httpx
 
-from app.services.ai.base import AIModel, AIRequest, AIResponse, AITask, BaseAIProvider
+from app.services.ai.base import AIModel, AIRequest, AIResponse, AITask, BaseAIProvider, model_name
 
 logger = logging.getLogger(__name__)
 
@@ -62,12 +62,12 @@ class OVHCloudProvider(BaseAIProvider):
                 )
 
             prompt = self._prepare_prompt(request)
-            model = request.model or self.get_default_model(request.task)
+            model = model_name(request.model) or model_name(self.get_default_model(request.task))
 
             # Construir request según OVHCloud API spec
             headers = self._build_headers()
             payload = {
-                "model": str(model),
+                "model": model,
                 "messages": [
                     {"role": "system", "content": self._get_system_prompt(request.task)},
                     {"role": "user", "content": prompt},
@@ -90,7 +90,7 @@ class OVHCloudProvider(BaseAIProvider):
             return AIResponse(
                 task=request.task,
                 content=content,
-                model=str(model),
+                model=model,
                 tokens_used=tokens_used,
                 processing_time_ms=int((time.time() - start_time) * 1000),
                 metadata={
@@ -133,14 +133,14 @@ class OVHCloudProvider(BaseAIProvider):
         except Exception:
             return False
 
-    def get_default_model(self, task: AITask) -> AIModel:
+    def get_default_model(self, task: AITask) -> AIModel | str:
         """Modelo por defecto según tarea"""
         if task == AITask.ANALYSIS or task == AITask.GENERATION:
             return AIModel.GPT_4O
         elif task == AITask.CLASSIFICATION:
             return AIModel.GPT_35_TURBO
-        else:
-            return AIModel(self.default_model)
+        configured = model_name(self.default_model)
+        return configured or AIModel.GPT_4O.value
 
     def get_supported_models(self) -> list[AIModel]:
         """Modelos soportados por OVHCloud"""

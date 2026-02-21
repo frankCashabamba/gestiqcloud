@@ -75,8 +75,16 @@
     "packsPlaceholder": "Format: box=12, bundle=24",
     "packsHelp": "Define pack equivalences for later calculations.",
     "minByPackPlaceholder": "Format: box=1, bundle=1",
-    "minByPackHelp": "If selling by pack, enforce these minimums."
-  },
+    "minByPackHelp": "If selling by pack, enforce these minimums.",
+    "suggestedPriceTitle": "Suggested price from recipe",
+    "suggestedPriceHint": "If the product has a recipe, the suggested price is automatically calculated with a 100% markup (50% margin)",
+    "suggestedPrice": "Suggested price",
+    "suggestedPricePlaceholder": "Calculated from recipe",
+    "suggestedPriceHelp": "Automatically calculated from recipe",
+    "useSuggestedPriceLabel": "Use suggested price",
+    "useSuggestedPriceCheckbox": "Apply suggested price as sale price",
+    "useSuggestedPriceHelp": "Enable this to automatically use the suggested price as the sale price"
+    },
   "mergeDuplicates": {
     "open": "Merge similar",
     "title": "Merge similar products",

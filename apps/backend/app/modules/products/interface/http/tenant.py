@@ -75,6 +75,8 @@ class ProductCreate(BaseModel):
     precio_compra: float | None = Field(default=None, ge=0)
     activo: bool | None = True
     active: bool | None = None
+    suggested_price: float | None = Field(default=None, ge=0)
+    use_suggested_price: bool = False
     product_metadata: dict | None = None
 
 
@@ -95,6 +97,8 @@ class ProductUpdate(BaseModel):
     precio_compra: float | None = Field(default=None, ge=0)
     activo: bool | None = None
     active: bool | None = None
+    suggested_price: float | None = Field(default=None, ge=0)
+    use_suggested_price: bool | None = None
     product_metadata: dict | None = None
 
 
@@ -116,6 +120,8 @@ class ProductOut(BaseModel):
     precio_compra: float | None = Field(default=None, validation_alias="cost_price")
     active: bool = True
     activo: bool | None = Field(default=None, validation_alias="active")
+    suggested_price: float | None = None
+    use_suggested_price: bool = False
     product_metadata: dict | None = None
 
     model_config = {"from_attributes": True}
@@ -199,6 +205,8 @@ def _to_product_out_row(row: Product) -> ProductOut:
         precio_compra=float(row.cost_price) if row.cost_price is not None else None,
         active=bool(row.active) if row.active is not None else True,
         activo=bool(row.active) if row.active is not None else True,
+        suggested_price=float(row.suggested_price) if row.suggested_price is not None else None,
+        use_suggested_price=bool(row.use_suggested_price) if row.use_suggested_price is not None else False,
         product_metadata=row.product_metadata,
     )
 
@@ -707,13 +715,21 @@ def create_product(payload: ProductCreate, request: Request, db: Session = Depen
         tax_rate=tax_rate_value,
         cost_price=cost_price_value,
         active=True if active_value is None else active_value,
+        suggested_price=payload.suggested_price,
+        use_suggested_price=payload.use_suggested_price,
         product_metadata=payload.product_metadata,
         tenant_id=tenant_id,
     )
     db.add(obj)
     db.commit()
     db.refresh(obj)
-    return obj
+    return _to_product_out_row(obj)
+
+
+@router.options("/{product_id}")
+def options_product(product_id: str):
+    """Handle CORS preflight for product endpoints"""
+    return {"ok": True}
 
 
 @router.put("/{product_id}", response_model=ProductOut, dependencies=protected)
@@ -767,13 +783,20 @@ def update_product(
     active_value = payload.active if payload.active is not None else payload.activo
     if active_value is not None:
         obj.active = active_value
+    if payload.suggested_price is not None:
+        obj.suggested_price = payload.suggested_price
+    if payload.use_suggested_price is not None:
+        obj.use_suggested_price = payload.use_suggested_price
+        # Si se habilita usar precio sugerido y hay precio sugerido, actualizar el precio
+        if payload.use_suggested_price and obj.suggested_price:
+            obj.price = obj.suggested_price
     if payload.product_metadata is not None:
         obj.product_metadata = payload.product_metadata
 
     db.add(obj)
     db.commit()
     db.refresh(obj)
-    return obj
+    return _to_product_out_row(obj)
 
 
 # OPERACIONES INDIVIDUALES DE PRODUCTOS

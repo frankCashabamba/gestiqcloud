@@ -28,6 +28,15 @@ class AIModel(str, Enum):
     GPT_35_TURBO = "gpt-3.5-turbo"
 
 
+def model_name(model: "AIModel | str | None") -> str:
+    """Normalize model identifiers across Enum/string inputs."""
+    if model is None:
+        return ""
+    if isinstance(model, AIModel):
+        return model.value
+    return str(model).strip()
+
+
 class AITask(str, Enum):
     """Tipos de tareas soportadas"""
 
@@ -45,7 +54,7 @@ class AIRequest:
 
     task: AITask
     prompt: str
-    model: AIModel | None = None
+    model: AIModel | str | None = None
     temperature: float = 0.3
     max_tokens: int | None = None
     context: dict[str, Any] | None = None
@@ -102,17 +111,17 @@ class BaseAIProvider(ABC):
         pass
 
     @abstractmethod
-    def get_default_model(self, task: AITask) -> AIModel:
+    def get_default_model(self, task: AITask) -> AIModel | str:
         """Retorna modelo por defecto para una tarea"""
         pass
 
-    async def validate_model(self, model: AIModel) -> bool:
+    async def validate_model(self, model: AIModel | str) -> bool:
         """Valida que el modelo sea soportado"""
         supported = self.get_supported_models()
         return model in supported
 
     @abstractmethod
-    def get_supported_models(self) -> list[AIModel]:
+    def get_supported_models(self) -> list[AIModel | str]:
         """Lista de modelos soportados por este proveedor"""
         pass
 

@@ -315,6 +315,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
               <TableRow>
                 <TableCell>Ingrediente</TableCell>
                 <TableCell align="right">{L('Quantity', 'Cantidad')}</TableCell>
+                <TableCell align="right">Kg / Lb</TableCell>
                 <TableCell>{L('Packaging', 'Presentación')}</TableCell>
                 <TableCell align="right">{L('Cost', 'Costo')}</TableCell>
                 <TableCell align="right">% {L('Cost', 'Costo')}</TableCell>
@@ -324,7 +325,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
             <TableBody>
               {ingredientsDraft.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={isEditing ? 6 : 5} align="center">
+                  <TableCell colSpan={isEditing ? 7 : 6} align="center">
                     <Typography variant="body2" color="text.secondary">
                       {L('This recipe has no ingredients yet.', 'Esta receta no tiene ingredientes registrados.')}
                     </Typography>
@@ -380,6 +381,19 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                       </Box>
                     ) : (
                       `${qty.toFixed(2)} ${item.unit || ''}`
+                    )}
+                  </TableCell>
+                  <TableCell align="right">
+                    {item.unit === 'g' ? (
+                      <Typography variant="body2" color="text.secondary">
+                        {(qty / 1000).toFixed(3)} kg / {(qty / 453.592).toFixed(3)} lb
+                      </Typography>
+                    ) : item.unit === 'kg' ? (
+                      <Typography variant="body2" color="text.secondary">
+                        {qty.toFixed(3)} kg / {(qty * 2.20462).toFixed(3)} lb
+                      </Typography>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">-</Typography>
                     )}
                   </TableCell>
                   <TableCell>

@@ -36,6 +36,9 @@ class Product(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     stock: Mapped[float] = mapped_column(Float, default=0)
     unit: Mapped[str] = mapped_column(Text, default="unit")
+    # Precio sugerido desde receta
+    suggested_price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    use_suggested_price: Mapped[bool] = mapped_column(Boolean, default=False)
     product_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     category_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("product_categories.id", ondelete="SET NULL"), nullable=True

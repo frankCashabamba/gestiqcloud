@@ -48,6 +48,8 @@ export type Producto = {
   active: boolean
   stock: number
   unit: string
+  suggested_price?: number | null
+  use_suggested_price?: boolean
   product_metadata?: Record<string, any> | null
   category_id?: string | null
   created_at: string
@@ -107,6 +109,8 @@ export async function listProductos(hideOutOfStock: boolean = false): Promise<Pr
     active: Boolean(p.active ?? p.activo ?? true),
     stock: Number(p.stock ?? 0) || 0,
     unit: p.unit || p.uom || 'unit',
+    suggested_price: p.suggested_price ?? null,
+    use_suggested_price: Boolean(p.use_suggested_price ?? false),
     product_metadata: p.product_metadata ?? p.metadata ?? null,
     category_id: p.category_id ?? null,
     created_at: p.created_at || new Date().toISOString(),

@@ -17,9 +17,14 @@ from app.models.recipes import Recipe, RecipeIngredient
 # ============================================================================
 
 
-def calculate_recipe_cost(db: Session, recipe_id: UUID) -> dict:
+def calculate_recipe_cost(db: Session, recipe_id: UUID, update_product_price: bool = True) -> dict:
     """
     Calcula costo total de receta con desglose detallado
+
+    Args:
+        db: Sesión de base de datos
+        recipe_id: ID de la receta
+        update_product_price: Si True, actualiza el precio sugerido del producto
 
     Returns:
         {
@@ -28,6 +33,7 @@ def calculate_recipe_cost(db: Session, recipe_id: UUID) -> dict:
             "yield_qty": int,
             "total_cost": float,
             "unit_cost": float,
+            "suggested_price": float,
             "ingredients_count": int,
             "breakdown": [
                 {
@@ -86,12 +92,29 @@ def calculate_recipe_cost(db: Session, recipe_id: UUID) -> dict:
     db.commit()
     db.refresh(recipe)
 
+    # Calcular precio sugerido (costo unitario con markup del 100% = precio doble)
+    unit_cost = float(recipe.unit_cost or 0)
+    suggested_price = round(unit_cost * 2, 2)  # Markup 100% = margen 50%
+
+    # Actualizar producto si está asociado y se solicita
+    if update_product_price and recipe.product_id:
+        product = db.query(Product).filter(Product.id == recipe.product_id).first()
+        if product:
+            product.suggested_price = suggested_price
+            # Actualizar precio si use_suggested_price está activo
+            if product.use_suggested_price:
+                product.price = suggested_price
+            db.add(product)
+            db.commit()
+            db.refresh(product)
+
     return {
         "recipe_id": str(recipe.id),
         "name": recipe.name,
         "yield_qty": recipe.yield_qty,
         "total_cost": round(float(costo_total), 2),
-        "unit_cost": round(float(recipe.unit_cost or 0), 4),
+        "unit_cost": unit_cost,
+        "suggested_price": suggested_price,
         "ingredients_count": len(ingredientes),
         "breakdown": sorted(desglose, key=lambda x: x["cost"], reverse=True),
     }

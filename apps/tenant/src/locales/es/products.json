@@ -75,8 +75,16 @@
     "packsPlaceholder": "Formato: caja=12, bulto=24",
     "packsHelp": "Define equivalencias por presentación para cálculos posteriores.",
     "minByPackPlaceholder": "Formato: caja=1, bulto=1",
-    "minByPackHelp": "Si vendes por presentación, aplica estos mínimos."
-  },
+    "minByPackHelp": "Si vendes por presentación, aplica estos mínimos.",
+    "suggestedPriceTitle": "Precio sugerido desde receta",
+    "suggestedPriceHint": "Si el producto tiene una receta, el precio sugerido se calcula automáticamente con un markup del 100% (margen 50%)",
+    "suggestedPrice": "Precio sugerido",
+    "suggestedPricePlaceholder": "Se calcula desde la receta",
+    "suggestedPriceHelp": "Calculado automáticamente desde la receta",
+    "useSuggestedPriceLabel": "Usar precio sugerido",
+    "useSuggestedPriceCheckbox": "Aplicar precio sugerido como precio de venta",
+    "useSuggestedPriceHelp": "Habilita esto para usar automáticamente el precio sugerido como precio de venta"
+    },
   "mergeDuplicates": {
     "open": "Unificar similares",
     "title": "Unificar productos similares",

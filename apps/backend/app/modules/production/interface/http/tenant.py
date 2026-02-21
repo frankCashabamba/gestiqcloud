@@ -1071,6 +1071,29 @@ def delete_recipe_ingredient(
         pass
 
 
+@router.post(
+    "/recipes/{recipe_id}/sync-product-price",
+    response_model=dict,
+)
+def sync_recipe_product_price(
+    recipe_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    """Sincroniza el precio sugerido del producto asociado a la receta"""
+    try:
+        result = calculate_recipe_cost(db, recipe_id, update_product_price=True)
+        return {
+            "success": True,
+            "recipe_id": str(recipe_id),
+            "suggested_price": result["suggested_price"],
+            "unit_cost": result["unit_cost"],
+            "message": "Precio sugerido sincronizado con el producto"
+        }
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
+
+
 @router.get(
     "/recipes/{recipe_id}/cost-breakdown",
     response_model=RecipeCostBreakdownResponse,
@@ -1081,7 +1104,7 @@ def get_recipe_cost_breakdown(
     claims: dict = Depends(with_access_claims),
 ):
     try:
-        return calculate_recipe_cost(db, recipe_id)
+        return calculate_recipe_cost(db, recipe_id, update_product_price=False)
     except ValueError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
 

@@ -11,7 +11,7 @@ from typing import Any
 
 import httpx
 
-from app.services.ai.base import AIModel, AIRequest, AIResponse, AITask, BaseAIProvider
+from app.services.ai.base import AIModel, AIRequest, AIResponse, AITask, BaseAIProvider, model_name
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class OpenAIProvider(BaseAIProvider):
                 )
 
             prompt = self._prepare_prompt(request)
-            model = request.model or self.get_default_model(request.task)
+            model = model_name(request.model) or model_name(self.get_default_model(request.task))
 
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
@@ -59,7 +59,7 @@ class OpenAIProvider(BaseAIProvider):
             }
 
             payload = {
-                "model": str(model),
+                "model": model,
                 "messages": [
                     {"role": "system", "content": self._get_system_prompt(request.task)},
                     {"role": "user", "content": prompt},
@@ -81,7 +81,7 @@ class OpenAIProvider(BaseAIProvider):
             return AIResponse(
                 task=request.task,
                 content=content,
-                model=str(model),
+                model=model,
                 tokens_used=tokens_used,
                 processing_time_ms=int((time.time() - start_time) * 1000),
                 metadata={

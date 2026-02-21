@@ -61,6 +61,9 @@ def _sector_kpis_payload(
         params.update(extra)
         return params
 
+    def scalar_float(value: Any) -> float:
+        return float(value) if value is not None else 0.0
+
     # Dates for filters
     today = date.today()
     yesterday = today - timedelta(days=1)
@@ -69,7 +72,7 @@ def _sector_kpis_payload(
 
     if sector == "panaderia":
         # COUNTER SALES (from pos_receipts + invoices)
-        sales_today = (
+        sales_today = scalar_float(
             db.execute(
                 text(
                     f"""
@@ -82,10 +85,9 @@ def _sector_kpis_payload(
                 ),
                 tenant_params(today=today),
             ).scalar()
-            or 0.0
         )
 
-        sales_yesterday = (
+        sales_yesterday = scalar_float(
             db.execute(
                 text(
                     f"""
@@ -98,7 +100,6 @@ def _sector_kpis_payload(
                 ),
                 tenant_params(yesterday=yesterday),
             ).scalar()
-            or 0.0
         )
 
         variation = (
@@ -203,7 +204,7 @@ def _sector_kpis_payload(
 
     elif sector == "taller":
         # MONTHLY REVENUE (invoices + tickets)
-        monthly_revenue = (
+        monthly_revenue = scalar_float(
             db.execute(
                 text(
                     f"""
@@ -216,7 +217,6 @@ def _sector_kpis_payload(
                 ),
                 tenant_params(month_start=month_start),
             ).scalar()
-            or 0.0
         )
 
         # COMPLETED JOBS
@@ -316,7 +316,7 @@ def _sector_kpis_payload(
         average_ticket = (total_today / tickets_today) if tickets_today > 0 else 0.0
 
         # WEEKLY COMPARISON
-        weekly_sales = (
+        weekly_sales = scalar_float(
             db.execute(
                 text(
                     f"""
@@ -329,7 +329,6 @@ def _sector_kpis_payload(
                 ),
                 tenant_params(week_ago=week_ago),
             ).scalar()
-            or 0.0
         )
 
         # STOCK ROTATION (ventas últimas 4 semanas + stock disponible)
@@ -399,7 +398,7 @@ def _sector_kpis_payload(
 
     else:  # default - generic real data
         # Total daily sales (POS + Invoices)
-        pos_sales = (
+        pos_sales = scalar_float(
             db.execute(
                 text(
                     f"""
@@ -412,10 +411,9 @@ def _sector_kpis_payload(
                 ),
                 tenant_params(today=today),
             ).scalar()
-            or 0.0
         )
 
-        invoice_sales = (
+        invoice_sales = scalar_float(
             db.execute(
                 text(
                     f"""
@@ -428,7 +426,6 @@ def _sector_kpis_payload(
                 ),
                 tenant_params(today=today),
             ).scalar()
-            or 0.0
         )
 
         tickets_count = (

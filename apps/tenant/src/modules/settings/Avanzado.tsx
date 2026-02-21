@@ -13,6 +13,13 @@ type InventoryForm = {
     reorder_point_default?: number | null
 }
 
+type BulkPricingItem = {
+    product_id: string
+    product_name?: string
+    quantity: number
+    unit_price: number
+}
+
 type PosForm = {
     receipt_width_mm?: number | null
     default_tax_rate?: number | null
@@ -21,6 +28,7 @@ type PosForm = {
     store_credit_enabled?: boolean
     store_credit_single_use?: boolean
     store_credit_expiry_months?: number | null
+    bulk_pricing_items?: BulkPricingItem[]
 }
 
 type NumberingCounter = {
@@ -79,6 +87,13 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
     const [docSeriesList, setDocSeriesList] = useState<DocSeries[]>([])
     const [docSeriesLoading, setDocSeriesLoading] = useState(false)
     const [seriesForm, setSeriesForm] = useState(NUMBERING_DEFAULTS.DOC_SERIES_FORM)
+    const [products, setProducts] = useState<any[]>([])
+    const [productsLoading, setProductsLoading] = useState(false)
+    const [bulkPricingForm, setBulkPricingForm] = useState<BulkPricingItem>({
+        product_id: '',
+        quantity: 6,
+        unit_price: 1.0,
+    })
 
     const loadSettings = async () => {
         try {
@@ -105,6 +120,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
             const tax = (posConfig as any).tax || {}
             const receipt = (posConfig as any).receipt || {}
             const storeCredit = (posConfig as any).store_credit || {}
+            const bulkPricingItems = (posConfig as any).bulk_pricing_items || []
             const taxDefault = toNumberOrNull(tax.default_rate)
             const taxDefaultPct =
                 taxDefault === null ? null : taxDefault <= 1 ? taxDefault * 100 : taxDefault
@@ -116,6 +132,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                 store_credit_enabled: storeCredit.enabled ?? false,
                 store_credit_single_use: storeCredit.single_use ?? false,
                 store_credit_expiry_months: toNumberOrNull(storeCredit.expiry_months),
+                bulk_pricing_items: bulkPricingItems,
             })
 
             const baseSettings = (data.settings || {}) as Record<string, any>
@@ -162,10 +179,23 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
         }
     }
 
+    const loadProducts = async () => {
+        try {
+            setProductsLoading(true)
+            const res = await tenantApi.get<any[]>('/api/v1/tenant/products')
+            setProducts(res.data || [])
+        } catch (err: any) {
+            error(getErrorMessage(err))
+        } finally {
+            setProductsLoading(false)
+        }
+    }
+
     useEffect(() => {
         void loadSettings()
         if (variant !== 'admin') {
             void loadNumbering()
+            void loadProducts()
         }
     }, [variant])
 
@@ -257,6 +287,11 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                         pos.return_window_days === null || pos.return_window_days === undefined
                             ? null
                             : Number(pos.return_window_days),
+                    bulk_pricing_items: (pos.bulk_pricing_items || []).map((item: any) => ({
+                        product_id: item.product_id,
+                        quantity: Number(item.quantity) || 1,
+                        unit_price: Number(item.unit_price) || 0,
+                    })),
                     store_credit: {
                         enabled: !!pos.store_credit_enabled,
                         single_use: !!pos.store_credit_single_use,
@@ -528,6 +563,175 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                 />
                                 Requerir datos del comprador sobre ese monto
                             </label>
+                        </div>
+                    </section>
+
+                    <section className="border rounded-lg p-4 mb-6">
+                        <h3 className="font-semibold mb-3">Venta por Cantidad (Panadería)</h3>
+                        <p className="text-sm text-gray-600 mb-4">
+                            Configura el precio fijo para una cantidad específica de cada producto (ej: 6 tapapados por $1)
+                        </p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4 p-3 bg-gray-50 rounded">
+                            <div>
+                                <label className="block text-sm mb-1 font-medium">Seleccionar Producto</label>
+                                <select
+                                    className="border px-2 py-1 w-full rounded"
+                                    value={bulkPricingForm.product_id}
+                                    onChange={(e) =>
+                                        setBulkPricingForm((prev) => {
+                                            const product = products.find((p) => p.id === e.target.value)
+                                            return {
+                                                ...prev,
+                                                product_id: e.target.value,
+                                                product_name: product?.name || '',
+                                            }
+                                        })
+                                    }
+                                    disabled={productsLoading}
+                                >
+                                    <option value="">-- Seleccionar --</option>
+                                    {products.map((product) => (
+                                        <option key={product.id} value={product.id}>
+                                            {product.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm mb-1 font-medium">Cantidad (unidades)</label>
+                                <input
+                                    className="border px-2 py-1 w-full rounded"
+                                    type="number"
+                                    placeholder="6"
+                                    value={bulkPricingForm.quantity}
+                                    onChange={(e) =>
+                                        setBulkPricingForm((prev) => ({
+                                            ...prev,
+                                            quantity: Number(e.target.value) || 0,
+                                        }))
+                                    }
+                                    min={1}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm mb-1 font-medium">Precio (por conjunto)</label>
+                                <input
+                                    className="border px-2 py-1 w-full rounded"
+                                    type="number"
+                                    placeholder="1.00"
+                                    value={bulkPricingForm.unit_price}
+                                    onChange={(e) =>
+                                        setBulkPricingForm((prev) => ({
+                                            ...prev,
+                                            unit_price: Number(e.target.value) || 0,
+                                        }))
+                                    }
+                                    min={0}
+                                    step="0.01"
+                                />
+                            </div>
+                            <div className="flex items-end">
+                                <button
+                                    className="bg-green-600 text-white px-3 py-1.5 rounded w-full disabled:opacity-60"
+                                    onClick={() => {
+                                        if (!bulkPricingForm.product_id) {
+                                            error('Debes seleccionar un producto')
+                                            return
+                                        }
+                                        if (bulkPricingForm.quantity <= 0) {
+                                            error('La cantidad debe ser mayor a 0')
+                                            return
+                                        }
+
+                                        const isDuplicate = pos.bulk_pricing_items?.some(
+                                            (item) => item.product_id === bulkPricingForm.product_id
+                                        )
+                                        if (isDuplicate) {
+                                            error('Este producto ya está en la lista. Edítalo o elimínalo primero.')
+                                            return
+                                        }
+
+                                        setPos((prev) => ({
+                                            ...prev,
+                                            bulk_pricing_items: [
+                                                ...(prev.bulk_pricing_items || []),
+                                                bulkPricingForm,
+                                            ],
+                                        }))
+
+                                        setBulkPricingForm({
+                                            product_id: '',
+                                            quantity: 6,
+                                            unit_price: 1.0,
+                                        })
+
+                                        success('Producto agregado a bulk pricing')
+                                    }}
+                                    disabled={productsLoading || !bulkPricingForm.product_id}
+                                >
+                                    Agregar
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Tabla de productos con bulk pricing */}
+                        <div className="border rounded overflow-hidden">
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50">
+                                    <tr>
+                                        <th className="text-left px-3 py-2">Producto</th>
+                                        <th className="text-right px-3 py-2">Cantidad</th>
+                                        <th className="text-right px-3 py-2">Precio</th>
+                                        <th className="text-right px-3 py-2">Precio/Unidad</th>
+                                        <th className="text-right px-3 py-2">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {(pos.bulk_pricing_items || []).length > 0 ? (
+                                        (pos.bulk_pricing_items || []).map((item, idx) => {
+                                            const pricePerUnit = item.unit_price / item.quantity
+                                            return (
+                                                <tr key={item.product_id} className="border-t">
+                                                    <td className="px-3 py-2">
+                                                        {item.product_name ||
+                                                            products.find((p) => p.id === item.product_id)?.name ||
+                                                            item.product_id}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-right">{item.quantity}</td>
+                                                    <td className="px-3 py-2 text-right">${item.unit_price.toFixed(2)}</td>
+                                                    <td className="px-3 py-2 text-right">${pricePerUnit.toFixed(4)}</td>
+                                                    <td className="px-3 py-2 text-right">
+                                                        <button
+                                                            className="btn btn-sm ghost"
+                                                            onClick={() => {
+                                                                setPos((prev) => ({
+                                                                    ...prev,
+                                                                    bulk_pricing_items: (
+                                                                        prev.bulk_pricing_items || []
+                                                                    ).filter((_, i) => i !== idx),
+                                                                }))
+                                                                success('Producto eliminado')
+                                                            }}
+                                                        >
+                                                            Eliminar
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })
+                                    ) : (
+                                        <tr>
+                                            <td
+                                                className="px-3 py-4 text-center text-slate-500 text-sm"
+                                                colSpan={5}
+                                            >
+                                                No hay productos configurados. Agrega uno arriba.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </section>
 
