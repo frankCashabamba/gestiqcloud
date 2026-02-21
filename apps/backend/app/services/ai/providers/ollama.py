@@ -4,6 +4,7 @@ Ollama AI Provider - Local LLM via Ollama
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Any
@@ -13,6 +14,10 @@ import httpx
 from app.services.ai.base import AIModel, AIRequest, AIResponse, AITask, BaseAIProvider, model_name
 
 logger = logging.getLogger(__name__)
+
+# Ollama processes one request at a time; serialize calls so queued
+# requests wait in Python instead of hitting httpx timeouts.
+_ollama_semaphore = asyncio.Semaphore(1)
 
 
 class OllamaProvider(BaseAIProvider):
@@ -25,7 +30,7 @@ class OllamaProvider(BaseAIProvider):
         super().__init__("ollama", config)
         self.base_url = config.get("url", "http://localhost:11434")
         self.default_model = config.get("model", "llama3.1:8b")
-        self.request_timeout = config.get("timeout", 30.0)
+        self.request_timeout = config.get("timeout", 120.0)
 
     async def call(self, request: AIRequest) -> AIResponse:
         """Llama a Ollama API."""
@@ -53,10 +58,11 @@ class OllamaProvider(BaseAIProvider):
             if request.max_tokens:
                 payload["num_predict"] = request.max_tokens
 
-            async with httpx.AsyncClient(timeout=self.request_timeout) as client:
-                response = await client.post(f"{self.base_url}/api/generate", json=payload)
-                response.raise_for_status()
-                data = response.json()
+            async with _ollama_semaphore:
+                async with httpx.AsyncClient(timeout=self.request_timeout) as client:
+                    response = await client.post(f"{self.base_url}/api/generate", json=payload)
+                    response.raise_for_status()
+                    data = response.json()
 
             return AIResponse(
                 task=request.task,

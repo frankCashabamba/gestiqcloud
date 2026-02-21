@@ -28,7 +28,6 @@ from app.modules.imports.application.tasks.task_preprocess import (
     get_preprocess_task,
     preprocess_inline,
 )
-from app.modules.imports.application.tasks.task_publish import publish_item
 from app.modules.imports.application.tasks.task_validate import validate_item
 
 logger = logging.getLogger(__name__)
@@ -74,13 +73,13 @@ def enqueue_item_pipeline(
 
     task = get_preprocess_task()
     task_id = str(uuid5(NAMESPACE_URL, f"imports:{tenant_str}:{batch_str}:{item_str}"))
+    # Pipeline stops at validate; publishing/promotion requires explicit user confirmation.
     workflow = chain(
         task.s(item_str, tenant_str, batch_str),
         ocr_item.s(tenant_str, batch_str),
         classify_item.s(tenant_str, batch_str),
         extract_item.s(tenant_str, batch_str),
         validate_item.s(tenant_str, batch_str),
-        publish_item.s(tenant_str, batch_str),
     )
 
     result = workflow.apply_async(task_id=task_id)
@@ -182,8 +181,7 @@ def _run_inline(item_id: str, tenant_id: str, batch_id: str) -> None:
 
         result = validate_item(item_id_next, tenant_id, batch_id)
 
-        if result.get("valid"):
-            publish_item(item_id_next, tenant_id, batch_id)
+        # Pipeline stops at validate; publishing/promotion requires explicit user confirmation.
     except Exception as exc:
         logger.exception(f"Inline pipeline failed for {item_id}: {exc}")
         with session_scope() as db:

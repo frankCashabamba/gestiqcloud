@@ -7,6 +7,7 @@ export type Action = 'create_invoice_draft' | 'create_order_draft' | 'create_tra
 export interface AskPayload {
   topic: Topic
   params?: Record<string, any>
+  with_ai_insights?: boolean
 }
 
 export interface ActPayload {

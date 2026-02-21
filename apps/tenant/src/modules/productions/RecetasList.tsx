@@ -276,6 +276,10 @@ export default function RecetasList() {
                       </div>
                       <div className="font-semibold">{fmt(precioDisplay)}</div>
                     </div>
+                    <div className="p-2 rounded bg-emerald-50 col-span-2">
+                      <div className="text-gray-500">Beneficio / unidad</div>
+                      <div className="font-semibold text-emerald-700">{fmt(precio - costoUnidad, 3)}</div>
+                    </div>
                   </div>
                   <div className="mt-3 flex items-center justify-between">
                     <div className="text-xs text-gray-600 flex items-center gap-2">

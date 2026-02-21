@@ -80,7 +80,7 @@ class AIProviderFactory:
                     or "http://localhost:11434"
                 ),
                 "model": os.getenv("OLLAMA_MODEL", "llama3.1:8b"),
-                "timeout": float(os.getenv("OLLAMA_TIMEOUT", "30")),
+                "timeout": float(os.getenv("OLLAMA_TIMEOUT", "120")),
                 "health_check_timeout": float(os.getenv("OLLAMA_HEALTH_TIMEOUT", "5")),
                 "max_prompt_length": int(os.getenv("AI_MAX_PROMPT_LENGTH", "10000")),
             }

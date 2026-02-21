@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { listGastos, removeGasto, getGastoStats, type Gasto, type GastoStats } from './services'
+import { listGastos, removeGasto, getGastoStats, getProductionDetail, type Gasto, type GastoStats, type ProductionDetail } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { usePagination, Pagination } from '../../shared/pagination'
 import { usePermission } from '../../hooks/usePermission'
@@ -25,6 +25,9 @@ export default function GastosList() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [per, setPer] = useState(10)
   const [sourceFilter, setSourceFilter] = useState<'all' | 'manual' | 'production'>('all')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [detailData, setDetailData] = useState<ProductionDetail | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
 
   useEffect(() => {
     (async () => {
@@ -106,6 +109,25 @@ export default function GastosList() {
     } else {
       setSortKey(key)
       setSortDir('asc')
+    }
+  }
+
+  async function toggleDetail(expense: Gasto) {
+    if (expandedId === expense.id) {
+      setExpandedId(null)
+      setDetailData(null)
+      return
+    }
+    setExpandedId(expense.id)
+    setDetailData(null)
+    setDetailLoading(true)
+    try {
+      const detail = await getProductionDetail(expense.id)
+      setDetailData(detail)
+    } catch {
+      setDetailData(null)
+    } finally {
+      setDetailLoading(false)
     }
   }
 
@@ -259,9 +281,22 @@ export default function GastosList() {
           </thead>
           <tbody>
             {view.map((v) => (
-              <tr key={v.id} className="border-b hover:bg-gray-50">
+              <React.Fragment key={v.id}>
+              <tr className="border-b hover:bg-gray-50">
                 <td className="py-2 px-2">{v.date}</td>
-                <td className="py-2 px-2">{v.concept || '-'}</td>
+                <td className="py-2 px-2">
+                  {isProductionExpense(v) ? (
+                    <button
+                      className="text-left text-blue-600 hover:underline flex items-center gap-1"
+                      onClick={() => toggleDetail(v)}
+                    >
+                      <span className={`inline-block transition-transform ${expandedId === v.id ? 'rotate-90' : ''}`}>▶</span>
+                      {v.concept || '-'}
+                    </button>
+                  ) : (
+                    v.concept || '-'
+                  )}
+                </td>
                 <td className="py-2 px-2">
                   {isProductionExpense(v) ? (
                     <span className="inline-flex rounded-full px-2 py-1 text-xs font-medium bg-green-100 text-green-700 border border-green-200">
@@ -299,6 +334,52 @@ export default function GastosList() {
                   )}
                 </td>
               </tr>
+              {expandedId === v.id && isProductionExpense(v) && (
+                <tr className="bg-blue-50">
+                  <td colSpan={5} className="py-3 px-4">
+                    {detailLoading ? (
+                      <div className="text-sm text-gray-500">Cargando detalle...</div>
+                    ) : detailData ? (
+                      <div>
+                        <div className="text-sm font-semibold mb-2">
+                          {detailData.recipe_name} — Orden: {detailData.order_number} — Producido: {detailData.qty_produced}
+                        </div>
+                        <table className="w-full text-xs border">
+                          <thead>
+                            <tr className="bg-blue-100 text-left">
+                              <th className="py-1 px-2">Ingrediente</th>
+                              <th className="py-1 px-2">Cantidad</th>
+                              <th className="py-1 px-2">Unidad</th>
+                              <th className="py-1 px-2">Costo Unit.</th>
+                              <th className="py-1 px-2">Subtotal</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {detailData.lines.map((line, idx) => (
+                              <tr key={idx} className="border-t">
+                                <td className="py-1 px-2">{line.ingredient_name}</td>
+                                <td className="py-1 px-2">{line.qty_consumed.toFixed(3)}</td>
+                                <td className="py-1 px-2">{line.unit}</td>
+                                <td className="py-1 px-2">${line.cost_unit.toFixed(4)}</td>
+                                <td className="py-1 px-2 font-medium">${line.cost_total.toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr className="border-t font-semibold bg-blue-100">
+                              <td colSpan={4} className="py-1 px-2 text-right">Total:</td>
+                              <td className="py-1 px-2">${detailData.total_cost.toFixed(2)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-red-500">No se pudo cargar el detalle</div>
+                    )}
+                  </td>
+                </tr>
+              )}
+              </React.Fragment>
             ))}
             {!loading && view.length === 0 && (
               <tr>

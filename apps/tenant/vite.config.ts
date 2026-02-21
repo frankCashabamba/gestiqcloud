@@ -48,6 +48,7 @@ const alias = {
 }
 
 export default defineConfig({
+  envDir: fileURLToPath(new URL('../../', import.meta.url)),
   base: basePath,
   define: {
     __APP_BUILD_ID__: JSON.stringify(buildId),

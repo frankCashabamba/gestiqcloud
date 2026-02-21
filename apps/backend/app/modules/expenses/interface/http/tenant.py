@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -40,6 +41,70 @@ def list_expenses(db: Session = Depends(get_db), claims: dict = Depends(with_acc
 def get_expense_stats(db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)):
     """Get expense statistics (must come before /{expense_id})"""
     return {"total": 0, "pending": 0}
+
+
+@router.get("/{expense_id}/production-detail")
+def get_expense_production_detail(
+    expense_id: UUID, db: Session = Depends(get_db), claims: dict = Depends(with_access_claims)
+):
+    """Return ingredient breakdown for a production expense."""
+    tenant_id = UUID(claims["tenant_id"])
+    expense = ExpenseRepo(db).get(tenant_id, expense_id)
+    print(f"[PROD-DETAIL] expense_id={expense_id}, found={expense is not None}")
+    if not expense:
+        raise HTTPException(404, "Expense not found")
+
+    is_prod = _is_locked_production_expense(expense)
+    print(f"[PROD-DETAIL] category='{expense.category}' invoice='{expense.invoice_number}' is_prod={is_prod}")
+    if not is_prod:
+        raise HTTPException(400, "Not a production expense")
+
+    invoice = getattr(expense, "invoice_number", "") or ""
+    order_number = invoice.replace("PROD-", "", 1) if invoice.startswith("PROD-") else None
+    print(f"[PROD-DETAIL] order_number='{order_number}'")
+    if not order_number:
+        raise HTTPException(404, f"No order ref in invoice_number='{invoice}'")
+
+    from app.models.production.production_order import ProductionOrder
+    from app.models.core.products import Product
+
+    order = db.execute(
+        select(ProductionOrder).where(
+            ProductionOrder.tenant_id == tenant_id,
+            ProductionOrder.order_number == order_number,
+        )
+    ).scalar_one_or_none()
+    if not order:
+        # Debug: try without tenant filter
+        any_order = db.execute(
+            select(ProductionOrder).where(ProductionOrder.order_number == order_number)
+        ).scalar_one_or_none()
+        print(f"[PROD-DETAIL] order NOT found. Without tenant filter: {any_order is not None}")
+        if any_order:
+            print(f"[PROD-DETAIL] tenant mismatch: order={any_order.tenant_id} vs claim={tenant_id}")
+        raise HTTPException(404, f"Production order '{order_number}' not found")
+
+    lines = []
+    for line in order.lines:
+        product = db.execute(
+            select(Product).where(Product.id == line.ingredient_product_id)
+        ).scalar_one_or_none()
+        lines.append({
+            "ingredient_name": product.name if product else "Unknown",
+            "qty_consumed": float(line.qty_consumed or line.qty_required or 0),
+            "unit": line.unit or "unit",
+            "cost_unit": float(line.cost_unit or 0),
+            "cost_total": float((line.qty_consumed or line.qty_required or 0) * (line.cost_unit or 0)),
+        })
+
+    return {
+        "expense_id": str(expense_id),
+        "order_number": order_number,
+        "recipe_name": expense.concept.replace("Production cost - ", "").rsplit(" (", 1)[0] if expense.concept else "",
+        "qty_produced": float(order.qty_produced or 0),
+        "total_cost": float(expense.amount or 0),
+        "lines": lines,
+    }
 
 
 @router.get("/{expense_id}", response_model=ExpenseOut)

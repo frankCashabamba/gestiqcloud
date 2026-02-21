@@ -34,6 +34,7 @@ from app.modules.imports.application.use_utils import apply_mapping
 from app.modules.imports.domain.handlers import (
     BankHandler,
     ExpenseHandler,
+    InvoiceHandler,
     ProductHandler,
     RecipeHandler,
 )
@@ -929,20 +930,28 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
     # Consider all items; we'll count already promoted as skipped to make idempotency visible
     items = repo.list_items(db, tenant_uuid, batch_uuid)
     created = skipped = failed = 0
+    # User-chosen destination overrides the auto-detected source_type.
+    user_destination = (options or {}).get("destination")
+
     # Special handling for recipes: we handle them differently
-    if batch.source_type == "recipes":
+    if batch.source_type == "recipes" and not user_destination:
         handler = RecipeHandler
+    elif user_destination:
+        handler = {
+            "invoices": InvoiceHandler,
+            "expenses": ExpenseHandler,
+            "sales": InvoiceHandler,
+            "bank": BankHandler,
+        }.get(user_destination, InvoiceHandler)
     else:
         handler = {
-            # En el importador, "invoices" corresponde a facturas recibidas (proveedor),
-            # que deben terminar como gastos/AP, no como facturación de ventas.
-            "invoices": ExpenseHandler,
+            "invoices": InvoiceHandler,
             "bank": BankHandler,
-            "receipts": ExpenseHandler,
+            "receipts": InvoiceHandler,
             "expenses": ExpenseHandler,
             "products": ProductHandler,
             "productos": ProductHandler,
-        }.get(batch.source_type, ExpenseHandler)
+        }.get(batch.source_type, InvoiceHandler)
 
     t0 = datetime.utcnow()
     promoted_hashes: set[str] = set()
@@ -1010,9 +1019,7 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
 
             if res.skipped:
                 if getattr(res, "domain_id", None):
-                    it.promoted_to = (
-                        "expenses" if batch.source_type == "invoices" else batch.source_type
-                    )
+                    it.promoted_to = user_destination or batch.source_type
                     it.promoted_id = _to_uuid(res.domain_id)
                     it.promoted_at = datetime.utcnow()
                     it.status = ImportItemStatus.PROMOTED
@@ -1034,7 +1041,7 @@ def promote_batch(db: Session, tenant_id: int, batch_id, *, options: dict | None
                 failed += 1
                 continue
             # promoted_to indica el módulo/tabla destino real
-            it.promoted_to = "expenses" if batch.source_type == "invoices" else batch.source_type
+            it.promoted_to = user_destination or batch.source_type
             it.promoted_id = _to_uuid(res.domain_id) if res.domain_id else None
             it.promoted_at = datetime.utcnow()
             it.status = ImportItemStatus.PROMOTED

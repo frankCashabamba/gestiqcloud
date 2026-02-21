@@ -943,7 +943,7 @@ async def suggest_mapping_endpoint(
                 f'\nCabeceras: {headers}\nPropuesta actual: {{"mapping":{mapping},"transforms":{transforms},"defaults":{defaults}}}\n'
                 "Devuelve solo JSON con keys mapping, transforms, defaults."
             )
-            payload = {"model": os.getenv("OLLAMA_MODEL", "llama3.1:8b"), "prompt": prompt}
+            payload = {"model": os.getenv("OLLAMA_MODEL", "llama3:8bs"), "prompt": prompt}
             try:
                 r = httpx.post(f"{ollama_url}/api/generate", json=payload, timeout=2.0)
                 if r.status_code == 200:
@@ -3090,6 +3090,11 @@ def promote_batch_endpoint(
     save_as_products: str | None = Query(
         default=None, description="Para recetas: guardar ingredientes como productos (true|false)"
     ),
+    destination: str | None = Query(
+        default=None,
+        description="Destino elegido por el usuario (invoices|expenses|sales|bank). Sobreescribe el doc_type auto-detectado.",
+        pattern="^(invoices|expenses|sales|bank)$",
+    ),
 ):
     from app.modules.imports.application import use_cases
     from app.modules.imports.infrastructure.repositories import ImportsRepository
@@ -3151,6 +3156,7 @@ def promote_batch_endpoint(
         "payment_method": payment_method,
         "paid_at": paid_at,
         "save_as_products": save_as_products == "true" if save_as_products else False,
+        "destination": destination,
     }
     if create_purchase:
         options["skip_stock_init"] = True

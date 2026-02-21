@@ -133,6 +133,7 @@ export default function PreviewPage() {
   const [showPromoteModal, setShowPromoteModal] = useState(false)
   const [showRecipePromoteModal, setShowRecipePromoteModal] = useState(false)
   const [recipeAlsoSaveAsProducts, setRecipeAlsoSaveAsProducts] = useState(false)
+  const [promoteDestination, setPromoteDestination] = useState<'invoices' | 'expenses' | 'sales' | 'bank'>('invoices')
   const [promotePostAccounting, setPromotePostAccounting] = useState(false)
   const [promotePaymentStatus, setPromotePaymentStatus] = useState<'pending' | 'paid'>('pending')
   const [promotePaymentMethod, setPromotePaymentMethod] = useState<
@@ -398,30 +399,13 @@ export default function PreviewPage() {
             return
         }
 
-        const needsPayment = sourceType === 'invoices' || sourceType === 'expenses' || sourceType === 'receipts'
-        if (needsPayment) {
+        // For non-product/non-recipe batches, always show the promote modal with destination selector
+        if (sourceType !== 'products') {
             setShowPromoteModal(true)
             return
         }
-        const targetPath =
-            sourceType === 'products'
-                ? '../products'
-                : sourceType === 'expenses' || sourceType === 'receipts'
-                ? '../expenses'
-                : sourceType === 'invoices'
-                ? '../expenses'
-                : null
 
-        const confirmMsg =
-            sourceType === 'products'
-                ? t('importerPreviewPage.confirm.promoteProducts')
-                : sourceType === 'expenses' || sourceType === 'receipts'
-                ? t('importerPreviewPage.confirm.promoteExpenses')
-                : sourceType === 'invoices'
-                ? t('importerPreviewPage.confirm.promoteInvoices')
-                : t('importerPreviewPage.confirm.promoteGeneric')
-
-        const confirmed = await askConfirm(confirmMsg)
+        const confirmed = await askConfirm(t('importerPreviewPage.confirm.promoteProducts'))
         if (!confirmed) return
 
         setPromoting(true)
@@ -431,12 +415,7 @@ export default function PreviewPage() {
             if ((res.skipped || 0) > 0) {
                 toast.info(t('importerPreviewPage.messages.duplicatesSkipped', { count: res.skipped }))
             }
-            if (targetPath) {
-                navigate(targetPath)
-            } else {
-                await fetchBatches()
-                await fetchProductos()
-            }
+            navigate('../products')
         } catch (err: any) {
             toast.error(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
         } finally {
@@ -476,13 +455,20 @@ export default function PreviewPage() {
                 paymentStatus: promotePaymentStatus,
                 paymentMethod: promotePaymentStatus === 'paid' ? promotePaymentMethod : undefined,
                 paidAt: promotePaymentStatus === 'paid' ? promotePaidAt : undefined,
+                destination: promoteDestination,
             })
             toast.success(t('importerPreviewPage.messages.promoteSuccess', { created: res.created, skipped: res.skipped, failed: res.failed }))
             if ((res.skipped || 0) > 0) {
                 toast.info(t('importerPreviewPage.messages.duplicatesSkipped', { count: res.skipped }))
             }
             setShowPromoteModal(false)
-            navigate('../expenses')
+            const destPaths: Record<string, string> = {
+                invoices: '../invoices',
+                expenses: '../expenses',
+                sales: '../pos',
+                bank: '../bank',
+            }
+            navigate(destPaths[promoteDestination] || '../')
         } catch (err: any) {
             toast.error(t('importerPreviewPage.errors.genericWithMessage', { message: err.message }))
         } finally {
@@ -586,6 +572,37 @@ export default function PreviewPage() {
                             </div>
                         </div>
                         <div className="space-y-4 px-4 py-4">
+                            <div>
+                                <div className="text-xs font-medium uppercase tracking-wide text-slate-500 mb-1">Guardar como</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {([
+                                        { value: 'invoices', label: 'Factura de compra', icon: '📄' },
+                                        { value: 'sales', label: 'Venta / Ticket POS', icon: '🧾' },
+                                        { value: 'expenses', label: 'Gasto', icon: '💸' },
+                                        { value: 'bank', label: 'Movimiento bancario', icon: '🏦' },
+                                    ] as const).map(opt => (
+                                        <button
+                                            key={opt.value}
+                                            type="button"
+                                            onClick={() => setPromoteDestination(opt.value)}
+                                            className={`flex items-center gap-2 rounded-lg border-2 px-3 py-2 text-sm text-left transition-all ${
+                                                promoteDestination === opt.value
+                                                    ? 'border-blue-500 bg-blue-50 text-blue-900 font-medium'
+                                                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                                            }`}
+                                        >
+                                            <span>{opt.icon}</span>
+                                            <span>{opt.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                                {promoteDestination === 'sales' && (
+                                    <div className="mt-2 rounded-md bg-amber-50 border border-amber-200 p-2 text-xs text-amber-700">
+                                        Los tickets de venta se registrarán como ingreso. Para gestión de POS completa, usa el módulo de Punto de Venta.
+                                    </div>
+                                )}
+                            </div>
+
                             <label className="flex items-center gap-2 text-sm text-slate-700">
                                 <input
                                     type="checkbox"

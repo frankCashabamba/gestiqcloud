@@ -281,6 +281,7 @@ export type PromoteBatchOptions = {
   paymentMethod?: 'cash' | 'bank' | 'card' | 'transfer' | 'direct_debit' | 'check' | 'other'
   paidAt?: string // YYYY-MM-DD
   save_as_products?: string // 'true' or 'false' for recipes
+  destination?: 'invoices' | 'expenses' | 'sales' | 'bank'
 }
 
 export async function promoteBatch(batchId: string, opts?: PromoteBatchOptions) {
@@ -290,6 +291,7 @@ export async function promoteBatch(batchId: string, opts?: PromoteBatchOptions) 
   if (opts?.paymentMethod) u.searchParams.set('payment_method', opts.paymentMethod)
   if (opts?.paidAt) u.searchParams.set('paid_at', opts.paidAt)
   if (opts?.save_as_products) u.searchParams.set('save_as_products', opts.save_as_products)
+  if (opts?.destination) u.searchParams.set('destination', opts.destination)
 
   return apiFetch<{ created: number; skipped: number; failed: number }>(
     u.pathname + u.search,

@@ -218,18 +218,14 @@ Responde SOLO con JSON válido con keys: type, confidence (0-1), explanation"""
         Returns:
             Texto con sugerencia
         """
-        prompt = f"""Basándote en este contexto empresarial, genera una sugerencia útil y accionable:
-
-Contexto: {context}
-Tipo: {suggestion_type}
-
-Sé conciso y específico."""
+        prompt = f"""Contexto: {context}
+Da UNA sugerencia breve y accionable (máximo 2 oraciones)."""
 
         response = await AIService.query(
             task=AITask.SUGGESTION,
             prompt=prompt,
             temperature=0.5,
-            max_tokens=300,
+            max_tokens=100,
         )
 
         return response.content if not response.is_error else ""

@@ -158,3 +158,23 @@ export async function getGastoStats(desde?: string, hasta?: string): Promise<Gas
   const { data } = await tenantApi.get<GastoStats>(`${TENANT_EXPENSES.base}/stats?${params}`)
   return data
 }
+
+export type ProductionDetail = {
+  expense_id: string
+  order_number: string
+  recipe_name: string
+  qty_produced: number
+  total_cost: number
+  lines: {
+    ingredient_name: string
+    qty_consumed: number
+    unit: string
+    cost_unit: number
+    cost_total: number
+  }[]
+}
+
+export async function getProductionDetail(id: string): Promise<ProductionDetail> {
+  const { data } = await tenantApi.get<ProductionDetail>(`${TENANT_EXPENSES.byId(id)}/production-detail`)
+  return data
+}

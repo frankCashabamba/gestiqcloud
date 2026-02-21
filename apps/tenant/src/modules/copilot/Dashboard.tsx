@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { useToast } from '../../shared/toast'
 import {
-  querySalesByMonth,
-  queryTopProducts,
-  queryLowStock,
-  queryPaymentMovements,
+  askCopilot,
   getSuggestions,
   QueryResult,
   SuggestionsResult,
+  Topic,
 } from './services'
 
 export default function CopilotDashboard() {
@@ -26,18 +24,17 @@ export default function CopilotDashboard() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [sales, top, stock, pay, suggestions] = await Promise.all([
-        querySalesByMonth().catch(() => null),
-        queryTopProducts().catch(() => null),
-        queryLowStock(5).catch(() => null),
-        queryPaymentMovements().catch(() => null),
-        getSuggestions().catch(() => null),
+      // Load data WITHOUT AI analysis (fast, SQL only)
+      const [sales, top, stock, pay] = await Promise.all([
+        askCopilot({ topic: 'ventas_mes', with_ai_insights: false }).catch(() => null),
+        askCopilot({ topic: 'top_productos', with_ai_insights: false }).catch(() => null),
+        askCopilot({ topic: 'stock_bajo', params: { threshold: 5 }, with_ai_insights: false }).catch(() => null),
+        askCopilot({ topic: 'cobros_pagos', with_ai_insights: false }).catch(() => null),
       ])
       setSalesMonth(sales)
       setTopProducts(top)
       setLowStock(stock)
       setPayments(pay)
-      setSuggestions(suggestions)
     } catch {
       showError('Error cargando datos de Copilot')
     } finally {
@@ -60,19 +57,18 @@ export default function CopilotDashboard() {
         </button>
       </div>
 
-      {/* Sugerencias principales */}
-      {suggestions && suggestions.suggestions.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {suggestions.suggestions.map((suggestion, idx) => (
-            <SuggestionCard key={idx} suggestion={suggestion} />
-          ))}
-        </div>
-      )}
+      {/* Sugerencias IA (bajo demanda) */}
+      <SuggestionsSection suggestions={suggestions} onLoad={setSuggestions} />
 
       {/* Grid de datos principal */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {salesMonth && (
-          <Card title={salesMonth.cards[0]?.title || 'Ventas por Mes'} insights={salesMonth.ai_insights}>
+          <Card
+            title={salesMonth.cards[0]?.title || 'Ventas por Mes'}
+            topic="ventas_mes"
+            result={salesMonth}
+            onUpdate={setSalesMonth}
+          >
             <pre className="bg-gray-100 p-3 rounded text-sm overflow-auto max-h-64">
               {JSON.stringify(salesMonth.cards[0]?.series, null, 2)}
             </pre>
@@ -80,7 +76,12 @@ export default function CopilotDashboard() {
         )}
 
         {topProducts && (
-          <Card title={topProducts.cards[0]?.title || 'Productos Top'} insights={topProducts.ai_insights}>
+          <Card
+            title={topProducts.cards[0]?.title || 'Productos Top'}
+            topic="top_productos"
+            result={topProducts}
+            onUpdate={setTopProducts}
+          >
             <div className="space-y-2">
               {topProducts.cards[0]?.data?.slice(0, 5).map((item: any, idx: number) => (
                 <div key={idx} className="flex justify-between text-sm">
@@ -93,7 +94,13 @@ export default function CopilotDashboard() {
         )}
 
         {lowStock && (
-          <Card title={lowStock.cards[0]?.title || 'Stock Bajo'} insights={lowStock.ai_insights}>
+          <Card
+            title={lowStock.cards[0]?.title || 'Stock Bajo'}
+            topic="stock_bajo"
+            params={{ threshold: 5 }}
+            result={lowStock}
+            onUpdate={setLowStock}
+          >
             <div className="space-y-2">
               {lowStock.cards[0]?.data?.slice(0, 5).map((item: any, idx: number) => (
                 <div key={idx} className="text-sm text-red-600">
@@ -105,7 +112,12 @@ export default function CopilotDashboard() {
         )}
 
         {payments && (
-          <Card title={payments.cards[0]?.title || 'Cobros/Pagos'} insights={payments.ai_insights}>
+          <Card
+            title={payments.cards[0]?.title || 'Cobros/Pagos'}
+            topic="cobros_pagos"
+            result={payments}
+            onUpdate={setPayments}
+          >
             <pre className="bg-gray-100 p-3 rounded text-sm overflow-auto max-h-64">
               {JSON.stringify(payments.cards[0]?.data, null, 2)}
             </pre>
@@ -133,31 +145,104 @@ function formatMoney(value: unknown): string {
   return '0.00'
 }
 
+function SuggestionsSection({
+  suggestions,
+  onLoad,
+}: {
+  suggestions: SuggestionsResult | null
+  onLoad: (s: SuggestionsResult) => void
+}) {
+  const [loading, setLoading] = useState(false)
+
+  const handleLoad = async () => {
+    setLoading(true)
+    try {
+      const result = await getSuggestions()
+      onLoad(result)
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!suggestions) {
+    return (
+      <button
+        onClick={handleLoad}
+        disabled={loading}
+        className="w-full py-3 border-2 border-dashed border-purple-300 rounded-lg text-purple-600 hover:bg-purple-50 disabled:opacity-50"
+      >
+        {loading ? '⏳ Generando sugerencias IA...' : '💡 Generar sugerencias con IA'}
+      </button>
+    )
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {suggestions.suggestions.map((suggestion, idx) => (
+        <SuggestionCard key={idx} suggestion={suggestion} />
+      ))}
+    </div>
+  )
+}
+
 function Card({
   title,
+  topic,
+  params,
+  result,
+  onUpdate,
   children,
-  insights,
 }: {
   title: string
+  topic: Topic
+  params?: Record<string, any>
+  result: QueryResult
+  onUpdate: (r: QueryResult) => void
   children: React.ReactNode
-  insights?: any
 }) {
   const [showInsights, setShowInsights] = React.useState(false)
+  const [analyzing, setAnalyzing] = React.useState(false)
+  const insights = result.ai_insights
+
+  const handleAnalyze = async () => {
+    setAnalyzing(true)
+    try {
+      const updated = await askCopilot({ topic, params, with_ai_insights: true })
+      onUpdate(updated)
+      setShowInsights(true)
+    } catch {
+      // ignore
+    } finally {
+      setAnalyzing(false)
+    }
+  }
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold">{title}</h2>
-        {insights && (
-          <button
-            onClick={() => setShowInsights(!showInsights)}
-            className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
-          >
-            {showInsights ? 'Datos' : '💡 Insights'}
-          </button>
-        )}
+        <div className="flex gap-2">
+          {insights ? (
+            <button
+              onClick={() => setShowInsights(!showInsights)}
+              className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
+            >
+              {showInsights ? 'Datos' : '💡 Insights'}
+            </button>
+          ) : (
+            <button
+              onClick={handleAnalyze}
+              disabled={analyzing}
+              className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 disabled:opacity-50"
+            >
+              {analyzing ? '⏳ Analizando...' : '🤖 Analizar con IA'}
+            </button>
+          )}
+        </div>
       </div>
-      
+
       {showInsights && insights ? (
         <InsightsPanel insights={insights} />
       ) : (
@@ -176,17 +261,6 @@ function InsightsPanel({ insights }: { insights: any }) {
           <ul className="list-disc list-inside text-sm text-gray-600 space-y-1 mt-1">
             {insights.findings.map((finding: string, idx: number) => (
               <li key={idx}>{finding}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {insights.trends && insights.trends.length > 0 && (
-        <div>
-          <h3 className="font-semibold text-sm text-gray-700">📈 Tendencias</h3>
-          <ul className="list-disc list-inside text-sm text-gray-600 space-y-1 mt-1">
-            {insights.trends.map((trend: string, idx: number) => (
-              <li key={idx}>{trend}</li>
             ))}
           </ul>
         </div>
@@ -253,11 +327,6 @@ function SuggestionCard({ suggestion }: { suggestion: any }) {
           )}
         </div>
       </div>
-      {suggestion.action && (
-        <button className="text-xs mt-3 px-2 py-1 bg-white rounded hover:bg-gray-100 opacity-70">
-          {suggestion.action}
-        </button>
-      )}
     </div>
   )
 }

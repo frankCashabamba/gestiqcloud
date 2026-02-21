@@ -425,7 +425,7 @@ class ExpenseHandler:
     ) -> PromoteResult:
         """
         Promotes expense/receipt to expenses table.
-        REAL IMPLEMENTATION - saves to database.
+        Only called when user explicitly confirms via the Promote button.
         """
         if promoted_id:
             return PromoteResult(domain_id=promoted_id, skipped=True)
@@ -434,21 +434,7 @@ class ExpenseHandler:
         from decimal import Decimal
         from uuid import uuid4
 
-        from app.models.accounting.chart_of_accounts import JournalEntry
-        from app.models.accounting.pos_settings import TenantAccountingSettings
         from app.models.expenses.expense import Expense
-        from app.modules.accounting.application.journal_service import (
-            JournalLineIn,
-            create_posted_entry,
-        )
-
-        def _parse_iso_date(value: str | None, fallback: date) -> date:
-            if not value:
-                return fallback
-            try:
-                return date.fromisoformat(str(value))
-            except Exception:
-                return fallback
 
         try:
             # Fecha
@@ -472,19 +458,14 @@ class ExpenseHandler:
             else:
                 tx_date = datetime.utcnow().date()
 
-            # Concept/Description
             concept = str(
                 normalized.get("description") or normalized.get("concept") or "Expense"
             ).strip()
 
-            # Category
             category = (
-                str(normalized.get("category") or normalized.get("category") or "otros")
-                .strip()
-                .lower()
+                str(normalized.get("category") or "otros").strip().lower()
             )
 
-            # Importes
             iva = float(
                 normalized.get("tax")
                 or normalized.get("iva")
@@ -494,28 +475,22 @@ class ExpenseHandler:
             total = float(
                 normalized.get("total")
                 or normalized.get("amount")
-                or normalized.get("amount")
                 or normalized.get("totals", {}).get("total")
                 or 0
             )
             amount = total - iva if iva > 0 else total
 
-            # Forma de pago
-            payment_map = {
-                "cash": "efectivo",
-                "card": "tarjeta",
-                "transfer": "transferencia",
-                "direct_debit": "domiciliacion",
-            }
+            # Skip expenses with zero or negative total
+            if total <= 0:
+                return PromoteResult(domain_id=None, skipped=True)
+
             forma_pago_raw = str(
                 normalized.get("payment_method")
                 or normalized.get("forma_pago")
                 or normalized.get("payment", {}).get("method")
                 or "efectivo"
             ).lower()
-            forma_pago = payment_map.get(forma_pago_raw, forma_pago_raw)
 
-            # Número de factura
             factura_numero = (
                 str(
                     normalized.get("invoice_number")
@@ -526,15 +501,12 @@ class ExpenseHandler:
                 or None
             )
 
-            # Supplier (optional)
+            supplier_id = None
             supplier_name = str(
                 normalized.get("vendor")
                 or normalized.get("proveedor")
-                or normalized.get("vendor", {}).get("name")
                 or ""
             ).strip()
-
-            supplier_id = None
             if supplier_name:
                 try:
                     from app.models.suppliers import Supplier
@@ -552,7 +524,6 @@ class ExpenseHandler:
                 except Exception:
                     pass
 
-            # User (obtain from context)
             options = kwargs.get("options") or {}
             raw_user_id = options.get("user_id")
             try:
@@ -562,18 +533,12 @@ class ExpenseHandler:
             except Exception:
                 usuario_id = uuid4()
 
-            # Payment status/method overrides at promotion time (professional UX)
             desired_status = (options.get("payment_status") or "pending").strip().lower()
             if desired_status not in ("pending", "paid"):
                 desired_status = "pending"
             payment_method_override = (options.get("payment_method") or "").strip().lower() or None
-            if desired_status == "paid" and not payment_method_override:
-                # Keep the extracted/default method if not provided
-                payment_method_override = forma_pago_raw if forma_pago_raw else None
 
-            # Dedupe de negocio para gastos/recibos:
-            # 1) número de factura/recibo (+proveedor cuando exista)
-            # 2) fallback por fecha+concepto+total
+            # Dedupe
             existing_expense = None
             if factura_numero:
                 q = db.query(Expense).filter(
@@ -597,7 +562,6 @@ class ExpenseHandler:
             if existing_expense:
                 return PromoteResult(domain_id=str(existing_expense.id), skipped=True)
 
-            # Create expense
             expense = Expense(
                 id=uuid4(),
                 tenant_id=tenant_id,
@@ -609,7 +573,7 @@ class ExpenseHandler:
                 vat=Decimal(str(iva)),
                 total=Decimal(str(total)),
                 supplier_id=supplier_id,
-                payment_method=payment_method_override or forma_pago,
+                payment_method=payment_method_override or forma_pago_raw,
                 invoice_number=factura_numero,
                 status="paid" if desired_status == "paid" else "pending",
                 user_id=usuario_id,
@@ -617,143 +581,6 @@ class ExpenseHandler:
             )
             db.add(expense)
             db.flush()
-
-            # Optional: auto-post accounting entry.
-            # This must never block the operational workflow of creating the Expense:
-            # if accounting isn't configured yet, we skip posting and let the user
-            # configure accounts later (professional, non-destructive UX).
-            if bool(options.get("post_accounting")):
-                try:
-                    cfg = (
-                        db.query(TenantAccountingSettings)
-                        .filter(TenantAccountingSettings.tenant_id == tenant_id)
-                        .first()
-                    )
-                    ap = getattr(cfg, "ap_account_id", None) if cfg else None
-                    vat_in = getattr(cfg, "vat_input_account_id", None) if cfg else None
-                    exp_acct = getattr(cfg, "default_expense_account_id", None) if cfg else None
-                    cash_acct = getattr(cfg, "cash_account_id", None) if cfg else None
-                    bank_acct = getattr(cfg, "bank_account_id", None) if cfg else None
-
-                    if not ap or not exp_acct:
-                        raise ValueError(
-                            "accounting_settings_missing: ap_account_id/default_expense_account_id"
-                        )
-
-                    base = Decimal(str(amount))
-                    vat_dec = Decimal(str(iva))
-                    total_dec = Decimal(str(total))
-
-                    # 1) Bill entry: expense -> AP (always, to keep professional AP trail)
-                    existing_bill = (
-                        db.query(JournalEntry)
-                        .filter(
-                            JournalEntry.tenant_id == tenant_id,
-                            JournalEntry.ref_doc_type == "expense",
-                            JournalEntry.ref_doc_id == expense.id,
-                        )
-                        .first()
-                    )
-                    if not existing_bill:
-                        bill_lines: list[JournalLineIn] = [
-                            JournalLineIn(
-                                account_id=UUID(str(exp_acct)),
-                                debit=base,
-                                credit=Decimal("0"),
-                                description=concept,
-                                line_number=1,
-                            ),
-                        ]
-                        ln = 2
-                        if vat_dec and vat_dec > 0:
-                            if not vat_in:
-                                raise ValueError(
-                                    "accounting_settings_missing: vat_input_account_id"
-                                )
-                            bill_lines.append(
-                                JournalLineIn(
-                                    account_id=UUID(str(vat_in)),
-                                    debit=vat_dec,
-                                    credit=Decimal("0"),
-                                    description="IVA soportado",
-                                    line_number=ln,
-                                )
-                            )
-                            ln += 1
-                        bill_lines.append(
-                            JournalLineIn(
-                                account_id=UUID(str(ap)),
-                                debit=Decimal("0"),
-                                credit=total_dec,
-                                description="Cuentas por pagar",
-                                line_number=ln,
-                            )
-                        )
-                        create_posted_entry(
-                            db,
-                            tenant_id=tenant_id,
-                            entry_date=tx_date,
-                            description=f"Gasto (proveedor): {concept}",
-                            ref_doc_type="expense",
-                            ref_doc_id=expense.id,
-                            created_by=usuario_id,
-                            lines=bill_lines,
-                        )
-
-                    # 2) Payment entry (optional): AP -> cash/bank
-                    if desired_status == "paid":
-                        existing_pay = (
-                            db.query(JournalEntry)
-                            .filter(
-                                JournalEntry.tenant_id == tenant_id,
-                                JournalEntry.ref_doc_type == "expense_payment",
-                                JournalEntry.ref_doc_id == expense.id,
-                            )
-                            .first()
-                        )
-                        if not existing_pay:
-                            method = (payment_method_override or "").lower()
-                            # Map method to cash/bank accounts
-                            if method in ("cash", "efectivo"):
-                                pay_acct = cash_acct
-                            else:
-                                pay_acct = bank_acct
-                            if not pay_acct:
-                                raise ValueError(
-                                    "accounting_settings_missing: cash_account_id/bank_account_id"
-                                )
-
-                            pay_date = _parse_iso_date(options.get("paid_at"), tx_date)
-                            pay_lines = [
-                                JournalLineIn(
-                                    account_id=UUID(str(ap)),
-                                    debit=total_dec,
-                                    credit=Decimal("0"),
-                                    description="Pago a proveedor",
-                                    line_number=1,
-                                ),
-                                JournalLineIn(
-                                    account_id=UUID(str(pay_acct)),
-                                    debit=Decimal("0"),
-                                    credit=total_dec,
-                                    description="Salida de fondos",
-                                    line_number=2,
-                                ),
-                            ]
-                            create_posted_entry(
-                                db,
-                                tenant_id=tenant_id,
-                                entry_date=pay_date,
-                                description=f"Pago gasto/proveedor: {concept}",
-                                ref_doc_type="expense_payment",
-                                ref_doc_id=expense.id,
-                                created_by=usuario_id,
-                                lines=pay_lines,
-                            )
-                except Exception as acc_exc:
-                    logging.getLogger(__name__).warning(
-                        "Expense accounting post skipped: %s", acc_exc
-                    )
 
             return PromoteResult(domain_id=str(expense.id), skipped=False)
 

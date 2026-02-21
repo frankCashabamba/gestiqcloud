@@ -297,19 +297,16 @@ async def query_readonly_enhanced(
             summary = json.dumps(result["cards"], indent=2, ensure_ascii=False, default=str)
             topic_display = topic.replace("_", " ").title()
 
+            # Limit data sent to AI to avoid long prompts
+            cards_data = result["cards"][0]["data"][:10]
+            summary = json.dumps(cards_data, ensure_ascii=False, default=str)
+
             ai_response = await AIService.query(
                 task=AITask.ANALYSIS,
-                prompt=f"""Analiza estos datos de {topic_display}:
-
-{summary}
-
-Proporciona SOLO JSON válido con:
-1. findings: [str] - Hallazgos clave en puntos
-2. trends: [str] - Tendencias detectadas
-3. recommendations: [str] - Recomendaciones de acción
-4. alerts: [dict] - Alertas si hay anomalías""",
+                prompt=f"""Datos de {topic_display}: {summary}
+Responde SOLO con JSON: {{"findings":["..."],"recommendations":["..."]}}""",
                 temperature=0.3,
-                max_tokens=1000,
+                max_tokens=250,
             )
 
             if not ai_response.is_error:
