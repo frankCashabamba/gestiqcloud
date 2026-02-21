@@ -16,11 +16,23 @@ import {
   addIngredient,
   updateIngredient,
   deleteIngredient,
+  updateRecipe,
   type Recipe,
   type CostBreakdown,
   type RecipeIngredientResponse,
 } from '../../services/api/recetas';
 import { listProducts, type Product } from '../../services/api/products';
+import {
+  listCostDrivers,
+  listRecipeCostLines,
+  addRecipeCostLine,
+  updateRecipeCostLine,
+  deleteRecipeCostLine,
+  getRecipeFullCost,
+  type CostDriver,
+  type RecipeCostLine,
+  type FullCostSummary,
+} from '../../services/api/productionCosts';
 import { useI18n } from '../../i18n/I18nProvider';
 import tenantApi from '../../shared/api/client';
 
@@ -47,6 +59,29 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
   const [isEditing, setIsEditing] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [deletedIngredientIds, setDeletedIngredientIds] = useState<string[]>([]);
+  const [costDrivers, setCostDrivers] = useState<CostDriver[]>([]);
+  const [costLinesDraft, setCostLinesDraft] = useState<Array<{
+    id?: string;
+    driver_id: string;
+    qty_standard: number;
+    headcount: number;
+    rate_override: number | null;
+    notes?: string;
+    line_order?: number;
+    _isNew?: boolean;
+  }>>([]);
+  const [deletedCostLineIds, setDeletedCostLineIds] = useState<string[]>([]);
+  const [fullCost, setFullCost] = useState<FullCostSummary | null>(null);
+  const [prodParams, setProdParams] = useState({
+    prep_time_minutes: null as number | null,
+    baking_time_minutes: null as number | null,
+    oven_temp_celsius: null as number | null,
+    rest_time_minutes: null as number | null,
+    waste_pct: null as number | null,
+    trays_per_batch: null as number | null,
+    units_per_tray: null as number | null,
+    instructions: '' as string,
+  });
   const [ingredientsDraft, setIngredientsDraft] = useState<Array<{
     id?: string;
     product_id: string;
@@ -95,10 +130,39 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
         }))
       );
       setDeletedIngredientIds([]);
+      setProdParams({
+        prep_time_minutes: recipeData.prep_time_minutes ?? null,
+        baking_time_minutes: recipeData.baking_time_minutes ?? null,
+        oven_temp_celsius: recipeData.oven_temp_celsius ?? null,
+        rest_time_minutes: recipeData.rest_time_minutes ?? null,
+        waste_pct: recipeData.waste_pct ?? null,
+        trays_per_batch: recipeData.trays_per_batch ?? null,
+        units_per_tray: recipeData.units_per_tray ?? null,
+        instructions: recipeData.instructions || '',
+      });
       setIsEditing(false);
 
-      const productsData = await listProducts({ limit: 500 });
+      const [productsData, driversData, costLinesData, fullCostData] = await Promise.all([
+        listProducts({ limit: 500 }),
+        listCostDrivers().catch(() => []),
+        listRecipeCostLines(recipeId).catch(() => []),
+        getRecipeFullCost(recipeId).catch(() => null),
+      ]);
       setProducts(Array.isArray(productsData) ? productsData : []);
+      setCostDrivers(Array.isArray(driversData) ? driversData : []);
+      setCostLinesDraft(
+        (Array.isArray(costLinesData) ? costLinesData : []).map((cl: RecipeCostLine, idx: number) => ({
+          id: cl.id,
+          driver_id: cl.driver_id,
+          qty_standard: Number(cl.qty_standard || 0),
+          headcount: cl.headcount || 1,
+          rate_override: cl.rate_override,
+          notes: cl.notes || '',
+          line_order: cl.line_order ?? idx,
+        }))
+      );
+      setDeletedCostLineIds([]);
+      setFullCost(fullCostData);
     } catch (err: any) {
       setError(err.message || L('Error loading data', 'Error al cargar datos'));
     } finally {
@@ -176,6 +240,17 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
       setUpdating(true);
       setError(null);
 
+      await updateRecipe(recipe.id, {
+        prep_time_minutes: prodParams.prep_time_minutes ?? undefined,
+        baking_time_minutes: prodParams.baking_time_minutes ?? undefined,
+        oven_temp_celsius: prodParams.oven_temp_celsius ?? undefined,
+        rest_time_minutes: prodParams.rest_time_minutes ?? undefined,
+        waste_pct: prodParams.waste_pct ?? undefined,
+        trays_per_batch: prodParams.trays_per_batch ?? undefined,
+        units_per_tray: prodParams.units_per_tray ?? undefined,
+        instructions: prodParams.instructions || undefined,
+      });
+
       for (const ingredientId of deletedIngredientIds) {
         await deleteIngredient(recipe.id, ingredientId);
       }
@@ -197,6 +272,27 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
           await addIngredient(recipe.id, payload as any);
         } else {
           await updateIngredient(recipe.id, row.id, payload as any);
+        }
+      }
+
+      // Save cost lines
+      for (const clId of deletedCostLineIds) {
+        await deleteRecipeCostLine(recipe.id, clId);
+      }
+      for (const cl of costLinesDraft) {
+        if (!cl.driver_id) continue;
+        const clPayload = {
+          driver_id: cl.driver_id,
+          qty_standard: Number(cl.qty_standard || 0),
+          headcount: cl.headcount || 1,
+          rate_override: cl.rate_override ?? undefined,
+          notes: cl.notes || undefined,
+          line_order: cl.line_order || 0,
+        };
+        if (cl._isNew || !cl.id) {
+          await addRecipeCostLine(recipe.id, clPayload as any);
+        } else {
+          await updateRecipeCostLine(recipe.id, cl.id, clPayload as any);
         }
       }
 
@@ -252,6 +348,9 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
   const ingredientsCount = Number(breakdown.ingredientes_count ?? 0);
   const breakdownRows = Array.isArray(breakdown.desglose) ? breakdown.desglose : [];
 
+  const fc = fullCost;
+  const hasIndirect = fc && Number(fc.indirect_total || 0) > 0;
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
@@ -274,31 +373,179 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
 
             <Grid item xs={6} sm={3}>
               <Typography variant="caption" color="text.secondary">
-                {L('Total Cost', 'Costo Total')}
+                {L('Materials Cost', 'Costo Materiales')}
               </Typography>
               <Typography variant="h6">${totalCost.toFixed(2)}</Typography>
+              <Typography variant="caption" color="text.secondary">
+                /u: ${unitCost.toFixed(4)}
+              </Typography>
             </Grid>
 
-            <Grid item xs={6} sm={3}>
-              <Typography variant="caption" color="text.secondary">
-                {L('Cost/Unit', 'Costo/Unidad')}
-              </Typography>
-              <Typography variant="h6">${unitCost.toFixed(4)}</Typography>
-            </Grid>
-
-            <Grid item xs={6} sm={3}>
-              <Typography variant="caption" color="text.secondary">
-                {L('Ingredients', 'Ingredientes')}
-              </Typography>
-              <Typography variant="h6">{ingredientsCount}</Typography>
-            </Grid>
+            {hasIndirect ? (
+              <>
+                <Grid item xs={6} sm={3}>
+                  <Typography variant="caption" color="text.secondary">
+                    {L('Indirect Costs', 'Costos Indirectos')}
+                  </Typography>
+                  <Typography variant="h6" color="warning.main">
+                    ${Number(fc.indirect_total).toFixed(2)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {Number(fc.labor_total) > 0 && `MO: $${Number(fc.labor_total).toFixed(2)} `}
+                    {Number(fc.energy_total) > 0 && `Energía: $${Number(fc.energy_total).toFixed(2)}`}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Typography variant="caption" color="text.secondary">
+                    {L('Full Cost/Unit', 'Costo Completo/U')}
+                  </Typography>
+                  <Typography variant="h6" color="error.main">
+                    ${Number(fc.full_cost_unit).toFixed(4)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Total: ${Number(fc.full_cost_total).toFixed(2)}
+                  </Typography>
+                </Grid>
+              </>
+            ) : (
+              <>
+                <Grid item xs={6} sm={3}>
+                  <Typography variant="caption" color="text.secondary">
+                    {L('Cost/Unit', 'Costo/Unidad')}
+                  </Typography>
+                  <Typography variant="h6">${unitCost.toFixed(4)}</Typography>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Typography variant="caption" color="text.secondary">
+                    {L('Ingredients', 'Ingredientes')}
+                  </Typography>
+                  <Typography variant="h6">{ingredientsCount}</Typography>
+                </Grid>
+              </>
+            )}
           </Grid>
         </Box>
 
-        {/* Tiempo de preparación */}
-        {recipe.prep_time_minutes && (
+        {/* Parámetros de producción */}
+        {isEditing ? (
           <Box mb={2}>
-            <Chip label={`⏱️ ${recipe.prep_time_minutes} ${L('minutes', 'minutos')}`} color="primary" />
+            <Typography variant="subtitle2" gutterBottom>
+              {L('Production Parameters', 'Parámetros de Producción')}
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={6} sm={3}>
+                <TextField
+                  label={L('Prep time (min)', 'T. preparación (min)')}
+                  type="number"
+                  size="small"
+                  fullWidth
+                  value={prodParams.prep_time_minutes ?? ''}
+                  onChange={(e) => setProdParams((p) => ({ ...p, prep_time_minutes: e.target.value ? Number(e.target.value) : null }))}
+                  inputProps={{ min: 0 }}
+                />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <TextField
+                  label={L('Baking time (min)', 'T. horneado (min)')}
+                  type="number"
+                  size="small"
+                  fullWidth
+                  value={prodParams.baking_time_minutes ?? ''}
+                  onChange={(e) => setProdParams((p) => ({ ...p, baking_time_minutes: e.target.value ? Number(e.target.value) : null }))}
+                  inputProps={{ min: 0 }}
+                />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <TextField
+                  label={L('Oven temp (°C)', 'Temp. horno (°C)')}
+                  type="number"
+                  size="small"
+                  fullWidth
+                  value={prodParams.oven_temp_celsius ?? ''}
+                  onChange={(e) => setProdParams((p) => ({ ...p, oven_temp_celsius: e.target.value ? Number(e.target.value) : null }))}
+                  inputProps={{ min: 0 }}
+                />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <TextField
+                  label={L('Rest time (min)', 'T. reposo (min)')}
+                  type="number"
+                  size="small"
+                  fullWidth
+                  value={prodParams.rest_time_minutes ?? ''}
+                  onChange={(e) => setProdParams((p) => ({ ...p, rest_time_minutes: e.target.value ? Number(e.target.value) : null }))}
+                  inputProps={{ min: 0 }}
+                />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <TextField
+                  label={L('Waste %', 'Merma %')}
+                  type="number"
+                  size="small"
+                  fullWidth
+                  value={prodParams.waste_pct ?? ''}
+                  onChange={(e) => setProdParams((p) => ({ ...p, waste_pct: e.target.value ? Number(e.target.value) : null }))}
+                  inputProps={{ min: 0, max: 100, step: 0.1 }}
+                />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <TextField
+                  label={L('Trays/batch', 'Bandejas/lote')}
+                  type="number"
+                  size="small"
+                  fullWidth
+                  value={prodParams.trays_per_batch ?? ''}
+                  onChange={(e) => setProdParams((p) => ({ ...p, trays_per_batch: e.target.value ? Number(e.target.value) : null }))}
+                  inputProps={{ min: 1 }}
+                />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <TextField
+                  label={L('Units/tray', 'Uds/bandeja')}
+                  type="number"
+                  size="small"
+                  fullWidth
+                  value={prodParams.units_per_tray ?? ''}
+                  onChange={(e) => setProdParams((p) => ({ ...p, units_per_tray: e.target.value ? Number(e.target.value) : null }))}
+                  inputProps={{ min: 1 }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label={L('Instructions', 'Instrucciones')}
+                  size="small"
+                  fullWidth
+                  multiline
+                  minRows={2}
+                  value={prodParams.instructions}
+                  onChange={(e) => setProdParams((p) => ({ ...p, instructions: e.target.value }))}
+                />
+              </Grid>
+            </Grid>
+          </Box>
+        ) : (
+          <Box mb={2} display="flex" flexWrap="wrap" gap={1}>
+            {recipe.prep_time_minutes != null && (
+              <Chip label={`⏱️ ${L('Prep', 'Prep.')}: ${recipe.prep_time_minutes} min`} color="primary" size="small" />
+            )}
+            {recipe.baking_time_minutes != null && (
+              <Chip label={`🔥 ${L('Baking', 'Horneado')}: ${recipe.baking_time_minutes} min`} color="warning" size="small" />
+            )}
+            {recipe.oven_temp_celsius != null && (
+              <Chip label={`🌡️ ${recipe.oven_temp_celsius} °C`} color="default" size="small" />
+            )}
+            {recipe.rest_time_minutes != null && (
+              <Chip label={`⏸️ ${L('Rest', 'Reposo')}: ${recipe.rest_time_minutes} min`} color="info" size="small" />
+            )}
+            {recipe.waste_pct != null && recipe.waste_pct > 0 && (
+              <Chip label={`📉 ${L('Waste', 'Merma')}: ${recipe.waste_pct}%`} color="error" size="small" />
+            )}
+            {recipe.trays_per_batch != null && (
+              <Chip label={`🍞 ${recipe.trays_per_batch} ${L('trays', 'bandejas')}`} color="default" size="small" />
+            )}
+            {recipe.units_per_tray != null && (
+              <Chip label={`${recipe.units_per_tray} ${L('units/tray', 'uds/bandeja')}`} color="default" size="small" />
+            )}
           </Box>
         )}
 
@@ -453,8 +700,178 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
           </Table>
         </TableContainer>
 
-        {/* Instrucciones */}
-        {recipe.instructions && (
+        {/* Costos indirectos */}
+        <Divider sx={{ my: 2 }} />
+        <Typography variant="h6" gutterBottom>
+          {L('Indirect Costs', 'Costos Indirectos')}
+        </Typography>
+
+        {costDrivers.length === 0 && !isEditing && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            {L(
+              'No cost drivers configured. Go to production settings to add labor, energy, and other cost types.',
+              'No hay drivers de costo configurados. Agrega tipos como Mano de Obra, Energía, etc. desde los ajustes de producción.'
+            )}
+          </Alert>
+        )}
+
+        {(costLinesDraft.length > 0 || isEditing) && (
+          <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>{L('Cost Type', 'Tipo de Costo')}</TableCell>
+                  <TableCell align="right">{L('Qty', 'Cantidad')}</TableCell>
+                  <TableCell align="right">{L('Headcount', 'Personas')}</TableCell>
+                  <TableCell align="right">{L('Rate', 'Tarifa')}</TableCell>
+                  <TableCell align="right">{L('Subtotal', 'Subtotal')}</TableCell>
+                  {isEditing && <TableCell align="right">{L('Actions', 'Acciones')}</TableCell>}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {costLinesDraft.map((cl, idx) => {
+                  const driver = costDrivers.find((d) => d.id === cl.driver_id);
+                  const rate = cl.rate_override ?? (driver?.default_rate || 0);
+                  const subtotal = Number(cl.qty_standard) * Number(rate) * (cl.headcount || 1);
+                  return (
+                    <TableRow key={idx}>
+                      <TableCell>
+                        {isEditing ? (
+                          <TextField
+                            select
+                            SelectProps={{ native: true }}
+                            value={cl.driver_id}
+                            onChange={(e) => {
+                              setCostLinesDraft((prev) => {
+                                const next = [...prev];
+                                next[idx] = { ...next[idx], driver_id: e.target.value };
+                                return next;
+                              });
+                            }}
+                            size="small"
+                            fullWidth
+                          >
+                            <option value="">{L('Select type', 'Seleccionar tipo')}</option>
+                            {costDrivers.filter((d) => d.is_active).map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.name} ({d.unit} @ ${Number(d.default_rate).toFixed(2)})
+                              </option>
+                            ))}
+                          </TextField>
+                        ) : (
+                          <>
+                            <Typography variant="body2">{driver?.name || '-'}</Typography>
+                            <Typography variant="caption" color="text.secondary">{driver?.unit || ''}</Typography>
+                          </>
+                        )}
+                      </TableCell>
+                      <TableCell align="right">
+                        {isEditing ? (
+                          <TextField
+                            type="number"
+                            value={cl.qty_standard}
+                            onChange={(e) => {
+                              setCostLinesDraft((prev) => {
+                                const next = [...prev];
+                                next[idx] = { ...next[idx], qty_standard: Number(e.target.value) };
+                                return next;
+                              });
+                            }}
+                            size="small"
+                            sx={{ width: 90 }}
+                            inputProps={{ min: 0, step: 0.25 }}
+                          />
+                        ) : (
+                          Number(cl.qty_standard).toFixed(2)
+                        )}
+                      </TableCell>
+                      <TableCell align="right">
+                        {isEditing ? (
+                          <TextField
+                            type="number"
+                            value={cl.headcount}
+                            onChange={(e) => {
+                              setCostLinesDraft((prev) => {
+                                const next = [...prev];
+                                next[idx] = { ...next[idx], headcount: Number(e.target.value) || 1 };
+                                return next;
+                              });
+                            }}
+                            size="small"
+                            sx={{ width: 70 }}
+                            inputProps={{ min: 1 }}
+                          />
+                        ) : (
+                          cl.headcount
+                        )}
+                      </TableCell>
+                      <TableCell align="right">
+                        ${Number(rate).toFixed(2)}
+                      </TableCell>
+                      <TableCell align="right">
+                        <strong>${subtotal.toFixed(2)}</strong>
+                      </TableCell>
+                      {isEditing && (
+                        <TableCell align="right">
+                          <IconButton
+                            color="error"
+                            size="small"
+                            onClick={() => {
+                              setCostLinesDraft((prev) => {
+                                const target = prev[idx];
+                                if (target?.id) {
+                                  setDeletedCostLineIds((ids) => [...ids, target.id!]);
+                                }
+                                return prev.filter((_, i) => i !== idx);
+                              });
+                            }}
+                          >
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+
+        {isEditing && (
+          costDrivers.length > 0 ? (
+            <Button
+              size="small"
+              startIcon={<Add />}
+              onClick={() => {
+                setCostLinesDraft((prev) => [
+                  ...prev,
+                  {
+                    driver_id: '',
+                    qty_standard: 1,
+                    headcount: 1,
+                    rate_override: null,
+                    line_order: prev.length,
+                    _isNew: true,
+                  },
+                ]);
+              }}
+              sx={{ mb: 2 }}
+            >
+              {L('Add indirect cost', 'Añadir costo indirecto')}
+            </Button>
+          ) : (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              {L(
+                'No cost types configured yet. Go to Production → Indirect Costs to create them first.',
+                'No hay tipos de costo configurados. Ve a Producción → Costos indirectos para crearlos primero.'
+              )}
+            </Alert>
+          )
+        )}
+
+        {/* Instrucciones (solo lectura) */}
+        {!isEditing && recipe.instructions && (
           <>
             <Divider sx={{ my: 2 }} />
             <Typography variant="h6" gutterBottom>

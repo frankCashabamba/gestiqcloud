@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.core.products import Product
+from app.models.production._cost_drivers import ProductionCostDriver, RecipeCostLine
 from app.models.recipes import Recipe, RecipeIngredient
 
 # ============================================================================
@@ -92,9 +93,21 @@ def calculate_recipe_cost(db: Session, recipe_id: UUID, update_product_price: bo
     db.commit()
     db.refresh(recipe)
 
-    # Calcular precio sugerido (costo unitario con markup del 100% = precio doble)
+    # Calcular precio sugerido con multiplicador óptimo basado en costo promedio
     unit_cost = float(recipe.unit_cost or 0)
-    suggested_price = round(unit_cost * 2, 2)  # Markup 100% = margen 50%
+    # Obtener costos unitarios de todas las recetas del tenant para calcular media
+    all_costs = [
+        float(r.unit_cost)
+        for r in db.query(Recipe.unit_cost).filter(Recipe.unit_cost.isnot(None), Recipe.unit_cost > 0).all()
+    ]
+    if all_costs:
+        avg_cost = sum(all_costs) / len(all_costs)
+        # Curva continua: food cost target 25%-35% según nivel de costo promedio
+        target_food_cost = 0.25 + 0.10 * min(1.0, avg_cost / 20.0)
+        optimal_multiplier = round(1.0 / target_food_cost, 2)
+    else:
+        optimal_multiplier = 2.0  # fallback
+    suggested_price = round(unit_cost * optimal_multiplier, 2)
 
     # Actualizar producto si está asociado y se solicita
     if update_product_price and recipe.product_id:
@@ -146,6 +159,136 @@ def calculate_ingredient_cost(
     costo_ingrediente = qty * costo_unitario
 
     return round(costo_ingrediente, 4)
+
+
+def calculate_recipe_full_cost(db: Session, recipe_id: UUID) -> dict:
+    """
+    Calcula costo completo de receta: materiales + costos indirectos.
+
+    Returns:
+        {
+            "recipe_id", "recipe_name", "yield_qty",
+            "materials_total", "materials_unit",
+            "labor_total", "energy_total", "other_indirect_total",
+            "indirect_total",
+            "full_cost_total", "full_cost_unit",
+            "cost_lines": [...]
+        }
+    """
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    if not recipe:
+        raise ValueError(f"Receta no encontrada: {recipe_id}")
+
+    # Materials cost (from existing calculator)
+    materials_total = Decimal(str(recipe.total_cost or 0))
+    yield_qty = max(recipe.yield_qty or 1, 1)
+    materials_unit = materials_total / yield_qty
+
+    # Indirect costs from recipe_cost_lines
+    cost_lines = (
+        db.query(RecipeCostLine)
+        .filter(RecipeCostLine.recipe_id == recipe_id)
+        .order_by(RecipeCostLine.line_order)
+        .all()
+    )
+
+    labor_total = Decimal("0")
+    other_total = Decimal("0")
+    lines_detail = []
+
+    for line in cost_lines:
+        driver = line.driver
+        if not driver:
+            continue
+        effective_rate = line.rate_override if line.rate_override is not None else driver.default_rate
+        line_cost = Decimal(str(line.qty_standard)) * Decimal(str(effective_rate)) * Decimal(str(line.headcount))
+
+        code_upper = (driver.code or "").upper()
+        if code_upper.startswith("LABOR"):
+            labor_total += line_cost
+        else:
+            other_total += line_cost
+
+        lines_detail.append({
+            "id": str(line.id),
+            "recipe_id": str(line.recipe_id),
+            "driver_id": str(line.driver_id),
+            "qty_standard": float(line.qty_standard),
+            "headcount": line.headcount,
+            "rate_override": float(line.rate_override) if line.rate_override is not None else None,
+            "notes": line.notes,
+            "line_order": line.line_order,
+            "created_at": line.created_at.isoformat() if line.created_at else None,
+            "driver_code": driver.code,
+            "driver_name": driver.name,
+            "driver_unit": driver.unit,
+            "driver_default_rate": float(driver.default_rate),
+            "effective_rate": float(effective_rate),
+            "line_cost": round(float(line_cost), 4),
+        })
+
+    # Energy: auto-calculated from recipe baking_time_minutes × oven driver rate
+    energy_total = Decimal("0")
+    baking_minutes = getattr(recipe, "baking_time_minutes", None) or 0
+    if baking_minutes > 0:
+        # Find oven/energy driver for this tenant
+        oven_driver = (
+            db.query(ProductionCostDriver)
+            .filter(
+                ProductionCostDriver.tenant_id == recipe.tenant_id,
+                ProductionCostDriver.is_active.is_(True),
+                ProductionCostDriver.code.ilike("ENERGY%") | ProductionCostDriver.code.ilike("OVEN%"),
+            )
+            .first()
+        )
+        if oven_driver:
+            oven_rate = Decimal(str(oven_driver.default_rate or 0))
+            baking_hours = Decimal(str(baking_minutes)) / Decimal("60")
+            energy_total = baking_hours * oven_rate
+            lines_detail.append({
+                "id": None,
+                "recipe_id": str(recipe.id),
+                "driver_id": str(oven_driver.id),
+                "qty_standard": round(float(baking_hours), 4),
+                "headcount": 1,
+                "rate_override": None,
+                "notes": f"Auto: {baking_minutes} min horneado",
+                "line_order": 999,
+                "created_at": None,
+                "driver_code": oven_driver.code,
+                "driver_name": oven_driver.name,
+                "driver_unit": oven_driver.unit,
+                "driver_default_rate": float(oven_driver.default_rate),
+                "effective_rate": float(oven_rate),
+                "line_cost": round(float(energy_total), 4),
+                "_auto": True,
+            })
+
+    # Tray info for reference
+    trays = getattr(recipe, "trays_per_batch", None)
+    units_tray = getattr(recipe, "units_per_tray", None)
+
+    indirect_total = labor_total + energy_total + other_total
+    full_cost_total = materials_total + indirect_total
+    full_cost_unit = full_cost_total / yield_qty
+
+    return {
+        "recipe_id": str(recipe.id),
+        "recipe_name": recipe.name,
+        "yield_qty": yield_qty,
+        "materials_total": round(float(materials_total), 4),
+        "materials_unit": round(float(materials_unit), 4),
+        "labor_total": round(float(labor_total), 4),
+        "energy_total": round(float(energy_total), 4),
+        "other_indirect_total": round(float(other_total), 4),
+        "indirect_total": round(float(indirect_total), 4),
+        "full_cost_total": round(float(full_cost_total), 4),
+        "full_cost_unit": round(float(full_cost_unit), 4),
+        "baking_time_minutes": baking_minutes,
+        "trays_per_batch": trays,
+        "units_per_tray": units_tray,
+        "cost_lines": lines_detail,
+    }
 
 
 # ============================================================================
@@ -251,7 +394,10 @@ def calculate_production_time(
         raise ValueError(f"Receta no encontrada: {recipe_id}")
 
     batches = qty_to_produce / recipe.yield_qty
-    tiempo_por_batch = recipe.prep_time_minutes or 0
+    prep = recipe.prep_time_minutes or 0
+    baking = getattr(recipe, "baking_time_minutes", None) or 0
+    rest = getattr(recipe, "rest_time_minutes", None) or 0
+    tiempo_por_batch = prep + baking + rest
     tiempo_total = int(batches * tiempo_por_batch)
 
     # Ajustar por número de trabajadores (simplificado)
@@ -260,6 +406,9 @@ def calculate_production_time(
     return {
         "batches": round(batches, 2),
         "tiempo_por_batch_min": tiempo_por_batch,
+        "prep_time_min": prep,
+        "baking_time_min": baking,
+        "rest_time_min": rest,
         "tiempo_total_min": int(tiempo_con_workers),
         "tiempo_total_horas": round(tiempo_con_workers / 60, 2),
         "workers": workers,
@@ -392,18 +541,4 @@ def get_recipe_profitability(
     profit = selling_price - total_cost
     margin = (profit / selling_price * 100) if selling_price > 0 else 0
 
-    # Punto de equilibrio (asumiendo costos fijos)
-    # Simplificado: si margen > 0, punto equilibrio = 1 unidad
-    breakeven_units = 1 if profit > 0 else 0
-
-    return {
-        "recipe_id": str(recipe_id),
-        "name": cost_data["name"],
-        "direct_cost": round(direct_cost, 4),
-        "indirect_cost": round(indirect_cost, 4),
-        "total_cost": round(total_cost, 4),
-        "selling_price": round(selling_price, 2),
-        "profit": round(profit, 4),
-        "margin_percentage": round(margin, 2),
-        "breakeven_units": breakeven_units,
-    }
+  

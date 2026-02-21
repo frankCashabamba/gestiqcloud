@@ -27,6 +27,12 @@ export interface RecipeCreate {
   product_id: string;
   yield_qty: number;
   prep_time_minutes?: number;
+  baking_time_minutes?: number;
+  oven_temp_celsius?: number;
+  rest_time_minutes?: number;
+  waste_pct?: number;
+  trays_per_batch?: number;
+  units_per_tray?: number;
   instructions?: string;
   is_active?: boolean;
   ingredients?: RecipeIngredient[];
@@ -37,6 +43,12 @@ export interface RecipeUpdate {
   product_id?: string;
   yield_qty?: number;
   prep_time_minutes?: number;
+  baking_time_minutes?: number;
+  oven_temp_celsius?: number;
+  rest_time_minutes?: number;
+  waste_pct?: number;
+  trays_per_batch?: number;
+  units_per_tray?: number;
   instructions?: string;
   is_active?: boolean;
   ingredients?: RecipeIngredient[];
@@ -51,6 +63,12 @@ export interface Recipe {
   total_cost: number;
   unit_cost: number;
   prep_time_minutes?: number;
+  baking_time_minutes?: number;
+  oven_temp_celsius?: number;
+  rest_time_minutes?: number;
+  waste_pct?: number;
+  trays_per_batch?: number;
+  units_per_tray?: number;
   instructions?: string;
   is_active: boolean;
   created_at: string;

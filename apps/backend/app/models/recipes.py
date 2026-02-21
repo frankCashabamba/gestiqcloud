@@ -48,6 +48,12 @@ class Recipe(BaseModel):
         ),
     )
     prep_time_minutes = Column(Integer)  # minutes
+    baking_time_minutes = Column(Integer)  # baking time
+    oven_temp_celsius = Column(Integer)  # oven temperature °C
+    rest_time_minutes = Column(Integer)  # rest / fermentation time
+    waste_pct = Column(Numeric(5, 2), default=0)  # waste percentage 0-100
+    trays_per_batch = Column(Integer)  # trays per oven load
+    units_per_tray = Column(Integer)  # units per tray (varies by product)
     instructions = Column(Text)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -57,6 +63,11 @@ class Recipe(BaseModel):
     ingredients = relationship(
         "RecipeIngredient",
         back_populates="recipe",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    cost_lines = relationship(
+        "RecipeCostLine",
         cascade="all, delete-orphan",
         lazy="selectin",
     )

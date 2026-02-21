@@ -126,4 +126,13 @@ export const TENANT_RECIPES = {
   deleteIngredient: (id: string, ingredientId: string) => `${RECIPES_BASE}/${id}/ingredients/${ingredientId}`,
   profitability: (id: string) => `${RECIPES_BASE}/${id}/profitability`,
   purchaseOrder: (id: string) => `${RECIPES_BASE}/${id}/purchase-order`,
+  costLines: (id: string) => `${RECIPES_BASE}/${id}/cost-lines`,
+  costLineById: (id: string, lineId: string) => `${RECIPES_BASE}/${id}/cost-lines/${lineId}`,
+  fullCost: (id: string) => `${RECIPES_BASE}/${id}/full-cost`,
+}
+
+const PRODUCTION_BASE = '/api/v1/tenant/production'
+export const TENANT_COST_DRIVERS = {
+  list: `${PRODUCTION_BASE}/cost-drivers`,
+  byId: (id: string) => `${PRODUCTION_BASE}/cost-drivers/${id}`,
 }

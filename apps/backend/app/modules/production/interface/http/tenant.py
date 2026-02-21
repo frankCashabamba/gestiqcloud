@@ -33,6 +33,7 @@ from app.core.authz import require_scope
 from app.db.rls import ensure_rls
 from app.models.expenses.expense import Expense
 from app.models.inventory.stock import StockItem, StockMove
+from app.models.production._cost_drivers import ProductionCostDriver, RecipeCostLine, ProductionOrderCost
 from app.models.production.production_order import ProductionOrder, ProductionOrderLine
 from app.models.recipes import Recipe, RecipeIngredient
 from app.schemas.production import (
@@ -64,10 +65,20 @@ from app.schemas.recipes import (
     RecipeResponse,
     RecipeUpdate,
 )
+from app.schemas.production_costs import (
+    CostDriverCreate,
+    CostDriverResponse,
+    CostDriverUpdate,
+    RecipeCostLineCreate,
+    RecipeCostLineResponse,
+    RecipeCostLineUpdate,
+    RecipeFullCostSummary,
+)
 from app.services.recipe_calculator import (
     calculate_production_time,
     calculate_purchase_for_production,
     calculate_recipe_cost,
+    calculate_recipe_full_cost,
     compare_recipe_costs,
     create_purchase_order_from_recipe,
     get_recipe_profitability,
@@ -1201,3 +1212,247 @@ def compare_recipes_costs(
             item["name"] = nombre
 
     return {"recipes": comparisons}
+
+
+# ============================================================================
+# COST DRIVERS CRUD
+# ============================================================================
+
+
+@router.get("/cost-drivers", response_model=list[CostDriverResponse])
+def list_cost_drivers(
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    return (
+        db.query(ProductionCostDriver)
+        .filter(ProductionCostDriver.tenant_id == tenant_id)
+        .order_by(ProductionCostDriver.code)
+        .all()
+    )
+
+
+@router.post("/cost-drivers", response_model=CostDriverResponse, status_code=status.HTTP_201_CREATED)
+def create_cost_driver(
+    data: CostDriverCreate,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    existing = (
+        db.query(ProductionCostDriver)
+        .filter(ProductionCostDriver.tenant_id == tenant_id, ProductionCostDriver.code == data.code)
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Ya existe un driver con código '{data.code}'")
+    driver = ProductionCostDriver(tenant_id=tenant_id, **data.model_dump())
+    db.add(driver)
+    db.commit()
+    db.refresh(driver)
+    return driver
+
+
+@router.put("/cost-drivers/{driver_id}", response_model=CostDriverResponse)
+def update_cost_driver(
+    driver_id: UUID,
+    data: CostDriverUpdate,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    driver = (
+        db.query(ProductionCostDriver)
+        .filter(ProductionCostDriver.id == driver_id, ProductionCostDriver.tenant_id == tenant_id)
+        .first()
+    )
+    if not driver:
+        raise HTTPException(status_code=404, detail="Cost driver no encontrado")
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(driver, key, value)
+    db.commit()
+    db.refresh(driver)
+    return driver
+
+
+@router.delete("/cost-drivers/{driver_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_cost_driver(
+    driver_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    driver = (
+        db.query(ProductionCostDriver)
+        .filter(ProductionCostDriver.id == driver_id, ProductionCostDriver.tenant_id == tenant_id)
+        .first()
+    )
+    if not driver:
+        raise HTTPException(status_code=404, detail="Cost driver no encontrado")
+    db.delete(driver)
+    db.commit()
+
+
+# ============================================================================
+# RECIPE COST LINES CRUD
+# ============================================================================
+
+
+@router.get("/recipes/{recipe_id}/cost-lines", response_model=list[RecipeCostLineResponse])
+def list_recipe_cost_lines(
+    recipe_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    lines = (
+        db.query(RecipeCostLine)
+        .filter(RecipeCostLine.recipe_id == recipe_id)
+        .order_by(RecipeCostLine.line_order)
+        .all()
+    )
+    result = []
+    for line in lines:
+        d = line.driver
+        effective_rate = float(line.rate_override if line.rate_override is not None else (d.default_rate if d else 0))
+        line_cost = float(line.qty_standard) * effective_rate * line.headcount
+        result.append(RecipeCostLineResponse(
+            id=line.id,
+            recipe_id=line.recipe_id,
+            driver_id=line.driver_id,
+            qty_standard=line.qty_standard,
+            headcount=line.headcount,
+            rate_override=line.rate_override,
+            notes=line.notes,
+            line_order=line.line_order,
+            created_at=line.created_at,
+            driver_code=d.code if d else None,
+            driver_name=d.name if d else None,
+            driver_unit=d.unit if d else None,
+            driver_default_rate=d.default_rate if d else None,
+            effective_rate=effective_rate,
+            line_cost=round(line_cost, 4),
+        ))
+    return result
+
+
+@router.post(
+    "/recipes/{recipe_id}/cost-lines",
+    response_model=RecipeCostLineResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_recipe_cost_line(
+    recipe_id: UUID,
+    data: RecipeCostLineCreate,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id).first()
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Receta no encontrada")
+    line = RecipeCostLine(recipe_id=recipe_id, **data.model_dump())
+    db.add(line)
+    db.commit()
+    db.refresh(line)
+    d = line.driver
+    effective_rate = float(line.rate_override if line.rate_override is not None else (d.default_rate if d else 0))
+    line_cost = float(line.qty_standard) * effective_rate * line.headcount
+    return RecipeCostLineResponse(
+        id=line.id,
+        recipe_id=line.recipe_id,
+        driver_id=line.driver_id,
+        qty_standard=line.qty_standard,
+        headcount=line.headcount,
+        rate_override=line.rate_override,
+        notes=line.notes,
+        line_order=line.line_order,
+        created_at=line.created_at,
+        driver_code=d.code if d else None,
+        driver_name=d.name if d else None,
+        driver_unit=d.unit if d else None,
+        driver_default_rate=d.default_rate if d else None,
+        effective_rate=effective_rate,
+        line_cost=round(line_cost, 4),
+    )
+
+
+@router.put("/recipes/{recipe_id}/cost-lines/{line_id}", response_model=RecipeCostLineResponse)
+def update_recipe_cost_line(
+    recipe_id: UUID,
+    line_id: UUID,
+    data: RecipeCostLineUpdate,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    line = (
+        db.query(RecipeCostLine)
+        .filter(RecipeCostLine.id == line_id, RecipeCostLine.recipe_id == recipe_id)
+        .first()
+    )
+    if not line:
+        raise HTTPException(status_code=404, detail="Línea de costo no encontrada")
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(line, key, value)
+    db.commit()
+    db.refresh(line)
+    d = line.driver
+    effective_rate = float(line.rate_override if line.rate_override is not None else (d.default_rate if d else 0))
+    line_cost = float(line.qty_standard) * effective_rate * line.headcount
+    return RecipeCostLineResponse(
+        id=line.id,
+        recipe_id=line.recipe_id,
+        driver_id=line.driver_id,
+        qty_standard=line.qty_standard,
+        headcount=line.headcount,
+        rate_override=line.rate_override,
+        notes=line.notes,
+        line_order=line.line_order,
+        created_at=line.created_at,
+        driver_code=d.code if d else None,
+        driver_name=d.name if d else None,
+        driver_unit=d.unit if d else None,
+        driver_default_rate=d.default_rate if d else None,
+        effective_rate=effective_rate,
+        line_cost=round(line_cost, 4),
+    )
+
+
+@router.delete("/recipes/{recipe_id}/cost-lines/{line_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_recipe_cost_line(
+    recipe_id: UUID,
+    line_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    line = (
+        db.query(RecipeCostLine)
+        .filter(RecipeCostLine.id == line_id, RecipeCostLine.recipe_id == recipe_id)
+        .first()
+    )
+    if not line:
+        raise HTTPException(status_code=404, detail="Línea de costo no encontrada")
+    db.delete(line)
+    db.commit()
+
+
+# ============================================================================
+# FULL COST SUMMARY
+# ============================================================================
+
+
+@router.get("/recipes/{recipe_id}/full-cost", response_model=RecipeFullCostSummary)
+def get_recipe_full_cost(
+    recipe_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id).first()
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Receta no encontrada")
+    try:
+        calculate_recipe_cost(db, recipe_id)
+    except Exception:
+        pass
+    return calculate_recipe_full_cost(db, recipe_id)

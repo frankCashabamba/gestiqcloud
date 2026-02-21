@@ -2046,6 +2046,10 @@ def checkout(
                 )
                 if invoice_result:
                     documents_created["invoice"] = invoice_result
+                    db.commit()
+                else:
+                    # Internal failure returned None; reset session state
+                    db.rollback()
             except Exception as e:
                 logger.warning("Error creating invoice from receipt: %s", e)
                 try:
@@ -2058,6 +2062,9 @@ def checkout(
                 sale_result = service.create_sale_from_receipt(receipt_uuid)
                 if sale_result:
                     documents_created["sale"] = sale_result
+                    db.commit()
+                else:
+                    db.rollback()
             except Exception as e:
                 logger.warning("Error creating sale from receipt: %s", e)
                 try:
@@ -2073,6 +2080,9 @@ def checkout(
                     )
                     if expense_result:
                         documents_created["expense"] = expense_result
+                        db.commit()
+                    else:
+                        db.rollback()
                 except Exception as e:
                     logger.warning("Error creating expense from receipt: %s", e)
                     try:

@@ -107,6 +107,12 @@ class RecipeBase(BaseModel):
     product_id: UUID
     yield_qty: int = Field(..., gt=0, description="Units produced")
     prep_time_minutes: int | None = Field(None, ge=0, description="Minutes")
+    baking_time_minutes: int | None = Field(None, ge=0, description="Baking time in minutes")
+    oven_temp_celsius: int | None = Field(None, ge=0, description="Oven temperature °C")
+    rest_time_minutes: int | None = Field(None, ge=0, description="Rest/fermentation time in minutes")
+    waste_pct: float | None = Field(None, ge=0, le=100, description="Waste percentage 0-100")
+    trays_per_batch: int | None = Field(None, ge=1, description="Trays per oven batch")
+    units_per_tray: int | None = Field(None, ge=1, description="Units per tray")
     instructions: str | None = None
     is_active: bool = True
 
@@ -140,6 +146,12 @@ class RecipeUpdate(BaseModel):
     product_id: UUID | None = None
     yield_qty: int | None = Field(None, gt=0)
     prep_time_minutes: int | None = Field(None, ge=0)
+    baking_time_minutes: int | None = Field(None, ge=0)
+    oven_temp_celsius: int | None = Field(None, ge=0)
+    rest_time_minutes: int | None = Field(None, ge=0)
+    waste_pct: float | None = Field(None, ge=0, le=100)
+    trays_per_batch: int | None = Field(None, ge=1)
+    units_per_tray: int | None = Field(None, ge=1)
     instructions: str | None = None
     is_active: bool | None = None
     ingredients: list[RecipeIngredientCreate] | None = None

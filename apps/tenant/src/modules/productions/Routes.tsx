@@ -6,6 +6,7 @@ import RecetasList from './RecetasList'
 import RecetaCreatePage from './RecetaCreatePage'
 import RecetaEditPage from './RecetaEditPage'
 import RecetaShowPage from './RecetaShowPage'
+import CostDriversPage from './CostDriversPage'
 
 export default function ProduccionRoutes() {
     return (
@@ -18,6 +19,7 @@ export default function ProduccionRoutes() {
             <Route path="recetas/nueva" element={<RecetaCreatePage />} />
             <Route path="recetas/:rid" element={<RecetaShowPage />} />
             <Route path="recetas/:rid/editar" element={<RecetaEditPage />} />
+            <Route path="costos" element={<CostDriversPage />} />
             <Route path="*" element={<Navigate to="recetas" replace />} />
         </Routes>
     )

@@ -94,23 +94,26 @@ export default function RecetasList() {
   const precioSugerido = (costoPorUnidad: number) => costoPorUnidad * multiplier
   const margenPct = (costoPorUnidad: number, precio: number) => (precio > 0 ? ((precio - costoPorUnidad) / precio) * 100 : 0)
 
-  const updateMultiplier = (val: number) => {
-    const v = Number(val)
-    if (Number.isFinite(v) && v > 0) {
-      setMultiplier(v)
-      setMarkupPct(Number(((v - 1) * 100).toFixed(0)))
-      try { localStorage.setItem('produccion_margin_multiplier', String(v)) } catch {}
-    }
-  }
-  const updateMarkupPct = (pct: number) => {
-    const p = Number(pct)
-    if (Number.isFinite(p)) {
-      setMarkupPct(p)
-      const v = 1 + p / 100
-      setMultiplier(Number(v.toFixed(3)))
-      try { localStorage.setItem('produccion_margin_multiplier', String(v)) } catch {}
-    }
-  }
+  // ── Auto-cálculo óptimo de markup/multiplicador ──
+  // Usa el costo unitario promedio de las recetas para determinar un multiplicador
+  // que maximice el beneficio siguiendo estándares de la industria gastronómica:
+  //   - Costo bajo  → food-cost target ~25% → multiplicador ~4.0
+  //   - Costo medio → food-cost target ~30% → multiplicador ~3.33
+  //   - Costo alto  → food-cost target ~35% → multiplicador ~2.86
+  useEffect(() => {
+    const costs = recipes.map(r => r.unit_cost || 0).filter(c => c > 0)
+    if (costs.length === 0) return
+
+    const avgCost = costs.reduce((a, b) => a + b, 0) / costs.length
+    // Curva continua: food cost target entre 25% y 35% según nivel de costo promedio
+    const targetFoodCostPct = 0.25 + 0.10 * Math.min(1, avgCost / 20)
+    const optimalMultiplier = Number((1 / targetFoodCostPct).toFixed(2))
+    const optimalMarkup = Number(((optimalMultiplier - 1) * 100).toFixed(0))
+
+    setMultiplier(optimalMultiplier)
+    setMarkupPct(optimalMarkup)
+    try { localStorage.setItem('produccion_margin_multiplier', String(optimalMultiplier)) } catch {}
+  }, [recipes])
 
   const priceIncludesTax = !!(settings?.pos_config?.tax?.price_includes_tax)
   const defaultTaxRate = getDefaultTaxRate(settings || undefined) || 0
@@ -163,27 +166,24 @@ export default function RecetasList() {
             IVA por producto
           </label>
 
-          <div className="flex items-center gap-2 border rounded px-2 py-1 bg-white">
+          <div className="flex items-center gap-2 border rounded px-2 py-1 bg-gray-50" title="Calculado automáticamente según el costo promedio de las recetas">
+            <span className="text-xs text-emerald-600">⚡ Auto</span>
             <label className="text-sm text-gray-600">Markup %</label>
             <input
               type="number"
-              step={1}
-              min={0}
-              className="border rounded px-2 py-1 w-20"
+              readOnly
+              className="border rounded px-2 py-1 w-20 bg-gray-100 text-gray-700 cursor-default"
               value={markupPct}
-              onChange={(e) => updateMarkupPct(parseFloat(e.target.value))}
-              title="Porcentaje sobre costo (150% = x2.5)"
+              title="Calculado automáticamente según costo promedio de recetas"
             />
             <span className="text-gray-400">·</span>
             <label className="text-sm text-gray-600">Multiplicador</label>
             <input
               type="number"
-              step={0.05}
-              min={0.01}
-              className="border rounded px-2 py-1 w-24"
+              readOnly
+              className="border rounded px-2 py-1 w-24 bg-gray-100 text-gray-700 cursor-default"
               value={multiplier}
-              onChange={(e) => updateMultiplier(parseFloat(e.target.value))}
-              title="Precio sugerido = costo × multiplicador"
+              title="Calculado automáticamente según costo promedio de recetas"
             />
           </div>
 
@@ -206,6 +206,13 @@ export default function RecetasList() {
             onClick={() => navigate(`${basePath}/recetas/nueva`)}
           >
             New recipe
+          </button>
+          <button
+            className="border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded text-sm"
+            onClick={() => navigate(`${basePath}/costos`)}
+            title="Configurar tipos de costos indirectos (MO, energía, empaque...)"
+          >
+            ⚙️ Costos indirectos
           </button>
           <button
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded"
