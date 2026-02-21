@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react'
+import React, { lazy, Suspense, useEffect, useState } from 'react'
 import { Link, Outlet, useLocation, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import SessionKeepAlive from '@shared/ui'
 import { fetchCompanyTheme, invalidateCompanyThemeCache } from '../services/theme'
+
+const CopilotChatWidget = lazy(() => import('../components/CopilotChatWidget'))
 
 const SESSION_WARN_AFTER_MS = 9 * 60_000
 const SESSION_RESPONSE_WINDOW_MS = 60_000
@@ -82,6 +84,12 @@ export default function CompanyShell() {
             <span className="font-medium text-slate-400">ERP | CRM | Plataforma modular</span>
           </div>
         </footer>
+      )}
+
+      {!isPosRoute && (
+        <Suspense fallback={null}>
+          <CopilotChatWidget />
+        </Suspense>
       )}
     </div>
   )

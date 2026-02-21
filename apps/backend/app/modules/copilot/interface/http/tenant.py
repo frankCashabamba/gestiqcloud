@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 from datetime import datetime
@@ -12,6 +13,8 @@ from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.core.access_guard import with_access_claims
 from app.db.rls import ensure_rls, tenant_id_from_request
+from app.services.ai.base import AITask
+from app.services.ai.service import AIService
 from app.modules.copilot.services import (
     create_invoice_draft,
     create_order_draft,
@@ -164,3 +167,82 @@ async def ai_suggestions(db: Session = Depends(get_db)):
             "generated_at": datetime.utcnow(),
             "ai_enabled": False,
         }
+
+
+class ChatIn(BaseModel):
+    message: str = Field(description="User message / question")
+    history: list[dict[str, str]] = Field(default_factory=list, description="Previous messages [{role,content}]")
+
+
+class ChatOut(BaseModel):
+    reply: str
+    suggestions: list[str] = []
+
+
+@router.post("/chat", response_model=ChatOut)
+async def ai_chat(payload: ChatIn, request: Request, db: Session = Depends(get_db)):
+    """Chat conversacional con el asistente IA del negocio"""
+    if not _feature_enabled():
+        raise HTTPException(status_code=403, detail="copilot_disabled")
+
+    try:
+        # Build context from business data
+        context_parts = []
+        try:
+            stock = query_readonly(db, "stock_bajo", {"threshold": 5})
+            if stock["cards"][0].get("data"):
+                context_parts.append(f"Productos con stock bajo: {len(stock['cards'][0]['data'])}")
+        except Exception:
+            pass
+
+        try:
+            top = query_readonly(db, "top_productos", {})
+            if top["cards"][0].get("data"):
+                names = ", ".join(p.get("name", "?") for p in top["cards"][0]["data"][:5])
+                context_parts.append(f"Productos más vendidos: {names}")
+        except Exception:
+            pass
+
+        biz_context = "\n".join(context_parts) if context_parts else "No hay datos de contexto disponibles."
+
+        # Build conversation history for prompt
+        history_text = ""
+        for msg in payload.history[-10:]:  # Last 10 messages only
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            history_text += f"\n{'Usuario' if role == 'user' else 'Asistente'}: {content}"
+
+        prompt = f"""Eres el asistente IA de GestiqCloud, un ERP/CRM. Ayudas al usuario con consultas sobre su negocio, inventario, ventas, facturación y problemas operativos.
+
+Contexto del negocio:
+{biz_context}
+
+{f'Historial de conversación:{history_text}' if history_text else ''}
+
+Usuario: {payload.message}
+
+Responde de forma concisa, útil y en español. Si detectas un problema, sugiere soluciones concretas.
+Responde SOLO con JSON: {{"reply": "tu respuesta", "suggestions": ["pregunta sugerida 1", "pregunta sugerida 2"]}}"""
+
+        response = await AIService.query(
+            task=AITask.CHAT,
+            prompt=prompt,
+            temperature=0.6,
+            max_tokens=500,
+        )
+
+        if response.is_error:
+            return {"reply": "Lo siento, no pude procesar tu consulta en este momento. Intenta de nuevo.", "suggestions": []}
+
+        try:
+            data = json.loads(response.content)
+            return {
+                "reply": data.get("reply", response.content),
+                "suggestions": data.get("suggestions", [])[:3],
+            }
+        except json.JSONDecodeError:
+            return {"reply": response.content, "suggestions": []}
+
+    except Exception as e:
+        logger.error(f"Error in /chat endpoint: {e}", exc_info=True)
+        return {"reply": "Ocurrió un error procesando tu mensaje. Intenta de nuevo.", "suggestions": []}

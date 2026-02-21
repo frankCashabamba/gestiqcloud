@@ -196,10 +196,10 @@ def calculate_recipe_full_cost(db: Session, recipe_id: UUID) -> dict:
     other_total = Decimal("0")
     lines_detail = []
 
-    # Total active recipe time in hours (prep + baking) for LABOR auto-calculation
+    # Active hands-on time in hours (prep only) for LABOR auto-calculation
+    # Baking/resting time is passive – the worker can do other tasks
     prep_mins = getattr(recipe, "prep_time_minutes", None) or 0
-    baking_mins = getattr(recipe, "baking_time_minutes", None) or 0
-    recipe_labor_hours = Decimal(str(prep_mins + baking_mins)) / Decimal("60")
+    recipe_labor_hours = Decimal(str(prep_mins)) / Decimal("60")
 
     for line in cost_lines:
         driver = line.driver

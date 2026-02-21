@@ -743,7 +743,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                         && !driverCode.startsWith('ENERGY')
                         && !driverCode.startsWith('OVEN'))
                   );
-                  const recipeLaborHours = ((prodParams.prep_time_minutes || 0) + (prodParams.baking_time_minutes || 0)) / 60;
+                  const recipeLaborHours = (prodParams.prep_time_minutes || 0) / 60;
                   const effectiveQty = isLaborAuto && recipeLaborHours > 0 ? recipeLaborHours : Number(cl.qty_standard);
                   const subtotal = effectiveQty * Number(rate) * (cl.headcount || 1);
                   return (
@@ -782,7 +782,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                         {isLaborAuto && recipeLaborHours > 0 ? (
                           <Box>
                             <Typography variant="body2">{effectiveQty.toFixed(2)}h</Typography>
-                            <Typography variant="caption" color="text.secondary">⚡ auto (prep+horn)</Typography>
+                            <Typography variant="caption" color="text.secondary">⚡ auto (prep)</Typography>
                           </Box>
                         ) : isEditing ? (
                           <TextField

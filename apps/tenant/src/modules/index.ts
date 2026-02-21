@@ -10,7 +10,6 @@ import { manifest as users } from './users/manifest'
 import { productosManifest } from './products/manifest'
 import { crmManifest } from './crm/manifest'
 import { manifest as reports } from './reports/manifest'
-import { manifest as copilot } from './copilot/manifest'
 import { manifest as templates } from './templates/manifest'
 import { manifest as webhooks } from './webhooks/manifest'
 import { manifest as einvoicing } from './einvoicing/manifest'
@@ -29,8 +28,7 @@ export const MODULES = [
   users,               // 8 - Usuarios
   crmManifest,         // 9 - CRM
   reports,             // 10 - Reportes
-  copilot,             // 11 - Copilot
-  templates,           // 12 - Templates
+  templates,           // 11 - Templates
   webhooks,            // 13 - Webhooks
   einvoicing,          // 14 - Facturación Electrónica (stub)
   reconciliation,      // 15 - Conciliación Bancaria (stub)
