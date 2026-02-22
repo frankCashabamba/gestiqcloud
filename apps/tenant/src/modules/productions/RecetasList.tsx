@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { listRecipes, type Recipe } from '../../services/api/recetas'
 import { listProducts, type Product } from '../../services/api/products'
+import { getRecipeFullCost, type FullCostSummary } from '../../services/api/productionCosts'
 import { getCompanySettings, getCurrencySymbol, getDefaultTaxRate, type CompanySettings } from '../../services/companySettings'
 import tenantApi from '../../shared/api/client'
 
@@ -21,6 +22,7 @@ export default function RecetasList() {
   const [multiplier, setMultiplier] = useState<number>(2.5)
   const [markupPct, setMarkupPct] = useState<number>(150)
   const [useProductTax, setUseProductTax] = useState<boolean>(false)
+  const [fullCosts, setFullCosts] = useState<Record<string, FullCostSummary>>({})
   const currency = useMemo(() => getCurrencySymbol(settings || undefined), [settings])
 
   useEffect(() => {
@@ -35,9 +37,23 @@ export default function RecetasList() {
           getCompanySettings(),
         ])
         if (!cancelled) {
-          setRecipes(Array.isArray(rs) ? rs : [])
+          const recipeList = Array.isArray(rs) ? rs : []
+          setRecipes(recipeList)
           setProducts(Array.isArray(ps) ? ps : [])
           setSettings(cfg)
+          // Load full costs (with indirect) in background
+          Promise.all(
+            recipeList.map(r =>
+              getRecipeFullCost(r.id).then(fc => [r.id, fc] as const).catch(() => null)
+            )
+          ).then(results => {
+            if (cancelled) return
+            const map: Record<string, FullCostSummary> = {}
+            for (const entry of results) {
+              if (entry) map[entry[0]] = entry[1]
+            }
+            setFullCosts(map)
+          })
           try {
             const fromSettings = (cfg as any)?.settings?.produccion_margin_multiplier as number | undefined
             const fromStorage = localStorage.getItem('produccion_margin_multiplier')
@@ -101,7 +117,10 @@ export default function RecetasList() {
   //   - Costo medio → food-cost target ~30% → multiplicador ~3.33
   //   - Costo alto  → food-cost target ~35% → multiplicador ~2.86
   useEffect(() => {
-    const costs = recipes.map(r => r.unit_cost || 0).filter(c => c > 0)
+    const costs = recipes.map(r => {
+      const fc = fullCosts[r.id]
+      return fc ? Number(fc.full_cost_unit || 0) : (r.unit_cost || 0)
+    }).filter(c => c > 0)
     if (costs.length === 0) return
 
     const avgCost = costs.reduce((a, b) => a + b, 0) / costs.length
@@ -113,7 +132,7 @@ export default function RecetasList() {
     setMultiplier(optimalMultiplier)
     setMarkupPct(optimalMarkup)
     try { localStorage.setItem('produccion_margin_multiplier', String(optimalMultiplier)) } catch {}
-  }, [recipes])
+  }, [recipes, fullCosts])
 
   const priceIncludesTax = !!(settings?.pos_config?.tax?.price_includes_tax)
   const defaultTaxRate = getDefaultTaxRate(settings || undefined) || 0
@@ -240,7 +259,9 @@ export default function RecetasList() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {pageItems.map((r) => {
-              const costoUnidad = r.unit_cost || 0
+              const fc = fullCosts[r.id]
+              const costoUnidad = fc ? Number(fc.full_cost_unit || 0) : (r.unit_cost || 0)
+              const costoTotal = fc ? Number(fc.full_cost_total || 0) : (r.total_cost || costoUnidad * (r.yield_qty || 1))
               const precio = precioSugerido(costoUnidad)
               const prod = products.find(p => p.id === r.product_id)
               const precioDisplay = applyTax(precio, prod)
@@ -268,7 +289,7 @@ export default function RecetasList() {
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div className="p-2 rounded bg-gray-50">
                       <div className="text-gray-500">Costo total</div>
-                      <div className="font-semibold">{fmt(r.total_cost || costoUnidad * (r.yield_qty || 1))}</div>
+                      <div className="font-semibold">{fmt(costoTotal)}</div>
                     </div>
                     <div className="p-2 rounded bg-gray-50">
                       <div className="text-gray-500">Rendimiento</div>

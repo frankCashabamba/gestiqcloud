@@ -34,6 +34,8 @@ from app.db.rls import ensure_rls
 from app.models.expenses.expense import Expense
 from app.models.inventory.stock import StockItem, StockMove
 from app.models.production._cost_drivers import CostDriverUnitType, ProductionCostDriver, RecipeCostLine, ProductionOrderCost
+from app.models.production._cost_periods import CostPeriod
+from app.models.production._recipe_steps import RecipeStep
 from app.models.production.production_order import ProductionOrder, ProductionOrderLine
 from app.models.recipes import Recipe, RecipeIngredient
 from app.schemas.production import (
@@ -63,7 +65,17 @@ from app.schemas.recipes import (
     RecipeProfitabilityRequest,
     RecipeProfitabilityResponse,
     RecipeResponse,
+    RecipeStepCreate,
+    RecipeStepResponse,
+    RecipeStepUpdate,
     RecipeUpdate,
+)
+from app.schemas.cost_periods import (
+    CostPeriodCreate,
+    CostPeriodResponse,
+    CostPeriodSummary,
+    CostPeriodUpdate,
+    CostPeriodValidationResult,
 )
 from app.schemas.production_costs import (
     CostDriverCreate,
@@ -74,6 +86,7 @@ from app.schemas.production_costs import (
     RecipeCostLineUpdate,
     RecipeFullCostSummary,
 )
+from app.services.cost_periods_service import CostPeriodsService
 from app.services.recipe_calculator import (
     calculate_production_time,
     calculate_purchase_for_production,
@@ -825,6 +838,15 @@ def create_recipe(
         name=recipe_data.name,
         yield_qty=recipe_data.yield_qty,
         prep_time_minutes=recipe_data.prep_time_minutes,
+        baking_time_minutes=recipe_data.baking_time_minutes,
+        oven_temp_celsius=recipe_data.oven_temp_celsius,
+        rest_time_minutes=recipe_data.rest_time_minutes,
+        touch_minutes_standard=recipe_data.touch_minutes_standard or 0,
+        oven_minutes_standard=recipe_data.oven_minutes_standard or 0,
+        process_minutes=recipe_data.process_minutes,
+        waste_pct=recipe_data.waste_pct,
+        trays_per_batch=recipe_data.trays_per_batch,
+        units_per_tray=recipe_data.units_per_tray,
         instructions=recipe_data.instructions,
         is_active=recipe_data.is_active if recipe_data.is_active is not None else True,
         total_cost=0,
@@ -1479,3 +1501,223 @@ def get_recipe_full_cost(
     except Exception:
         pass
     return calculate_recipe_full_cost(db, recipe_id)
+
+
+# ============================================================================
+# COST PERIODS (costeo mensual)
+# ============================================================================
+
+
+@router.get("/cost-periods", response_model=list[CostPeriodSummary])
+def list_cost_periods(
+    active_only: bool = True,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    query = db.query(CostPeriod).filter(CostPeriod.tenant_id == tenant_id)
+    if active_only:
+        query = query.filter(CostPeriod.is_active == True)
+    return query.order_by(CostPeriod.month.desc()).all()
+
+
+@router.post("/cost-periods", response_model=CostPeriodResponse, status_code=status.HTTP_201_CREATED)
+def create_cost_period(
+    data: CostPeriodCreate,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    service = CostPeriodsService(db, tenant_id)
+    existing = service.get_period(data.month)
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Ya existe un período para {data.month}")
+    return service.create_period(
+        month=data.month,
+        labor_hour_rate=data.labor_hour_rate,
+        labor_paid_hours=data.labor_paid_hours,
+        touch_hours_total=data.touch_hours_total,
+        electricity_cost=data.electricity_cost,
+        diesel_cost_month=data.diesel_cost_month,
+        oven_hours_total=data.oven_hours_total,
+        production_share_pct=data.production_share_pct,
+        notes=data.notes,
+    )
+
+
+@router.get("/cost-periods/{period_id}", response_model=CostPeriodResponse)
+def get_cost_period(
+    period_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    period = db.query(CostPeriod).filter(
+        CostPeriod.id == period_id, CostPeriod.tenant_id == tenant_id
+    ).first()
+    if not period:
+        raise HTTPException(status_code=404, detail="Período no encontrado")
+    return period
+
+
+@router.put("/cost-periods/{period_id}", response_model=CostPeriodResponse)
+def update_cost_period(
+    period_id: UUID,
+    data: CostPeriodUpdate,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    service = CostPeriodsService(db, tenant_id)
+    try:
+        return service.update_period(period_id, **data.model_dump(exclude_unset=True))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/cost-periods/{period_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_cost_period(
+    period_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    service = CostPeriodsService(db, tenant_id)
+    try:
+        service.update_period(period_id, is_active=False)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/cost-periods/{period_id}/validate", response_model=CostPeriodValidationResult)
+def validate_cost_period(
+    period_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    service = CostPeriodsService(db, tenant_id)
+    try:
+        return service.validate_period(period_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/cost-periods/{period_id}/impact")
+def get_period_impact(
+    period_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    service = CostPeriodsService(db, tenant_id)
+    try:
+        return service.get_period_impact_on_recipes(period_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/cost-periods/{period_id}/close")
+def close_cost_period(
+    period_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    service = CostPeriodsService(db, tenant_id)
+    try:
+        period = service.close_period(period_id)
+        return {"detail": f"Período {period.month} cerrado", "closed_at": period.closed_at}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# ============================================================================
+# RECIPE STEPS (etapas de receta)
+# ============================================================================
+
+
+@router.get("/recipes/{recipe_id}/steps", response_model=list[RecipeStepResponse])
+def list_recipe_steps(
+    recipe_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id).first()
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Receta no encontrada")
+    return (
+        db.query(RecipeStep)
+        .filter(RecipeStep.recipe_id == recipe_id, RecipeStep.is_active == True)
+        .order_by(RecipeStep.step_order)
+        .all()
+    )
+
+
+@router.post("/recipes/{recipe_id}/steps", response_model=RecipeStepResponse, status_code=status.HTTP_201_CREATED)
+def create_recipe_step(
+    recipe_id: UUID,
+    data: RecipeStepCreate,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    tenant_id = UUID(claims["tenant_id"])
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant_id).first()
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Receta no encontrada")
+    step = RecipeStep(
+        recipe_id=recipe_id,
+        step_name=data.step_name,
+        description=data.description,
+        duration_minutes=data.duration_minutes,
+        is_touch=data.is_touch,
+        resource_type=data.resource_type,
+        actual_minutes=data.actual_minutes,
+        step_order=data.step_order,
+        is_active=data.is_active,
+    )
+    db.add(step)
+    db.commit()
+    db.refresh(step)
+    return step
+
+
+@router.put("/recipes/{recipe_id}/steps/{step_id}", response_model=RecipeStepResponse)
+def update_recipe_step(
+    recipe_id: UUID,
+    step_id: UUID,
+    data: RecipeStepUpdate,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    step = (
+        db.query(RecipeStep)
+        .filter(RecipeStep.id == step_id, RecipeStep.recipe_id == recipe_id)
+        .first()
+    )
+    if not step:
+        raise HTTPException(status_code=404, detail="Etapa no encontrada")
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(step, key, value)
+    db.commit()
+    db.refresh(step)
+    return step
+
+
+@router.delete("/recipes/{recipe_id}/steps/{step_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_recipe_step(
+    recipe_id: UUID,
+    step_id: UUID,
+    db: Session = Depends(get_db),
+    claims: dict = Depends(with_access_claims),
+):
+    step = (
+        db.query(RecipeStep)
+        .filter(RecipeStep.id == step_id, RecipeStep.recipe_id == recipe_id)
+        .first()
+    )
+    if not step:
+        raise HTTPException(status_code=404, detail="Etapa no encontrada")
+    db.delete(step)
+    db.commit()

@@ -110,6 +110,24 @@ class RecipeBase(BaseModel):
     baking_time_minutes: int | None = Field(None, ge=0, description="Baking time in minutes")
     oven_temp_celsius: int | None = Field(None, ge=0, description="Oven temperature °C")
     rest_time_minutes: int | None = Field(None, ge=0, description="Rest/fermentation time in minutes")
+    
+    # ========== COSTEO AVANZADO: TOUCH vs PROCESO ==========
+    touch_minutes_standard: int | None = Field(
+        None,
+        ge=0,
+        description="Minutos de trabajo activo (cuando operario está ocupado): pesar, amasar, bolear, cargar, descargar"
+    )
+    oven_minutes_standard: int | None = Field(
+        None,
+        ge=0,
+        description="Minutos de horneado (consume recurso HORNO para diésel/energía)"
+    )
+    process_minutes: int | None = Field(
+        None,
+        ge=0,
+        description="Minutos de proceso pasivo (fermentación/reposo): solo para planificación, no cuesta MO"
+    )
+    
     waste_pct: float | None = Field(None, ge=0, le=100, description="Waste percentage 0-100")
     trays_per_batch: int | None = Field(None, ge=1, description="Trays per oven batch")
     units_per_tray: int | None = Field(None, ge=1, description="Units per tray")
@@ -149,6 +167,9 @@ class RecipeUpdate(BaseModel):
     baking_time_minutes: int | None = Field(None, ge=0)
     oven_temp_celsius: int | None = Field(None, ge=0)
     rest_time_minutes: int | None = Field(None, ge=0)
+    touch_minutes_standard: int | None = Field(None, ge=0)
+    oven_minutes_standard: int | None = Field(None, ge=0)
+    process_minutes: int | None = Field(None, ge=0)
     waste_pct: float | None = Field(None, ge=0, le=100)
     trays_per_batch: int | None = Field(None, ge=1)
     units_per_tray: int | None = Field(None, ge=1)
@@ -167,6 +188,52 @@ class RecipeResponse(RecipeBase):
 
     # Info del producto (join)
     product_name: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ============================================================================
+# RECIPE STEPS (ETAPAS)
+# ============================================================================
+
+
+class RecipeStepBase(BaseModel):
+    step_name: str = Field(..., min_length=1, max_length=100)
+    description: str | None = None
+    duration_minutes: int = Field(..., ge=0, description="Duración en minutos")
+    is_touch: bool = Field(
+        True,
+        description="TRUE: operario ocupado (cuesta MO). FALSE: proceso pasivo (fermentación, reposo)"
+    )
+    resource_type: str = Field(
+        "labor",
+        description="Tipo de recurso: labor, oven, mixer, prover, other"
+    )
+    actual_minutes: int | None = Field(None, ge=0, description="Duración real medida")
+    step_order: int = Field(0, ge=0, description="Orden en la receta")
+    is_active: bool = True
+
+
+class RecipeStepCreate(RecipeStepBase):
+    pass
+
+
+class RecipeStepUpdate(BaseModel):
+    step_name: str | None = Field(None, min_length=1, max_length=100)
+    description: str | None = None
+    duration_minutes: int | None = Field(None, ge=0)
+    is_touch: bool | None = None
+    resource_type: str | None = None
+    actual_minutes: int | None = Field(None, ge=0)
+    step_order: int | None = Field(None, ge=0)
+    is_active: bool | None = None
+
+
+class RecipeStepResponse(RecipeStepBase):
+    id: UUID
+    recipe_id: UUID
+    created_at: datetime
+    updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 

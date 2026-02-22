@@ -161,18 +161,34 @@ def calculate_ingredient_cost(
     return round(costo_ingrediente, 4)
 
 
-def calculate_recipe_full_cost(db: Session, recipe_id: UUID) -> dict:
+def calculate_recipe_full_cost(db: Session, recipe_id: UUID, period_month: str | None = None) -> dict:
     """
     Calcula costo completo de receta: materiales + costos indirectos.
+    
+    Si period_month se proporciona, usa los datos reales del período.
+    Si no, usa fórmulas simplificadas.
+
+    Args:
+        db: Sesión DB
+        recipe_id: ID de receta
+        period_month: Período en formato YYYY-MM para buscar CostPeriod (opcional)
 
     Returns:
         {
             "recipe_id", "recipe_name", "yield_qty",
             "materials_total", "materials_unit",
-            "labor_total", "energy_total", "other_indirect_total",
+            "labor_total", "labor_burden_total",
+            "diesel_total", "electricity_total",
             "indirect_total",
             "full_cost_total", "full_cost_unit",
-            "cost_lines": [...]
+            "cost_lines": [...],
+            "breakdown": {
+                "materials": float,
+                "labor": float,
+                "diesel": float,
+                "electricity": float,
+                "other": float
+            }
         }
     """
     recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
@@ -184,6 +200,24 @@ def calculate_recipe_full_cost(db: Session, recipe_id: UUID) -> dict:
     yield_qty = max(recipe.yield_qty or 1, 1)
     materials_unit = materials_total / yield_qty
 
+    # Obtener CostPeriod si existe
+    cost_period = None
+    from app.models.production._cost_periods import CostPeriod
+    if period_month:
+        cost_period = (
+            db.query(CostPeriod)
+            .filter(CostPeriod.month == period_month, CostPeriod.tenant_id == recipe.tenant_id, CostPeriod.is_active == True)
+            .first()
+        )
+    if not cost_period:
+        # Auto: usar el período activo más reciente del tenant
+        cost_period = (
+            db.query(CostPeriod)
+            .filter(CostPeriod.tenant_id == recipe.tenant_id, CostPeriod.is_active == True)
+            .order_by(CostPeriod.month.desc())
+            .first()
+        )
+
     # Indirect costs from recipe_cost_lines
     cost_lines = (
         db.query(RecipeCostLine)
@@ -193,14 +227,43 @@ def calculate_recipe_full_cost(db: Session, recipe_id: UUID) -> dict:
     )
 
     labor_total = Decimal("0")
+    labor_burden_total = Decimal("0")
+    diesel_total = Decimal("0")
+    electricity_total = Decimal("0")
     other_total = Decimal("0")
     lines_detail = []
 
-    # Active hands-on time in hours (prep only) for LABOR auto-calculation
-    # Baking/resting time is passive – the worker can do other tasks
-    prep_mins = getattr(recipe, "prep_time_minutes", None) or 0
-    recipe_labor_hours = Decimal(str(prep_mins)) / Decimal("60")
+    # ========== CÁLCULO DE TIEMPO DE TRABAJO ==========
+    # Usar touch_minutes_standard si está definido, sino calcular de prep/baking/rest
+    touch_minutes = recipe.touch_minutes_standard or 0
+    oven_minutes = recipe.oven_minutes_standard or 0
+    
+    if touch_minutes == 0:
+        # Fallback: calcular de los campos legacy
+        prep_mins = getattr(recipe, "prep_time_minutes", None) or 0
+        baking_mins = getattr(recipe, "baking_time_minutes", None) or 0
+        rest_mins = getattr(recipe, "rest_time_minutes", None) or 0
+        touch_minutes = max(prep_mins - baking_mins - rest_mins, 0)
+    
+    if touch_minutes == 0:
+        from app.models.production._recipe_steps import RecipeStep
+        steps = db.query(RecipeStep).filter(
+            RecipeStep.recipe_id == recipe_id,
+            RecipeStep.is_active == True,
+        ).all()
+        if steps:
+            touch_minutes = sum(s.duration_minutes or 0 for s in steps if s.is_touch)
+            oven_from_steps = sum(s.duration_minutes or 0 for s in steps if s.resource_type == "oven")
+            if oven_from_steps > 0 and oven_minutes == 0:
+                oven_minutes = oven_from_steps
 
+    if oven_minutes == 0:
+        oven_minutes = getattr(recipe, "baking_time_minutes", None) or 0
+    
+    touch_hours = Decimal(str(touch_minutes)) / Decimal("60")
+    oven_hours = Decimal(str(oven_minutes)) / Decimal("60")
+
+    # ========== PROCESAMIENTO DE LÍNEAS DE COSTO ==========
     for line in cost_lines:
         driver = line.driver
         if not driver:
@@ -208,22 +271,40 @@ def calculate_recipe_full_cost(db: Session, recipe_id: UUID) -> dict:
         effective_rate = line.rate_override if line.rate_override is not None else driver.default_rate
         code_upper = (driver.code or "").upper()
 
-        # For hour-based labor drivers: auto-calculate from recipe prep+baking time
-        is_labor = (
-            code_upper.startswith("LABOR")
-            or ((driver.unit or "").lower() == "hour"
-                and not code_upper.startswith("ENERGY")
-                and not code_upper.startswith("OVEN"))
+        # Clasificar tipo de costo
+        is_labor = code_upper.startswith("LABOR") or (
+            (driver.unit or "").lower() == "hour"
+            and not code_upper.startswith("ENERGY")
+            and not code_upper.startswith("DIESEL")
+            and not code_upper.startswith("OVEN")
         )
-        if is_labor and recipe_labor_hours > 0:
-            qty = recipe_labor_hours
-        else:
-            qty = Decimal(str(line.qty_standard))
+        is_diesel = code_upper.startswith("DIESEL") or code_upper.startswith("FUEL")
+        is_electricity = code_upper.startswith("ENERGY") or code_upper.startswith("ELECTRICITY")
+
+        # Determinar cantidad a usar
+        qty = Decimal(str(line.qty_standard))
+        
+        # Para labor: usar touch_hours o qty_standard
+        if is_labor and touch_hours > 0:
+            qty = touch_hours
+        
+        # Para diésel: usar oven_hours si CostPeriod existe
+        if is_diesel and cost_period and oven_hours > 0:
+            qty = oven_hours
+        
+        # Para electricidad: usar touch_hours si CostPeriod existe
+        if is_electricity and cost_period and touch_hours > 0:
+            qty = touch_hours
 
         line_cost = qty * Decimal(str(effective_rate)) * Decimal(str(line.headcount))
 
+        # Categorizar costo
         if is_labor:
             labor_total += line_cost
+        elif is_diesel:
+            diesel_total += line_cost
+        elif is_electricity:
+            electricity_total += line_cost
         else:
             other_total += line_cost
 
@@ -243,30 +324,63 @@ def calculate_recipe_full_cost(db: Session, recipe_id: UUID) -> dict:
             "driver_default_rate": float(driver.default_rate),
             "effective_rate": float(effective_rate),
             "line_cost": round(float(line_cost), 4),
-            "_auto": is_labor and recipe_labor_hours > 0,
+            "cost_category": "labor" if is_labor else ("diesel" if is_diesel else ("electricity" if is_electricity else "other")),
+            "_auto": True,
         })
 
-    # Energy: auto-calculated from recipe baking_time_minutes × oven driver rate
-    energy_total = Decimal("0")
-    baking_minutes = getattr(recipe, "baking_time_minutes", None) or 0
-    if baking_minutes > 0:
-        # Find oven/energy driver for this tenant
-        oven_driver = (
-            db.query(ProductionCostDriver)
-            .filter(
-                ProductionCostDriver.tenant_id == recipe.tenant_id,
-                ProductionCostDriver.is_active.is_(True),
-                ProductionCostDriver.code.ilike("ENERGY%") | ProductionCostDriver.code.ilike("OVEN%"),
+    # Auto-calculate from CostPeriod when no cost lines cover these categories
+    if cost_period:
+        # Labor: auto si no hay cost lines de labor
+        if labor_total == 0 and touch_hours > 0 and cost_period.labor_hour_rate:
+            labor_total = touch_hours * Decimal(str(cost_period.labor_hour_rate))
+
+        # Diesel: auto si no hay cost lines de diesel
+        if diesel_total == 0 and oven_hours > 0 and cost_period.diesel_per_oven_hour:
+            diesel_total = oven_hours * Decimal(str(cost_period.diesel_per_oven_hour))
+
+        # Electricidad: auto si no hay cost lines de electricidad
+        if electricity_total == 0 and touch_hours > 0 and cost_period.electricity_per_hour:
+            electricity_total = touch_hours * Decimal(str(cost_period.electricity_per_hour))
+
+    # ========== APLICAR BURDEN FACTOR Y COSTOS DEL PERÍODO ==========
+    # Si existe CostPeriod, aplicar burden factor a labor
+    labor_burden_factor = Decimal("1.0")
+    if cost_period and cost_period.labor_burden_factor:
+        labor_burden_factor = Decimal(str(cost_period.labor_burden_factor))
+        labor_burden_total = labor_total * (labor_burden_factor - Decimal("1.0"))
+    
+    # Si CostPeriod existe, usar sus rates en lugar de defaults
+    if cost_period:
+        # Actualizar diésel usando diesel_per_oven_hour del período
+        if cost_period.diesel_per_oven_hour and oven_hours > 0:
+            diesel_total = oven_hours * Decimal(str(cost_period.diesel_per_oven_hour))
+        
+        # Actualizar electricidad usando electricity_per_hour del período
+        if cost_period.electricity_per_hour and touch_hours > 0:
+            electricity_total = touch_hours * Decimal(str(cost_period.electricity_per_hour))
+
+    # ========== ENERGY/OVEN: si no está en cost_period ==========
+    # Energy: auto-calculated from recipe oven_time × oven driver rate (fallback si no hay period)
+    if not cost_period:
+        baking_minutes = oven_minutes or 0
+        if baking_minutes > 0:
+            # Find oven/energy driver for this tenant
+            oven_driver = (
+                db.query(ProductionCostDriver)
+                .filter(
+                    ProductionCostDriver.tenant_id == recipe.tenant_id,
+                    ProductionCostDriver.is_active.is_(True),
+                    ProductionCostDriver.code.ilike("ENERGY%") | ProductionCostDriver.code.ilike("OVEN%"),
+                )
+                .first()
             )
-            .first()
-        )
-        if oven_driver:
-            oven_rate = Decimal(str(oven_driver.default_rate or 0))
-            baking_hours = Decimal(str(baking_minutes)) / Decimal("60")
-            energy_total = baking_hours * oven_rate
-            lines_detail.append({
-                "id": None,
-                "recipe_id": str(recipe.id),
+            if oven_driver:
+                oven_rate = Decimal(str(oven_driver.default_rate or 0))
+                baking_hours = Decimal(str(baking_minutes)) / Decimal("60")
+                electricity_total = baking_hours * oven_rate
+                lines_detail.append({
+                    "id": None,
+                    "recipe_id": str(recipe.id),
                 "driver_id": str(oven_driver.id),
                 "qty_standard": round(float(baking_hours), 4),
                 "headcount": 1,
@@ -279,33 +393,50 @@ def calculate_recipe_full_cost(db: Session, recipe_id: UUID) -> dict:
                 "driver_unit": oven_driver.unit,
                 "driver_default_rate": float(oven_driver.default_rate),
                 "effective_rate": float(oven_rate),
-                "line_cost": round(float(energy_total), 4),
+                "line_cost": round(float(electricity_total), 4),
                 "_auto": True,
             })
+
+    # Aplicar burden factor al labor total
+    labor_with_burden = labor_total * labor_burden_factor
 
     # Tray info for reference
     trays = getattr(recipe, "trays_per_batch", None)
     units_tray = getattr(recipe, "units_per_tray", None)
 
-    indirect_total = labor_total + energy_total + other_total
+    # Totales indirectos
+    indirect_total = labor_with_burden + diesel_total + electricity_total + other_total
     full_cost_total = materials_total + indirect_total
-    full_cost_unit = full_cost_total / yield_qty
+    full_cost_unit = full_cost_total / yield_qty if yield_qty > 0 else Decimal("0")
 
     return {
         "recipe_id": str(recipe.id),
         "recipe_name": recipe.name,
         "yield_qty": yield_qty,
+        "period_month": cost_period.month if cost_period else period_month,
+        "period_id": str(cost_period.id) if cost_period else None,
         "materials_total": round(float(materials_total), 4),
         "materials_unit": round(float(materials_unit), 4),
         "labor_total": round(float(labor_total), 4),
-        "energy_total": round(float(energy_total), 4),
+        "labor_with_burden_factor": round(float(labor_with_burden), 4),
+        "labor_burden_factor": round(float(labor_burden_factor), 4),
+        "diesel_total": round(float(diesel_total), 4),
+        "electricity_total": round(float(electricity_total), 4),
         "other_indirect_total": round(float(other_total), 4),
         "indirect_total": round(float(indirect_total), 4),
         "full_cost_total": round(float(full_cost_total), 4),
         "full_cost_unit": round(float(full_cost_unit), 4),
-        "baking_time_minutes": baking_minutes,
+        "touch_minutes": touch_minutes,
+        "oven_minutes": oven_minutes,
         "trays_per_batch": trays,
         "units_per_tray": units_tray,
+        "breakdown": {
+            "materials": round(float(materials_total), 4),
+            "labor": round(float(labor_with_burden), 4),
+            "diesel": round(float(diesel_total), 4),
+            "electricity": round(float(electricity_total), 4),
+            "other": round(float(other_total), 4),
+        },
         "cost_lines": lines_detail,
     }
 

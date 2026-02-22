@@ -30,6 +30,9 @@ export interface RecipeCreate {
   baking_time_minutes?: number;
   oven_temp_celsius?: number;
   rest_time_minutes?: number;
+  touch_minutes_standard?: number;
+  oven_minutes_standard?: number;
+  process_minutes?: number;
   waste_pct?: number;
   trays_per_batch?: number;
   units_per_tray?: number;
@@ -46,6 +49,9 @@ export interface RecipeUpdate {
   baking_time_minutes?: number;
   oven_temp_celsius?: number;
   rest_time_minutes?: number;
+  touch_minutes_standard?: number;
+  oven_minutes_standard?: number;
+  process_minutes?: number;
   waste_pct?: number;
   trays_per_batch?: number;
   units_per_tray?: number;
@@ -66,6 +72,9 @@ export interface Recipe {
   baking_time_minutes?: number;
   oven_temp_celsius?: number;
   rest_time_minutes?: number;
+  touch_minutes_standard?: number;
+  oven_minutes_standard?: number;
+  process_minutes?: number;
   waste_pct?: number;
   trays_per_batch?: number;
   units_per_tray?: number;

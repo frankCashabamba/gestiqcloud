@@ -77,6 +77,9 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
     baking_time_minutes: null as number | null,
     oven_temp_celsius: null as number | null,
     rest_time_minutes: null as number | null,
+    touch_minutes_standard: null as number | null,
+    oven_minutes_standard: null as number | null,
+    process_minutes: null as number | null,
     waste_pct: null as number | null,
     trays_per_batch: null as number | null,
     units_per_tray: null as number | null,
@@ -135,6 +138,9 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
         baking_time_minutes: recipeData.baking_time_minutes ?? null,
         oven_temp_celsius: recipeData.oven_temp_celsius ?? null,
         rest_time_minutes: recipeData.rest_time_minutes ?? null,
+        touch_minutes_standard: recipeData.touch_minutes_standard ?? null,
+        oven_minutes_standard: recipeData.oven_minutes_standard ?? null,
+        process_minutes: recipeData.process_minutes ?? null,
         waste_pct: recipeData.waste_pct ?? null,
         trays_per_batch: recipeData.trays_per_batch ?? null,
         units_per_tray: recipeData.units_per_tray ?? null,
@@ -245,6 +251,9 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
         baking_time_minutes: prodParams.baking_time_minutes ?? undefined,
         oven_temp_celsius: prodParams.oven_temp_celsius ?? undefined,
         rest_time_minutes: prodParams.rest_time_minutes ?? undefined,
+        touch_minutes_standard: prodParams.touch_minutes_standard ?? 0,
+        oven_minutes_standard: prodParams.oven_minutes_standard ?? 0,
+        process_minutes: Math.max((prodParams.prep_time_minutes || 0) - (prodParams.touch_minutes_standard || 0), 0) || undefined,
         waste_pct: prodParams.waste_pct ?? undefined,
         trays_per_batch: (prodParams.trays_per_batch && prodParams.trays_per_batch >= 1) ? prodParams.trays_per_batch : undefined,
         units_per_tray: (prodParams.units_per_tray && prodParams.units_per_tray >= 1) ? prodParams.units_per_tray : undefined,
@@ -395,8 +404,9 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                     ${Number(fc.indirect_total).toFixed(2)}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    {Number(fc.labor_total) > 0 && `MO: $${Number(fc.labor_total).toFixed(2)} `}
-                    {Number(fc.energy_total) > 0 && `Energía: $${Number(fc.energy_total).toFixed(2)}`}
+                    {Number(fc.labor_total) > 0 && `MO: $${Number(fc.labor_with_burden_factor || fc.labor_total).toFixed(2)} `}
+                    {Number(fc.diesel_total) > 0 && `Diésel: $${Number(fc.diesel_total).toFixed(2)} `}
+                    {Number(fc.electricity_total) > 0 && `Luz: $${Number(fc.electricity_total).toFixed(2)}`}
                   </Typography>
                 </Grid>
                 <Grid item xs={6} sm={3}>
@@ -481,6 +491,36 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                   inputProps={{ min: 0 }}
                 />
               </Grid>
+              {/* TOUCH vs PROCESO */}
+              <Grid item xs={12}>
+                <Alert severity="info" sx={{ py: 0.5 }}>
+                  🟢 Touch = {L('active work (costs labor)', 'trabajo activo (cuesta MO)')} | ⚫ {L('Process = passive (fermentation/rest)', 'Proceso = pasivo (fermentación/reposo)')}
+                </Alert>
+              </Grid>
+              <Grid item xs={6} sm={6}>
+                <TextField
+                  label={L('Active work min (TOUCH)', 'Trabajo activo min (TOUCH)')}
+                  type="number"
+                  size="small"
+                  fullWidth
+                  value={prodParams.touch_minutes_standard ?? ''}
+                  onChange={(e) => setProdParams((p) => ({ ...p, touch_minutes_standard: e.target.value ? Number(e.target.value) : null }))}
+                  inputProps={{ min: 0 }}
+                  helperText={L('Weigh, knead, shape, load/unload', 'Pesar, amasar, bolear, cargar/descargar')}
+                />
+              </Grid>
+              <Grid item xs={6} sm={6}>
+                <TextField
+                  label={L('Passive process (min)', 'Proceso pasivo (min)')}
+                  type="number"
+                  size="small"
+                  fullWidth
+                  value={Math.max((prodParams.prep_time_minutes || 0) - (prodParams.touch_minutes_standard || 0), 0) || ''}
+                  InputProps={{ readOnly: true }}
+                  inputProps={{ min: 0 }}
+                  helperText={L('Auto: total prep − touch time', 'Auto: tiempo total − trabajo activo')}
+                />
+              </Grid>
               <Grid item xs={6} sm={3}>
                 <TextField
                   label={L('Waste %', 'Merma %')}
@@ -540,6 +580,12 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
             )}
             {recipe.rest_time_minutes != null && (
               <Chip label={`⏸️ ${L('Rest', 'Reposo')}: ${recipe.rest_time_minutes} min`} color="info" size="small" />
+            )}
+            {(recipe as any).touch_minutes_standard != null && (recipe as any).touch_minutes_standard > 0 && (
+              <Chip label={`🟢 Touch: ${(recipe as any).touch_minutes_standard} min`} color="success" size="small" />
+            )}
+            {(recipe as any).process_minutes != null && (recipe as any).process_minutes > 0 && (
+              <Chip label={`⚫ ${L('Process', 'Proceso')}: ${(recipe as any).process_minutes} min`} color="default" size="small" />
             )}
             {recipe.waste_pct != null && recipe.waste_pct > 0 && (
               <Chip label={`📉 ${L('Waste', 'Merma')}: ${recipe.waste_pct}%`} color="error" size="small" />
@@ -743,7 +789,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                         && !driverCode.startsWith('ENERGY')
                         && !driverCode.startsWith('OVEN'))
                   );
-                  const recipeLaborHours = (prodParams.prep_time_minutes || 0) / 60;
+                  const recipeLaborHours = (prodParams.touch_minutes_standard || 0) / 60;
                   const effectiveQty = isLaborAuto && recipeLaborHours > 0 ? recipeLaborHours : Number(cl.qty_standard);
                   const subtotal = effectiveQty * Number(rate) * (cl.headcount || 1);
                   return (
@@ -782,7 +828,7 @@ export default function RecetaDetail({ open, recipeId, onClose, onCreateOrder, o
                         {isLaborAuto && recipeLaborHours > 0 ? (
                           <Box>
                             <Typography variant="body2">{effectiveQty.toFixed(2)}h</Typography>
-                            <Typography variant="caption" color="text.secondary">⚡ auto (prep)</Typography>
+                            <Typography variant="caption" color="text.secondary">⚡ auto (touch)</Typography>
                           </Box>
                         ) : isEditing ? (
                           <TextField

@@ -41,6 +41,17 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
   const [prepTimeMinutes, setPrepTimeMinutes] = useState<number | null>(null);
   const [instructions, setInstructions] = useState('');
 
+  // Tiempos y producción
+  const [bakingTimeMinutes, setBakingTimeMinutes] = useState<number | null>(null);
+  const [ovenTempCelsius, setOvenTempCelsius] = useState<number | null>(null);
+  const [restTimeMinutes, setRestTimeMinutes] = useState<number | null>(null);
+  const [touchMinutesStandard, setTouchMinutesStandard] = useState<number | null>(null);
+  const [ovenMinutesStandard, setOvenMinutesStandard] = useState<number | null>(null);
+  const [processMinutes, setProcessMinutes] = useState<number | null>(null);
+  const [wastePct, setWastePct] = useState<number | null>(null);
+  const [traysPerBatch, setTraysPerBatch] = useState<number | null>(null);
+  const [unitsPerTray, setUnitsPerTray] = useState<number | null>(null);
+
   // Ingredientes
   const [ingredientes, setIngredientes] = useState<RecipeIngredient[]>([]);
 
@@ -57,6 +68,15 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
       setYieldQty(recipe.yield_qty);
       setPrepTimeMinutes(recipe.prep_time_minutes || null);
       setInstructions(recipe.instructions || '');
+      setBakingTimeMinutes((recipe as any).baking_time_minutes ?? null);
+      setOvenTempCelsius((recipe as any).oven_temp_celsius ?? null);
+      setRestTimeMinutes((recipe as any).rest_time_minutes ?? null);
+      setTouchMinutesStandard((recipe as any).touch_minutes_standard ?? null);
+      setOvenMinutesStandard((recipe as any).oven_minutes_standard ?? null);
+      setProcessMinutes((recipe as any).process_minutes ?? null);
+      setWastePct((recipe as any).waste_pct ?? null);
+      setTraysPerBatch((recipe as any).trays_per_batch ?? null);
+      setUnitsPerTray((recipe as any).units_per_tray ?? null);
 
       if (recipe.ingredients) {
         setIngredientes(recipe.ingredients.map(ing => ({
@@ -171,6 +191,15 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
         product_id: productId,
         yield_qty: yieldQty,
         prep_time_minutes: prepTimeMinutes || undefined,
+        baking_time_minutes: bakingTimeMinutes ?? undefined,
+        oven_temp_celsius: ovenTempCelsius ?? undefined,
+        rest_time_minutes: restTimeMinutes ?? undefined,
+        touch_minutes_standard: touchMinutesStandard ?? undefined,
+        oven_minutes_standard: ovenMinutesStandard ?? undefined,
+        process_minutes: Math.max((prepTimeMinutes || 0) - (touchMinutesStandard || 0), 0) || undefined,
+        waste_pct: wastePct ?? undefined,
+        trays_per_batch: traysPerBatch ?? undefined,
+        units_per_tray: unitsPerTray ?? undefined,
         instructions: instructions || undefined,
         ingredients: ingredientes.filter(ing => ing.product_id && ing.qty > 0)
       };
@@ -242,7 +271,7 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
               />
             </Grid>
 
-            <Grid item xs={12} sm={3}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 type="number"
@@ -254,17 +283,6 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
               />
             </Grid>
 
-            <Grid item xs={12} sm={3}>
-              <TextField
-                fullWidth
-                type="number"
-                label="Tiempo (min)"
-                value={prepTimeMinutes || ''}
-                onChange={(e) => setPrepTimeMinutes(e.target.value ? Number(e.target.value) : null)}
-                inputProps={{ min: 0 }}
-              />
-            </Grid>
-
             <Grid item xs={12}>
               <TextField
                 fullWidth
@@ -273,6 +291,115 @@ export default function RecetaForm({ open, recipe, onClose }: RecetaFormProps) {
                 label="Instrucciones"
                 value={instructions}
                 onChange={(e) => setInstructions(e.target.value)}
+              />
+            </Grid>
+          </Grid>
+
+          {/* Tiempos y Producción */}
+          <Divider sx={{ my: 3 }} />
+          <Typography variant="h6" sx={{ mb: 2 }}>Tiempos y Producción</Typography>
+
+          <Grid container spacing={2}>
+            {/* Row 1: Tiempos */}
+            <Grid item xs={6} sm={3}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Preparación (min)"
+                value={prepTimeMinutes ?? ''}
+                onChange={(e) => setPrepTimeMinutes(e.target.value ? Number(e.target.value) : null)}
+                inputProps={{ min: 0 }}
+              />
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Horneado (min)"
+                value={bakingTimeMinutes ?? ''}
+                onChange={(e) => setBakingTimeMinutes(e.target.value ? Number(e.target.value) : null)}
+                inputProps={{ min: 0 }}
+              />
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Temperatura horno °C"
+                value={ovenTempCelsius ?? ''}
+                onChange={(e) => setOvenTempCelsius(e.target.value ? Number(e.target.value) : null)}
+                inputProps={{ min: 0 }}
+              />
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Reposo/Fermentación (min)"
+                value={restTimeMinutes ?? ''}
+                onChange={(e) => setRestTimeMinutes(e.target.value ? Number(e.target.value) : null)}
+                inputProps={{ min: 0 }}
+              />
+            </Grid>
+
+            {/* Row 2: TOUCH vs PROCESO */}
+            <Grid item xs={12}>
+              <Alert severity="info" sx={{ py: 0.5 }}>
+                🟢 Touch = trabajo activo (cuesta MO) | ⚫ Proceso = pasivo (fermentación/reposo)
+              </Alert>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Trabajo activo min (TOUCH)"
+                value={touchMinutesStandard ?? ''}
+                onChange={(e) => setTouchMinutesStandard(e.target.value ? Number(e.target.value) : null)}
+                inputProps={{ min: 0 }}
+                helperText="Pesar, amasar, bolear, cargar/descargar"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Proceso pasivo (min)"
+                value={Math.max((prepTimeMinutes || 0) - (touchMinutesStandard || 0), 0) || ''}
+                InputProps={{ readOnly: true }}
+                inputProps={{ min: 0 }}
+                helperText="Auto: tiempo total − trabajo activo"
+              />
+            </Grid>
+
+            {/* Row 3: Producción */}
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Merma %"
+                value={wastePct ?? ''}
+                onChange={(e) => setWastePct(e.target.value ? Number(e.target.value) : null)}
+                inputProps={{ min: 0, max: 100, step: 0.1 }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Bandejas por lote"
+                value={traysPerBatch ?? ''}
+                onChange={(e) => setTraysPerBatch(e.target.value ? Number(e.target.value) : null)}
+                inputProps={{ min: 0 }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Unidades por bandeja"
+                value={unitsPerTray ?? ''}
+                onChange={(e) => setUnitsPerTray(e.target.value ? Number(e.target.value) : null)}
+                inputProps={{ min: 0 }}
               />
             </Grid>
           </Grid>
