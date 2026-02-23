@@ -20,6 +20,16 @@ import HorarioList from './horarios/HorarioList'
 import HorarioForm from './horarios/HorarioForm'
 import PermisosList from './permisos/PermisosList'
 import PermisoForm from './permisos/PermisoForm'
+import TipoImpuestoList from './tipos-impuesto/TipoImpuestoList'
+import TipoImpuestoForm from './tipos-impuesto/TipoImpuestoForm'
+import UnidadMedidaList from './unidades-medida/UnidadMedidaList'
+import UnidadMedidaForm from './unidades-medida/UnidadMedidaForm'
+import TipoDocumentoList from './tipos-documento/TipoDocumentoList'
+import TipoDocumentoForm from './tipos-documento/TipoDocumentoForm'
+import CategoriaGastoList from './categorias-gasto/CategoriaGastoList'
+import CategoriaGastoForm from './categorias-gasto/CategoriaGastoForm'
+import MetodoPagoList from './metodos-pago/MetodoPagoList'
+import MetodoPagoForm from './metodos-pago/MetodoPagoForm'
 import { AdminCard } from '../../components/AdminCard'
 import '../../pages/admin-panel.css'
 import RolesRouter from './roles/RolesRouter'
@@ -108,6 +118,47 @@ function Index() {
       </section>
 
       <section className="admin-section">
+        <h2>Fiscal y contable</h2>
+        <div className="admin-grid">
+          <AdminCard
+            href="tipos-impuesto"
+            iconSrc="/icons/configuracion.jpeg"
+            title="Tipos de impuesto"
+            description="Gestiona los tipos de impuesto por país (IVA, IGIC, etc.)."
+            iconSize="sm"
+          />
+          <AdminCard
+            href="metodos-pago"
+            iconSrc="/icons/configuracion.jpeg"
+            title="Métodos de pago"
+            description="Catálogo global de métodos de pago disponibles."
+            iconSize="sm"
+          />
+          <AdminCard
+            href="categorias-gasto"
+            iconSrc="/icons/configuracion.jpeg"
+            title="Categorías de gasto"
+            description="Gestiona la jerarquía de categorías para gastos."
+            iconSize="sm"
+          />
+          <AdminCard
+            href="tipos-documento"
+            iconSrc="/icons/configuracion.jpeg"
+            title="Tipos de documento"
+            description="Catálogo de tipos de documento (factura, recibo, etc.)."
+            iconSize="sm"
+          />
+          <AdminCard
+            href="unidades-medida"
+            iconSrc="/icons/configuracion.jpeg"
+            title="Unidades de medida"
+            description="Gestiona las unidades de medida disponibles (kg, lb, etc.)."
+            iconSize="sm"
+          />
+        </div>
+      </section>
+
+      <section className="admin-section">
         <h2>Seguridad</h2>
         <div className="admin-grid">
           <AdminCard
@@ -172,6 +223,21 @@ export default function ConfiguracionSistema() {
       <Route path="horarios" element={<HorarioList />} />
       <Route path="horarios/nuevo" element={<HorarioForm />} />
       <Route path="horarios/:id/editar" element={<HorarioForm />} />
+      <Route path="tipos-impuesto" element={<TipoImpuestoList />} />
+      <Route path="tipos-impuesto/nuevo" element={<TipoImpuestoForm />} />
+      <Route path="tipos-impuesto/:id/editar" element={<TipoImpuestoForm />} />
+      <Route path="unidades-medida" element={<UnidadMedidaList />} />
+      <Route path="unidades-medida/nuevo" element={<UnidadMedidaForm />} />
+      <Route path="unidades-medida/:id/editar" element={<UnidadMedidaForm />} />
+      <Route path="tipos-documento" element={<TipoDocumentoList />} />
+      <Route path="tipos-documento/nuevo" element={<TipoDocumentoForm />} />
+      <Route path="tipos-documento/:id/editar" element={<TipoDocumentoForm />} />
+      <Route path="categorias-gasto" element={<CategoriaGastoList />} />
+      <Route path="categorias-gasto/nuevo" element={<CategoriaGastoForm />} />
+      <Route path="categorias-gasto/:id/editar" element={<CategoriaGastoForm />} />
+      <Route path="metodos-pago" element={<MetodoPagoList />} />
+      <Route path="metodos-pago/nuevo" element={<MetodoPagoForm />} />
+      <Route path="metodos-pago/:id/editar" element={<MetodoPagoForm />} />
       <Route path="*" element={<Navigate to="." replace />} />
     </Routes>
   )

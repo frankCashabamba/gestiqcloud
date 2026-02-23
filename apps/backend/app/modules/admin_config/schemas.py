@@ -183,3 +183,131 @@ class TipoNegocioRead(BaseModel):
     active: bool = True
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# Tipo de Impuesto (Tax Type)
+class TipoImpuestoCreate(BaseModel):
+    country_code: str
+    code: str
+    name: str
+    rate_default: float | None = None
+    active: bool = True
+
+
+class TipoImpuestoUpdate(BaseModel):
+    country_code: str | None = None
+    code: str | None = None
+    name: str | None = None
+    rate_default: float | None = None
+    active: bool | None = None
+
+
+class TipoImpuestoRead(BaseModel):
+    id: str
+    country_code: str
+    code: str
+    name: str
+    rate_default: float | None = None
+    active: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Unidad de Medida (Unit of Measure)
+class UnidadMedidaCreate(BaseModel):
+    code: str
+    name: str
+    abbreviation: str
+    active: bool = True
+
+
+class UnidadMedidaUpdate(BaseModel):
+    code: str | None = None
+    name: str | None = None
+    abbreviation: str | None = None
+    active: bool | None = None
+
+
+class UnidadMedidaRead(BaseModel):
+    id: int
+    code: str
+    name: str
+    abbreviation: str
+    active: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Tipo de Documento (Document Type)
+class TipoDocumentoCreate(BaseModel):
+    code: str
+    name: str
+    description: str | None = None
+    active: bool = True
+
+
+class TipoDocumentoUpdate(BaseModel):
+    code: str | None = None
+    name: str | None = None
+    description: str | None = None
+    active: bool | None = None
+
+
+class TipoDocumentoRead(BaseModel):
+    id: int
+    code: str
+    name: str
+    description: str | None = None
+    active: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Categoría de Gasto (Expense Category)
+class CategoriaGastoCreate(BaseModel):
+    code: str
+    name: str
+    parent_code: str | None = None
+    active: bool = True
+
+
+class CategoriaGastoUpdate(BaseModel):
+    code: str | None = None
+    name: str | None = None
+    parent_code: str | None = None
+    active: bool | None = None
+
+
+class CategoriaGastoRead(BaseModel):
+    id: int
+    code: str
+    name: str
+    parent_code: str | None = None
+    active: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Método de Pago Plantilla (Payment Method Template)
+class MetodoPagoPlantillaCreate(BaseModel):
+    code: str
+    name: str
+    description: str | None = None
+    active: bool = True
+
+
+class MetodoPagoPlantillaUpdate(BaseModel):
+    code: str | None = None
+    name: str | None = None
+    description: str | None = None
+    active: bool | None = None
+
+
+class MetodoPagoPlantillaRead(BaseModel):
+    id: int
+    code: str
+    name: str
+    description: str | None = None
+    active: bool
+
+    model_config = ConfigDict(from_attributes=True)

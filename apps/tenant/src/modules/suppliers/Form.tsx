@@ -9,6 +9,7 @@ import {
   type ProveedorDireccion,
 } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
+import { useCountries, useTaxTypes } from '../../hooks/useGlobalCatalogs'
 
 const emptyForm: ProveedorPayload = {
   name: '',
@@ -59,6 +60,8 @@ export default function ProveedorForm() {
   const [editMode, setEditMode] = useState(false)
   const [busy, setBusy] = useState(false)
   const { success, error: toastError } = useToast()
+  const { items: countries } = useCountries()
+  const { items: taxTypes } = useTaxTypes()
 
   useEffect(() => {
     if (!id) return
@@ -204,12 +207,10 @@ export default function ProveedorForm() {
                 value={form.pais || 'ES'}
                 onChange={(e) => setForm({ ...form, pais: e.target.value || null })}
               >
-                <option value="ES">Spain</option>
-                <option value="EC">Ecuador</option>
-                <option value="FR">France</option>
-                <option value="DE">Germany</option>
-                <option value="IT">Italy</option>
-                <option value="PT">Portugal</option>
+                {countries.map(c => (
+                  <option key={c.code} value={c.code}>{c.name}</option>
+                ))}
+                {countries.length === 0 && <option value={form.pais || 'ES'}>{form.pais || 'ES'}</option>}
               </select>
             </label>
             <label className="space-y-1 text-sm">
@@ -253,9 +254,10 @@ export default function ProveedorForm() {
                 value={form.tipo_impuesto || 'IVA'}
                 onChange={(e) => setForm({ ...form, tipo_impuesto: e.target.value || null })}
               >
-                <option value="IVA">IVA</option>
-                <option value="IGIC">IGIC</option>
-                <option value="IPSI">IPSI</option>
+                {taxTypes.map(t => (
+                  <option key={t.code} value={t.code}>{t.name}</option>
+                ))}
+                {taxTypes.length === 0 && <option value={form.tipo_impuesto || 'IVA'}>{form.tipo_impuesto || 'IVA'}</option>}
               </select>
             </label>
             <label className="space-y-1 text-sm">
@@ -503,10 +505,10 @@ export default function ProveedorForm() {
                       value={direccion.pais || 'ES'}
                       onChange={(e) => updateDireccion(index, 'pais', e.target.value || null)}
                     >
-                      <option value="ES">Spain</option>
-                      <option value="EC">Ecuador</option>
-                      <option value="FR">France</option>
-                      <option value="DE">Germany</option>
+                      {countries.map(c => (
+                        <option key={c.code} value={c.code}>{c.name}</option>
+                      ))}
+                      {countries.length === 0 && <option value={direccion.pais || 'ES'}>{direccion.pais || 'ES'}</option>}
                     </select>
                   </label>
                 </div>

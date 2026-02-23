@@ -86,6 +86,46 @@ from app.modules.admin_config.application.tipos_negocio.use_cases import (
     ListBusinessTypes,
     UpdateBusinessType,
 )
+from app.modules.admin_config.application.tipos_impuesto.dto import TipoImpuestoIn
+from app.modules.admin_config.application.tipos_impuesto.use_cases import (
+    CreateTaxType,
+    DeleteTaxType,
+    GetTaxType,
+    ListTaxTypes,
+    UpdateTaxType,
+)
+from app.modules.admin_config.application.unidades_medida.dto import UnidadMedidaIn
+from app.modules.admin_config.application.unidades_medida.use_cases import (
+    CreateUnit,
+    DeleteUnit,
+    GetUnit,
+    ListUnits,
+    UpdateUnit,
+)
+from app.modules.admin_config.application.tipos_documento.dto import TipoDocumentoIn
+from app.modules.admin_config.application.tipos_documento.use_cases import (
+    CreateDocType,
+    DeleteDocType,
+    GetDocType,
+    ListDocTypes,
+    UpdateDocType,
+)
+from app.modules.admin_config.application.categorias_gasto.dto import CategoriaGastoIn
+from app.modules.admin_config.application.categorias_gasto.use_cases import (
+    CreateExpenseCategory,
+    DeleteExpenseCategory,
+    GetExpenseCategory,
+    ListExpenseCategories,
+    UpdateExpenseCategory,
+)
+from app.modules.admin_config.application.metodos_pago_plantilla.dto import MetodoPagoPlantillaIn
+from app.modules.admin_config.application.metodos_pago_plantilla.use_cases import (
+    CreatePaymentTemplate,
+    DeletePaymentTemplate,
+    GetPaymentTemplate,
+    ListPaymentTemplates,
+    UpdatePaymentTemplate,
+)
 from app.modules.admin_config.infrastructure.dias_semana.repository import SqlAlchemyDiaSemanaRepo
 from app.modules.admin_config.infrastructure.horarios_atencion.repository import (
     SqlAlchemyHorarioAtencionRepo,
@@ -103,6 +143,21 @@ from app.modules.admin_config.infrastructure.tipos_empresa.repository import (
 )
 from app.modules.admin_config.infrastructure.tipos_negocio.repository import (
     SqlAlchemyTipoNegocioRepo,
+)
+from app.modules.admin_config.infrastructure.tipos_impuesto.repository import (
+    SqlAlchemyTipoImpuestoRepo,
+)
+from app.modules.admin_config.infrastructure.unidades_medida.repository import (
+    SqlAlchemyUnidadMedidaRepo,
+)
+from app.modules.admin_config.infrastructure.tipos_documento.repository import (
+    SqlAlchemyTipoDocumentoRepo,
+)
+from app.modules.admin_config.infrastructure.categorias_gasto.repository import (
+    SqlAlchemyCategoriaGastoRepo,
+)
+from app.modules.admin_config.infrastructure.metodos_pago_plantilla.repository import (
+    SqlAlchemyMetodoPagoPlantillaRepo,
 )
 
 # Use modern use cases (all legacy CRUD migrated)
@@ -131,6 +186,21 @@ from app.modules.admin_config.schemas import (  # Reusar MonedaRead para listas 
     TipoNegocioCreate,
     TipoNegocioRead,
     TipoNegocioUpdate,
+    TipoImpuestoCreate,
+    TipoImpuestoRead,
+    TipoImpuestoUpdate,
+    UnidadMedidaCreate,
+    UnidadMedidaRead,
+    UnidadMedidaUpdate,
+    TipoDocumentoCreate,
+    TipoDocumentoRead,
+    TipoDocumentoUpdate,
+    CategoriaGastoCreate,
+    CategoriaGastoRead,
+    CategoriaGastoUpdate,
+    MetodoPagoPlantillaCreate,
+    MetodoPagoPlantillaRead,
+    MetodoPagoPlantillaUpdate,
 )
 
 router = APIRouter(prefix="/config", tags=["admin:config"])
@@ -791,4 +861,363 @@ def delete_business_category(id: UUID, db: Session = Depends(get_db)):
         DeleteBusinessType(repo).execute(id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Business category not found")
+    return {"ok": True}
+
+
+# ====================================================================
+# Tax Types
+# ====================================================================
+
+
+def _tax_type_repo(db: Session) -> SqlAlchemyTipoImpuestoRepo:
+    return SqlAlchemyTipoImpuestoRepo(db)
+
+
+def _tax_type_schema(out) -> TipoImpuestoRead:
+    d = out.__dict__ if hasattr(out, "__dict__") else out
+    return TipoImpuestoRead.model_validate(d)
+
+
+def _tax_type_in_from_create(payload: TipoImpuestoCreate) -> TipoImpuestoIn:
+    return TipoImpuestoIn(**payload.model_dump())
+
+
+def _tax_type_in_from_update(payload: TipoImpuestoUpdate, current) -> TipoImpuestoIn:
+    data = payload.model_dump(exclude_unset=True)
+    return TipoImpuestoIn(
+        country_code=data.get("country_code", current.country_code),
+        code=data.get("code", current.code),
+        name=data.get("name", current.name),
+        rate_default=data.get("rate_default", current.rate_default),
+        active=data.get("active", current.active),
+    )
+
+
+@router.get("/tax-type", response_model=list[TipoImpuestoRead])
+def list_tax_types(db: Session = Depends(get_db)):
+    items = ListTaxTypes(_tax_type_repo(db)).execute()
+    return [_tax_type_schema(i) for i in items]
+
+
+@router.post("/tax-type", response_model=TipoImpuestoRead)
+def create_tax_type(data: TipoImpuestoCreate, db: Session = Depends(get_db)):
+    created = CreateTaxType(_tax_type_repo(db)).execute(_tax_type_in_from_create(data))
+    return _tax_type_schema(created)
+
+
+@router.get("/tax-type/{id}", response_model=TipoImpuestoRead)
+def get_tax_type(id: str, db: Session = Depends(get_db)):
+    try:
+        item = GetTaxType(_tax_type_repo(db)).execute(id)
+        return _tax_type_schema(item)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Tax type not found")
+
+
+@router.put("/tax-type/{id}", response_model=TipoImpuestoRead)
+def update_tax_type(id: str, data: TipoImpuestoUpdate, db: Session = Depends(get_db)):
+    repo = _tax_type_repo(db)
+    try:
+        current = GetTaxType(repo).execute(id)
+        payload = _tax_type_in_from_update(data, current)
+        updated = UpdateTaxType(repo).execute(id, payload)
+        return _tax_type_schema(updated)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Tax type not found")
+
+
+@router.delete("/tax-type/{id}")
+def delete_tax_type(id: str, db: Session = Depends(get_db)):
+    try:
+        DeleteTaxType(_tax_type_repo(db)).execute(id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Tax type not found")
+    return {"ok": True}
+
+
+# ====================================================================
+# Units of Measure
+# ====================================================================
+
+
+def _unit_repo(db: Session) -> SqlAlchemyUnidadMedidaRepo:
+    return SqlAlchemyUnidadMedidaRepo(db)
+
+
+def _unit_schema(out) -> UnidadMedidaRead:
+    d = out.__dict__ if hasattr(out, "__dict__") else out
+    return UnidadMedidaRead.model_validate(d)
+
+
+def _unit_in_from_create(payload: UnidadMedidaCreate) -> UnidadMedidaIn:
+    return UnidadMedidaIn(**payload.model_dump())
+
+
+def _unit_in_from_update(payload: UnidadMedidaUpdate, current) -> UnidadMedidaIn:
+    data = payload.model_dump(exclude_unset=True)
+    return UnidadMedidaIn(
+        code=data.get("code", current.code),
+        name=data.get("name", current.name),
+        abbreviation=data.get("abbreviation", current.abbreviation),
+        active=data.get("active", current.active),
+    )
+
+
+@router.get("/unit", response_model=list[UnidadMedidaRead])
+def list_units(db: Session = Depends(get_db)):
+    items = ListUnits(_unit_repo(db)).execute()
+    return [_unit_schema(i) for i in items]
+
+
+@router.post("/unit", response_model=UnidadMedidaRead)
+def create_unit(data: UnidadMedidaCreate, db: Session = Depends(get_db)):
+    created = CreateUnit(_unit_repo(db)).execute(_unit_in_from_create(data))
+    return _unit_schema(created)
+
+
+@router.get("/unit/{id}", response_model=UnidadMedidaRead)
+def get_unit(id: int, db: Session = Depends(get_db)):
+    try:
+        item = GetUnit(_unit_repo(db)).execute(id)
+        return _unit_schema(item)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Unit not found")
+
+
+@router.put("/unit/{id}", response_model=UnidadMedidaRead)
+def update_unit(id: int, data: UnidadMedidaUpdate, db: Session = Depends(get_db)):
+    repo = _unit_repo(db)
+    try:
+        current = GetUnit(repo).execute(id)
+        payload = _unit_in_from_update(data, current)
+        updated = UpdateUnit(repo).execute(id, payload)
+        return _unit_schema(updated)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Unit not found")
+
+
+@router.delete("/unit/{id}")
+def delete_unit(id: int, db: Session = Depends(get_db)):
+    try:
+        DeleteUnit(_unit_repo(db)).execute(id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Unit not found")
+    return {"ok": True}
+
+
+# ====================================================================
+# Document Types
+# ====================================================================
+
+
+def _doc_type_repo(db: Session) -> SqlAlchemyTipoDocumentoRepo:
+    return SqlAlchemyTipoDocumentoRepo(db)
+
+
+def _doc_type_schema(out) -> TipoDocumentoRead:
+    d = out.__dict__ if hasattr(out, "__dict__") else out
+    return TipoDocumentoRead.model_validate(d)
+
+
+def _doc_type_in_from_create(payload: TipoDocumentoCreate) -> TipoDocumentoIn:
+    return TipoDocumentoIn(**payload.model_dump())
+
+
+def _doc_type_in_from_update(payload: TipoDocumentoUpdate, current) -> TipoDocumentoIn:
+    data = payload.model_dump(exclude_unset=True)
+    return TipoDocumentoIn(
+        code=data.get("code", current.code),
+        name=data.get("name", current.name),
+        description=data.get("description", current.description),
+        active=data.get("active", current.active),
+    )
+
+
+@router.get("/doc-type", response_model=list[TipoDocumentoRead])
+def list_doc_types(db: Session = Depends(get_db)):
+    items = ListDocTypes(_doc_type_repo(db)).execute()
+    return [_doc_type_schema(i) for i in items]
+
+
+@router.post("/doc-type", response_model=TipoDocumentoRead)
+def create_doc_type(data: TipoDocumentoCreate, db: Session = Depends(get_db)):
+    created = CreateDocType(_doc_type_repo(db)).execute(_doc_type_in_from_create(data))
+    return _doc_type_schema(created)
+
+
+@router.get("/doc-type/{id}", response_model=TipoDocumentoRead)
+def get_doc_type(id: int, db: Session = Depends(get_db)):
+    try:
+        item = GetDocType(_doc_type_repo(db)).execute(id)
+        return _doc_type_schema(item)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Document type not found")
+
+
+@router.put("/doc-type/{id}", response_model=TipoDocumentoRead)
+def update_doc_type(id: int, data: TipoDocumentoUpdate, db: Session = Depends(get_db)):
+    repo = _doc_type_repo(db)
+    try:
+        current = GetDocType(repo).execute(id)
+        payload = _doc_type_in_from_update(data, current)
+        updated = UpdateDocType(repo).execute(id, payload)
+        return _doc_type_schema(updated)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Document type not found")
+
+
+@router.delete("/doc-type/{id}")
+def delete_doc_type(id: int, db: Session = Depends(get_db)):
+    try:
+        DeleteDocType(_doc_type_repo(db)).execute(id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Document type not found")
+    return {"ok": True}
+
+
+# ====================================================================
+# Expense Categories
+# ====================================================================
+
+
+def _expense_category_repo(db: Session) -> SqlAlchemyCategoriaGastoRepo:
+    return SqlAlchemyCategoriaGastoRepo(db)
+
+
+def _expense_category_schema(out) -> CategoriaGastoRead:
+    d = out.__dict__ if hasattr(out, "__dict__") else out
+    return CategoriaGastoRead.model_validate(d)
+
+
+def _expense_category_in_from_create(payload: CategoriaGastoCreate) -> CategoriaGastoIn:
+    return CategoriaGastoIn(**payload.model_dump())
+
+
+def _expense_category_in_from_update(payload: CategoriaGastoUpdate, current) -> CategoriaGastoIn:
+    data = payload.model_dump(exclude_unset=True)
+    return CategoriaGastoIn(
+        code=data.get("code", current.code),
+        name=data.get("name", current.name),
+        parent_code=data.get("parent_code", current.parent_code),
+        active=data.get("active", current.active),
+    )
+
+
+@router.get("/expense-category", response_model=list[CategoriaGastoRead])
+def list_expense_categories(db: Session = Depends(get_db)):
+    items = ListExpenseCategories(_expense_category_repo(db)).execute()
+    return [_expense_category_schema(i) for i in items]
+
+
+@router.post("/expense-category", response_model=CategoriaGastoRead)
+def create_expense_category(data: CategoriaGastoCreate, db: Session = Depends(get_db)):
+    created = CreateExpenseCategory(_expense_category_repo(db)).execute(
+        _expense_category_in_from_create(data)
+    )
+    return _expense_category_schema(created)
+
+
+@router.get("/expense-category/{id}", response_model=CategoriaGastoRead)
+def get_expense_category(id: int, db: Session = Depends(get_db)):
+    try:
+        item = GetExpenseCategory(_expense_category_repo(db)).execute(id)
+        return _expense_category_schema(item)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Expense category not found")
+
+
+@router.put("/expense-category/{id}", response_model=CategoriaGastoRead)
+def update_expense_category(id: int, data: CategoriaGastoUpdate, db: Session = Depends(get_db)):
+    repo = _expense_category_repo(db)
+    try:
+        current = GetExpenseCategory(repo).execute(id)
+        payload = _expense_category_in_from_update(data, current)
+        updated = UpdateExpenseCategory(repo).execute(id, payload)
+        return _expense_category_schema(updated)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Expense category not found")
+
+
+@router.delete("/expense-category/{id}")
+def delete_expense_category(id: int, db: Session = Depends(get_db)):
+    try:
+        DeleteExpenseCategory(_expense_category_repo(db)).execute(id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Expense category not found")
+    return {"ok": True}
+
+
+# ====================================================================
+# Payment Method Templates
+# ====================================================================
+
+
+def _payment_template_repo(db: Session) -> SqlAlchemyMetodoPagoPlantillaRepo:
+    return SqlAlchemyMetodoPagoPlantillaRepo(db)
+
+
+def _payment_template_schema(out) -> MetodoPagoPlantillaRead:
+    d = out.__dict__ if hasattr(out, "__dict__") else out
+    return MetodoPagoPlantillaRead.model_validate(d)
+
+
+def _payment_template_in_from_create(payload: MetodoPagoPlantillaCreate) -> MetodoPagoPlantillaIn:
+    return MetodoPagoPlantillaIn(**payload.model_dump())
+
+
+def _payment_template_in_from_update(
+    payload: MetodoPagoPlantillaUpdate, current
+) -> MetodoPagoPlantillaIn:
+    data = payload.model_dump(exclude_unset=True)
+    return MetodoPagoPlantillaIn(
+        code=data.get("code", current.code),
+        name=data.get("name", current.name),
+        description=data.get("description", current.description),
+        active=data.get("active", current.active),
+    )
+
+
+@router.get("/payment-template", response_model=list[MetodoPagoPlantillaRead])
+def list_payment_templates(db: Session = Depends(get_db)):
+    items = ListPaymentTemplates(_payment_template_repo(db)).execute()
+    return [_payment_template_schema(i) for i in items]
+
+
+@router.post("/payment-template", response_model=MetodoPagoPlantillaRead)
+def create_payment_template(data: MetodoPagoPlantillaCreate, db: Session = Depends(get_db)):
+    created = CreatePaymentTemplate(_payment_template_repo(db)).execute(
+        _payment_template_in_from_create(data)
+    )
+    return _payment_template_schema(created)
+
+
+@router.get("/payment-template/{id}", response_model=MetodoPagoPlantillaRead)
+def get_payment_template(id: int, db: Session = Depends(get_db)):
+    try:
+        item = GetPaymentTemplate(_payment_template_repo(db)).execute(id)
+        return _payment_template_schema(item)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Payment template not found")
+
+
+@router.put("/payment-template/{id}", response_model=MetodoPagoPlantillaRead)
+def update_payment_template(
+    id: int, data: MetodoPagoPlantillaUpdate, db: Session = Depends(get_db)
+):
+    repo = _payment_template_repo(db)
+    try:
+        current = GetPaymentTemplate(repo).execute(id)
+        payload = _payment_template_in_from_update(data, current)
+        updated = UpdatePaymentTemplate(repo).execute(id, payload)
+        return _payment_template_schema(updated)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Payment template not found")
+
+
+@router.delete("/payment-template/{id}")
+def delete_payment_template(id: int, db: Session = Depends(get_db)):
+    try:
+        DeletePaymentTemplate(_payment_template_repo(db)).execute(id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Payment template not found")
     return {"ok": True}

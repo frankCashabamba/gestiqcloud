@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import ProtectedButton from '../../../components/ProtectedButton'
 import { useCurrency } from '../../../hooks/useCurrency'
 import { useToast } from '../../../shared/toast'
+import { usePaymentMethods as usePaymentMethodsCatalog } from '../../../hooks/useGlobalCatalogs'
 
 interface PaymentMethod {
   type: 'cash' | 'card' | 'voucher' | 'link'
@@ -106,12 +107,21 @@ export function PaymentModalUnified({
     }
   }
 
-  const paymentMethods: PaymentMethod[] = [
+  const { items: catalogMethods } = usePaymentMethodsCatalog()
+
+  const fallbackMethods: PaymentMethod[] = [
     { type: 'cash', label: t('pos:payment.cash') },
     { type: 'card', label: t('pos:payment.card') },
     { type: 'voucher', label: t('pos:payment.voucher') },
     { type: 'link', label: t('pos:payment.link') },
   ]
+
+  const paymentMethods: PaymentMethod[] = catalogMethods.length > 0
+    ? catalogMethods.map(m => ({
+        type: m.code as PaymentMethod['type'],
+        label: m.name,
+      }))
+    : fallbackMethods
 
   return (
     <div

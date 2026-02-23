@@ -192,15 +192,15 @@ if ($LASTEXITCODE -ne 0) {
 Set-Location $repoRoot
 
 Write-Host "[5/7] Iniciando backend..." -ForegroundColor Green
+$venvPython = Join-Path $repoRoot ".venv/Scripts/python.exe"
 $backendJob = Start-Job -ScriptBlock {
-    param($envVars, $logPath)
+    param($envVars, $logPath, $pythonExe, $workDir)
     foreach ($entry in $envVars.GetEnumerator()) {
         [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, "Process")
     }
-    & $using:venvActivate
-    Set-Location $using:backendPath
-    uvicorn app.main:app --host 0.0.0.0 --port 8000 *>> $logPath
-} -Name backend -ArgumentList $backendEnvVars, $backendLog
+    Set-Location $workDir
+    & $pythonExe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 *>> $logPath
+} -Name backend -ArgumentList $backendEnvVars, $backendLog, $venvPython, $backendPath
 
 Write-Host "[6/7] Iniciando frontends..." -ForegroundColor Green
 $adminJob = Start-Job -ScriptBlock {

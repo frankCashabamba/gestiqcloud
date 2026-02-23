@@ -5,6 +5,7 @@ import { clearCompanySettingsCache, getCompanySettings } from '../../services/co
 import { getErrorMessage, useToast } from '../../shared/toast'
 import { useAuth } from '../../auth/AuthContext'
 import { NUMBERING_DEFAULTS, resetToDefaults } from '../../constants/defaults'
+import { useDocTypes } from '../../hooks/useGlobalCatalogs'
 
 type InventoryForm = {
     track_lots?: boolean
@@ -95,6 +96,7 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
         unit_price: 1.0,
     })
 
+    const { items: docTypesCatalog } = useDocTypes()
     const shouldAutoSaveBulk = useRef(false)
 
     const loadSettings = async () => {
@@ -756,11 +758,18 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                             value={counterForm.doc_type}
                                             onChange={(e) => setCounterForm((prev) => ({ ...prev, doc_type: e.target.value }))}
                                         >
-                                            <option value="pos_receipt">pos_receipt</option>
-                                            <option value="invoice">invoice</option>
-                                            <option value="sales_order">sales_order</option>
-                                            <option value="delivery">delivery</option>
-                                            <option value="purchase_order">purchase_order</option>
+                                            {docTypesCatalog.length > 0
+                                              ? docTypesCatalog.map(dt => (
+                                                  <option key={dt.code} value={dt.code}>{dt.name}</option>
+                                                ))
+                                              : <>
+                                                  <option value="pos_receipt">pos_receipt</option>
+                                                  <option value="invoice">invoice</option>
+                                                  <option value="sales_order">sales_order</option>
+                                                  <option value="delivery">delivery</option>
+                                                  <option value="purchase_order">purchase_order</option>
+                                                </>
+                                            }
                                         </select>
                                     </div>
                                     <div>
@@ -896,9 +905,16 @@ export default function AvanzadoSettings({ variant = 'admin' }: AvanzadoSettings
                                             value={seriesForm.doc_type}
                                             onChange={(e) => setSeriesForm((prev) => ({ ...prev, doc_type: e.target.value }))}
                                         >
-                                            <option value="R">R</option>
-                                            <option value="F">F</option>
-                                            <option value="C">C</option>
+                                            {docTypesCatalog.length > 0
+                                              ? docTypesCatalog.map(dt => (
+                                                  <option key={dt.code} value={dt.code}>{dt.name}</option>
+                                                ))
+                                              : <>
+                                                  <option value="R">R</option>
+                                                  <option value="F">F</option>
+                                                  <option value="C">C</option>
+                                                </>
+                                            }
                                         </select>
                                     </div>
                                     <div>

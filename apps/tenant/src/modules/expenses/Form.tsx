@@ -3,11 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { createGasto, getGasto, updateGasto, type Gasto } from './services'
 import { useToast, getErrorMessage } from '../../shared/toast'
 import { useCompanySector } from '../../contexts/CompanyConfigContext'
+import { useExpenseCategories } from '../../hooks/useGlobalCatalogs'
 import { useSectorPlaceholders, getFieldPlaceholder } from '../../hooks/useSectorPlaceholders'
 
 type FormT = Omit<Gasto, 'id' | 'created_at' | 'updated_at'>
 
-const CATEGORIAS = [
+const CATEGORIAS_FALLBACK = [
   'Rent',
   'Services',
   'Personnel',
@@ -33,6 +34,10 @@ export default function GastoForm() {
   const { success, error } = useToast()
   const sector = useCompanySector()
   const { placeholders } = useSectorPlaceholders(sector?.plantilla, 'expenses')
+  const { items: expenseCategories } = useExpenseCategories()
+  const categorias = expenseCategories.length > 0
+    ? expenseCategories.map(c => c.name)
+    : CATEGORIAS_FALLBACK
 
   const [form, setForm] = useState<FormT>({
     date: new Date().toISOString().slice(0, 10),
@@ -156,7 +161,7 @@ export default function GastoForm() {
               disabled={loading}
             >
               <option value="">Select...</option>
-              {CATEGORIAS.map(cat => (
+              {categorias.map(cat => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>

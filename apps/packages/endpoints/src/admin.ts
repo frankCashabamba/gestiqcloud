@@ -73,6 +73,26 @@ export const ADMIN_CONFIG = {
     base: '/v1/admin/config/attention-schedule',
     byId: (id: number | string) => `/v1/admin/config/attention-schedule/${id}`,
   },
+  taxTypes: {
+    base: '/v1/admin/config/tax-type',
+    byId: (id: number | string) => `/v1/admin/config/tax-type/${id}`,
+  },
+  units: {
+    base: '/v1/admin/config/unit',
+    byId: (id: number | string) => `/v1/admin/config/unit/${id}`,
+  },
+  docTypes: {
+    base: '/v1/admin/config/doc-type',
+    byId: (id: number | string) => `/v1/admin/config/doc-type/${id}`,
+  },
+  expenseCategories: {
+    base: '/v1/admin/config/expense-category',
+    byId: (id: number | string) => `/v1/admin/config/expense-category/${id}`,
+  },
+  paymentTemplates: {
+    base: '/v1/admin/config/payment-template',
+    byId: (id: number | string) => `/v1/admin/config/payment-template/${id}`,
+  },
 }
 
 export const ADMIN_USERS = {

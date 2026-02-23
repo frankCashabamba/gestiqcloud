@@ -235,6 +235,10 @@ def build_api_router() -> APIRouter:
     include_router_safe(
         r, ("app.modules.admin_config.interface.http.admin", "router"), prefix="/admin"
     )
+    # Tenant-facing global catalogs (read-only)
+    include_router_safe(
+        r, ("app.modules.admin_config.interface.http.tenant_catalogs", "router"), prefix="/tenant"
+    )
 
     # Me endpoints (admin/tenant helpers)
     include_router_safe(r, ("app.api.v1.me", "router"))
