@@ -1,7 +1,9 @@
 # app/config/database.py
 from __future__ import annotations
 
+import logging
 import os
+import re
 from collections.abc import Iterator
 from contextlib import asynccontextmanager, contextmanager
 
@@ -11,14 +13,16 @@ from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from app.config.settings import settings
 
+logger = logging.getLogger(__name__)
+
 Base = declarative_base()
 
 
 def make_db_url() -> str:
     """
     Usa la URL normalizada de settings.database_url.
-    Nota: si necesitas forzar SSL (cloud providers), aÃ±ade `sslmode=require` en tu DATABASE_URL
-    o deja esta lÃ³gica activa en prod. Ajusta a tu polÃ­tica.
+    Nota: si necesitas forzar SSL (cloud providers), añade `sslmode=require` en tu DATABASE_URL
+    o deja esta lógica activa en prod. Ajusta a tu política.
     """
     url = settings.database_url
     if settings.ENVIRONMENT == "production" and "sslmode" not in url:
@@ -28,9 +32,9 @@ def make_db_url() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Engine con pooling, pre_ping y statement_timeout (vÃ­a psycopg/pg options)
+# Engine con pooling, pre_ping y statement_timeout (vía psycopg/pg options)
 # ---------------------------------------------------------------------------
-STATEMENT_TIMEOUT_MS = max(1000, settings.DB_STATEMENT_TIMEOUT_MS)  # mÃ­nimo 1s
+STATEMENT_TIMEOUT_MS = max(1000, settings.DB_STATEMENT_TIMEOUT_MS)  # mínimo 1s
 
 CONNECT_ARGS = {
     # Requiere driver psycopg (postgresql+psycopg://) para respetar options
@@ -38,18 +42,25 @@ CONNECT_ARGS = {
     "client_encoding": "UTF8",
 }
 
-_env_db_url = os.getenv("DATABASE_URL")
-_env_db_dsn = os.getenv("DB_DSN")
 _db_url = make_db_url()
-print("[database] ENV DATABASE_URL type=" f"{type(_env_db_url).__name__} repr={_env_db_url!r}")
-print("[database] ENV DB_DSN type=" f"{type(_env_db_dsn).__name__} repr={_env_db_dsn!r}")
-print(
-    "[database] ENV PGHOST="
-    f"{os.getenv('PGHOST')!r} PGPORT={os.getenv('PGPORT')!r} "
-    f"PGUSER={os.getenv('PGUSER')!r} PGPASSWORD={os.getenv('PGPASSWORD')!r} "
-    f"PGSERVICE={os.getenv('PGSERVICE')!r}"
+
+
+def _mask(value: str | None) -> str:
+    """Mask a secret value for safe logging."""
+    if not value:
+        return "<unset>"
+    if len(value) <= 8:
+        return "***"
+    return f"{value[:4]}***{value[-4:]}"
+
+
+logger.debug(
+    "[database] PGHOST=%s PGPORT=%s PGUSER=%s DB_URL=%s",
+    os.getenv("PGHOST", "<unset>"),
+    os.getenv("PGPORT", "<unset>"),
+    os.getenv("PGUSER", "<unset>"),
+    _mask(_db_url),
 )
-print(f"[database] DATABASE_URL type={type(_db_url).__name__} repr={_db_url!r}")
 
 IS_SQLITE = _db_url.startswith("sqlite")
 PG_SCHEMA_NAME = "public"
@@ -119,7 +130,28 @@ async def get_db_session():  # pragma: no cover - used as patch target in tests
 
 
 # ---------------------------------------------------------------------------
-# Dependencia FastAPI: sesiÃ³n por request
+# Helper: resolve legacy numeric tenant_id -> UUID
+# ---------------------------------------------------------------------------
+def _resolve_tenant_id(db: Session, raw_tid: str) -> str:
+    """Translate a legacy numeric tenant_id to its UUID. Returns raw_tid if not numeric."""
+    if not raw_tid.isdigit():
+        return raw_tid
+    try:
+        res = db.execute(
+            text("SELECT id FROM tenants WHERE tenant_id = :eid"),
+            {"eid": int(raw_tid)},
+        )
+        row = res.first()
+        if row and row[0]:
+            return str(row[0])
+    except Exception:
+        logger.warning("Failed to resolve legacy tenant_id=%s", raw_tid, exc_info=True)
+        db.rollback()
+    return raw_tid
+
+
+# ---------------------------------------------------------------------------
+# Dependencia FastAPI: sesión por request
 # ---------------------------------------------------------------------------
 def get_db(request: Request) -> Iterator[Session]:
     """
@@ -128,19 +160,16 @@ def get_db(request: Request) -> Iterator[Session]:
     """
     db = SessionLocal()
     try:
-        # Defensive: clear any leftover GUCs from pooled connections
-        # Use set_config(..., NULL, true) instead of RESET to avoid
-        # aborting the transaction when the custom GUC was never set.
+        # Defensive: clear any leftover GUCs from pooled connections.
+        # set_config(..., NULL, true) is transaction-local and won't error
+        # even if the custom GUC was never set.
         try:
             db.execute(text("SELECT set_config('app.tenant_id', NULL, true)"))
             db.execute(text("SELECT set_config('app.user_id', NULL, true)"))
         except Exception:
-            # If anything goes wrong, ensure we don't leave the session aborted
-            try:
-                db.rollback()
-            except Exception:
-                pass
-            pass
+            logger.warning("Failed to clear GUCs on pooled connection", exc_info=True)
+            db.rollback()
+
         # Set RLS GUCs on THIS session using request context
         try:
             claims = getattr(request.state, "access_claims", None) or {}
@@ -155,48 +184,26 @@ def get_db(request: Request) -> Iterator[Session]:
                 user_id = user_id or sess.get("tenant_user_id")
 
             if tenant_id is not None and user_id is not None:
-                tid = str(tenant_id)
+                tid = _resolve_tenant_id(db, str(tenant_id))
                 uid = str(user_id)
-                # translate legacy tenant_id (digits) -> tenant UUID
-                if tid.isdigit():
-                    try:
-                        res = db.execute(
-                            text("SELECT id FROM tenants WHERE tenant_id = :eid"),
-                            {"eid": int(tid)},
-                        )
-                        row = res.first()
-                        if row and row[0]:
-                            tid = row[0]
-                    except Exception:
-                        # Ensure we don't leave the session aborted if the lookup fails
-                        try:
-                            db.rollback()
-                        except Exception:
-                            pass
-                        pass
-                db.execute(text("SET LOCAL app.tenant_id = :tid"), {"tid": tid})
-                db.execute(text("SET LOCAL app.user_id = :uid"), {"uid": uid})
-                # Expose resolved tenant to ORM hooks/utilities on this Session
-                try:
-                    db.info["tenant_id"] = tid
-                except Exception:
-                    pass
+                db.execute(
+                    text("SELECT set_config('app.tenant_id', :tid, true)"),
+                    {"tid": tid},
+                )
+                db.execute(
+                    text("SELECT set_config('app.user_id', :uid, true)"),
+                    {"uid": uid},
+                )
+                db.info["tenant_id"] = tid
         except Exception:
-            # Do not break request if setting GUCs fails, but clean aborted tx
-            try:
-                db.rollback()
-            except Exception:
-                pass
-            pass
+            logger.warning("Failed to set RLS GUCs for request", exc_info=True)
+            db.rollback()
 
         # Final safeguard: ensure session isn't in aborted state before yielding
         try:
             db.execute(text("SELECT 1"))
         except Exception:
-            try:
-                db.rollback()
-            except Exception:
-                pass
+            db.rollback()
 
         yield db
     finally:
@@ -229,12 +236,21 @@ def _auto_fill_multitenant_fields(session: Session, flush_context, instances):
 # ---------------------------------------------------------------------------
 # (Opcional) Multitenancy por schema (search_path)
 # ---------------------------------------------------------------------------
+_VALID_SCHEMA_RE = re.compile(r"^[a-z_][a-z0-9_]{0,62}$", re.IGNORECASE)
+
+
 def set_search_path(db: Session, tenant_schema: str) -> None:
     """
-    Fija el search_path por sesiÃ³n. Incluye siempre 'public' como fallback.
-    Llamar tras abrir la sesiÃ³n (en una dependencia que resuelva el tenant).
+    Fija el search_path por sesión (transaction-local).
+    Incluye siempre 'public' como fallback.
+    Llamar tras abrir la sesión (en una dependencia que resuelva el tenant).
     """
-    db.execute(text("SET search_path TO :schema, public").bindparams(schema=tenant_schema))
+    if not _VALID_SCHEMA_RE.fullmatch(tenant_schema):
+        raise ValueError(f"Invalid schema name: {tenant_schema!r}")
+    db.execute(
+        text("SELECT set_config('search_path', :path, true)"),
+        {"path": f"{tenant_schema}, public"},
+    )
 
 
 def get_tenant_db(tenant_schema: str) -> Iterator[Session]:
@@ -257,7 +273,7 @@ def get_tenant_db(tenant_schema: str) -> Iterator[Session]:
 def ping() -> bool:
     """
     Verifica conectividad y (si es posible) el statement_timeout actual.
-    Ãštil para /health.
+    Útil para /health.
     """
     with SessionLocal() as db:
         db.execute(text("SELECT 1"))
@@ -273,7 +289,7 @@ def session_scope() -> Iterator[Session]:
     """
     Context manager de conveniencia:
         with session_scope() as db:
-            ...  # commit/rollback automÃ¡tico
+            ...  # commit/rollback automático
     """
     db = SessionLocal()
     try:

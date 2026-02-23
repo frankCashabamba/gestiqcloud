@@ -9,6 +9,7 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.models.company.company_settings import CompanySettings
 from app.models.core.products import Product
 from app.models.production._cost_drivers import ProductionCostDriver, RecipeCostLine
 from app.models.recipes import Recipe, RecipeIngredient
@@ -93,20 +94,21 @@ def calculate_recipe_cost(db: Session, recipe_id: UUID, update_product_price: bo
     db.commit()
     db.refresh(recipe)
 
-    # Calcular precio sugerido con multiplicador óptimo basado en costo promedio
+    # Calcular precio sugerido usando multiplicador configurado por el tenant
     unit_cost = float(recipe.unit_cost or 0)
-    # Obtener costos unitarios de todas las recetas del tenant para calcular media
-    all_costs = [
-        float(r.unit_cost)
-        for r in db.query(Recipe.unit_cost).filter(Recipe.unit_cost.isnot(None), Recipe.unit_cost > 0).all()
-    ]
-    if all_costs:
-        avg_cost = sum(all_costs) / len(all_costs)
-        # Curva continua: food cost target 25%-35% según nivel de costo promedio
-        target_food_cost = 0.25 + 0.10 * min(1.0, avg_cost / 20.0)
-        optimal_multiplier = round(1.0 / target_food_cost, 2)
-    else:
-        optimal_multiplier = 2.0  # fallback
+
+    # Leer multiplicador (% utilidad) desde CompanySettings del tenant
+    optimal_multiplier = 1.25  # default: 25% utilidad
+    company_settings = (
+        db.query(CompanySettings)
+        .filter(CompanySettings.tenant_id == recipe.tenant_id)
+        .first()
+    )
+    if company_settings and company_settings.settings:
+        saved = company_settings.settings.get("produccion_margin_multiplier")
+        if saved is not None:
+            optimal_multiplier = float(saved)
+
     suggested_price = round(unit_cost * optimal_multiplier, 2)
 
     # Actualizar producto si está asociado y se solicita

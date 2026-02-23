@@ -1,12 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { listRecipes, type Recipe } from '../../services/api/recetas'
 import { listProducts, type Product } from '../../services/api/products'
 import { getRecipeFullCost, type FullCostSummary } from '../../services/api/productionCosts'
 import { getCompanySettings, getCurrencySymbol, getDefaultTaxRate, type CompanySettings } from '../../services/companySettings'
 import tenantApi from '../../shared/api/client'
+import { useToast } from '../../shared/toast'
 
 export default function RecetasList() {
+  const { t } = useTranslation(['costing', 'common'])
+  const { success, error: toastError } = useToast()
   const navigate = useNavigate()
   const { empresa } = useParams()
   const basePath = `${empresa ? `/${empresa}` : ''}/produccion`
@@ -19,8 +23,8 @@ export default function RecetasList() {
   const [category, setCategory] = useState<string>('all')
   const [page, setPage] = useState<number>(1)
   const [perPage, setPerPage] = useState<number>(9)
-  const [multiplier, setMultiplier] = useState<number>(2.5)
-  const [markupPct, setMarkupPct] = useState<number>(150)
+  const [multiplier, setMultiplier] = useState<number>(1.25)
+  const [markupPct, setMarkupPct] = useState<number>(25)
   const [useProductTax, setUseProductTax] = useState<boolean>(false)
   const [fullCosts, setFullCosts] = useState<Record<string, FullCostSummary>>({})
   const currency = useMemo(() => getCurrencySymbol(settings || undefined), [settings])
@@ -57,7 +61,7 @@ export default function RecetasList() {
           try {
             const fromSettings = (cfg as any)?.settings?.produccion_margin_multiplier as number | undefined
             const fromStorage = localStorage.getItem('produccion_margin_multiplier')
-            const init = Number(fromSettings || (fromStorage ? parseFloat(fromStorage) : 2.5))
+            const init = Number(fromSettings || (fromStorage ? parseFloat(fromStorage) : 1.25))
             if (!Number.isNaN(init) && init > 0) {
               setMultiplier(init)
               setMarkupPct(Number(((init - 1) * 100).toFixed(0)))
@@ -110,29 +114,7 @@ export default function RecetasList() {
   const precioSugerido = (costoPorUnidad: number) => costoPorUnidad * multiplier
   const margenPct = (costoPorUnidad: number, precio: number) => (precio > 0 ? ((precio - costoPorUnidad) / precio) * 100 : 0)
 
-  // ── Auto-cálculo óptimo de markup/multiplicador ──
-  // Usa el costo unitario promedio de las recetas para determinar un multiplicador
-  // que maximice el beneficio siguiendo estándares de la industria gastronómica:
-  //   - Costo bajo  → food-cost target ~25% → multiplicador ~4.0
-  //   - Costo medio → food-cost target ~30% → multiplicador ~3.33
-  //   - Costo alto  → food-cost target ~35% → multiplicador ~2.86
-  useEffect(() => {
-    const costs = recipes.map(r => {
-      const fc = fullCosts[r.id]
-      return fc ? Number(fc.full_cost_unit || 0) : (r.unit_cost || 0)
-    }).filter(c => c > 0)
-    if (costs.length === 0) return
-
-    const avgCost = costs.reduce((a, b) => a + b, 0) / costs.length
-    // Curva continua: food cost target entre 25% y 35% según nivel de costo promedio
-    const targetFoodCostPct = 0.25 + 0.10 * Math.min(1, avgCost / 20)
-    const optimalMultiplier = Number((1 / targetFoodCostPct).toFixed(2))
-    const optimalMarkup = Number(((optimalMultiplier - 1) * 100).toFixed(0))
-
-    setMultiplier(optimalMultiplier)
-    setMarkupPct(optimalMarkup)
-    try { localStorage.setItem('produccion_margin_multiplier', String(optimalMultiplier)) } catch {}
-  }, [recipes, fullCosts])
+  // El multiplicador se controla manualmente por el usuario (% Utilidad Deseada)
 
   const priceIncludesTax = !!(settings?.pos_config?.tax?.price_includes_tax)
   const defaultTaxRate = getDefaultTaxRate(settings || undefined) || 0
@@ -143,7 +125,7 @@ export default function RecetasList() {
     return amount * (1 + (isFinite(rate) ? rate : defaultTaxRate))
   }
 
-  if (loading) return <div className="p-6 text-gray-500">Loading recipes...</div>
+  if (loading) return <div className="p-6 text-gray-500">{t('recipesList.loading')}</div>
   if (error) return <div className="p-6 text-red-600">{error}</div>
 
   return (
@@ -153,20 +135,20 @@ export default function RecetasList() {
           <input
             type="search"
             className="border rounded px-3 py-2 w-full md:w-80"
-            placeholder="Search recipe or product…"
+            placeholder={t('recipesList.searchPlaceholder')}
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Category</label>
+            <label className="text-sm text-gray-600">{t('recipesList.category')}</label>
             <select
               className="border rounded px-3 py-2"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
             >
-              <option value="all">All</option>
+              <option value="all">{t('recipesList.categoryAll')}</option>
               {[...new Set(products.map(p => p.category).filter(Boolean))].map((c) => (
                 <option key={String(c)} value={String(c)}>{String(c)}</option>
               ))}
@@ -182,28 +164,29 @@ export default function RecetasList() {
                 try { localStorage.setItem('produccion_use_product_tax', e.target.checked ? '1' : '0') } catch {}
               }}
             />
-            IVA por producto
+            {t('recipesList.taxPerProduct')}
           </label>
 
-          <div className="flex items-center gap-2 border rounded px-2 py-1 bg-gray-50" title="Calculado automáticamente según el costo promedio de las recetas">
-            <span className="text-xs text-emerald-600">⚡ Auto</span>
-            <label className="text-sm text-gray-600">Markup %</label>
+          <div className="flex items-center gap-2 border rounded px-2 py-1 bg-white" title={t('recipesList.profitTooltip')}>
+            <label className="text-sm text-gray-600 whitespace-nowrap">{t('recipesList.profitPct')}</label>
             <input
               type="number"
-              readOnly
-              className="border rounded px-2 py-1 w-20 bg-gray-100 text-gray-700 cursor-default"
+              min="0"
+              max="500"
+              step="1"
+              className="border rounded px-2 py-1 w-20 text-center"
               value={markupPct}
-              title="Calculado automáticamente según costo promedio de recetas"
+              onChange={(e) => {
+                const v = Number(e.target.value)
+                if (!isNaN(v) && v >= 0) {
+                  setMarkupPct(v)
+                  const newMult = Number((1 + v / 100).toFixed(2))
+                  setMultiplier(newMult)
+                  try { localStorage.setItem('produccion_margin_multiplier', String(newMult)) } catch {}
+                }
+              }}
             />
-            <span className="text-gray-400">·</span>
-            <label className="text-sm text-gray-600">Multiplicador</label>
-            <input
-              type="number"
-              readOnly
-              className="border rounded px-2 py-1 w-24 bg-gray-100 text-gray-700 cursor-default"
-              value={multiplier}
-              title="Calculado automáticamente según costo promedio de recetas"
-            />
+            <span className="text-xs text-gray-400">×{multiplier}</span>
           </div>
 
           <select
@@ -212,7 +195,7 @@ export default function RecetasList() {
             defaultValue=""
           >
             <option value="" disabled>
-              Crear receta desde producto…
+              {t('recipesList.createFromProduct')}
             </option>
             {products.map((p) => (
               <option key={p.id} value={p.id}>
@@ -224,37 +207,37 @@ export default function RecetasList() {
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
             onClick={() => navigate(`${basePath}/recetas/nueva`)}
           >
-            New recipe
+            {t('recipesList.newRecipe')}
           </button>
           <button
             className="border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded text-sm"
             onClick={() => navigate(`${basePath}/costos`)}
-            title="Configurar tipos de costos indirectos (MO, energía, empaque...)"
+            title={t('recipesList.indirectCostsTooltip')}
           >
-            ⚙️ Costos indirectos
+            ⚙️ {t('recipesList.indirectCosts')}
           </button>
           <button
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded"
-            title="Save margin as tenant setting"
+            title={t('recipesList.saveTooltip')}
             onClick={async () => {
               try {
                 const { data: current } = await tenantApi.get<any>('/api/v1/company/settings/fiscal')
-                const merged = { ...(current || {}), produccion_margin_multiplier: multiplier }
+                const merged = { ...(current || {}), produccion_margin_multiplier: multiplier, pricing_strategy: 'manual' }
                 await tenantApi.put('/api/v1/company/settings/fiscal', merged)
-                alert('Margin saved to tenant settings')
+                success(t('recipesList.profitSaved', { pct: markupPct }))
               } catch (e: any) {
                 console.error('Error saving margin:', e)
-                alert('Could not save margin (requires admin permissions)')
+                toastError(t('recipesList.saveError'))
               }
             }}
           >
-            Save margin
+            💾 {t('recipesList.save')}
           </button>
         </div>
       </div>
 
       {pageItems.length === 0 ? (
-        <div className="p-10 text-center text-gray-500 border rounded">Sin recetas aún</div>
+        <div className="p-10 text-center text-gray-500 border rounded">{t('recipesList.noRecipes')}</div>
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -278,34 +261,34 @@ export default function RecetasList() {
                         </div>
                       )}
                       <div>
-                        <div className="text-sm text-gray-500">{r.product_name || 'Product'}</div>
+                        <div className="text-sm text-gray-500">{r.product_name || t('recipesList.product')}</div>
                         <div className="font-semibold text-gray-900">{r.name}</div>
                       </div>
                     </div>
                     <span className="text-xs inline-flex items-center px-2 py-1 rounded bg-amber-100 text-amber-800">
-                      Producción
+                      {t('recipesList.production')}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div className="p-2 rounded bg-gray-50">
-                      <div className="text-gray-500">Costo total</div>
+                      <div className="text-gray-500">{t('recipesList.totalCost')}</div>
                       <div className="font-semibold">{fmt(costoTotal)}</div>
                     </div>
                     <div className="p-2 rounded bg-gray-50">
-                      <div className="text-gray-500">Rendimiento</div>
-                      <div className="font-semibold">{r.yield_qty} und</div>
+                      <div className="text-gray-500">{t('recipesList.yield')}</div>
+                      <div className="font-semibold">{r.yield_qty} {t('recipesList.units')}</div>
                     </div>
                     <div className="p-2 rounded bg-gray-50">
-                      <div className="text-gray-500">Costo / unidad</div>
+                      <div className="text-gray-500">{t('recipesList.unitCost')}</div>
                       <div className="font-semibold">{fmt(costoUnidad, 3)}</div>
                     </div>
                     <div className="p-2 rounded bg-gray-50">
-                      <div className="text-gray-500">Precio sugerido {priceIncludesTax ? '(IVA inc.)' : '(sin IVA)'}
+                      <div className="text-gray-500">{t('recipesList.suggestedPrice')} {priceIncludesTax ? t('recipesList.taxIncluded') : t('recipesList.noTax')}
                       </div>
                       <div className="font-semibold">{fmt(precioDisplay)}</div>
                     </div>
                     <div className="p-2 rounded bg-emerald-50 col-span-2">
-                      <div className="text-gray-500">Beneficio / unidad</div>
+                      <div className="text-gray-500">{t('recipesList.profitPerUnit')}</div>
                       <div className="font-semibold text-emerald-700">{fmt(precio - costoUnidad, 3)}</div>
                     </div>
                   </div>
@@ -314,20 +297,20 @@ export default function RecetasList() {
                       {prod?.category && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700">{prod.category}</span>
                       )}
-                      <span>Markup {((multiplier - 1) * 100).toFixed(0)}% · Margen {margen.toFixed(0)}%</span>
+                      <span>{t('recipesList.markup')} {((multiplier - 1) * 100).toFixed(0)}% · {t('recipesList.margin')} {margen.toFixed(0)}%</span>
                     </div>
                     <div className="flex gap-2">
                       <button
                         className="text-blue-600 hover:underline text-sm"
                         onClick={() => navigate(`${basePath}/recetas/${r.id}`)}
                       >
-                        Ver
+                        {t('recipesList.view')}
                       </button>
                       <button
                         className="text-gray-700 hover:underline text-sm"
                         onClick={() => navigate(`${basePath}/recetas/${r.id}/editar`)}
                       >
-                        Editar
+                        {t('recipesList.edit')}
                       </button>
                     </div>
                   </div>
@@ -338,12 +321,12 @@ export default function RecetasList() {
 
           <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
             <div>
-              Mostrando {Math.min((page - 1) * perPage + 1, filtered.length)}–{Math.min(page * perPage, filtered.length)} de {filtered.length}
+              {t('recipesList.showing')} {Math.min((page - 1) * perPage + 1, filtered.length)}–{Math.min(page * perPage, filtered.length)} {t('recipesList.of')} {filtered.length}
             </div>
             <div className="flex items-center gap-2">
-              <button disabled={page <= 1} className="px-2 py-1 border rounded disabled:opacity-50" onClick={() => setPage(p => Math.max(1, p - 1))}>Anterior</button>
-              <span>Pagina {page} / {totalPages}</span>
-              <button disabled={page >= totalPages} className="px-2 py-1 border rounded disabled:opacity-50" onClick={() => setPage(p => Math.min(totalPages, p + 1))}>Siguiente</button>
+              <button disabled={page <= 1} className="px-2 py-1 border rounded disabled:opacity-50" onClick={() => setPage(p => Math.max(1, p - 1))}>{t('recipesList.previous')}</button>
+              <span>{t('recipesList.page')} {page} / {totalPages}</span>
+              <button disabled={page >= totalPages} className="px-2 py-1 border rounded disabled:opacity-50" onClick={() => setPage(p => Math.min(totalPages, p + 1))}>{t('recipesList.next')}</button>
             </div>
           </div>
         </>

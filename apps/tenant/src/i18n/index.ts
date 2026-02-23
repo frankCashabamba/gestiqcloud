@@ -30,6 +30,8 @@ import settingsEn from '../locales/en/settings.json'
 import settingsEs from '../locales/es/settings.json'
 import suppliersEn from '../locales/en/suppliers.json'
 import suppliersEs from '../locales/es/suppliers.json'
+import costingEn from '../locales/en/costing.json'
+import costingEs from '../locales/es/costing.json'
 
 type BuiltInLang = 'en' | 'es'
 const BUILTIN_LANGS: BuiltInLang[] = ['en', 'es']
@@ -69,6 +71,7 @@ const resources = {
     reportes: reportesEn,
     settings: settingsEn,
     suppliers: suppliersEn,
+    costing: costingEn,
   },
   es: {
     translation: es,
@@ -85,6 +88,7 @@ const resources = {
     reportes: reportesEs,
     settings: settingsEs,
     suppliers: suppliersEs,
+    costing: costingEs,
   },
 }
 
@@ -108,6 +112,7 @@ i18n
       'reportes',
       'settings',
       'suppliers',
+      'costing',
     ],
     defaultNS: 'translation',
     fallbackNS: ['common'],
