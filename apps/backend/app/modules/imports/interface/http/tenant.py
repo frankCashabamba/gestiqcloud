@@ -2578,64 +2578,69 @@ def put_import_field_aliases(
     return {"ok": True, "doc_type": payload.doc_type, "module": module}
 
 
-@router.post("/field-aliases/seed-defaults")
-def seed_default_aliases(
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    """Seed default aliases for all doc types from hardcoded config."""
-    claims = _get_claims(request)
-    if not _is_company_admin(claims):
-        raise HTTPException(status_code=403, detail="admin_company_required")
-    tenant_id = claims.get("tenant_id")
-    if not tenant_id:
-        raise HTTPException(status_code=401, detail="tenant_id_missing")
-
-    from app.modules.imports.config.aliases import FIELD_ALIASES
-
-    defaults_by_module: dict[str, dict[str, list[str]]] = {
+def _seed_field_defaults(db: Session, tenant_id: str) -> dict:
+    """Seed default aliases + field_type for all modules. Reusable from onboarding."""
+    # (aliases, field_type)
+    defaults_by_module: dict[str, dict[str, tuple[list[str], str]]] = {
         "imports_invoices": {
-            "invoice_number": ["numero", "factura", "num_factura", "nro_factura", "invoice_no", "folio", "comprobante"],
-            "invoice_date": ["fecha", "fecha_factura", "fecha_emision", "issue_date", "date"],
-            "customer_name": ["cliente", "customer", "destinatario", "comprador"],
-            "vendor_name": ["proveedor", "supplier", "vendor", "empresa", "emisor"],
-            "amount_subtotal": ["subtotal", "sub_total", "neto", "base_imponible"],
-            "amount_tax": ["iva", "impuesto", "tax", "igv", "tributacion"],
-            "amount_total": ["total", "total_pagar", "importe", "monto", "valor_total"],
-            "tipo": ["tipo", "type", "tipo_documento"],
-            "tipo_identificacion": ["tipo_identificacion", "tipo_de_identificacion", "id_type"],
-            "numero_identificacion": ["numero_identificacion", "numero_de_identificacion", "ruc", "nif", "cif", "tax_id"],
-            "cod_producto": ["cod_producto", "codigo_producto", "product_code", "sku"],
-            "producto": ["producto", "product", "descripcion", "concepto", "detalle"],
-            "precio_unitario": ["precio_unitario", "unit_price", "precio", "price"],
-            "cantidad": ["cantidad", "qty", "quantity", "unidades"],
-            "sector": ["sector", "category", "area"],
-            "observacion": ["observacion", "observation", "notes", "notas"],
-            "promocion": ["promocion", "promotion", "descuento"],
-            "vendedor": ["vendedor", "seller", "cashier", "cajero"],
+            "invoice_number": (["numero", "factura", "num_factura", "nro_factura", "invoice_no", "folio", "comprobante", "num. factura", "nota de venta"], "string"),
+            "invoice_date": (["fecha", "fecha_factura", "fecha_emision", "issue_date", "date"], "date"),
+            "customer_name": (["cliente", "customer", "destinatario", "comprador", "buyer"], "string"),
+            "vendor_name": (["proveedor", "supplier", "vendor", "empresa", "emisor"], "string"),
+            "amount_subtotal": (["subtotal", "sub_total", "neto", "base_imponible"], "number"),
+            "amount_tax": (["iva", "impuesto", "tax", "igv", "tributacion"], "number"),
+            "amount_total": (["total", "total_pagar", "importe", "monto", "valor_total"], "number"),
+            "tipo": (["tipo", "type", "tipo_documento"], "string"),
+            "tipo_identificacion": (["tipo_identificacion", "tipo_de_identificacion", "id_type", "identification_type"], "string"),
+            "numero_identificacion": (["numero_identificacion", "numero_de_identificacion", "ruc", "nif", "cif", "nit", "tax_id", "cedula"], "string"),
+            "cod_producto": (["cod_producto", "codigo_producto", "product_code", "sku"], "string"),
+            "producto": (["producto", "product", "descripcion", "concepto", "detalle"], "string"),
+            "precio_unitario": (["precio_unitario", "unit_price", "precio", "price"], "number"),
+            "cantidad": (["cantidad", "qty", "quantity", "unidades"], "number"),
+            "sector": (["sector", "category", "area"], "string"),
+            "observacion": (["observacion", "observation", "notes", "notas"], "string"),
+            "promocion": (["promocion", "promotion", "descuento"], "string"),
+            "vendedor": (["vendedor", "seller", "cashier", "cajero", "forma de pago", "retencion"], "string"),
         },
         "imports_products": {
-            "name": ["nombre", "producto", "descripcion", "articulo", "detalle", "item"],
-            "sku": ["sku", "codigo", "code", "cod", "barcode", "ean", "upc", "referencia"],
-            "price": ["precio", "pvp", "precio_venta", "precio_unitario", "price", "importe"],
-            "cost_price": ["costo", "coste", "precio_costo", "costo_unitario", "cost"],
-            "stock": ["stock", "existencias", "cantidad", "inventario", "disponible", "unidades"],
-            "category": ["categoria", "familia", "rubro", "grupo", "seccion", "linea"],
-            "unit": ["unidad", "uom", "medida", "unidad_medida"],
+            "name": (["nombre", "producto", "descripcion", "articulo", "detalle", "item"], "string"),
+            "sku": (["sku", "codigo", "code", "cod", "barcode", "ean", "upc", "referencia", "cod. producto"], "string"),
+            "price": (["precio", "pvp", "precio_venta", "precio_unitario", "price", "importe"], "number"),
+            "cost_price": (["costo", "coste", "precio_costo", "costo_unitario", "cost"], "number"),
+            "stock": (["stock", "existencias", "cantidad", "inventario", "disponible", "unidades"], "number"),
+            "category": (["categoria", "familia", "rubro", "grupo", "seccion", "linea", "catalogo"], "string"),
+            "unit": (["unidad", "uom", "medida", "unidad_medida"], "string"),
         },
         "imports_bank_transactions": {
-            "transaction_date": ["fecha", "fecha_valor", "fecha_operacion", "value_date", "date"],
-            "amount": ["importe", "monto", "amount", "valor", "total"],
-            "description": ["concepto", "descripcion", "description", "detalle", "narrativa"],
-            "account_number": ["cuenta", "account", "iban", "numero_cuenta"],
-            "reference": ["referencia", "reference", "ref", "id_operacion"],
+            "transaction_date": (["fecha", "fecha_valor", "fecha_operacion", "value_date", "date"], "date"),
+            "amount": (["importe", "monto", "amount", "valor", "total", "saldo", "debit", "credit"], "number"),
+            "description": (["concepto", "descripcion", "description", "detalle", "narrativa", "movimiento", "extracto"], "string"),
+            "account_number": (["cuenta", "account", "iban", "numero_cuenta"], "string"),
+            "reference": (["referencia", "reference", "ref", "id_operacion"], "string"),
+            "bank": (["banco", "bank", "entidad", "transferencia"], "string"),
         },
         "imports_expenses": {
-            "expense_date": ["fecha", "date", "fecha_gasto"],
-            "amount": ["importe", "monto", "amount", "total", "valor"],
-            "description": ["concepto", "descripcion", "description", "detalle"],
-            "category": ["categoria", "category", "tipo"],
-            "vendor_name": ["proveedor", "vendor", "supplier", "comercio"],
+            "expense_date": (["fecha", "date", "fecha_gasto"], "date"),
+            "amount": (["importe", "monto", "amount", "total", "valor"], "number"),
+            "description": (["concepto", "descripcion", "description", "detalle"], "string"),
+            "category": (["categoria", "category", "tipo"], "string"),
+            "vendor_name": (["proveedor", "vendor", "supplier", "comercio"], "string"),
+        },
+        "imports_recipes": {
+            "recipe_name": (["receta", "recipe", "nombre", "name"], "string"),
+            "ingredients": (["ingredientes", "ingredients", "costo total ingredientes"], "string"),
+            "portions": (["porciones", "portions", "rendimiento"], "number"),
+            "costing": (["formato de costeo", "costing", "costeo", "preparacion"], "string"),
+        },
+        "imports_ticket_pos": {
+            "invoice_number": (["ticket", "ticket de venta", "ticket venta", "boleta", "comprobante de venta", "boleta de venta", "nº r-", "n° r-"], "string"),
+            "invoice_date": (["fecha", "date", "fecha_emision"], "date"),
+            "amount_total": (["total", "total pagar", "importe", "monto"], "number"),
+            "vendor_name": (["comercio", "tienda", "establecimiento", "emisor", "empresa"], "string"),
+            "vendedor": (["vendedor", "cajero", "cashier", "seller"], "string"),
+            "producto": (["producto", "item", "articulo", "detalle", "descripcion"], "string"),
+            "cantidad": (["cantidad", "qty", "quantity", "unidades"], "number"),
+            "precio_unitario": (["precio", "price", "precio_unitario", "unit_price"], "number"),
         },
     }
 
@@ -2649,7 +2654,7 @@ def seed_default_aliases(
         if existing > 0:
             seeded[module] = {"skipped": True, "existing": existing}
             continue
-        for idx, (field, aliases) in enumerate(fields.items()):
+        for idx, (field, (aliases, field_type)) in enumerate(fields.items()):
             row = TenantFieldConfig(
                 tenant_id=tenant_id,
                 module=module,
@@ -2658,9 +2663,26 @@ def seed_default_aliases(
                 required=False,
                 ord=idx + 1,
                 aliases=aliases,
+                field_type=field_type,
             )
             db.add(row)
         seeded[module] = {"created": len(fields)}
+    return seeded
+
+
+@router.post("/field-aliases/seed-defaults")
+def seed_default_aliases(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Seed default aliases for all doc types from hardcoded config."""
+    claims = _get_claims(request)
+    if not _is_company_admin(claims):
+        raise HTTPException(status_code=403, detail="admin_company_required")
+    tenant_id = claims.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="tenant_id_missing")
+    seeded = _seed_field_defaults(db, tenant_id)
     db.commit()
     return {"ok": True, "seeded": seeded}
 
@@ -4279,7 +4301,7 @@ def _load_aliases() -> dict:
     default_aliases = {
         "codigo": [
             "codigo",
-            "cÃ³digo",
+            "Código	",
             "sku",
             "code",
             "cod",

@@ -133,7 +133,19 @@ def auto_setup_tenant(
                     pass
                 result["errors"].append(f"Sector template: {str(e)}")
 
-        # 4. NO hacer commit - dejar que el caller lo maneje
+        # 4. Seed field configs (aliases + field_type) — unificado en el endpoint
+        #    El usuario puede re-ejecutar desde el botón "Inicializar aliases por defecto"
+        try:
+            from app.modules.imports.interface.http.tenant import _seed_field_defaults
+            seed_result = _seed_field_defaults(db, tenant_id)
+            result["import_classification_seeded"] = True
+            result["seeded_modules"] = seed_result
+            logger.info("✅ Field configs (aliases + clasificación) sembrados")
+        except Exception as e:
+            logger.error(f"Error seeding field configs: {e}")
+            result["errors"].append(f"Field configs: {str(e)}")
+
+        # 5. NO hacer commit - dejar que el caller lo maneje
         # db.commit()
 
         logger.info(f"✅ Auto-setup completado para tenant {tenant_id}")
@@ -221,3 +233,8 @@ def ensure_tenant_ready(db: Session, tenant_id: str) -> bool:
     except Exception as e:
         logger.error(f"Error verificando tenant ready: {e}")
         return False
+
+
+
+# _seed_import_classification removed — logic unified in
+# app.modules.imports.interface.http.tenant._seed_field_defaults

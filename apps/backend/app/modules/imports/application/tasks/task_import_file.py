@@ -1,13 +1,30 @@
+"""
+File import task with improved architecture.
+
+This module provides a Celery task for importing files using registered parsers.
+Key improvements:
+- Structured logging for debugging
+- Simplified main function through extraction of helper functions
+- Unified document type classification logic
+- Type hints with TypedDict for better type safety
+- Optimized product search queries
+- Centralized date handling
+- Improved alias caching
+- Optimized validation and deduplication
+"""
+
 from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import unicodedata
 from datetime import datetime
 from difflib import SequenceMatcher
-from typing import Any
+from functools import lru_cache
+from typing import Any, NamedTuple
 
 from celery import states
 
@@ -32,164 +49,136 @@ from app.modules.imports.domain.canonical_schema import validate_canonical
 from app.modules.imports.domain.mapping_feedback import MappingFeedback, mapping_learner
 from app.modules.imports.parsers import registry as parsers_registry
 
+
+# =============================================================================
+# Logging Configuration
+# =============================================================================
+
+logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Type Definitions
+# =============================================================================
+
+class ImportStats(NamedTuple):
+    """Statistics for import operations."""
+    processed: int
+    created: int
+    validated: int
+    failed: int
+
+
+class MappingConfig(NamedTuple):
+    """Configuration for column mapping."""
+    cfg: dict[str, str]
+    transforms: dict[str, Any]
+    defaults: dict[str, Any]
+    row: Any | None
+
+
+class DocumentTypeResult(NamedTuple):
+    """Result of document type detection."""
+    doc_type: str
+    parser_id: str
+    parsed_result: dict[str, Any]
+
+
+# =============================================================================
+# Constants
+# =============================================================================
+
 _MONTHS_MAP = {
-    "january": 1,
-    "jan": 1,
-    "enero": 1,
-    "ene": 1,
-    "february": 2,
-    "feb": 2,
-    "febrero": 2,
-    "march": 3,
-    "mar": 3,
-    "marzo": 3,
-    "april": 4,
-    "apr": 4,
-    "abril": 4,
-    "may": 5,
-    "mayo": 5,
-    "june": 6,
-    "jun": 6,
-    "junio": 6,
-    "july": 7,
-    "jul": 7,
-    "julio": 7,
-    "august": 8,
-    "aug": 8,
-    "agosto": 8,
-    "ago": 8,
-    "september": 9,
-    "sep": 9,
-    "sept": 9,
-    "septiembre": 9,
-    "setiembre": 9,
-    "october": 10,
-    "oct": 10,
-    "octubre": 10,
-    "november": 11,
-    "nov": 11,
-    "noviembre": 11,
-    "december": 12,
-    "dec": 12,
-    "diciembre": 12,
-    "dic": 12,
+    "january": 1, "jan": 1, "enero": 1, "ene": 1,
+    "february": 2, "feb": 2, "febrero": 2,
+    "march": 3, "mar": 3, "marzo": 3,
+    "april": 4, "apr": 4, "abril": 4,
+    "may": 5, "mayo": 5,
+    "june": 6, "jun": 6, "junio": 6,
+    "july": 7, "jul": 7, "julio": 7,
+    "august": 8, "aug": 8, "agosto": 8, "ago": 8,
+    "september": 9, "sep": 9, "sept": 9, "septiembre": 9, "setiembre": 9,
+    "october": 10, "oct": 10, "octubre": 10,
+    "november": 11, "nov": 11, "noviembre": 11,
+    "december": 12, "dec": 12, "diciembre": 12, "dic": 12,
 }
 
+DOC_TYPE_ALIASES = {
+    "bank": "bank_transactions",
+    "bank_tx": "bank_transactions",
+    "invoice": "invoices",
+    "factura": "invoices",
+    "facturas": "invoices",
+    "expense": "expenses",
+    "expenses": "expenses",
+    "receipt": "expenses",
+    "receipts": "expenses",
+    "product": "products",
+    "productos": "products",
+    "recipe": "recipes",
+    "receta": "recipes",
+    "recetas": "recipes",
+}
+
+BATCH_SIZE = 1000
+PRODUCT_SEARCH_LIMIT = 200  # Reduced from 2000 for better performance
+FUZZY_SIMILARITY_THRESHOLD = 0.88
+PRODUCT_NAME_MIN_LENGTH = 4
+
+# Keys for detecting document types
+INVOICE_KEYS = [
+    "invoice_number", "num_factura", "numero_factura", "nro_factura",
+    "folio", "comprobante", "total_pagar", "amount_total",
+    "amount_subtotal", "totals",
+]
+
+BANK_TRANSACTION_KEYS = [
+    "transaction_date", "fecha_operacion", "fecha_de_la_operacion",
+    "fecha_valor", "fecha_de_envio", "fecha_envio",
+]
+
+BANK_AMOUNT_KEYS = [
+    "amount", "importe", "importe_ordenado", "monto", "valor", "bank_tx",
+]
+
+PRODUCT_KEYS = [
+    "sku", "codigo", "code", "name", "nombre", "articulo", "producto",
+    "stock", "existencia", "existencias", "price", "precio",
+    "cost_price", "costo_promedio",
+]
+
+# =============================================================================
+# Date Parsing Utilities
+# =============================================================================
 
 def _parse_month_name_date(s: str) -> date | None:
+    """Parse dates with month names (e.g., 'August 3 2025', 'Agosto 3 2025')."""
     txt = str(s or "").strip().lower()
     if not txt:
         return None
     txt = re.sub(r"[,\.\s]+", " ", txt).strip()
-    # "August 3 2025" / "Agosto 3 2025"
-    m = re.match(r"^([a-zA-Z\u00C0-\u017F]+)\s+(\d{1,2})\s+(\d{4})$", txt)
-    if m:
-        month = _MONTHS_MAP.get(m.group(1))
-        if month:
-            try:
-                return date(int(m.group(3)), month, int(m.group(2)))
-            except Exception:
-                return None
-    # "3 August 2025" / "3 Agosto 2025"
-    m = re.match(r"^(\d{1,2})\s+([a-zA-Z\u00C0-\u017F]+)\s+(\d{4})$", txt)
-    if m:
-        month = _MONTHS_MAP.get(m.group(2))
-        if month:
-            try:
-                return date(int(m.group(3)), month, int(m.group(1)))
-            except Exception:
-                return None
-    # "August 2025" / "Agosto 2025" -> first day
-    m = re.match(r"^([a-zA-Z\u00C0-\u017F]+)\s+(\d{4})$", txt)
-    if m:
-        month = _MONTHS_MAP.get(m.group(1))
-        if month:
-            try:
-                return date(int(m.group(2)), month, 1)
-            except Exception:
-                return None
+
+    # Pattern: "August 3 2025" / "Agosto 3 2025"
+    patterns = [
+        (r"^([a-zA-Z\u00C0-\u017F]+)\s+(\d{1,2})\s+(\d{4})$", (3, 1, 2)),
+        (r"^(\d{1,2})\s+([a-zA-Z\u00C0-\u017F]+)\s+(\d{4})$", (2, 1, 3)),
+        (r"^([a-zA-Z\u00C0-\u017F]+)\s+(\d{4})$", (2, None, 1)),
+    ]
+
+    for pattern, order in patterns:
+        m = re.match(pattern, txt)
+        if m:
+            month = _MONTHS_MAP.get(m.group(1))
+            if month:
+                try:
+                    y_idx, d_idx, m_idx = order
+                    year = int(m.group(y_idx))
+                    day = int(m.group(d_idx)) if d_idx else 1
+                    return date(year, month, day)
+                except Exception:
+                    logger.debug(f"Failed to parse date from '{s}': invalid date values")
+                    return None
     return None
-
-
-def _json_safe(value: Any):
-    """Recursively convert values to JSON-safe primitives."""
-    if isinstance(value, dict):
-        return {str(k): _json_safe(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple, set)):
-        return [_json_safe(v) for v in value]
-    return _to_serializable(value)
-
-
-def _dedupe_hash(obj: dict[str, Any]) -> str:
-    s = json.dumps(_json_safe(obj), sort_keys=True, ensure_ascii=False).encode("utf-8")
-    return hashlib.sha256(s).hexdigest()
-
-
-def _idempotency_key(tenant_id: str, file_key: str, idx: int) -> str:
-    return f"{tenant_id}:{file_key}:{idx}"
-
-
-def _file_path_from_key(file_key: str) -> str:
-    # Local provider: file_key like "imports/{tenant}/{uuid}.xlsx" under uploads/
-    if file_key.startswith("imports/"):
-        return os.path.join("uploads", file_key.replace("/", os.sep))
-    return file_key
-
-
-def _to_serializable(val):
-    """Convert values to JSON-serializable primitives."""
-    try:
-        if isinstance(val, dict):
-            return {str(k): _to_serializable(v) for k, v in val.items()}
-        if isinstance(val, (list, tuple, set)):
-            return [_to_serializable(v) for v in val]
-        if isinstance(val, datetime | date | time):
-            return val.isoformat()
-        if isinstance(val, Decimal):
-            return float(val)
-        # Numpy scalar types -> Python scalars
-        try:
-            import numpy as np  # type: ignore
-
-            if isinstance(val, np.integer):
-                return int(val)
-            if isinstance(val, np.floating):
-                return float(val)
-            if isinstance(val, np.bool_):
-                return bool(val)
-        except Exception:
-            pass
-        return val
-    except Exception:
-        # Fallback: stringify unknown types
-        try:
-            return str(val)
-        except Exception:
-            return None
-
-
-def _to_number(val) -> float | None:
-    """Convert value to number."""
-    if val is None or val == "":
-        return None
-    if isinstance(val, (int, float)):
-        return float(val)
-    s = str(val).strip()
-    if not s:
-        return None
-    # Normalize common numeric formats like "1.234,56" and "1,234.56"
-    s_norm = re.sub(r"[^0-9,.-]", "", s)
-    if "," in s_norm and "." in s_norm:
-        if s_norm.rfind(",") > s_norm.rfind("."):
-            s_norm = s_norm.replace(".", "").replace(",", ".")
-        else:
-            s_norm = s_norm.replace(",", "")
-    else:
-        s_norm = s_norm.replace(",", ".")
-    try:
-        return float(s_norm)
-    except (ValueError, TypeError):
-        return None
 
 
 def _to_iso_date(val: Any) -> str | None:
@@ -205,24 +194,15 @@ def _to_iso_date(val: Any) -> str | None:
     s = str(val).strip()
     if not s:
         return None
+
     s_clean = s.replace(",", "").strip()
     date_formats = (
-        "%Y-%m-%d",
-        "%d-%m-%Y",
-        "%d/%m/%Y",
-        "%Y/%m/%d",
-        "%d.%m.%Y",
-        "%Y.%m.%d",
-        "%Y-%m-%d %H:%M:%S",
-        "%d-%m-%Y %H:%M:%S",
-        "%d/%m/%Y %H:%M:%S",
-        "%d %B %Y",
-        "%d %b %Y",
-        "%B %d %Y",
-        "%b %d %Y",
-        "%B %Y",
-        "%b %Y",
+        "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d",
+        "%d.%m.%Y", "%Y.%m.%d",
+        "%Y-%m-%d %H:%M:%S", "%d-%m-%Y %H:%M:%S", "%d/%m/%Y %H:%M:%S",
+        "%d %B %Y", "%d %b %Y", "%B %d %Y", "%b %d %Y", "%B %Y", "%b %Y",
     )
+
     for candidate in (s_clean, re.split(r"\s+", s_clean)[0]):
         for fmt in date_formats:
             try:
@@ -230,18 +210,31 @@ def _to_iso_date(val: Any) -> str | None:
                 return dt.isoformat()
             except Exception:
                 continue
+
     parsed = _parse_month_name_date(s_clean)
     if parsed:
         return parsed.isoformat()
-    # Numeric regex rescue for mixed OCR text.
+
+    # Numeric regex rescue for mixed OCR text
     m = re.search(r"(?<!\d)(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})(?!\d)", s_clean)
     if m:
         try:
             d, mth, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
             return date(y, mth, d).isoformat()
         except Exception:
+            logger.debug(f"Failed to parse date from numeric pattern in '{s}'")
             return None
     return None
+
+
+def _extract_and_normalize_date(
+    raw: dict[str, Any],
+    alias_map: dict[str, list[str]] | None,
+    keys: list[str]
+) -> str | None:
+    """Extract and normalize a date from multiple possible keys."""
+    value = _first_from_raw_with_aliases(raw, keys, alias_map)
+    return _to_iso_date(value) or _first_date_from_text(raw)
 
 
 def _first_date_from_text(raw: dict[str, Any]) -> str | None:
@@ -257,96 +250,108 @@ def _first_date_from_text(raw: dict[str, Any]) -> str | None:
     return None
 
 
-def _extract_invoice_number_from_text(raw: dict[str, Any]) -> str | None:
-    """Recover invoice number from noisy OCR text when explicit fields are missing."""
-    if not isinstance(raw, dict):
+# =============================================================================
+# Data Conversion Utilities
+# =============================================================================
+
+def _to_number(val) -> float | None:
+    """Convert value to number, handling common international formats."""
+    if val is None or val == "":
         return None
-    patterns = (
-        r"(?:factura|invoice|n[úu]mero(?:\s+de)?\s+factura|num\.?\s*factura)\s*[:#-]?\s*([A-Z0-9\-\/]{3,})",
-        r"\b([A-Z]{1,4}\-?\d{3,})\b",
-    )
-    for v in raw.values():
-        if v in (None, ""):
-            continue
-        txt = str(v)
-        for p in patterns:
-            m = re.search(p, txt, flags=re.IGNORECASE)
-            if m:
-                candidate = (m.group(1) or "").strip()
-                if len(candidate) >= 3:
-                    return candidate
-    return None
+    if isinstance(val, (int, float)):
+        return float(val)
+    s = str(val).strip()
+    if not s:
+        return None
+
+    # Normalize formats like "1.234,56" (European) and "1,234.56" (US)
+    s_norm = re.sub(r"[^0-9,.-]", "", s)
+    if "," in s_norm and "." in s_norm:
+        # Determine format by position of last separator
+        if s_norm.rfind(",") > s_norm.rfind("."):
+            # European: "1.234,56"
+            s_norm = s_norm.replace(".", "").replace(",", ".")
+        else:
+            # US: "1,234.56"
+            s_norm = s_norm.replace(",", "")
+    else:
+        s_norm = s_norm.replace(",", ".")
+
+    try:
+        return float(s_norm)
+    except (ValueError, TypeError) as e:
+        logger.debug(f"Failed to convert '{val}' to number: {e}")
+        return None
 
 
-def _infer_doc_type_from_record(
-    raw: dict[str, Any] | None,
-    normalized: dict[str, Any] | None = None,
-    fallback: str = "generic",
-) -> str:
-    """Infer business doc_type from available keys/values when parser returns generic."""
-    data: dict[str, Any] = {}
-    if isinstance(raw, dict):
-        data.update(raw)
-    if isinstance(normalized, dict):
-        data.update(normalized)
-    nmap = {_norm_key(k): v for k, v in data.items() if isinstance(k, str)}
+def _json_safe(value: Any) -> Any:
+    """Recursively convert values to JSON-safe primitives."""
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(v) for v in value]
+    return _to_serializable(value)
 
-    def has_any(*keys: str) -> bool:
-        for key in keys:
-            if key in nmap and nmap[key] not in (None, "", []):
-                return True
-        return False
 
-    if has_any(
-        "invoice_number",
-        "num_factura",
-        "numero_factura",
-        "nro_factura",
-        "folio",
-        "comprobante",
-        "total_pagar",
-        "amount_total",
-        "amount_subtotal",
-        "totals",
-    ):
-        return "invoices"
-    if has_any(
-        "transaction_date",
-        "fecha_operacion",
-        "fecha_de_la_operacion",
-        "fecha_valor",
-        "fecha_de_envio",
-        "fecha_envio",
-    ) and has_any(
-        "amount",
-        "importe",
-        "importe_ordenado",
-        "monto",
-        "valor",
-        "bank_tx",
-    ):
-        return "bank_transactions"
-    if has_any(
-        "sku",
-        "codigo",
-        "code",
-        "name",
-        "nombre",
-        "articulo",
-        "producto",
-        "stock",
-        "existencia",
-        "existencias",
-        "price",
-        "precio",
-        "cost_price",
-        "costo_promedio",
-    ):
-        return "products"
-    return fallback
+def _to_serializable(val: Any) -> Any:
+    """Convert values to JSON-serializable primitives."""
+    try:
+        if isinstance(val, dict):
+            return {str(k): _to_serializable(v) for k, v in val.items()}
+        if isinstance(val, (list, tuple, set)):
+            return [_to_serializable(v) for v in value] if isinstance(val, (list, set)) else [_to_serializable(v) for v in val]
+        if isinstance(val, datetime | date | time):
+            return val.isoformat()
+        if isinstance(val, Decimal):
+            return float(val)
+        # Numpy scalar types -> Python scalars
+        try:
+            import numpy as np  # type: ignore
+            if isinstance(val, np.integer):
+                return int(val)
+            if isinstance(val, np.floating):
+                return float(val)
+            if isinstance(val, np.bool_):
+                return bool(val)
+        except Exception:
+            pass
+        return val
+    except Exception as e:
+        logger.debug(f"Failed to serialize value: {e}")
+        try:
+            return str(val)
+        except Exception:
+            return None
 
+
+# =============================================================================
+# Hash and Key Utilities
+# =============================================================================
+
+def _dedupe_hash(obj: dict[str, Any]) -> str:
+    """Generate SHA256 hash for deduplication."""
+    s = json.dumps(_json_safe(obj), sort_keys=True, ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(s).hexdigest()
+
+
+def _idempotency_key(tenant_id: str, file_key: str, idx: int) -> str:
+    """Generate idempotency key for preventing duplicate imports."""
+    return f"{tenant_id}:{file_key}:{idx}"
+
+
+def _file_path_from_key(file_key: str) -> str:
+    """Convert file_key to actual file path."""
+    if file_key.startswith("imports/"):
+        return os.path.join("uploads", file_key.replace("/", os.sep))
+    return file_key
+
+
+# =============================================================================
+# Key Normalization and Lookup
+# =============================================================================
 
 def _norm_key(s: str) -> str:
+    """Normalize key to lowercase, remove accents, replace special chars with underscores."""
     try:
         s = unicodedata.normalize("NFKD", s)
         s = "".join(ch for ch in s if not unicodedata.combining(ch))
@@ -362,11 +367,13 @@ def _norm_key(s: str) -> str:
                     out.append("_")
                     prev_underscore = True
         return "".join(out).strip("_")
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to normalize key '{s}': {e}")
         return str(s).strip().lower()
 
 
 def _first_from_raw(raw: dict[str, Any], keys: list[str]) -> Any:
+    """Get first non-empty value from raw dict using keys."""
     if not isinstance(raw, dict):
         return None
     norm_map = {_norm_key(k): v for k, v in raw.items() if isinstance(k, str)}
@@ -379,7 +386,11 @@ def _first_from_raw(raw: dict[str, Any], keys: list[str]) -> Any:
     return None
 
 
-def _expand_keys_with_aliases(keys: list[str], alias_map: dict[str, list[str]] | None) -> list[str]:
+def _expand_keys_with_aliases(
+    keys: list[str],
+    alias_map: dict[str, list[str]] | None
+) -> list[str]:
+    """Expand keys with their aliases from the map."""
     if not alias_map:
         return keys
     out: list[str] = []
@@ -399,16 +410,184 @@ def _expand_keys_with_aliases(keys: list[str], alias_map: dict[str, list[str]] |
 
 
 def _first_from_raw_with_aliases(
-    raw: dict[str, Any], keys: list[str], alias_map: dict[str, list[str]] | None
+    raw: dict[str, Any],
+    keys: list[str],
+    alias_map: dict[str, list[str]] | None
 ) -> Any:
+    """Get first non-empty value from raw dict using keys and their aliases."""
     return _first_from_raw(raw, _expand_keys_with_aliases(keys, alias_map))
+
+
+# =============================================================================
+# Document Type Classification
+# =============================================================================
+
+def _normalize_doc_type(doc_type: str | None) -> str:
+    """Normalize document type alias to canonical type."""
+    if not doc_type:
+        return "generic"
+    doc = str(doc_type).lower()
+    return DOC_TYPE_ALIASES.get(doc, doc)
+
+
+def _infer_doc_type_from_record(
+    raw: dict[str, Any] | None,
+    normalized: dict[str, Any] | None = None,
+    fallback: str = "generic",
+) -> str:
+    """Infer business doc_type from available keys/values."""
+    data: dict[str, Any] = {}
+    if isinstance(raw, dict):
+        data.update(raw)
+    if isinstance(normalized, dict):
+        data.update(normalized)
+    nmap = {_norm_key(k): v for k, v in data.items() if isinstance(k, str)}
+
+    def has_any(*keys: str) -> bool:
+        return any(
+            key in nmap and nmap[key] not in (None, "", [])
+            for key in keys
+        )
+
+    if has_any(*INVOICE_KEYS):
+        return "invoices"
+    if has_any(*BANK_TRANSACTION_KEYS) and has_any(*BANK_AMOUNT_KEYS):
+        return "bank_transactions"
+    if has_any(*PRODUCT_KEYS):
+        return "products"
+    return fallback
+
+
+def _determine_document_type(
+    batch: ImportBatch,
+    parsed_result: dict[str, Any],
+    parser_info: dict[str, Any],
+    tenant_classification_kw: dict[str, tuple[str, ...]] | None = None,
+) -> DocumentTypeResult:
+    """
+    Determine document type with a unified decision flow.
+
+    Priority:
+    1. Batch pre-classification (from analyze, AI, or user)
+    2. Parser detection
+    3. Database classification keywords
+    4. Heuristic inference from record fields
+
+    Returns DocumentTypeResult with doc_type, effective_parser_id, and parsed_result.
+    """
+    # 1. Check batch pre-classification
+    batch_source = _normalize_doc_type(getattr(batch, "source_type", None))
+    if batch_source not in ("generic", "unknown", ""):
+        logger.debug(f"Using batch pre-classified type: {batch_source}")
+        return DocumentTypeResult(
+            doc_type=batch_source,
+            parser_id=parser_info["id"],
+            parsed_result=parsed_result,
+        )
+
+    # 2. Use parser detection
+    detected = _normalize_doc_type(
+        parsed_result.get("detected_type")
+        or parsed_result.get("doc_type")
+        or parser_info.get("doc_type")
+    )
+    if detected != "generic":
+        logger.debug(f"Using parser detected type: {detected}")
+        return DocumentTypeResult(
+            doc_type=detected,
+            parser_id=parser_info["id"],
+            parsed_result=parsed_result,
+        )
+
+    # 3. Try database classification keywords
+    if tenant_classification_kw and (headers := parsed_result.get("headers")):
+        from app.modules.imports.parsers.generic_excel import _detect_document_type
+        db_detected = _detect_document_type(headers, tenant_classification_kw)
+        if db_detected != "generic":
+            logger.debug(f"Using DB keyword detected type: {db_detected}")
+            return DocumentTypeResult(
+                doc_type=db_detected,
+                parser_id=parser_info["id"],
+                parsed_result=parsed_result,
+            )
+
+    # 4. Fallback to heuristic inference
+    sample = parsed_result if isinstance(parsed_result, dict) else {}
+    inferred = _infer_doc_type_from_record(sample, sample, fallback="generic")
+    logger.debug(f"Using inferred type: {inferred}")
+    return DocumentTypeResult(
+        doc_type=inferred,
+        parser_id=parser_info["id"],
+        parsed_result=parsed_result,
+    )
+
+
+def _try_generic_parser_fallback(
+    file_path: str,
+    effective_parser_id: str,
+    tenant_classification_kw: dict[str, tuple[str, ...]] | None,
+) -> tuple[str, dict[str, Any], str] | None:
+    """
+    Try generic parser as fallback when specialized parser returns no results.
+
+    Returns (doc_type, parsed_result, effective_parser_id) or None.
+    """
+    if (
+        effective_parser_id == "generic_excel"
+        or not str(file_path).lower().endswith((".xlsx", ".xls", ".xlsm", ".xlsb"))
+    ):
+        return None
+
+    generic_info = parsers_registry.get_parser("generic_excel")
+    if not generic_info or not callable(generic_info.get("handler")):
+        return None
+
+    try:
+        generic_result = generic_info["handler"](file_path)
+        generic_doc_type = _normalize_doc_type(
+            generic_result.get("detected_type")
+            or generic_result.get("doc_type")
+            or generic_info.get("doc_type")
+        )
+
+        # Re-classify with DB keywords if available
+        if generic_doc_type == "generic" and tenant_classification_kw:
+            if headers := generic_result.get("headers"):
+                from app.modules.imports.parsers.generic_excel import _detect_document_type
+                generic_doc_type = _detect_document_type(headers, tenant_classification_kw)
+
+        # Re-infer if still generic
+        if generic_doc_type == "generic":
+            sample = generic_result if isinstance(generic_result, dict) else {}
+            generic_doc_type = _infer_doc_type_from_record(sample, sample, fallback="generic")
+
+        generic_items = _extract_items_from_parsed_result(generic_result, generic_doc_type)
+        if len(generic_items) > 0:
+            logger.info(f"Generic parser fallback succeeded with {len(generic_items)} items")
+            return (generic_doc_type, generic_result, "generic_excel")
+    except Exception as e:
+        logger.warning(f"Generic parser fallback failed: {e}")
+    return None
+
+
+# =============================================================================
+# Alias Management
+# =============================================================================
+
+@lru_cache(maxsize=32)
+def _load_dynamic_alias_map_cached(tenant_id: str, doc_type: str) -> str:
+    """Cached version of alias map loading - returns JSON string for caching."""
+    # This is a wrapper that returns the JSON string for LRU cache
+    # The actual loading happens in _load_dynamic_alias_map
+    return ""
 
 
 def _load_dynamic_alias_map(db, tenant_id: str, doc_type: str) -> dict[str, list[str]]:
     """Load aliases configured in tenant_field_configs for imports."""
     try:
         from app.models.core.ui_field_config import TenantFieldConfig  # type: ignore
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Could not import TenantFieldConfig: {e}")
         return {}
 
     module_candidates = [f"imports_{doc_type}", "imports"]
@@ -420,6 +599,7 @@ def _load_dynamic_alias_map(db, tenant_id: str, doc_type: str) -> dict[str, list
         )
         .all()
     )
+
     out: dict[str, list[str]] = {}
     for row in rows:
         field = _norm_key(getattr(row, "field", ""))
@@ -437,23 +617,22 @@ def _load_dynamic_alias_map(db, tenant_id: str, doc_type: str) -> dict[str, list
     return out
 
 
-def _normalize_doc_type(doc_type: str | None) -> str:
-    """Mapear alias a doc_type canónico usado por el módulo."""
-    if not doc_type:
-        return "generic"
-    doc = str(doc_type).lower()
-    if doc in ("bank", "bank_tx", "bank_transactions"):
-        return "bank_transactions"
-    if doc in ("invoice", "invoices", "factura", "facturas"):
-        return "invoices"
-    if doc in ("expense", "expenses", "receipt", "receipts"):
-        return "expenses"
-    if doc in ("product", "products", "productos"):
-        return "products"
-    if doc in ("recipe", "recipes", "receta", "recetas"):
-        return "recipes"
-    return doc
+def _get_alias_map(
+    db,
+    tenant_id: str,
+    doc_type: str,
+    alias_cache: dict[str, dict[str, list[str]]]
+) -> dict[str, list[str]]:
+    """Get alias map from cache or load it."""
+    cache_key = doc_type
+    if cache_key not in alias_cache:
+        alias_cache[cache_key] = _load_dynamic_alias_map(db, str(tenant_id), doc_type)
+    return alias_cache[cache_key]
 
+
+# =============================================================================
+# Column Mapping
+# =============================================================================
 
 def _apply_column_mapping(
     raw: dict[str, Any],
@@ -462,6 +641,7 @@ def _apply_column_mapping(
     transforms: dict[str, Any] | None = None,
     defaults: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
+    """Apply column mapping, transforms, and defaults to raw data."""
     if not mapping:
         return None
     base: dict[str, Any] = {}
@@ -470,6 +650,7 @@ def _apply_column_mapping(
             continue
         if src in raw:
             base[dst] = raw.get(src)
+
     if transforms:
         ctx = dict(base)
         for field, spec in transforms.items():
@@ -490,8 +671,10 @@ def _apply_column_mapping(
                 if val is not None:
                     base[field] = val
                 ctx[field] = base.get(field)
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Failed to apply transform for field '{field}': {e}")
                 continue
+
     if defaults:
         for k, v in defaults.items():
             if k not in base or base[k] in (None, ""):
@@ -499,36 +682,62 @@ def _apply_column_mapping(
     return base or None
 
 
+def _load_mapping_config(db, batch: ImportBatch) -> MappingConfig:
+    """Load column mapping configuration from database."""
+    try:
+        if not getattr(batch, "mapping_id", None):
+            return MappingConfig(cfg={}, transforms={}, defaults={}, row=None)
+
+        from app.models.imports import ImportColumnMapping  # type: ignore
+
+        cm = (
+            db.query(ImportColumnMapping)
+            .filter(ImportColumnMapping.id == batch.mapping_id)
+            .first()
+        )
+        if not cm:
+            return MappingConfig(cfg={}, transforms={}, defaults={}, row=None)
+
+        return MappingConfig(
+            cfg=cm.mapping or cm.mappings or {},
+            transforms=getattr(cm, "transforms", None) or {},
+            defaults=getattr(cm, "defaults", None) or {},
+            row=cm,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to load mapping config: {e}")
+        return MappingConfig(cfg={}, transforms={}, defaults={}, row=None)
+
+
+# =============================================================================
+# Item Extraction and Validation
+# =============================================================================
+
 def _extract_items_from_parsed_result(
-    parsed_result: dict[str, Any], doc_type: str
+    parsed_result: dict[str, Any],
+    doc_type: str
 ) -> list[dict[str, Any]]:
     """Extract items list from parser result based on doc_type."""
-    # If parser embeds items in a top-level key, unwrap first
-    if doc_type == "products":
-        return parsed_result.get("products", parsed_result.get("rows", [parsed_result]))
-    elif doc_type == "invoices":
-        return parsed_result.get(
-            "invoices",
-            parsed_result.get("documents", parsed_result.get("rows", [parsed_result])),
-        )
-    elif doc_type == "bank_transactions":
-        return parsed_result.get(
+    extractors = {
+        "products": lambda r: r.get("products", r.get("rows", [r])),
+        "invoices": lambda r: r.get("invoices", r.get("documents", r.get("rows", [r]))),
+        "bank_transactions": lambda r: r.get(
             "bank_transactions",
-            parsed_result.get(
-                "transactions",
-                parsed_result.get("rows", [parsed_result]),
-            ),
-        )
-    elif doc_type == "recipes":
-        return parsed_result.get("recipes", [parsed_result])
-    elif "rows" in parsed_result:
+            r.get("transactions", r.get("rows", [r])),
+        ),
+        "recipes": lambda r: r.get("recipes", [r]),
+    }
+
+    extractor = extractors.get(doc_type)
+    if extractor:
+        return extractor(parsed_result)
+    if "rows" in parsed_result:
         return parsed_result["rows"]
-    else:
-        return [parsed_result]
+    return [parsed_result]
 
 
 def _unwrap_wrapped_item(raw: dict[str, Any]) -> dict[str, Any]:
-    """Unwrap accidental parser envelope rows: {'rows':[...], 'headers':...}."""
+    """Unwrap accidental parser envelope rows."""
     if not isinstance(raw, dict):
         return raw
     rows = raw.get("rows")
@@ -543,7 +752,7 @@ def _unwrap_wrapped_item(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def _is_meaningful_row(raw: dict[str, Any], item_doc_type: str) -> bool:
-    """Skip footer/blank rows that only introduce validation noise."""
+    """Check if row contains meaningful data (skip footer/blank rows)."""
     if not isinstance(raw, dict):
         return False
 
@@ -554,58 +763,251 @@ def _is_meaningful_row(raw: dict[str, Any], item_doc_type: str) -> bool:
         return False
 
     if item_doc_type in ("products", "product"):
-        if _first_from_raw(
+        return bool(_first_from_raw(
             raw, ["name", "nombre", "producto", "articulo", "sku", "codigo", "code"]
-        ):
-            return True
-        # Keep row only if it has a meaningful numeric payload.
-        nums = [
-            _to_number(
-                _first_from_raw(
-                    raw, ["price", "precio", "cost", "costo", "stock", "cantidad", "existencia"]
-                )
-            )
-        ]
-        return any(n not in (None, 0.0) for n in nums)
+        )) or any(
+            _to_number(_first_from_raw(
+                raw, ["price", "precio", "cost", "costo", "stock", "cantidad", "existencia"]
+            )) not in (None, 0.0)
+        )
 
     if item_doc_type == "bank_transactions":
-        has_date = bool(
-            _first_from_raw(
-                raw,
-                [
-                    "transaction_date",
-                    "issue_date",
-                    "value_date",
-                    "date",
-                    "fecha",
-                    "fecha_valor",
-                    "fecha_operacion",
-                    "fecha de la operacion",
-                    "fecha de envio",
-                    "fecha_envio",
-                ],
-            )
-        )
+        has_date = bool(_first_from_raw(
+            raw,
+            ["transaction_date", "issue_date", "value_date", "date", "fecha",
+             "fecha_valor", "fecha_operacion", "fecha de la operacion", "fecha de envio", "fecha_envio"],
+        ))
         has_amount = _to_number(
             _first_from_raw(raw, ["amount", "importe", "monto", "valor", "debit", "credit"])
         )
         return has_date or has_amount not in (None, 0.0)
 
     if item_doc_type == "invoices":
-        has_date = bool(
-            _first_from_raw(raw, ["invoice_date", "issue_date", "date", "fecha", "fecha_emision"])
-        )
-        has_number = bool(
-            _first_from_raw(
-                raw, ["invoice_number", "num_factura", "numero_factura", "comprobante", "folio"]
-            )
-        )
+        has_date = bool(_first_from_raw(
+            raw, ["invoice_date", "issue_date", "date", "fecha", "fecha_emision"]
+        ))
+        has_number = bool(_first_from_raw(
+            raw, ["invoice_number", "num_factura", "numero_factura", "comprobante", "folio"]
+        ))
         has_total = _to_number(
             _first_from_raw(raw, ["total", "amount_total", "importe", "monto", "valor_total"])
         )
         return has_date or has_number or has_total not in (None, 0.0)
 
     return True
+
+
+# =============================================================================
+# Canonical Document Builder
+# =============================================================================
+
+def _extract_invoice_number_from_text(raw: dict[str, Any]) -> str | None:
+    """Recover invoice number from noisy OCR text."""
+    if not isinstance(raw, dict):
+        return None
+    patterns = (
+        r"(?:factura|invoice|n[úu]mero(?:\s+de)?\s+factura|num\.?\s*factura)\s*[:#-]?\s*([A-Z0-9\-\/]{3,})",
+        r"\b([A-Z]{1,4}\-?\d{3,})\b",
+    )
+    for v in raw.values():
+        if v in (None, ""):
+            continue
+        txt = str(v)
+        for p in patterns:
+            m = re.search(p, txt, flags=re.IGNORECASE)
+            if m:
+                candidate = (m.group(1) or "").strip()
+                if len(candidate) >= 3:
+                    return candidate
+    return None
+
+
+def _build_invoice_canonical(
+    raw: dict[str, Any],
+    normalized: dict[str, Any],
+    parser_id: str,
+    alias_map: dict[str, list[str]] | None,
+) -> dict[str, Any]:
+    """Build canonical document for invoices."""
+    def pick(keys: list[str]) -> Any:
+        return _first_from_raw_with_aliases(raw, keys, alias_map)
+
+    invoice_number = (
+        raw.get("invoice_number") or raw.get("invoice") or raw.get("number")
+        or raw.get("numero_factura") or raw.get("numero")
+        or pick(["invoice_number", "invoice", "number", "num_factura",
+                "numero_factura", "numero", "nro", "folio", "comprobante"])
+    )
+    if not invoice_number:
+        invoice_number = _extract_invoice_number_from_text(raw)
+
+    issue_date_raw = (
+        raw.get("issue_date") or raw.get("invoice_date") or raw.get("date")
+        or pick(["issue_date", "invoice_date", "date", "fecha", "fecha_emision"])
+    )
+    issue_date = _to_iso_date(issue_date_raw) or _first_date_from_text(raw)
+
+    totals = raw.get("totals") if isinstance(raw.get("totals"), dict) else {}
+    subtotal = totals.get("subtotal")
+    tax = totals.get("tax")
+    total = totals.get("total")
+
+    if subtotal is None:
+        subtotal = _to_number(pick(["subtotal", "sub_total", "neto", "amount_subtotal", "base"]))
+    if tax is None:
+        tax = _to_number(pick(["tax", "iva", "impuesto", "amount_tax"]))
+    if total is None:
+        total = _to_number(pick(["total", "total_pagar", "amount_total", "importe", "monto", "valor_total"]))
+
+    if subtotal is None and total is not None:
+        subtotal = total
+    if tax is None:
+        tax = 0.0
+
+    if not invoice_number:
+        base = f"{issue_date or ''}|{total or ''}|{pick(['vendor', 'proveedor', 'supplier', 'customer', 'cliente']) or ''}"
+        if base.strip("|"):
+            invoice_number = f"AUTO-{hashlib.sha256(base.encode('utf-8')).hexdigest()[:10].upper()}"
+
+    return (
+        raw if raw.get("doc_type") == "invoice"
+        else {
+            "doc_type": "invoice",
+            "invoice_number": invoice_number,
+            "issue_date": issue_date,
+            "due_date": raw.get("due_date"),
+            "vendor": raw.get("vendor") or {"name": pick(["vendor", "proveedor", "supplier"])},
+            "buyer": raw.get("buyer") or {"name": pick(["buyer", "customer", "cliente"])},
+            "totals": raw.get("totals") or {"subtotal": subtotal, "tax": tax, "total": total},
+            "lines": raw.get("lines"),
+            "currency": raw.get("currency", "USD"),
+            "payment": raw.get("payment"),
+            "source": raw.get("source", "parser"),
+            "confidence": raw.get("confidence", 0.7),
+        }
+    )
+
+
+def _build_bank_transaction_canonical(
+    raw: dict[str, Any],
+    parser_id: str,
+    alias_map: dict[str, list[str]] | None,
+) -> dict[str, Any]:
+    """Build canonical document for bank transactions."""
+    def pick(keys: list[str]) -> Any:
+        return _first_from_raw_with_aliases(raw, keys, alias_map)
+
+    tx_date_raw = (
+        raw.get("transaction_date") or raw.get("issue_date") or raw.get("value_date")
+        or pick(["transaction_date", "issue_date", "value_date", "date", "fecha",
+                "fecha_valor", "fecha_operacion", "fecha de la operacion",
+                "fecha de operacion", "fecha de envio", "fecha de envío", "fecha_envio"])
+    )
+    tx_date = _to_iso_date(tx_date_raw) or _first_date_from_text(raw)
+
+    tx_amount = _to_number(
+        raw.get("amount") or raw.get("importe")
+        or pick(["amount", "importe", "monto", "valor", "debit", "credit"])
+    )
+    if tx_amount is None:
+        tx_amount = _to_number(pick(["monto debito", "monto credito", "importe ordenado"]))
+
+    direction = raw.get("direction") or ("debit" if (tx_amount or 0) < 0 else "credit")
+    iban_val = raw.get("iban") or pick(["iban", "cuenta", "account"])
+
+    return (
+        raw if raw.get("doc_type") == "bank_tx"
+        else {
+            "doc_type": "bank_tx",
+            "transaction_date": tx_date,
+            "issue_date": tx_date,
+            "currency": raw.get("currency", "USD"),
+            "bank_tx": raw.get(
+                "bank_tx",
+                {
+                    "amount": abs(float(tx_amount)) if tx_amount is not None else None,
+                    "direction": direction,
+                    "value_date": raw.get("value_date") or tx_date,
+                    "narrative": raw.get("narrative") or raw.get("concepto")
+                    or pick(["description", "descripcion", "detalle", "concepto"]),
+                    "counterparty": raw.get("counterparty")
+                    or pick(["beneficiario", "ordenante", "counterparty"]),
+                    "external_ref": raw.get("external_ref") or pick(["reference", "referencia", "ref", "id"]),
+                },
+            ),
+            "payment": {"iban": iban_val} if iban_val else {},
+            "source": raw.get("source", "parser"),
+            "confidence": raw.get("confidence", 0.7),
+        }
+    )
+
+
+def _build_product_canonical(
+    raw: dict[str, Any],
+    normalized: dict[str, Any],
+    parser_id: str,
+    alias_map: dict[str, list[str]] | None,
+) -> dict[str, Any]:
+    """Build canonical document for products."""
+    def pick(keys: list[str]) -> Any:
+        return _first_from_raw_with_aliases(raw, keys, alias_map)
+
+    name = (
+        normalized.get("name") or normalized.get("nombre")
+        or pick(["name", "nombre", "producto", "articulo"]) or ""
+    )
+    price = (
+        _to_number(
+            normalized.get("price") or normalized.get("precio")
+            or pick(["price", "precio", "venta", "valor", "importe",
+                    "precio_unitario", "precio_unitario_venta"])
+        ) or 0.0
+    )
+    cost = _to_number(
+        normalized.get("cost_price") or normalized.get("cost")
+        or normalized.get("costo") or normalized.get("unit_cost")
+        or pick(["cost_price", "cost", "costo", "unit_cost", "costo_promedio",
+                "costo promedio", "costo_unitario", "costo unitario"])
+    )
+    stock = _to_number(
+        normalized.get("stock") or normalized.get("cantidad")
+        or pick(["stock", "cantidad", "existencia", "existencias", "unidades"])
+    )
+    category = (
+        normalized.get("category") or normalized.get("categoria")
+        or pick(["category", "categoria"])
+    )
+    sku = (
+        normalized.get("sku") or normalized.get("codigo")
+        or pick(["sku", "codigo", "code", "cod"])
+    )
+    unit = normalized.get("unit") or normalized.get("unidad") or pick(["unit", "unidad", "uom"])
+
+    product_data = {
+        "name": str(name).strip(),
+        "sku": str(sku).strip() if sku not in (None, "") else None,
+        "category": str(category).strip() if category not in (None, "") else None,
+        "price": float(price),
+        "stock": float(stock) if stock is not None else None,
+        "unit": str(unit).strip() if unit not in (None, "") else None,
+    }
+
+    if cost is not None:
+        product_data["cost_price"] = float(cost)
+        product_data["cost"] = float(cost)
+        product_data["unit_cost"] = float(cost)
+
+    return {
+        "doc_type": "product",
+        "product": product_data,
+        "metadata": {
+            "parser": parser_id,
+            "doc_type_detected": "products",
+            "raw_data": raw,
+        },
+        "source": "parser",
+        "confidence": raw.get("confidence", 0.5),
+    }
 
 
 def _build_canonical_from_item(
@@ -615,161 +1017,12 @@ def _build_canonical_from_item(
     parser_id: str,
     alias_map: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
-    """
-    Construir CanonicalDocument a partir de un item parseado.
-
-    Mapea segun doc_type (products, invoices, bank_transactions) al esquema SPEC-1.
-    """
-
-    def pick(keys: list[str]) -> Any:
-        return _first_from_raw_with_aliases(raw, keys, alias_map)
-
-    if doc_type == "invoices":
-        invoice_number = (
-            raw.get("invoice_number")
-            or raw.get("invoice")
-            or raw.get("number")
-            or raw.get("numero_factura")
-            or raw.get("numero")
-            or pick(
-                [
-                    "invoice_number",
-                    "invoice",
-                    "number",
-                    "num_factura",
-                    "numero_factura",
-                    "numero",
-                    "nro",
-                    "folio",
-                    "comprobante",
-                ]
-            )
-        )
-        if not invoice_number:
-            invoice_number = _extract_invoice_number_from_text(raw)
-        issue_date = (
-            raw.get("issue_date")
-            or raw.get("invoice_date")
-            or raw.get("date")
-            or pick(["issue_date", "invoice_date", "date", "fecha", "fecha_emision"])
-        )
-        issue_date = _to_iso_date(issue_date) or _first_date_from_text(raw)
-        totals = raw.get("totals") if isinstance(raw.get("totals"), dict) else {}
-        subtotal = totals.get("subtotal")
-        tax = totals.get("tax")
-        total = totals.get("total")
-        if subtotal is None:
-            subtotal = _to_number(
-                pick(["subtotal", "sub_total", "neto", "amount_subtotal", "base"])
-            )
-        if tax is None:
-            tax = _to_number(pick(["tax", "iva", "impuesto", "amount_tax"]))
-        if total is None:
-            total = _to_number(
-                pick(["total", "total_pagar", "amount_total", "importe", "monto", "valor_total"])
-            )
-        if subtotal is None and total is not None:
-            subtotal = total
-        if tax is None:
-            tax = 0.0
-        if not invoice_number:
-            base = (
-                f"{issue_date or ''}|{total or ''}|"
-                f"{pick(['vendor', 'proveedor', 'supplier', 'customer', 'cliente']) or ''}"
-            )
-            if base.strip("|"):
-                invoice_number = (
-                    f"AUTO-{hashlib.sha256(base.encode('utf-8')).hexdigest()[:10].upper()}"
-                )
-
-        return (
-            raw
-            if raw.get("doc_type") == "invoice"
-            else {
-                "doc_type": "invoice",
-                "invoice_number": invoice_number,
-                "issue_date": issue_date,
-                "due_date": raw.get("due_date"),
-                "vendor": raw.get("vendor") or {"name": pick(["vendor", "proveedor", "supplier"])},
-                "buyer": raw.get("buyer") or {"name": pick(["buyer", "customer", "cliente"])},
-                "totals": raw.get("totals")
-                or {
-                    "subtotal": subtotal,
-                    "tax": tax,
-                    "total": total,
-                },
-                "lines": raw.get("lines"),
-                "currency": raw.get("currency", "USD"),
-                "payment": raw.get("payment"),
-                "source": raw.get("source", "parser"),
-                "confidence": raw.get("confidence", 0.7),
-            }
-        )
-
-    elif doc_type == "bank_transactions":
-        tx_date = (
-            raw.get("transaction_date")
-            or raw.get("issue_date")
-            or raw.get("value_date")
-            or pick(
-                [
-                    "transaction_date",
-                    "issue_date",
-                    "value_date",
-                    "date",
-                    "fecha",
-                    "fecha_valor",
-                    "fecha_operacion",
-                    "fecha de la operacion",
-                    "fecha de operacion",
-                    "fecha de envio",
-                    "fecha de envío",
-                    "fecha_envio",
-                ]
-            )
-        )
-        tx_date = _to_iso_date(tx_date) or _first_date_from_text(raw)
-        tx_amount = _to_number(
-            raw.get("amount")
-            or raw.get("importe")
-            or pick(["amount", "importe", "monto", "valor", "debit", "credit"])
-        )
-        if tx_amount is None:
-            tx_amount = _to_number(pick(["monto debito", "monto credito", "importe ordenado"]))
-        direction = raw.get("direction") or ("debit" if (tx_amount or 0) < 0 else "credit")
-        iban_val = raw.get("iban") or pick(["iban", "cuenta", "account"])
-
-        return (
-            raw
-            if raw.get("doc_type") == "bank_tx"
-            else {
-                "doc_type": "bank_tx",
-                "transaction_date": tx_date,
-                "issue_date": tx_date,
-                "currency": raw.get("currency", "USD"),
-                "bank_tx": raw.get(
-                    "bank_tx",
-                    {
-                        "amount": abs(float(tx_amount)) if tx_amount is not None else None,
-                        "direction": direction,
-                        "value_date": raw.get("value_date") or tx_date,
-                        "narrative": raw.get("narrative")
-                        or raw.get("concepto")
-                        or pick(["description", "descripcion", "detalle", "concepto"]),
-                        "counterparty": raw.get("counterparty")
-                        or pick(["beneficiario", "ordenante", "counterparty"]),
-                        "external_ref": raw.get("external_ref")
-                        or pick(["reference", "referencia", "ref", "id"]),
-                    },
-                ),
-                "payment": {"iban": iban_val} if iban_val else {},
-                "source": raw.get("source", "parser"),
-                "confidence": raw.get("confidence", 0.7),
-            }
-        )
-
-    elif doc_type == "recipes":
-        return {
+    """Build canonical document from parsed item based on doc_type."""
+    builders = {
+        "invoices": lambda: _build_invoice_canonical(raw, normalized, parser_id, alias_map),
+        "bank_transactions": lambda: _build_bank_transaction_canonical(raw, parser_id, alias_map),
+        "products": lambda: _build_product_canonical(raw, normalized, parser_id, alias_map),
+        "recipes": lambda: {
             "doc_type": "product",
             "product": {
                 "name": raw.get("name") or normalized.get("name"),
@@ -783,105 +1036,32 @@ def _build_canonical_from_item(
             },
             "source": "parser",
             "confidence": raw.get("confidence", 0.6),
-        }
+        },
+    }
 
-    elif doc_type in ("products", "product"):
-        name = (
-            normalized.get("name")
-            or normalized.get("nombre")
-            or pick(["name", "nombre", "producto", "articulo"])
-            or ""
-        )
-        price = (
-            _to_number(
-                normalized.get("price")
-                or normalized.get("precio")
-                or pick(
-                    [
-                        "price",
-                        "precio",
-                        "venta",
-                        "valor",
-                        "importe",
-                        "precio_unitario",
-                        "precio_unitario_venta",
-                    ]
-                )
-            )
-            or 0.0
-        )
-        cost = _to_number(
-            normalized.get("cost_price")
-            or normalized.get("cost")
-            or normalized.get("costo")
-            or normalized.get("unit_cost")
-            or pick(
-                [
-                    "cost_price",
-                    "cost",
-                    "costo",
-                    "unit_cost",
-                    "costo_promedio",
-                    "costo promedio",
-                    "costo_unitario",
-                    "costo unitario",
-                ]
-            )
-        )
-        stock = _to_number(
-            normalized.get("stock")
-            or normalized.get("cantidad")
-            or pick(["stock", "cantidad", "existencia", "existencias", "unidades"])
-        )
-        category = (
-            normalized.get("category")
-            or normalized.get("categoria")
-            or pick(["category", "categoria"])
-        )
-        sku = (
-            normalized.get("sku")
-            or normalized.get("codigo")
-            or pick(["sku", "codigo", "code", "cod"])
-        )
-        unit = normalized.get("unit") or normalized.get("unidad") or pick(["unit", "unidad", "uom"])
-        product_data = {
-            "name": str(name).strip(),
-            "sku": str(sku).strip() if sku not in (None, "") else None,
-            "category": str(category).strip() if category not in (None, "") else None,
-            "price": float(price),
-            "stock": float(stock) if stock is not None else None,
-            "unit": str(unit).strip() if unit not in (None, "") else None,
-        }
-        if cost is not None:
-            product_data["cost_price"] = float(cost)
-            product_data["cost"] = float(cost)
-            product_data["unit_cost"] = float(cost)
-        return {
-            "doc_type": "product",
-            "product": product_data,
-            "metadata": {
-                "parser": parser_id,
-                "doc_type_detected": doc_type,
-                "raw_data": raw,
-            },
-            "source": "parser",
-            "confidence": raw.get("confidence", 0.5),
-        }
-    else:  # generic or other
-        detected = raw.get("doc_type") or raw.get("detected_type") or doc_type
-        return {
-            "doc_type": detected if detected in ("other",) else "other",
-            "metadata": {
-                "parser": parser_id,
-                "doc_type_detected": detected,
-                "raw_data": raw,
-            },
-            "source": "parser",
-            "confidence": raw.get("confidence", 0.5),
-        }
+    builder = builders.get(doc_type)
+    if builder:
+        return builder()
 
+    detected = raw.get("doc_type") or raw.get("detected_type") or doc_type
+    return {
+        "doc_type": detected if detected in ("other",) else "other",
+        "metadata": {
+            "parser": parser_id,
+            "doc_type_detected": detected,
+            "raw_data": raw,
+        },
+        "source": "parser",
+        "confidence": raw.get("confidence", 0.5),
+    }
+
+
+# =============================================================================
+# Product Search and Management
+# =============================================================================
 
 def _normalize_product_name(value: str | None) -> str:
+    """Normalize product name for comparison."""
     if not value:
         return ""
     txt = unicodedata.normalize("NFKD", str(value))
@@ -893,6 +1073,7 @@ def _normalize_product_name(value: str | None) -> str:
 
 
 def _normalize_product_tokens(value: str | None) -> list[str]:
+    """Normalize product name into tokens for fuzzy matching."""
     base = _normalize_product_name(value)
     if not base:
         return []
@@ -906,21 +1087,31 @@ def _normalize_product_tokens(value: str | None) -> list[str]:
 
 
 def _is_similar_product_name(left: str | None, right: str | None) -> bool:
+    """Check if two product names are similar using fuzzy matching."""
     a_tokens = _normalize_product_tokens(left)
     b_tokens = _normalize_product_tokens(right)
     if not a_tokens or not b_tokens:
         return False
+
     a = " ".join(a_tokens)
     b = " ".join(b_tokens)
+
+    # Exact match
     if a == b:
         return True
+
+    # Substring match with minimum length check
     if a in b or b in a:
         min_len = min(len(a), len(b))
         max_len = max(len(a), len(b))
-        if min_len >= 4 and (min_len / max_len) >= 0.6:
+        if min_len >= PRODUCT_NAME_MIN_LENGTH and (min_len / max_len) >= 0.6:
             return True
-    if SequenceMatcher(None, a, b).ratio() >= 0.88:
+
+    # Sequence similarity
+    if SequenceMatcher(None, a, b).ratio() >= FUZZY_SIMILARITY_THRESHOLD:
         return True
+
+    # Token overlap
     a_set = set(a_tokens)
     b_set = set(b_tokens)
     overlap = len(a_set.intersection(b_set))
@@ -928,11 +1119,13 @@ def _is_similar_product_name(left: str | None, right: str | None) -> bool:
 
 
 def _find_product_by_name(db, tenant_id: str, name: str) -> Product | None:
+    """Find product by name with improved query performance."""
     target = _normalize_product_name(name)
     if not target:
         return None
+
     try:
-        # Fast path: case-insensitive exact match.
+        # Fast path: case-insensitive exact match
         by_name_ci = (
             db.query(Product)
             .filter(
@@ -942,27 +1135,34 @@ def _find_product_by_name(db, tenant_id: str, name: str) -> Product | None:
             .first()
         )
         if by_name_ci:
+            logger.debug(f"Found exact match for product: {name}")
             return by_name_ci
 
-        # Fuzzy fallback to avoid creating near-duplicates.
+        # Fuzzy fallback with limited results
         probe = target.split(" ")[0]
         query = db.query(Product).filter(Product.tenant_id == tenant_id)
         if probe:
             query = query.filter(Product.name.ilike(f"%{probe}%"))
-        candidates = query.limit(2000).all()
+        candidates = query.limit(PRODUCT_SEARCH_LIMIT).all()
+
         for cand in candidates:
             if _normalize_product_name(cand.name) == target:
+                logger.debug(f"Found normalized match for product: {name}")
                 return cand
             if _is_similar_product_name(cand.name, name):
+                logger.debug(f"Found similar product: {cand.name} ~ {name}")
                 return cand
-    except Exception:
-        return None
+    except Exception as e:
+        logger.warning(f"Error searching product by name '{name}': {e}")
     return None
 
 
 def _resolve_or_create_category_id(
-    db, tenant_id: str, category_name: str | None
-):
+    db,
+    tenant_id: str,
+    category_name: str | None,
+) -> str | None:
+    """Resolve existing category or create a new one."""
     if not category_name or str(category_name).strip() == "":
         return None
 
@@ -985,6 +1185,7 @@ def _resolve_or_create_category_id(
     )
     db.add(created)
     db.flush()
+    logger.debug(f"Created new category: {normalized}")
     return created.id
 
 
@@ -999,10 +1200,12 @@ def _get_or_create_product(
     """Find or create a product by name within a tenant."""
     if not name or str(name).strip() == "":
         return None, False
+
     normalized = str(name).strip()
     existing = _find_product_by_name(db, tenant_id, normalized)
     if existing:
         return existing, False
+
     category_id = _resolve_or_create_category_id(db, tenant_id, category)
     product = Product(
         tenant_id=tenant_id,
@@ -1016,33 +1219,42 @@ def _get_or_create_product(
     )
     db.add(product)
     db.flush()
+    logger.debug(f"Created new product: {normalized}")
     return product, True
 
 
-def _persist_recipes(db, tenant_id: str, parsed_result: dict[str, Any]) -> dict[str, int]:
+def _persist_recipes(
+    db,
+    tenant_id: str,
+    parsed_result: dict[str, Any],
+) -> dict[str, int]:
+    """Persist recipes from parsed result."""
     recipes_data = parsed_result.get("recipes", [])
     ingredients_rows = parsed_result.get("rows", [])
     materials_rows = parsed_result.get("materials", [])
-    created = 0
-    errors = 0
-    created_ingredients = 0
-    created_materials = 0
-    auto_products = 0
+
+    stats = {
+        "created": 0,
+        "errors": 0,
+        "ingredients": 0,
+        "materials": 0,
+        "auto_products": 0,
+    }
 
     for recipe_data in recipes_data:
         name = recipe_data.get("name")
         if not name:
-            errors += 1
+            stats["errors"] += 1
             continue
 
         product, auto_created = _get_or_create_product(
             db, tenant_id, name, description=recipe_data.get("recipe_type")
         )
         if auto_created:
-            auto_products += 1
+            stats["auto_products"] += 1
 
         if not product:
-            errors += 1
+            stats["errors"] += 1
             continue
 
         recipe = Recipe(
@@ -1058,15 +1270,16 @@ def _persist_recipes(db, tenant_id: str, parsed_result: dict[str, Any]) -> dict[
         db.add(recipe)
         db.flush()
 
+        # Process ingredients
         recipe_ingredients = [row for row in ingredients_rows if row.get("recipe_name") == name]
         for idx, ing in enumerate(recipe_ingredients):
             prod, auto_created_ing = _get_or_create_product(
                 db, tenant_id, ing.get("ingredient", ""), category=recipe_data.get("classification")
             )
             if auto_created_ing:
-                auto_products += 1
+                stats["auto_products"] += 1
             if not prod:
-                errors += 1
+                stats["errors"] += 1
                 continue
             ingredient = RecipeIngredient(
                 recipe_id=recipe.id,
@@ -1081,9 +1294,9 @@ def _persist_recipes(db, tenant_id: str, parsed_result: dict[str, Any]) -> dict[
                 line_order=idx,
             )
             db.add(ingredient)
-            created_ingredients += 1
+            stats["ingredients"] += 1
 
-        # Persist materials as additional ingredients (tagged in notes)
+        # Process materials
         mats_for_recipe = [row for row in materials_rows if row.get("recipe_name") == name]
         offset = len(recipe_ingredients)
         for m_idx, mat in enumerate(mats_for_recipe):
@@ -1094,9 +1307,9 @@ def _persist_recipes(db, tenant_id: str, parsed_result: dict[str, Any]) -> dict[
                 category=recipe_data.get("classification"),
             )
             if auto_created_mat:
-                auto_products += 1
+                stats["auto_products"] += 1
             if not prod:
-                errors += 1
+                stats["errors"] += 1
                 continue
             ingredient = RecipeIngredient(
                 recipe_id=recipe.id,
@@ -1111,20 +1324,16 @@ def _persist_recipes(db, tenant_id: str, parsed_result: dict[str, Any]) -> dict[
                 line_order=offset + m_idx,
             )
             db.add(ingredient)
-            created_materials += 1
-        created += 1
+            stats["materials"] += 1
+        stats["created"] += 1
 
     db.commit()
-    return {
-        "created": created,
-        "errors": errors,
-        "ingredients": created_ingredients,
-        "materials": created_materials,
-        "auto_products": auto_products,
-    }
+    return stats
 
 
-def _build_recipe_preview_items(parsed_result: dict[str, Any]) -> list[dict[str, Any]]:
+def _build_recipe_preview_items(
+    parsed_result: dict[str, Any]
+) -> list[dict[str, Any]]:
     """Build recipe preview rows without persisting into production tables."""
     recipes_data = parsed_result.get("recipes", []) or []
     ingredients_rows = parsed_result.get("rows", []) or []
@@ -1135,103 +1344,302 @@ def _build_recipe_preview_items(parsed_result: dict[str, Any]) -> list[dict[str,
         name = recipe.get("name")
         if not name:
             continue
+
         recipe_ingredients = [r for r in ingredients_rows if r.get("recipe_name") == name]
         recipe_materials = [r for r in materials_rows if r.get("recipe_name") == name]
-        normalized = {
-            "name": name,
-            "nombre": name,
-            "recipe_type": recipe.get("recipe_type"),
-            "classification": recipe.get("classification"),
-            "portions": recipe.get("portions") or 1,
-            "total_ingredients_cost": recipe.get("total_ingredients_cost") or 0,
-            "ingredients_count": len(recipe_ingredients),
-            "materials_count": len(recipe_materials),
-            "doc_type": "recipes",
-        }
-        raw = {
-            "recipe": recipe,
-            "ingredients": recipe_ingredients,
-            "materials": recipe_materials,
-        }
-        preview_items.append({"raw": raw, "normalized": normalized})
+
+        preview_items.append({
+            "raw": {
+                "recipe": recipe,
+                "ingredients": recipe_ingredients,
+                "materials": recipe_materials,
+            },
+            "normalized": {
+                "name": name,
+                "nombre": name,
+                "recipe_type": recipe.get("recipe_type"),
+                "classification": recipe.get("classification"),
+                "portions": recipe.get("portions") or 1,
+                "total_ingredients_cost": recipe.get("total_ingredients_cost") or 0,
+                "ingredients_count": len(recipe_ingredients),
+                "materials_count": len(recipe_materials),
+                "doc_type": "recipes",
+            },
+        })
     return preview_items
 
 
-@celery_app.task(name="imports.import_file", bind=True)
-def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id: str):
-    """Generic file import task using registered parsers.
+# =============================================================================
+# Single Item Processing
+# =============================================================================
 
-    - Uses parser registry to dispatch to appropriate parser
-    - Creates CanonicalDocument from parser output
-    - Validates via validate_canonical
-    - Persists parser_id y canonical_doc en ImportItems
-    - Creates ImportItems in batches
+def _process_single_item(
+    item_data: Any,
+    batch_id: str,
+    file_key: str,
+    tenant_id: str,
+    idx: int,
+    doc_type: str,
+    effective_parser_id: str,
+    mapping_config: MappingConfig,
+    alias_map: dict[str, list[str]],
+) -> tuple[ImportItem, bool]:
     """
+    Process a single item and return the ImportItem with validation status.
+
+    Returns (ImportItem, is_valid)
+    """
+    # Normalize data
+    raw = item_data if isinstance(item_data, dict) else {"value": item_data}
+    raw = _unwrap_wrapped_item(raw)
+
+    # Apply mapping if configured
+    mapped = None
+    if mapping_config.cfg:
+        mapped = _apply_column_mapping(
+            raw,
+            mapping=mapping_config.cfg,
+            transforms=mapping_config.transforms,
+            defaults=mapping_config.defaults,
+        )
+
+    normalized = _to_serializable(mapped or raw)
+    item_doc_type = doc_type
+    if item_doc_type == "generic":
+        item_doc_type = _infer_doc_type_from_record(raw, normalized, fallback=doc_type)
+
+    # Skip non-meaningful rows
+    if not _is_meaningful_row(raw, item_doc_type):
+        return None, False
+
+    # Sanitize SKU for products
+    if item_doc_type == "products":
+        sku_val = normalized.get("sku") or normalized.get("codigo") or normalized.get("code")
+        if sku_val:
+            normalized["sku"] = sanitize_sku(sku_val)
+
+    # Add metadata
+    normalized["_metadata"] = {
+        "parser": effective_parser_id,
+        "doc_type": item_doc_type,
+        "_imported_at": raw.get("_imported_at", datetime.utcnow().isoformat()),
+        "mapping_applied": bool(mapped),
+    }
+
+    # Build canonical document
+    canonical_doc = _build_canonical_from_item(
+        raw=raw,
+        normalized=normalized,
+        doc_type=item_doc_type,
+        parser_id=effective_parser_id,
+        alias_map=alias_map,
+    )
+
+    # Validate canonical document
+    is_valid, errors = validate_canonical(canonical_doc)
+
+    # Calculate dedupe hash only if valid
+    dedupe = _dedupe_hash({"normalized": normalized, "doc_type": item_doc_type}) if is_valid else None
+    idem = _idempotency_key(str(tenant_id), file_key, idx)
+
+    import_item = ImportItem(
+        batch_id=batch_id,
+        idx=idx,
+        raw=raw,
+        normalized=normalized,
+        canonical_doc=canonical_doc if is_valid else None,
+        idempotency_key=idem,
+        dedupe_hash=dedupe,
+        status="OK" if is_valid else "ERROR_VALIDATION",
+        errors=errors if not is_valid else [],
+    )
+
+    return import_item, is_valid
+
+
+# =============================================================================
+# Progress Reporting
+# =============================================================================
+
+def _report_progress(task_self, stats: ImportStats) -> None:
+    """Report progress to Celery task."""
+    try:
+        task_self.update_state(
+            state=states.STARTED,
+            meta={
+                "processed": stats.processed,
+                "created": stats.created,
+                "validated": stats.validated,
+                "failed": stats.failed,
+            },
+        )
+    except Exception as e:
+        logger.debug(f"Failed to report progress: {e}")
+
+
+# =============================================================================
+# Mapping Feedback
+# =============================================================================
+
+def _record_mapping_feedback(
+    db,
+    tenant_id: str,
+    doc_type: str,
+    mapping_cfg: dict[str, str],
+    successful_count: int,
+) -> None:
+    """Record mapping feedback for machine learning."""
+    if not mapping_cfg or successful_count == 0:
+        return
+
+    try:
+        feedback = MappingFeedback(
+            tenant_id=tenant_id,
+            doc_type=doc_type,
+            headers=list(mapping_cfg.keys()),
+        )
+        for source_field, canonical_field in mapping_cfg.items():
+            if canonical_field and str(canonical_field).lower() != "ignore":
+                feedback.mark_field_correct(
+                    str(source_field),
+                    str(canonical_field),
+                    confidence=0.8,
+                )
+        if feedback.field_feedbacks:
+            mapping_learner.record_feedback(feedback)
+            logger.debug(f"Recorded mapping feedback for {len(feedback.field_feedbacks)} fields")
+    except Exception as e:
+        logger.warning(f"Failed to record mapping feedback: {e}")
+
+
+def _update_mapping_stats(
+    db,
+    mapping_row: Any,
+    applied_count: int,
+) -> None:
+    """Update mapping usage statistics."""
+    if not mapping_row or applied_count == 0:
+        return
+
+    try:
+        mapping_row.use_count = int(getattr(mapping_row, "use_count", 0) or 0) + 1
+        mapping_row.last_used_at = datetime.utcnow()
+        db.add(mapping_row)
+        logger.debug(f"Updated mapping stats: use_count={mapping_row.use_count}")
+    except Exception as e:
+        logger.warning(f"Failed to update mapping stats: {e}")
+
+
+# =============================================================================
+# Classification Keywords Loading
+# =============================================================================
+
+def _load_classification_keywords(
+    db,
+    tenant_id: str,
+) -> dict[str, tuple[str, ...]] | None:
+    """Load classification keywords from database."""
+    try:
+        from app.modules.imports.config.classification import load_tenant_classification_keywords
+        return load_tenant_classification_keywords(db, str(tenant_id))
+    except Exception as e:
+        logger.debug(f"Failed to load classification keywords: {e}")
+        return None
+
+
+# =============================================================================
+# Main Import Task
+# =============================================================================
+
+@celery_app.task(name="imports.import_file", bind=True)
+def import_file(
+    self,
+    *,
+    tenant_id: str,
+    batch_id: str,
+    file_key: str,
+    parser_id: str,
+) -> dict[str, Any]:
+    """
+    Generic file import task using registered parsers.
+
+    Workflow:
+    1. Get parser from registry and validate batch
+    2. Load classification keywords from database
+    3. Parse file and determine document type
+    4. Load column mapping configuration if present
+    5. Process each item: apply mapping, build canonical, validate
+    6. Persist items in batches with progress reporting
+    7. Record mapping feedback for ML
+
+    Returns:
+        Dictionary with import statistics
+    """
+    logger.info(f"Starting import file task: batch_id={batch_id}, parser_id={parser_id}, file_key={file_key}")
+
     file_path = _file_path_from_key(file_key)
 
     # Get parser from registry
     parser_info = parsers_registry.get_parser(parser_id)
     if not parser_info:
+        logger.error(f"Parser not found: {parser_id}")
         raise RuntimeError(f"parser_not_found: {parser_id}")
 
     parser_func = parser_info["handler"]
-    doc_type = parser_info["doc_type"]
-
-    # Progress tracking
-    processed = 0
-    created = 0
-    BATCH_SIZE = 1000
+    stats = ImportStats(processed=0, created=0, validated=0, failed=0)
 
     with session_scope() as db:
-        # Fix tenant GUC for RLS-aware backends
+        # Set tenant GUC for RLS-aware backends
         try:
             set_tenant_guc(db, str(tenant_id), persist=False)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to set tenant GUC: {e}")
 
+        # Get and validate batch
         batch = db.query(ImportBatch).filter(ImportBatch.id == batch_id).first()
         if not batch:
+            logger.error(f"Batch not found: {batch_id}")
             raise RuntimeError("batch_not_found")
 
-        # Persistir parser_id elegido en batch
+        # Update batch status
         batch.parser_id = parser_id
         batch.status = "PARSING"
         db.add(batch)
         db.commit()
 
+        # Load classification keywords
+        tenant_classification_kw = _load_classification_keywords(db, tenant_id)
+
         try:
             # Call parser
+            logger.debug(f"Parsing file: {file_path}")
             parsed_result = parser_func(file_path)
             effective_parser_id = parser_id
-            # Si el parser devolvió un tipo detectado, úsalo cuando el parser sea genérico
-            detected_doc_type = (
-                parsed_result.get("detected_type")
-                or parsed_result.get("doc_type")
-                or parser_info.get("doc_type")
+
+            # Determine document type
+            doc_result = _determine_document_type(
+                batch,
+                parsed_result,
+                parser_info,
+                tenant_classification_kw,
             )
-            doc_type = _normalize_doc_type(detected_doc_type)
-            if doc_type == "generic":
-                inferred_doc = _infer_doc_type_from_record(
-                    parsed_result if isinstance(parsed_result, dict) else None,
-                    parsed_result if isinstance(parsed_result, dict) else None,
-                    fallback="generic",
-                )
-                if inferred_doc != "generic":
-                    doc_type = inferred_doc
-            current_source_type = _normalize_doc_type(getattr(batch, "source_type", None))
-            if doc_type and doc_type != "generic" and current_source_type in ("generic", "unknown"):
-                batch.source_type = doc_type
+            doc_type = doc_result.doc_type
+
+            # Update batch source type
+            if doc_type and doc_type != "generic":
+                if not batch.source_type or batch.source_type in ("generic", "unknown", ""):
+                    batch.source_type = doc_type
             elif not batch.source_type:
                 batch.source_type = doc_type
 
-            # Special handling for recipes: create preview items only.
-            # Actual persistence to recipes tables happens on explicit promote.
+            # Special handling for recipes
             if doc_type == "recipes":
                 items_data = _build_recipe_preview_items(parsed_result)
                 created_preview = len(items_data)
                 batch.status = "READY" if created_preview > 0 else "EMPTY"
                 db.add(batch)
                 db.commit()
+                logger.info(f"Recipe preview complete: {created_preview} items")
                 return {
                     "ok": True,
                     "processed": created_preview,
@@ -1242,236 +1650,142 @@ def import_file(self, *, tenant_id: str, batch_id: str, file_key: str, parser_id
                     "parser_id": parser_id,
                 }
 
-            # Optional column mapping (ImportColumnMapping)
-            mapping_cfg = None
-            mapping_transforms = None
-            mapping_defaults = None
-            mapping_row = None
-            try:
-                if getattr(batch, "mapping_id", None):
-                    from app.models.imports import ImportColumnMapping  # type: ignore
+            # Load column mapping configuration
+            mapping_config = _load_mapping_config(db, batch)
 
-                    cm = (
-                        db.query(ImportColumnMapping)
-                        .filter(ImportColumnMapping.id == batch.mapping_id)
-                        .first()
-                    )
-                    if cm:
-                        mapping_row = cm
-                        mapping_cfg = cm.mapping or cm.mappings or {}
-                        mapping_transforms = getattr(cm, "transforms", None) or {}
-                        mapping_defaults = getattr(cm, "defaults", None) or {}
-            except Exception:
-                mapping_cfg = mapping_transforms = mapping_defaults = None
-
-            # Create ImportItems from parsed data
-            idx_base = db.query(ImportItem).filter(ImportItem.batch_id == batch_id).count() or 0
-            idx = idx_base
-            buffer: list[ImportItem] = []
-
-            # Extract items from parsed result based on parser type
+            # Extract items from parsed result
             items_data = _extract_items_from_parsed_result(parsed_result, doc_type)
-            # Fallback: if a specialized Excel parser returns zero rows, retry with generic parser.
-            if (
-                len(items_data) == 0
-                and effective_parser_id != "generic_excel"
-                and str(file_path).lower().endswith((".xlsx", ".xls", ".xlsm", ".xlsb"))
-            ):
-                generic_info = parsers_registry.get_parser("generic_excel")
-                if generic_info and callable(generic_info.get("handler")):
-                    try:
-                        generic_result = generic_info["handler"](file_path)
-                        generic_doc_type = _normalize_doc_type(
-                            generic_result.get("detected_type")
-                            or generic_result.get("doc_type")
-                            or generic_info.get("doc_type")
-                        )
-                        generic_items = _extract_items_from_parsed_result(
-                            generic_result, generic_doc_type
-                        )
-                        if len(generic_items) > 0:
-                            parsed_result = generic_result
-                            items_data = generic_items
-                            doc_type = generic_doc_type
-                            effective_parser_id = "generic_excel"
-                    except Exception:
-                        pass
+
+            # Try generic parser fallback if no items
+            if len(items_data) == 0:
+                fallback_result = _try_generic_parser_fallback(
+                    file_path,
+                    effective_parser_id,
+                    tenant_classification_kw,
+                )
+                if fallback_result:
+                    doc_type, parsed_result, effective_parser_id = fallback_result
+                    items_data = _extract_items_from_parsed_result(parsed_result, doc_type)
+
+                    # Update batch with fallback results
+                    batch.parser_id = effective_parser_id
+                    batch.source_type = doc_type
+                    db.add(batch)
+                    db.commit()
+
+            # Re-infer if still generic
             if doc_type == "generic" and items_data:
                 sample = items_data[0] if isinstance(items_data[0], dict) else None
-                inferred_doc = _infer_doc_type_from_record(sample, sample, fallback="generic")
-                if inferred_doc != "generic":
-                    doc_type = inferred_doc
-            if batch.parser_id != effective_parser_id or (batch.source_type or "") != (
-                doc_type or ""
-            ):
-                batch.parser_id = effective_parser_id
-                batch.source_type = doc_type or batch.source_type
-                db.add(batch)
-                db.commit()
+                inferred = _infer_doc_type_from_record(sample, sample, fallback="generic")
+                if inferred != "generic":
+                    doc_type = inferred
 
+            # Prepare for processing
+            idx_base = db.query(ImportItem).filter(ImportItem.batch_id == batch_id).count() or 0
+            buffer: list[ImportItem] = []
             alias_cache: dict[str, dict[str, list[str]]] = {}
-
-            items_validated = 0
-            items_failed = 0
             mapping_applied_count = 0
             successful_mapped_count = 0
 
+            logger.info(f"Processing {len(items_data)} items with doc_type={doc_type}")
+
+            # Process each item
             for item_data in items_data:
-                processed += 1
-                idx += 1
+                stats = stats._replace(processed=stats.processed + 1)
+                idx = idx_base + stats.processed
 
-                # Normalize data for ImportItem
-                raw = item_data if isinstance(item_data, dict) else {"value": item_data}
-                raw = _unwrap_wrapped_item(raw)
-                mapped = None
-                if mapping_cfg:
-                    mapped = _apply_column_mapping(
-                        raw,
-                        mapping=mapping_cfg,
-                        transforms=mapping_transforms,
-                        defaults=mapping_defaults,
-                    )
-                    if mapped:
-                        mapping_applied_count += 1
-                normalized = _to_serializable(mapped or raw)
-                item_doc_type = doc_type
-                if item_doc_type == "generic":
-                    item_doc_type = _infer_doc_type_from_record(raw, normalized, fallback=doc_type)
-                if not _is_meaningful_row(raw, item_doc_type):
-                    continue
-                aliases_for_item = alias_cache.get(item_doc_type)
-                if aliases_for_item is None:
-                    aliases_for_item = _load_dynamic_alias_map(db, str(tenant_id), item_doc_type)
-                    alias_cache[item_doc_type] = aliases_for_item
+                # Get alias map
+                alias_map = _get_alias_map(db, tenant_id, doc_type, alias_cache)
 
-                if item_doc_type == "products":
-                    sku_val = (
-                        normalized.get("sku") or normalized.get("codigo") or normalized.get("code")
-                    )
-                    sku_val = sanitize_sku(sku_val)
-                    if sku_val:
-                        normalized["sku"] = sku_val
-
-                # Add metadata
-                normalized["_metadata"] = {
-                    "parser": effective_parser_id,
-                    "doc_type": item_doc_type,
-                    "_imported_at": raw.get("_imported_at", datetime.utcnow().isoformat()),
-                    "mapping_applied": bool(mapped),
-                }
-
-                # Construir documento canónico basado en doc_type
-                canonical_doc = _build_canonical_from_item(
-                    raw=raw,
-                    normalized=normalized,
-                    doc_type=item_doc_type,
-                    parser_id=effective_parser_id,
-                    alias_map=aliases_for_item,
-                )
-
-                # Validar documento canónico
-                is_valid, errors = validate_canonical(canonical_doc)
-
-                idem = _idempotency_key(str(tenant_id), file_key, idx)
-                dedupe = _dedupe_hash({"normalized": normalized, "doc_type": item_doc_type})
-
-                import_item = ImportItem(
+                # Process item
+                import_item, is_valid = _process_single_item(
+                    item_data=item_data,
                     batch_id=batch_id,
+                    file_key=file_key,
+                    tenant_id=tenant_id,
                     idx=idx,
-                    raw=raw,
-                    normalized=normalized,
-                    canonical_doc=canonical_doc if is_valid else None,
-                    idempotency_key=idem,
-                    dedupe_hash=dedupe,
-                    status="OK" if is_valid else "ERROR_VALIDATION",
-                    errors=errors if not is_valid else [],
+                    doc_type=doc_type,
+                    effective_parser_id=effective_parser_id,
+                    mapping_config=mapping_config,
+                    alias_map=alias_map,
                 )
-                buffer.append(import_item)
 
+                if import_item is None:
+                    continue
+
+                # Update stats
                 if is_valid:
-                    items_validated += 1
-                    if mapped:
+                    stats = stats._replace(validated=stats.validated + 1)
+                    if mapping_config.cfg:
+                        mapping_applied_count += 1
                         successful_mapped_count += 1
                 else:
-                    items_failed += 1
+                    stats = stats._replace(failed=stats.failed + 1)
 
+                buffer.append(import_item)
+
+                # Flush buffer when batch size reached
                 if len(buffer) >= BATCH_SIZE:
                     db.add_all(buffer)
                     db.commit()
-                    created += len(buffer)
+                    stats = stats._replace(created=stats.created + len(buffer))
                     buffer.clear()
-                    # Report progress
-                    try:
-                        self.update_state(
-                            state=states.STARTED,
-                            meta={
-                                "processed": processed,
-                                "created": created,
-                                "validated": items_validated,
-                                "failed": items_failed,
-                            },
-                        )
-                    except Exception:
-                        pass
+                    _report_progress(self, stats)
 
-            # Flush remainder
+            # Flush remaining items
             if buffer:
                 db.add_all(buffer)
                 db.commit()
-                created += len(buffer)
+                stats = stats._replace(created=stats.created + len(buffer))
 
-            # Done
-            if mapping_row and mapping_applied_count > 0:
-                try:
-                    mapping_row.use_count = int(getattr(mapping_row, "use_count", 0) or 0) + 1
-                    mapping_row.last_used_at = datetime.utcnow()
-                    db.add(mapping_row)
-                except Exception:
-                    pass
-            # Auto-learn mapping when imports succeed, so future files map better without manual setup.
-            if mapping_cfg and successful_mapped_count > 0:
-                try:
-                    feedback = MappingFeedback(
-                        tenant_id=tenant_id,
-                        doc_type=doc_type,
-                        headers=list((mapping_cfg or {}).keys()),
-                    )
-                    for source_field, canonical_field in (mapping_cfg or {}).items():
-                        if canonical_field and str(canonical_field).lower() != "ignore":
-                            feedback.mark_field_correct(
-                                str(source_field),
-                                str(canonical_field),
-                                confidence=0.8,
-                            )
-                    if feedback.field_feedbacks:
-                        mapping_learner.record_feedback(feedback)
-                except Exception:
-                    pass
-            batch.status = "READY" if items_failed == 0 else "PARTIAL"
+            # Update mapping statistics
+            _update_mapping_stats(db, mapping_config.row, mapping_applied_count)
+
+            # Record mapping feedback
+            _record_mapping_feedback(
+                db,
+                tenant_id,
+                doc_type,
+                mapping_config.cfg,
+                successful_mapped_count,
+            )
+
+            # Final batch status update
+            batch.status = "READY" if stats.failed == 0 else "PARTIAL"
             db.add(batch)
             db.commit()
+
+            logger.info(
+                f"Import complete: processed={stats.processed}, "
+                f"created={stats.created}, validated={stats.validated}, failed={stats.failed}"
+            )
+
             return {
                 "ok": True,
-                "processed": processed,
-                "created": created,
-                "validated": items_validated,
-                "failed": items_failed,
+                "processed": stats.processed,
+                "created": stats.created,
+                "validated": stats.validated,
+                "failed": stats.failed,
                 "doc_type": doc_type,
                 "parser_id": effective_parser_id,
             }
 
         except Exception as e:
+            logger.exception(f"Error during import: {e}")
             try:
                 db.rollback()
-            except Exception:
-                pass
+            except Exception as rollback_error:
+                logger.warning(f"Failed to rollback: {rollback_error}")
+
             try:
                 batch.status = "ERROR"
                 db.add(batch)
                 db.commit()
-            except Exception:
+            except Exception as status_error:
+                logger.warning(f"Failed to update batch status to ERROR: {status_error}")
                 try:
                     db.rollback()
                 except Exception:
                     pass
+
             raise RuntimeError(str(e)) from e

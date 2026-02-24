@@ -65,6 +65,7 @@ export type DailyCount = {
     other_sales?: number | null
     counted_cash?: number | null
     discrepancy?: number | null
+    has_journal_entry?: boolean
 }
 
 export async function listCuentas(): Promise<PlanCuenta[]> {

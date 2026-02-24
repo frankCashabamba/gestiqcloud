@@ -51,7 +51,7 @@ const PanaderiaDashboard: React.FC = () => {
   const { modules } = useMisModulos()
 
   const shouldLoadKPIs = modules.some((m) =>
-    ['ventas', 'pos', 'produccion', 'inventario'].includes((m.slug || '').toLowerCase())
+    ['sales', 'pos', 'produccion', 'inventario'].includes((m.slug || '').toLowerCase())
   )
   const { data: kpisData, loading: kpisLoading } = usePanaderiaKPIs({ enabled: shouldLoadKPIs })
 

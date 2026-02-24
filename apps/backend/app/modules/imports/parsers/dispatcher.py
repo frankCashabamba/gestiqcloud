@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import openpyxl
 
+from app.modules.imports.config.classification import (
+    get_all_classification_keywords,
+    get_strong_keywords,
+)
 from app.services.excel_analyzer import detect_header_row, extract_headers
 
 from . import registry
@@ -22,6 +27,7 @@ _EXT_PREFERENCES = {
     },
     ".xml": {
         "invoices": "xml_invoice",
+        "facturae": "xml_facturae",
         "bank": "xml_camt053_bank",
         "bank_transactions": "xml_camt053_bank",
         "products": "xml_products",
@@ -149,6 +155,15 @@ def select_parser_for_file(
         except Exception:
             pass
 
+    if ext == ".xml":
+        try:
+            detected_parser, detected_doc = _detect_xml_parser(
+                file_path, hinted_doc_type=hint or None
+            )
+            return detected_parser, detected_doc
+        except Exception:
+            pass
+
     if ext == ".pdf":
         for parser_id in ("pdf_ocr", "pdf_qr"):
             if registry.get_parser(parser_id):
@@ -169,6 +184,84 @@ def select_parser_for_file(
                 return parser_id, registry.get_parser(parser_id)["doc_type"]
 
     return select_fallback_parser_for_extension(ext, content_type=content_type)
+
+
+def _parse_xml_root_tolerant(file_path: str) -> ET.Element | None:
+    """Try to parse XML root even when there's junk after the document element."""
+    try:
+        with open(file_path, encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+    except Exception:
+        return None
+    # Try common closing tags to truncate trailing content (e.g. <Signature>)
+    for end_tag in ("</Facturae>", "</Document>", "</Invoice>", "</CreditNote>"):
+        idx = content.find(end_tag)
+        if idx != -1:
+            try:
+                return ET.fromstring(content[: idx + len(end_tag)])
+            except ET.ParseError:
+                continue
+    # Last resort: try iterparse to grab just the root element tag
+    try:
+        import io
+
+        for event, elem in ET.iterparse(io.StringIO(content), events=("start",)):
+            return elem
+    except Exception:
+        pass
+    return None
+
+
+def _detect_xml_parser(file_path: str, *, hinted_doc_type: str | None = None) -> tuple[str, str]:
+    """Detect parser for XML files by inspecting the root element and namespace."""
+    try:
+        tree = ET.parse(file_path)  # noqa: S314
+        root = tree.getroot()
+    except ET.ParseError:
+        # Handle XML with junk after document element (e.g. Facturae + Signature)
+        root = _parse_xml_root_tolerant(file_path)
+        if root is None:
+            raise
+
+    tag = root.tag or ""
+    # Extract namespace from {ns}localname format
+    ns = ""
+    local = tag
+    if tag.startswith("{"):
+        ns, local = tag[1:].split("}", 1)
+
+    ns_lower = ns.lower()
+    local_lower = local.lower()
+
+    # Facturae (Spanish e-invoicing)
+    if "facturae.gob.es" in ns_lower or local_lower.endswith("facturae"):
+        info = registry.get_parser("xml_facturae")
+        if info:
+            return "xml_facturae", info["doc_type"]
+
+    # CAMT.053 bank statements (ISO 20022)
+    if "urn:iso:std:iso:20022" in ns_lower:
+        info = registry.get_parser("xml_camt053_bank")
+        if info:
+            return "xml_camt053_bank", info["doc_type"]
+
+    # UBL invoices / credit notes
+    if "oasis" in ns_lower or local_lower in ("invoice", "creditnote"):
+        info = registry.get_parser("xml_invoice")
+        if info:
+            return "xml_invoice", info["doc_type"]
+
+    # Product catalogs
+    if local_lower in ("catalog", "catalogue", "products", "productlist"):
+        info = registry.get_parser("xml_products")
+        if info:
+            return "xml_products", info["doc_type"]
+
+    # Fallback
+    info = registry.get_parser("xml_invoice")
+    if info:
+        return "xml_invoice", info["doc_type"]
+    return "xml_invoice", "invoices"
 
 
 def _detect_excel_parser(file_path: str, *, hinted_doc_type: str | None = None) -> tuple[str, str]:
@@ -239,19 +332,12 @@ def _detect_excel_parser(file_path: str, *, hinted_doc_type: str | None = None) 
     if not haystack:
         raise ValueError("Could not read file headers")
 
-    bank_kw = ("iban", "saldo", "cuenta", "concepto", "valor", "importe", "transaction", "bank")
-    invoice_kw = ("factura", "invoice", "iva", "proveedor", "cliente", "ruc", "tax",
-                  "vendedor", "num. factura", "num factura", "forma de pago", "retencion")
-    expenses_kw = ("gasto", "expense", "receipt", "recibo")
-    product_kw = ("sku", "stock", "existencias", "inventario", "barcode", "ean")
-    recipe_kw = (
-        "ingredientes",
-        "costo total ingredientes",
-        "formato de costeo",
-        "receta",
-        "porciones",
-        "temperatura de servicio",
-    )
+    all_kw = get_all_classification_keywords()
+    bank_kw = all_kw.get("bank_transactions", ())
+    invoice_kw = all_kw.get("invoices", ())
+    expenses_kw = all_kw.get("expenses", ())
+    product_kw = all_kw.get("products", ())
+    recipe_kw = all_kw.get("recipes", ())
 
     hint = (hinted_doc_type or "").strip().lower()
     lower_haystack = haystack.lower()
@@ -263,7 +349,7 @@ def _detect_excel_parser(file_path: str, *, hinted_doc_type: str | None = None) 
     invoice_score = _kw_score(invoice_kw)
     expenses_score = _kw_score(expenses_kw)
     product_score = _kw_score(product_kw)
-    strong_bank_hits = _kw_score(("iban", "saldo", "cuenta", "importe", "monto", "debit", "credit"))
+    strong_bank_hits = _kw_score(get_strong_keywords("bank_transactions"))
 
     if any(k in haystack for k in recipe_kw):
         # Default behavior for recipe-like workbooks should be recipes flow.

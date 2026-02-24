@@ -97,26 +97,52 @@
     "products": {
       "cod. producto": {
         "name": {
-          "correct": 4,
-          "total": 4
+          "correct": 7,
+          "total": 7
         }
       },
       "producto": {
         "name": {
-          "correct": 4,
-          "total": 4
+          "correct": 7,
+          "total": 7
         }
       },
       "precio unitario": {
         "price": {
-          "correct": 4,
-          "total": 4
+          "correct": 7,
+          "total": 7
         }
       },
       "cantidad": {
         "stock": {
-          "correct": 4,
-          "total": 4
+          "correct": 7,
+          "total": 7
+        }
+      }
+    },
+    "invoices": {
+      "cod. producto": {
+        "name": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "producto": {
+        "name": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "precio unitario": {
+        "price": {
+          "correct": 1,
+          "total": 1
+        }
+      },
+      "cantidad": {
+        "stock": {
+          "correct": 1,
+          "total": 1
         }
       }
     }

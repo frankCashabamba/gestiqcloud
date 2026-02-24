@@ -1195,7 +1195,7 @@ export default function PreviewPage() {
                                                 />
                                             </th>
                                             <th className="px-3 py-3 text-left font-medium text-slate-600">#</th>
-                                            <th className="px-3 py-3 text-left font-medium text-slate-600">CÃ³digo</th>
+                                            <th className="px-3 py-3 text-left font-medium text-slate-600">Código	</th>
                                             <th className="px-3 py-3 text-left font-medium text-slate-600">{t('importerPreviewPage.productTable.name')}</th>
                                             <th className="px-3 py-3 text-left font-medium text-slate-600">{t('importerPreviewPage.productTable.price')}</th>
                                             <th className="px-3 py-3 text-left font-medium text-slate-600">{t('importerPreviewPage.productTable.cost')}</th>
@@ -1530,6 +1530,8 @@ export default function PreviewPage() {
                                             const cliente =
                                                 merged.cliente ||
                                                 merged.customer ||
+                                                merged.buyer?.name ||
+                                                merged.buyer ||
                                                 merged.vendor_name ||
                                                 merged.vendor?.name ||
                                                 '-'
@@ -1545,11 +1547,13 @@ export default function PreviewPage() {
                                                 invoiceNumber.toUpperCase().startsWith('AUTO-')
                                             const tipo = String(getAny('tipo', 'type', 'documentoTipo') || 'Factura')
                                             const tipoIdentificacion =
-                                                getAny('tipo_identificacion', 'tipo_de_identificacion', 'tipoIdentificacion', 'id_type', 'identification_type') || '-'
+                                                getAny('tipo_identificacion', 'tipo_de_identificacion', 'tipo_de_identificacin', 'tipoIdentificacion', 'id_type', 'identification_type') || '-'
                                             const numeroIdentificacion =
                                                 getAny(
                                                     'numero_identificacion',
                                                     'numero_de_identificacion',
+                                                    'numero_de_identificacin',
+                                                    'nmero_de_identificacin',
                                                     'numeroIdentificacion',
                                                     'identification_number',
                                                     'tax_id',
@@ -1558,19 +1562,19 @@ export default function PreviewPage() {
                                                     'buyer_tax_id',
                                                 ) || '-'
                                             const codProducto =
-                                                getAny('codigo_producto', 'cod_producto', 'product_code', 'sku', 'code') || firstLine?.sku || '-'
+                                                getAny('codigo_producto', 'cod_producto', 'product_code', 'sku', 'code') || firstLine?.code || firstLine?.sku || '-'
                                             const producto =
-                                                getAny('producto', 'product', 'description', 'concept', 'concepto') || firstLine?.desc || '-'
+                                                getAny('producto', 'product', 'description', 'concept', 'concepto') || firstLine?.description || firstLine?.desc || '-'
                                             const precioUnitario =
                                                 getAny('precio_unitario', 'unit_price', 'price') || firstLine?.unit_price || '-'
-                                            const cantidad = getAny('cantidad', 'qty', 'quantity') || firstLine?.qty || '-'
+                                            const cantidad = getAny('cantidad', 'qty', 'quantity') || firstLine?.quantity || firstLine?.qty || '-'
                                             const subtotal =
                                                 getAny('subtotal', 'net_amount', 'amount_subtotal') || mergedTotals.subtotal || '-'
                                             const iva = getAny('iva', 'tax', 'tax_amount', 'amount_tax') || mergedTotals.tax || '-'
                                             const total = getAny('total', 'total_amount', 'amount_total') || mergedTotals.total || importe
                                             const sector = getAny('sector', 'category') || '-'
-                                            const observacion = getAny('observacion', 'observation', 'notes') || '-'
-                                            const promocion = getAny('promocion', 'promotion') || '-'
+                                            const observacion = getAny('observacion', 'observacin', 'observation', 'notes') || '-'
+                                            const promocion = getAny('promocion', 'promocin', 'promotion') || '-'
                                             const vendedor = getAny('vendedor', 'seller', 'cashier') || '-'
                                             return (
                                                 <React.Fragment key={p.id}>

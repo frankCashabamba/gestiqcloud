@@ -963,8 +963,13 @@ export default function POSView() {
     }
 
     const normalizeCode = (value?: string | null) => {
-        const normalized = (value || '').toString().trim().toLowerCase()
-        return normalized.replace(/(\d)[`'’](\d)/g, '$1-$2')
+        return (value || '')
+            .toString()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^A-Za-z0-9]+/g, '')
+            .trim()
+            .toUpperCase()
     }
 
     const findProductByCode = (code: string) => {

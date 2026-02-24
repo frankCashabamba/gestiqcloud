@@ -25,6 +25,8 @@ def parse_xlsx_invoices(file_path: str, sheet_name: str | None = None) -> dict[s
     try:
         header_row, headers, row_iter = _iter_excel_rows(file_path, sheet_name=sheet_name)
         col_map = _map_columns(tuple(headers))
+        # Columnas mapeadas a campos canónicos (para detectar las NO mapeadas)
+        mapped_indices = set(col_map.values())
         for row_idx, row in row_iter:
             rows_processed += 1
             if not row or all(cell is None or str(cell).strip() == "" for cell in row):
@@ -32,47 +34,114 @@ def parse_xlsx_invoices(file_path: str, sheet_name: str | None = None) -> dict[s
             try:
                 inv = _parse_row(row, row_idx, col_map)
                 if inv:
+                    # Preservar columnas originales no mapeadas para que el frontend
+                    # pueda mostrarlas (Vendedor, Sector, Tipo ID, etc.)
+                    for col_idx, hdr in enumerate(headers):
+                        if col_idx in mapped_indices:
+                            continue
+                        if col_idx < len(row):
+                            val = row[col_idx]
+                            if val is not None and str(val).strip() and str(val).strip().lower() != "nan":
+                                inv[hdr] = val
                     invoices.append(inv)
             except Exception as e:  # pragma: no cover - defensivo
                 errors.append(f"row {row_idx}: {e}")
+
+        has_line_items = any(
+            k in col_map
+            for k in ("line_description", "line_quantity", "line_unit_price", "line_code")
+        )
+        if has_line_items and len(invoices) > 1:
+            invoices = _group_invoices_by_number(invoices)
     except Exception as e:
         errors.append(f"read_error: {e}")
 
     return _result(invoices, rows_processed, errors, file_path)
 
 
+# Mapping from FIELD_ALIASES canonical keys to internal column map keys
+_FIELD_TO_COLUMN: dict[str, str] = {
+    "invoice_number": "invoice_number",
+    "invoice_date": "issue_date",
+    "client": "buyer",
+    "provider": "vendor",
+    "tax_id": "tax_id",
+    "amount": "total",
+    "tax": "tax",
+    "currency": "currency",
+    "product": "line_description",
+    "quantity": "line_quantity",
+    "price": "line_unit_price",
+    "sku": "line_code",
+}
+
+# Additional direct header matches not covered by FIELD_ALIASES
+_EXTRA_HEADER_MATCHES: dict[str, list[str]] = {
+    "issue_date": ["fecha", "issue_date", "invoice_date", "emision", "fecha emision", "fecha emisión"],
+    "due_date": ["vencimiento", "due_date"],
+    "subtotal": ["subtotal", "sub total", "base imponible"],
+    "total": ["total", "importe_total", "amount", "total pagar", "total_pagar", "total a pagar"],
+    "tax": ["iva", "tax", "impuesto", "igv"],
+    "payment_method": ["forma_pago", "payment_method", "metodo", "forma de pago", "metodo_pago"],
+    "payment_reference": ["referencia", "reference", "ref"],
+    "total_payable": ["total pagar", "total_pagar", "neto", "total a pagar"],
+    "retention": ["retencion", "retención", "retention"],
+    "invoice_number": ["numero", "factura", "invoice_number", "número", "num. factura", "num factura", "nro", "folio", "comprobante"],
+    "vendor": ["proveedor", "vendor", "supplier", "emisor"],
+    "buyer": ["cliente", "buyer", "customer", "destinatario", "comprador"],
+    "tax_id": ["ruc", "tax_id", "rfc", "nif", "cif", "nit", "numero_identificacion"],
+    "currency": ["moneda", "currency", "divisa"],
+    "line_description": ["producto", "product", "articulo", "item", "descripcion", "description", "detalle", "concepto"],
+    "line_quantity": ["cantidad", "quantity", "qty", "unidades"],
+    "line_unit_price": ["precio unitario", "precio", "unit_price", "precio_unitario", "p.u.", "p.v.p", "precio venta"],
+    "line_code": ["cod. producto", "codigo", "code", "sku", "barcode", "codigo_producto", "product_code"],
+}
+
+
 def _map_columns(header: tuple) -> dict[str, int]:
+    """Map Excel column headers to canonical field names using config aliases."""
+    try:
+        from app.modules.imports.config.aliases import FIELD_ALIASES
+        db_aliases = FIELD_ALIASES.get("es", {})
+    except Exception:
+        db_aliases = {}
+
+    # Build a combined lookup: field_key -> [aliases...]
+    lookup: dict[str, list[str]] = {}
+    for key, aliases in _EXTRA_HEADER_MATCHES.items():
+        lookup[key] = [a.lower() for a in aliases]
+
+    # Merge FIELD_ALIASES via _FIELD_TO_COLUMN mapping
+    for alias_key, col_key in _FIELD_TO_COLUMN.items():
+        if alias_key in db_aliases:
+            existing = lookup.get(col_key, [])
+            for alias in db_aliases[alias_key]:
+                a_lower = alias.lower()
+                if a_lower not in existing:
+                    existing.append(a_lower)
+            lookup[col_key] = existing
+
     col_map: dict[str, int] = {}
     for idx, name in enumerate(header):
         if not name:
             continue
         lower = str(name).strip().lower()
-        if any(k in lower for k in ["numero", "factura", "invoice_number", "número"]):
-            col_map.setdefault("invoice_number", idx)
-        elif any(k in lower for k in ["fecha", "issue_date", "invoice_date", "emision"]):
-            col_map.setdefault("issue_date", idx)
-        elif any(k in lower for k in ["vencimiento", "due_date"]):
-            col_map.setdefault("due_date", idx)
-        elif any(k in lower for k in ["proveedor", "vendor", "supplier"]):
-            col_map.setdefault("vendor", idx)
-        elif any(k in lower for k in ["cliente", "buyer", "customer"]):
-            col_map.setdefault("buyer", idx)
-        elif any(k in lower for k in ["ruc", "tax_id", "rfc"]):
-            # Se asigna tanto para vendor como buyer si no existen
-            col_map.setdefault("tax_id", idx)
-        elif any(k in lower for k in ["subtotal", "neto"]):
-            col_map.setdefault("subtotal", idx)
-        elif any(k in lower for k in ["iva", "tax", "impuesto"]):
-            col_map.setdefault("tax", idx)
-        elif any(k in lower for k in ["total", "importe_total", "amount"]):
-            col_map.setdefault("total", idx)
-        elif any(k in lower for k in ["moneda", "currency"]):
-            col_map.setdefault("currency", idx)
-        elif any(k in lower for k in ["forma_pago", "payment_method", "metodo"]):
-            col_map.setdefault("payment_method", idx)
-        elif any(k in lower for k in ["referencia", "reference", "ref"]):
-            col_map.setdefault("payment_reference", idx)
+        # Find best match: prefer longer alias matches
+        best_field = None
+        best_len = 0
+        for field, aliases in lookup.items():
+            for alias in aliases:
+                if alias in lower and len(alias) > best_len:
+                    best_field = field
+                    best_len = len(alias)
+        if best_field:
+            col_map.setdefault(best_field, idx)
     return col_map
+
+
+_JUNK_PATTERNS = re.compile(
+    r"(p[aá]gina|pagina|page|listado|reporte)", re.IGNORECASE
+)
 
 
 def _parse_row(row: tuple, row_idx: int, col_map: dict[str, int]) -> dict[str, Any] | None:
@@ -80,7 +149,15 @@ def _parse_row(row: tuple, row_idx: int, col_map: dict[str, int]) -> dict[str, A
         i = col_map.get(key)
         return row[i] if i is not None and i < len(row) else None
 
-    invoice_number = pick("invoice_number") or f"XLSX-INV-{row_idx}"
+    raw_inv_num = pick("invoice_number")
+    if raw_inv_num is not None:
+        inv_str = str(raw_inv_num).strip()
+        if _JUNK_PATTERNS.search(inv_str):
+            return None
+        if len(inv_str) < 3 and not re.search(r"\d", inv_str):
+            return None
+
+    invoice_number = raw_inv_num or f"XLSX-INV-{row_idx}"
     total = _to_float(pick("total"))
     if total is None:
         return None
@@ -89,7 +166,7 @@ def _parse_row(row: tuple, row_idx: int, col_map: dict[str, int]) -> dict[str, A
     buyer_name = pick("buyer")
     tax_id_val = pick("tax_id")
 
-    inv = {
+    inv: dict[str, Any] = {
         "doc_type": "invoice",
         "invoice_number": str(invoice_number).strip(),
         "issue_date": _to_date(pick("issue_date")),
@@ -116,7 +193,103 @@ def _parse_row(row: tuple, row_idx: int, col_map: dict[str, int]) -> dict[str, A
         "confidence": 0.8,
         "_metadata": {"parser": "xlsx_invoices", "row_index": row_idx},
     }
+
+    line_desc = _clean_str(pick("line_description"))
+    line_qty = _to_float(pick("line_quantity"))
+    line_up = _to_float(pick("line_unit_price"))
+    line_code = _clean_str(pick("line_code"))
+    if line_desc or line_qty is not None or line_up is not None or line_code:
+        inv["_line"] = _clean_dict({
+            "description": line_desc,
+            "quantity": line_qty,
+            "unit_price": line_up,
+            "code": line_code,
+            "total": total,
+        })
+
+    total_payable = _to_float(pick("total_payable"))
+    if total_payable is not None:
+        inv["_total_payable"] = total_payable
+
+    retention = _to_float(pick("retention"))
+    if retention is not None:
+        inv["_retention"] = retention
+
     return _clean_dict(inv)
+
+
+def _group_invoices_by_number(invoices: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    from collections import OrderedDict
+
+    groups: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
+    for inv in invoices:
+        key = inv.get("invoice_number", "")
+        groups.setdefault(key, []).append(inv)
+
+    result: list[dict[str, Any]] = []
+    for inv_num, rows in groups.items():
+        if len(rows) == 1:
+            row = rows[0]
+            line = row.pop("_line", None)
+            row.pop("_total_payable", None)
+            row.pop("_retention", None)
+            if line:
+                row["lines"] = [line]
+            result.append(row)
+            continue
+
+        first = rows[0]
+        merged = {
+            k: v
+            for k, v in first.items()
+            if k not in ("totals", "_line", "_total_payable", "_retention", "_metadata")
+        }
+
+        lines: list[dict[str, Any]] = []
+        sum_subtotal = 0.0
+        sum_tax = 0.0
+        sum_total = 0.0
+        total_payable: float | None = None
+
+        for row in rows:
+            line = row.get("_line")
+            if line:
+                lines.append(line)
+
+            totals = row.get("totals", {})
+            sum_total += totals.get("total", 0.0) or 0.0
+            sum_subtotal += totals.get("subtotal", 0.0) or 0.0
+            sum_tax += totals.get("tax", 0.0) or 0.0
+
+            tp = row.get("_total_payable")
+            if tp is not None:
+                total_payable = tp
+
+        final_total = total_payable if total_payable is not None else sum_total
+        merged["totals"] = _clean_dict({
+            "subtotal": sum_subtotal or None,
+            "tax": sum_tax or None,
+            "total": final_total,
+        })
+
+        retention = next(
+            (r.get("_retention") for r in rows if r.get("_retention") is not None),
+            None,
+        )
+        if retention is not None:
+            merged["totals"]["retention"] = retention
+
+        if lines:
+            merged["lines"] = lines
+
+        merged["_metadata"] = {
+            "parser": "xlsx_invoices",
+            "row_index": first.get("_metadata", {}).get("row_index"),
+            "grouped_rows": len(rows),
+        }
+
+        result.append(merged)
+    return result
 
 
 def _to_float(val) -> float | None:

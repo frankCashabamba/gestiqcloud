@@ -11,6 +11,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from app.modules.imports.config.classification import get_classification_keywords
+
 logger = logging.getLogger("imports.ocr")
 
 
@@ -259,52 +261,55 @@ class OCRService:
 
         ticket_pos_keywords = [
             "ticket de venta",
+            "ticket venta",
             "nº r-",
             "n° r-",
             "no r-",
-            "ticket venta",
+            "nã° r-",
+            "n\u00ba r-",
+            "comprobante de venta",
+            "nota de venta",
+            "boleta de venta",
         ]
         ticket_pos_score = sum(1 for kw in ticket_pos_keywords if kw in text_lower)
         has_pos_line_format = bool(
-            re.search(r"\d+[.,]?\d*\s*x\s+.+\s*[-–]\s*\$?\s*\d+[.,]\d{2}", text_lower)
+            re.search(r"\d+[.,]?\d*\s*x\s+.+", text_lower)
         )
-        if ticket_pos_score >= 1 or (has_pos_line_format and "total" in text_lower):
+        is_short_doc = len(text_lower) < 1500
+        has_gracias = "gracias" in text_lower or "thank" in text_lower
+
+        if ticket_pos_score >= 1:
+            return DocumentLayout.TICKET_POS
+        if has_pos_line_format and "total" in text_lower:
+            return DocumentLayout.TICKET_POS
+        if is_short_doc and has_gracias and "total" in text_lower:
             return DocumentLayout.TICKET_POS
 
-        invoice_keywords = [
-            "factura",
-            "invoice",
-            "ruc",
-            "nif",
-            "iva",
-            "tax",
-            "subtotal",
-            "cif",
-            "nit",
-        ]
-        receipt_keywords = [
-            "recibo",
-            "receipt",
-            "ticket",
-            "total",
-            "efectivo",
-            "cash",
-            "paid",
-        ]
-        bank_keywords = [
-            "extracto",
-            "statement",
-            "saldo",
-            "balance",
-            "iban",
-            "cuenta",
-            "account",
-            "movimientos",
-        ]
+        invoice_keywords = list(get_classification_keywords("invoices"))
+        if not invoice_keywords:
+            invoice_keywords = ["factura", "invoice", "ruc", "nif", "iva", "tax", "subtotal", "cif", "nit"]
+        receipt_keywords = list(get_classification_keywords("expenses"))
+        if not receipt_keywords:
+            receipt_keywords = ["recibo", "receipt", "ticket", "total", "efectivo", "cash", "paid"]
+        # Add receipt-specific keywords not in expenses category
+        for kw in ["ticket", "total", "efectivo", "cash", "paid"]:
+            if kw not in receipt_keywords:
+                receipt_keywords.append(kw)
+        bank_keywords = list(get_classification_keywords("bank_transactions"))
+        if not bank_keywords:
+            bank_keywords = ["extracto", "statement", "saldo", "balance", "iban", "cuenta", "account", "movimientos"]
+        # Add bank-specific keywords
+        for kw in ["extracto", "statement", "balance", "movimientos"]:
+            if kw not in bank_keywords:
+                bank_keywords.append(kw)
 
         invoice_score = sum(1 for kw in invoice_keywords if kw in text_lower)
         receipt_score = sum(1 for kw in receipt_keywords if kw in text_lower)
         bank_score = sum(1 for kw in bank_keywords if kw in text_lower)
+
+        if invoice_score >= 3 and receipt_score >= 3:
+            if is_short_doc or has_gracias or "cash" in text_lower or "paid" in text_lower:
+                return DocumentLayout.RECEIPT
 
         if invoice_score >= 3:
             return DocumentLayout.INVOICE

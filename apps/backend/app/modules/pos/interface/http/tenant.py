@@ -940,7 +940,7 @@ def close_shift(
                 # Fallback básico
                 if mkey == "cash" or mkey == "efectivo":
                     account_id = settings.cash_account_id
-                elif mkey in ("card", "tarjeta", "debit", "credit"):
+                elif mkey in ("card", "tarjeta", "debit", "credit", "link"):
                     account_id = settings.bank_account_id
             if not account_id:
                 raise HTTPException(
@@ -1211,7 +1211,7 @@ def generate_accounting_for_closed_shift(
             if not account_id:
                 if mkey in ("cash", "efectivo"):
                     account_id = settings.cash_account_id
-                elif mkey in ("card", "tarjeta", "debit", "credit"):
+                elif mkey in ("card", "tarjeta", "debit", "credit", "link"):
                     account_id = settings.bank_account_id
             if not account_id:
                 raise HTTPException(
@@ -3521,27 +3521,31 @@ def list_daily_counts(
     ensure_guc_from_request(request, db, persist=True)
 
     sql_parts = [
-        "SELECT id, register_id, shift_id, count_date, opening_float, "
-        "cash_sales, card_sales, other_sales, total_sales, expected_cash, "
-        "counted_cash, discrepancy, loss_amount, loss_note, created_at "
-        "FROM pos_daily_counts WHERE 1=1"
+        "SELECT pdc.id, pdc.register_id, pdc.shift_id, pdc.count_date, pdc.opening_float, "
+        "pdc.cash_sales, pdc.card_sales, pdc.other_sales, pdc.total_sales, pdc.expected_cash, "
+        "pdc.counted_cash, pdc.discrepancy, pdc.loss_amount, pdc.loss_note, pdc.created_at, "
+        "CASE WHEN je.id IS NOT NULL THEN TRUE ELSE FALSE END AS has_journal_entry "
+        "FROM pos_daily_counts pdc "
+        "LEFT JOIN journal_entries je "
+        "  ON je.ref_doc_type = 'POS_SHIFT' AND je.ref_doc_id = pdc.shift_id "
+        "WHERE 1=1"
     ]
     params = {}
 
     if register_id:
         rid = _validate_uuid(register_id, "Register ID")
-        sql_parts.append("AND register_id = :rid")
+        sql_parts.append("AND pdc.register_id = :rid")
         params["rid"] = rid
 
     if since:
-        sql_parts.append("AND count_date >= :since")
+        sql_parts.append("AND pdc.count_date >= :since")
         params["since"] = since
 
     if until:
-        sql_parts.append("AND count_date <= :until")
+        sql_parts.append("AND pdc.count_date <= :until")
         params["until"] = until
 
-    sql_parts.append("ORDER BY count_date DESC, created_at DESC LIMIT :limit")
+    sql_parts.append("ORDER BY pdc.count_date DESC, pdc.created_at DESC LIMIT :limit")
     params["limit"] = limit
 
     sql = " ".join(sql_parts)
@@ -3566,6 +3570,7 @@ def list_daily_counts(
                 "loss_amount": float(r[12] or 0),
                 "loss_note": r[13],
                 "created_at": r[14].isoformat() if r[14] else None,
+                "has_journal_entry": bool(r[15]),
             }
             for r in rows
         ]
@@ -3608,16 +3613,7 @@ def list_numbering_counters(
     sql = " ".join(sql_parts)
 
     rows = db.execute(text(sql), params).mappings().all()
-    return [
-        NumberingCounterOut(
-            doc_type=row["doc_type"],
-            year=row["year"],
-            series=row["series"],
-            current_no=row["current_no"],
-            updated_at=row["updated_at"],
-        )
-        for row in rows
-    ]
+    return [NumberingCounterOut.model_validate(dict(row)) for row in rows]
 
 
 @router.put(
@@ -3669,13 +3665,7 @@ def upsert_numbering_counter(
         raise HTTPException(status_code=500, detail="No se pudo actualizar el contador")
 
     db.commit()
-    return NumberingCounterOut(
-        doc_type=row["doc_type"],
-        year=row["year"],
-        series=row["series"],
-        current_no=row["current_no"],
-        updated_at=row["updated_at"],
-    )
+    return NumberingCounterOut.model_validate(dict(row))
 
 
 @router.get(

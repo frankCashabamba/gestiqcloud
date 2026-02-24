@@ -118,20 +118,50 @@ def _extract_rows(rows: list[tuple], header_row_idx: int, normalized_headers: li
     return data_rows
 
 
-def _detect_document_type(headers: list[str | None]) -> str:
-    """Detecta el tipo de documento por keywords en headers."""
+def _detect_document_type(
+    headers: list[str | None],
+    classification_keywords: dict[str, tuple[str, ...]] | None = None,
+) -> str:
+    """Detecta el tipo de documento por scoring de keywords en headers.
+
+    Args:
+        headers: lista de headers normalizados.
+        classification_keywords: keywords por doc_type cargados desde BD
+            (``load_tenant_classification_keywords``).  Si es ``None`` usa
+            defaults estáticos como fallback.
+    """
     headers_str = " ".join([str(h or "").upper() for h in headers])
 
-    if any(kw in headers_str for kw in ["PRODUCTO", "NOMBRE", "PRECIO", "STOCK", "SKU", "CODIGO"]):
-        return "products"
-    if any(kw in headers_str for kw in ["FECHA", "IMPORTE", "SALDO", "BANCO", "IBAN", "CUENTA"]):
-        return "bank"
-    if any(
-        kw in headers_str
-        for kw in ["FACTURA", "INVOICE", "VENDOR", "SUPPLIER", "CLIENT", "IVA", "TAX"]
-    ):
-        return "invoices"
-    return "generic"
+    if classification_keywords:
+        scores: dict[str, int] = {}
+        for doc_type, kws in classification_keywords.items():
+            scores[doc_type] = sum(1 for kw in kws if kw.upper() in headers_str)
+    else:
+        # Fallback estático cuando no hay sesión de BD disponible
+        _defaults: dict[str, list[str]] = {
+            "products": ["PRODUCTO", "NOMBRE", "PRECIO", "STOCK", "SKU", "CODIGO"],
+            "bank_transactions": ["IMPORTE", "SALDO", "BANCO", "IBAN", "CUENTA"],
+            "invoices": ["FACTURA", "INVOICE", "VENDOR", "SUPPLIER", "CLIENTE", "IVA", "TAX",
+                         "SUBTOTAL", "TOTAL", "VENDEDOR", "NUM. FACTURA", "CUSTOMER"],
+            "expenses": ["GASTO", "EXPENSE", "RECEIPT", "RECIBO", "VOUCHER"],
+        }
+        scores = {}
+        for doc_type, kws in _defaults.items():
+            scores[doc_type] = sum(1 for kw in kws if kw in headers_str)
+
+    # Strong indicators — boost score for unambiguous keywords
+    _strong: dict[str, list[str]] = {
+        "invoices": ["FACTURA", "INVOICE", "NUM. FACTURA", "VENDEDOR"],
+        "products": ["SKU", "STOCK"],
+        "bank_transactions": ["IBAN", "SALDO"],
+    }
+    for doc_type, strong_kws in _strong.items():
+        if doc_type in scores:
+            scores[doc_type] += sum(2 for kw in strong_kws if kw.upper() in headers_str)
+
+    if not scores or max(scores.values()) == 0:
+        return "generic"
+    return max(scores, key=scores.get)
 
 
 def _parse_single_sheet(ws, file_path: str = "") -> dict[str, Any]:

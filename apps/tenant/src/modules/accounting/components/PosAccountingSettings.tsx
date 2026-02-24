@@ -237,13 +237,24 @@ export default function PosAccountingSettings() {
                       {(c.total_sales || 0).toFixed(2)}
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleGenerateAccounting(c.shift_id)}
-                    disabled={!c.shift_id || reaccounting}
-                    className="text-sm bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-1 rounded hover:bg-indigo-100 disabled:opacity-50"
-                  >
-                    {t('accounting.posConfig.recent.generateEntry')}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {c.has_journal_entry ? (
+                      <span className="text-sm bg-green-50 text-green-700 border border-green-200 px-3 py-1 rounded flex items-center gap-1">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                        {t('accounting.posConfig.recent.alreadyAccounted', 'Contabilizado')}
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleGenerateAccounting(c.shift_id)}
+                        disabled={!c.shift_id || reaccounting}
+                        className="text-sm bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-1 rounded hover:bg-indigo-100 disabled:opacity-50"
+                      >
+                        {t('accounting.posConfig.recent.generateEntry')}
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

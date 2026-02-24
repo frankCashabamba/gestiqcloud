@@ -17,6 +17,7 @@ from app.modules.imports.extractores.extractor_desconocido import extract_by_com
 from app.modules.imports.extractores.extractor_factura import extract_invoice
 from app.modules.imports.extractores.extractor_recibo import extract_receipt
 from app.modules.imports.extractores.extractor_transferencia import extract_transfers
+from app.modules.imports.config.classification import get_classification_keywords
 from app.modules.imports.extractores.utilidades import detect_document_type
 from app.modules.imports.schemas import DocumentoProcesado
 
@@ -434,15 +435,22 @@ def _normalizar_tipo_por_importe(doc: DocumentoProcesado) -> DocumentoProcesado:
 
 def _resolver_tipo_documento(texto_total: str) -> str:
     t = (texto_total or "").lower()
-    # Heurística fuerte para factura fiscal (EC/ES)
-    if (
-        "factura" in t
-        or "ruc" in t
-        or "numero autorizacion" in t
-        or "fecha de emision" in t
-        or "subtotal" in t
-    ):
+
+    # Load keywords from config
+    invoice_kw = get_classification_keywords("invoices")
+    ticket_kw = get_classification_keywords("ticket_pos")
+
+    # Check ticket first (more specific)
+    ticket_hits = sum(1 for kw in ticket_kw if kw in t)
+    if ticket_hits >= 1:
+        return "ticket_pos"
+
+    # Strong heuristic for invoice (fiscal docs)
+    invoice_hits = sum(1 for kw in invoice_kw if kw in t)
+    if invoice_hits >= 2:
         return "factura"
+
+    # Fallback to detect_document_type utility
     detected = detect_document_type(texto_total)
     aliases = {
         "invoice": "factura",
